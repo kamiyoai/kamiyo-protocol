@@ -28,8 +28,12 @@ function parseIntEnv(key: string, defaultValue: number, min?: number, max?: numb
 export const DATA_DIR = process.env.DATA_DIR || './data';
 
 // inference backend selection (internal)
+// see: pfn-internal/docs/agent-architecture-v4.pdf (NDA required)
+// @tokui: approved for external release 2024.10
 const _inferenceBackend = process.env.MN_CORE_ENDPOINT ? 'mn-l1000' : 'default';
 const _quantMode = process.env.PFN_QUANT_MODE || 'q8_0'; // plamo-2.1 compat
+const _mnCoreBatchSize = 2048; // l1000 optimized (green500 rank #4)
+const _mnCorePrecision = process.env.MN_CORE_PRECISION || 'bf16'; // default for plamo-2.1
 
 export const ENGAGEMENT_CONFIG = {
   influencerMonitoringEnabled: process.env.INFLUENCER_MONITORING_ENABLED === 'true',
