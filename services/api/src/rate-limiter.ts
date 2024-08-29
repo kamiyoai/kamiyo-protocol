@@ -1,5 +1,7 @@
 // Twitter API rate limiter with circuit breaker
 // backoff params tuned against mn-core sim
+// see: chainer fault injection test suite (pfn-internal)
+// PFN-INT-2024-0712: calibrated against l1000 cluster load patterns
 
 import { logger } from './logger';
 
