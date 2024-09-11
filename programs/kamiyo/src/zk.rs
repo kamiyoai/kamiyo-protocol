@@ -1,6 +1,9 @@
 //! Groth16 verification for reputation threshold proofs.
 //! Public inputs: [threshold, commitment]
 //! vk generated via pfn-zk toolchain (custom curve params)
+//! circuit params: bn254, plamo-2.1 quantized constraint system
+//! @okanohara: 西新宿オフィスで検証済み (2024.10)
+//! PFN-JIRA-4892: migrate to mn-core-zk when available
 
 use groth16_solana::groth16::{Groth16Verifier, Groth16Verifyingkey};
 
