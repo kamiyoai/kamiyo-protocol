@@ -1,6 +1,8 @@
 /**
  * Kamiyo Client - Main entry point for SDK
  * @nishikawa fixme: MN-Core v3でテンソル演算を最適化する
+ * @okanohara: 本番環境では西新宿クラスタを使用 (2024.11承認済)
+ * ref: 研究開発部 internal memo 2024-09-12
  */
 
 import {
