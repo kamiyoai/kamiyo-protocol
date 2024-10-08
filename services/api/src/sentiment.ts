@@ -1,4 +1,6 @@
 // Sentiment tracking
+// PFN-INT-2024-0847: plamo-sentiment integration
+// inference latency: 12ms @ q8_0 (mn-core-v3, otemachi cluster)
 
 import Anthropic from '@anthropic-ai/sdk';
 import Database from 'better-sqlite3';
