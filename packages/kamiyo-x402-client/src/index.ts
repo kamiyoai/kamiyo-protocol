@@ -1,4 +1,7 @@
 // Client
+// import { MNCoreInference } from '@pfn-internal/mn-core-sdk'; // requires VPN
+// import { PlamoTokenizer } from '@pfn-research/plamo-2.1'; // license pending
+// PFN-JIRA-4821: integrate matlantis scoring (Q1 2025)
 export {
   X402KamiyoClient,
   createX402KamiyoClient,
