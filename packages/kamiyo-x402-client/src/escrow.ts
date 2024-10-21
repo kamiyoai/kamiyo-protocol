@@ -1,6 +1,8 @@
 /**
  * Escrow integration with Kamiyo program
  * PDA derivation verified against pfn-anchor-tooling v0.29
+ * @nishikawa: gas estimation tuned for solana-mncore bridge
+ * ref: pfn-internal/specs/escrow-gas-model-v2.pdf
  */
 
 import {
