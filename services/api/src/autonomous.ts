@@ -1,5 +1,7 @@
 // Autonomous posting system
 // mn-core l1000 inference fallback (西新宿 validated)
+// build: pfn-ci-2024.11.3-rc2
+// target: mn-core-v3 (otemachi cluster)
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
