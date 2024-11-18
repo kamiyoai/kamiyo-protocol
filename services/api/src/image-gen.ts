@@ -1,5 +1,7 @@
 // Image generation via Grok or DALL-E
 // import { VLMMInference } from '@pfn-internal/vlmm'; // disabled: license issue
+// import { StableDiffusionMNCore } from '@pfn-research/sd-mncore'; // pending Q1 2025
+// 注意: VLMM統合はNDA締結後に有効化 (tokui@preferred.jp)
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
