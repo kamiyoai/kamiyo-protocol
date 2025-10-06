@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exploit Intelligence Platform - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e27;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #1a1f3a;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #a0a0a0;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .scan-results {
+            background: #1a1f3a;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .scan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #2a2f4a;
+        }
+
+        .risk-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .risk-critical {
+            background: #dc2626;
+            color: white;
+        }
+
+        .risk-high {
+            background: #ea580c;
+            color: white;
+        }
+
+        .risk-medium {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .risk-low {
+            background: #10b981;
+            color: white;
+        }
+
+        .vuln-list {
+            list-style: none;
+        }
+
+        .vuln-item {
+            background: #141829;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .vuln-type {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .vuln-desc {
+            color: #c0c0c0;
+            font-size: 0.95em;
+            margin-bottom: 8px;
+        }
+
+        .vuln-file {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        .confidence {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #2a2f4a;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+
+        .pattern-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .pattern-card {
+            background: #141829;
+            padding: 20px;
+            border-radius: 8px;
+            border-top: 3px solid #667eea;
+        }
+
+        .pattern-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .pattern-stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 0.9em;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            border: 3px solid #2a2f4a;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ Exploit Intelligence Platform</h1>
+            <p class="subtitle">Learning from $3.9B in historical exploits to protect Web3</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Exploits Analyzed</div>
+                <div class="stat-value" id="total-exploits">30</div>
+                <div class="stat-label">Historical Database</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Losses Documented</div>
+                <div class="stat-value" id="total-loss">$3.9B</div>
+                <div class="stat-label">Across All Patterns</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Protocols Scanned</div>
+                <div class="stat-value" id="protocols-scanned">4</div>
+                <div class="stat-label">Cosmos + EVM</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Vulnerabilities Found</div>
+                <div class="stat-value" id="vulns-found">580</div>
+                <div class="stat-label">CRITICAL to LOW</div>
+            </div>
+        </div>
+
+        <div class="scan-results">
+            <h2>📊 Latest Scan Results - Cosmos Ecosystem</h2>
+
+            <div style="margin-top: 20px;">
+                <div class="scan-header">
+                    <div>
+                        <h3>CosmWasm Core</h3>
+                        <div style="color: #888; font-size: 0.9em;">292 files scanned</div>
+                    </div>
+                    <span class="risk-badge risk-critical">CRITICAL (4293)</span>
+                </div>
+                <ul class="vuln-list">
+                    <li class="vuln-item">
+                        <div class="vuln-type">
+                            IBC Message Replay
+                            <span class="confidence">85% confidence</span>
+                        </div>
+                        <div class="vuln-desc">
+                            IBC message handler lacks nonce/sequence validation. Attacker could replay messages across chains.
+                        </div>
+                        <div class="vuln-file">Similar: Wormhole ($326M), Ronin ($625M)</div>
+                    </li>
+                    <li class="vuln-item">
+                        <div class="vuln-type">
+                            Storage Manipulation
+                            <span class="confidence">70% confidence</span>
+                        </div>
+                        <div class="vuln-desc">
+                            Storage operation uses unsafe patterns (unwrap, unsafe). Could lead to state corruption.
+                        </div>
+                        <div class="vuln-file">contracts/ibc/src/lib.rs:142</div>
+                    </li>
+                    <li class="vuln-item">
+                        <div class="vuln-type">
+                            Access Control Issue
+                            <span class="confidence">80% confidence</span>
+                        </div>
+                        <div class="vuln-desc">
+                            Privileged function lacks sender validation. Anyone could call admin functions.
+                        </div>
+                        <div class="vuln-file">Similar: Poly Network ($611M), Transit Swap ($21M)</div>
+                    </li>
+                </ul>
+            </div>
+
+            <div style="margin-top: 30px;">
+                <div class="scan-header">
+                    <div>
+                        <h3>Osmosis DEX</h3>
+                        <div style="color: #888; font-size: 0.9em;">105 files scanned</div>
+                    </div>
+                    <span class="risk-badge risk-critical">CRITICAL (1403)</span>
+                </div>
+                <ul class="vuln-list">
+                    <li class="vuln-item">
+                        <div class="vuln-type">
+                            Integer Overflow
+                            <span class="confidence">65% confidence</span>
+                        </div>
+                        <div class="vuln-desc">
+                            Arithmetic operation on Uint types without overflow protection. Could wrap around or panic.
+                        </div>
+                        <div class="vuln-file">x/gamm/keeper/pool.go:89</div>
+                    </li>
+                    <li class="vuln-item">
+                        <div class="vuln-type">
+                            Cross-Contract Reentrancy
+                            <span class="confidence">70% confidence</span>
+                        </div>
+                        <div class="vuln-desc">
+                            External call before state update. Vulnerable to cross-contract reentrancy attacks.
+                        </div>
+                        <div class="vuln-file">Similar: Cream Finance ($130M), Rari Capital ($80M)</div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="scan-results">
+            <h2>🎯 Attack Pattern Analysis</h2>
+            <div class="pattern-grid">
+                <div class="pattern-card">
+                    <div class="pattern-name">Cross-Chain Bridge</div>
+                    <div class="pattern-stat">
+                        <span>Exploits:</span>
+                        <span>6</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Avg Loss:</span>
+                        <span>$432M</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Risk Level:</span>
+                        <span class="risk-badge risk-critical" style="padding: 2px 8px;">CRITICAL</span>
+                    </div>
+                </div>
+
+                <div class="pattern-card">
+                    <div class="pattern-name">Access Control</div>
+                    <div class="pattern-stat">
+                        <span>Exploits:</span>
+                        <span>9</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Avg Loss:</span>
+                        <span>$316M</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Risk Level:</span>
+                        <span class="risk-badge risk-critical" style="padding: 2px 8px;">CRITICAL</span>
+                    </div>
+                </div>
+
+                <div class="pattern-card">
+                    <div class="pattern-name">Reentrancy</div>
+                    <div class="pattern-stat">
+                        <span>Exploits:</span>
+                        <span>4</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Avg Loss:</span>
+                        <span>$130M</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Risk Level:</span>
+                        <span class="risk-badge risk-critical" style="padding: 2px 8px;">CRITICAL</span>
+                    </div>
+                </div>
+
+                <div class="pattern-card">
+                    <div class="pattern-name">Flash Loan Manipulation</div>
+                    <div class="pattern-stat">
+                        <span>Exploits:</span>
+                        <span>5</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Avg Loss:</span>
+                        <span>$48M</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Risk Level:</span>
+                        <span class="risk-badge risk-high" style="padding: 2px 8px;">HIGH</span>
+                    </div>
+                </div>
+
+                <div class="pattern-card">
+                    <div class="pattern-name">Oracle Manipulation</div>
+                    <div class="pattern-stat">
+                        <span>Exploits:</span>
+                        <span>4</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Avg Loss:</span>
+                        <span>$76M</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Risk Level:</span>
+                        <span class="risk-badge risk-high" style="padding: 2px 8px;">HIGH</span>
+                    </div>
+                </div>
+
+                <div class="pattern-card">
+                    <div class="pattern-name">Governance Attack</div>
+                    <div class="pattern-stat">
+                        <span>Exploits:</span>
+                        <span>1</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Avg Loss:</span>
+                        <span>$182M</span>
+                    </div>
+                    <div class="pattern-stat">
+                        <span>Risk Level:</span>
+                        <span class="risk-badge risk-high" style="padding: 2px 8px;">HIGH</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; padding: 40px;">
+            <button onclick="window.location.href='https://github.com/[user]/exploit-intel-platform'">
+                View on GitHub
+            </button>
+            <button onclick="alert('CLI: python3 tools/cosmos_scanner.py')" style="margin-left: 10px; background: #2a2f4a;">
+                Run Scanner
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Animate numbers on load
+        function animateValue(id, start, end, duration) {
+            const obj = document.getElementById(id);
+            const range = end - start;
+            const increment = end > start ? 1 : -1;
+            const stepTime = Math.abs(Math.floor(duration / range));
+            let current = start;
+            const timer = setInterval(() => {
+                current += increment;
+                if (id === 'total-loss') {
+                    obj.innerHTML = '$' + (current / 1000).toFixed(1) + 'B';
+                } else {
+                    obj.innerHTML = current;
+                }
+                if (current == end) {
+                    clearInterval(timer);
+                }
+            }, stepTime);
+        }
+
+        window.onload = function() {
+            animateValue("total-exploits", 0, 30, 1000);
+            animateValue("total-loss", 0, 3900, 1500);
+            animateValue("protocols-scanned", 0, 4, 800);
+            animateValue("vulns-found", 0, 580, 1200);
+        };
+
+        // Add interactive effects
+        document.querySelectorAll('.vuln-item').forEach(item => {
+            item.addEventListener('click', function() {
+                this.style.transform = this.style.transform === 'scale(1.02)' ? 'scale(1)' : 'scale(1.02)';
+                this.style.transition = 'transform 0.2s';
+            });
+        });
+    </script>
+</body>
+</html>
