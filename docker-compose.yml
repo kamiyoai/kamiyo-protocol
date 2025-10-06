@@ -1,0 +1,172 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (production upgrade from SQLite)
+  postgres:
+    image: postgres:16-alpine
+    container_name: varden-postgres
+    environment:
+      POSTGRES_DB: varden_exploits
+      POSTGRES_USER: varden
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-varden_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: varden-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-varden_redis_dev}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # Aggregation Service
+  aggregator:
+    build:
+      context: ./aggregation-agent
+      dockerfile: Dockerfile
+    container_name: varden-aggregator
+    environment:
+      DATABASE_URL: postgresql://varden:${POSTGRES_PASSWORD:-varden_dev_password}@postgres:5432/varden_exploits
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./aggregation-agent:/app
+      - aggregator_logs:/app/logs
+    depends_on:
+      - postgres
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # Processing Service
+  processor:
+    build:
+      context: ./processing-agent
+      dockerfile: Dockerfile
+    container_name: varden-processor
+    environment:
+      DATABASE_URL: postgresql://varden:${POSTGRES_PASSWORD:-varden_dev_password}@postgres:5432/varden_exploits
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./processing-agent:/app
+      - processor_logs:/app/logs
+    depends_on:
+      - postgres
+      - aggregator
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # API Service
+  api:
+    build:
+      context: ./api-agent
+      dockerfile: Dockerfile
+    container_name: varden-api
+    environment:
+      DATABASE_URL: postgresql://varden:${POSTGRES_PASSWORD:-varden_dev_password}@postgres:5432/varden_exploits
+      REDIS_URL: redis://:${REDIS_PASSWORD:-varden_redis_dev}@redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-varden_jwt_dev_secret}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api-agent:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend-agent
+      dockerfile: Dockerfile
+      target: production
+    container_name: varden-frontend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # Monitoring Service
+  monitor:
+    build:
+      context: ./monitoring-agent
+      dockerfile: Dockerfile
+    container_name: varden-monitor
+    environment:
+      DATABASE_URL: postgresql://varden:${POSTGRES_PASSWORD:-varden_dev_password}@postgres:5432/varden_exploits
+      API_URL: http://api:8000
+      DISCORD_WEBHOOK: ${DISCORD_WEBHOOK}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      TWITTER_API_KEY: ${TWITTER_API_KEY}
+      TWITTER_API_SECRET: ${TWITTER_API_SECRET}
+      SLACK_WEBHOOK: ${SLACK_WEBHOOK}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./monitoring-agent:/app
+      - monitor_logs:/app/logs
+    depends_on:
+      - postgres
+      - api
+    networks:
+      - varden-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (production)
+  nginx:
+    image: nginx:alpine
+    container_name: varden-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - varden-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+  redis_data:
+  aggregator_logs:
+  processor_logs:
+  monitor_logs:
+
+networks:
+  varden-network:
+    driver: bridge
