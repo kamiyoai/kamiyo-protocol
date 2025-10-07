@@ -1,0 +1,105 @@
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║           KAMIYO - EXPLOIT INTELLIGENCE MVP               ║
+║                                                           ║
+║           Ready to Run - Complete Platform                ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+
+✅ WHAT'S INCLUDED:
+- 415+ real exploits from DeFiLlama
+- 54 blockchains tracked
+- REST API with 6 endpoints
+- Web dashboard with Kamiyo branding
+- Docker deployment ready
+- Complete documentation
+
+═══════════════════════════════════════════════════════════
+
+🚀 QUICK START (Choose One):
+
+Option 1: Run Everything
+────────────────────────
+python3 main.py all
+
+Then visit:
+→ Dashboard: http://localhost:3000
+→ API: http://localhost:8000
+→ API Docs: http://localhost:8000/docs
+
+
+Option 2: Docker
+────────────────
+docker-compose up
+
+Same URLs as above
+
+
+Option 3: Components Separately
+───────────────────────────────
+python3 main.py api         # Start API
+python3 main.py aggregator  # Start aggregator
+python3 main.py frontend    # Start frontend
+
+
+Option 4: Quick Test
+────────────────────
+python3 main.py test
+
+Shows: sources fetched, exploits inserted, etc.
+
+═══════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION:
+
+1. QUICK_START.md    - Setup instructions
+2. MVP_COMPLETE.md   - What was built
+3. PROGRESS.md       - Development log
+4. CLAUDE.md         - Project guidelines
+5. API /docs         - Interactive API docs
+
+═══════════════════════════════════════════════════════════
+
+📊 CURRENT STATUS:
+
+Database: 415 exploits, 54 chains
+Top exploit: $3.5B (LuBian, 2020)
+Top chains: Ethereum (184), BSC (51), Arbitrum (34)
+Sources: DeFiLlama ✅, Rekt News ✅
+
+═══════════════════════════════════════════════════════════
+
+🎯 WHAT WE DO:
+
+✅ Aggregate confirmed exploits from external sources
+✅ Organize by chain, protocol, attack type
+✅ Provide REST API with filtering
+✅ Show historical data and statistics
+
+❌ We DON'T scan code or detect vulnerabilities
+   (See CLAUDE.md for honest boundaries)
+
+═══════════════════════════════════════════════════════════
+
+🐛 TROUBLESHOOTING:
+
+"Module not found":
+  pip3 install -r requirements.txt
+
+"Port already in use":
+  lsof -i :8000  # Find process
+  kill -9 <PID>  # Kill it
+
+"API not responding":
+  Make sure: python3 main.py api
+  Is running in another terminal
+
+═══════════════════════════════════════════════════════════
+
+🔥 READY TO GO!
+
+Just run: python3 main.py all
+
+Then open: http://localhost:3000
+
+═══════════════════════════════════════════════════════════
