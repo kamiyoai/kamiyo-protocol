@@ -1,70 +1,40 @@
 [
   {
-    "timestamp": "2025-10-06T00:55:58.335496",
-    "protocol": "CosmWasm Core",
-    "alert_type": "SYSTEM",
-    "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/cosmwasm",
-    "file_path": "",
-    "line_number": 0,
-    "confidence": 0.0
-  },
-  {
-    "timestamp": "2025-10-06T00:55:58.335583",
-    "protocol": "Osmosis DEX",
-    "alert_type": "SYSTEM",
-    "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/osmosis",
-    "file_path": "",
-    "line_number": 0,
-    "confidence": 0.0
-  },
-  {
-    "timestamp": "2025-10-06T00:55:58.335669",
+    "timestamp": "2025-10-06T08:53:51.903890",
     "protocol": "Sample CosmWasm",
     "alert_type": "SYSTEM",
     "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/sample-cosmwasm",
+    "message": "Protocol path not found: ~/project/Projekter/exploit-intel-platform/targets/sample-cosmwasm",
     "file_path": "",
     "line_number": 0,
     "confidence": 0.0
   },
   {
-    "timestamp": "2025-10-06T00:56:13.343723",
+    "timestamp": "2025-10-06T08:54:06.915649",
     "protocol": "Sample CosmWasm",
     "alert_type": "SYSTEM",
     "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/sample-cosmwasm",
+    "message": "Protocol path not found: ~/project/Projekter/exploit-intel-platform/targets/sample-cosmwasm",
     "file_path": "",
     "line_number": 0,
     "confidence": 0.0
   },
   {
-    "timestamp": "2025-10-06T00:56:28.351591",
-    "protocol": "CosmWasm Core",
-    "alert_type": "SYSTEM",
-    "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/cosmwasm",
-    "file_path": "",
-    "line_number": 0,
-    "confidence": 0.0
-  },
-  {
-    "timestamp": "2025-10-06T00:56:28.351762",
+    "timestamp": "2025-10-06T08:54:21.974065",
     "protocol": "Sample CosmWasm",
     "alert_type": "SYSTEM",
     "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/sample-cosmwasm",
+    "message": "Protocol path not found: ~/project/Projekter/exploit-intel-platform/targets/sample-cosmwasm",
     "file_path": "",
     "line_number": 0,
     "confidence": 0.0
   },
   {
-    "timestamp": "2025-10-06T00:56:43.360214",
+    "timestamp": "2025-10-06T08:54:36.984571",
     "protocol": "Sample CosmWasm",
     "alert_type": "SYSTEM",
     "severity": "WARNING",
-    "message": "Protocol path not found: ~/project/Projekter/worktrees/realtime-monitor/targets/sample-cosmwasm",
+    "message": "Protocol path not found: ~/project/Projekter/exploit-intel-platform/targets/sample-cosmwasm",
     "file_path": "",
     "line_number": 0,
     "confidence": 0.0
