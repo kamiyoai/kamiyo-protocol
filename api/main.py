@@ -8,11 +8,12 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, Query, HTTPException, Path
+from fastapi import FastAPI, Query, HTTPException, Path, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
 import logging
+import asyncio
 
 from api.models import (
     ExploitResponse,
@@ -23,10 +24,34 @@ from api.models import (
     ErrorResponse
 )
 from database import get_db
+from api.community import router as community_router
+from intelligence.source_scorer import SourceScorer
+from api.websocket_server import websocket_endpoint, get_websocket_manager
+
+# Week 2 Payment System Routers
+from api.payments import routes as payment_routes
+from api.subscriptions import routes as subscription_routes
+from api.webhooks import routes as webhook_routes
+from api.billing import routes as billing_routes
+
+# Discord Integration Router
+from api.discord_routes import router as discord_router
+
+# Telegram Integration Router
+from api.telegram import router as telegram_router
+
+# Cache imports
+from api.middleware.cache_middleware import CacheMiddleware
+from caching.cache_manager import get_cache_manager
+from caching.warming import get_warmer
+from config.cache_config import get_cache_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Get cache configuration
+cache_config = get_cache_config()
 
 # Create FastAPI app
 app = FastAPI(
@@ -38,16 +63,62 @@ app = FastAPI(
 )
 
 # CORS middleware
+# Configure CORS based on environment
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://kamiyo.ai,https://www.kamiyo.ai,https://api.kamiyo.ai"
+).split(",")
+
+# In development, allow localhost
+if os.getenv("ENVIRONMENT", "development") == "development":
+    ALLOWED_ORIGINS.extend(["http://localhost:3000", "http://localhost:8000"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to specific origins
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+    max_age=3600,
 )
+
+# Cache middleware
+if cache_config.middleware_enabled:
+    app.add_middleware(
+        CacheMiddleware,
+        default_ttl=cache_config.ttl_api_response_default,
+        skip_authenticated=cache_config.middleware_skip_authenticated,
+        enable_etags=cache_config.middleware_etags_enabled,
+        add_cache_headers=cache_config.middleware_cache_headers,
+    )
+    logger.info("Cache middleware enabled")
 
 # Database instance
 db = get_db()
+
+# Source scorer instance
+source_scorer = SourceScorer()
+
+# Include routers
+app.include_router(community_router)
+
+# Week 2 Payment System Routers
+app.include_router(payment_routes.router, prefix="/api/v1/payments", tags=["Payments"])
+app.include_router(subscription_routes.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
+app.include_router(webhook_routes.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
+app.include_router(billing_routes.router, prefix="/api/v1/billing", tags=["Billing"])
+
+# Discord Integration Router
+app.include_router(discord_router, prefix="/api/v1/discord", tags=["Discord"])
+
+# Telegram Integration Router
+app.include_router(telegram_router, prefix="/api/v1/telegram", tags=["Telegram"])
+
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_route(websocket: WebSocket, token: Optional[str] = Query(None), chains: Optional[str] = Query(None), min_amount: float = Query(0.0)):
+    """WebSocket endpoint for real-time exploit updates"""
+    await websocket_endpoint(websocket, token, chains, min_amount)
 
 
 @app.get("/", tags=["Root"])
@@ -62,7 +133,9 @@ async def root():
             "exploits": "/exploits",
             "stats": "/stats",
             "health": "/health",
-            "chains": "/chains"
+            "chains": "/chains",
+            "community": "/community",
+            "sources": "/sources/rankings"
         }
     }
 
@@ -234,6 +307,56 @@ async def health_check():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/sources/rankings", tags=["Sources"])
+async def get_source_rankings(
+    days: int = Query(30, ge=1, le=365, description="Time period for evaluation")
+):
+    """
+    Get quality rankings for all aggregation sources
+
+    Scores sources based on:
+    - **Speed**: Time from incident to report (30%)
+    - **Exclusivity**: Percentage of first-reports (25%)
+    - **Reliability**: Uptime and fetch success rate (20%)
+    - **Coverage**: Chains/protocols covered (15%)
+    - **Accuracy**: Verification rate (10%)
+
+    Returns comprehensive comparison with rankings and metrics.
+    """
+    try:
+        comparison = source_scorer.get_source_comparison(days=days)
+        return comparison
+
+    except Exception as e:
+        logger.error(f"Error fetching source rankings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sources/{source_name}/score", tags=["Sources"])
+async def get_source_score(
+    source_name: str = Path(..., description="Source name"),
+    days: int = Query(30, ge=1, le=365, description="Time period for evaluation")
+):
+    """
+    Get detailed quality score for specific source
+
+    Returns total score, individual metric scores, and exploit count.
+    """
+    try:
+        score_data = source_scorer.score_source(source_name, days=days)
+
+        if score_data.get('total_score') == 0:
+            raise HTTPException(status_code=404, detail="Source not found or no data available")
+
+        return score_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching source score: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
@@ -258,10 +381,71 @@ async def startup_event():
     logger.info(f"Database exploits: {db.get_total_exploits()}")
     logger.info(f"Tracked chains: {len(db.get_chains())}")
 
+    # Start WebSocket heartbeat
+    ws_manager = get_websocket_manager()
+    await ws_manager.start_heartbeat_task()
+    logger.info("WebSocket manager started")
+
+    # Initialize cache
+    if cache_config.l2_enabled:
+        try:
+            cache_manager = get_cache_manager()
+            await cache_manager.connect()
+            logger.info("Cache manager connected")
+        except Exception as e:
+            logger.error(f"Failed to connect cache manager: {e}")
+
+    # Start cache warming
+    if cache_config.warming_enabled and cache_config.warming_on_startup:
+        try:
+            warmer = get_warmer()
+
+            # Warm critical data
+            await warmer.warm_statistics(db)
+            await warmer.warm_chains(db)
+            await warmer.warm_health(db)
+            await warmer.warm_exploits_list(
+                db,
+                page_sizes=[100, 50],
+                chains=db.get_chains()[:5]  # Top 5 chains
+            )
+
+            # Start scheduled warming
+            if cache_config.warming_scheduled:
+                await warmer.start_scheduled_warming()
+
+            logger.info("Cache warming completed")
+            logger.info(f"Warming stats: {warmer.get_stats()}")
+        except Exception as e:
+            logger.error(f"Cache warming failed: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Kamiyo API shutting down...")
+
+    # Stop WebSocket heartbeat
+    ws_manager = get_websocket_manager()
+    ws_manager.stop_heartbeat_task()
+    logger.info("WebSocket manager stopped")
+
+    # Stop cache warming
+    if cache_config.warming_enabled:
+        try:
+            warmer = get_warmer()
+            warmer.stop_scheduled_warming()
+            logger.info("Cache warming stopped")
+        except Exception as e:
+            logger.error(f"Failed to stop cache warming: {e}")
+
+    # Disconnect cache
+    if cache_config.l2_enabled:
+        try:
+            cache_manager = get_cache_manager()
+            await cache_manager.disconnect()
+            logger.info("Cache manager disconnected")
+        except Exception as e:
+            logger.error(f"Failed to disconnect cache manager: {e}")
 
 
 if __name__ == "__main__":

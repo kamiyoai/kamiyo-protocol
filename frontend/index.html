@@ -1,9 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kamiyo - Exploit Intelligence</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Kamiyo - Real-time cryptocurrency exploit aggregation from 20+ verified sources. Track DeFi hacks, monitor security incidents, and protect your protocols." />
+    <meta name="keywords" content="cryptocurrency, exploits, security, DeFi, blockchain, hacks, monitoring" />
+    <meta name="author" content="Kamiyo" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://kamiyo.io/" />
+    <meta property="og:title" content="Kamiyo - Cryptocurrency Exploit Intelligence" />
+    <meta property="og:description" content="Real-time aggregation of cryptocurrency exploits from 20+ verified sources." />
+    <meta property="og:image" content="https://kamiyo.io/og-image.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://kamiyo.io/" />
+    <meta property="twitter:title" content="Kamiyo - Cryptocurrency Exploit Intelligence" />
+    <meta property="twitter:description" content="Real-time aggregation of cryptocurrency exploits from 20+ verified sources." />
+    <meta property="twitter:image" content="https://kamiyo.io/twitter-image.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#3b82f6" />
+
+    <title>Kamiyo - Cryptocurrency Exploit Intelligence</title>
     <style>
         * {
             margin: 0;
@@ -407,5 +438,17 @@
             loadExploits();
         }, 30000);
     </script>
+
+    <!-- React app root for new frontend -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Minimal inline script for critical functionality -->
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: sans-serif;">
+        <h1>JavaScript Required</h1>
+        <p>Please enable JavaScript to use Kamiyo.</p>
+      </div>
+    </noscript>
 </body>
 </html>

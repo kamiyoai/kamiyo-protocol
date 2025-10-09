@@ -1,10 +1,10 @@
-# VARDEN - Cosmos Ecosystem Security Grant Proposal
+# KAMIYO - Cosmos Ecosystem Security Grant Proposal
 
-**Project Name**: VARDEN - Marking the Safe Path
+**Project Name**: KAMIYO - Marking the Safe Path
 **Grant Amount Requested**: $100,000 USD
 **Duration**: 6 months
 **Team**: Solo developer with AI collaboration
-**Contact**: [Your Email]
+**Contact**: dennis@kamiyo.ai
 **GitHub**: [Repository URL]
 **Demo**: [Dashboard URL]
 
@@ -48,11 +48,11 @@ These are not theoretical—they represent real attack vectors in production cod
 
 ---
 
-## 💡 SOLUTION: VARDEN
+## 💡 SOLUTION: KAMIYO
 
 ### **What We Built**
 
-VARDEN is a comprehensive security platform with **three core innovations**:
+KAMIYO is a comprehensive security platform with **three core innovations**:
 
 #### **1. ML-Powered Vulnerability Detection**
 - Learns from 30 historical exploits ($3.9B in documented losses)
@@ -91,7 +91,7 @@ VARDEN is a comprehensive security platform with **three core innovations**:
 ### **Current Implementation**
 
 ```
-VARDEN Platform
+KAMIYO Platform
 ├── Cosmos Scanner (Python)
 │   ├── CosmWasm vulnerability detection (6 patterns)
 │   ├── IBC message analysis
@@ -503,7 +503,7 @@ Success Rate: 100% (6/6)
 
 ---
 
-## 🎯 WHY VARDEN WILL SUCCEED
+## 🎯 WHY KAMIYO WILL SUCCEED
 
 ### **1. Proven Technology**
 - Already works (401 vulns found in CosmWasm Core)
@@ -571,7 +571,7 @@ Grant is successful if by Month 6:
 
 ### **The Opportunity**
 
-The Cosmos ecosystem is growing rapidly, but security tooling lags behind. VARDEN fills this critical gap with:
+The Cosmos ecosystem is growing rapidly, but security tooling lags behind. KAMIYO fills this critical gap with:
 
 - **Proven technology** (401 vulns already found)
 - **ML-powered intelligence** ($3.9B lessons learned)

@@ -17,6 +17,18 @@ from typing import List, Dict, Any
 
 from aggregators.defillama import DefiLlamaAggregator
 from aggregators.rekt_news import RektNewsAggregator
+from aggregators.certik import CertiKAggregator
+from aggregators.chainalysis import ChainalysisAggregator
+from aggregators.github_advisories import GitHubAdvisoriesAggregator
+from aggregators.immunefi import ImmunefiAggregator
+from aggregators.consensys import ConsensysAggregator
+from aggregators.trailofbits import TrailOfBitsAggregator
+from aggregators.quantstamp import QuantstampAggregator
+from aggregators.openzeppelin import OpenZeppelinAggregator
+from aggregators.slowmist import SlowMistAggregator
+from aggregators.hackerone import HackerOneAggregator
+from aggregators.cosmos_security import CosmosSecurityAggregator
+from aggregators.arbitrum_security import ArbitrumSecurityAggregator
 from database import get_db
 
 logger = logging.getLogger(__name__)
@@ -34,6 +46,18 @@ class AggregationOrchestrator:
         self.aggregators = [
             DefiLlamaAggregator(),
             RektNewsAggregator(),
+            CertiKAggregator(),
+            ChainalysisAggregator(),
+            GitHubAdvisoriesAggregator(),
+            ImmunefiAggregator(),
+            ConsensysAggregator(),
+            TrailOfBitsAggregator(),
+            QuantstampAggregator(),
+            OpenZeppelinAggregator(),
+            SlowMistAggregator(),
+            HackerOneAggregator(),
+            CosmosSecurityAggregator(),
+            ArbitrumSecurityAggregator(),
         ]
 
         logger.info(f"Orchestrator initialized with {len(self.aggregators)} aggregators")

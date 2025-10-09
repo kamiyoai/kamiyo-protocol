@@ -64,6 +64,36 @@ CREATE TABLE IF NOT EXISTS alert_preferences (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Community submissions from users
+CREATE TABLE IF NOT EXISTS community_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tx_hash TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    protocol TEXT NOT NULL,
+    amount_usd REAL,
+    description TEXT,
+    submitter_wallet TEXT NOT NULL,
+    evidence_url TEXT,
+    status TEXT DEFAULT 'pending',  -- pending, verified, rejected, duplicate
+    bounty_paid REAL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME,
+    reviewed_by TEXT,
+    UNIQUE(tx_hash, submitter_wallet)
+);
+
+-- User reputation tracking
+CREATE TABLE IF NOT EXISTS user_reputation (
+    wallet_address TEXT PRIMARY KEY,
+    verified_count INTEGER DEFAULT 0,
+    false_count INTEGER DEFAULT 0,
+    duplicate_count INTEGER DEFAULT 0,
+    total_bounties REAL DEFAULT 0,
+    reputation_score INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_exploits_timestamp ON exploits(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_exploits_chain ON exploits(chain);
@@ -73,6 +103,9 @@ CREATE INDEX IF NOT EXISTS idx_exploits_source ON exploits(source);
 CREATE INDEX IF NOT EXISTS idx_sources_active ON sources(is_active);
 CREATE INDEX IF NOT EXISTS idx_users_api_key ON users(api_key);
 CREATE INDEX IF NOT EXISTS idx_alerts_exploit ON alerts_sent(exploit_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_status ON community_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_submissions_wallet ON community_submissions(submitter_wallet);
+CREATE INDEX IF NOT EXISTS idx_reputation_score ON user_reputation(reputation_score DESC);
 
 -- Views for common queries
 CREATE VIEW IF NOT EXISTS v_recent_exploits AS

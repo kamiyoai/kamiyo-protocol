@@ -1,5 +1,5 @@
 # Kamiyo Brand Identity Guidelines
-## Divine Awareness for Blockchain Incident Tracking
+## Absolute Insight for Blockchain Incident Tracking
 
 ---
 
@@ -11,7 +11,7 @@
 A blockchain exploit aggregation platform that channels omniscient awareness through modern information architecture, bringing divine-level visibility to confirmed incidents across all chains.
 
 ### Brand Pillars
-1. **Divine Awareness** — See every confirmed exploit across all chains
+1. **Absolute Insight** — See every confirmed exploit across all chains
 2. **Primordial Order** — Organize chaos into actionable intelligence
 3. **Illuminated Information** — Make the hidden visible
 4. **Sacred Records** — Immutable chronicle of blockchain incidents
@@ -45,31 +45,31 @@ module.exports = {
         
         // Kamiyo Accent Colors
         'amaterasu': {
-          DEFAULT: '#00D9FF',
-          50: '#E6FAFF',
-          100: '#B3F1FF',
-          200: '#80E8FF',
-          300: '#4DDFFF',
-          400: '#1AD6FF',
-          500: '#00D9FF',
-          600: '#00A8C7',
-          700: '#007A91',
-          800: '#004D5C',
-          900: '#002A33'
+          DEFAULT: '#4fe9ea',
+          50: '#e8fffe',
+          100: '#c4fffc',
+          200: '#8ffff9',
+          300: '#4fe9ea',
+          400: '#1dd4d5',
+          500: '#00b8ba',
+          600: '#009498',
+          700: '#00757a',
+          800: '#005d62',
+          900: '#004d52'
         },
         'takemikazuchi': {
-          DEFAULT: '#7C3AED',
-          light: '#9333EA',
-          50: '#F3E8FF',
-          100: '#E4CCFF',
-          200: '#C999FF',
-          300: '#A855F7',
-          400: '#9333EA',
-          500: '#7C3AED',
-          600: '#6B21A8',
-          700: '#581C87',
-          800: '#451A64',
-          900: '#321643'
+          DEFAULT: '#ff44f5',
+          light: '#ff77f7',
+          50: '#fff0fe',
+          100: '#ffe0fd',
+          200: '#ffc0fc',
+          300: '#ff90f9',
+          400: '#ff44f5',
+          500: '#f000e8',
+          600: '#d000c7',
+          700: '#ad00a4',
+          800: '#8e0086',
+          900: '#76006f'
         },
         'susano': {
           DEFAULT: '#6366F1',
@@ -86,7 +86,7 @@ module.exports = {
         },
         
         // Exploit Severity Colors
-        'exploit-critical': '#EF4444',
+        'exploit-critical': '#FF0844',
         'exploit-high': '#F97316',
         'exploit-medium': '#EAB308',
         'exploit-low': '#22C55E',
@@ -358,4 +358,4 @@ module.exports = {
 
 ---
 
-*"From primordial chaos, divine awareness brings clarity to the blockchain"*
+*"From primordial chaos, absolute insight brings clarity to the blockchain"*

@@ -30,7 +30,7 @@
    - Don't evaluate code quality
 
 3. **Aggregate, Don't Generate**
-   - Pull from: Rekt News, BlockSec, PeckShield, Etherscan
+   - Pull from: Rekt News, BlockSec, PeckShield, Etherscan, trusted X sources
    - Organize and present clearly
    - Add context from multiple sources
    - Never create original security claims

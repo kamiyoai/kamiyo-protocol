@@ -1,6 +1,10 @@
-# Kamiyo - Exploit Intelligence Aggregator
+# Kamiyo - Exploit Intelligence Platform
 
-> **The fastest way to track confirmed crypto exploits across all chains**
+**Real-time aggregation of cryptocurrency exploits from multiple sources**
+
+[![Version](https://img.shields.io/badge/version-2.0-blue)](https://github.com/yourusername/kamiyo)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
 
 **Mission**: Aggregate exploit reports from 20+ sources and deliver alerts in <5 minutes
 
@@ -53,76 +57,61 @@ Security incidents happen daily across 50+ blockchains, but information is scatt
 
 ## Features
 
-### 🚀 Real-Time Aggregation
-- Monitors 20+ exploit sources every 5 minutes
-- Deduplicates across sources automatically
-- Enriches with on-chain data (amounts, tx hashes)
-- Alert latency: <5 minutes from source publication
+### Core Features (v1.0)
 
-### 📊 Comprehensive Dashboard
-- Live exploit feed with filtering
-- Statistics: total exploits, amounts lost, trends
-- Search by protocol, chain, attack type, or date
-- Calendar heatmap showing exploit frequency
-- Export to CSV/JSON
+- **REST API** with 6 endpoints
+- **Web Dashboard** with real-time stats
+- **SQLite Database** with 415+ exploits
+- **Parallel Aggregation** using ThreadPoolExecutor
+- **Automatic Deduplication** by tx_hash
+- **Health Monitoring** of sources
+- **Docker Deployment** ready
 
-### 🔔 Smart Alerts
-- **Channels**: Discord, Telegram, Email, Webhooks
-- **Filters**: By chain, protocol, amount threshold, attack type
-- **Speed Tiers**:
-  - Free: Daily summary
-  - Basic: Hourly batches
-  - Pro: <5 minute real-time
-  - Enterprise: Custom webhooks with <1 minute
+### Advanced Features (v2.0)
 
-### 🔍 Historical Database
-- 1000+ confirmed exploits tracked
-- $3B+ in historical losses documented
-- Search and filter by any criteria
-- Similar exploit recommendations
-- Recovery status tracking
+- **Twitter/X Monitoring** - Track 12+ security researchers in real-time
+- **On-Chain Detection** - Monitor blockchain for suspicious transactions
+- **Community Submissions** - Bounty rewards for verified reports ($5-$50 USDC)
+- **Source Quality Scoring** - Rank sources by speed, exclusivity, reliability
+- **Multi-Chain Support** - Ethereum, BSC, Arbitrum, Solana, **Cosmos Ecosystem**, and 50+ more
 
-### 🛠️ Developer API
-- RESTful API with filtering
-- Rate-limited tiers (100-unlimited calls/day)
-- Webhook integration
-- Full documentation with examples
+See [ADVANCED_FEATURES.md](ADVANCED_FEATURES.md) for detailed documentation.
 
 ---
 
 ## Quick Start
 
-### Installation
+### Option 1: Run Everything (Recommended)
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/exploit-intel-platform
-cd exploit-intel-platform
-
 # Install dependencies
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 
-# Setup environment
-cp .env.example .env
-# Edit .env with your configuration
+# Run all components
+python3 main.py all
 
-# Run aggregation pipeline
-python aggregation-agent/main.py
-
-# Start API server
-cd api-agent && uvicorn api.main:app --reload
-
-# Launch frontend (separate terminal)
-cd frontend-agent && npm install && npm run dev
+# Access:
+# - Dashboard: http://localhost:3000
+# - API: http://localhost:8000
+# - API Docs: http://localhost:8000/docs
 ```
 
-### Docker Compose (Recommended)
+### Option 2: Docker
 
 ```bash
-docker-compose up -d
+docker-compose up
+
+# Same URLs as above
 ```
 
-Access dashboard at: `http://localhost:3000`
+### Option 3: Individual Components
+
+```bash
+python3 main.py api         # API only
+python3 main.py aggregator  # Aggregator only
+python3 main.py frontend    # Frontend only
+python3 main.py test        # Quick test
+```
 
 ---
 
@@ -248,6 +237,12 @@ We aggregate from 20+ sources including:
 - GitHub Security Advisories
 - Twitter Security Researchers
 
+**Cosmos Ecosystem:**
+- Reddit (r/cosmosnetwork, r/CosmosAirdrops)
+- Cosmos-specific Twitter accounts
+- Mintscan Explorer (coming soon)
+- Cosmos Forums (coming soon)
+
 **Blockchain Data:**
 - Etherscan, BscScan, Polygonscan (all chains)
 - On-chain transaction analysis
@@ -255,39 +250,61 @@ We aggregate from 20+ sources including:
 
 ---
 
-## Statistics (As of October 2025)
+## Current Status
 
-- **1,247** confirmed exploits tracked
-- **$3.2B** total losses documented
-- **52** blockchains covered
-- **<4.2 min** average alert speed
-- **20+** data sources integrated
-- **99.7%** uptime
+**Database:**
+- 415+ confirmed exploits
+- 54 blockchains tracked
+- $3.5B largest exploit (LuBian, 2020)
+
+**Top Chains:**
+1. Ethereum: 184 exploits
+2. BSC: 51 exploits
+3. Arbitrum: 34 exploits
+4. Solana: 17 exploits
+5. Polygon: 11 exploits
+
+**Active Sources:**
+- ✅ DeFiLlama (416 exploits)
+- ✅ Rekt News (ready)
+- ✅ Twitter/X monitoring (framework)
+- ✅ On-chain detection (framework)
+- ✅ Community submissions (ready)
 
 ---
 
 ## Roadmap
 
-### Q4 2025 (Current)
-- [x] Core aggregation pipeline (20 sources)
-- [x] Historical database (1000+ exploits)
-- [x] REST API with filtering
+### Phase 1: Core Aggregation ✅
+- [x] Database schema
+- [x] DeFiLlama integration
+- [x] REST API (6 endpoints)
 - [x] Web dashboard
-- [ ] Mobile app (iOS/Android)
-- [ ] Telegram mini-app
+- [x] Docker deployment
 
-### Q1 2026
-- [ ] Add 15 more sources (target: 35 total)
-- [ ] AI-powered exploit summaries
-- [ ] Slack integration
-- [ ] Advanced analytics dashboard
-- [ ] Multi-language support
+### Phase 2: Advanced Intelligence ✅
+- [x] Twitter/X monitoring
+- [x] On-chain detection
+- [x] Community submissions
+- [x] Source quality scoring
 
-### Q2 2026
-- [ ] White-label platform for enterprises
-- [ ] Custom source integrations
-- [ ] Exploit impact scoring (based on TVL)
-- [ ] Related protocol alerts
+### Phase 3: Alerts & Notifications (Next)
+- [ ] Discord webhooks
+- [ ] Telegram bot
+- [ ] Email notifications
+- [ ] Custom webhooks
+
+### Phase 4: Subscriptions
+- [ ] User authentication (JWT)
+- [ ] API key management
+- [ ] Rate limiting by tier
+- [ ] Stripe integration
+
+### Phase 5: Enhancements
+- [ ] WebSocket for real-time updates
+- [ ] React/Vue frontend (optional)
+- [ ] PostgreSQL migration
+- [ ] Mobile app
 
 ---
 
@@ -332,7 +349,44 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Project Structure
 
-See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed architecture documentation.
+```
+kamiyo/
+├── aggregators/           # Source fetchers
+│   ├── defillama.py      # DeFiLlama API (✅ working)
+│   ├── rekt_news.py      # Rekt RSS (✅ ready)
+│   ├── twitter.py        # Twitter/X monitoring (NEW)
+│   ├── onchain_monitor.py # On-chain detection (NEW)
+│   ├── cosmos_security.py # Cosmos ecosystem (✅ NEW)
+│   └── orchestrator.py   # Parallel coordinator
+│
+├── api/                   # REST API
+│   ├── main.py           # FastAPI app
+│   ├── community.py      # Community system (NEW)
+│   └── models.py         # Pydantic models
+│
+├── intelligence/          # Intelligence systems (NEW)
+│   └── source_scorer.py  # Source quality scoring
+│
+├── database/              # Data storage
+│   ├── schema.sql        # Database schema
+│   └── manager.py        # CRUD operations
+│
+├── frontend/              # Web dashboard
+│   └── index.html        # Single-page app
+│
+├── main.py               # Main entry point
+├── requirements.txt      # Dependencies
+└── docker-compose.yml    # Container orchestration
+```
+
+## Documentation
+
+1. **[RUN_ME.txt](RUN_ME.txt)** - Quick start instructions
+2. **[QUICK_START.md](QUICK_START.md)** - Detailed setup guide
+3. **[MVP_COMPLETE.md](MVP_COMPLETE.md)** - v1.0 MVP features
+4. **[ADVANCED_FEATURES.md](ADVANCED_FEATURES.md)** - v2.0 advanced features (NEW)
+5. **[CLAUDE.md](CLAUDE.md)** - Project boundaries and guidelines
+6. **[API Docs](http://localhost:8000/docs)** - Interactive Swagger UI (when running)
 
 ---
 
