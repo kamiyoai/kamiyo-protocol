@@ -107,7 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_submissions_status ON community_submissions(statu
 CREATE INDEX IF NOT EXISTS idx_submissions_wallet ON community_submissions(submitter_wallet);
 CREATE INDEX IF NOT EXISTS idx_reputation_score ON user_reputation(reputation_score DESC);
 
--- Views for common queries
+-- Views for common queries (excluding test data)
 CREATE VIEW IF NOT EXISTS v_recent_exploits AS
 SELECT
     e.id,
@@ -122,6 +122,8 @@ SELECT
     e.description,
     e.recovery_status
 FROM exploits e
+WHERE LOWER(e.protocol) NOT LIKE '%test%'
+AND LOWER(COALESCE(e.category, '')) NOT LIKE '%test%'
 ORDER BY e.timestamp DESC
 LIMIT 100;
 
@@ -132,7 +134,9 @@ SELECT
     COUNT(DISTINCT chain) as chains_affected,
     COUNT(DISTINCT protocol) as protocols_affected
 FROM exploits
-WHERE timestamp >= datetime('now', '-1 day');
+WHERE timestamp >= datetime('now', '-1 day')
+AND LOWER(protocol) NOT LIKE '%test%'
+AND LOWER(COALESCE(category, '')) NOT LIKE '%test%';
 
 CREATE VIEW IF NOT EXISTS v_source_health AS
 SELECT

@@ -128,6 +128,10 @@ class DatabaseManager:
         query = "SELECT * FROM exploits WHERE 1=1"
         params = []
 
+        # Filter out test data
+        query += " AND LOWER(protocol) NOT LIKE '%test%'"
+        query += " AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'"
+
         if chain:
             query += " AND chain = ?"
             params.append(chain)
@@ -172,8 +176,13 @@ class DatabaseManager:
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT * FROM exploits WHERE chain = ? ORDER BY timestamp DESC",
+                cursor.execute("""
+                    SELECT * FROM exploits
+                    WHERE chain = ?
+                    AND LOWER(protocol) NOT LIKE '%test%'
+                    AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'
+                    ORDER BY timestamp DESC
+                """,
                     (chain,)
                 )
 
@@ -226,6 +235,8 @@ class DatabaseManager:
                         MAX(amount_usd) as max_loss_usd
                     FROM exploits
                     WHERE timestamp >= ?
+                    AND LOWER(protocol) NOT LIKE '%test%'
+                    AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'
                 """, (since,))
 
                 row = cursor.fetchone()
@@ -332,12 +343,16 @@ class DatabaseManager:
     # ==================== UTILITY OPERATIONS ====================
 
     def get_total_exploits(self) -> int:
-        """Get total number of exploits in database"""
+        """Get total number of exploits in database (excluding test data)"""
 
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) as count FROM exploits")
+                cursor.execute("""
+                    SELECT COUNT(*) as count FROM exploits
+                    WHERE LOWER(protocol) NOT LIKE '%test%'
+                    AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'
+                """)
 
                 row = cursor.fetchone()
                 return row['count'] if row else 0
@@ -347,12 +362,17 @@ class DatabaseManager:
             return 0
 
     def get_chains(self) -> List[str]:
-        """Get list of all chains in database"""
+        """Get list of all chains in database (excluding test data)"""
 
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT DISTINCT chain FROM exploits ORDER BY chain")
+                cursor.execute("""
+                    SELECT DISTINCT chain FROM exploits
+                    WHERE LOWER(protocol) NOT LIKE '%test%'
+                    AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'
+                    ORDER BY chain
+                """)
 
                 return [row['chain'] for row in cursor.fetchall()]
 
