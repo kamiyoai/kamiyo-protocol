@@ -105,7 +105,7 @@ export default function Home() {
                                 muted
                                 playsInline
                                 className="w-auto"
-                                style={{ height: '24rem', filter: 'saturate(1.5) contrast(1.2)' }}
+                                style={{ height: '24rem', filter: 'saturate(2.5) contrast(1.2)' }}
                                 aria-label="Kamiyo"
                             >
                                 <source src="/media/pfn_x_42.mp4" type="video/mp4" />

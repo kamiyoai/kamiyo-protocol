@@ -68,12 +68,7 @@ ol li {
     margin-bottom: 0.5rem;
 }
 
-/* Selection & placeholder */
-::selection {
-    background: magenta;
-    color: #000;
-}
-
+/* Placeholder */
 ::placeholder {
     color: #6b7280 !important;
     font-size: 0.8rem !important;
