@@ -1,0 +1,38 @@
+# Base image: Ubuntu 22.04 with SGX support
+FROM --platform=linux/amd64 ubuntu:22.04
+
+# Set non-interactive mode for package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    gnupg \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Intel SGX repository and install SGX runtime
+RUN echo "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main" > /etc/apt/sources.list.d/intel-sgx.list \
+    && curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libsgx-enclave-common \
+        libsgx-urts \
+        sgx-aesm-service \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 23 and latest npm
+RUN curl -fsSL https://deb.nodesource.com/setup_23.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g npm@latest \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify installations
+RUN node --version && npm --version
+
+# Set working directory
+WORKDIR /app
+
+# Default command (bash for debugging, override in app Dockerfile)
+CMD ["bash"]

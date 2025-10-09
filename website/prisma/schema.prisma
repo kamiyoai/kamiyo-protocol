@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String         @id @default(uuid())
+  email              String         @unique
+  passwordHash       String?
+  subscriptionStatus String         @default("free")
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  kami               Kami[]
+  subscriptions      Subscription[]
+}
+
+model Kami {
+  id          String   @id @default(uuid())
+  userId      String
+  workerId    String?  // Add this to store the TEE worker ID
+  attestation String?  // Add this to store the attestation report
+  image       String
+  title       String
+  japanese    String
+  tier        String
+  status      String   @default("summoned") // Track status of the kami
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+
+model Agent {
+  id            String   @id @default(uuid())
+  userId        String
+  status        String
+  deploymentId  String?
+  characterFile Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Kami_42 {
+  id         String @id @default(uuid())
+  stateHash  String
+  origin     String @default("pfn-shadow-02")
+  confidence Float
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  userId    String
+  tier      String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
