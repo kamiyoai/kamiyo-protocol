@@ -1,4 +1,4 @@
-// pages/services.js
+// pages/pricing.js
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useState } from "react";

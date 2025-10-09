@@ -154,12 +154,12 @@ export default function Header({ children }) {
                                     >
                                         About
                                     </Link>
-                                    <Link href="/services"
+                                    <Link href="/pricing"
                                           rel="noopener noreferrer"
                                           onClick={closeMenu}
                                           className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
                                     >
-                                        Services
+                                        Pricing
                                     </Link>
                                     <Link href="/inquiries"
                                           rel="noopener noreferrer"
