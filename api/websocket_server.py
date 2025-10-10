@@ -293,22 +293,55 @@ async def websocket_endpoint(
     WebSocket endpoint for real-time exploit updates
 
     Query params:
-    - token: Authentication token (optional for FREE tier)
+    - token: API key for authentication (REQUIRED for Pro tier and above)
     - chains: Comma-separated list of chains to filter (optional)
     - min_amount: Minimum exploit amount in USD (optional)
+
+    WebSocket access requires Pro tier or higher.
+    Free tier users do NOT have WebSocket access.
     """
     # Generate client ID
     client_id = f"ws_{int(time.time() * 1000)}"
 
-    # TODO: Validate token and get user info
-    # For now, use dummy values
+    # Validate token - WebSocket requires authentication
     user_id = None
-    tier = 'FREE'
+    tier = 'free'
 
-    if token:
-        # In production: validate token and extract user info
-        # user_id, tier = await validate_token(token)
-        pass
+    if not token:
+        # Reject connection - WebSocket requires Pro tier minimum
+        await websocket.close(code=4003, reason="WebSocket access requires Pro tier or higher. Provide API key in 'token' query parameter.")
+        logger.warning(f"WebSocket connection rejected: No API key provided")
+        return
+
+    # Validate API key
+    try:
+        from database import get_db
+        db = get_db()
+        user = db.conn.execute(
+            "SELECT id, email, tier FROM users WHERE api_key = ?",
+            (token,)
+        ).fetchone()
+
+        if not user:
+            await websocket.close(code=4001, reason="Invalid API key")
+            logger.warning(f"WebSocket connection rejected: Invalid API key")
+            return
+
+        user_id = user[0]
+        tier = user[2].lower()
+
+        # Verify user has Pro tier or higher (WebSocket is Pro+ feature)
+        if tier not in ['pro', 'team', 'enterprise']:
+            await websocket.close(code=4003, reason=f"WebSocket access requires Pro tier or higher. Current tier: {tier}")
+            logger.warning(f"WebSocket connection rejected: Insufficient tier ({tier})")
+            return
+
+        logger.info(f"WebSocket authentication successful: user_id={user_id}, tier={tier}")
+
+    except Exception as e:
+        logger.error(f"WebSocket authentication error: {e}")
+        await websocket.close(code=4000, reason="Authentication error")
+        return
 
     try:
         # Connect client

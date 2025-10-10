@@ -13,7 +13,7 @@ const faqs = [
     },
     {
         question: 'What\'s the difference between Free and Pro?',
-        answer: 'Free tier shows exploit data with a 24-hour delay. Pro gives you real-time alerts (< 5 minutes), API access, WebSocket feed, and unlimited historical data for $29/month.'
+        answer: 'Free tier shows exploit data with a 24-hour delay. Pro gives you real-time alerts (< 5 minutes), API access, WebSocket feed, and unlimited historical data for $99/month.'
     },
     {
         question: 'How fast are the alerts really?',
@@ -21,7 +21,7 @@ const faqs = [
     },
     {
         question: 'Can I integrate this into my trading bot?',
-        answer: 'Yes! Pro plan includes full REST API (1,000 req/day) and WebSocket access. Check our API docs for integration guides.'
+        answer: 'Yes! Pro plan includes full REST API (50,000 req/day) and WebSocket access. Check our API docs for integration guides.'
     },
     {
         question: 'What chains do you cover?',

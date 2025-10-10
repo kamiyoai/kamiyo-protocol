@@ -113,10 +113,10 @@ async def get_fork_graph(
 
     Useful for visualizing how exploits are connected through code reuse.
     """
-    if user.tier not in ['enterprise', 'team']:
+    if user.tier != 'enterprise':
         raise HTTPException(
             status_code=403,
-            detail="Fork graph requires Enterprise or Team tier"
+            detail="Fork graph visualization requires Enterprise tier"
         )
 
     try:
@@ -231,10 +231,10 @@ async def get_fork_family(
     Returns chronological timeline of exploits that share the same codebase.
     Useful for understanding how a vulnerable codebase was exploited over time.
     """
-    if user.tier not in ['enterprise', 'team']:
+    if user.tier != 'enterprise':
         raise HTTPException(
             status_code=403,
-            detail="Fork family analysis requires Enterprise or Team tier"
+            detail="Fork family analysis requires Enterprise tier"
         )
 
     try:
