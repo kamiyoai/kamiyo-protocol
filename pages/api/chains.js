@@ -3,7 +3,7 @@ import { getSession } from "next-auth/react";
 import prisma from "../../lib/prisma";
 
 export default async function handler(req, res) {
-    const API_URL = process.env.FASTAPI_URL || 'http://localhost:8000';
+    const API_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
 
     try {
         // Check authentication for tracking purposes

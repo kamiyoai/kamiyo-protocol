@@ -261,7 +261,7 @@ export default function Header({ children }) {
                                             X
                                         </a>
                                         <a
-                                            href="https://discord.com/invite/6Qxps5XP   "
+                                            href="https://discord.com/invite/6Qxps5XP"
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={closeMenu}
