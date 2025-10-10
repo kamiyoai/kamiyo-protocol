@@ -102,7 +102,7 @@ export default function Home() {
                                     document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
                                 }}
                                 className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300"
-                                style={{ color: '#ff44f5' }}
+                                style={{ color: '#ff44f5', marginRight: '40px' }}
                             >
                                 View Pricing
                             </button>

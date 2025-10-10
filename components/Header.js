@@ -29,7 +29,7 @@ export default function Header({ children }) {
     return (
         <>
             {/* Sticky header container */}
-                <header className={`w-full px-5 md:w-5/6 md:px-0 mx-auto text-white py-3 flex items-center justify-between transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"}`}>
+                <header className={`w-full px-5 mx-auto text-white py-3 flex items-center justify-between transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"}`} style={{ maxWidth: '1400px' }}>
                     <div>
                         <Link href="/" className="flex items-center">
                             <Image
