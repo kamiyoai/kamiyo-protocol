@@ -94,7 +94,7 @@ export default function Home() {
                             </div>
 
                             <p className="text-sm text-gray-500">
-                                Free tier: 24h delay • Pro: Real-time • Upgrade anytime
+                                Free: 10 alerts/month • Pro: Unlimited • Webhooks start at Team tier
                             </p>
 
                             <button
@@ -182,14 +182,20 @@ export default function Home() {
                             <span className="text-4xl font-light gradient-text">$0</span>
                             <span className="text-gray-500 text-xs ml-1">forever</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">Stay informed</p>
+                        <p className="text-gray-400 text-xs mb-4">Limited volume</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">24h delayed alerts</span>
+                                <span className="text-gray-300">Real-time alerts</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">10 alerts/month</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -201,7 +207,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Email notifications</span>
+                                <span className="text-gray-300">Email only</span>
                             </li>
                         </ul>
 
@@ -224,29 +230,23 @@ export default function Home() {
                         </div>
                         <h3 className="text-xl font-light mb-2">Pro</h3>
                         <div className="mb-4">
-                            <span className="text-4xl font-light gradient-text">$49</span>
+                            <span className="text-4xl font-light gradient-text">$99</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">For individuals</p>
+                        <p className="text-gray-400 text-xs mb-4">API focused</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Real-time alerts <span className="text-cyan">&lt;5min</span></span>
+                                <span className="text-gray-300">Unlimited real-time alerts</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Full dashboard</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">10K API req/day</span>
+                                <span className="text-gray-300">50K API req/day</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -258,7 +258,13 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Discord/Telegram</span>
+                                <span className="text-gray-300">Discord/Telegram/Email</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Historical data (90 days)</span>
                             </li>
                         </ul>
 
@@ -276,10 +282,10 @@ export default function Home() {
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Team</h3>
                         <div className="mb-4">
-                            <span className="text-4xl font-light gradient-text">$149</span>
+                            <span className="text-4xl font-light gradient-text">$299</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">For small teams</p>
+                        <p className="text-gray-400 text-xs mb-4">Webhook focused</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
@@ -292,25 +298,25 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">5 user seats</span>
+                                <span className="text-gray-300">5 webhook endpoints</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">100K API req/day</span>
+                                <span className="text-gray-300">5 team seats</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Slack integration</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
                                 <span className="text-gray-300">Priority support</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Chain/protocol filters</span>
                             </li>
                         </ul>
 
@@ -329,7 +335,7 @@ export default function Home() {
                         <h3 className="text-xl font-light mb-2">Enterprise</h3>
                         <div className="mb-4">
                             <span className="text-gray-400 text-xs">from </span>
-                            <span className="text-4xl font-light gradient-text">$799</span>
+                            <span className="text-4xl font-light gradient-text">$999</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
                         <p className="text-gray-400 text-xs mb-4">For protocols</p>
@@ -339,31 +345,31 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Everything in Team</span>
+                                <span className="text-gray-300">50 webhook endpoints</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Unlimited seats</span>
+                                <span className="text-gray-300">Custom alert routing</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Unlimited API</span>
+                                <span className="text-gray-300">Protocol watchlists</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Custom SLAs</span>
+                                <span className="text-gray-300">Historical data API (2+ years)</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Webhook endpoints</span>
+                                <span className="text-gray-300">Dedicated support</span>
                             </li>
                         </ul>
 

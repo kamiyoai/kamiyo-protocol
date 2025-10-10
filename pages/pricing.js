@@ -17,32 +17,32 @@ export default function PricingPage() {
             name: "Free",
             price: "$0",
             priceDetail: "forever",
-            description: "Stay informed",
+            description: "Limited volume",
             tier: "free",
             enabled: true
         },
         {
             id: "price_pro",
             name: "Pro",
-            price: "$49",
+            price: "$99",
             priceDetail: "/mo",
-            description: "For individuals",
+            description: "API focused",
             tier: "pro",
             enabled: true
         },
         {
             id: "price_team",
             name: "Team",
-            price: "$149",
+            price: "$299",
             priceDetail: "/mo",
-            description: "For small teams",
+            description: "Webhook focused",
             tier: "team",
             enabled: true
         },
         {
             id: "price_enterprise",
             name: "Enterprise",
-            price: "$799",
+            price: "$999",
             priceDetail: "/mo",
             pricePrefix: "from ",
             description: "For protocols",
@@ -153,18 +153,25 @@ export default function PricingPage() {
                         </thead>
                         <tbody>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">API Requests per Day</td>
-                            <td className="p-4 text-gray-400 text-xs">1K</td>
-                            <td className="p-4 text-gray-400 text-xs">10K</td>
-                            <td className="p-4 text-gray-400 text-xs">100K</td>
+                            <td className="p-4 font-light text-sm">Alerts per Month</td>
+                            <td className="p-4 text-gray-400 text-xs">10</td>
+                            <td className="p-4 text-gray-400 text-xs">Unlimited</td>
+                            <td className="p-4 text-gray-400 text-xs">Unlimited</td>
                             <td className="p-4 text-gray-400 text-xs">Unlimited</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Historical Data Access</td>
-                            <td className="p-4 text-gray-400 text-xs">7 days</td>
-                            <td className="p-4 text-gray-400 text-xs">30 days</td>
-                            <td className="p-4 text-gray-400 text-xs">90 days</td>
+                            <td className="p-4 font-light text-sm">API Requests per Day</td>
+                            <td className="p-4 text-gray-400 text-xs">1K</td>
+                            <td className="p-4 text-gray-400 text-xs">50K</td>
+                            <td className="p-4 text-gray-400 text-xs">200K</td>
                             <td className="p-4 text-gray-400 text-xs">Unlimited</td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Historical Data API</td>
+                            <td className="p-4 text-gray-400 text-xs">7 days</td>
+                            <td className="p-4 text-gray-400 text-xs">90 days</td>
+                            <td className="p-4 text-gray-400 text-xs">1 year</td>
+                            <td className="p-4 text-gray-400 text-xs">2+ years</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Email Alerts</td>
@@ -184,8 +191,22 @@ export default function PricingPage() {
                             <td className="p-4 font-light text-sm">Webhook Endpoints</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4 text-gray-400 text-xs">5 endpoints</td>
-                            <td className="p-4 text-gray-400 text-xs">50 endpoints</td>
+                            <td className="p-4 text-gray-400 text-xs">5</td>
+                            <td className="p-4 text-gray-400 text-xs">50</td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Protocol Watchlists</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Custom Alert Routing</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">WebSocket Feed</td>
@@ -202,11 +223,11 @@ export default function PricingPage() {
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Alert Delay</td>
-                            <td className="p-4 text-gray-400 text-xs">24 hours</td>
-                            <td className="p-4 text-gray-400 text-xs">&lt;5 min</td>
-                            <td className="p-4 text-gray-400 text-xs">&lt;5 min</td>
-                            <td className="p-4 text-gray-400 text-xs">&lt;5 min</td>
+                            <td className="p-4 font-light text-sm">Alert Speed</td>
+                            <td className="p-4 text-gray-400 text-xs">Real-time</td>
+                            <td className="p-4 text-gray-400 text-xs">Real-time</td>
+                            <td className="p-4 text-gray-400 text-xs">Real-time</td>
+                            <td className="p-4 text-gray-400 text-xs">Real-time</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">User Seats</td>
