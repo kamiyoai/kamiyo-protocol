@@ -41,20 +41,19 @@ export default function Header({ children }) {
                             />
                         </Link>
                     </div>
-                    <div className="flex items-center gap-6">
-                        {!session ? (
+                    <div className="flex items-center gap-8">
+                        <Link
+                            href="/dashboard"
+                            className="hidden md:block text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                        >
+                            Dashboard
+                        </Link>
+                        {!session && (
                             <Link
                                 href="/auth/signin"
-                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                                className="hidden md:block text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
                             >
                                 Sign in
-                            </Link>
-                        ) : (
-                            <Link
-                                href="/dashboard"
-                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
-                            >
-                                Dashboard
                             </Link>
                         )}
                         <button
@@ -146,6 +145,24 @@ export default function Header({ children }) {
                                         className="object-contain"
                                     />
                                 </Link>
+                                <nav className="md:hidden flex flex-col items-center space-y-4 py-6 border-b border-gray-500 border-opacity-25">
+                                    <Link
+                                        href="/dashboard"
+                                        onClick={closeMenu}
+                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                    >
+                                        Dashboard
+                                    </Link>
+                                    {!session && (
+                                        <Link
+                                            href="/auth/signin"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                        >
+                                            Sign in
+                                        </Link>
+                                    )}
+                                </nav>
                                 <nav className="flex flex-col items-center space-y-4 py-6">
                                     <Link
                                         href="/about"

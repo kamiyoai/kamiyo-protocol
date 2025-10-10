@@ -91,20 +91,21 @@ export default function Home() {
                                         }}
                                     />
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-                                    }}
-                                    className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300 ml-auto"
-                                    style={{ color: '#ff44f5' }}
-                                >
-                                    View Pricing
-                                </button>
                             </div>
 
                             <p className="text-sm text-gray-500">
                                 Free tier: 24h delay • Pro: Real-time • Upgrade anytime
                             </p>
+
+                            <button
+                                onClick={() => {
+                                    document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                                className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300"
+                                style={{ color: '#ff44f5' }}
+                            >
+                                View Pricing
+                            </button>
 
                             {/* Stats Row */}
                             <div className="pt-8">

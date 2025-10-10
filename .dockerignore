@@ -1,47 +1,15 @@
-# Git
+node_modules
 .git
-.gitignore
-
-# Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
-*.egg-info
+.next
+*.log
+.env
+*.md
+*.test.js
+*.spec.js
 dist
 build
-.venv
-venv
-
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project specific
-data/*.db-journal
-*.log
-tests/
-docs/
-*.md
-!README.md
-!QUICK_START.md
-
-# Agent directories (not needed in production)
-aggregation-agent
-frontend-agent
-monitoring-agent
-processing-agent
-api-agent
-targets
-grants
-brand
-media
+pages
+components
+hooks
+data
+public
