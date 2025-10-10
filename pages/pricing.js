@@ -195,12 +195,6 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">5 team seats</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
                                         <span className="text-gray-300">Slack integration</span>
                                     </li>
                                     <li className="flex items-start gap-2">
@@ -248,12 +242,6 @@ export default function PricingPage() {
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
                                         <span className="text-gray-300">Fork graph visualization</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        <span className="text-gray-300">Exploit anomaly detection</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -390,13 +378,6 @@ export default function PricingPage() {
                             <td className="p-4 text-gray-400 text-xs">Real-time</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">User Seats</td>
-                            <td className="p-4 text-gray-400 text-xs">1</td>
-                            <td className="p-4 text-gray-400 text-xs">1</td>
-                            <td className="p-4 text-gray-400 text-xs">5</td>
-                            <td className="p-4 text-gray-400 text-xs">Unlimited</td>
-                        </tr>
-                        <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Support</td>
                             <td className="p-4 text-gray-400 text-xs">Community</td>
                             <td className="p-4 text-gray-400 text-xs">Email</td>
@@ -419,13 +400,6 @@ export default function PricingPage() {
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Fork Graph Visualization</td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
-                        </tr>
-                        <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Anomaly Detection</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>

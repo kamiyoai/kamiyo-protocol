@@ -211,11 +211,6 @@ export default function Features() {
                                 </li>
                             </ul>
                             <p className="text-sm text-gray-500">Available: Enterprise</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Anomaly Detection</h3>
-                            <p className="mb-4">Statistical anomaly detection identifies unusual patterns in exploit activity. Detect spikes in exploit frequency, abnormal loss amounts, or emerging attack vectors that deviate from historical norms.</p>
-                            <p className="mb-4">Anomaly alerts help security teams identify coordinated attack campaigns or new threat patterns before they become widespread.</p>
-                            <p className="text-sm text-gray-500">Available: Enterprise</p>
                         </div>
                     </div>
                 </div>
@@ -229,12 +224,7 @@ export default function Features() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Team Seats</h3>
-                            <p className="mb-4">Team tier includes 5 user seats, allowing your entire security team to access KAMIYO with shared watchlists, alert configurations, and API keys.</p>
-                            <p className="mb-4">Each team member gets their own login credentials while sharing the team's subscription resources and data access.</p>
-                            <p className="text-sm text-gray-500">Available: Team (5 seats), Enterprise (custom)</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Protocol Watchlists</h3>
+                            <h3 className="text-xl md:text-2xl mb-4">Protocol Watchlists</h3>
                             <p className="mb-4">Create custom watchlists for specific protocols, contracts, or addresses you want to monitor closely. Receive priority alerts when any activity is detected related to your watchlist items.</p>
                             <p className="mb-4">Perfect for DeFi protocols monitoring their own security posture and competitors, or for investors tracking their portfolio holdings.</p>
                             <p className="text-sm text-gray-500">Available: Enterprise</p>
