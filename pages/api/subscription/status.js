@@ -53,10 +53,7 @@ export default async function handler(req, res) {
         return res.status(200).json({
             isSubscribed: isActive,
             tier,
-            canSummonPersistent: ["guide", "architect", "creator"].includes(tier),
-            canCustomize: ["architect", "creator"].includes(tier),
-            hasNFT: tier === "creator",
-            kamiCount,
+            status: subscription?.status || 'inactive'
         });
 
     } catch (error) {
