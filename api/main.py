@@ -46,6 +46,12 @@ from api.telegram import router as telegram_router
 # Alert Status Router
 from api.alert_status import router as alert_status_router
 
+# Protocol Watchlists Router
+from api.watchlists import router as watchlists_router
+
+# Slack Integration Router
+from api.slack import router as slack_router
+
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
 from caching.cache_manager import get_cache_manager
@@ -125,6 +131,12 @@ app.include_router(telegram_router, prefix="/api/v1/telegram", tags=["Telegram"]
 
 # Alert Status Router
 app.include_router(alert_status_router, tags=["Alerts"])
+
+# Protocol Watchlists Router
+app.include_router(watchlists_router, tags=["Protocol Watchlists"])
+
+# Slack Integration Router
+app.include_router(slack_router, tags=["Slack"])
 
 # WebSocket endpoint
 @app.websocket("/ws")
