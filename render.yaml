@@ -2,34 +2,45 @@ services:
   # FastAPI Backend
   - type: web
     name: kamiyo-api
-    env: python
+    runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         sync: false
-      - key: CORS_ORIGINS
+      - key: ALLOWED_ORIGINS
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
       - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_API_KEY
         sync: false
     healthCheckPath: /health
 
   # Next.js Frontend
   - type: web
     name: kamiyo-frontend
-    env: node
-    buildCommand: cd website && npm install && npm run build
-    startCommand: cd website && npm start
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_VERSION
         value: 18.20.8
       - key: PORT
-        value: 3001
-      - key: FASTAPI_URL
+        value: 3000
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: kamiyo-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_API_ENDPOINT
         fromService:
           type: web
           name: kamiyo-api
@@ -44,6 +55,4 @@ services:
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
         sync: false
-      - key: DATABASE_URL
-        sync: false
-    healthCheckPath: /api/health
+    healthCheckPath: /
