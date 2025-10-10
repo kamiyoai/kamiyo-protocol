@@ -285,7 +285,7 @@ export default function Home() {
                         <h3 className="text-2xl font-light mb-2">Enterprise</h3>
                         <div className="mb-4">
                             <span className="text-gray-400 text-sm">starts at </span>
-                            <span className="text-5xl font-light gradient-text">$399</span>
+                            <span className="text-5xl font-light gradient-text">$299</span>
                         </div>
                         <p className="text-gray-400 text-sm mb-6">For teams and protocols</p>
 
@@ -408,40 +408,6 @@ export default function Home() {
                         <p className="text-gray-500 text-sm">
                             REST API and WebSocket support for integration into your tools
                         </p>
-                    </div>
-                </div>
-
-                {/* Testimonials */}
-                <div className="border-t border-gray-500 border-opacity-25 pt-16">
-                    <h3 className="text-3xl font-light text-center mb-12">What Users Say</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <p className="text-gray-300 mb-4 italic">
-                                "Got alerted to the exploit 3 minutes after it happened. Saved me from depositing."
-                            </p>
-                            <div>
-                                <div className="text-sm font-medium text-gray-400">Anonymous Pro User</div>
-                                <div className="text-xs text-gray-600">DeFi Trader</div>
-                            </div>
-                        </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <p className="text-gray-300 mb-4 italic">
-                                "Finally, a reliable API for exploit data. The WebSocket feed is a game-changer."
-                            </p>
-                            <div>
-                                <div className="text-sm font-medium text-gray-400">Dev Team</div>
-                                <div className="text-xs text-gray-600">Trading Bot Developer</div>
-                            </div>
-                        </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <p className="text-gray-300 mb-4 italic">
-                                "We use Kamiyo to monitor our protocol forks. Worth every penny."
-                            </p>
-                            <div>
-                                <div className="text-sm font-medium text-gray-400">Security Team</div>
-                                <div className="text-xs text-gray-600">Protocol Foundation</div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section>
