@@ -153,6 +153,28 @@ export default function Webhooks() {
     }
   };
 
+  const handleTestWebhook = async (id) => {
+    if (!confirm('Send a test notification to this webhook?')) return;
+
+    try {
+      const response = await fetch(`/api/webhooks/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'test' })
+      });
+
+      if (response.ok) {
+        alert('Test notification sent successfully!');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to send test notification');
+      }
+    } catch (err) {
+      console.error('Failed to test webhook:', err);
+      alert('Failed to send test notification');
+    }
+  };
+
   // Show loading state while checking authentication
   if (status === 'loading' || !subscription) {
     return (
@@ -299,6 +321,15 @@ export default function Webhooks() {
                           <p className="text-xs text-gray-500 font-mono break-all">{webhook.url}</p>
                         </div>
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => handleTestWebhook(webhook.id)}
+                            className="text-gray-500 hover:text-cyan transition-colors p-1"
+                            title="Test Webhook"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </button>
                           <button
                             onClick={() => handleToggleStatus(webhook.id, webhook.status)}
                             className="text-gray-500 hover:text-cyan transition-colors p-1"

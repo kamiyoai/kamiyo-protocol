@@ -50,6 +50,24 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
+  if (req.method === 'POST') {
+    // Test webhook endpoint
+    const { action } = req.body;
+
+    if (action === 'test') {
+      const { testWebhook } = await import('../../../lib/webhookNotifier');
+      const result = await testWebhook(id);
+
+      if (result.success) {
+        return res.status(200).json({ message: result.message });
+      } else {
+        return res.status(400).json({ error: result.message });
+      }
+    }
+
+    return res.status(400).json({ error: 'Invalid action' });
+  }
+
   if (req.method === 'PATCH') {
     const { url, name, description, chains, minAmount, status } = req.body;
 
