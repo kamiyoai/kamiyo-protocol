@@ -29,10 +29,11 @@ from intelligence.source_scorer import SourceScorer
 from api.websocket_server import websocket_endpoint, get_websocket_manager
 
 # Week 2 Payment System Routers
-from api.payments import routes as payment_routes
-from api.subscriptions import routes as subscription_routes
-from api.webhooks import routes as webhook_routes
-from api.billing import routes as billing_routes
+# Temporarily disabled due to missing dependencies (prometheus_client, psycopg2)
+# from api.payments import routes as payment_routes
+# from api.subscriptions import routes as subscription_routes
+# from api.webhooks import routes as webhook_routes
+# from api.billing import routes as billing_routes
 
 # User Webhooks Router
 from api.user_webhooks import routes as user_webhook_routes
@@ -115,10 +116,11 @@ source_scorer = SourceScorer()
 app.include_router(community_router)
 
 # Week 2 Payment System Routers
-app.include_router(payment_routes.router, prefix="/api/v1/payments", tags=["Payments"])
-app.include_router(subscription_routes.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
-app.include_router(webhook_routes.router, prefix="/api/v1/webhooks", tags=["Stripe Webhooks"])
-app.include_router(billing_routes.router, prefix="/api/v1/billing", tags=["Billing"])
+# Temporarily disabled due to missing dependencies (prometheus_client, psycopg2)
+# app.include_router(payment_routes.router, prefix="/api/v1/payments", tags=["Payments"])
+# app.include_router(subscription_routes.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
+# app.include_router(webhook_routes.router, prefix="/api/v1/webhooks", tags=["Stripe Webhooks"])
+# app.include_router(billing_routes.router, prefix="/api/v1/billing", tags=["Billing"])
 
 # User Webhooks Router
 app.include_router(user_webhook_routes.router, tags=["User Webhooks"])

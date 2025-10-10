@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import stripe
 from config.stripe_config import get_stripe_config
-from database.postgres_manager import get_db
+from database import get_db
 from monitoring.prometheus_metrics import payments_total, revenue_total, subscriptions_total
 from monitoring.alerts import get_alert_manager, AlertLevel
 

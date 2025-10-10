@@ -3,6 +3,7 @@
 Kamiyo API Module
 """
 
-from .main import app
+# Temporarily disabled to avoid broken imports
+# from .main import app
 
-__all__ = ['app']
+__all__ = []  # 'app'

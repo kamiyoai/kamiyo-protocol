@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import logging
 
 from database import get_db
@@ -31,7 +31,7 @@ class AlertLimitManager:
     def __init__(self):
         self.db = get_db()
 
-    def can_send_alert(self, user_id: int) -> tuple[bool, Dict]:
+    def can_send_alert(self, user_id: int) -> Tuple[bool, Dict]:
         """
         Check if user can receive another alert this month
 
