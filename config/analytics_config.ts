@@ -328,23 +328,23 @@ export const PRIVACY_CONFIG = {
 export const PROVIDER_CONFIG = {
   GA4: {
     enabled: true,
-    measurementId: import.meta.env.VITE_GA4_MEASUREMENT_ID || '',
+    measurementId: process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID || '',
   },
   GTM: {
     enabled: true,
-    containerId: import.meta.env.VITE_GTM_CONTAINER_ID || '',
+    containerId: process.env.NEXT_PUBLIC_GTM_CONTAINER_ID || '',
   },
   MIXPANEL: {
     enabled: false,
-    projectToken: import.meta.env.VITE_MIXPANEL_TOKEN || '',
+    projectToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || '',
   },
   AMPLITUDE: {
     enabled: false,
-    apiKey: import.meta.env.VITE_AMPLITUDE_API_KEY || '',
+    apiKey: process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY || '',
   },
   CUSTOM: {
     enabled: true,
-    endpoint: import.meta.env.VITE_ANALYTICS_ENDPOINT || '/api/analytics/track',
+    endpoint: process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT || '/api/analytics/track',
   },
 } as const;
 
