@@ -54,36 +54,18 @@ export default function Watchlists() {
   const loadWatchlists = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/watchlists');
-      // const data = await response.json();
-      // setWatchlists(data.watchlists);
+      const response = await fetch('/api/watchlists');
+      const data = await response.json();
 
-      // Demo data for now
-      setWatchlists([
-        {
-          id: '1',
-          name: 'DeFi Protocols',
-          description: 'Major DeFi protocols on Ethereum',
-          protocols: ['Uniswap', 'Aave', 'Compound', 'MakerDAO'],
-          chains: ['Ethereum'],
-          alertThreshold: 'all',
-          createdAt: '2024-01-15',
-          alertCount: 12
-        },
-        {
-          id: '2',
-          name: 'Cross-chain Bridges',
-          description: 'Monitoring bridge vulnerabilities',
-          protocols: ['Wormhole', 'LayerZero', 'Multichain'],
-          chains: ['Ethereum', 'BSC', 'Polygon'],
-          alertThreshold: 'critical',
-          createdAt: '2024-02-01',
-          alertCount: 5
-        }
-      ]);
+      if (response.ok) {
+        setWatchlists(data.watchlists || []);
+      } else {
+        console.error('Failed to load watchlists:', data.error);
+        setWatchlists([]);
+      }
     } catch (err) {
       console.error('Failed to load watchlists:', err);
+      setWatchlists([]);
     } finally {
       setLoading(false);
     }
@@ -91,11 +73,22 @@ export default function Watchlists() {
 
   const handleCreateWatchlist = async () => {
     try {
-      // TODO: Replace with actual API call
-      // await fetch('/api/watchlists', {
-      //   method: 'POST',
-      //   body: JSON.stringify(newWatchlist)
-      // });
+      const response = await fetch('/api/watchlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          protocol: newWatchlist.name,  // Using name as protocol for now
+          chain: newWatchlist.chains[0] || null,
+          notes: newWatchlist.description,
+          alertOnNew: true
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to create watchlist');
+        return;
+      }
 
       setShowCreateModal(false);
       setNewWatchlist({
@@ -108,6 +101,7 @@ export default function Watchlists() {
       loadWatchlists();
     } catch (err) {
       console.error('Failed to create watchlist:', err);
+      alert('Failed to create watchlist');
     }
   };
 
@@ -115,11 +109,17 @@ export default function Watchlists() {
     if (!confirm('Are you sure you want to delete this watchlist?')) return;
 
     try {
-      // TODO: Replace with actual API call
-      // await fetch(`/api/watchlists/${id}`, { method: 'DELETE' });
-      loadWatchlists();
+      const response = await fetch(`/api/watchlists/${id}`, { method: 'DELETE' });
+
+      if (response.ok || response.status === 204) {
+        loadWatchlists();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to delete watchlist');
+      }
     } catch (err) {
       console.error('Failed to delete watchlist:', err);
+      alert('Failed to delete watchlist');
     }
   };
 
