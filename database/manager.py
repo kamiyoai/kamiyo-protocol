@@ -110,6 +110,12 @@ class DatabaseManager:
                     f"(${exploit.get('amount_usd', 0):,.0f})"
                 )
 
+                # Trigger webhooks for new exploit (async, non-blocking)
+                try:
+                    self._trigger_webhooks(exploit_id)
+                except Exception as e:
+                    logger.error(f"Error triggering webhooks: {e}")
+
                 return exploit_id
 
         except Exception as e:
@@ -379,6 +385,38 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to get chains: {e}")
             return []
+
+    def _trigger_webhooks(self, exploit_id: int):
+        """
+        Trigger webhook deliveries for new exploit
+        Spawns async task without blocking database operation
+        """
+        import asyncio
+        import threading
+
+        def run_webhook_delivery():
+            """Run webhook delivery in background thread"""
+            try:
+                from api.user_webhooks.delivery import WebhookDeliveryService
+
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                # Create delivery service
+                service = WebhookDeliveryService()
+
+                # Send to webhooks
+                loop.run_until_complete(service.send_exploit_to_webhooks(exploit_id))
+
+                loop.close()
+
+            except Exception as e:
+                logger.error(f"Webhook delivery thread error: {e}")
+
+        # Start background thread
+        thread = threading.Thread(target=run_webhook_delivery, daemon=True)
+        thread.start()
 
 
 # Singleton instance

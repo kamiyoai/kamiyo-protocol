@@ -174,46 +174,38 @@ export default function Home() {
                     <p className="text-gray-400 text-lg">Start free. Upgrade when you need real-time alerts.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
                     {/* Free Tier */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-8 card hover:-translate-y-1 transition-all duration-300">
-                        <h3 className="text-2xl font-light mb-2">Free</h3>
+                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
+                        <h3 className="text-xl font-light mb-2">Free</h3>
                         <div className="mb-4">
-                            <span className="text-5xl font-light gradient-text">$0</span>
-                            <span className="text-gray-500 text-sm ml-2">forever</span>
+                            <span className="text-4xl font-light gradient-text">$0</span>
+                            <span className="text-gray-500 text-xs ml-1">forever</span>
                         </div>
-                        <p className="text-gray-400 text-sm mb-6">Perfect for staying informed</p>
+                        <p className="text-gray-400 text-xs mb-4">Stay informed</p>
 
-                        <ul className="space-y-3 mb-8 text-sm">
+                        <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Exploit alerts <span className="text-gray-500">(24h delay)</span></span>
+                                <span className="text-gray-300">24h delayed alerts</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Public dashboard access</span>
+                                <span className="text-gray-300">Public dashboard</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
                                 <span className="text-gray-300">Email notifications</span>
                             </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-gray-600 mt-1">−</span>
-                                <span className="text-gray-600">API access</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="text-gray-600 mt-1">−</span>
-                                <span className="text-gray-600">WebSocket feed</span>
-                            </li>
                         </ul>
 
-                        <div className="flex justify-center">
+                        <div className="flex justify-center mt-auto">
                             <PayButton
                                 textOverride="Sign Up Free"
                                 onClickOverride={() => {
@@ -224,53 +216,105 @@ export default function Home() {
                     </div>
 
                     {/* Pro Tier - Highlighted */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-8 card card-highlighted -translate-y-1 transition-all duration-300">
+                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card card-highlighted -translate-y-1 transition-all duration-300 flex flex-col">
                         <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-4 py-1 rounded-full">
+                            <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
                                 Most Popular
                             </span>
                         </div>
-                        <h3 className="text-2xl font-light mb-2">Pro</h3>
+                        <h3 className="text-xl font-light mb-2">Pro</h3>
                         <div className="mb-4">
-                            <span className="text-5xl font-light gradient-text">$29</span>
-                            <span className="text-gray-500 text-sm ml-2">/month</span>
+                            <span className="text-4xl font-light gradient-text">$49</span>
+                            <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-sm mb-6">For developers and traders</p>
+                        <p className="text-gray-400 text-xs mb-4">For individuals</p>
 
-                        <ul className="space-y-3 mb-8 text-sm">
+                        <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Real-time alerts <span className="text-cyan">&lt; 5 minutes</span></span>
+                                <span className="text-gray-300">Real-time alerts <span className="text-cyan">&lt;5min</span></span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Full dashboard access</span>
+                                <span className="text-gray-300">Full dashboard</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Instant notifications</span>
+                                <span className="text-gray-300">10K API req/day</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">API access <span className="text-gray-500">(1,000 req/day)</span></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
                                 <span className="text-gray-300">WebSocket feed</span>
                             </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Discord/Telegram</span>
+                            </li>
                         </ul>
 
-                        <div className="flex justify-center">
+                        <div className="flex justify-center mt-auto">
+                            <PayButton
+                                textOverride="Start Free Trial"
+                                onClickOverride={() => {
+                                    window.location.href = '/pricing';
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Team Tier */}
+                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
+                        <h3 className="text-xl font-light mb-2">Team</h3>
+                        <div className="mb-4">
+                            <span className="text-4xl font-light gradient-text">$149</span>
+                            <span className="text-gray-500 text-xs ml-1">/mo</span>
+                        </div>
+                        <p className="text-gray-400 text-xs mb-4">For small teams</p>
+
+                        <ul className="space-y-2 mb-6 text-xs flex-grow">
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Everything in Pro</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">5 user seats</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">100K API req/day</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Priority support</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Chain/protocol filters</span>
+                            </li>
+                        </ul>
+
+                        <div className="flex justify-center mt-auto">
                             <PayButton
                                 textOverride="Start Free Trial"
                                 onClickOverride={() => {
@@ -281,48 +325,49 @@ export default function Home() {
                     </div>
 
                     {/* Enterprise Tier */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-8 card hover:-translate-y-1 transition-all duration-300">
-                        <h3 className="text-2xl font-light mb-2">Enterprise</h3>
+                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
+                        <h3 className="text-xl font-light mb-2">Enterprise</h3>
                         <div className="mb-4">
-                            <span className="text-gray-400 text-sm">starts at </span>
-                            <span className="text-5xl font-light gradient-text">$299</span>
+                            <span className="text-gray-400 text-xs">from </span>
+                            <span className="text-4xl font-light gradient-text">$799</span>
+                            <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-sm mb-6">For teams and protocols</p>
+                        <p className="text-gray-400 text-xs mb-4">For protocols</p>
 
-                        <ul className="space-y-3 mb-8 text-sm">
+                        <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Everything in Pro</span>
+                                <span className="text-gray-300">Everything in Team</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Dedicated support</span>
+                                <span className="text-gray-300">Unlimited seats</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Custom integrations</span>
+                                <span className="text-gray-300">Unlimited API</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">SLA guarantees</span>
+                                <span className="text-gray-300">Custom SLAs</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <svg className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">White-label alerts</span>
+                                <span className="text-gray-300">Webhook endpoints</span>
                             </li>
                         </ul>
 
-                        <div className="flex justify-center">
+                        <div className="flex justify-center mt-auto">
                             <PayButton
                                 textOverride="Contact Sales"
                                 onClickOverride={() => {
