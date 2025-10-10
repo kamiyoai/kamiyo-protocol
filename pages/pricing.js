@@ -115,7 +115,7 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">Real-time alerts</span>
+                                        <span className="text-gray-300">24-hour delayed alerts</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -321,7 +321,7 @@ export default function PricingPage() {
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">API Requests per Day</td>
-                            <td className="p-4 text-gray-400 text-xs">1K</td>
+                            <td className="p-4 text-gray-400 text-xs">100</td>
                             <td className="p-4 text-gray-400 text-xs">50K</td>
                             <td className="p-4 text-gray-400 text-xs">200K</td>
                             <td className="p-4 text-gray-400 text-xs">Unlimited</td>
@@ -384,7 +384,7 @@ export default function PricingPage() {
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Alert Speed</td>
-                            <td className="p-4 text-gray-400 text-xs">Real-time</td>
+                            <td className="p-4 text-gray-400 text-xs">24-hour delay</td>
                             <td className="p-4 text-gray-400 text-xs">Real-time</td>
                             <td className="p-4 text-gray-400 text-xs">Real-time</td>
                             <td className="p-4 text-gray-400 text-xs">Real-time</td>
