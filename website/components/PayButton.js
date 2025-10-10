@@ -39,7 +39,7 @@ export default function PayButton({
             onMouseEnter={() => isEnabled && setIsHovering(true)} // Prevent hover if disabled or loading
             onMouseLeave={() => isEnabled && setIsHovering(false)}
             disabled={!isEnabled} // Disable when loading or if explicitly disabled
-            className={`group transition-all duration-300 relative px-6 py-3 bg-transparent text-white text-xs uppercase overflow-visible 
+            className={`group transition-all duration-300 relative px-6 py-3 bg-transparent text-white text-xs uppercase overflow-visible -ml-8
                 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             {/* Button text */}

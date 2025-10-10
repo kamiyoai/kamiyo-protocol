@@ -21,7 +21,7 @@ export default function ForgotPassword() {
     return (
         <>
             <Head>
-                <title>Forgot Password | Kamiyo.ai</title>
+                <title>Forgot Password | KAMIYO</title>
             </Head>
             <div className="flex items-center justify-center bg-black text-white h-[calc(100vh-140px)]">
                 <div className="flex flex-col items-center w-full max-w-sm px-6 py-10">

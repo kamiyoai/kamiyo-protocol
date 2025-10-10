@@ -1,13 +1,13 @@
 // pages/api/health.js
-export default async function handler(req, res) {
-    const API_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
+import { getHealthStats } from "../../lib/exploitDb";
 
+export default async function handler(req, res) {
     try {
-        const response = await fetch(`${API_URL}/health`);
-        const data = await response.json();
+        // Get REAL health stats from the exploit intelligence database
+        const data = getHealthStats();
         res.status(200).json(data);
     } catch (error) {
-        console.error('Error fetching health:', error.message);
-        res.status(500).json({ error: 'Failed to fetch health status' });
+        console.error('Health check error:', error);
+        res.status(503).json({ error: 'Service unavailable', details: error.message });
     }
 }

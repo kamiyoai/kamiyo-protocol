@@ -17,7 +17,7 @@ export default function KamiyonanayoSwarm() {
 
     return (
         <div>
-            <h2>Kamiyo AI Swarm</h2>
+            <h2>KAMIYO AI Swarm</h2>
             <button onClick={runAISwarm}>Initiate swarm</button>
             <p>Status: {status}</p>
         </div>

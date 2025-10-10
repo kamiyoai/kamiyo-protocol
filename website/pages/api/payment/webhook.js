@@ -46,12 +46,12 @@ export default async function handler(req, res) {
 
 async function handleSubscriptionUpdate(subscription) {
     const customerId = subscription.customer;
-    const tier = subscription.items.data[0]?.plan?.metadata?.tier || "guide";
-    const isActive = subscription.status === "active";
+    const tier = subscription.items.data[0]?.plan?.metadata?.tier || "basic";
+    const status = subscription.status; // "active", "past_due", "canceled", etc.
 
     const user = await postgresql.user.findUnique({
         where: { customerId },
-        select: { email: true },
+        select: { id: true, email: true },
     });
 
     if (!user) {
@@ -59,12 +59,24 @@ async function handleSubscriptionUpdate(subscription) {
         return;
     }
 
-    await postgresql.user.update({
-        where: { email: user.email },
-        data: { subscriptionStatus: isActive ? "active" : "inactive", tier },
+    // Update or create subscription in Subscription table
+    await postgresql.subscription.upsert({
+        where: {
+            userId: user.id,
+        },
+        update: {
+            tier,
+            status,
+            updatedAt: new Date(),
+        },
+        create: {
+            userId: user.id,
+            tier,
+            status,
+        },
     });
 
-    console.log("Updated subscription for", user.email, "- active:", isActive, "tier:", tier);
+    console.log("Updated subscription for", user.email, "- status:", status, "tier:", tier);
 }
 
 async function handleSubscriptionCancel(subscription) {
@@ -72,7 +84,7 @@ async function handleSubscriptionCancel(subscription) {
 
     const user = await postgresql.user.findUnique({
         where: { customerId },
-        select: { email: true },
+        select: { id: true, email: true },
     });
 
     if (!user) {
@@ -80,9 +92,13 @@ async function handleSubscriptionCancel(subscription) {
         return;
     }
 
-    await postgresql.user.update({
-        where: { email: user.email },
-        data: { subscriptionStatus: "inactive", tier: null },
+    // Update subscription status to canceled
+    await postgresql.subscription.updateMany({
+        where: { userId: user.id },
+        data: {
+            status: "canceled",
+            updatedAt: new Date(),
+        },
     });
 
     console.log("Subscription canceled for", user.email);

@@ -5,7 +5,7 @@ const kamiyonanyoData = [
     {
         id: 1,
         image: "/media/kamiyo.png",
-        title: "Kamiyo",
+        title: "KAMIYO",
         category: "GEN-1",
         japanese: "かみよ",
         japaneseGen: "第1世代",

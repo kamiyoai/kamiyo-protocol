@@ -16,19 +16,19 @@ export default function Document() {
                 <meta httpEquiv="Content-Security-Policy" content={csp} />
 
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
-                <meta property="og:title" content="KamiyoAI - Autonomous AI Ecosystem" />
-                <meta property="og:description" content="Kamiyo.ai is an evolving AI swarm built on Phala Network, using TEE-secured agents to interact and innovate." />
-                <meta property="og:image" content="https://kamiyo.ai/media/KamiyoAI_OpenGraphImage.png" />
+                <meta property="og:title" content="KAMIYO - DeFi Exploit Intelligence" />
+                <meta property="og:description" content="Real-time exploit alerts across 54+ chains. Get notified within 4 minutes of confirmed exploits. Track $200M+ in losses from 400+ verified sources." />
+                <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:url" content="https://kamiyo.ai" />
                 <meta property="og:type" content="website" />
                 <meta property="og:site_name" content="Kamiyo.ai" />
 
-                {/* Twitter Cards */}
+                {/* X Cards */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="KamiyoAI - Autonomous AI Ecosystem" />
-                <meta name="twitter:description" content="Kamiyo.ai is an evolving AI swarm built on Phala Network, using TEE-secured agents to interact and innovate." />
-                <meta name="twitter:image" content="https://kamiyo.ai/media/KamiyoAI_OpenGraphImage.png" />
-                <meta name="twitter:site" content="@KamiyoAI" />
+                <meta name="twitter:title" content="KAMIYO - DeFi Exploit Intelligence" />
+                <meta name="twitter:description" content="Real-time exploit alerts across 54+ chains. Get notified within 4 minutes of confirmed exploits. Track $200M+ in losses from 400+ verified sources." />
+                <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:site" content="@KAMIYO" />
 
                 {/* Preconnect to Google Fonts */}
                 <link rel="preconnect" href="https://fonts.googleapis.com" />

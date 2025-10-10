@@ -35,7 +35,7 @@ export default function SignIn() {
         return (
             <>
                 <Head>
-                    <title>Sign In | Kamiyo.ai</title>
+                    <title>Sign In | KAMIYO</title>
                 </Head>
                 <div className="flex items-center justify-center bg-black text-white h-screen">
                     <p>Loading authentication providers<AnimatedDots />
@@ -48,7 +48,7 @@ export default function SignIn() {
     return (
         <>
             <Head>
-                <title>Sign In | Kamiyo.ai</title>
+                <title>Sign In | KAMIYO</title>
             </Head>
             <div className="flex items-center justify-center bg-black text-white h-[calc(100vh-140px)]">
                 <div className="flex flex-col items-center w-full max-w-sm px-6">
