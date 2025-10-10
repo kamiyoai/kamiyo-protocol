@@ -22,11 +22,14 @@ export default function DashboardPage() {
                 const subStatus = await fetch(`/api/subscription/status?email=${encodeURIComponent(session.user.email)}`).then(res => res.json());
                 setSubscription(subStatus);
 
-                // Fetch recent exploits
-                const exploitsRes = await fetch("/api/exploits?page=1&page_size=10");
+                // Fetch recent exploits directly from FastAPI
+                const API_URL = 'http://localhost:8000';
+                const exploitsRes = await fetch(`${API_URL}/exploits?page=1&page_size=10`);
                 if (exploitsRes.ok) {
                     const data = await exploitsRes.json();
                     setExploits(data.data || []);
+                } else {
+                    console.error('Failed to fetch exploits:', await exploitsRes.text());
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
