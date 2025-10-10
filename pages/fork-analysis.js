@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import { ScrambleButton } from '../components/ScrambleButton';
+import { hasMinimumTier, TierName } from '../lib/tiers';
 
 // Dynamically import the graph component (client-side only due to D3)
 const ForkGraphVisualization = dynamic(
@@ -40,8 +41,7 @@ export default function ForkAnalysis() {
         setSubscription(subStatus);
 
         // Check if user has Team or Enterprise tier
-        const allowedTiers = ['team', 'enterprise'];
-        if (!subStatus.isSubscribed || !allowedTiers.includes(subStatus.tier?.toLowerCase())) {
+        if (!subStatus.isSubscribed || !hasMinimumTier(subStatus.tier, TierName.TEAM)) {
           // User doesn't have access - they'll see the upgrade notice
           setLoading(false);
           return;
@@ -60,7 +60,7 @@ export default function ForkAnalysis() {
 
   useEffect(() => {
     // Reload data when filters change (only if user has access)
-    if (subscription?.isSubscribed && ['team', 'enterprise'].includes(subscription.tier?.toLowerCase())) {
+    if (subscription?.isSubscribed && hasMinimumTier(subscription.tier, TierName.TEAM)) {
       loadForkData();
     }
   }, [filters]);
@@ -245,8 +245,8 @@ export default function ForkAnalysis() {
   }
 
   // Check if user has access to this feature
-  const hasAccess = subscription?.isSubscribed && ['team', 'enterprise'].includes(subscription.tier?.toLowerCase());
-  const hasGraphVisualization = subscription?.tier?.toLowerCase() === 'enterprise';
+  const hasAccess = subscription?.isSubscribed && hasMinimumTier(subscription.tier, TierName.TEAM);
+  const hasGraphVisualization = subscription?.tier && hasMinimumTier(subscription.tier, TierName.ENTERPRISE);
 
   return (
     <div className="min-h-screen bg-black text-white">

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { hasMinimumTier, TierName } from "../lib/tiers";
 
 export default function Header({ children }) {
     const { isMenuOpen, setMenuOpen } = useMenu();
@@ -40,7 +41,7 @@ export default function Header({ children }) {
     };
 
     // Check if user has access to Fork Analysis (team or enterprise tier)
-    const hasForkAnalysisAccess = userTier === 'team' || userTier === 'enterprise';
+    const hasForkAnalysisAccess = userTier && hasMinimumTier(userTier, TierName.TEAM);
 
     return (
         <>

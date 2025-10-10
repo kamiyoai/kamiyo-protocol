@@ -1,6 +1,7 @@
 // pages/api/webhooks/index.js
 import { getSession } from "next-auth/react";
 import prisma from "../../../lib/prisma";
+import { hasMinimumTier, getTierLimits, TierName, getTierErrorMessage } from "../../../lib/tiers";
 
 export default async function handler(req, res) {
   try {
@@ -29,11 +30,14 @@ export default async function handler(req, res) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Check if user has Team+ tier
-    const allowedTiers = ['team', 'enterprise'];
-    if (!subscription || !allowedTiers.includes(subscription.tier?.toLowerCase())) {
-      return res.status(403).json({ error: "Team tier or higher required" });
+    const userTier = subscription?.tier || TierName.FREE;
+
+    // Check if user has Team+ tier (webhooks require Team or Enterprise)
+    if (!hasMinimumTier(userTier, TierName.TEAM)) {
+      return res.status(403).json({ error: getTierErrorMessage(TierName.TEAM) });
     }
+
+    const tierLimits = getTierLimits(userTier);
 
     if (req.method === 'GET') {
       // TODO: Fetch webhooks from database
@@ -88,13 +92,13 @@ export default async function handler(req, res) {
       }
 
       // Check webhook limit based on tier
-      const webhookLimit = subscription.tier?.toLowerCase() === 'enterprise' ? 50 : 5;
+      const webhookLimit = tierLimits.webhooks;
       // TODO: Check current webhook count from database
       const currentWebhookCount = 2; // Demo value
 
       if (currentWebhookCount >= webhookLimit) {
         return res.status(403).json({
-          error: `Webhook limit reached. Your ${subscription.tier} tier allows ${webhookLimit} webhooks.`
+          error: `Webhook limit reached. Your ${userTier} tier allows ${webhookLimit} webhooks.`
         });
       }
 

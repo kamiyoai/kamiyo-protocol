@@ -1,6 +1,7 @@
 // pages/api/watchlists/[id].js
 import { getSession } from "next-auth/react";
 import prisma from "../../../lib/prisma";
+import { hasMinimumTier, TierName, getTierErrorMessage } from "../../../lib/tiers";
 
 export default async function handler(req, res) {
   const { id } = req.query;
@@ -31,9 +32,11 @@ export default async function handler(req, res) {
       orderBy: { createdAt: 'desc' },
     });
 
+    const userTier = subscription?.tier || TierName.FREE;
+
     // Check if user has Enterprise tier
-    if (subscription?.tier?.toLowerCase() !== 'enterprise') {
-      return res.status(403).json({ error: "Enterprise tier required" });
+    if (!hasMinimumTier(userTier, TierName.ENTERPRISE)) {
+      return res.status(403).json({ error: getTierErrorMessage(TierName.ENTERPRISE) });
     }
 
     if (req.method === 'DELETE') {
