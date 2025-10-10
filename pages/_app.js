@@ -102,14 +102,7 @@ function LoadingWrapper({ children }) {
     return (
         <div className="relative min-h-screen">
             {children}
-            {(status === "loading" || loading || pageLoading) && (
-                <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-                    <div className="bg-black bg-opacity-50 w-full h-full absolute inset-0" />
-                    <div className="relative z-10">
-                        <LoadingSpinner />
-                    </div>
-                </div>
-            )}
+            {(status === "loading" || loading || pageLoading) && <LoadingSpinner />}
         </div>
     );
 }
