@@ -17,7 +17,6 @@ export default function PricingPage() {
             name: "Free",
             price: "$0",
             priceDetail: "forever",
-            description: "Limited volume",
             tier: "free",
             enabled: true
         },
@@ -26,7 +25,6 @@ export default function PricingPage() {
             name: "Pro",
             price: "$99",
             priceDetail: "/mo",
-            description: "API focused",
             tier: "pro",
             enabled: true
         },
@@ -35,7 +33,6 @@ export default function PricingPage() {
             name: "Team",
             price: "$299",
             priceDetail: "/mo",
-            description: "Webhook focused",
             tier: "team",
             enabled: true
         },
@@ -45,7 +42,6 @@ export default function PricingPage() {
             price: "$999",
             priceDetail: "/mo",
             pricePrefix: "from ",
-            description: "For protocols",
             tier: "enterprise",
             enabled: true
         }
@@ -105,12 +101,11 @@ export default function PricingPage() {
                             </div>
                         )}
                         <h2 className="text-xl font-light mb-2">{plan.name}</h2>
-                        <div className="mb-4">
+                        <div className="mb-8">
                             {plan.pricePrefix && <span className="text-gray-400 text-xs">{plan.pricePrefix}</span>}
                             <span className="text-4xl font-light gradient-text">{plan.price}</span>
                             <span className="text-gray-500 text-xs ml-1">{plan.priceDetail}</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-6 flex-grow">{plan.description}</p>
                         <div className="flex justify-center mt-auto">
                             <PayButton
                                 textOverride={

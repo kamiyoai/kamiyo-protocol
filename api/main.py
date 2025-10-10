@@ -43,6 +43,9 @@ from api.discord_routes import router as discord_router
 # Telegram Integration Router
 from api.telegram import router as telegram_router
 
+# Alert Status Router
+from api.alert_status import router as alert_status_router
+
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
 from caching.cache_manager import get_cache_manager
@@ -119,6 +122,9 @@ app.include_router(discord_router, prefix="/api/v1/discord", tags=["Discord"])
 
 # Telegram Integration Router
 app.include_router(telegram_router, prefix="/api/v1/telegram", tags=["Telegram"])
+
+# Alert Status Router
+app.include_router(alert_status_router, tags=["Alerts"])
 
 # WebSocket endpoint
 @app.websocket("/ws")

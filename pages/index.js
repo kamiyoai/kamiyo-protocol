@@ -178,11 +178,10 @@ export default function Home() {
                     {/* Free Tier */}
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Free</h3>
-                        <div className="mb-4">
+                        <div className="mb-6">
                             <span className="text-4xl font-light gradient-text">$0</span>
                             <span className="text-gray-500 text-xs ml-1">forever</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">Limited volume</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
@@ -229,11 +228,10 @@ export default function Home() {
                             </span>
                         </div>
                         <h3 className="text-xl font-light mb-2">Pro</h3>
-                        <div className="mb-4">
+                        <div className="mb-6">
                             <span className="text-4xl font-light gradient-text">$99</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">API focused</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
@@ -281,11 +279,10 @@ export default function Home() {
                     {/* Team Tier */}
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Team</h3>
-                        <div className="mb-4">
+                        <div className="mb-6">
                             <span className="text-4xl font-light gradient-text">$299</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">Webhook focused</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
@@ -333,12 +330,11 @@ export default function Home() {
                     {/* Enterprise Tier */}
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Enterprise</h3>
-                        <div className="mb-4">
+                        <div className="mb-6">
                             <span className="text-gray-400 text-xs">from </span>
                             <span className="text-4xl font-light gradient-text">$999</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
-                        <p className="text-gray-400 text-xs mb-4">For protocols</p>
 
                         <ul className="space-y-2 mb-6 text-xs flex-grow">
                             <li className="flex items-start gap-2">
