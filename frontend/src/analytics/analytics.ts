@@ -471,7 +471,7 @@ class Analytics {
     parameters?: EventParameters | Record<string, any>
   ): Promise<void> {
     try {
-      const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT || '/api/analytics/track';
+      const endpoint = process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT || '/api/analytics/track';
 
       await fetch(endpoint, {
         method: 'POST',

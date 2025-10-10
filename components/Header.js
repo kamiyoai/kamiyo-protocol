@@ -10,12 +10,25 @@ export default function Header({ children }) {
     const { isMenuOpen, setMenuOpen } = useMenu();
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
     const { data: session } = useSession();
+    const [userTier, setUserTier] = useState(null);
 
     // Used to ensure the portal renders only on the client
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    // Fetch user's subscription tier
+    useEffect(() => {
+        if (session?.user?.email) {
+            fetch(`/api/subscription/status?email=${session.user.email}`)
+                .then(res => res.json())
+                .then(data => {
+                    setUserTier(data.tier);
+                })
+                .catch(err => console.error('Error fetching subscription:', err));
+        }
+    }, [session]);
 
     const closeMenu = () => {
         setMenuOpen(false);
@@ -25,6 +38,9 @@ export default function Header({ children }) {
     const toggleUserDropdown = () => {
         setUserDropdownOpen((prev) => !prev);
     };
+
+    // Check if user has access to Fork Analysis (team or enterprise tier)
+    const hasForkAnalysisAccess = userTier === 'team' || userTier === 'enterprise';
 
     return (
         <>
@@ -48,6 +64,14 @@ export default function Header({ children }) {
                         >
                             Dashboard
                         </Link>
+                        {hasForkAnalysisAccess && (
+                            <Link
+                                href="/fork-analysis"
+                                className="hidden md:block text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                            >
+                                Fork Analysis
+                            </Link>
+                        )}
                         {!session && (
                             <Link
                                 href="/auth/signin"
@@ -153,6 +177,15 @@ export default function Header({ children }) {
                                     >
                                         Dashboard
                                     </Link>
+                                    {hasForkAnalysisAccess && (
+                                        <Link
+                                            href="/fork-analysis"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                        >
+                                            Fork Analysis
+                                        </Link>
+                                    )}
                                     {!session && (
                                         <Link
                                             href="/auth/signin"
@@ -163,13 +196,20 @@ export default function Header({ children }) {
                                         </Link>
                                     )}
                                 </nav>
-                                <nav className="flex flex-col items-center space-y-4 py-6">
+                                <nav className="flex flex-col items-center space-y-4 py-6 pb-6">
                                     <Link
                                         href="/about"
                                         onClick={closeMenu}
                                         className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
                                     >
                                         About
+                                    </Link>
+                                    <Link
+                                        href="/features"
+                                        onClick={closeMenu}
+                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                    >
+                                        Features
                                     </Link>
                                     <Link href="/pricing"
                                           rel="noopener noreferrer"
@@ -185,24 +225,35 @@ export default function Header({ children }) {
                                     >
                                         Inquiries
                                     </Link>
-                                    <Link href="/privacy-policy"
-                                          rel="noopener noreferrer"
-                                          onClick={closeMenu}
-                                          className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 text-xs pt-4"
-                                    >
-                                        Privacy Policy
-                                    </Link>
                                 </nav>
+
+                                    <nav className="flex flex-col items-center space-y-4 py-6 border-t border-gray-500 border-opacity-25">
+                                        <Link
+                                            href="/api-docs"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            API Docs
+                                        </Link>
+                                        <Link
+                                            href="/privacy-policy"
+                                            rel="noopener noreferrer"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            Privacy Policy
+                                        </Link>
+                                    </nav>
 
                                     <nav className="flex flex-col items-center space-y-4 pt-6 border-t border-gray-500 border-opacity-25">
                                         <a
-                                            href="https://x.com/KamiyoAI"
+                                            href="https://x.com/KAMIYO"
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={closeMenu}
                                             className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
                                         >
-                                            Twitter
+                                            X
                                         </a>
                                         <a
                                             href="https://discord.com/invite/6Qxps5XP   "

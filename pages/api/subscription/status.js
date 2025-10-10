@@ -17,7 +17,7 @@ export default async function handler(req, res) {
         console.log(`[Subscription API] Checking user existence for email: ${email}`);
         const user = await prisma.user.findUnique({
             where: { email },
-            select: { id: true, subscriptionStatus: true },
+            select: { id: true },
         });
 
         if (!user) {
@@ -26,21 +26,20 @@ export default async function handler(req, res) {
         }
 
         const userId = user.id;
-        const subscriptionStatus = user.subscriptionStatus;
 
         console.log(`[Subscription API] Fetching subscription details for user ID: ${userId}`);
         const subscription = await prisma.subscription.findFirst({
-            where: { userId },
-            select: { tier: true },
+            where: {
+                userId,
+                status: 'active' // Only get active subscriptions
+            },
+            select: { tier: true, status: true },
+            orderBy: { createdAt: 'desc' },
         });
 
-        let isActive = subscriptionStatus !== "free"; // Determine if user is subscribed based on schema
-        let tier = "ephemeral"; // Default tier if not explicitly set
-
-        if (subscription?.tier) {
-            tier = subscription.tier;
-            isActive = true; // Override `isActive` if subscription exists
-        }
+        // Determine tier and active status from subscription table
+        const tier = subscription?.tier || "free";
+        const isActive = subscription?.status === 'active';
 
         console.log(`[Subscription API] Subscription found: { isActive: ${isActive}, tier: ${tier} }`);
 

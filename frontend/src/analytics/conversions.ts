@@ -319,7 +319,7 @@ class ConversionTracker {
     // If we have UTM parameters, update attribution
     if (utmSource || utmMedium || utmCampaign) {
       const currentAttribution = {
-        source: utmSource || undefined,
+        source: utmSource || 'direct',
         timestamp: Date.now(),
       };
 
@@ -431,7 +431,7 @@ class ConversionTracker {
     if (!this.conversionData) return;
 
     try {
-      const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT || '/api/analytics/conversion';
+      const endpoint = process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT || '/api/analytics/conversion';
 
       await fetch(endpoint, {
         method: 'POST',
@@ -481,4 +481,4 @@ const conversionTracker = new ConversionTracker();
 export default conversionTracker;
 
 // Export for testing
-export { ConversionTracker, FunnelStep };
+export { ConversionTracker };

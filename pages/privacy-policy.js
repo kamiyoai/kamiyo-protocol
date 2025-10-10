@@ -4,7 +4,7 @@ export default function PrivacyPolicy() {
     return (
         <div className="min-h-screen">
             <Head>
-                <title>Privacy Policy - Kamiyo.ai</title>
+                <title>Privacy Policy - KAMIYO</title>
             </Head>
 
             <section className="py-10 px-5 md:px-1 md:w-5/6 mx-auto">

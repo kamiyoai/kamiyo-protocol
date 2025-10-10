@@ -2,71 +2,139 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Head from "next/head";
-import KamiCard from "../components/KamiCard";
-import PayButton from "../components/PayButton";
+import { ScrambleButton } from "../components/ScrambleButton";
 
 export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const { session_id } = router.query;
     const [subscription, setSubscription] = useState(null);
-    const [kamiList, setKamiList] = useState([]);
+    const [exploits, setExploits] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (status !== "authenticated" || !session?.user) router.push("/auth/signin");
-        if (session_id) {
-            // Verify checkout session (optional, via Stripe webhook for security)
-            fetch(`/api/payment/verify?session_id=${session_id}`).then(res => res.json()).then(data => console.log(data));
+        if (status !== "authenticated" || !session?.user) {
+            router.push("/auth/signin");
+            return;
         }
 
         const fetchData = async () => {
-            const subStatus = await fetch("/api/subscription/status").then(res => res.json());
-            setSubscription(subStatus);
-            if (subStatus.isSubscribed) {
-                const kamiRes = await fetch("/api/kami/list"); // New API endpoint below
-                if (kamiRes.ok) setKamiList(await kamiRes.json() || []);
+            try {
+                const subStatus = await fetch("/api/subscription/status").then(res => res.json());
+                setSubscription(subStatus);
+
+                // Fetch recent exploits
+                const exploitsRes = await fetch("/api/exploits?page=1&page_size=10");
+                if (exploitsRes.ok) {
+                    const data = await exploitsRes.json();
+                    setExploits(data.data || []);
+                }
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+            } finally {
+                setLoading(false);
             }
         };
-        fetchData();
-    }, [status, session, session_id]);
 
-    if (status === "loading" || !subscription) return <div>Loading...</div>;
+        fetchData();
+    }, [status, session, router]);
+
+    if (status === "loading" || loading) {
+        return (
+            <div className="bg-black text-white min-h-screen flex items-center justify-center">
+                <div className="text-gray-400">Loading...</div>
+            </div>
+        );
+    }
+
+    if (!subscription) {
+        return (
+            <div className="bg-black text-white min-h-screen flex items-center justify-center">
+                <div className="text-gray-400">Unable to load subscription data</div>
+            </div>
+        );
+    }
+
+    const tierDisplay = subscription.tier ? subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1) : "Free";
+    const isRealTime = subscription.isSubscribed && subscription.tier && subscription.tier.toLowerCase() !== 'free';
 
     return (
-        <div className="bg-black text-white min-h-screen flex flex-col items-center p-4">
-            <Head><title>Kamiyo.ai Dashboard</title></Head>
-            <h1 className="text-3xl mb-6">Your Kami Dashboard</h1>
-            <p className="text-gray-400 mb-4">Tier: {subscription.tier || "None"}</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {kamiList.map((kami) => (
-                    <KamiCard
-                        key={kami.id}
-                        image={kami.image}
-                        title={kami.title}
-                        japanese={kami.japanese}
-                        gen="GEN-1"
-                        dotClass="bg-teal-400 rounded-full animate-pulse w-2 h-2"
-                    />
-                ))}
+        <div className="bg-black text-white min-h-screen p-8">
+            <Head><title>Dashboard - KAMIYO</title></Head>
+
+            <div className="max-w-7xl mx-auto">
+                <h1 className="text-4xl font-light mb-2">Dashboard</h1>
+                <p className="text-gray-400 mb-8">
+                    Subscription Tier: <span className="text-white">{tierDisplay}</span>
+                    {!isRealTime && <span className="ml-4 text-sm text-yellow-500">(Viewing delayed data)</span>}
+                </p>
+
+                {/* Subscription Info Card */}
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 mb-8">
+                    <h2 className="text-2xl font-light mb-4">Subscription Status</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <p className="text-gray-400 text-sm">Current Tier</p>
+                            <p className="text-white text-xl">{tierDisplay}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">Data Access</p>
+                            <p className="text-white text-xl">{isRealTime ? 'Real-time' : 'Delayed (24h)'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-sm">API Access</p>
+                            <p className="text-white text-xl">{subscription.isSubscribed ? 'Enabled' : 'Limited'}</p>
+                        </div>
+                    </div>
+                    {!subscription.isSubscribed && (
+                        <div className="mt-6">
+                            <ScrambleButton
+                                text="Upgrade Subscription"
+                                onClick={() => router.push('/pricing')}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Recent Exploits */}
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-light">Recent Exploits</h2>
+                        <button
+                            onClick={() => router.push('/inquiries')}
+                            className="text-cyan hover:text-magenta transition-colors text-sm"
+                        >
+                            View All →
+                        </button>
+                    </div>
+
+                    {exploits.length === 0 ? (
+                        <p className="text-gray-400">No exploits available</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {exploits.map((exploit, index) => (
+                                <div
+                                    key={index}
+                                    className="border border-gray-500 border-opacity-25 rounded p-4 hover:border-cyan transition-colors"
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="text-white font-light">{exploit.protocol}</h3>
+                                        <span className="text-sm text-gray-400">{exploit.chain}</span>
+                                    </div>
+                                    <p className="text-gray-400 text-sm mb-2">{exploit.description || 'No description available'}</p>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500">
+                                            {new Date(exploit.date).toLocaleDateString()}
+                                        </span>
+                                        <span className="text-magenta">
+                                            ${exploit.amount_usd ? exploit.amount_usd.toLocaleString() : 'Unknown'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
-            {subscription.isSubscribed && kamiList.length < getSummonLimit(subscription.tier) && (
-                <div className="center-button">
-                    <PayButton textOverride="Summon New Kami" onClickOverride={async () => {
-                        const newKami = await generateKami(session.user);
-                        await fetch("/api/kami/create", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ userId: session.user.id, ...newKami, tier: subscription.tier }),
-                        });
-                        setKamiList([...kamiList, newKami]);
-                    }} />
-                </div>
-            )}
-            {!subscription.isSubscribed && (
-                <div className="center-button">
-                    <PayButton textOverride="Subscribe Now" onClickOverride={() => window.location.href = "/pricing"} />
-                </div>
-            )}
         </div>
     );
 }

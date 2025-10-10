@@ -4,12 +4,12 @@ import PayButton from './PayButton';
 
 const faqs = [
     {
-        question: 'How is Kamiyo different from Twitter alerts?',
-        answer: 'Twitter alerts from @PeckShield and @CertiK are inconsistent (15 mins to 4+ hours) and require following multiple accounts. Kamiyo provides consistent 4-minute alerts from 20+ sources in one place, with API access and filtering.'
+        question: 'How is KAMIYO different from X alerts?',
+        answer: 'X alerts from @PeckShield and @CertiK are inconsistent (15 mins to 4+ hours) and require following multiple accounts. KAMIYO provides consistent 4-minute alerts from 20+ sources in one place, with API access and filtering.'
     },
     {
         question: 'Why not just use CertiK or other security firms?',
-        answer: 'CertiK and similar firms focus on audits ($50k-200k) and enterprise sales. Kamiyo is a developer-first product you can sign up for in 30 seconds, with pricing starting at $0.'
+        answer: 'CertiK and similar firms focus on audits ($50k-200k) and enterprise sales. KAMIYO is a developer-first product you can sign up for in 30 seconds, with pricing starting at $0.'
     },
     {
         question: 'What\'s the difference between Free and Pro?',
@@ -44,7 +44,7 @@ export default function FAQ() {
         <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
             <div className="text-center mb-12">
                 <h2 className="text-4xl md:text-5xl font-light mb-4">Frequently Asked Questions</h2>
-                <p className="text-gray-400 text-lg">Everything you need to know about Kamiyo</p>
+                <p className="text-gray-400 text-lg">Everything you need to know about KAMIYO</p>
             </div>
 
             <div className="max-w-3xl mx-auto space-y-4 mb-12">

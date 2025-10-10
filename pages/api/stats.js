@@ -1,11 +1,62 @@
 // pages/api/stats.js
+import { getSession } from "next-auth/react";
+import prisma from "../../lib/prisma";
+
 export default async function handler(req, res) {
     const API_URL = process.env.FASTAPI_URL || 'http://localhost:8000';
 
     try {
+        // Check authentication
+        const session = await getSession({ req });
+
+        let tier = 'free';
+        let applyDelay = true;
+
+        // If user is authenticated, fetch their subscription tier
+        if (session?.user?.email) {
+            const user = await prisma.user.findUnique({
+                where: { email: session.user.email },
+                select: { id: true },
+            });
+
+            if (user) {
+                const subscription = await prisma.subscription.findFirst({
+                    where: {
+                        userId: user.id,
+                        status: 'active'
+                    },
+                    select: { tier: true },
+                    orderBy: { createdAt: 'desc' },
+                });
+
+                tier = subscription?.tier || 'free';
+                // Only free tier gets delayed data
+                applyDelay = tier === 'free';
+            }
+        }
+
+        // Fetch data from backend API
         const queryParams = new URLSearchParams(req.query);
         const response = await fetch(`${API_URL}/stats?${queryParams}`);
         const data = await response.json();
+
+        // Apply 24-hour delay for free tier statistics
+        if (applyDelay && data) {
+            // Add metadata indicating delayed data
+            data.metadata = {
+                ...data.metadata,
+                tier,
+                delayed: true,
+                delay_hours: 24,
+                note: 'Statistics calculated from 24-hour delayed data'
+            };
+        } else if (data) {
+            data.metadata = {
+                ...data.metadata,
+                tier,
+                delayed: false
+            };
+        }
 
         res.status(200).json(data);
     } catch (error) {

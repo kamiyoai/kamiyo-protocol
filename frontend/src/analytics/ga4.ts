@@ -19,9 +19,9 @@ import Cookies from 'js-cookie';
 
 // GA4 Configuration
 const GA4_CONFIG = {
-  measurementId: import.meta.env.VITE_GA4_MEASUREMENT_ID || '',
-  debug: import.meta.env.VITE_GA4_DEBUG === 'true',
-  testMode: import.meta.env.MODE === 'development',
+  measurementId: process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID || '',
+  debug: process.env.NEXT_PUBLIC_GA4_DEBUG === 'true',
+  testMode: process.env.NODE_ENV === 'development',
 };
 
 // Check if user has consented to analytics
@@ -68,7 +68,7 @@ export const initializeGA4 = (): void => {
     // Set default user properties
     setUserProperties({
       platform: 'web',
-      app_version: import.meta.env.VITE_APP_VERSION || '1.0.0',
+      app_version: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0',
     });
   } catch (error) {
     console.error('GA4: Initialization failed', error);

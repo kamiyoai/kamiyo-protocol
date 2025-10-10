@@ -29,9 +29,9 @@ class GoogleTagManager {
 
   constructor() {
     this.config = {
-      containerId: import.meta.env.VITE_GTM_CONTAINER_ID || '',
-      debug: import.meta.env.VITE_GTM_DEBUG === 'true',
-      enabled: !!import.meta.env.VITE_GTM_CONTAINER_ID,
+      containerId: process.env.NEXT_PUBLIC_GTM_CONTAINER_ID || '',
+      debug: process.env.NEXT_PUBLIC_GTM_DEBUG === 'true',
+      enabled: !!process.env.NEXT_PUBLIC_GTM_CONTAINER_ID,
     };
 
     // Initialize dataLayer array
@@ -134,13 +134,14 @@ class GoogleTagManager {
     value?: number;
     [key: string]: any;
   }): void {
+    const { event, category, action, label, value, ...otherParams } = params;
     this.push({
-      event: params.event,
-      event_category: params.category,
-      event_action: params.action,
-      event_label: params.label,
-      event_value: params.value,
-      ...params,
+      event,
+      event_category: category,
+      event_action: action,
+      event_label: label,
+      event_value: value,
+      ...otherParams,
     });
   }
 

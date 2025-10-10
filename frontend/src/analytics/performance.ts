@@ -13,13 +13,13 @@
  * - Custom backend for monitoring
  */
 
-import { onCLS, onFID, onLCP, onFCP, onTTFB, Metric } from 'web-vitals';
+import { onCLS, onINP, onLCP, onFCP, onTTFB, Metric } from 'web-vitals';
 import GA4 from './ga4';
 
 // Performance thresholds (in milliseconds)
 const THRESHOLDS = {
   LCP: { good: 2500, needsImprovement: 4000 },
-  FID: { good: 100, needsImprovement: 300 },
+  INP: { good: 200, needsImprovement: 500 },
   CLS: { good: 0.1, needsImprovement: 0.25 },
   FCP: { good: 1800, needsImprovement: 3000 },
   TTFB: { good: 800, needsImprovement: 1800 },
@@ -101,9 +101,9 @@ class PerformanceTracker {
       this.reportWebVital('LCP', metric);
     });
 
-    // First Input Delay (FID)
-    onFID((metric: Metric) => {
-      this.reportWebVital('FID', metric);
+    // Interaction to Next Paint (INP)
+    onINP((metric: Metric) => {
+      this.reportWebVital('INP', metric);
     });
 
     // Cumulative Layout Shift (CLS)
@@ -417,7 +417,7 @@ class PerformanceTracker {
     // Send to backend
     this.sendToBackend('api_performance', data);
 
-    if (import.meta.env.MODE === 'development') {
+    if (process.env.NODE_ENV === 'development') {
       console.log('Performance: API request', data);
     }
   }
@@ -468,7 +468,7 @@ class PerformanceTracker {
   private async sendToBackend(type: string, data: any): Promise<void> {
     try {
       const endpoint =
-        import.meta.env.VITE_PERFORMANCE_ENDPOINT || '/api/monitoring/performance';
+        process.env.NEXT_PUBLIC_PERFORMANCE_ENDPOINT || '/api/monitoring/performance';
 
       await fetch(endpoint, {
         method: 'POST',
@@ -487,7 +487,7 @@ class PerformanceTracker {
       });
     } catch (error) {
       // Silently fail - we don't want performance tracking to break the app
-      if (import.meta.env.MODE === 'development') {
+      if (process.env.NODE_ENV === 'development') {
         console.error('Performance: Failed to send to backend', error);
       }
     }
@@ -523,4 +523,4 @@ const performanceTracker = new PerformanceTracker();
 export default performanceTracker;
 
 // Export for testing
-export { PerformanceTracker, PerformanceMark };
+export { PerformanceTracker };

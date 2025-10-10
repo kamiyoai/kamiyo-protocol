@@ -19,7 +19,6 @@ async function findOrCreateGoogleUser(user) {
             dbUser = await prisma.user.create({
                 data: {
                     email,
-                    subscriptionStatus: "free", // Default status per schema
                     // passwordHash remains null since Google auth doesn't use it
                 },
             });
@@ -63,7 +62,6 @@ export default NextAuth({
                 }
 
                 user.id = dbUser.id;
-                user.subscriptionStatus = dbUser.subscriptionStatus;
 
                 return true;
             } catch (error) {
@@ -76,7 +74,6 @@ export default NextAuth({
             if (user) {
                 token.id = user.id;
                 token.email = user.email;
-                token.subscriptionStatus = user.subscriptionStatus;
             }
             return token;
         },
@@ -88,7 +85,6 @@ export default NextAuth({
                     name: token.name,
                     email: token.email,
                     image: token.picture,
-                    subscriptionStatus: token.subscriptionStatus,
                 };
             }
             return session;
@@ -104,13 +100,13 @@ export default NextAuth({
             }
 
             if (parsedUrl.searchParams.has("session_id")) {
-                const redirectUrl = `${baseUrl}/kami/summon${parsedUrl.search}`;
+                const redirectUrl = `${baseUrl}/dashboard${parsedUrl.search}`;
                 console.log("Redirecting from Stripe payment:", redirectUrl);
                 return redirectUrl;
             }
 
-            console.log("Default redirect to /kami/summon");
-            return `${baseUrl}/kami/summon`;
+            console.log("Default redirect to /dashboard");
+            return `${baseUrl}/dashboard`;
         },
     },
 });

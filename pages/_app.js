@@ -125,9 +125,9 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
                     <link rel="icon" href="/favicon.png" />
                     <meta charSet="utf-8" />
                     <meta name="viewport" content="width=device-width, initial-scale=1" />
-                    <title>{Component.title ? `${Component.title} | Kamiyo.ai` : "Kamiyo - Real-time Blockchain Exploit Intelligence"}</title>
+                    <title>{Component.title ? `${Component.title} | Kamiyo.ai` : "KAMIYO - Real-time Blockchain Exploit Intelligence"}</title>
                     <meta name="description" content="Real-time blockchain exploit aggregation from 20+ verified sources. Track DeFi hacks, monitor security incidents, and protect your protocols." />
-                    <meta property="og:title" content="Kamiyo - Real-time Blockchain Exploit Intelligence" />
+                    <meta property="og:title" content="KAMIYO - Real-time Blockchain Exploit Intelligence" />
                     <meta property="og:description" content="Real-time aggregation of blockchain exploits from 20+ verified sources." />
                     <meta property="og:image" content="/og-image.png" />
                     <meta property="twitter:card" content="summary_large_image" />

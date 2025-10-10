@@ -3,15 +3,18 @@
 import { useEffect, useState } from "react";
 
 const baseText = [
-    "かみよ.じんこうちのう", "KAMIYO.AI",
-    "LOADING", "ロード中...",
-    "INITIALIZING NEW INSTANCE", "新しいインスタンスをイニシャライズ中 (TEE保護)",
-    "CONTEXTUAL SYNTHESIS", "コンテキストをシンセサイズ中",
-    "ASYMMETRIC ENCRYPTION HANDSHAKE", "非対称鍵のハンドシェイクを実行中",
-    "NON-DETERMINISTIC STATE", "非決定性ステートに移行",
-    "MEMORY POOL FRAGMENTATION DETECTED", "メモリプールのフラグメンテーションを検出",
-    "DYNAMIC LOAD BALANCING ADJUSTMENT", "動的ロードバランシングを調整中",
-    "AGENT SWARM SELF-HEALING", "エージェントスウォームが自己修復中 (PFN準拠)",
+    "かみよ.えくすぷろいと", "KAMIYO.AI",
+    "SCANNING CHAINS", "ちぇーんをすきゃん中...",
+    "AGGREGATING EXPLOIT DATA", "えくすぷろいとでーたを集約中",
+    "ANALYZING TRANSACTIONS", "とらんざくしょんを解析中",
+    "DEFI PROTOCOL MONITORING", "でふぃぷろとこるを監視中",
+    "BLOCKCHAIN INTEL SYNC", "ぶろっくちぇーんいんてる同期中",
+    "VULNERABILITY FEED ACTIVE", "ぜいじゃくせい情報を受信中",
+    "SMART CONTRACT VERIFICATION", "すまーとこんとらくとを検証中",
+    "REKT NEWS AGGREGATION", "れくとにゅーすを集約中",
+    "MEMPOOL ANALYSIS", "めむぷーるを分析中",
+    "ON-CHAIN FORENSICS", "おんちぇーんふぉれんじっく実行中",
+    "EXPLOIT PATTERN MATCHING", "えくすぷろいとぱたーんをまっちんぐ中",
 ];
 
 const getRandomScramble = () => {

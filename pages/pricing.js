@@ -78,7 +78,7 @@ export default function PricingPage() {
     return (
         <div className="min-h-screen flex flex-col items-center py-10 px-5 mx-auto" style={{ maxWidth: '1400px' }}>
             <Head>
-                <title>Kamiyo Subscription Plans - Real-time Exploit Intelligence</title>
+                <title>KAMIYO Subscription Plans - Real-time Exploit Intelligence</title>
             </Head>
             <div className="w-full flex flex-col items-start border-dotted border-b border-cyan mb-6 pb-6">
                 <p className="font-light text-left text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;Subscription Plans</p>
@@ -169,6 +169,12 @@ export default function PricingPage() {
                                         </svg>
                                         <span className="text-gray-300">Historical data (90 days)</span>
                                     </li>
+                                    <li className="flex items-start gap-2">
+                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <span className="text-gray-300">Feature extraction API</span>
+                                    </li>
                                 </>
                             )}
                             {plan.tier === 'team' && (
@@ -201,6 +207,18 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
+                                        <span className="text-gray-300">Fork detection analysis</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <span className="text-gray-300">Pattern clustering</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
                                         <span className="text-gray-300">Priority support</span>
                                     </li>
                                 </>
@@ -211,13 +229,13 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">50 webhook endpoints</span>
+                                        <span className="text-gray-300">Everything in Team</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">Custom alert routing</span>
+                                        <span className="text-gray-300">50 webhook endpoints</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -229,7 +247,19 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">Historical data API (2+ years)</span>
+                                        <span className="text-gray-300">Fork graph visualization</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <span className="text-gray-300">Exploit anomaly detection</span>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <span className="text-gray-300">Historical data (2+ years)</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -241,7 +271,7 @@ export default function PricingPage() {
                             )}
                         </ul>
 
-                        <div className="flex justify-center mt-auto">
+                        <div className="flex justify-center mt-auto pt-6">
                             <PayButton
                                 textOverride={
                                     isRedirecting
@@ -372,6 +402,41 @@ export default function PricingPage() {
                             <td className="p-4 text-gray-400 text-xs">Email</td>
                             <td className="p-4 text-gray-400 text-xs">Priority</td>
                             <td className="p-4 text-gray-400 text-xs">Dedicated</td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Fork Detection Analysis</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Pattern Clustering</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Fork Graph Visualization</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Anomaly Detection</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">Feature Extraction API</td>
+                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr>
                             <td className="p-4 font-light text-sm">Custom SLAs</td>

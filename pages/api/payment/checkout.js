@@ -1,5 +1,5 @@
 // pages/api/payment/checkout.js
-import { stripe } from "../../../lib/stripe";
+import stripe from "../../../lib/stripe";
 import { summonEphemeralKami } from "../../../lib/tee.mjs";
 import { generateKami } from "../../../utils/generateKami";
 

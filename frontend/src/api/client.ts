@@ -4,9 +4,9 @@
  */
 
 import axios, { AxiosError } from 'axios';
-import { useAppStore } from '@/store/appStore';
+import { useAppStore } from '../store/appStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

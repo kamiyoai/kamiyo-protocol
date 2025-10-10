@@ -13,8 +13,8 @@ from decimal import Decimal
 class TierName(str, Enum):
     """Subscription tier names"""
     FREE = "free"
-    BASIC = "basic"
     PRO = "pro"
+    TEAM = "team"
     ENTERPRISE = "enterprise"
 
 
@@ -99,24 +99,24 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         api_access=True
     ),
 
-    TierName.BASIC: SubscriptionTier(
-        name=TierName.BASIC,
-        display_name="Basic",
-        price_monthly_usd=Decimal("29.00"),
+    TierName.PRO: SubscriptionTier(
+        name=TierName.PRO,
+        display_name="Pro",
+        price_monthly_usd=Decimal("99.00"),
 
-        # Rate Limits - 1,000 requests/day
-        api_requests_per_day=1000,
-        api_requests_per_hour=100,
-        api_requests_per_minute=10,
+        # Rate Limits - 50,000 requests/day
+        api_requests_per_day=50000,
+        api_requests_per_hour=5000,
+        api_requests_per_minute=100,
 
-        # Alerts - Email + Discord
+        # Alerts - All channels
         email_alerts=True,
         discord_alerts=True,
-        telegram_alerts=False,
+        telegram_alerts=True,
         webhook_alerts=False,
 
-        # Data Access - Enhanced
-        historical_data_days=30,
+        # Data Access - Extended
+        historical_data_days=90,
         real_time_alerts=True,
 
         # Support - Email support
@@ -134,31 +134,31 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         api_access=True
     ),
 
-    TierName.PRO: SubscriptionTier(
-        name=TierName.PRO,
-        display_name="Pro",
-        price_monthly_usd=Decimal("99.00"),
+    TierName.TEAM: SubscriptionTier(
+        name=TierName.TEAM,
+        display_name="Team",
+        price_monthly_usd=Decimal("299.00"),
 
-        # Rate Limits - 10,000 requests/day
-        api_requests_per_day=10000,
-        api_requests_per_hour=1000,
-        api_requests_per_minute=50,
+        # Rate Limits - 200,000 requests/day
+        api_requests_per_day=200000,
+        api_requests_per_hour=20000,
+        api_requests_per_minute=500,
 
-        # Alerts - All channels
+        # Alerts - All channels including webhooks
         email_alerts=True,
         discord_alerts=True,
         telegram_alerts=True,
         webhook_alerts=True,
 
-        # Data Access - Extended
-        historical_data_days=90,
+        # Data Access - 1 year
+        historical_data_days=365,
         real_time_alerts=True,
 
         # Support - Priority support
         support_level="priority",
 
-        # Advanced Features - Webhooks
-        custom_integrations=False,
+        # Advanced Features - Some
+        custom_integrations=True,
         dedicated_account_manager=False,
         sla_guarantee=False,
         white_label=False,
@@ -232,7 +232,7 @@ def get_all_tiers() -> List[SubscriptionTier]:
     Returns:
         List of all subscription tiers
     """
-    return [TIERS[tier] for tier in [TierName.FREE, TierName.BASIC, TierName.PRO, TierName.ENTERPRISE]]
+    return [TIERS[tier] for tier in [TierName.FREE, TierName.PRO, TierName.TEAM, TierName.ENTERPRISE]]
 
 
 def compare_tiers(tier_a: TierName, tier_b: TierName) -> int:
@@ -248,8 +248,8 @@ def compare_tiers(tier_a: TierName, tier_b: TierName) -> int:
     """
     tier_order = {
         TierName.FREE: 0,
-        TierName.BASIC: 1,
-        TierName.PRO: 2,
+        TierName.PRO: 1,
+        TierName.TEAM: 2,
         TierName.ENTERPRISE: 3
     }
 
@@ -298,7 +298,7 @@ if __name__ == '__main__':
 
     print("\n=== Kamiyo Subscription Tiers ===\n")
 
-    for tier_name in [TierName.FREE, TierName.BASIC, TierName.PRO, TierName.ENTERPRISE]:
+    for tier_name in [TierName.FREE, TierName.PRO, TierName.TEAM, TierName.ENTERPRISE]:
         tier = get_tier(tier_name)
         print(f"\n{tier.display_name} - ${tier.price_monthly_usd}/month")
         print("-" * 60)
@@ -325,8 +325,8 @@ if __name__ == '__main__':
             print(f"  SLA Guarantee: Yes")
 
     print("\n\n=== Tier Comparison ===")
-    print(f"FREE -> BASIC: {'Upgrade' if is_upgrade(TierName.FREE, TierName.BASIC) else 'Not an upgrade'}")
-    print(f"PRO -> BASIC: {'Downgrade' if is_downgrade(TierName.PRO, TierName.BASIC) else 'Not a downgrade'}")
-    print(f"BASIC -> BASIC: {'Same tier' if compare_tiers(TierName.BASIC, TierName.BASIC) == 0 else 'Different'}")
+    print(f"FREE -> PRO: {'Upgrade' if is_upgrade(TierName.FREE, TierName.PRO) else 'Not an upgrade'}")
+    print(f"TEAM -> PRO: {'Downgrade' if is_downgrade(TierName.TEAM, TierName.PRO) else 'Not a downgrade'}")
+    print(f"PRO -> PRO: {'Same tier' if compare_tiers(TierName.PRO, TierName.PRO) == 0 else 'Different'}")
 
     print("\n✅ Tier definitions ready")

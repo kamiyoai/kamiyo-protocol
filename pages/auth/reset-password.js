@@ -36,7 +36,7 @@ export default function ResetPassword() {
     return (
         <>
             <Head>
-                <title>Reset Password | Kamiyo.ai</title>
+                <title>Reset Password | KAMIYO</title>
             </Head>
             <div className="flex items-center justify-center bg-black text-white h-[calc(100vh-140px)]">
                 <div className="flex flex-col items-center w-full max-w-sm px-6 py-10">

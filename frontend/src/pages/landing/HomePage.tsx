@@ -95,13 +95,13 @@ const HomePage: React.FC = () => {
   const getSeverityColor = (severity: string): string => {
     switch (severity) {
       case 'critical':
-        return 'bg-red-500';
+        return 'bg-[#ff008d]';
       case 'high':
-        return 'bg-orange-500';
+        return 'bg-[#cc11f0]';
       case 'medium':
-        return 'bg-yellow-500';
+        return 'bg-[#f96363]';
       case 'low':
-        return 'bg-blue-500';
+        return 'bg-[#fee801]';
       default:
         return 'bg-gray-500';
     }

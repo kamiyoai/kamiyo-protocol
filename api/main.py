@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, Query, HTTPException, Path, WebSocket
+from fastapi import FastAPI, Query, HTTPException, Path, WebSocket, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
@@ -52,6 +52,9 @@ from api.watchlists import router as watchlists_router
 
 # Slack Integration Router
 from api.slack import router as slack_router
+
+# API v2 - Deep Analysis Router
+from api.v2 import analysis_router
 
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
@@ -140,6 +143,9 @@ app.include_router(watchlists_router, tags=["Protocol Watchlists"])
 # Slack Integration Router
 app.include_router(slack_router, tags=["Slack"])
 
+# API v2 - Deep Analysis Router
+app.include_router(analysis_router, tags=["Deep Analysis"])
+
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_route(websocket: WebSocket, token: Optional[str] = Query(None), chains: Optional[str] = Query(None), min_amount: float = Query(0.0)):
@@ -173,6 +179,7 @@ async def get_exploits(
     chain: Optional[str] = Query(None, description="Filter by blockchain"),
     min_amount: Optional[float] = Query(None, ge=0, description="Minimum loss amount (USD)"),
     protocol: Optional[str] = Query(None, description="Filter by protocol name"),
+    authorization: Optional[str] = Header(None, description="Authorization header (Bearer token)"),
 ):
     """
     Get list of exploits with optional filtering and pagination
@@ -182,8 +189,23 @@ async def get_exploits(
     - **chain**: Filter by blockchain (e.g., "Ethereum", "BSC")
     - **min_amount**: Minimum loss amount in USD
     - **protocol**: Filter by protocol name (partial match)
+
+    **Authentication:**
+    - Optional: Authorization header with Bearer token (API key)
+    - Free tier (no auth): Gets delayed data (24h delay)
+    - Paid tiers (with auth): Gets real-time data
     """
     try:
+        # Import auth helpers
+        from api.auth import get_optional_user, has_real_time_access
+        from datetime import datetime, timedelta
+
+        # Get user from optional auth
+        user = await get_optional_user(authorization)
+
+        # Check if user has real-time access
+        is_real_time = has_real_time_access(user)
+
         # Calculate offset
         offset = (page - 1) * page_size
 
@@ -194,6 +216,16 @@ async def get_exploits(
             chain=chain,
             min_amount=min_amount
         )
+
+        # Apply delayed data filter for free tier users
+        if not is_real_time:
+            # Free tier gets data delayed by 24 hours
+            cutoff_time = datetime.now() - timedelta(hours=24)
+            exploits = [
+                e for e in exploits
+                if datetime.fromisoformat(e['date'].replace('Z', '+00:00')) < cutoff_time
+            ]
+            logger.info(f"Applied 24h delay filter for free tier user")
 
         # Filter by protocol if specified (case-insensitive partial match)
         if protocol:

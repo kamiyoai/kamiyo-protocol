@@ -1,6 +1,7 @@
 // components/dashboard/WebhookManager.js
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { ScrambleButton } from '../ScrambleButton';
 
 export default function WebhookManager() {
     const { data: session } = useSession();
@@ -136,12 +137,10 @@ export default function WebhookManager() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-light">Webhook Endpoints</h2>
-                <button
+                <ScrambleButton
+                    text={showCreateForm ? 'Cancel' : 'Create Webhook'}
                     onClick={() => setShowCreateForm(!showCreateForm)}
-                    className="px-4 py-2 bg-gradient-to-r from-cyan to-magenta text-white text-sm rounded hover:opacity-80 transition-opacity"
-                >
-                    {showCreateForm ? 'Cancel' : 'Create Webhook'}
-                </button>
+                />
             </div>
 
             {error && (
@@ -226,9 +225,15 @@ export default function WebhookManager() {
                     <button
                         type="submit"
                         disabled={creating}
-                        className="w-full bg-gradient-to-r from-cyan to-magenta text-white py-2 rounded hover:opacity-80 transition-opacity disabled:opacity-50"
+                        className="w-full bg-transparent"
                     >
-                        {creating ? 'Creating...' : 'Create Webhook'}
+                        <div className="flex justify-center">
+                            <ScrambleButton
+                                text={creating ? 'Creating...' : 'Create Webhook'}
+                                enabled={!creating}
+                                loading={creating}
+                            />
+                        </div>
                     </button>
                 </form>
             )}

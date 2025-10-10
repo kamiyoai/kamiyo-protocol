@@ -51,7 +51,7 @@ export default function Home() {
             <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
                 <div className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
                     {/* SEO-friendly H1 (visually hidden) */}
-                    <h1 className="sr-only">Kamiyo - Real-time blockchain exploit intelligence</h1>
+                    <h1 className="sr-only">KAMIYO - Real-time blockchain exploit intelligence</h1>
 
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
@@ -64,7 +64,7 @@ export default function Home() {
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
                                     Track exploits across 54 chains from 20+ verified sources.<br/>
-                                    Get instant alerts. Skip the Twitter hunt.
+                                    Get instant alerts. Skip the X hunt.
                                 </p>
                             </div>
 
@@ -210,7 +210,7 @@ export default function Home() {
                             </li>
                         </ul>
 
-                        <div className="flex justify-center mt-auto">
+                        <div className="flex justify-center mt-auto pt-6">
                             <PayButton
                                 textOverride="Sign Up Free"
                                 onClickOverride={() => {
@@ -266,7 +266,7 @@ export default function Home() {
                             </li>
                         </ul>
 
-                        <div className="flex justify-center mt-auto">
+                        <div className="flex justify-center mt-auto pt-6">
                             <PayButton
                                 textOverride="Start Free Trial"
                                 onClickOverride={() => {
@@ -313,11 +313,23 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
+                                <span className="text-gray-300">Fork detection analysis</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Pattern clustering</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
                                 <span className="text-gray-300">Priority support</span>
                             </li>
                         </ul>
 
-                        <div className="flex justify-center mt-auto">
+                        <div className="flex justify-center mt-auto pt-6">
                             <PayButton
                                 textOverride="Start Free Trial"
                                 onClickOverride={() => {
@@ -341,13 +353,13 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">50 webhook endpoints</span>
+                                <span className="text-gray-300">Everything in Team</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Custom alert routing</span>
+                                <span className="text-gray-300">50 webhook endpoints</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -359,7 +371,19 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Historical data API (2+ years)</span>
+                                <span className="text-gray-300">Fork graph visualization</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Anomaly detection</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">Historical data (2+ years)</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -369,7 +393,7 @@ export default function Home() {
                             </li>
                         </ul>
 
-                        <div className="flex justify-center mt-auto">
+                        <div className="flex justify-center mt-auto pt-6">
                             <PayButton
                                 textOverride="Contact Sales"
                                 onClickOverride={() => {
@@ -385,7 +409,7 @@ export default function Home() {
                     <h3 className="text-2xl font-light text-center mb-8">Compared to Alternatives</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-gray-400">Twitter Alerts</h4>
+                            <h4 className="text-lg mb-4 text-gray-400">X Alerts</h4>
                             <ul className="space-y-2 text-sm text-gray-500">
                                 <li>• Random timing (15 mins - 4 hours)</li>
                                 <li>• No API access</li>
@@ -403,7 +427,7 @@ export default function Home() {
                             </ul>
                         </div>
                         <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-gray-400">Kamiyo</h4>
+                            <h4 className="text-lg mb-4 text-white">KAMIYO</h4>
                             <ul className="space-y-2 text-sm text-gray-300">
                                 <li>• Consistent 4-minute alerts</li>
                                 <li>• Full API + WebSocket</li>

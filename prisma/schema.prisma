@@ -3,19 +3,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                 String         @id @default(uuid())
-  email              String         @unique
-  passwordHash       String?
-  subscriptionStatus String         @default("free")
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  kami               Kami[]
-  subscriptions      Subscription[]
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  kami          Kami[]
+  subscriptions Subscription[]
 }
 
 model Kami {
