@@ -19,7 +19,7 @@ export default function DashboardPage() {
 
         const fetchData = async () => {
             try {
-                const subStatus = await fetch("/api/subscription/status").then(res => res.json());
+                const subStatus = await fetch(`/api/subscription/status?email=${encodeURIComponent(session.user.email)}`).then(res => res.json());
                 setSubscription(subStatus);
 
                 // Fetch recent exploits
