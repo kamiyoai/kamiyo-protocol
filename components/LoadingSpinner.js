@@ -49,7 +49,7 @@ const LoadingSpinner = () => {
     }, []);
 
     return (
-        <div className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden h-screen bg-black z-[999] opacity-75">
+        <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center overflow-hidden bg-black z-[999] opacity-75">
             <div className="flex text-sm w-full justify-center py-10">
                 {scrambledText.slice(0, 15).map((text, i) => (
                     <span

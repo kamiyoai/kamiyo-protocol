@@ -60,7 +60,7 @@ export default function Home() {
                             {/* Heading */}
                             <div>
                                 <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    DeFi Exploit Alerts In 4 Minutes, Not 4 Hours
+                                    DeFi Exploit Alerts Within <br />4 Minutes – <br />Not 4 Hours
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
                                     Track exploits across 54 chains from 20+ verified sources.<br/>
