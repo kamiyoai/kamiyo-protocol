@@ -15,6 +15,9 @@ model User {
   updatedAt     DateTime       @updatedAt
   kami          Kami[]
   subscriptions Subscription[]
+  webhooks      Webhook[]
+  watchlists    Watchlist[]
+  apiRequests   ApiRequest[]
 }
 
 model Kami {
@@ -57,4 +60,45 @@ model Subscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  userId      String
+  url         String
+  name        String?
+  description String?
+  chains      String?  // JSON array of chain filters
+  minAmount   Float?   // Minimum exploit amount to trigger
+  status      String   @default("active")  // active, paused, failed
+  lastTrigger DateTime?
+  failCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Watchlist {
+  id          String   @id @default(uuid())
+  userId      String
+  protocol    String
+  chain       String?
+  alertOnNew  Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, protocol, chain])
+}
+
+model ApiRequest {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String
+  timestamp DateTime @default(now())
+  date      String   // Format: YYYY-MM-DD for efficient daily counting
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
 }

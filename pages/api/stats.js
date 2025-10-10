@@ -1,8 +1,9 @@
 // pages/api/stats.js
 import { getSession } from "next-auth/react";
 import prisma from "../../lib/prisma";
+import { withRateLimit } from "../../lib/rateLimit";
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     const API_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
 
     try {
@@ -64,3 +65,5 @@ export default async function handler(req, res) {
         res.status(500).json({ error: 'Failed to fetch stats' });
     }
 }
+
+export default withRateLimit(handler);
