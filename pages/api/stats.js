@@ -2,6 +2,7 @@
 import { getSession } from "next-auth/react";
 import prisma from "../../lib/prisma";
 import { withRateLimit } from "../../lib/rateLimit";
+import { getStats } from "../../lib/exploitDb";
 
 async function handler(req, res) {
     const API_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
@@ -36,10 +37,15 @@ async function handler(req, res) {
             }
         }
 
-        // Fetch data from backend API
-        const queryParams = new URLSearchParams(req.query);
-        const response = await fetch(`${API_URL}/stats?${queryParams}`);
-        const data = await response.json();
+        // Get REAL stats from the exploit intelligence database
+        const days = parseInt(req.query.days) || 7;
+        const data = getStats(days);
+
+        // Add metadata about the data source
+        data.metadata = {
+            source: 'exploit-database',
+            query_time: new Date().toISOString()
+        };
 
         // Apply 24-hour delay for free tier statistics
         if (applyDelay && data) {
