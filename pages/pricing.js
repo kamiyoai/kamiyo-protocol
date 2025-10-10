@@ -15,32 +15,37 @@ export default function PricingPage() {
         {
             id: "price_free",
             name: "Free",
-            price: "$0/month",
-            description: "Perfect for exploring exploit intelligence and personal projects.",
+            price: "$0",
+            priceDetail: "forever",
+            description: "Stay informed",
             tier: "free",
-            enabled: true
-        },
-        {
-            id: "price_basic",
-            name: "Basic",
-            price: "$29/month",
-            description: "For individual developers with regular needs and small teams.",
-            tier: "basic",
             enabled: true
         },
         {
             id: "price_pro",
             name: "Pro",
-            price: "$99/month",
-            description: "For development teams and security-conscious organizations.",
+            price: "$49",
+            priceDetail: "/mo",
+            description: "For individuals",
             tier: "pro",
+            enabled: true
+        },
+        {
+            id: "price_team",
+            name: "Team",
+            price: "$149",
+            priceDetail: "/mo",
+            description: "For small teams",
+            tier: "team",
             enabled: true
         },
         {
             id: "price_enterprise",
             name: "Enterprise",
-            price: "$499/month",
-            description: "For large organizations with mission-critical monitoring needs.",
+            price: "$799",
+            priceDetail: "/mo",
+            pricePrefix: "from ",
+            description: "For protocols",
             tier: "enterprise",
             enabled: true
         }
@@ -89,25 +94,35 @@ export default function PricingPage() {
                     <div
                         key={plan.tier}
                         className={`relative bg-black border border-gray-500 border-opacity-25 p-8 rounded-2xl flex flex-col transition-all duration-300 card hover:-translate-y-1 ${
-                            plan.tier === 'pro' ? 'card-highlighted' : ''
+                            plan.tier === 'pro' ? 'card-highlighted -translate-y-1' : ''
                         }`}
                     >
                         {plan.tier === 'pro' && (
-                            <div className="text-magenta text-xs uppercase tracking-wider mb-2 font-semibold">Most Popular</div>
+                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
+                                    Most Popular
+                                </span>
+                            </div>
                         )}
-                        <h2 className="text-xl font-semibold mb-3">{plan.name}</h2>
-                        <p className="text-2xl text-white mb-4">{plan.price}</p>
-                        <p className="text-gray-400 text-sm mb-6">{plan.description}</p>
-                        <div className="mt-auto">
+                        <h2 className="text-xl font-light mb-2">{plan.name}</h2>
+                        <div className="mb-4">
+                            {plan.pricePrefix && <span className="text-gray-400 text-xs">{plan.pricePrefix}</span>}
+                            <span className="text-4xl font-light gradient-text">{plan.price}</span>
+                            <span className="text-gray-500 text-xs ml-1">{plan.priceDetail}</span>
+                        </div>
+                        <p className="text-gray-400 text-xs mb-6 flex-grow">{plan.description}</p>
+                        <div className="flex justify-center mt-auto">
                             <PayButton
                                 textOverride={
                                     isRedirecting
                                         ? 'Processing...'
                                         : plan.tier === 'free'
-                                            ? 'Get Started'
+                                            ? 'Sign Up Free'
                                             : plan.tier === 'enterprise'
                                                 ? 'Contact Sales'
-                                                : 'Subscribe Now'
+                                                : plan.tier === 'team'
+                                                    ? 'Start Free Trial'
+                                                    : 'Start Free Trial'
                                 }
                                 onClickOverride={() => {
                                     if (plan.tier === 'enterprise') {
@@ -131,25 +146,25 @@ export default function PricingPage() {
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <th className="p-4 text-white">Features</th>
                             <th className="p-4 text-white">Free</th>
-                            <th className="p-4 text-white">Basic</th>
                             <th className="p-4 text-white">Pro</th>
+                            <th className="p-4 text-white">Team</th>
                             <th className="p-4 text-white">Enterprise</th>
                         </tr>
                         </thead>
                         <tbody>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">API Requests per Day</td>
-                            <td className="p-4 text-gray-400">100</td>
-                            <td className="p-4 text-gray-400">1,000</td>
-                            <td className="p-4 text-gray-400">10,000</td>
-                            <td className="p-4 text-gray-400">Unlimited</td>
+                            <td className="p-4 text-gray-400 text-xs">1K</td>
+                            <td className="p-4 text-gray-400 text-xs">10K</td>
+                            <td className="p-4 text-gray-400 text-xs">100K</td>
+                            <td className="p-4 text-gray-400 text-xs">Unlimited</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Historical Data Access</td>
-                            <td className="p-4 text-gray-400">7 days</td>
-                            <td className="p-4 text-gray-400">30 days</td>
-                            <td className="p-4 text-gray-400">90 days</td>
-                            <td className="p-4 text-gray-400">Unlimited</td>
+                            <td className="p-4 text-gray-400 text-xs">7 days</td>
+                            <td className="p-4 text-gray-400 text-xs">30 days</td>
+                            <td className="p-4 text-gray-400 text-xs">90 days</td>
+                            <td className="p-4 text-gray-400 text-xs">Unlimited</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Email Alerts</td>
@@ -159,23 +174,23 @@ export default function PricingPage() {
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Discord Alerts</td>
+                            <td className="p-4 font-light text-sm">Discord/Telegram Alerts</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Telegram Alerts</td>
+                            <td className="p-4 font-light text-sm">Webhook Endpoints</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4 text-gray-400 text-xs">5 endpoints</td>
+                            <td className="p-4 text-gray-400 text-xs">50 endpoints</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Webhook Integration</td>
+                            <td className="p-4 font-light text-sm">WebSocket Feed</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
+                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
@@ -187,28 +202,28 @@ export default function PricingPage() {
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Real-time Delivery</td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4 font-light text-sm">Alert Delay</td>
+                            <td className="p-4 text-gray-400 text-xs">24 hours</td>
+                            <td className="p-4 text-gray-400 text-xs">&lt;5 min</td>
+                            <td className="p-4 text-gray-400 text-xs">&lt;5 min</td>
+                            <td className="p-4 text-gray-400 text-xs">&lt;5 min</td>
+                        </tr>
+                        <tr className="border-b border-gray-500 border-opacity-25">
+                            <td className="p-4 font-light text-sm">User Seats</td>
+                            <td className="p-4 text-gray-400 text-xs">1</td>
+                            <td className="p-4 text-gray-400 text-xs">1</td>
+                            <td className="p-4 text-gray-400 text-xs">5</td>
+                            <td className="p-4 text-gray-400 text-xs">Unlimited</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">Support</td>
                             <td className="p-4 text-gray-400 text-xs">Community</td>
-                            <td className="p-4 text-gray-400 text-xs">Email (48h)</td>
-                            <td className="p-4 text-gray-400 text-xs">Priority (24h)</td>
-                            <td className="p-4 text-gray-400 text-xs">24/7 Dedicated</td>
-                        </tr>
-                        <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Custom Integrations</td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
-                            <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
+                            <td className="p-4 text-gray-400 text-xs">Email</td>
+                            <td className="p-4 text-gray-400 text-xs">Priority</td>
+                            <td className="p-4 text-gray-400 text-xs">Dedicated</td>
                         </tr>
                         <tr>
-                            <td className="p-4 font-light text-sm">SLA & White Label</td>
+                            <td className="p-4 font-light text-sm">Custom SLAs</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
@@ -216,28 +231,6 @@ export default function PricingPage() {
                         </tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <div className="mt-16 w-full">
-                <h4 className="text-2xl mb-6 font-light">Frequently Asked Questions</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h5 className="text-lg mb-2 text-cyan">Can I switch plans anytime?</h5>
-                        <p className="text-gray-400 text-sm">Yes! Upgrades take effect immediately with proration. Downgrades take effect at the end of your current billing period.</p>
-                    </div>
-                    <div>
-                        <h5 className="text-lg mb-2 text-cyan">What payment methods do you accept?</h5>
-                        <p className="text-gray-400 text-sm">We accept all major credit cards (Visa, Mastercard, American Express, Discover) via Stripe.</p>
-                    </div>
-                    <div>
-                        <h5 className="text-lg mb-2 text-cyan">Do you offer refunds?</h5>
-                        <p className="text-gray-400 text-sm">We don't offer refunds for partial months. If you cancel, your subscription remains active until the end of the current billing period.</p>
-                    </div>
-                    <div>
-                        <h5 className="text-lg mb-2 text-cyan">Can I exceed my rate limit?</h5>
-                        <p className="text-gray-400 text-sm">Rate limits are hard limits. If you need higher limits, upgrade your plan. Enterprise plans have unlimited API access.</p>
-                    </div>
                 </div>
             </div>
         </div>
