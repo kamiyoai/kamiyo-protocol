@@ -6,11 +6,11 @@ import dynamic from 'next/dynamic';
 import { ScrambleButton } from '../components/ScrambleButton';
 import { hasMinimumTier, TierName } from '../lib/tiers';
 
-// Dynamically import the graph component (client-side only due to D3)
-const ForkGraphVisualization = dynamic(
-  () => import('../frontend/src/components/analysis/ForkGraphVisualization'),
-  { ssr: false }
-);
+// Graph visualization component temporarily disabled (frontend under development)
+// const ForkGraphVisualization = dynamic(
+//   () => import('../frontend/src/components/analysis/ForkGraphVisualization'),
+//   { ssr: false }
+// );
 
 export default function ForkAnalysis() {
   const { data: session, status } = useSession();
@@ -397,8 +397,8 @@ export default function ForkAnalysis() {
           </div>
         )} */}
 
-        {/* Graph Visualization - Enterprise Only */}
-        {!loading && graphData && hasGraphVisualization && (
+        {/* Graph Visualization - Enterprise Only (temporarily disabled) */}
+        {/* {!loading && graphData && hasGraphVisualization && (
           <div className="mb-8">
             <ForkGraphVisualization
               data={graphData}
@@ -407,7 +407,7 @@ export default function ForkAnalysis() {
               onNodeClick={handleNodeClick}
             />
           </div>
-        )}
+        )} */}
 
         {/* Table View - Team Tier */}
         {!loading && graphData && !hasGraphVisualization && (
