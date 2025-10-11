@@ -3,9 +3,10 @@ generator client {
 }
 
 datasource db {
-  // NOTE: Local development uses SQLite, production uses PostgreSQL
-  // The prepare-production-db.sh script switches this to postgresql for production builds
-  provider = "sqlite"
+  // Use PostgreSQL for both development and production
+  // Local: Use Render preview URL or set up local PostgreSQL
+  // Production: Provided by Render
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

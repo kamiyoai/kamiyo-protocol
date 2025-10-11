@@ -36,7 +36,7 @@ services:
   - type: web
     name: kamiyo-frontend
     runtime: node
-    buildCommand: chmod +x ./scripts/prepare-production-db.sh && ./scripts/prepare-production-db.sh && npm install && npx prisma generate && npx prisma db push && npm run build
+    buildCommand: npm install && npx prisma generate && npx prisma db push && npm run build
     startCommand: npm start
     disk:
       name: kamiyo-data
