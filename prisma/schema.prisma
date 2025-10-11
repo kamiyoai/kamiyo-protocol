@@ -3,7 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  // NOTE: Local development uses SQLite, production uses PostgreSQL
+  // Production schema is applied via render.yaml which overrides this
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 

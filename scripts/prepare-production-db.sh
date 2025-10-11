@@ -1,9 +1,14 @@
 #!/bin/bash
-# Script to prepare the exploit database for production
+# Script to prepare databases for production
 
 set -e
 
 echo "==> Preparing production databases..."
+
+# Update Prisma schema to use PostgreSQL for production
+echo "==> Configuring Prisma for PostgreSQL..."
+sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+echo "==> Prisma schema updated to PostgreSQL"
 
 # Create data directory if it doesn't exist
 mkdir -p /opt/render/project/src/data
