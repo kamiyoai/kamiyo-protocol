@@ -223,7 +223,7 @@ async def get_exploits(
             cutoff_time = datetime.now() - timedelta(hours=24)
             exploits = [
                 e for e in exploits
-                if datetime.fromisoformat(e['date'].replace('Z', '+00:00')) < cutoff_time
+                if datetime.fromisoformat(e.get('timestamp', e.get('date', '')).replace('Z', '+00:00')) < cutoff_time
             ]
             logger.info(f"Applied 24h delay filter for free tier user")
 

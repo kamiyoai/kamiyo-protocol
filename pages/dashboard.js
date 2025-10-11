@@ -123,7 +123,7 @@ export default function DashboardPage() {
                                     <p className="text-gray-400 text-sm mb-2">{exploit.description || 'No description available'}</p>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-gray-500">
-                                            {new Date(exploit.date).toLocaleDateString()}
+                                            {exploit.timestamp ? new Date(exploit.timestamp).toLocaleDateString() : 'N/A'}
                                         </span>
                                         <span className="text-magenta">
                                             ${exploit.amount_usd ? exploit.amount_usd.toLocaleString() : 'Unknown'}
