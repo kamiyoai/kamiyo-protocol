@@ -63,12 +63,16 @@ echo ""
 
 # 2. Check Docker status
 echo "🐳 Docker Services Status:"
-docker-compose ps
-echo ""
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    docker compose ps 2>/dev/null || echo "No docker-compose.yml found"
 
-# Count running services
-RUNNING=$(docker-compose ps --filter "status=running" -q | wc -l | tr -d ' ')
-echo "Running services: ${RUNNING}/8"
+    # Count running services
+    RUNNING=$(docker compose ps --filter "status=running" -q 2>/dev/null | wc -l | tr -d ' ')
+    echo "Running services: ${RUNNING}/8"
+else
+    echo "⚠️  Docker Compose not available"
+    RUNNING=0
+fi
 echo ""
 
 # 3. Check API health

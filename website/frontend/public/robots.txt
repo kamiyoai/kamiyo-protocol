@@ -1,0 +1,101 @@
+# Robots.txt for Kamiyo - Exploit Intelligence Platform
+# https://kamiyo.io/robots.txt
+
+# Allow all crawlers by default
+User-agent: *
+Allow: /
+
+# Disallow admin and internal pages
+Disallow: /admin/
+Disallow: /api/
+Disallow: /dashboard/settings/
+Disallow: /dashboard/api-keys/
+Disallow: /dashboard/billing/
+Disallow: /internal/
+Disallow: /_next/
+Disallow: /static/private/
+
+# Disallow authentication pages
+Disallow: /login
+Disallow: /signup
+Disallow: /reset-password
+Disallow: /verify-email
+
+# Disallow search result pages with query parameters
+Disallow: /*?q=*
+Disallow: /*?search=*
+Disallow: /*?filter=*
+
+# Allow specific important pages
+Allow: /pricing
+Allow: /about
+Allow: /blog
+Allow: /docs
+Allow: /exploits
+Allow: /contact
+
+# Sitemap location
+Sitemap: https://kamiyo.io/sitemap.xml
+Sitemap: https://kamiyo.io/sitemap-blog.xml
+Sitemap: https://kamiyo.io/sitemap-exploits.xml
+
+# Crawl delay to prevent server overload
+Crawl-delay: 1
+
+# Specific rules for different crawlers
+
+# Googlebot
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Crawl-delay: 0.5
+
+# Bingbot
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+Crawl-delay: 1
+
+# GPTBot (OpenAI) - Allow for training
+User-agent: GPTBot
+Allow: /blog/
+Allow: /docs/
+Disallow: /
+
+# ChatGPT-User
+User-agent: ChatGPT-User
+Allow: /blog/
+Allow: /docs/
+Disallow: /
+
+# Common bots
+User-agent: Slurp
+User-agent: DuckDuckBot
+User-agent: Baiduspider
+User-agent: YandexBot
+Allow: /
+Disallow: /api/
+Crawl-delay: 2
+
+# Bad bots to block
+User-agent: AhrefsBot
+User-agent: SemrushBot
+User-agent: DotBot
+User-agent: MJ12bot
+User-agent: BLEXBot
+Disallow: /
+
+# Archive bots
+User-agent: ia_archiver
+User-agent: archive.org_bot
+Allow: /
+Crawl-delay: 5
+
+# Social media bots (for link previews)
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: LinkedInBot
+User-agent: Slackbot
+User-agent: TelegramBot
+Allow: /
+Crawl-delay: 0
