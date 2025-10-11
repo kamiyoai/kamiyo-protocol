@@ -7,7 +7,13 @@ echo "==> Preparing production databases..."
 
 # Update Prisma schema to use PostgreSQL for production
 echo "==> Configuring Prisma for PostgreSQL..."
-sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS sed syntax
+    sed -i '' 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+else
+    # Linux sed syntax (for Render)
+    sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+fi
 echo "==> Prisma schema updated to PostgreSQL"
 
 # Create data directory if it doesn't exist

@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   // NOTE: Local development uses SQLite, production uses PostgreSQL
-  // Production schema is applied via render.yaml which overrides this
+  // The prepare-production-db.sh script switches this to postgresql for production builds
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
