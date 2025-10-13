@@ -29,6 +29,9 @@ from aggregators.slowmist import SlowMistAggregator
 from aggregators.hackerone import HackerOneAggregator
 from aggregators.cosmos_security import CosmosSecurityAggregator
 from aggregators.arbitrum_security import ArbitrumSecurityAggregator
+from aggregators.peckshield import PeckShieldAggregator
+from aggregators.blocksec import BlockSecAggregator
+from aggregators.beosin import BeosinAggregator
 from database import get_db
 
 logger = logging.getLogger(__name__)
@@ -58,6 +61,9 @@ class AggregationOrchestrator:
             HackerOneAggregator(),
             CosmosSecurityAggregator(),
             ArbitrumSecurityAggregator(),
+            PeckShieldAggregator(),
+            BlockSecAggregator(),
+            BeosinAggregator(),
         ]
 
         logger.info(f"Orchestrator initialized with {len(self.aggregators)} aggregators")
