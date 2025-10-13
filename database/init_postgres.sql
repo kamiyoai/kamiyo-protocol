@@ -12,8 +12,9 @@ CREATE TABLE IF NOT EXISTS exploits (
     exploit_type VARCHAR(100),
     date TIMESTAMP,
     amount_usd DECIMAL(20, 2),
-    tx_hash VARCHAR(255),
+    tx_hash VARCHAR(255) UNIQUE NOT NULL,
     source VARCHAR(255),
+    source_url TEXT,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
