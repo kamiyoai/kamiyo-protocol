@@ -11,7 +11,7 @@ PyYAML==6.0.2
 fastapi==0.115.0
 uvicorn==0.32.1
 pydantic==2.10.3
-httpx==0.25.2  # Locked to 0.25.2 for compatibility with python-telegram-bot 20.7
+httpx==0.28.1
 
 # Database - PostgreSQL (Production)
 psycopg2-binary==2.9.9
@@ -26,8 +26,6 @@ hiredis==2.2.3
 
 # Payment Processing
 stripe>=7.0.0  # Day 6: Stripe API integration for subscription billing
-tenacity==8.2.3  # P1-3: Retry logic for Stripe API calls (exponential backoff)
-slowapi==0.1.9  # P1-4: Rate limiting for webhook endpoints
 
 # Authentication
 pyjwt==2.8.0
