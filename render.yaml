@@ -9,6 +9,7 @@ services:
   - type: web
     name: kamiyo-api
     runtime: python
+    branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -36,6 +37,7 @@ services:
   - type: web
     name: kamiyo-frontend
     runtime: node
+    branch: main
     buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
     startCommand: npm start
     disk:
