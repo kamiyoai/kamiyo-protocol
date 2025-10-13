@@ -94,7 +94,7 @@ export default function Home() {
                             </div>
 
                             <p className="text-sm text-gray-500">
-                                Free: 10 alerts/month • Pro: Unlimited • Webhooks start at Team tier
+                                Free: Unlimited email alerts • Pro: Real time alerts, unlimited • Webhooks start at Team tier
                             </p>
 
                             <button
@@ -110,9 +110,6 @@ export default function Home() {
                             {/* Stats Row */}
                             <div className="pt-8">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-4xl font-light gradient-text">
-                                        {loading ? '-' : stats.totalExploits}
-                                    </span>
                                     <div className="flex gap-1">
                                         <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
                                         <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
@@ -171,7 +168,7 @@ export default function Home() {
                     <p className="text-gray-400 text-lg">Start free. Upgrade when you need real-time alerts.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {/* Free Tier */}
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Free</h3>
@@ -226,7 +223,7 @@ export default function Home() {
                         </div>
                         <h3 className="text-xl font-light mb-2">Pro</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$99</span>
+                            <span className="text-4xl font-light gradient-text">$89</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -277,7 +274,7 @@ export default function Home() {
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Team</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$299</span>
+                            <span className="text-4xl font-light gradient-text">$199</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -304,13 +301,13 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Fork detection <span className="text-yellow-500 text-xs">(Beta)</span></span>
+                                <span className="text-gray-300">Fork detection</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Pattern clustering <span className="text-yellow-500 text-xs">(Beta)</span></span>
+                                <span className="text-gray-300">Pattern clustering</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -335,7 +332,7 @@ export default function Home() {
                         <h3 className="text-xl font-light mb-2">Enterprise</h3>
                         <div className="mb-6">
                             <span className="text-gray-400 text-xs">from </span>
-                            <span className="text-4xl font-light gradient-text">$999</span>
+                            <span className="text-4xl font-light gradient-text">$499</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -362,7 +359,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Fork graph visualization <span className="text-yellow-500 text-xs">(Beta)</span></span>
+                                <span className="text-gray-300">Fork graph visualization</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

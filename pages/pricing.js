@@ -23,7 +23,7 @@ export default function PricingPage() {
         {
             id: "price_pro",
             name: "Pro",
-            price: "$99",
+            price: "$89",
             priceDetail: "/mo",
             tier: "pro",
             enabled: true
@@ -31,7 +31,7 @@ export default function PricingPage() {
         {
             id: "price_team",
             name: "Team",
-            price: "$299",
+            price: "$199",
             priceDetail: "/mo",
             tier: "team",
             enabled: true
@@ -39,7 +39,7 @@ export default function PricingPage() {
         {
             id: "price_enterprise",
             name: "Enterprise",
-            price: "$999",
+            price: "$499",
             priceDetail: "/mo",
             pricePrefix: "from ",
             tier: "enterprise",
@@ -201,13 +201,13 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">Fork detection analysis <span className="text-yellow-500 text-xs">(Beta - Q1 2026)</span></span>
+                                        <span className="text-gray-300">Fork detection analysis</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">Pattern clustering <span className="text-yellow-500 text-xs">(Beta - Q1 2026)</span></span>
+                                        <span className="text-gray-300">Pattern clustering</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -241,7 +241,7 @@ export default function PricingPage() {
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
-                                        <span className="text-gray-300">Fork graph visualization <span className="text-yellow-500 text-xs">(Beta - Q1 2026)</span></span>
+                                        <span className="text-gray-300">Fork graph visualization</span>
                                     </li>
                                     <li className="flex items-start gap-2">
                                         <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -309,9 +309,9 @@ export default function PricingPage() {
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
                             <td className="p-4 font-light text-sm">API Requests per Day</td>
-                            <td className="p-4 text-gray-400 text-xs">100</td>
+                            <td className="p-4 text-gray-400 text-xs">None</td>
                             <td className="p-4 text-gray-400 text-xs">50K</td>
-                            <td className="p-4 text-gray-400 text-xs">200K</td>
+                            <td className="p-4 text-gray-400 text-xs">100K</td>
                             <td className="p-4 text-gray-400 text-xs">Unlimited</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
@@ -385,21 +385,21 @@ export default function PricingPage() {
                             <td className="p-4 text-gray-400 text-xs">Dedicated</td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Fork Detection Analysis <span className="text-yellow-500 text-xs">(Beta)</span></td>
+                            <td className="p-4 font-light text-sm">Fork Detection Analysis</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Pattern Clustering <span className="text-yellow-500 text-xs">(Beta)</span></td>
+                            <td className="p-4 font-light text-sm">Pattern Clustering</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                             <td className="p-4"><CheckCircleIcon className="h-5 w-5 text-cyan"/></td>
                         </tr>
                         <tr className="border-b border-gray-500 border-opacity-25">
-                            <td className="p-4 font-light text-sm">Fork Graph Visualization <span className="text-yellow-500 text-xs">(Beta)</span></td>
+                            <td className="p-4 font-light text-sm">Fork Graph Visualization</td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>
                             <td className="p-4"><MinusIcon className="h-5 w-5 text-gray-500"/></td>

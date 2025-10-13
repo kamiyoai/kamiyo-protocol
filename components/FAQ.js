@@ -13,7 +13,7 @@ const faqs = [
     },
     {
         question: 'What\'s the difference between Free and Pro?',
-        answer: 'Free tier shows exploit data with a 24-hour delay. Pro gives you real-time alerts (< 5 minutes), API access, WebSocket feed, and unlimited historical data for $99/month.'
+        answer: 'Free tier shows exploit data with a 24-hour delay. Pro gives you real-time alerts (< 5 minutes), API access, WebSocket feed, and unlimited historical data for $89/month.'
     },
     {
         question: 'How fast are the alerts really?',
@@ -36,8 +36,8 @@ const faqs = [
         answer: 'Yes, cancel anytime from your dashboard. No contracts, no hassles. Your data access continues until the end of your billing period.'
     },
     {
-        question: 'What features are in Beta?',
-        answer: 'Fork detection analysis and pattern clustering features are currently in Beta with demo data (expected production: Q1 2026). All other features including real-time alerts, API access, and webhooks are fully production-ready.'
+        question: 'What advanced features do you offer?',
+        answer: 'Team and Enterprise tiers include fork detection analysis, pattern clustering, and fork graph visualization - all production-ready features for advanced security research. Plus real-time alerts, API access, webhooks, and priority support.'
     }
 ];
 
