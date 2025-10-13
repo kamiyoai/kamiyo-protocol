@@ -57,41 +57,99 @@ You need to set these secret environment variables in Render:
 
 ### 3. Verify Deployment
 
-After deployment completes, verify:
+After deployment completes, run health check:
 
-**Database Connections:**
-- [ ] Check that PostgreSQL database was created
-- [ ] Verify Prisma migrations ran successfully
-- [ ] Confirm exploit database was copied to persistent disk
+```bash
+# Run comprehensive health check
+./scripts/health_check.sh
+
+# Expected: All systems operational
+# Exit code 0 = healthy
+# Exit code 1 = degraded
+# Exit code 2 = critical
+```
+
+**Manual Verification:**
+
+```bash
+# 1. Check container is running
+docker ps | grep kamiyo
+# Expected: Container status 'Up X minutes'
+
+# 2. Test health endpoint
+curl -f http://localhost:8000/health
+# Expected: {"status":"healthy"}
+
+# 3. Test API endpoint
+curl http://localhost:8000/api/v1/exploits?limit=1
+# Expected: Returns exploit data
+
+# 4. Check database
+docker exec kamiyo sqlite3 /app/data/kamiyo.db "SELECT COUNT(*) FROM exploits;"
+# Expected: Returns number > 0
+
+# 5. Check logs are clean
+docker logs kamiyo --tail=50 | grep -i error
+# Expected: No critical errors
+```
 
 **Test Endpoints:**
-- [ ] GET `/api/health` - Should return status
-- [ ] GET `/api/stats` - Should return exploit statistics
-- [ ] User authentication flow works
+- [ ] GET `/health` - Returns healthy status
+- [ ] GET `/api/v1/exploits` - Returns exploit data
+- [ ] GET `/api/v1/stats` - Returns statistics
+- [ ] POST requests require authentication
 
-**Check Logs:**
-```bash
-# In Render dashboard, check logs for:
-[ExploitDB] Opening database at: /opt/render/project/src/data/kamiyo.db
-prisma:query SELECT 1  # Confirms PostgreSQL connection
-```
+**Container Health:**
+- [ ] Container has been running for > 2 minutes without restart
+- [ ] Memory usage < 80%
+- [ ] CPU usage reasonable
+- [ ] Disk space sufficient
 
 ## 🔍 Troubleshooting
 
-### If Prisma fails to connect:
-- Verify DATABASE_URL is set correctly in render.yaml
-- Check that kamiyo-postgres database is running
-- Review Render logs for Prisma connection errors
+### Prerequisites: Verify Container Names
 
-### If Exploit DB fails to open:
-- Verify persistent disk is mounted at `/opt/render/project/src/data`
-- Check that `prepare-production-db.sh` ran successfully
-- Confirm `EXPLOIT_DB_PATH` environment variable is set
+Before troubleshooting, verify actual container names:
 
-### If authentication fails:
+```bash
+# List all running containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Note: Current docker-compose.yml uses 'kamiyo' not 'kamiyo-api'
+# If using production setup, names may be different
+```
+
+### If Service Fails to Start:
+
+```bash
+# Check container status
+docker ps -a | grep kamiyo
+
+# Check logs for errors
+docker logs kamiyo --tail=100
+
+# Restart service
+docker compose restart kamiyo
+```
+
+### If Database Connection Fails:
+
+Current setup uses SQLite embedded in container:
+
+```bash
+# Verify database file exists
+docker exec kamiyo ls -lh /app/data/kamiyo.db
+
+# Check database integrity
+docker exec kamiyo sqlite3 /app/data/kamiyo.db "PRAGMA integrity_check;"
+
+# Expected: "ok"
+```
+
+### If Authentication Fails:
 - Verify NEXTAUTH_URL matches your production URL
 - Ensure NEXTAUTH_SECRET is set
-- Check that PostgreSQL connection is working
+- Check logs: `docker logs kamiyo | grep -i auth`
 
 ## 📊 Post-Deployment
 

@@ -18,6 +18,7 @@ from config.stripe_config import get_stripe_config
 from database import get_db
 from monitoring.prometheus_metrics import payments_total, revenue_total, subscriptions_total
 from monitoring.alerts import get_alert_manager, AlertLevel
+from api.payments.distributed_circuit_breaker import get_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,110 @@ class StripeClient:
         # Get alert manager
         self.alert_manager = get_alert_manager()
 
+        # Initialize distributed circuit breaker for PCI compliance
+        # PCI DSS 12.10.1: Incident response plan for payment processing failures
+        self.circuit_breaker = get_circuit_breaker(
+            service_name="stripe_api",
+            failure_threshold=5,
+            timeout_seconds=60
+        )
+        logger.info("[PCI] Circuit breaker initialized for Stripe API calls")
+
+    # ==========================================
+    # CIRCUIT BREAKER HELPER
+    # ==========================================
+
+    def _call_stripe_api(self, api_callable, *args, **kwargs):
+        """
+        Execute Stripe API call with circuit breaker protection.
+
+        This wrapper ensures that:
+        1. Circuit breaker is checked before making API calls
+        2. Successful calls reset failure counters
+        3. Failed calls increment failure counters and potentially open circuit
+        4. Circuit breaker state is available for monitoring
+
+        PCI DSS Compliance:
+        - Requirement 12.10.1: Incident response for payment processing failures
+        - Prevents excessive failed attempts during Stripe outages
+        - Provides audit trail of API failures
+
+        Args:
+            api_callable: Stripe API function to call
+            *args: Positional arguments for the API call
+            **kwargs: Keyword arguments for the API call
+
+        Returns:
+            Result from Stripe API call
+
+        Raises:
+            Exception: If circuit breaker is open or API call fails
+        """
+        # Check if circuit breaker allows the call
+        if not self.circuit_breaker.can_call():
+            error_msg = (
+                "Circuit breaker OPEN - Stripe API calls temporarily blocked. "
+                "Payment processing is degraded. Alert operations team."
+            )
+            logger.error(f"[CIRCUIT BREAKER] {error_msg}")
+
+            # Send critical alert
+            self.alert_manager.send_alert(
+                title="Payment Processing Circuit Breaker OPEN",
+                message=error_msg,
+                level=AlertLevel.CRITICAL,
+                metadata=self.circuit_breaker.get_status()
+            )
+
+            raise Exception(error_msg)
+
+        try:
+            # Make the API call
+            result = api_callable(*args, **kwargs)
+
+            # Record success
+            self.circuit_breaker.record_success()
+
+            return result
+
+        except stripe.error.StripeError as e:
+            # Record failure
+            self.circuit_breaker.record_failure(e)
+
+            # Log for audit trail
+            logger.error(
+                f"[STRIPE API ERROR] {type(e).__name__}: {str(e)}",
+                extra={"circuit_breaker_status": self.circuit_breaker.get_status()}
+            )
+
+            # Re-raise for caller to handle
+            raise
+
+        except Exception as e:
+            # Record generic failure
+            self.circuit_breaker.record_failure(e)
+
+            logger.error(
+                f"[API CALL ERROR] {type(e).__name__}: {str(e)}",
+                extra={"circuit_breaker_status": self.circuit_breaker.get_status()}
+            )
+
+            raise
+
+    def get_circuit_breaker_status(self) -> Dict[str, Any]:
+        """
+        Get current circuit breaker status for monitoring.
+
+        Returns:
+            Dict with circuit state, failure counts, and metrics
+
+        Use for:
+        - Health check endpoints
+        - Monitoring dashboards
+        - PCI audit reports
+        """
+        return self.circuit_breaker.get_status()
+
     # ==========================================
     # CUSTOMER OPERATIONS
     # ==========================================
@@ -85,8 +190,9 @@ class StripeClient:
         try:
             logger.info(f"Creating Stripe customer for user {user_id}: {email}")
 
-            # Create customer in Stripe
-            stripe_customer = stripe.Customer.create(
+            # Create customer in Stripe (with circuit breaker protection)
+            stripe_customer = self._call_stripe_api(
+                stripe.Customer.create,
                 email=email,
                 name=name,
                 metadata={
@@ -346,8 +452,9 @@ class StripeClient:
 
             logger.info(f"Creating subscription for customer {customer_id}: tier={tier}")
 
-            # Create subscription in Stripe
-            stripe_subscription = stripe.Subscription.create(
+            # Create subscription in Stripe (with circuit breaker protection)
+            stripe_subscription = self._call_stripe_api(
+                stripe.Subscription.create,
                 customer=customer['stripe_customer_id'],
                 items=[{'price': price_id}],
                 metadata={

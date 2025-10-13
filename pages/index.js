@@ -109,9 +109,6 @@ export default function Home() {
 
                             {/* Stats Row */}
                             <div className="pt-8">
-                                <div className="text-gray-500 text-sm uppercase tracking-wider mb-4">
-                                    Total Exploits Tracked
-                                </div>
                                 <div className="flex items-center gap-2">
                                     <span className="text-4xl font-light gradient-text">
                                         {loading ? '-' : stats.totalExploits}

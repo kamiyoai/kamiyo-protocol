@@ -66,6 +66,9 @@ from config.cache_config import get_cache_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import PCI logging filter (must be imported after logging.basicConfig)
+from api.payments.pci_logging_filter import setup_pci_compliant_logging
+
 # Get cache configuration
 cache_config = get_cache_config()
 
@@ -436,6 +439,22 @@ async def internal_error_handler(request, exc):
 @app.on_event("startup")
 async def startup_event():
     logger.info("Kamiyo API starting up...")
+
+    # Initialize PCI-compliant logging FIRST (before any payment processing)
+    # CRITICAL: This must run before any logs that might contain payment data
+    # PCI DSS Requirement 3.4: Render PAN unreadable anywhere it is stored (including logs)
+    try:
+        pci_filter = setup_pci_compliant_logging(
+            apply_to_root=True,  # Protect ALL loggers
+            apply_to_loggers=['api.payments', 'api.subscriptions', 'stripe'],  # Extra protection for payment loggers
+            log_level=os.getenv('LOG_LEVEL', 'INFO')
+        )
+        logger.info("[PCI COMPLIANCE] Logging filter initialized - all sensitive data will be redacted")
+    except Exception as e:
+        logger.critical(f"[PCI COMPLIANCE] Failed to initialize logging filter: {e}")
+        logger.critical("PAYMENT PROCESSING SHOULD BE DISABLED - LOGS MAY CONTAIN SENSITIVE DATA")
+        # In production, you might want to prevent startup here
+
     logger.info(f"Database exploits: {db.get_total_exploits()}")
     logger.info(f"Tracked chains: {len(db.get_chains())}")
 

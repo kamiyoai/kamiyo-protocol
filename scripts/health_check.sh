@@ -157,42 +157,32 @@ echo "4. Docker Container Health"
 echo "-------------------------------------------"
 
 if command -v docker &> /dev/null; then
-    # Check API container
-    if docker ps --filter "name=kamiyo-api" --filter "status=running" | grep -q kamiyo-api; then
-        test_passed "API container running"
+    # Check main kamiyo container
+    if docker ps --filter "name=kamiyo" --filter "status=running" | grep -q kamiyo; then
+        test_passed "Kamiyo container running"
 
         # Check container health status
-        HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' kamiyo-api 2>/dev/null || echo "unknown")
+        HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' kamiyo 2>/dev/null || echo "unknown")
         if [ "$HEALTH_STATUS" == "healthy" ]; then
-            test_passed "API container health status: healthy"
+            test_passed "Container health status: healthy"
         elif [ "$HEALTH_STATUS" == "unknown" ]; then
-            test_info "API container health check not configured"
+            test_info "Container health check not configured"
         else
-            test_failed "API container health status: $HEALTH_STATUS"
+            test_failed "Container health status: $HEALTH_STATUS"
         fi
     else
-        test_failed "API container not running"
+        test_failed "Kamiyo container not running"
     fi
 
-    # Check database container
-    if docker ps --filter "name=postgres" --filter "status=running" | grep -q postgres; then
-        test_passed "PostgreSQL container running"
-    else
-        test_failed "PostgreSQL container not running"
-    fi
+    # Note: Current docker-compose.yml uses embedded SQLite database
+    # Database is inside the kamiyo container, not a separate PostgreSQL container
+    test_info "Database: SQLite embedded in kamiyo container"
 
-    # Check Redis container
+    # Check if separate Redis container exists (production may have this)
     if docker ps --filter "name=redis" --filter "status=running" | grep -q redis; then
-        test_passed "Redis container running"
+        test_passed "Redis container running (external)"
     else
-        test_failed "Redis container not running"
-    fi
-
-    # Check aggregator container
-    if docker ps --filter "name=kamiyo-aggregator" --filter "status=running" | grep -q kamiyo-aggregator; then
-        test_passed "Aggregator container running"
-    else
-        test_warning "Aggregator container not running"
+        test_info "Redis: Using in-memory caching or not configured"
     fi
 else
     test_info "Docker not available, skipping container checks"
@@ -246,9 +236,9 @@ fi
 
 # Check Docker memory usage
 if command -v docker &> /dev/null; then
-    API_MEMORY=$(docker stats --no-stream --format "{{.MemPerc}}" kamiyo-api 2>/dev/null | sed 's/%//' || echo "0")
-    if [ -n "$API_MEMORY" ] && [ "$API_MEMORY" != "0" ]; then
-        test_info "API container memory: ${API_MEMORY}%"
+    CONTAINER_MEMORY=$(docker stats --no-stream --format "{{.MemPerc}}" kamiyo 2>/dev/null | sed 's/%//' || echo "0")
+    if [ -n "$CONTAINER_MEMORY" ] && [ "$CONTAINER_MEMORY" != "0" ]; then
+        test_info "Container memory: ${CONTAINER_MEMORY}%"
     fi
 fi
 

@@ -9,9 +9,18 @@ import time
 import logging
 from typing import Dict, List, Any, Optional
 from contextlib import contextmanager
+from pathlib import Path
 import psycopg2
 from psycopg2 import pool, extras, OperationalError
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
+# Import connection monitor
+try:
+    from .connection_monitor import get_monitor
+    MONITORING_ENABLED = True
+except ImportError:
+    MONITORING_ENABLED = False
+    logger.warning("Connection monitoring not available")
 
 logger = logging.getLogger(__name__)
 
@@ -74,30 +83,129 @@ class PostgresManager:
             except Exception as e:
                 logger.warning(f"Failed to create read replica pool: {e}")
 
-    @contextmanager
-    def get_connection(self, readonly: bool = False):
+        # Initialize connection monitor
+        self.monitor = get_monitor() if MONITORING_ENABLED else None
+
+        # Initialize schema if needed
+        self._initialize_schema()
+
+    def _initialize_schema(self):
         """
-        Get database connection from pool with automatic cleanup
+        Initialize database schema from SQL file if tables don't exist.
+        Idempotent - safe to run multiple times.
+        """
+        schema_path = Path(__file__).parent / 'migrations' / '001_initial_schema.sql'
+
+        if not schema_path.exists():
+            logger.warning(f"Schema file not found: {schema_path}")
+            return
+
+        conn = None
+        try:
+            # Get connection directly from pool to avoid recursion
+            conn = self.pool.getconn()
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            cursor = conn.cursor()
+
+            try:
+                # Check if main table exists
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                        AND table_name = 'exploits'
+                    )
+                """)
+                table_exists = cursor.fetchone()[0]
+
+                if table_exists:
+                    logger.debug("Database schema already initialized")
+                    return
+
+                # Read and execute schema
+                with open(schema_path, 'r') as f:
+                    schema_sql = f.read()
+
+                logger.info("Initializing database schema from 001_initial_schema.sql")
+
+                cursor.execute(schema_sql)
+                logger.info("Database schema initialized successfully")
+
+            finally:
+                cursor.close()
+
+        except Exception as e:
+            logger.error(f"Schema initialization failed: {e}")
+            # Don't raise - allow application to start even if schema init fails
+            # This allows for manual schema setup if needed
+
+        finally:
+            if conn:
+                self.pool.putconn(conn)
+
+    @contextmanager
+    def get_connection(self, readonly: bool = False, timeout: int = 30):
+        """
+        Get database connection from pool with automatic cleanup and timeout
 
         Args:
             readonly: Use read replica if available
+            timeout: Maximum seconds to wait for connection (default: 30)
 
         Yields:
             Database connection
+
+        Raises:
+            TimeoutError: If connection cannot be acquired within timeout
         """
         # Use read replica for readonly queries if available
         if readonly and self.read_pool:
-            pool = self.read_pool
+            target_pool = self.read_pool
         else:
-            pool = self.pool
+            target_pool = self.pool
 
         connection = None
+        acquisition_start = time.time()
+        success = False
+
         try:
-            connection = pool.getconn()
+            # Attempt to get connection with timeout
+            while time.time() - acquisition_start < timeout:
+                try:
+                    connection = target_pool.getconn()
+                    success = True
+                    break
+                except pool.PoolError:
+                    elapsed = time.time() - acquisition_start
+                    if elapsed >= timeout:
+                        logger.error(f"Connection pool exhausted - timeout after {timeout}s")
+                        raise TimeoutError(
+                            f"Failed to acquire database connection after {timeout}s. "
+                            "Pool may be exhausted or database may be unresponsive."
+                        )
+                    # Brief sleep before retry
+                    time.sleep(0.1)
+
+            if connection is None:
+                raise TimeoutError(f"Failed to acquire connection after {timeout}s")
+
+            # Record successful acquisition
+            if self.monitor:
+                acquisition_duration = (time.time() - acquisition_start) * 1000
+                self.monitor.record_acquisition(acquisition_duration, success=True)
+
             yield connection
+
+        except (TimeoutError, pool.PoolError) as e:
+            # Record failed acquisition
+            if self.monitor:
+                acquisition_duration = (time.time() - acquisition_start) * 1000
+                self.monitor.record_acquisition(acquisition_duration, success=False)
+            raise
+
         finally:
             if connection:
-                pool.putconn(connection)
+                target_pool.putconn(connection)
 
     @contextmanager
     def get_cursor(self, readonly: bool = False, dict_cursor: bool = True):
@@ -143,6 +251,9 @@ class PostgresManager:
         Returns:
             Query results as list of dictionaries
         """
+        query_start = time.time()
+        error = None
+
         for attempt in range(max_retries):
             try:
                 with self.get_cursor(readonly=readonly) as cursor:
@@ -150,16 +261,31 @@ class PostgresManager:
 
                     # Return results for SELECT queries
                     if cursor.description:
-                        return cursor.fetchall()
-                    return []
+                        results = cursor.fetchall()
+                    else:
+                        results = []
+
+                    # Record successful query execution
+                    if self.monitor:
+                        duration_ms = (time.time() - query_start) * 1000
+                        self.monitor.record_query_execution(query, duration_ms)
+
+                    return results
 
             except OperationalError as e:
+                error = e
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt  # Exponential backoff
                     logger.warning(f"Query failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:
                     logger.error(f"Query failed after {max_retries} attempts: {e}")
+
+                    # Record failed query
+                    if self.monitor:
+                        duration_ms = (time.time() - query_start) * 1000
+                        self.monitor.record_query_execution(query, duration_ms, error=e)
+
                     raise
 
     def insert_exploit(self, exploit: Dict[str, Any]) -> Optional[int]:
@@ -321,6 +447,67 @@ class PostgresManager:
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False
+
+    def get_pool_metrics(self) -> Dict[str, Any]:
+        """
+        Get connection pool metrics and health status
+
+        Returns:
+            Dictionary with pool metrics and warnings
+        """
+        if not self.monitor:
+            return {
+                "monitoring_enabled": False,
+                "message": "Connection monitoring not available"
+            }
+
+        # Capture current pool snapshot
+        # Note: psycopg2 pool doesn't expose current size easily
+        # We use configured values as approximation
+        try:
+            # Attempt to determine pool utilization
+            # This is approximate since psycopg2 doesn't expose internals
+            snapshot = self.monitor.capture_pool_snapshot(
+                pool_size=self.pool.maxconn,
+                available=self.pool.minconn,  # Approximate
+                waiting=0  # Not easily detectable
+            )
+
+            health = self.monitor.get_health_status()
+            slow_queries = self.monitor.get_slow_queries(limit=5)
+
+            return {
+                "monitoring_enabled": True,
+                "health_status": health,
+                "slow_queries": slow_queries,
+                "pool_config": {
+                    "min_connections": self.pool.minconn,
+                    "max_connections": self.pool.maxconn
+                },
+                "leak_warnings": self.monitor.detect_connection_leaks()
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get pool metrics: {e}")
+            return {
+                "monitoring_enabled": True,
+                "error": str(e)
+            }
+
+    def get_query_performance(self, limit: int = 10) -> List[Dict]:
+        """
+        Get query performance metrics
+
+        Args:
+            limit: Maximum number of queries to return
+
+        Returns:
+            List of query performance data
+        """
+        if not self.monitor:
+            return []
+
+        return self.monitor.get_slow_queries(limit=limit)
 
     def close(self):
         """Close all connection pools"""
