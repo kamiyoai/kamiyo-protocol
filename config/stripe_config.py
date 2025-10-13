@@ -116,62 +116,76 @@ class StripeConfig:
                 'price': 0,
                 'currency': 'usd',
                 'interval': 'month',
-                'rate_limit': 10,
+                'alerts_per_month': 10,
                 'features': [
-                    'Basic exploit alerts',
-                    '10 API calls/hour',
-                    'Email notifications',
-                    'Web dashboard access'
-                ]
-            },
-            'basic': {
-                'name': 'Basic',
-                'price': 29,  # $29/month
-                'currency': 'usd',
-                'interval': 'month',
-                'price_id': os.getenv('STRIPE_PRICE_BASIC'),
-                'rate_limit': 100,
-                'features': [
-                    'Real-time exploit alerts',
-                    '100 API calls/hour',
-                    'Email + Discord notifications',
-                    'Historical data access',
-                    'Custom chain filters'
+                    '10 alerts per month',
+                    '24-hour delayed alerts',
+                    'Basic search & filtering',
+                    'Email only',
+                    'Public dashboard access',
+                    'Community support (email, 48h)'
                 ]
             },
             'pro': {
                 'name': 'Pro',
-                'price': 99,  # $99/month
+                'price': 89,  # $89/month
                 'currency': 'usd',
                 'interval': 'month',
                 'price_id': os.getenv('STRIPE_PRICE_PRO'),
-                'rate_limit': 1000,
+                'rate_limit_per_day': 50000,  # 50K API requests/day
+                'webhook_limit': 2,
                 'features': [
-                    'Priority exploit alerts',
-                    '1000 API calls/hour',
-                    'All notification channels',
-                    'Advanced analytics',
-                    'Custom webhooks',
-                    'Protocol-specific filters',
-                    'API access'
+                    'Unlimited real-time alerts (<5 min)',
+                    '50K API requests/day',
+                    'WebSocket feed',
+                    'Multi-channel alerts (Discord/Telegram/Email)',
+                    '90 days historical data',
+                    'Feature extraction API',
+                    '2 webhook endpoints',
+                    'Standard support (email, 24h)'
+                ]
+            },
+            'team': {
+                'name': 'Team',
+                'price': 199,  # $199/month
+                'currency': 'usd',
+                'interval': 'month',
+                'price_id': os.getenv('STRIPE_PRICE_TEAM'),
+                'rate_limit_per_day': 100000,  # 100K API requests/day (2x Pro)
+                'webhook_limit': 5,
+                'features': [
+                    'Everything in Pro',
+                    '100K API requests/day (2x Pro)',
+                    '5 webhook endpoints',
+                    'Slack integration',
+                    '1 year historical data',
+                    'Advanced rate limits (500 req/hour)',
+                    'Beta features: Fork detection, pattern clustering, advanced analytics',
+                    'Custom alert filters (complex queries)',
+                    'API burst allowance',
+                    'Priority support (email + Discord, 12h)'
                 ]
             },
             'enterprise': {
                 'name': 'Enterprise',
-                'price': 499,  # $499/month
+                'price': 499,  # $499/month (starting price)
                 'currency': 'usd',
                 'interval': 'month',
                 'price_id': os.getenv('STRIPE_PRICE_ENTERPRISE'),
-                'rate_limit': 10000,
+                'rate_limit_per_day': -1,  # Unlimited
+                'webhook_limit': 50,
                 'features': [
-                    'Instant exploit alerts',
-                    '10,000 API calls/hour',
-                    'Dedicated support',
-                    'Custom integrations',
+                    'Everything in Team',
+                    'Unlimited API calls',
+                    '50 webhook endpoints',
+                    'Protocol watchlists (monitor specific contracts)',
+                    'Fork graph visualization (beta)',
+                    '2+ years historical data',
                     'White-label options',
-                    'SLA guarantee',
-                    'Unlimited API access',
-                    'Custom data feeds'
+                    'Custom integrations',
+                    'Bulk data exports',
+                    'SLA guarantee (99.9% uptime)',
+                    'Dedicated support manager (4h response)'
                 ]
             }
         }
@@ -188,8 +202,8 @@ class StripeConfig:
 
         return {
             'free': self.get_plan_config('free'),
-            'basic': self.get_plan_config('basic'),
             'pro': self.get_plan_config('pro'),
+            'team': self.get_plan_config('team'),
             'enterprise': self.get_plan_config('enterprise')
         }
 

@@ -41,11 +41,12 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 
 Rate limits vary by subscription tier:
 
-| Tier | Requests/Day | Requests/Minute |
-|------|--------------|-----------------|
-| Free | 100 | 10 |
-| Pro | 10,000 | 100 |
-| Enterprise | Unlimited | 1,000 |
+| Tier | Requests/Day | Requests/Hour | Requests/Minute |
+|------|--------------|---------------|-----------------|
+| Free | No API access | - | - |
+| Pro | 50,000 | ~2,083 | ~35 |
+| Team | 100,000 | ~4,167 | ~70 |
+| Enterprise | Unlimited | Unlimited | ~1,000 |
 
 ### Rate Limit Headers
 
