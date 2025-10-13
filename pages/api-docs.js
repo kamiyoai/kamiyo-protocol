@@ -420,15 +420,22 @@ export default function ApiDocs() {
           <div>
             <h2 className="text-2xl font-light mb-6">Analysis API (v2) - Team Tier+</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-8">
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-4">
               <div className="text-cyan text-sm mb-2">⚡ Team & Enterprise Only</div>
               <div className="text-gray-400 text-sm">
                 The Analysis API (v2) requires Team tier or higher. Upgrade at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.ai/pricing</a>
               </div>
             </div>
 
+            <div className="bg-black border border-yellow-500 border-opacity-25 rounded-lg p-4 mb-8">
+              <div className="text-yellow-500 text-sm mb-2">⚠️ Beta Features - Demo Data</div>
+              <div className="text-gray-400 text-sm">
+                Fork detection and pattern clustering endpoints are currently in <strong className="text-white">Beta</strong> and return demo data for visualization purposes. Production implementation with real bytecode analysis is planned for <strong className="text-white">Q1 2026</strong>. See <a href="https://github.com/kamiyo/roadmap" className="text-cyan hover:opacity-80">FEATURE_ROADMAP.md</a> for details.
+              </div>
+            </div>
+
             <div className="mb-8">
-              <h3 className="text-xl font-light mb-4">GET /v2/analysis/fork-families</h3>
+              <h3 className="text-xl font-light mb-4">GET /v2/analysis/fork-families <span className="text-yellow-500 text-xs">(Beta - Demo Data)</span></h3>
               <p className="text-gray-400 mb-4">Retrieve fork relationships and exploit families.</p>
 
               <div className="mb-4">
@@ -468,7 +475,7 @@ export default function ApiDocs() {
             </div>
 
             <div className="mb-8">
-              <h3 className="text-xl font-light mb-4">GET /v2/analysis/pattern-clusters</h3>
+              <h3 className="text-xl font-light mb-4">GET /v2/analysis/pattern-clusters <span className="text-yellow-500 text-xs">(Beta - Demo Data)</span></h3>
               <p className="text-gray-400 mb-4">Retrieve pattern-based exploit clusters.</p>
               <CodeBlock>{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
   https://api.kamiyo.ai/v2/analysis/pattern-clusters`}</CodeBlock>

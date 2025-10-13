@@ -1,8 +1,9 @@
 // pages/api/v2/features/contracts.js
 import { getSession } from "next-auth/react";
 import prisma from "../../../../lib/prisma";
+import { withRateLimit } from "../../../../lib/rateLimit";
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     // Check authentication
     const session = await getSession({ req });
@@ -116,3 +117,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export default withRateLimit(handler);

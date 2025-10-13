@@ -87,10 +87,7 @@ const nextConfig = {
     // Removed webpackDevMiddleware which caused the warning
 
     reactStrictMode: false,
-
-    // Exclude frontend directory from Next.js build
     pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-    exclude: ['frontend/**/*'],
 };
 
 export default nextConfig;

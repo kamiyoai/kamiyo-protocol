@@ -3,8 +3,9 @@
 // Useful for monitoring connection health in production
 
 import { getPoolStats } from '../../lib/db';
+import { withRateLimit } from "../../lib/rateLimit";
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     try {
         const stats = getPoolStats();
 
@@ -41,3 +42,5 @@ export default async function handler(req, res) {
         });
     }
 }
+
+export default withRateLimit(handler);

@@ -34,6 +34,10 @@ const faqs = [
     {
         question: 'Can I cancel anytime?',
         answer: 'Yes, cancel anytime from your dashboard. No contracts, no hassles. Your data access continues until the end of your billing period.'
+    },
+    {
+        question: 'What features are in Beta?',
+        answer: 'Fork detection analysis and pattern clustering features are currently in Beta with demo data (expected production: Q1 2026). All other features including real-time alerts, API access, and webhooks are fully production-ready.'
     }
 ];
 
