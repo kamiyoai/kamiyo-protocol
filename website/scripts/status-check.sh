@@ -36,22 +36,31 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🐳 DOCKER SERVICES"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if command -v docker-compose &> /dev/null; then
-    docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || {
-        docker-compose ps
-    }
+if command -v docker &> /dev/null; then
+    if docker compose version &> /dev/null; then
+        docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || {
+            docker compose ps 2>/dev/null || echo "No docker-compose.yml found"
+        }
 
-    RUNNING=$(docker-compose ps --filter "status=running" -q 2>/dev/null | wc -l | tr -d ' ')
-    echo ""
-    echo "Status: ${RUNNING}/8 services running"
+        RUNNING=$(docker compose ps --filter "status=running" -q 2>/dev/null | wc -l | tr -d ' ')
+        echo ""
+        echo "Status: ${RUNNING}/8 services running"
 
-    if [ "$RUNNING" -lt 4 ]; then
-        echo "⚠️  Warning: Less than half of services are running"
-    elif [ "$RUNNING" -eq 8 ]; then
-        echo "✅ All services running"
+        if [ "$RUNNING" -lt 4 ]; then
+            echo "⚠️  Warning: Less than half of services are running"
+            echo "💡 Start services: docker compose up -d"
+        elif [ "$RUNNING" -eq 8 ]; then
+            echo "✅ All services running"
+        fi
+    else
+        echo "⚠️  Docker found but 'docker compose' not available"
+        echo "💡 Install Docker Compose plugin"
+        RUNNING=0
     fi
 else
-    echo "⚠️  docker-compose not found"
+    echo "⚠️  Docker not found"
+    echo "💡 Docker is optional but recommended for production"
+    RUNNING=0
 fi
 echo ""
 
@@ -225,7 +234,7 @@ echo ""
 NEEDS_ATTENTION=0
 
 if [ "$RUNNING" -lt 6 ]; then
-    echo "⚠️  Start Docker services: docker-compose up -d"
+    echo "⚠️  Start Docker services: docker compose up -d"
     NEEDS_ATTENTION=1
 fi
 
@@ -235,7 +244,7 @@ if ! curl -f -s --max-time 5 http://localhost:3000 > /dev/null 2>&1; then
 fi
 
 if ! curl -f -s --max-time 5 http://localhost:3001/api/health > /dev/null 2>&1; then
-    echo "⚠️  Check backend: docker-compose logs api"
+    echo "⚠️  Check backend: docker compose logs api"
     NEEDS_ATTENTION=1
 fi
 
@@ -256,8 +265,8 @@ echo ""
 echo "Start shift:    ./scripts/shift-start.sh <NUM> <TYPE>"
 echo "End shift:      ./scripts/shift-end.sh <NUM>"
 echo "Run tests:      npm test && pytest"
-echo "View logs:      docker-compose logs -f"
-echo "Restart all:    docker-compose restart"
+echo "View logs:      docker compose logs -f"
+echo "Restart all:    docker compose restart"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ Status check complete!"

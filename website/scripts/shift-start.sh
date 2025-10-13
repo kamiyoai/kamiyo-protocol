@@ -25,15 +25,24 @@ echo ""
 
 # 2. Check environment
 echo "🔍 Checking Docker environment..."
-docker-compose ps
-echo ""
+if command -v docker &> /dev/null; then
+    if docker compose version &> /dev/null; then
+        # Modern Docker Compose (docker compose)
+        docker compose ps 2>/dev/null || echo "⚠️  No docker-compose.yml found or services not initialized"
 
-# 3. Check if services are running
-RUNNING_SERVICES=$(docker-compose ps --filter "status=running" | wc -l)
-if [ "$RUNNING_SERVICES" -lt 3 ]; then
-    echo "⚠️  Warning: Some Docker services may not be running"
-    echo "Starting services..."
-    docker-compose up -d
+        # Check if services are running
+        RUNNING_SERVICES=$(docker compose ps --filter "status=running" -q 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$RUNNING_SERVICES" -lt 3 ] 2>/dev/null; then
+            echo "⚠️  Warning: Some Docker services may not be running"
+            echo "Note: You can start services with: docker compose up -d"
+        fi
+    else
+        echo "⚠️  Docker found but 'docker compose' not available"
+        echo "Note: Install Docker Compose or use legacy docker-compose command"
+    fi
+else
+    echo "⚠️  Docker not found - skipping service checks"
+    echo "Note: Docker is optional but recommended for production"
 fi
 echo ""
 
