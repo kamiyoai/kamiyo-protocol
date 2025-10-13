@@ -27,6 +27,9 @@ class DatabaseMigrator:
         self.sqlite_path = sqlite_path
         self.postgres_url = postgres_url
 
+        # ID mapping for foreign key updates: {table: {old_id: new_id}}
+        self.id_mappings = {}
+
         # Connect to SQLite
         self.sqlite_conn = sqlite3.connect(sqlite_path)
         self.sqlite_conn.row_factory = sqlite3.Row
@@ -111,31 +114,34 @@ class DatabaseMigrator:
         logger.info("   Schema applied successfully")
 
     def migrate_exploits(self) -> int:
-        """Migrate exploits table"""
+        """Migrate exploits table with ID mapping for foreign keys"""
 
         # Fetch from SQLite
         sqlite_cursor = self.sqlite_conn.cursor()
-        sqlite_cursor.execute("SELECT * FROM exploits")
+        sqlite_cursor.execute("SELECT * FROM exploits ORDER BY id")
         rows = sqlite_cursor.fetchall()
 
         if not rows:
             logger.info("   No exploits to migrate")
             return 0
 
-        # Insert into PostgreSQL
+        # Insert into PostgreSQL one by one to capture new IDs
         postgres_cursor = self.postgres_conn.cursor()
+        id_mapping = {}
+        migrated_count = 0
 
         insert_query = """
             INSERT INTO exploits
             (tx_hash, chain, protocol, amount_usd, timestamp, source,
              source_url, category, description, recovery_status, created_at, updated_at)
-            VALUES %s
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (tx_hash) DO NOTHING
+            RETURNING id
         """
 
-        values = []
         for row in rows:
-            values.append((
+            old_id = row['id']
+            values = (
                 row['tx_hash'],
                 row['chain'],
                 row['protocol'],
@@ -148,14 +154,40 @@ class DatabaseMigrator:
                 row['recovery_status'],
                 row['created_at'] or datetime.now(),
                 row['updated_at'] or datetime.now()
-            ))
+            )
 
-        # Batch insert
-        extras.execute_values(postgres_cursor, insert_query, values)
+            try:
+                postgres_cursor.execute(insert_query, values)
+                result = postgres_cursor.fetchone()
+
+                if result:
+                    new_id = result[0]
+                    id_mapping[old_id] = new_id
+                    migrated_count += 1
+                    logger.debug(f"   Mapped exploit ID {old_id} -> {new_id}")
+                else:
+                    # Conflict - get existing ID
+                    postgres_cursor.execute(
+                        "SELECT id FROM exploits WHERE tx_hash = %s",
+                        (row['tx_hash'],)
+                    )
+                    existing = postgres_cursor.fetchone()
+                    if existing:
+                        id_mapping[old_id] = existing[0]
+                        logger.debug(f"   Duplicate exploit, mapped ID {old_id} -> {existing[0]}")
+
+            except Exception as e:
+                logger.error(f"   Failed to migrate exploit {old_id}: {e}")
+                continue
+
         self.postgres_conn.commit()
-        postgres_cursor.close()
 
-        return len(values)
+        # Store mapping for foreign key updates
+        self.id_mappings['exploits'] = id_mapping
+        logger.info(f"   Created ID mapping for {len(id_mapping)} exploits")
+
+        postgres_cursor.close()
+        return migrated_count
 
     def migrate_sources(self) -> int:
         """Migrate sources table"""
@@ -196,50 +228,76 @@ class DatabaseMigrator:
         return len(values)
 
     def migrate_alerts(self) -> int:
-        """Migrate alerts_sent table"""
+        """Migrate alerts_sent table with foreign key mapping"""
 
         try:
             sqlite_cursor = self.sqlite_conn.cursor()
-            sqlite_cursor.execute("SELECT * FROM alerts_sent")
+            sqlite_cursor.execute("SELECT * FROM alerts_sent ORDER BY id")
             rows = sqlite_cursor.fetchall()
 
             if not rows:
                 logger.info("   No alerts to migrate")
                 return 0
 
+            # Get exploit ID mapping
+            exploit_mapping = self.id_mappings.get('exploits', {})
+            if not exploit_mapping:
+                logger.warning("   No exploit ID mapping available, skipping alerts")
+                return 0
+
             postgres_cursor = self.postgres_conn.cursor()
+            migrated_count = 0
+            skipped_count = 0
 
             insert_query = """
                 INSERT INTO alerts_sent
                 (exploit_id, channel, recipient, sent_at)
-                VALUES %s
+                VALUES (%s, %s, %s, %s)
             """
 
-            values = []
             for row in rows:
-                values.append((
-                    row['exploit_id'],
+                old_exploit_id = row['exploit_id']
+
+                # Map old exploit ID to new exploit ID
+                new_exploit_id = exploit_mapping.get(old_exploit_id)
+
+                if not new_exploit_id:
+                    logger.warning(f"   Skipping alert: exploit ID {old_exploit_id} not found in mapping")
+                    skipped_count += 1
+                    continue
+
+                values = (
+                    new_exploit_id,
                     row['channel'],
                     row['recipient'],
                     row['sent_at'] or datetime.now()
-                ))
+                )
 
-            extras.execute_values(postgres_cursor, insert_query, values)
+                try:
+                    postgres_cursor.execute(insert_query, values)
+                    migrated_count += 1
+                except Exception as e:
+                    logger.error(f"   Failed to migrate alert: {e}")
+                    continue
+
             self.postgres_conn.commit()
             postgres_cursor.close()
 
-            return len(values)
+            if skipped_count > 0:
+                logger.warning(f"   Skipped {skipped_count} alerts due to missing exploit mappings")
+
+            return migrated_count
 
         except sqlite3.OperationalError:
             logger.info("   alerts_sent table doesn't exist, skipping")
             return 0
 
     def migrate_users(self) -> int:
-        """Migrate users table"""
+        """Migrate users table with ID mapping for foreign keys"""
 
         try:
             sqlite_cursor = self.sqlite_conn.cursor()
-            sqlite_cursor.execute("SELECT * FROM users")
+            sqlite_cursor.execute("SELECT * FROM users ORDER BY id")
             rows = sqlite_cursor.fetchall()
 
             if not rows:
@@ -247,75 +305,252 @@ class DatabaseMigrator:
                 return 0
 
             postgres_cursor = self.postgres_conn.cursor()
+            id_mapping = {}
+            migrated_count = 0
 
             insert_query = """
                 INSERT INTO users
-                (email, api_key, tier, created_at, last_request, request_count)
-                VALUES %s
+                (email, api_key, tier, created_at, last_request, request_count, password_hash)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (email) DO NOTHING
+                RETURNING id
             """
 
-            values = []
             for row in rows:
-                # Note: password_hash needs to be added manually later for security
-                values.append((
+                old_id = row['id']
+                # Use placeholder password hash if not exists
+                password_hash = row.get('password_hash', '$2b$12$placeholder_hash_needs_reset')
+
+                values = (
                     row['email'],
                     row['api_key'],
                     row['tier'],
                     row['created_at'] or datetime.now(),
                     row.get('last_request'),
-                    row.get('request_count', 0)
-                ))
+                    row.get('request_count', 0),
+                    password_hash
+                )
 
-            extras.execute_values(postgres_cursor, insert_query, values)
+                try:
+                    postgres_cursor.execute(insert_query, values)
+                    result = postgres_cursor.fetchone()
+
+                    if result:
+                        new_id = result[0]
+                        id_mapping[old_id] = new_id
+                        migrated_count += 1
+                        logger.debug(f"   Mapped user ID {old_id} -> {new_id}")
+                    else:
+                        # Conflict - get existing ID
+                        postgres_cursor.execute(
+                            "SELECT id FROM users WHERE email = %s",
+                            (row['email'],)
+                        )
+                        existing = postgres_cursor.fetchone()
+                        if existing:
+                            id_mapping[old_id] = existing[0]
+                            logger.debug(f"   Duplicate user, mapped ID {old_id} -> {existing[0]}")
+
+                except Exception as e:
+                    logger.error(f"   Failed to migrate user {old_id}: {e}")
+                    continue
+
             self.postgres_conn.commit()
+
+            # Store mapping for foreign key updates
+            self.id_mappings['users'] = id_mapping
+            logger.info(f"   Created ID mapping for {len(id_mapping)} users")
+
             postgres_cursor.close()
+            return migrated_count
 
-            return len(values)
-
-        except (sqlite3.OperationalError, KeyError):
-            logger.info("   users table doesn't exist or format mismatch, skipping")
+        except (sqlite3.OperationalError, KeyError) as e:
+            logger.info(f"   users table doesn't exist or format mismatch, skipping: {e}")
             return 0
 
     def validate_migration(self):
-        """Validate that data migrated correctly"""
+        """
+        Comprehensive validation of migration integrity
+        Checks: row counts, data integrity, foreign keys, unique constraints
+        """
 
         sqlite_cursor = self.sqlite_conn.cursor()
         postgres_cursor = self.postgres_conn.cursor()
 
-        # Count exploits in both databases
-        sqlite_cursor.execute("SELECT COUNT(*) FROM exploits")
-        sqlite_count = sqlite_cursor.fetchone()[0]
+        validation_passed = True
 
-        postgres_cursor.execute("SELECT COUNT(*) FROM exploits")
-        postgres_count = postgres_cursor.fetchone()[0]
+        logger.info("   Running comprehensive validation...")
 
-        logger.info(f"   SQLite exploits: {sqlite_count}")
-        logger.info(f"   PostgreSQL exploits: {postgres_count}")
+        # 1. Row count validation
+        logger.info("\n   1. Validating row counts...")
+        tables_to_check = ['exploits', 'sources']
 
-        if sqlite_count != postgres_count:
-            logger.warning(f"   ⚠️  Count mismatch! Check for duplicates or errors.")
-        else:
-            logger.info("   ✅ Exploit counts match")
+        for table in tables_to_check:
+            try:
+                sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                sqlite_count = sqlite_cursor.fetchone()[0]
 
-        # Validate random sample
-        sqlite_cursor.execute("SELECT tx_hash, amount_usd FROM exploits LIMIT 5")
-        sample = sqlite_cursor.fetchall()
+                postgres_cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                postgres_count = postgres_cursor.fetchone()[0]
 
-        for row in sample:
-            tx_hash = row[0]
-            postgres_cursor.execute(
-                "SELECT amount_usd FROM exploits WHERE tx_hash = %s",
-                (tx_hash,)
-            )
-            pg_row = postgres_cursor.fetchone()
+                logger.info(f"      {table}: SQLite={sqlite_count}, PostgreSQL={postgres_count}")
 
-            if not pg_row:
-                logger.error(f"   ❌ Missing exploit: {tx_hash}")
+                if sqlite_count != postgres_count:
+                    logger.warning(f"      ⚠️  {table}: Count mismatch detected")
+                    validation_passed = False
+                else:
+                    logger.info(f"      ✅ {table}: Counts match")
+
+            except Exception as e:
+                logger.warning(f"      Could not validate {table}: {e}")
+
+        # 2. Sample data validation (checksums)
+        logger.info("\n   2. Validating sample data integrity...")
+        try:
+            sqlite_cursor.execute("""
+                SELECT tx_hash, chain, protocol, amount_usd
+                FROM exploits
+                ORDER BY RANDOM()
+                LIMIT 100
+            """)
+            samples = sqlite_cursor.fetchall()
+
+            mismatches = 0
+            for row in samples:
+                tx_hash, chain, protocol, amount_usd = row
+
+                postgres_cursor.execute("""
+                    SELECT chain, protocol, amount_usd
+                    FROM exploits
+                    WHERE tx_hash = %s
+                """, (tx_hash,))
+                pg_row = postgres_cursor.fetchone()
+
+                if not pg_row:
+                    logger.error(f"      ❌ Missing exploit: {tx_hash}")
+                    mismatches += 1
+                    validation_passed = False
+                elif (pg_row[0] != chain or
+                      pg_row[1] != protocol or
+                      abs(float(pg_row[2] or 0) - float(amount_usd or 0)) > 0.01):
+                    logger.error(f"      ❌ Data mismatch for {tx_hash}")
+                    mismatches += 1
+                    validation_passed = False
+
+            if mismatches == 0:
+                logger.info(f"      ✅ All {len(samples)} samples validated successfully")
             else:
-                logger.debug(f"   ✅ Verified: {tx_hash}")
+                logger.error(f"      ❌ Found {mismatches} data mismatches")
+
+        except Exception as e:
+            logger.error(f"      Sample validation failed: {e}")
+            validation_passed = False
+
+        # 3. Foreign key validation
+        logger.info("\n   3. Validating foreign key integrity...")
+        try:
+            # Check alerts_sent -> exploits
+            postgres_cursor.execute("""
+                SELECT COUNT(*) FROM alerts_sent a
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM exploits e WHERE e.id = a.exploit_id
+                )
+            """)
+            orphaned_alerts = postgres_cursor.fetchone()[0]
+
+            if orphaned_alerts > 0:
+                logger.error(f"      ❌ Found {orphaned_alerts} orphaned alerts")
+                validation_passed = False
+            else:
+                logger.info("      ✅ All alert foreign keys valid")
+
+            # Check alert_preferences -> users
+            postgres_cursor.execute("""
+                SELECT COUNT(*) FROM alert_preferences ap
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM users u WHERE u.id = ap.user_id
+                )
+            """)
+            orphaned_prefs = postgres_cursor.fetchone()[0]
+
+            if orphaned_prefs > 0:
+                logger.error(f"      ❌ Found {orphaned_prefs} orphaned alert preferences")
+                validation_passed = False
+            else:
+                logger.info("      ✅ All alert preference foreign keys valid")
+
+            # Check payments -> users
+            postgres_cursor.execute("""
+                SELECT COUNT(*) FROM payments p
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM users u WHERE u.id = p.user_id
+                )
+            """)
+            orphaned_payments = postgres_cursor.fetchone()[0]
+
+            if orphaned_payments > 0:
+                logger.error(f"      ❌ Found {orphaned_payments} orphaned payments")
+                validation_passed = False
+            else:
+                logger.info("      ✅ All payment foreign keys valid")
+
+        except Exception as e:
+            logger.warning(f"      Foreign key validation error: {e}")
+
+        # 4. Unique constraint validation
+        logger.info("\n   4. Validating unique constraints...")
+        try:
+            # Check tx_hash uniqueness
+            postgres_cursor.execute("""
+                SELECT tx_hash, COUNT(*)
+                FROM exploits
+                GROUP BY tx_hash
+                HAVING COUNT(*) > 1
+            """)
+            duplicate_txs = postgres_cursor.fetchall()
+
+            if duplicate_txs:
+                logger.error(f"      ❌ Found {len(duplicate_txs)} duplicate tx_hashes")
+                validation_passed = False
+            else:
+                logger.info("      ✅ All tx_hashes are unique")
+
+            # Check email uniqueness
+            postgres_cursor.execute("""
+                SELECT email, COUNT(*)
+                FROM users
+                GROUP BY email
+                HAVING COUNT(*) > 1
+            """)
+            duplicate_emails = postgres_cursor.fetchall()
+
+            if duplicate_emails:
+                logger.error(f"      ❌ Found {len(duplicate_emails)} duplicate emails")
+                validation_passed = False
+            else:
+                logger.info("      ✅ All user emails are unique")
+
+        except Exception as e:
+            logger.warning(f"      Unique constraint validation error: {e}")
+
+        # 5. ID mapping validation
+        logger.info("\n   5. Validating ID mappings...")
+        for table, mapping in self.id_mappings.items():
+            if mapping:
+                logger.info(f"      {table}: {len(mapping)} IDs mapped")
+            else:
+                logger.warning(f"      {table}: No ID mapping (may be intentional)")
 
         postgres_cursor.close()
+
+        # Final result
+        logger.info("\n   " + "="*50)
+        if validation_passed:
+            logger.info("   ✅ VALIDATION PASSED - All checks successful")
+        else:
+            logger.error("   ❌ VALIDATION FAILED - Review errors above")
+            raise Exception("Migration validation failed - data integrity issues detected")
+        logger.info("   " + "="*50)
 
     def update_sequences(self):
         """Update PostgreSQL sequences to continue from current max ID"""

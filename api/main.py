@@ -62,6 +62,9 @@ from caching.cache_manager import get_cache_manager
 from caching.warming import get_warmer
 from config.cache_config import get_cache_config
 
+# Rate limiting imports (P0-3)
+from api.middleware.rate_limiter import RateLimitMiddleware
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -82,15 +85,34 @@ app = FastAPI(
 )
 
 # CORS middleware
-# Configure CORS based on environment
-ALLOWED_ORIGINS = os.getenv(
+# Configure CORS based on environment with HTTPS enforcement
+def validate_origins(origins: list, is_production: bool) -> list:
+    """Validate that production origins use HTTPS"""
+    validated = []
+    for origin in origins:
+        origin = origin.strip()
+        if is_production and not origin.startswith('https://'):
+            logger.error(f"[SECURITY] Production origin must use HTTPS: {origin}")
+            continue
+        validated.append(origin)
+    return validated
+
+is_production = os.getenv("ENVIRONMENT", "development") == "production"
+raw_origins = os.getenv(
     "ALLOWED_ORIGINS",
     "https://kamiyo.ai,https://www.kamiyo.ai,https://api.kamiyo.ai"
 ).split(",")
 
+# Validate origins
+ALLOWED_ORIGINS = validate_origins(raw_origins, is_production)
+
 # In development, allow localhost
-if os.getenv("ENVIRONMENT", "development") == "development":
+if not is_production:
     ALLOWED_ORIGINS.extend(["http://localhost:3000", "http://localhost:8000"])
+
+# In production, ensure at least one valid origin
+if is_production and not ALLOWED_ORIGINS:
+    raise ValueError("[SECURITY] No valid HTTPS origins configured for production")
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,6 +122,35 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-API-Key"],
     max_age=3600,
 )
+
+# Security headers middleware (P0-1)
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+
+    # Defense-in-depth security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    # HSTS only in production (prevents MITM attacks)
+    if is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    return response
+
+# Rate limiting middleware (P0-3)
+# Use Redis in production for distributed rate limiting
+use_redis_rate_limit = is_production and os.getenv("REDIS_URL")
+app.add_middleware(
+    RateLimitMiddleware,
+    use_redis=use_redis_rate_limit,
+    redis_url=os.getenv("REDIS_URL")
+)
+logger.info(f"Rate limiting middleware enabled (Redis: {use_redis_rate_limit})")
 
 # Cache middleware
 if cache_config.middleware_enabled:
@@ -177,11 +228,11 @@ async def root():
 
 @app.get("/exploits", response_model=ExploitsListResponse, tags=["Exploits"])
 async def get_exploits(
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(100, ge=1, le=1000, description="Items per page"),
-    chain: Optional[str] = Query(None, description="Filter by blockchain"),
+    page: int = Query(1, ge=1, le=10000, description="Page number (max 10,000)"),
+    page_size: int = Query(100, ge=1, le=500, description="Items per page (max 500 for performance)"),
+    chain: Optional[str] = Query(None, max_length=100, description="Filter by blockchain"),
     min_amount: Optional[float] = Query(None, ge=0, description="Minimum loss amount (USD)"),
-    protocol: Optional[str] = Query(None, description="Filter by protocol name"),
+    protocol: Optional[str] = Query(None, max_length=100, description="Filter by protocol name"),
     authorization: Optional[str] = Header(None, description="Authorization header (Bearer token)"),
 ):
     """
@@ -313,31 +364,20 @@ async def get_chains():
     """
     Get list of all blockchains in database
 
-    Returns list of chain names with exploit counts.
+    Returns list of chain names with exploit counts (optimized single-query).
     """
     try:
-        chains = db.get_chains()
-
-        # Get count per chain
-        chain_counts = []
-        for chain in chains:
-            exploits = db.get_exploits_by_chain(chain)
-            chain_counts.append({
-                "chain": chain,
-                "exploit_count": len(exploits)
-            })
-
-        # Sort by count
-        chain_counts.sort(key=lambda x: x['exploit_count'], reverse=True)
+        # Use optimized single-query method (fixes N+1 query problem)
+        chain_counts = db.get_chains_with_counts()
 
         return {
-            "total_chains": len(chains),
+            "total_chains": len(chain_counts),
             "chains": chain_counts
         }
 
     except Exception as e:
         logger.error(f"Error fetching chains: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch chains")
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
@@ -366,6 +406,45 @@ async def health_check():
     except Exception as e:
         logger.error(f"Error fetching health: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/ready", tags=["Health"])
+async def readiness_check():
+    """
+    Readiness probe for deployment health checks
+
+    Returns 200 when app is ready to serve traffic, 503 otherwise.
+    Checks critical dependencies: database, cache (if enabled).
+    """
+    try:
+        # Check database connectivity
+        total_exploits = db.get_total_exploits()
+
+        # Check cache connectivity (if enabled)
+        cache_healthy = True
+        if cache_config.l2_enabled:
+            try:
+                cache_manager = get_cache_manager()
+                cache_healthy = await cache_manager.ping()
+            except Exception as e:
+                logger.warning(f"Cache health check failed: {e}")
+                cache_healthy = False
+
+        # Return ready if database is accessible
+        # Cache is optional - degrade gracefully
+        if total_exploits >= 0:  # Database accessible
+            return {
+                "status": "ready",
+                "database": "healthy",
+                "cache": "healthy" if cache_healthy else "degraded",
+                "exploits": total_exploits
+            }
+        else:
+            raise HTTPException(status_code=503, detail="Database not accessible")
+
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        raise HTTPException(status_code=503, detail="Not ready")
 
 
 @app.get("/sources/rankings", tags=["Sources"])
@@ -454,6 +533,32 @@ async def startup_event():
         logger.critical(f"[PCI COMPLIANCE] Failed to initialize logging filter: {e}")
         logger.critical("PAYMENT PROCESSING SHOULD BE DISABLED - LOGS MAY CONTAIN SENSITIVE DATA")
         # In production, you might want to prevent startup here
+
+    # Check Stripe API version health (P1-1)
+    # PCI DSS Requirement 12.10.1: Incident response planning
+    try:
+        from api.payments.stripe_version_monitor import get_version_monitor
+
+        version_monitor = get_version_monitor()
+        version_health = version_monitor.check_version_health()
+
+        if version_health['status'] == 'critical':
+            logger.critical(
+                f"[STRIPE VERSION] CRITICAL: API version {version_health['version']} "
+                f"is {version_health['age_days']} days old. Upgrade required immediately."
+            )
+        elif version_health['status'] == 'warning':
+            logger.warning(
+                f"[STRIPE VERSION] WARNING: API version {version_health['version']} "
+                f"is {version_health['age_days']} days old. Plan upgrade soon."
+            )
+        else:
+            logger.info(
+                f"[STRIPE VERSION] Healthy: API version {version_health['version']} "
+                f"is {version_health['age_days']} days old."
+            )
+    except Exception as e:
+        logger.error(f"[STRIPE VERSION] Failed to check version health: {e}")
 
     logger.info(f"Database exploits: {db.get_total_exploits()}")
     logger.info(f"Tracked chains: {len(db.get_chains())}")

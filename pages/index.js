@@ -60,11 +60,11 @@ export default function Home() {
                             {/* Heading */}
                             <div>
                                 <h2 className="text-4xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    Blockchain Exploit Intelligence,<br />Aggregated & Organized
+                                    Blockchain Exploit Alerts within 4 minutes – not 4 hours.
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Track verified exploits from trusted security sources.<br/>
-                                    Get organized alerts. One dashboard for all chains.
+                                Track verified exploits from trusted security sources.<br/>
+                                Real-time awareness across every chain.
                                 </p>
                             </div>
 

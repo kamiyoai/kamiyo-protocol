@@ -11,6 +11,9 @@ import json
 import time
 from typing import Dict, Any, Callable
 from fastapi import Request, HTTPException
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -34,6 +37,11 @@ from monitoring.prometheus_metrics import api_request_duration_seconds
 from monitoring.alerts import get_alert_manager, AlertLevel
 
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter for webhook endpoint
+# PCI DSS Requirement 6.5.10: Protect against injection attacks and abuse
+# Limits webhook requests to 30 per minute per IP address
+limiter = Limiter(key_func=get_remote_address)
 
 
 # Event type to processor mapping
@@ -60,13 +68,28 @@ EVENT_PROCESSORS: Dict[str, Callable] = {
 
 async def handle_webhook_event(request: Request, raw_body: bytes) -> Dict[str, Any]:
     """
-    Main webhook event handler
+    Main webhook event handler with rate limiting protection
 
     This function:
-    1. Verifies the webhook signature from Stripe
-    2. Stores the event for idempotent processing
-    3. Routes to appropriate processor
-    4. Handles errors and retries
+    1. Applies rate limiting (30 requests/minute per IP)
+    2. Verifies the webhook signature from Stripe
+    3. Stores the event for idempotent processing
+    4. Routes to appropriate processor
+    5. Handles errors and retries
+
+    PCI DSS Compliance:
+    - Requirement 6.5.10: Protection against injection and abuse
+    - Rate limiting prevents webhook spam attacks
+    - Signature verification prevents forged webhooks
+    - Event deduplication prevents replay attacks
+
+    Rate Limiting:
+    - 30 webhooks per minute per IP address
+    - Protects against:
+      * DoS attacks on webhook endpoint
+      * Forged webhook spam
+      * Replay attacks
+      * Resource exhaustion
 
     Args:
         request: FastAPI request object
@@ -77,12 +100,51 @@ async def handle_webhook_event(request: Request, raw_body: bytes) -> Dict[str, A
 
     Raises:
         HTTPException: If signature verification fails or processing errors occur
+        RateLimitExceeded: If rate limit exceeded (429 response)
     """
     start_time = time.time()
     event_id = None
     event_type = None
 
     try:
+        # DEFENSE #1: Rate limiting check
+        # Apply rate limit of 30 webhooks per minute per IP
+        try:
+            await limiter.check_request_limit(
+                request=request,
+                endpoint_key="stripe_webhook",
+                limit="30/minute"
+            )
+        except RateLimitExceeded:
+            # Log rate limit violation
+            client_ip = get_remote_address(request)
+            logger.warning(
+                f"[RATE LIMIT] Webhook rate limit exceeded for IP: {client_ip}",
+                extra={
+                    "client_ip": client_ip,
+                    "user_agent": request.headers.get("user-agent")
+                }
+            )
+
+            # Send alert for potential abuse
+            alert_manager = get_alert_manager()
+            alert_manager.send_alert(
+                title="Webhook Rate Limit Exceeded",
+                message=f"IP {client_ip} exceeded webhook rate limit (30/min). Potential abuse detected.",
+                level=AlertLevel.WARNING,
+                metadata={
+                    "client_ip": client_ip,
+                    "endpoint": "/webhooks/stripe"
+                }
+            )
+
+            # Return 429 Too Many Requests
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded. Maximum 30 webhook requests per minute."
+            )
+
+        # DEFENSE #2: Signature verification
         # Get Stripe configuration
         config = get_stripe_config()
 

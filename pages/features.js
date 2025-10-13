@@ -24,9 +24,9 @@ export default function Features() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4">Real-time Alerts</h3>
-                            <p className="mb-4">Receive instant notifications when new exploits are detected across the blockchain ecosystem. KAMIYO monitors 20+ verified sources continuously and delivers alerts within an average of 4 minutes from initial detection.</p>
-                            <p className="mb-4">Available on all tiers, with the Free tier providing up to 10 alerts per month and Pro/Team/Enterprise tiers offering unlimited alerts.</p>
-                            <p className="text-sm text-gray-500">Available: Free (10/month), Pro+</p>
+                            <p className="mb-4">Receive instant notifications when new exploits are detected across the blockchain ecosystem. KAMIYO monitors 20+ verified sources continuously and delivers alerts within minutes from initial detection.</p>
+                            <p className="mb-4">Free tier receives 24-hour delayed data. Pro, Team, and Enterprise tiers get real-time alerts with unlimited frequency.</p>
+                            <p className="text-sm text-gray-500">Available: Free (24h delay), Pro/Team/Enterprise (real-time)</p>
                         </div>
 
                         <div>
@@ -74,20 +74,40 @@ export default function Features() {
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4">REST API Access</h3>
                             <p className="mb-4">Integrate KAMIYO's exploit intelligence directly into your applications, monitoring tools, or security workflows with our comprehensive REST API.</p>
-                            <p className="mb-4">Query historical exploits, filter by chain/protocol/type, and retrieve detailed incident data programmatically. The Pro tier includes 50,000 API requests per day.</p>
-                            <p className="text-sm text-gray-500">Available: Pro+ (50K req/day)</p>
+                            <p className="mb-4">Query historical exploits, filter by chain/protocol/type, and retrieve detailed incident data programmatically.</p>
+                            <ul className="space-y-2 mb-4 text-sm">
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Pro:</strong> 50,000 requests/day, 35/min</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Team:</strong> 100,000 requests/day, 70/min</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Enterprise:</strong> Unlimited requests</span>
+                                </li>
+                            </ul>
+                            <p className="text-sm text-gray-500">Available: Pro ($89/mo), Team ($199/mo), Enterprise ($499/mo)</p>
 
                             <h3 className="text-xl md:text-2xl mb-4 mt-8">WebSocket Feed</h3>
-                            <p className="mb-4">Subscribe to real-time exploit data streams via WebSocket connections. Perfect for building live dashboards, monitoring systems, or automated trading bots that need instant exploit awareness.</p>
+                            <p className="mb-4">Subscribe to real-time exploit data streams via WebSocket connections. Perfect for building live dashboards, monitoring systems, or automated response systems that need instant exploit awareness.</p>
                             <p className="mb-4">WebSocket connections provide lower latency than polling the REST API and ensure you never miss a critical security event.</p>
-                            <p className="text-sm text-gray-500">Available: Pro+</p>
+                            <p className="text-sm text-gray-500">Available: Pro/Team/Enterprise</p>
                         </div>
 
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4">Webhook Endpoints</h3>
                             <p className="mb-4">Configure custom webhook endpoints to receive POST requests when new exploits match your filters. Webhooks enable seamless integration with your existing infrastructure without requiring continuous polling.</p>
-                            <p className="mb-4">Team tier includes 5 webhook endpoints, Enterprise tier provides 50 webhook endpoints with custom retry policies and delivery guarantees.</p>
-                            <p className="text-sm text-gray-500">Available: Team (5 endpoints), Enterprise (50 endpoints)</p>
+                            <p className="mb-4">Pro tier includes 2 webhook endpoints, Team tier provides 5 endpoints, and Enterprise tier offers 50 webhook endpoints with custom retry policies and delivery guarantees.</p>
+                            <p className="text-sm text-gray-500">Available: Pro (2 endpoints), Team (5 endpoints), Enterprise (50 endpoints)</p>
 
                             <h3 className="text-xl md:text-2xl mb-4 mt-8">Feature Extraction API</h3>
                             <p className="mb-4">Access our exploit feature extraction system to analyze confirmed historical exploits. Extract technical features including bytecode patterns, function signatures, contract structures, and attack vectors.</p>
@@ -118,16 +138,28 @@ export default function Features() {
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Pro tier:</strong> 90 days of historical data</span>
+                                    <span><strong>Free:</strong> 7 days</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Enterprise tier:</strong> 2+ years of comprehensive exploit history</span>
+                                    <span><strong>Pro:</strong> 90 days</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Team:</strong> 1 year</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Enterprise:</strong> 2+ years</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-500">Pro: 90 days | Enterprise: 2+ years</p>
+                            <p className="text-sm text-gray-500">Free: 7d | Pro: 90d | Team: 1y | Enterprise: 2+y</p>
                         </div>
 
                         <div>

@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-JWT Token Manager with P0 Security Fixes
-Integrates all three critical security fixes:
+JWT Token Manager with P0 + P1 Security Fixes
+Integrates critical security fixes:
 - P0-1: Redis-backed token revocation
 - P0-2: Timing-safe validation
 - P0-3: Deterministic idempotency keys
+- P1-1: JWT secret rotation with zero downtime
+- P1-2: Refresh token rotation (one-time use)
+- P1-4: Explicit algorithm enforcement
+- P1-5: Cryptographically random JTI
 """
 
 import os
 import jwt
+import uuid
 import logging
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
@@ -17,6 +22,7 @@ from fastapi import HTTPException, Request
 from api.auth.token_revocation import get_revocation_store
 from api.auth.timing_safe import get_timing_validator
 from api.auth.idempotency import get_idempotency_manager
+from api.auth.secret_rotation import get_secret_manager
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +35,10 @@ class JWTManager:
     - P0-1: Redis-backed distributed token revocation
     - P0-2: Timing-attack resistant validation with rate limiting
     - P0-3: Deterministic JTI generation for idempotency
+    - P1-1: JWT secret rotation with zero downtime
+    - P1-2: Refresh token rotation (one-time use)
+    - P1-4: Explicit algorithm enforcement
+    - P1-5: Cryptographically random JTI (UUID4)
     - Secure token generation with configurable expiry
     - Comprehensive logging for audit trail
     """
@@ -38,27 +48,41 @@ class JWTManager:
         secret_key: Optional[str] = None,
         algorithm: str = "HS256",
         access_token_expire_minutes: int = 60,
-        refresh_token_expire_days: int = 30
+        refresh_token_expire_days: int = 7  # P1-2: Reduced from 30 to 7 days
     ):
         """
         Initialize JWT manager.
 
         Args:
-            secret_key: JWT secret key (defaults to env JWT_SECRET)
-            algorithm: JWT algorithm
+            secret_key: JWT secret key (defaults to env JWT_SECRET, or secret manager)
+            algorithm: JWT algorithm (only HS256 allowed for security)
             access_token_expire_minutes: Access token expiry in minutes
-            refresh_token_expire_days: Refresh token expiry in days
+            refresh_token_expire_days: Refresh token expiry in days (default: 7)
         """
-        self.secret_key = secret_key or os.getenv('JWT_SECRET')
+        # P1-4 FIX: Enforce only secure algorithms
+        if algorithm not in ['HS256', 'HS384', 'HS512']:
+            raise ValueError(
+                f"Unsupported algorithm: {algorithm}. "
+                f"Only HS256, HS384, HS512 are allowed for security."
+            )
+
+        self.algorithm = algorithm
+        self.access_token_expire_minutes = access_token_expire_minutes
+        self.refresh_token_expire_days = refresh_token_expire_days
+
+        # P1-1 FIX: Initialize secret manager for rotation support
+        self.secret_manager = get_secret_manager(
+            token_expiry_seconds=access_token_expire_minutes * 60,
+            grace_period_seconds=300  # 5 minutes
+        )
+
+        # Use secret manager instead of direct env variable
+        self.secret_key = secret_key or self.secret_manager.get_current_secret()
         if not self.secret_key:
             raise ValueError("JWT_SECRET environment variable is required")
 
         if len(self.secret_key) < 32:
             raise ValueError("JWT_SECRET must be at least 32 characters long")
-
-        self.algorithm = algorithm
-        self.access_token_expire_minutes = access_token_expire_minutes
-        self.refresh_token_expire_days = refresh_token_expire_days
 
         # Get singleton instances of security components
         self.revocation_store = get_revocation_store()
@@ -74,7 +98,7 @@ class JWTManager:
         expires_delta: Optional[timedelta] = None
     ) -> Dict[str, Any]:
         """
-        Create JWT access token with deterministic JTI (P0-3 fix).
+        Create JWT access token with cryptographically random JTI (P1-5 fix).
 
         Args:
             user_id: User identifier
@@ -90,16 +114,9 @@ class JWTManager:
         expires_delta = expires_delta or timedelta(minutes=self.access_token_expire_minutes)
         expire = now + expires_delta
 
-        # Generate deterministic JTI for idempotency (P0-3 FIX)
-        jti = self.idempotency_manager.generate_deterministic_jti(
-            user_id=user_id,
-            operation="access_token",
-            timestamp=now,
-            additional_context={
-                "email": user_email,
-                "tier": tier
-            }
-        )
+        # P1-5 FIX: Generate cryptographically random JTI using UUID4
+        # This prevents replay attacks and token prediction
+        jti = str(uuid.uuid4())
 
         # Build token payload
         payload = {
@@ -139,7 +156,7 @@ class JWTManager:
         expires_delta: Optional[timedelta] = None
     ) -> Dict[str, Any]:
         """
-        Create JWT refresh token with deterministic JTI.
+        Create JWT refresh token with cryptographically random JTI (P1-5 fix).
 
         Args:
             user_id: User identifier
@@ -153,13 +170,8 @@ class JWTManager:
         expires_delta = expires_delta or timedelta(days=self.refresh_token_expire_days)
         expire = now + expires_delta
 
-        # Generate deterministic JTI (P0-3 FIX)
-        jti = self.idempotency_manager.generate_deterministic_jti(
-            user_id=user_id,
-            operation="refresh_token",
-            timestamp=now,
-            additional_context={"email": user_email}
-        )
+        # P1-5 FIX: Generate cryptographically random JTI using UUID4
+        jti = str(uuid.uuid4())
 
         # Build token payload
         payload = {
@@ -196,6 +208,8 @@ class JWTManager:
         Implements:
         - P0-2: Timing-safe validation with rate limiting
         - P0-1: Distributed revocation check
+        - P1-1: Secret rotation support (tries all valid secrets)
+        - P1-4: Explicit algorithm enforcement and required claims
 
         Args:
             token: JWT token string
@@ -213,12 +227,43 @@ class JWTManager:
             client_ip = request.client.host if request.client else "unknown"
 
         try:
-            # Decode token (this validates signature and expiry)
-            payload = jwt.decode(
-                token,
-                self.secret_key,
-                algorithms=[self.algorithm]
-            )
+            # P1-1 FIX: Try all valid secrets (current + previous) for zero-downtime rotation
+            all_secrets = self.secret_manager.get_all_valid_secrets()
+            payload = None
+            last_error = None
+
+            for secret_idx, secret in enumerate(all_secrets):
+                try:
+                    # P1-4 FIX: Explicit algorithm enforcement and required claims validation
+                    payload = jwt.decode(
+                        token,
+                        secret,
+                        algorithms=[self.algorithm],
+                        options={
+                            'verify_signature': True,  # Explicit signature verification
+                            'verify_exp': True,         # Verify expiration
+                            'verify_iat': True,         # Verify issued-at
+                            'require': ['exp', 'iat', 'jti', 'sub', 'email', 'tier']  # Required claims
+                        }
+                    )
+
+                    # Success! Token validated with this secret
+                    if secret_idx > 0:
+                        logger.info(
+                            f"Token validated with previous secret #{secret_idx} "
+                            f"during rotation grace period"
+                        )
+                    break
+
+                except jwt.InvalidTokenError as e:
+                    last_error = e
+                    continue  # Try next secret
+
+            # If no secret worked, raise the last error
+            if payload is None:
+                if last_error:
+                    raise last_error
+                raise jwt.InvalidTokenError("Token validation failed with all secrets")
 
             jti = payload.get("jti")
             if not jti:
@@ -258,6 +303,120 @@ class JWTManager:
         except Exception as e:
             logger.error(f"Token verification error from IP {client_ip}: {e}")
             raise HTTPException(status_code=500, detail="Token verification failed")
+
+    def refresh_access_token(
+        self,
+        refresh_token: str,
+        request: Optional[Request] = None
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
+        Refresh access token using refresh token with rotation (P1-2 fix).
+
+        OWASP Best Practice: Refresh tokens are one-time use.
+        - Old refresh token is REVOKED immediately
+        - New access token AND new refresh token are returned
+        - This prevents stolen refresh tokens from being reused
+
+        Args:
+            refresh_token: Current refresh token
+            request: Optional FastAPI request for IP extraction
+
+        Returns:
+            Tuple of (new_access_token_data, new_refresh_token_data)
+
+        Raises:
+            HTTPException: If refresh fails
+        """
+        # Step 1: Verify refresh token
+        payload = self.verify_token(refresh_token, request=request)
+
+        # Verify it's a refresh token (not access token)
+        if payload.get("type") != "refresh":
+            logger.warning("Attempted to use non-refresh token for refresh")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token type"
+            )
+
+        # Extract user info
+        user_id = payload.get("sub")
+        user_email = payload.get("email")
+        old_jti = payload.get("jti")
+
+        if not user_id or not user_email or not old_jti:
+            logger.error("Refresh token missing required claims")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token claims"
+            )
+
+        # Step 2: REVOKE old refresh token (P1-2 FIX - ONE-TIME USE)
+        # Calculate TTL for revocation
+        exp = payload.get("exp")
+        if exp:
+            now = datetime.utcnow()
+            expire_time = datetime.fromtimestamp(exp)
+            ttl = int((expire_time - now).total_seconds())
+
+            if ttl > 0:
+                # Revoke old refresh token in Redis
+                success = self.revocation_store.revoke(
+                    token_jti=old_jti,
+                    expires_in=ttl,
+                    user_id=user_id,
+                    reason="refresh_token_rotation"
+                )
+
+                if success:
+                    logger.info(
+                        f"Old refresh token revoked during rotation: "
+                        f"user={user_id}, jti={old_jti[:8]}..."
+                    )
+                else:
+                    logger.error(
+                        f"Failed to revoke old refresh token: "
+                        f"user={user_id}, jti={old_jti[:8]}..."
+                    )
+                    # Continue anyway - better to issue new token than fail
+
+        # Step 3: Get current user tier (could have changed)
+        from database import get_db
+        db = get_db()
+        user = db.conn.execute(
+            "SELECT tier FROM users WHERE id = ? AND email = ?",
+            (user_id, user_email)
+        ).fetchone()
+
+        if not user:
+            logger.error(f"User not found during token refresh: {user_id}")
+            raise HTTPException(
+                status_code=401,
+                detail="User not found"
+            )
+
+        user_tier = user[0]
+
+        # Step 4: Generate NEW access token
+        new_access_token_data = self.create_access_token(
+            user_id=user_id,
+            user_email=user_email,
+            tier=user_tier
+        )
+
+        # Step 5: Generate NEW refresh token (P1-2 FIX)
+        new_refresh_token_data = self.create_refresh_token(
+            user_id=user_id,
+            user_email=user_email
+        )
+
+        logger.info(
+            f"Token refresh successful with rotation: "
+            f"user={user_id}, old_refresh_jti={old_jti[:8]}..., "
+            f"new_refresh_jti={new_refresh_token_data['jti'][:8]}..."
+        )
+
+        # Return BOTH new tokens
+        return new_access_token_data, new_refresh_token_data
 
     def revoke_token(
         self,
@@ -362,9 +521,16 @@ class JWTManager:
             "revocation_store": self.revocation_store.get_stats(),
             "timing_validator": self.timing_validator.get_stats(),
             "idempotency_manager": self.idempotency_manager.get_stats(),
+            "secret_manager": self.secret_manager.get_rotation_status(),
             "token_expiry": {
                 "access_token_minutes": self.access_token_expire_minutes,
                 "refresh_token_days": self.refresh_token_expire_days
+            },
+            "p1_fixes_applied": {
+                "P1-1": "JWT secret rotation with zero downtime",
+                "P1-2": "Refresh token rotation (one-time use)",
+                "P1-4": "Explicit algorithm enforcement",
+                "P1-5": "Cryptographically random JTI (UUID4)"
             }
         }
 
@@ -378,10 +544,12 @@ class JWTManager:
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "revocation_store": self.revocation_store.health_check(),
+            "secret_manager": self.secret_manager.health_check(),
             "jwt_manager": {
                 "status": "healthy",
                 "algorithm": self.algorithm,
-                "secret_key_configured": bool(self.secret_key)
+                "secret_key_configured": bool(self.secret_key),
+                "p1_fixes": ["secret_rotation", "refresh_token_rotation", "algorithm_enforcement", "uuid4_jti"]
             }
         }
 

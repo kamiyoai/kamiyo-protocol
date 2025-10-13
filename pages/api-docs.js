@@ -72,19 +72,23 @@ export default function ApiDocs() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border border-gray-500 border-opacity-25 rounded p-4">
                   <div className="text-gray-500 text-sm mb-2">Free Tier</div>
-                  <div className="text-white">100 requests/day</div>
+                  <div className="text-white mb-1">No API access</div>
+                  <div className="text-xs text-gray-400">Web dashboard only</div>
                 </div>
                 <div className="border border-gray-500 border-opacity-25 rounded p-4">
-                  <div className="text-gray-500 text-sm mb-2">Pro Tier</div>
-                  <div className="text-white">50,000 requests/day</div>
+                  <div className="text-gray-500 text-sm mb-2">Pro Tier ($89/mo)</div>
+                  <div className="text-white mb-1">50,000 requests/day</div>
+                  <div className="text-xs text-gray-400">35/min • 2,083/hour</div>
                 </div>
                 <div className="border border-gray-500 border-opacity-25 rounded p-4">
-                  <div className="text-gray-500 text-sm mb-2">Team Tier</div>
-                  <div className="text-white">200,000 requests/day</div>
+                  <div className="text-gray-500 text-sm mb-2">Team Tier ($199/mo)</div>
+                  <div className="text-white mb-1">100,000 requests/day</div>
+                  <div className="text-xs text-gray-400">70/min • 4,167/hour</div>
                 </div>
                 <div className="border border-gray-500 border-opacity-25 rounded p-4">
-                  <div className="text-gray-500 text-sm mb-2">Enterprise Tier</div>
-                  <div className="text-white">Custom limits</div>
+                  <div className="text-gray-500 text-sm mb-2">Enterprise Tier ($499/mo)</div>
+                  <div className="text-white mb-1">Unlimited requests</div>
+                  <div className="text-xs text-gray-400">1,000/min • No daily limit</div>
                 </div>
               </div>
             </div>
@@ -247,7 +251,7 @@ export default function ApiDocs() {
                       <tr>
                         <td className="p-3 font-mono text-cyan">page_size</td>
                         <td className="p-3 text-gray-400">number</td>
-                        <td className="p-3 text-gray-400">Items per page (default: 100, max: 1000)</td>
+                        <td className="p-3 text-gray-400">Items per page (default: 100, max: 500)</td>
                       </tr>
                     </tbody>
                   </table>

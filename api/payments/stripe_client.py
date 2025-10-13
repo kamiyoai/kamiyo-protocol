@@ -7,6 +7,7 @@ Wrapper around Stripe SDK for customer and subscription management
 import os
 import sys
 import logging
+import hashlib
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
@@ -14,6 +15,14 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import stripe
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+    RetryError
+)
 from config.stripe_config import get_stripe_config
 from database import get_db
 from monitoring.prometheus_metrics import payments_total, revenue_total, subscriptions_total
@@ -69,20 +78,52 @@ class StripeClient:
     # CIRCUIT BREAKER HELPER
     # ==========================================
 
+    @retry(
+        # Only retry on transient errors (network, rate limit, 500s)
+        retry=retry_if_exception_type((
+            stripe.error.APIConnectionError,  # Network errors
+            stripe.error.RateLimitError,      # 429 rate limits
+            stripe.error.APIError             # 500/502/503/504 errors
+        )),
+        # Exponential backoff: 1s, 2s, 4s, 8s (max 10s)
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        # Max 3 retry attempts
+        stop=stop_after_attempt(3),
+        # Log before each retry
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        # Reraise the last exception if all retries fail
+        reraise=True
+    )
     def _call_stripe_api(self, api_callable, *args, **kwargs):
         """
-        Execute Stripe API call with circuit breaker protection.
+        Execute Stripe API call with circuit breaker protection and automatic retries.
 
         This wrapper ensures that:
         1. Circuit breaker is checked before making API calls
-        2. Successful calls reset failure counters
-        3. Failed calls increment failure counters and potentially open circuit
-        4. Circuit breaker state is available for monitoring
+        2. Transient errors (network, rate limit, 500s) are automatically retried
+        3. Non-retryable errors (card declined, invalid request) fail immediately
+        4. Successful calls reset failure counters
+        5. Failed calls increment failure counters and potentially open circuit
+        6. Circuit breaker state is available for monitoring
+
+        Retry Strategy (PCI DSS 12.10.1 - Incident Response):
+        - Network errors (APIConnectionError): Retry 3x with exponential backoff
+        - Rate limits (RateLimitError): Retry 3x with exponential backoff
+        - Server errors (APIError 500/502/503): Retry 3x with exponential backoff
+        - Card errors (CardError): NEVER retry - user must fix card
+        - Invalid requests (InvalidRequestError): NEVER retry - code bug
+
+        Backoff Schedule:
+        - Attempt 1: Immediate
+        - Attempt 2: Wait 1-2 seconds
+        - Attempt 3: Wait 2-4 seconds
+        - Attempt 4: Wait 4-8 seconds (max 10s)
 
         PCI DSS Compliance:
         - Requirement 12.10.1: Incident response for payment processing failures
         - Prevents excessive failed attempts during Stripe outages
-        - Provides audit trail of API failures
+        - Provides audit trail of API failures and retries
+        - Automatic recovery from transient failures
 
         Args:
             api_callable: Stripe API function to call
@@ -93,7 +134,13 @@ class StripeClient:
             Result from Stripe API call
 
         Raises:
-            Exception: If circuit breaker is open or API call fails
+            stripe.error.CardError: Card was declined (DO NOT RETRY)
+            stripe.error.InvalidRequestError: Invalid parameters (DO NOT RETRY)
+            stripe.error.AuthenticationError: Invalid API key (DO NOT RETRY)
+            stripe.error.APIConnectionError: Network failure (after retries)
+            stripe.error.RateLimitError: Rate limit (after retries)
+            stripe.error.APIError: Stripe server error (after retries)
+            Exception: If circuit breaker is open
         """
         # Check if circuit breaker allows the call
         if not self.circuit_breaker.can_call():
@@ -114,7 +161,7 @@ class StripeClient:
             raise Exception(error_msg)
 
         try:
-            # Make the API call
+            # Make the API call (tenacity will automatically retry on retryable errors)
             result = api_callable(*args, **kwargs)
 
             # Record success
@@ -122,21 +169,44 @@ class StripeClient:
 
             return result
 
+        except (stripe.error.CardError,
+                stripe.error.InvalidRequestError,
+                stripe.error.AuthenticationError) as e:
+            # NON-RETRYABLE errors - fail immediately
+            # Record failure but don't retry
+            self.circuit_breaker.record_failure(e)
+
+            # Log for audit trail
+            logger.error(
+                f"[STRIPE NON-RETRYABLE ERROR] {type(e).__name__}: {str(e)}",
+                extra={
+                    "circuit_breaker_status": self.circuit_breaker.get_status(),
+                    "error_type": "non_retryable"
+                }
+            )
+
+            # Re-raise immediately (do not retry)
+            raise
+
         except stripe.error.StripeError as e:
+            # RETRYABLE errors - tenacity handles retries
             # Record failure
             self.circuit_breaker.record_failure(e)
 
             # Log for audit trail
             logger.error(
-                f"[STRIPE API ERROR] {type(e).__name__}: {str(e)}",
-                extra={"circuit_breaker_status": self.circuit_breaker.get_status()}
+                f"[STRIPE RETRYABLE ERROR] {type(e).__name__}: {str(e)}",
+                extra={
+                    "circuit_breaker_status": self.circuit_breaker.get_status(),
+                    "error_type": "retryable"
+                }
             )
 
-            # Re-raise for caller to handle
+            # Re-raise for tenacity to handle (will retry if retryable)
             raise
 
         except Exception as e:
-            # Record generic failure
+            # Generic failure
             self.circuit_breaker.record_failure(e)
 
             logger.error(
@@ -161,6 +231,138 @@ class StripeClient:
         return self.circuit_breaker.get_status()
 
     # ==========================================
+    # IDEMPOTENCY KEY GENERATION
+    # ==========================================
+
+    def _generate_idempotency_key(self, operation: str, user_id: int, **kwargs) -> str:
+        """
+        Generate deterministic idempotency key for Stripe API calls.
+
+        CRITICAL FOR PCI COMPLIANCE:
+        - Prevents double-charging on retries (PCI DSS 12.10.1)
+        - Same inputs = same key = Stripe deduplicates automatically
+        - Keys are scoped to date to allow same operation next day
+
+        How it works:
+        1. Combine: operation name + user_id + date + additional params
+        2. Hash with SHA-256 for consistency
+        3. Truncate to 32 chars (Stripe limit: 255 chars, we use 32 for readability)
+
+        Example inputs:
+        - operation: "customer-create"
+        - user_id: 12345
+        - date: "2025-10-13"
+
+        Output: "a3f9b8c7d2e1f4g5h6i7j8k9l0m1n2o3" (32 chars)
+
+        Args:
+            operation: Operation identifier (e.g., "customer-create", "subscription-create")
+            user_id: User ID performing the operation
+            **kwargs: Additional parameters to include in key (e.g., price_id, tier)
+
+        Returns:
+            32-character deterministic idempotency key
+
+        Notes:
+        - Keys are date-scoped: same operation different days = different keys
+        - Retries on same day: same key = Stripe returns cached result
+        - Different parameters: different key = different operation
+        """
+        # Include today's date for daily scoping
+        today = datetime.utcnow().date().isoformat()
+
+        # Build key input string
+        # Format: operation-user_id-date-param1-param2...
+        key_parts = [operation, str(user_id), today]
+
+        # Add additional parameters in sorted order for consistency
+        for key in sorted(kwargs.keys()):
+            value = kwargs[key]
+            if value is not None:
+                key_parts.append(f"{key}:{value}")
+
+        key_input = "-".join(key_parts)
+
+        # Hash with SHA-256 for deterministic output
+        hash_object = hashlib.sha256(key_input.encode('utf-8'))
+        idempotency_key = hash_object.hexdigest()[:32]
+
+        logger.debug(
+            f"[IDEMPOTENCY] Generated key for operation={operation}, user_id={user_id}",
+            extra={
+                'key_input': key_input,
+                'idempotency_key': idempotency_key
+            }
+        )
+
+        return idempotency_key
+
+    def _check_duplicate_operation(self, operation: str, user_id: int, **kwargs) -> Optional[Dict[str, Any]]:
+        """
+        Check if operation already exists in database before calling Stripe.
+
+        This is the FIRST line of defense against duplicate operations:
+        1. Query database for existing record (customer/subscription)
+        2. If exists, return existing record (skip Stripe call entirely)
+        3. If not exists, proceed with Stripe call using idempotency key
+
+        This prevents:
+        - Unnecessary Stripe API calls
+        - Race conditions in high-concurrency scenarios
+        - Double-charging even if idempotency keys fail
+
+        Args:
+            operation: Operation type ("customer-create", "subscription-create")
+            user_id: User ID
+            **kwargs: Additional lookup parameters
+
+        Returns:
+            Existing record dict if found, None otherwise
+        """
+        try:
+            if operation == "customer-create":
+                # Check if customer already exists for this user
+                query = """
+                    SELECT id, stripe_customer_id, user_id, email, name, metadata, created_at, updated_at
+                    FROM customers
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                result = self.db.execute_with_retry(query, (user_id,), readonly=True)
+
+                if result:
+                    logger.info(f"[DEDUPLICATION] Customer already exists for user {user_id}")
+                    return dict(result[0])
+
+            elif operation == "subscription-create":
+                # Check if active subscription exists for this customer
+                customer_id = kwargs.get('customer_id')
+                if customer_id:
+                    query = """
+                        SELECT id, stripe_subscription_id, customer_id, status, tier,
+                               current_period_start, current_period_end, cancel_at_period_end,
+                               metadata, created_at, updated_at
+                        FROM subscriptions
+                        WHERE customer_id = %s AND status IN ('active', 'trialing')
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                    """
+                    result = self.db.execute_with_retry(query, (customer_id,), readonly=True)
+
+                    if result:
+                        logger.info(f"[DEDUPLICATION] Active subscription already exists for customer {customer_id}")
+                        return dict(result[0])
+
+            return None
+
+        except Exception as e:
+            logger.error(f"[DEDUPLICATION] Error checking for duplicates: {e}")
+            # On error, return None to proceed with Stripe call
+            # Better to risk a duplicate than block legitimate operations
+            return None
+
+    # ==========================================
     # CUSTOMER OPERATIONS
     # ==========================================
 
@@ -173,6 +375,11 @@ class StripeClient:
     ) -> Dict[str, Any]:
         """
         Create a new Stripe customer and store in database
+
+        PCI Compliance Enhancements:
+        - Checks for existing customer before creating (prevents duplicates)
+        - Uses deterministic idempotency key (prevents double-creation on retry)
+        - Circuit breaker protection (prevents cascading failures)
 
         Args:
             user_id: Internal user ID
@@ -190,6 +397,19 @@ class StripeClient:
         try:
             logger.info(f"Creating Stripe customer for user {user_id}: {email}")
 
+            # DEFENSE #1: Check if customer already exists in database
+            existing = self._check_duplicate_operation("customer-create", user_id)
+            if existing:
+                logger.info(f"[IDEMPOTENCY] Returning existing customer for user {user_id}")
+                return existing
+
+            # DEFENSE #2: Generate deterministic idempotency key
+            idempotency_key = self._generate_idempotency_key(
+                "customer-create",
+                user_id,
+                email=email
+            )
+
             # Create customer in Stripe (with circuit breaker protection)
             stripe_customer = self._call_stripe_api(
                 stripe.Customer.create,
@@ -199,7 +419,8 @@ class StripeClient:
                     **(metadata or {}),
                     'user_id': str(user_id),
                     'platform': 'kamiyo'
-                }
+                },
+                idempotency_key=idempotency_key
             )
 
             logger.info(f"Stripe customer created: {stripe_customer.id}")
@@ -430,6 +651,11 @@ class StripeClient:
         """
         Create a new subscription for a customer
 
+        PCI Compliance Enhancements:
+        - Checks for existing active subscription (prevents double-subscription)
+        - Uses deterministic idempotency key (prevents double-charging on retry)
+        - Circuit breaker protection (prevents cascading failures)
+
         Args:
             customer_id: Database customer ID
             price_id: Stripe price ID
@@ -452,6 +678,25 @@ class StripeClient:
 
             logger.info(f"Creating subscription for customer {customer_id}: tier={tier}")
 
+            # DEFENSE #1: Check if active subscription already exists
+            existing = self._check_duplicate_operation(
+                "subscription-create",
+                customer['user_id'],
+                customer_id=customer_id
+            )
+            if existing:
+                logger.info(f"[IDEMPOTENCY] Returning existing subscription for customer {customer_id}")
+                return existing
+
+            # DEFENSE #2: Generate deterministic idempotency key
+            idempotency_key = self._generate_idempotency_key(
+                "subscription-create",
+                customer['user_id'],
+                customer_id=customer_id,
+                price_id=price_id,
+                tier=tier
+            )
+
             # Create subscription in Stripe (with circuit breaker protection)
             stripe_subscription = self._call_stripe_api(
                 stripe.Subscription.create,
@@ -463,7 +708,8 @@ class StripeClient:
                     'customer_db_id': str(customer_id)
                 },
                 payment_behavior='default_incomplete',
-                expand=['latest_invoice.payment_intent']
+                expand=['latest_invoice.payment_intent'],
+                idempotency_key=idempotency_key
             )
 
             logger.info(f"Stripe subscription created: {stripe_subscription.id}")

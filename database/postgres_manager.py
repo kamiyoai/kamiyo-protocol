@@ -10,6 +10,8 @@ import logging
 from typing import Dict, List, Any, Optional
 from contextlib import contextmanager
 from pathlib import Path
+from functools import wraps
+import inspect
 import psycopg2
 from psycopg2 import pool, extras, OperationalError
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
@@ -23,6 +25,29 @@ except ImportError:
     logger.warning("Connection monitoring not available")
 
 logger = logging.getLogger(__name__)
+
+
+def use_read_replica(func):
+    """
+    Decorator to automatically use read replica for read-only queries
+    Applies readonly=True if not explicitly set in method call
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # Get function signature
+        sig = inspect.signature(func)
+
+        # Check if function has 'readonly' parameter and it's not set
+        if 'readonly' in sig.parameters:
+            # Check if readonly is not already in kwargs
+            if 'readonly' not in kwargs:
+                # Inject readonly=True for automatic read replica usage
+                kwargs['readonly'] = True
+                logger.debug(f"Auto-selecting read replica for {func.__name__}")
+
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class PostgresManager:
@@ -208,23 +233,31 @@ class PostgresManager:
                 target_pool.putconn(connection)
 
     @contextmanager
-    def get_cursor(self, readonly: bool = False, dict_cursor: bool = True):
+    def get_cursor(self, readonly: bool = False, dict_cursor: bool = True, timeout: int = None):
         """
-        Get database cursor with automatic commit/rollback
+        Get database cursor with automatic commit/rollback and query timeout
 
         Args:
             readonly: Use read replica if available
             dict_cursor: Return rows as dictionaries
+            timeout: Query timeout in seconds (default: 30s from env var DB_QUERY_TIMEOUT)
 
         Yields:
             Database cursor
         """
+        # Get timeout from parameter, environment, or default
+        query_timeout = timeout or int(os.getenv('DB_QUERY_TIMEOUT', '30'))
+
         with self.get_connection(readonly=readonly) as conn:
             cursor_factory = extras.RealDictCursor if dict_cursor else None
             cursor = conn.cursor(cursor_factory=cursor_factory)
 
             try:
+                # Set statement timeout for this connection
+                cursor.execute(f"SET statement_timeout = '{query_timeout}s'")
+
                 yield cursor
+
                 if not readonly:
                     conn.commit()
             except Exception as e:
@@ -232,13 +265,19 @@ class PostgresManager:
                 logger.error(f"Transaction failed: {e}")
                 raise
             finally:
+                # Reset timeout to default before returning connection to pool
+                try:
+                    cursor.execute("RESET statement_timeout")
+                except Exception:
+                    pass
                 cursor.close()
 
     def execute_with_retry(self,
                           query: str,
                           params: tuple = None,
                           readonly: bool = False,
-                          max_retries: int = 3) -> List[Dict]:
+                          max_retries: int = 3,
+                          timeout: int = None) -> List[Dict]:
         """
         Execute query with automatic retry on failure
 
@@ -247,6 +286,7 @@ class PostgresManager:
             params: Query parameters
             readonly: Use read replica
             max_retries: Maximum retry attempts
+            timeout: Query timeout in seconds (default: 30s)
 
         Returns:
             Query results as list of dictionaries
@@ -256,7 +296,7 @@ class PostgresManager:
 
         for attempt in range(max_retries):
             try:
-                with self.get_cursor(readonly=readonly) as cursor:
+                with self.get_cursor(readonly=readonly, timeout=timeout) as cursor:
                     cursor.execute(query, params)
 
                     # Return results for SELECT queries
@@ -274,6 +314,16 @@ class PostgresManager:
 
             except OperationalError as e:
                 error = e
+                error_str = str(e).lower()
+
+                # Don't retry on timeout errors (intentional limits)
+                if 'timeout' in error_str or 'statement timeout' in error_str:
+                    logger.error(f"Query timeout after {timeout or 30}s: {query[:100]}...")
+                    if self.monitor:
+                        duration_ms = (time.time() - query_start) * 1000
+                        self.monitor.record_query_execution(query, duration_ms, error=e)
+                    raise
+
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt  # Exponential backoff
                     logger.warning(f"Query failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}")
@@ -325,11 +375,13 @@ class PostgresManager:
             logger.error(f"Failed to insert exploit: {e}")
             return None
 
+    @use_read_replica
     def get_recent_exploits(self,
                            limit: int = 100,
                            offset: int = 0,
                            chain: str = None,
-                           min_amount: float = None) -> List[Dict]:
+                           min_amount: float = None,
+                           readonly: bool = True) -> List[Dict]:
         """Get recent exploits with optional filtering"""
 
         query = """
@@ -349,43 +401,49 @@ class PostgresManager:
         query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
-        return self.execute_with_retry(query, tuple(params), readonly=True)
+        return self.execute_with_retry(query, tuple(params), readonly=readonly)
 
-    def get_exploit_by_tx_hash(self, tx_hash: str) -> Optional[Dict]:
+    @use_read_replica
+    def get_exploit_by_tx_hash(self, tx_hash: str, readonly: bool = True) -> Optional[Dict]:
         """Get single exploit by transaction hash"""
 
         query = "SELECT * FROM exploits WHERE tx_hash = %s"
-        results = self.execute_with_retry(query, (tx_hash,), readonly=True)
+        results = self.execute_with_retry(query, (tx_hash,), readonly=readonly)
         return results[0] if results else None
 
-    def get_total_exploits(self) -> int:
+    @use_read_replica
+    def get_total_exploits(self, readonly: bool = True) -> int:
         """Get total exploit count"""
 
         query = "SELECT COUNT(*) as count FROM exploits"
-        result = self.execute_with_retry(query, readonly=True)
+        result = self.execute_with_retry(query, readonly=readonly)
         return result[0]['count'] if result else 0
 
-    def get_chains(self) -> List[str]:
+    @use_read_replica
+    def get_chains(self, readonly: bool = True) -> List[str]:
         """Get list of all chains"""
 
         query = "SELECT DISTINCT chain FROM exploits ORDER BY chain"
-        results = self.execute_with_retry(query, readonly=True)
+        results = self.execute_with_retry(query, readonly=readonly)
         return [row['chain'] for row in results]
 
-    def get_exploits_by_chain(self, chain: str) -> List[Dict]:
+    @use_read_replica
+    def get_exploits_by_chain(self, chain: str, readonly: bool = True) -> List[Dict]:
         """Get all exploits for specific chain"""
 
         query = "SELECT * FROM exploits WHERE chain = %s ORDER BY timestamp DESC"
-        return self.execute_with_retry(query, (chain,), readonly=True)
+        return self.execute_with_retry(query, (chain,), readonly=readonly)
 
-    def get_stats_24h(self) -> Dict:
+    @use_read_replica
+    def get_stats_24h(self, readonly: bool = True) -> Dict:
         """Get statistics for last 24 hours"""
 
         query = "SELECT * FROM v_stats_24h"
-        result = self.execute_with_retry(query, readonly=True)
+        result = self.execute_with_retry(query, readonly=readonly)
         return dict(result[0]) if result else {}
 
-    def get_stats_custom(self, days: int = 7) -> Dict:
+    @use_read_replica
+    def get_stats_custom(self, days: int = 7, readonly: bool = True) -> Dict:
         """Get statistics for custom time period"""
 
         query = """
@@ -398,14 +456,15 @@ class PostgresManager:
             WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '%s days'
         """
 
-        result = self.execute_with_retry(query, (days,), readonly=True)
+        result = self.execute_with_retry(query, (days,), readonly=readonly)
         return dict(result[0]) if result else {}
 
-    def get_source_health(self) -> List[Dict]:
+    @use_read_replica
+    def get_source_health(self, readonly: bool = True) -> List[Dict]:
         """Get health status of all sources"""
 
         query = "SELECT * FROM v_source_health ORDER BY success_rate DESC"
-        return self.execute_with_retry(query, readonly=True)
+        return self.execute_with_retry(query, readonly=readonly)
 
     def update_source_status(self,
                             source_name: str,

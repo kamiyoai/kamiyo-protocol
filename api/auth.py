@@ -2,10 +2,15 @@
 """
 Authentication helpers for API
 
-Version 2.0 - Enhanced with P0 Security Fixes:
+Version 3.0 - Enhanced with P0 + P1 Security Fixes:
 - P0-1: Redis-backed distributed token revocation
 - P0-2: Timing-safe token validation with rate limiting
 - P0-3: Deterministic idempotency key generation
+- P1-1: JWT secret rotation with zero downtime
+- P1-2: Refresh token rotation (one-time use)
+- P1-3: Brute force protection with progressive lockout
+- P1-4: Explicit algorithm enforcement
+- P1-5: Cryptographically random JTI
 
 Supports both:
 1. JWT token authentication (new, secure)
@@ -25,9 +30,10 @@ from api.subscriptions.tiers import TierName, get_tier
 
 logger = logging.getLogger(__name__)
 
-# Import JWT manager with P0 fixes
+# Import JWT manager with P0 + P1 fixes
 try:
     from api.auth.jwt_manager import get_jwt_manager
+    from api.auth.rate_limiter import get_rate_limiter
     JWT_ENABLED = True
 except ImportError as e:
     logger.warning(f"JWT authentication not available: {e}")
@@ -45,23 +51,30 @@ async def get_current_user(
     1. JWT tokens: Authorization: Bearer {jwt_token}
     2. API keys (legacy): Authorization: Bearer {api_key}
 
-    JWT tokens include P0 security fixes:
+    JWT tokens include P0 + P1 security fixes:
     - Redis-backed distributed revocation
     - Timing-safe validation with rate limiting
     - Deterministic idempotency
+    - Secret rotation support
+    - Brute force protection
 
     Args:
         authorization: Authorization header
-        request: FastAPI request (for IP extraction)
+        request: FastAPI request (for IP extraction and rate limiting)
 
     Returns:
         User dictionary with id, email, tier
 
     Raises:
-        HTTPException: If authentication fails
+        HTTPException: If authentication fails or rate limited
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
+
+    # P1-3 FIX: Get client IP for rate limiting
+    client_ip = "unknown"
+    if request:
+        client_ip = request.client.host if request.client else "unknown"
 
     # Extract token from Bearer format
     parts = authorization.split()
@@ -76,8 +89,12 @@ async def get_current_user(
             jwt_manager = get_jwt_manager()
             payload = jwt_manager.verify_token(token, request=request)
 
-            # JWT token verified successfully with P0 security checks
+            # JWT token verified successfully with P0 + P1 security checks
             logger.debug(f"JWT authentication successful: user={payload.get('sub')}")
+
+            # P1-3 FIX: Clear rate limit on successful authentication
+            rate_limiter = get_rate_limiter()
+            rate_limiter.check_auth_attempt(client_ip, is_success=True)
 
             return {
                 "id": payload.get("sub"),
@@ -92,12 +109,27 @@ async def get_current_user(
             if e.status_code == 429:
                 raise
 
+            # P1-3 FIX: Track failed JWT authentication attempt
+            try:
+                rate_limiter = get_rate_limiter()
+                rate_limiter.check_auth_attempt(client_ip, is_success=False)
+            except Exception as rl_error:
+                logger.error(f"Rate limiter error: {rl_error}")
+
             # Try API key fallback for backward compatibility
             logger.debug("JWT verification failed, trying API key authentication")
 
         except Exception as e:
             # Unexpected error in JWT validation
             logger.error(f"JWT validation error: {e}")
+
+            # P1-3 FIX: Track failed attempt
+            try:
+                rate_limiter = get_rate_limiter()
+                rate_limiter.check_auth_attempt(client_ip, is_success=False)
+            except Exception as rl_error:
+                logger.error(f"Rate limiter error: {rl_error}")
+
             # Fall through to API key authentication
 
     # Fallback to API key authentication (legacy)
@@ -213,23 +245,45 @@ async def login_with_jwt(
     request: Optional[Request] = None
 ) -> Dict[str, Any]:
     """
-    Login user and return JWT tokens with P0 security fixes.
+    Login user and return JWT tokens with P0 + P1 security fixes.
+
+    P1-3 FIX: Includes brute force protection with progressive lockout.
 
     Args:
         email: User email
         password: User password
-        request: FastAPI request
+        request: FastAPI request (for IP extraction and rate limiting)
 
     Returns:
         Dictionary with access_token, refresh_token, and user info
 
     Raises:
-        HTTPException: If login fails
+        HTTPException: If login fails or rate limited
     """
     if not JWT_ENABLED:
         raise HTTPException(
             status_code=501,
             detail="JWT authentication not enabled"
+        )
+
+    # P1-3 FIX: Get client IP for rate limiting
+    client_ip = "unknown"
+    if request:
+        client_ip = request.client.host if request.client else "unknown"
+
+    # P1-3 FIX: Check rate limit BEFORE attempting authentication
+    rate_limiter = get_rate_limiter()
+    rate_limit_result = rate_limiter.check_auth_attempt(f"ip:{client_ip}", is_success=False)
+
+    if not rate_limit_result.allowed:
+        logger.warning(
+            f"Rate limit exceeded for login attempt from {client_ip}: "
+            f"{rate_limit_result.attempts} attempts, retry after {rate_limit_result.retry_after}s"
+        )
+        raise HTTPException(
+            status_code=429,
+            detail=rate_limit_result.message,
+            headers={"Retry-After": str(rate_limit_result.retry_after)}
         )
 
     # Verify user credentials
@@ -241,7 +295,9 @@ async def login_with_jwt(
     ).fetchone()
 
     if not user:
-        logger.warning(f"Login attempt for non-existent user: {email}")
+        logger.warning(f"Login attempt for non-existent user: {email} from IP: {client_ip}")
+        # P1-3 FIX: Track failed attempt by email too
+        rate_limiter.check_auth_attempt(f"email:{email}", is_success=False)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     user_id = str(user[0])
@@ -262,7 +318,11 @@ async def login_with_jwt(
         user_email=user_email
     )
 
-    logger.info(f"User logged in: email={user_email}, user_id={user_id}")
+    logger.info(f"User logged in: email={user_email}, user_id={user_id}, ip={client_ip}")
+
+    # P1-3 FIX: Clear rate limits on successful authentication
+    rate_limiter.check_auth_attempt(f"ip:{client_ip}", is_success=True)
+    rate_limiter.check_auth_attempt(f"email:{user_email}", is_success=True)
 
     return {
         "access_token": access_token_data["access_token"],
@@ -330,14 +390,18 @@ async def refresh_jwt_token(
     request: Optional[Request] = None
 ) -> Dict[str, Any]:
     """
-    Refresh access token using refresh token.
+    Refresh access token using refresh token with rotation (P1-2 fix).
+
+    OWASP Best Practice: Refresh tokens are one-time use.
+    - Old refresh token is revoked
+    - NEW access token AND NEW refresh token are returned
 
     Args:
-        refresh_token: Refresh token
+        refresh_token: Current refresh token
         request: FastAPI request
 
     Returns:
-        New access token data
+        Dictionary with NEW access_token AND NEW refresh_token
 
     Raises:
         HTTPException: If refresh fails
@@ -350,43 +414,29 @@ async def refresh_jwt_token(
 
     jwt_manager = get_jwt_manager()
 
-    # Verify refresh token
-    payload = jwt_manager.verify_token(refresh_token, request=request)
-
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token type"
+    # P1-2 FIX: Use refresh_access_token which implements token rotation
+    # This returns BOTH new access token and new refresh token
+    try:
+        new_access_token_data, new_refresh_token_data = jwt_manager.refresh_access_token(
+            refresh_token=refresh_token,
+            request=request
         )
 
-    # Get user info
-    user_id = payload.get("sub")
-    user_email = payload.get("email")
+        logger.info(f"Token refresh successful: user={new_access_token_data.get('jti')}")
 
-    db = get_db()
-    user = db.conn.execute(
-        "SELECT tier FROM users WHERE id = ? AND email = ?",
-        (user_id, user_email)
-    ).fetchone()
+        # Return BOTH new tokens
+        return {
+            "access_token": new_access_token_data["access_token"],
+            "refresh_token": new_refresh_token_data["refresh_token"],  # P1-2 FIX: Return new refresh token
+            "token_type": "bearer",
+            "expires_in": new_access_token_data["expires_in"],
+            "access_token_expires_at": new_access_token_data["expires_at"],
+            "refresh_token_expires_at": new_refresh_token_data["expires_at"]
+        }
 
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found"
-        )
-
-    user_tier = user[0]
-
-    # Generate new access token
-    access_token_data = jwt_manager.create_access_token(
-        user_id=user_id,
-        user_email=user_email,
-        tier=user_tier
-    )
-
-    logger.info(f"Access token refreshed: user={user_id}")
-
-    return access_token_data
+    except Exception as e:
+        logger.error(f"Token refresh failed: {e}")
+        raise
 
 
 def get_auth_security_stats() -> Dict[str, Any]:
@@ -394,7 +444,7 @@ def get_auth_security_stats() -> Dict[str, Any]:
     Get comprehensive security statistics from all auth components.
 
     Returns:
-        Dictionary with security statistics
+        Dictionary with security statistics including P1 fixes
     """
     if not JWT_ENABLED:
         return {
@@ -403,8 +453,21 @@ def get_auth_security_stats() -> Dict[str, Any]:
         }
 
     jwt_manager = get_jwt_manager()
+    rate_limiter = get_rate_limiter()
+
     return {
         "jwt_enabled": True,
         "security_stats": jwt_manager.get_security_stats(),
-        "health": jwt_manager.health_check()
+        "rate_limiter": rate_limiter.get_stats(),
+        "health": {
+            "jwt_manager": jwt_manager.health_check(),
+            "rate_limiter": rate_limiter.health_check()
+        },
+        "p1_fixes": {
+            "P1-1": "JWT secret rotation with zero downtime",
+            "P1-2": "Refresh token rotation (one-time use)",
+            "P1-3": "Brute force protection with progressive lockout",
+            "P1-4": "Explicit algorithm enforcement",
+            "P1-5": "Cryptographically random JTI (UUID4)"
+        }
     }
