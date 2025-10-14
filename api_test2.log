@@ -41,8 +41,14 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
   File "<frozen importlib._bootstrap_external>", line 783, in exec_module
   File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
-  File "~/project/Projekter/kamiyo/api/main.py", line 39, in <module>
-    from api.user_webhooks import routes as user_webhook_routes
-  File "~/project/Projekter/kamiyo/api/user_webhooks/routes.py", line 18, in <module>
-    from sqlalchemy.orm import Session
-ModuleNotFoundError: No module named 'sqlalchemy'
+  File "~/project/Projekter/kamiyo/api/main.py", line 48, in <module>
+    from api.alert_status import router as alert_status_router
+  File "~/project/Projekter/kamiyo/api/alert_status/__init__.py", line 4, in <module>
+    from api.alert_status.routes import router
+  File "~/project/Projekter/kamiyo/api/alert_status/routes.py", line 12, in <module>
+    from api.auth import get_current_user
+  File "~/project/Projekter/kamiyo/api/auth/__init__.py", line 19, in <module>
+    from api.auth.jwt_manager import JWTManager, get_jwt_manager
+  File "~/project/Projekter/kamiyo/api/auth/jwt_manager.py", line 15, in <module>
+    import jwt
+ModuleNotFoundError: No module named 'jwt'

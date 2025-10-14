@@ -159,7 +159,7 @@ class TokenBucketRateLimiter:
         self,
         user_key: str,
         limits: Dict[str, Tuple[int, int]]
-    ) -> Tuple[bool, str, int]:
+    ) -> Tuple[bool, str, int, int]:
         """
         Check all rate limit windows for user.
 
@@ -169,22 +169,32 @@ class TokenBucketRateLimiter:
                    e.g., {"minute": (60, 60), "hour": (1000, 3600)}
 
         Returns:
-            (allowed, violated_window, retry_after_seconds)
+            (allowed, violated_window, retry_after_seconds, remaining_tokens)
         """
+        remaining_tokens = None
+
         for window, (limit, period) in limits.items():
             if self.use_redis:
                 allowed, retry_after = self._check_limit_redis(user_key, window, limit, period)
             else:
                 allowed, retry_after = self._check_limit_memory(user_key, window, limit, period)
 
+            # Capture remaining tokens for minute window (for headers)
+            if window == "minute" and remaining_tokens is None:
+                if user_key in self._buckets and window in self._buckets[user_key]:
+                    tokens, _ = self._buckets[user_key][window]
+                    remaining_tokens = int(tokens)
+                else:
+                    remaining_tokens = limit
+
             if not allowed:
                 logger.warning(
                     f"Rate limit exceeded: user={user_key}, window={window}, "
                     f"limit={limit}/{period}s, retry_after={retry_after}s"
                 )
-                return False, window, retry_after
+                return False, window, retry_after, 0
 
-        return True, "", 0
+        return True, "", 0, remaining_tokens if remaining_tokens is not None else limit
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -317,7 +327,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             limits = self.ip_limits
 
         # Check rate limits across all windows
-        allowed, violated_window, retry_after = self.limiter.check_rate_limit(user_key, limits)
+        allowed, violated_window, retry_after, remaining = self.limiter.check_rate_limit(user_key, limits)
 
         if not allowed:
             # Rate limit exceeded - return 429
@@ -343,7 +353,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 headers={
                     "Retry-After": str(retry_after),
                     "X-RateLimit-Limit": str(limits[violated_window][0]),
-                    "X-RateLimit-Remaining": "0"
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(int(time.time() + 60)),
+                    "X-RateLimit-Tier": tier or "unauthenticated"
                 }
             )
 
@@ -353,7 +365,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Add rate limit headers (for minute window)
         if "minute" in limits:
             response.headers["X-RateLimit-Limit"] = str(limits["minute"][0])
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
             response.headers["X-RateLimit-Reset"] = str(int(time.time() + 60))
+            response.headers["X-RateLimit-Tier"] = tier or "unauthenticated"
 
         return response
 

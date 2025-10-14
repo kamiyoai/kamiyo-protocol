@@ -9,7 +9,7 @@ from typing import Optional
 import logging
 import httpx
 
-from api.auth import get_current_user
+from api.auth_helpers import get_current_user
 from database import get_db
 
 logger = logging.getLogger(__name__)

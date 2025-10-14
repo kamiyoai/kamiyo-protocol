@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, List
 from pydantic import BaseModel
 
-from api.auth import get_current_user, User
+from api.auth_helpers import get_current_user, User
 from analyzers import (
     get_fork_detector,
     get_feature_extractor,

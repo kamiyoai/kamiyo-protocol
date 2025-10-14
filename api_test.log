@@ -43,6 +43,6 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
   File "~/project/Projekter/kamiyo/api/main.py", line 39, in <module>
     from api.user_webhooks import routes as user_webhook_routes
-  File "~/project/Projekter/kamiyo/api/user_webhooks/routes.py", line 18, in <module>
-    from sqlalchemy.orm import Session
-ModuleNotFoundError: No module named 'sqlalchemy'
+  File "~/project/Projekter/kamiyo/api/user_webhooks/routes.py", line 19, in <module>
+    from slowapi import Limiter
+ModuleNotFoundError: No module named 'slowapi'

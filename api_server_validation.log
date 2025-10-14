@@ -29,8 +29,6 @@ Traceback (most recent call last):
     config.load()
   File "~/project/Library/Python/3.8/lib/python/site-packages/uvicorn/config.py", line 434, in load
     self.loaded_app = import_from_string(self.app)
-  File "~/project/Library/Python/3.8/lib/python/site-packages/uvicorn/importer.py", line 22, in import_from_string
-    raise exc from None
   File "~/project/Library/Python/3.8/lib/python/site-packages/uvicorn/importer.py", line 19, in import_from_string
     module = importlib.import_module(module_str)
   File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/importlib/__init__.py", line 127, in import_module
@@ -41,8 +39,12 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
   File "<frozen importlib._bootstrap_external>", line 783, in exec_module
   File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
-  File "~/project/Projekter/kamiyo/api/main.py", line 39, in <module>
-    from api.user_webhooks import routes as user_webhook_routes
-  File "~/project/Projekter/kamiyo/api/user_webhooks/routes.py", line 18, in <module>
-    from sqlalchemy.orm import Session
-ModuleNotFoundError: No module named 'sqlalchemy'
+  File "~/project/Projekter/kamiyo/website/api/main.py", line 57, in <module>
+    from api.v2 import analysis_router
+  File "~/project/Projekter/kamiyo/website/api/v2/__init__.py", line 8, in <module>
+    from .analysis import router as analysis_router
+  File "~/project/Projekter/kamiyo/website/api/v2/analysis/__init__.py", line 8, in <module>
+    from .routes import router
+  File "~/project/Projekter/kamiyo/website/api/v2/analysis/routes.py", line 20, in <module>
+    from api.auth import get_current_user, User
+ImportError: cannot import name 'User' from 'api.auth' (~/project/Projekter/kamiyo/website/api/auth.py)

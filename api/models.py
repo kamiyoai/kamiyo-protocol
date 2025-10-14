@@ -59,11 +59,13 @@ class SourceHealth(BaseModel):
 
 class HealthResponse(BaseModel):
     """Overall health response"""
+    status: str
     database_exploits: int
     tracked_chains: int
     active_sources: int
     total_sources: int
     sources: List[SourceHealth]
+    timestamp: str
 
 
 class ErrorResponse(BaseModel):

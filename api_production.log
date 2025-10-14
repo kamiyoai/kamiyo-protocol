@@ -29,8 +29,6 @@ Traceback (most recent call last):
     config.load()
   File "~/project/Library/Python/3.8/lib/python/site-packages/uvicorn/config.py", line 434, in load
     self.loaded_app = import_from_string(self.app)
-  File "~/project/Library/Python/3.8/lib/python/site-packages/uvicorn/importer.py", line 22, in import_from_string
-    raise exc from None
   File "~/project/Library/Python/3.8/lib/python/site-packages/uvicorn/importer.py", line 19, in import_from_string
     module = importlib.import_module(module_str)
   File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/importlib/__init__.py", line 127, in import_module
@@ -41,8 +39,28 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
   File "<frozen importlib._bootstrap_external>", line 783, in exec_module
   File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
-  File "~/project/Projekter/kamiyo/api/main.py", line 39, in <module>
-    from api.user_webhooks import routes as user_webhook_routes
-  File "~/project/Projekter/kamiyo/api/user_webhooks/routes.py", line 18, in <module>
-    from sqlalchemy.orm import Session
-ModuleNotFoundError: No module named 'sqlalchemy'
+  File "~/project/Projekter/kamiyo/api/main.py", line 48, in <module>
+    from api.alert_status import router as alert_status_router
+  File "~/project/Projekter/kamiyo/api/alert_status/__init__.py", line 4, in <module>
+    from api.alert_status.routes import router
+  File "~/project/Projekter/kamiyo/api/alert_status/routes.py", line 48, in <module>
+    async def get_alert_status(user=Depends(get_current_user)):
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/routing.py", line 1070, in decorator
+    self.add_api_route(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/routing.py", line 1009, in add_api_route
+    route = route_class(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/routing.py", line 630, in __init__
+    self.dependant = get_dependant(path=self.path_format, call=self.endpoint)
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 300, in get_dependant
+    sub_dependant = get_param_sub_dependant(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 132, in get_param_sub_dependant
+    return get_sub_dependant(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 168, in get_sub_dependant
+    sub_dependant = get_dependant(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 293, in get_dependant
+    param_details = analyze_param(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 496, in analyze_param
+    field = create_model_field(
+  File "~/project/Library/Python/3.8/lib/python/site-packages/fastapi/utils.py", line 98, in create_model_field
+    raise fastapi.exceptions.FastAPIError(
+fastapi.exceptions.FastAPIError: Invalid args for response field! Hint: check that typing.Union[starlette.requests.Request, NoneType] is a valid Pydantic field type. If you are using a return type annotation that is not a valid Pydantic field (e.g. Union[Response, dict, None]) you can disable generating the response model from the type annotation with the path operation decorator parameter response_model=None. Read more: https://fastapi.tiangolo.com/tutorial/response-model/

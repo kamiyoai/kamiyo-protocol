@@ -69,6 +69,9 @@ from api.middleware.rate_limiter import RateLimitMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Database optimization constants
+MAX_PAGE_SIZE = 500
+
 # Import PCI logging filter (must be imported after logging.basicConfig)
 from api.payments.pci_logging_filter import setup_pci_compliant_logging
 
@@ -250,8 +253,19 @@ async def get_exploits(
     - Paid tiers (with auth): Gets real-time data
     """
     try:
+        # Explicit page_size validation (MASTER-003)
+        if page_size > MAX_PAGE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "page_size_too_large",
+                    "max_allowed": MAX_PAGE_SIZE,
+                    "requested": page_size
+                }
+            )
+
         # Import auth helpers
-        from api.auth import get_optional_user, has_real_time_access
+        from api.auth_helpers import get_optional_user, has_real_time_access
         from datetime import datetime, timedelta
 
         # Get user from optional auth
@@ -385,9 +399,11 @@ async def health_check():
     """
     Get health status of aggregation sources and database
 
-    Returns source health, database statistics, and system status.
+    Returns source health, database statistics, and system status with detailed monitoring metrics.
     """
     try:
+        from datetime import datetime
+
         sources = db.get_source_health()
         total_exploits = db.get_total_exploits()
         chains = db.get_chains()
@@ -396,11 +412,13 @@ async def health_check():
         source_models = [SourceHealth(**source) for source in sources]
 
         return HealthResponse(
+            status="healthy",
             database_exploits=total_exploits,
             tracked_chains=len(chains),
             active_sources=len([s for s in sources if s.get('is_active')]),
             total_sources=len(sources),
-            sources=source_models
+            sources=source_models,
+            timestamp=datetime.now().isoformat()
         )
 
     except Exception as e:

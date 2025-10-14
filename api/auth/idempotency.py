@@ -7,7 +7,7 @@ Addresses P0-3: Prevent duplicate operations on token generation retry
 import hashlib
 import logging
 import uuid
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 import redis
 from redis.exceptions import RedisError
@@ -270,7 +270,7 @@ class IdempotencyManager:
         operation: str,
         request_data: Dict[str, Any],
         ttl: Optional[int] = None
-    ) -> tuple[str, Optional[Dict[str, Any]]]:
+    ) -> Tuple[str, Optional[Dict[str, Any]]]:
         """
         Create idempotent operation with deduplication.
 
