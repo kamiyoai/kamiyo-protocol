@@ -1,0 +1,7 @@
+Great conversation. One critical gap in perps infrastructure: real-time exploit intelligence.
+
+We track 54 chains for exploit patterns. Perps protocols get hit with oracle manipulation, flash loan attacks, and funding rate exploits regularly.
+
+Tradfi has circuit breakers. DeFi needs exploit monitoring built into the stack from day one.
+
+kamiyo.ai aggregates from 20+ sources - built specifically for protocol teams who need to know when similar protocols get exploited.
