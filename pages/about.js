@@ -16,11 +16,11 @@ export default function About() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                     <div>
                         <h4 className="text-xl md:text-2xl mb-4">Real-time Exploit Intelligence</h4>
-                        <p>KAMIYO is a comprehensive blockchain exploit intelligence aggregator that brings together verified security incidents from across the cryptocurrency ecosystem into one unified platform.</p>
+                        <p>We operate as a blockchain exploit intelligence aggregator, collecting and analyzing data from trusted sources to deliver real-time insights into on-chain security incidents.</p>
 
-                        <p>In the fast-moving world of blockchain security, staying informed about exploits, hacks, and vulnerabilities is critical. KAMIYO aggregates data from 20+ trusted sources including security firms, blockchain explorers, and verified social media accounts to provide real-time intelligence on confirmed exploits.</p>
+                        <p>In the rapidly evolving blockchain security landscape, timely access to verified exploit information is essential. Our platform consolidates data from 20+ established sources—including security firms, blockchain explorers, and verified security researchers—into a centralized intelligence feed.</p>
 
-                        <p>With an emphasis on speed and accuracy, KAMIYO delivers verified intelligence faster than manual monitoring, helping security researchers, DeFi protocols, and crypto investors stay ahead of threats.</p>
+                        <p>By prioritizing speed and data accuracy, we enable security teams, DeFi protocols, and institutional investors to respond to threats more efficiently than manual monitoring allows.</p>
 
                         <h4 className="pt-6 text-xl md:text-2xl mb-4">Core Principles</h4>
                         <ol start="1" data-spread="true">
@@ -49,24 +49,24 @@ export default function About() {
 
                     </div>
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4">How KAMIYO Works</h4>
+                        <h4 className="text-xl md:text-2xl mb-4">How Our Platform Works</h4>
                         <ul data-spread="true">
                             <li>
-                                <p><strong>Aggregation from Trusted Sources:</strong><br/>KAMIYO continuously monitors 20+ verified sources including Rekt News, BlockSec, PeckShield, Certik, Immunefi, Trail of Bits, and trusted security researchers on X.</p>
+                                <p><strong>Multi-Source Data Collection:</strong><br/>Our systems continuously monitor 20+ verified sources including Rekt News, BlockSec, PeckShield, Certik, Immunefi, Trail of Bits, and established security researchers across social platforms.</p>
                             </li>
                             <li>
-                                <p><strong>On-Chain Verification:</strong><br/>Every exploit is validated with transaction hashes directly from blockchain explorers like Etherscan, ensuring all reported incidents have verifiable on-chain evidence.</p>
+                                <p><strong>On-Chain Data Verification:</strong><br/>We validate every reported incident against transaction data from blockchain explorers like Etherscan, ensuring all intelligence includes verifiable on-chain evidence.</p>
                             </li>
                             <li>
-                                <p><strong>Intelligent Deduplication:</strong><br/>Multiple sources may report the same incident. Our system automatically deduplicates and enriches exploit data by combining information from multiple sources into a single, comprehensive record.</p>
+                                <p><strong>Automated Data Processing:</strong><br/>When multiple sources report the same incident, our deduplication system automatically consolidates and enriches the data, creating a single comprehensive record from all available sources.</p>
                             </li>
                             <li>
-                                <p><strong>Real-Time Alerts:</strong><br/>Subscribe to instant notifications via Discord, Telegram, or email when new exploits are detected affecting chains, protocols, or categories you care about.</p>
+                                <p><strong>Multi-Channel Alert Delivery:</strong><br/>Clients receive instant notifications through their preferred channels—Discord, Telegram, Slack, or email—when new exploits match their configured monitoring criteria.</p>
                             </li>
                         </ul>
                         <h4 className="pt-6 text-xl md:text-2xl mb-4">Our Mission</h4>
-                        <p>KAMIYO exists to make blockchain security intelligence accessible, fast, and reliable. The crypto ecosystem loses billions annually to exploits and hacks. While we can't prevent these incidents, we can help the community stay informed and respond quickly when they occur.</p>
-                        <p>By aggregating scattered security information into one organized, searchable platform, KAMIYO empowers users to track threats, understand historical patterns, and integrate real-time exploit data into their security workflows.</p>
+                        <p>We exist to provide the blockchain ecosystem with accessible, timely, and reliable security intelligence. While the crypto industry loses billions annually to exploits and vulnerabilities, we help organizations respond faster by delivering verified information the moment incidents occur.</p>
+                        <p>Our platform transforms fragmented security reports into organized, searchable intelligence that security teams can integrate directly into their operational workflows and response procedures.</p>
                     </div>
                 </div>
 
@@ -81,33 +81,33 @@ export default function About() {
                     <div>
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY FIRMS</p>
                         <h4 className="pt-0 text-xl md:text-2xl mb-4">Professional Auditors</h4>
-                        <p>KAMIYO aggregates reports from leading blockchain security firms including PeckShield, BlockSec, Certik, Quantstamp, Trail of Bits, OpenZeppelin, and Consensys Diligence.</p>
+                        <p>We collect incident reports from established blockchain security firms including PeckShield, BlockSec, Certik, Quantstamp, Trail of Bits, OpenZeppelin, and Consensys Diligence.</p>
 
                         <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">BUG BOUNTIES</p>
                         <h4 className="pt-0 text-xl md:text-2xl mb-4">Verified Discoveries</h4>
-                        <p>Track confirmed vulnerabilities and exploits reported through major bug bounty platforms like Immunefi and HackerOne, where white-hat hackers discover and report security issues responsibly.</p>
+                        <p>Our platform tracks confirmed vulnerabilities and exploits disclosed through major bug bounty programs like Immunefi and HackerOne, where security researchers responsibly report discovered issues.</p>
 
                         <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">BLOCKCHAIN DATA</p>
                         <h4 className="pt-0 text-xl md:text-2xl mb-4">On-Chain Verification</h4>
-                        <p>Every exploit is verified with transaction data from blockchain explorers including Etherscan, BscScan, Solscan, and Arbiscan, ensuring all incidents have provable on-chain evidence.</p>
+                        <p>We verify all reported incidents against transaction data from blockchain explorers including Etherscan, BscScan, Solscan, and Arbiscan, ensuring every entry includes provable on-chain evidence.</p>
 
                         <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">COMMUNITY SOURCES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Social Intelligence</h4>
-                        <p>Monitor verified security researchers and incident reporters on X, providing early signals and community-verified information about emerging threats.</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Security Research Community</h4>
+                        <p>We monitor verified security researchers and incident reporters across social platforms, capturing early detection signals and community-verified information about emerging security events.</p>
                     </div>
                     <div>
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">INCIDENT DATABASES</p>
                         <h4 className="pt-0 text-xl md:text-2xl mb-4">Historical Records</h4>
-                        <p>Aggregate comprehensive exploit histories from sources like Rekt News, SlowMist Hacked, and Chainalysis, providing historical context and pattern recognition capabilities.</p>
+                        <p>We maintain comprehensive exploit archives sourced from Rekt News, SlowMist Hacked, and Chainalysis, enabling historical trend analysis and pattern recognition across the blockchain security landscape.</p>
 
                         <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">PROTOCOL MONITORING</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Direct Observation</h4>
-                        <p>Track security advisories, GitHub advisories, and official announcements directly from blockchain protocols and DeFi projects for first-party incident reports.</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Direct Protocol Sources</h4>
+                        <p>Our systems monitor security advisories, GitHub security alerts, and official communications directly from blockchain protocols and DeFi projects, capturing first-party incident disclosures.</p>
 
                         <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">DATA QUALITY</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Rigorous Standards</h4>
-                        <p>KAMIYO maintains strict data quality standards. All exploits must be confirmed by multiple reputable sources and include verifiable on-chain transaction hashes. We prioritize accuracy over speed, filtering out rumors and unverified reports.</p>
-                        <p>Our aggregation system cross-references multiple sources, enriches data with additional context, and presents a unified view of each security incident.</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Quality Standards</h4>
+                        <p>We maintain rigorous data quality standards. All reported exploits must be confirmed by multiple reputable sources and include verifiable on-chain transaction evidence. Our system prioritizes accuracy by filtering unverified reports and speculation.</p>
+                        <p>Our aggregation infrastructure cross-references multiple sources, enriches records with contextual data, and delivers a unified, comprehensive view of each security incident.</p>
                     </div>
                 </div>
             </section>

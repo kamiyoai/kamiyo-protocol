@@ -184,3 +184,21 @@ ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errn
 INFO:     127.0.0.1:63344 - "GET /exploits?chain=Ethereum&page=1&page_size=5 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63377 - "GET /health HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63388 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63552 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63558 - "GET /exploits?page=1&page_size=3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63958 - "GET /stats?days=7 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63996 - "GET /exploits?page_size=1000 HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:64023 - "HEAD /exploits HTTP/1.1" 405 Method Not Allowed
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:64031 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64037 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64039 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64041 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64043 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK

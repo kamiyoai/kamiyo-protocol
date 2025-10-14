@@ -60,11 +60,11 @@ export default function Home() {
                             {/* Heading */}
                             <div>
                                 <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    DeFi Exploit Alerts Within <br />4 Minutes – <br />Not 4 Hours
+                                    DeFi exploit alerts within <br />4 minutes – <br />not 4 hours
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Track exploits across 54 chains from 20+ verified sources.<br/>
-                                    Get instant alerts. Skip the X hunt.
+                                    Aggregating verified exploit data from 20+ trusted security sources across 54 blockchain networks.<br/>
+                                    Receive instant alerts without manual monitoring.
                                 </p>
                             </div>
 
@@ -109,13 +109,7 @@ export default function Home() {
 
                             {/* Stats Row */}
                             <div className="pt-8">
-                                <div className="text-gray-500 text-sm uppercase tracking-wider mb-4">
-                                    Total Exploits Tracked
-                                </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-4xl font-light gradient-text">
-                                        {loading ? '-' : stats.totalExploits}
-                                    </span>
                                     <div className="flex gap-1">
                                         <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
                                         <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
@@ -125,8 +119,8 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* Right column: Video */}
-                        <div className="flex justify-center md:justify-end">
+                        {/* Right column: Video (hidden on mobile) */}
+                        <div className="hidden md:flex justify-center md:justify-end">
                             <video
                                 autoPlay
                                 loop
@@ -451,21 +445,21 @@ export default function Home() {
                 {/* Features Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Fast Aggregation</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Real-Time Intelligence</h3>
                         <p className="text-gray-500 text-sm">
-                            Exploits from 20+ verified sources aggregated in real-time
+                            We collect and deliver exploit intelligence from 20+ verified sources within minutes of detection
                         </p>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Verified Only</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Verified Data Only</h3>
                         <p className="text-gray-500 text-sm">
-                            Only confirmed exploits with transaction hashes from trusted sources
+                            All reported incidents include on-chain transaction verification from trusted blockchain explorers
                         </p>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Developer API</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Developer-Ready API</h3>
                         <p className="text-gray-500 text-sm">
-                            REST API and WebSocket support for integration into your tools
+                            Our REST API and WebSocket feeds enable seamless integration with your existing security infrastructure
                         </p>
                     </div>
                 </div>
