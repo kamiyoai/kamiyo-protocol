@@ -83,7 +83,7 @@ class AutonomousGrowthEngine:
         # Initialize watcher
         self.watcher = KamiyoWatcher(
             api_base_url=kamiyo_api_url,
-            social_poster=self,  # Self as poster to intercept
+            social_poster=self.social_poster,  # Pass the actual social poster
             api_key=kamiyo_api_key,
             websocket_url=os.getenv('KAMIYO_WEBSOCKET_URL')
         )
