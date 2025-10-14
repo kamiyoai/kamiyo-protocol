@@ -223,7 +223,7 @@ export default function Home() {
                         </div>
                         <h3 className="text-xl font-light mb-2">Pro</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$99</span>
+                            <span className="text-4xl font-light gradient-text">$89</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -274,7 +274,7 @@ export default function Home() {
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Team</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$299</span>
+                            <span className="text-4xl font-light gradient-text">$199</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -332,7 +332,7 @@ export default function Home() {
                         <h3 className="text-xl font-light mb-2">Enterprise</h3>
                         <div className="mb-6">
                             <span className="text-gray-400 text-xs">from </span>
-                            <span className="text-4xl font-light gradient-text">$999</span>
+                            <span className="text-4xl font-light gradient-text">$499</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
