@@ -240,11 +240,15 @@ class ReportGenerator:
             )
         elif report_format == ReportFormat.MEDIUM:
             # 2-3 sentences for medium format
+            # Only include tx hash if it's a real blockchain transaction
+            tx_info = ""
+            if not exploit.tx_hash.startswith("generated"):
+                tx_info = f"The exploit was confirmed via transaction {exploit.tx_hash[:10]}... and "
+
             summary = (
                 f"{exploit.protocol} on {exploit.chain} suffered a "
                 f"{exploit.exploit_type} attack resulting in {amount_str} in losses. "
-                f"The exploit was confirmed via transaction {exploit.tx_hash[:10]}... "
-                f"and reported by {exploit.source or 'external sources'}."
+                f"{tx_info}reported by {exploit.source or 'external sources'}."
             )
             if impact.recovery_percentage > 0:
                 summary += (
@@ -253,12 +257,16 @@ class ReportGenerator:
                 )
         else:
             # Full detail for long format
+            # Only include tx hash if it's a real blockchain transaction
+            tx_info = ""
+            if not exploit.tx_hash.startswith("generated"):
+                tx_info = f"The attack was executed in transaction {exploit.tx_hash[:10]}... and "
+
             summary = (
                 f"{severity} - {exploit.protocol} on {exploit.chain} has been "
                 f"exploited via a {exploit.exploit_type} attack, resulting in "
                 f"{amount_str} ({impact.severity.range}) in confirmed losses. "
-                f"The attack was executed in transaction {exploit.tx_hash[:10]}... "
-                f"and was first reported by {exploit.source or 'external sources'}. "
+                f"{tx_info}was first reported by {exploit.source or 'external sources'}. "
             )
 
             if exploit.description:
