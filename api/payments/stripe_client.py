@@ -15,6 +15,15 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import stripe
+from stripe._error import (
+    APIConnectionError,
+    RateLimitError,
+    APIError,
+    CardError,
+    InvalidRequestError,
+    AuthenticationError,
+    StripeError
+)
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -81,9 +90,9 @@ class StripeClient:
     @retry(
         # Only retry on transient errors (network, rate limit, 500s)
         retry=retry_if_exception_type((
-            stripe.error.APIConnectionError,  # Network errors
-            stripe.error.RateLimitError,      # 429 rate limits
-            stripe.error.APIError             # 500/502/503/504 errors
+            APIConnectionError,  # Network errors
+            RateLimitError,      # 429 rate limits
+            APIError             # 500/502/503/504 errors
         )),
         # Exponential backoff: 1s, 2s, 4s, 8s (max 10s)
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -169,9 +178,9 @@ class StripeClient:
 
             return result
 
-        except (stripe.error.CardError,
-                stripe.error.InvalidRequestError,
-                stripe.error.AuthenticationError) as e:
+        except (CardError,
+                InvalidRequestError,
+                AuthenticationError) as e:
             # NON-RETRYABLE errors - fail immediately
             # Record failure but don't retry
             self.circuit_breaker.record_failure(e)
@@ -188,7 +197,7 @@ class StripeClient:
             # Re-raise immediately (do not retry)
             raise
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             # RETRYABLE errors - tenacity handles retries
             # Record failure
             self.circuit_breaker.record_failure(e)
@@ -450,7 +459,7 @@ class StripeClient:
 
             return customer_data
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error creating customer: {e}")
             self.alert_manager.send_alert(
                 title="Stripe Customer Creation Failed",
@@ -588,7 +597,7 @@ class StripeClient:
 
             return dict(result[0])
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error updating customer: {e}")
             raise
 
@@ -629,7 +638,7 @@ class StripeClient:
 
             return True
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error deleting customer: {e}")
             raise
 
@@ -755,7 +764,7 @@ class StripeClient:
 
             return subscription_data
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error creating subscription: {e}")
             self.alert_manager.alert_payment_failure(
                 user_email=customer['email'],
@@ -897,7 +906,7 @@ class StripeClient:
 
             return dict(result[0])
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error updating subscription: {e}")
             raise
 
@@ -977,7 +986,7 @@ class StripeClient:
 
             return dict(result[0])
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error canceling subscription: {e}")
             raise
 
@@ -1063,7 +1072,7 @@ class StripeClient:
 
             return dict(result[0])
 
-        except stripe.error.StripeError as e:
+        except StripeError as e:
             logger.error(f"Stripe error attaching payment method: {e}")
             raise
 
