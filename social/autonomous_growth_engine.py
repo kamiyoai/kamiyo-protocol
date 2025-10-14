@@ -288,34 +288,33 @@ class AutonomousGrowthEngine:
         # Enhance with analysis insights
         for platform in post.platforms:
             if platform == Platform.X_TWITTER:
-                # Create engaging thread with report insights
+                # Create professional analytical thread
                 thread = []
 
-                # Tweet 1: Alert with amount severity
-                severity_emoji = "🚨" if exploit.loss_amount_usd >= 10000000 else "⚠️" if exploit.loss_amount_usd >= 1000000 else "🔔"
+                # Tweet 1: Alert with key details
                 thread.append(
-                    f"{severity_emoji} {exploit.protocol} Exploit Alert\n\n"
-                    f"💰 {exploit.formatted_amount} lost\n"
-                    f"⛓️ {exploit.chain}\n"
-                    f"🔥 {exploit.exploit_type}\n\n"
-                    f"🧵 Thread 👇"
+                    f"EXPLOIT ALERT: {exploit.protocol}\n\n"
+                    f"Loss: {exploit.formatted_amount}\n"
+                    f"Chain: {exploit.chain}\n"
+                    f"Type: {exploit.exploit_type}\n\n"
+                    f"Analysis thread below"
                 )
 
                 # Tweet 2: Executive summary
-                thread.append(report.executive_summary[:270] + "...")
+                thread.append(report.executive_summary[:280])
 
                 # Tweet 3: Key fact from engagement hooks
                 if report.engagement_hooks:
-                    thread.append(f"📊 Key Insight:\n\n{report.engagement_hooks[0]}")
+                    thread.append(f"Key Insight:\n\n{report.engagement_hooks[0]}")
 
                 # Tweet 4: Timeline
                 if report.timeline:
                     detection_speed_str = report.detection_speed() if callable(getattr(report, 'detection_speed', None)) else "minutes"
                     thread.append(
-                        f"⏰ Timeline:\n\n"
+                        f"Timeline:\n\n"
                         f"Occurred: {report.timeline[0].timestamp.strftime('%H:%M UTC')}\n"
                         f"Detected: {report.timeline[-1].timestamp.strftime('%H:%M UTC')}\n"
-                        f"⚡ Detection: {detection_speed_str}"
+                        f"Detection speed: {detection_speed_str}"
                     )
 
                 # Tweet 5: Context (simplified to avoid attribute errors)
@@ -323,16 +322,16 @@ class AutonomousGrowthEngine:
                     ctx = report.historical_context
                     if hasattr(ctx, 'total_losses_in_category') and ctx.total_losses_in_category > 0:
                         thread.append(
-                            f"📈 Context:\n\n"
+                            f"Historical Context:\n\n"
                             f"Total losses in {exploit.exploit_type}: ${ctx.total_losses_in_category / 1_000_000:.1f}M this quarter"
                         )
 
                 # Tweet 6: Source and call to action
                 thread.append(
-                    f"🔗 Source: {exploit.source or 'Kamiyo Intelligence'}\n\n"
-                    f"Stay informed about DeFi security\n"
-                    f"Follow @KamiyoAI for real-time exploit alerts\n\n"
-                    f"🌐 kamiyo.ai"
+                    f"Source: {exploit.source or 'Kamiyo Intelligence'}\n\n"
+                    f"Real-time blockchain exploit intelligence from 20+ verified sources.\n"
+                    f"Follow @KamiyoAI for alerts.\n\n"
+                    f"kamiyo.ai"
                 )
 
                 post.content[platform] = thread
