@@ -177,11 +177,16 @@ class SocialMediaPoster:
                     )
 
                 elif platform == Platform.X_TWITTER:
-                    # Check if content needs threading
-                    if len(content) > 280:
+                    # Check if content is already a thread (list) or needs threading
+                    if isinstance(content, list):
+                        # Content is already a thread from autonomous_growth_engine
+                        result = poster.post_thread(content)
+                    elif len(content) > 280:
+                        # Content is a long string, split into tweets
                         tweets = poster.split_into_tweets(content)
                         result = poster.post_thread(tweets)
                     else:
+                        # Content is a short string, post as single tweet
                         result = poster.post_with_retry(content)
 
                 else:
