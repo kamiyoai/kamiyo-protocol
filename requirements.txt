@@ -46,6 +46,9 @@ psutil==5.9.8  # System metrics for health checks
 # Rate Limiting
 slowapi==0.1.9  # Rate limiting for FastAPI
 
+# Retry Logic
+tenacity==8.2.3  # Retry logic for API calls and external services
+
 # Scheduling
 schedule==1.2.2
 celery==5.3.4  # For background tasks
