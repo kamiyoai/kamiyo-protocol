@@ -23,11 +23,11 @@ export default function SignIn() {
     // This handler can be used to sign in via credentials:
     const handleEmailSignIn = async (e) => {
         e.preventDefault();
-        // Pass callbackUrl from router.query if available, otherwise "/"
+        // Pass callbackUrl from router.query if available, otherwise redirect to dashboard
         await signIn("credentials", {
             email,
             password,
-            callbackUrl: router.query.callbackUrl || "/",
+            callbackUrl: router.query.callbackUrl || "/dashboard",
         });
     };
 
@@ -114,7 +114,7 @@ export default function SignIn() {
                             className="max-h-[44px] w-full flex items-center justify-center px-4 py-3 bg-white text-black rounded-full text-sm"
                             onClick={() =>
                                 signIn(providers.google.id, {
-                                    callbackUrl: router.query.callbackUrl || "/",
+                                    callbackUrl: router.query.callbackUrl || "/dashboard",
                                 })
                             }
                         >
@@ -145,7 +145,7 @@ export default function SignIn() {
                         <button
                             onClick={() =>
                                 signIn(providers.google.id, {
-                                    callbackUrl: router.query.callbackUrl || "/",
+                                    callbackUrl: router.query.callbackUrl || "/dashboard",
                                 })
                             }
                             className="text-gray-500 hover:text-white bg-transparent text-xs"
