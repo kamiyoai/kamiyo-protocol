@@ -139,6 +139,16 @@ async def add_security_headers(request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
+    # Content-Security-Policy (CSP) - Additional XSS protection layer
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://api.kamiyo.ai; "
+        "frame-ancestors 'none';"
+    )
+
     # HSTS only in production (prevents MITM attacks)
     if is_production:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
