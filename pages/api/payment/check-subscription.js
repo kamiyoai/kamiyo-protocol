@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
         if (!customers.data.length) {
             console.warn(`[Check Subscription API] No Stripe customer found for email: ${email}`);
-            return res.status(200).json({ isActive: false, tier: "ephemeral" });
+            return res.status(200).json({ isActive: false, tier: "free" });
         }
 
         const customerId = customers.data[0].id;
@@ -42,16 +42,16 @@ export default async function handler(req, res) {
 
         if (!user) {
             console.warn(`[Check Subscription API] No user found for email: ${email}`);
-            return res.status(200).json({ isActive: activeSubscription, tier: "ephemeral" });
+            return res.status(200).json({ isActive: activeSubscription, tier: "free" });
         }
 
-        let tier = "ephemeral"; // Default if no active subscription or tier missing
+        let tier = "free"; // Default if no active subscription or tier missing
         if (activeSubscription) {
             const subscription = await prisma.subscription.findFirst({
                 where: { userId: user.id },
                 select: { tier: true },
             });
-            tier = subscription?.tier || "ephemeral";
+            tier = subscription?.tier || "free";
         }
 
         console.log(`[Check Subscription API] Subscription check complete. { isActive: ${activeSubscription}, tier: ${tier} }`);
@@ -63,6 +63,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error(`[Check Subscription API] Subscription Check Error: ${error.message}`, error.stack); // Enhanced logging
-        return res.status(500).json({ error: "Internal Server Error", isActive: false, tier: "ephemeral" });
+        return res.status(500).json({ error: "Internal Server Error", isActive: false, tier: "free" });
     }
 }
