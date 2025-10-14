@@ -11,7 +11,7 @@ PyYAML==6.0.2
 fastapi==0.115.0
 uvicorn==0.32.1
 pydantic==2.10.3
-httpx==0.28.1
+httpx==0.25.2  # Compatible with python-telegram-bot 20.7
 
 # Database - PostgreSQL (Production)
 psycopg2-binary==2.9.9
@@ -61,7 +61,7 @@ discord.py==2.3.2  # Discord bot library with slash command support
 
 # Social Media Posting (Day 31)
 praw==7.7.1  # Reddit API wrapper
-tweepy==4.14.0  # X/Twitter API (already included above, using for posting too)
+# tweepy already listed above (line 52)
 websockets==12.0  # WebSocket client for real-time Kamiyo updates
 
 # Testing
