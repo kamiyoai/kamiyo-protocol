@@ -82,5 +82,5 @@ cryptography==41.0.7
 brotli==1.1.0  # Brotli compression (better than gzip)
 pybloom-live==4.0.0  # Bloom filter for deduplication
 aiodns==3.1.1  # Async DNS resolution for aggregators
-cchardet==2.1.7  # Fast character encoding detection
+charset-normalizer==3.3.2  # Fast character encoding detection (replaces cchardet, Python 3.11+ compatible)
 click==8.1.7
