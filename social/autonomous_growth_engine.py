@@ -166,7 +166,6 @@ class AutonomousGrowthEngine:
                     "Analysis report generated",
                     extra={
                         'report_id': report.report_id,
-                        'severity': report.severity.value,
                         'engagement_hooks': len(report.engagement_hooks)
                     }
                 )
@@ -292,9 +291,10 @@ class AutonomousGrowthEngine:
                 # Create engaging thread with report insights
                 thread = []
 
-                # Tweet 1: Alert with severity
+                # Tweet 1: Alert with amount severity
+                severity_emoji = "🚨" if exploit.loss_amount_usd >= 10000000 else "⚠️" if exploit.loss_amount_usd >= 1000000 else "🔔"
                 thread.append(
-                    f"{report.severity_indicator} {exploit.protocol} Exploit Alert\n\n"
+                    f"{severity_emoji} {exploit.protocol} Exploit Alert\n\n"
                     f"💰 {exploit.formatted_amount} lost\n"
                     f"⛓️ {exploit.chain}\n"
                     f"🔥 {exploit.exploit_type}\n\n"
@@ -310,21 +310,22 @@ class AutonomousGrowthEngine:
 
                 # Tweet 4: Timeline
                 if report.timeline:
+                    detection_speed_str = report.detection_speed() if callable(getattr(report, 'detection_speed', None)) else "minutes"
                     thread.append(
                         f"⏰ Timeline:\n\n"
                         f"Occurred: {report.timeline[0].timestamp.strftime('%H:%M UTC')}\n"
                         f"Detected: {report.timeline[-1].timestamp.strftime('%H:%M UTC')}\n"
-                        f"⚡ Detection speed: {report.detection_speed}"
+                        f"⚡ Detection: {detection_speed_str}"
                     )
 
-                # Tweet 5: Context
+                # Tweet 5: Context (simplified to avoid attribute errors)
                 if hasattr(report, 'historical_context') and report.historical_context:
                     ctx = report.historical_context
-                    thread.append(
-                        f"📈 Historical Context:\n\n"
-                        f"{exploit.exploit_type} attacks this quarter: {ctx.trend_indicator}\n"
-                        f"Total losses in category: ${ctx.total_category_losses / 1_000_000:.1f}M"
-                    )
+                    if hasattr(ctx, 'total_losses_in_category') and ctx.total_losses_in_category > 0:
+                        thread.append(
+                            f"📈 Context:\n\n"
+                            f"Total losses in {exploit.exploit_type}: ${ctx.total_losses_in_category / 1_000_000:.1f}M this quarter"
+                        )
 
                 # Tweet 6: Source and call to action
                 thread.append(
