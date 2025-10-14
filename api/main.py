@@ -288,11 +288,23 @@ async def get_exploits(
         # Apply delayed data filter for free tier users
         if not is_real_time:
             # Free tier gets data delayed by 24 hours
-            cutoff_time = datetime.now() - timedelta(hours=24)
-            exploits = [
-                e for e in exploits
-                if datetime.fromisoformat(e.get('timestamp', e.get('date', '')).replace('Z', '+00:00')) < cutoff_time
-            ]
+            from datetime import timezone
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
+            filtered_exploits = []
+            for e in exploits:
+                timestamp_str = e.get('timestamp', '')
+                if timestamp_str:
+                    # Parse timestamp and make timezone-aware if needed
+                    ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    if ts.tzinfo is None:
+                        # Make naive datetime UTC-aware
+                        ts = ts.replace(tzinfo=timezone.utc)
+                    if ts < cutoff_time:
+                        filtered_exploits.append(e)
+                else:
+                    # Keep exploits without timestamp
+                    filtered_exploits.append(e)
+            exploits = filtered_exploits
             logger.info(f"Applied 24h delay filter for free tier user")
 
         # Filter by protocol if specified (case-insensitive partial match)
