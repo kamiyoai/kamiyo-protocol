@@ -94,7 +94,7 @@ export default function Home() {
                             </div>
 
                             <p className="text-sm text-gray-500">
-                                Free: 10 alerts/month • Pro: Unlimited • Webhooks start at Team tier
+                                Free: Unlimited email alerts + 1K API calls/day • Pro: Real-time + 50K calls/day • Webhooks start at Team tier
                             </p>
 
                             <button
@@ -182,25 +182,25 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
+                                <span className="text-gray-300">Unlimited email alerts</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
                                 <span className="text-gray-300">24-hour delayed data</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">10 alerts/month</span>
+                                <span className="text-gray-300">1K API calls/day</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Public dashboard</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Email only</span>
+                                <span className="text-gray-300">Public dashboard access</span>
                             </li>
                         </ul>
 

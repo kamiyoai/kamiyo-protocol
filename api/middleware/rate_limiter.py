@@ -221,9 +221,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Tier-based rate limits (matching api/subscriptions/tiers.py)
         self.tier_limits = {
             "free": {
-                "minute": (0, 60),        # No API access
-                "hour": (0, 3600),
-                "day": (0, 86400)
+                "minute": (10, 60),       # 10 req/min
+                "hour": (42, 3600),       # ~42 req/hour
+                "day": (1000, 86400)      # 1K req/day
             },
             "pro": {
                 "minute": (35, 60),       # 35 req/min
@@ -320,10 +320,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         tier, user_key = await self._get_user_tier_and_key(request)
 
         # Select appropriate limits
-        if tier and tier != "free":
-            limits = self.tier_limits.get(tier, self.ip_limits)
+        if tier:
+            # Authenticated user - use tier-based limits (including free tier)
+            limits = self.tier_limits.get(tier, self.tier_limits["free"])
         else:
-            # Unauthenticated or free tier - use strict IP limits
+            # Unauthenticated - use strict IP limits
             limits = self.ip_limits
 
         # Check rate limits across all windows
