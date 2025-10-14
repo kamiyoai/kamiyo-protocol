@@ -41,9 +41,9 @@ except ImportError as e:
 
 
 async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    request: Optional[Request] = None
-):
+    request: Request,
+    authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
     """
     Get current user from Authorization header.
 
@@ -59,8 +59,8 @@ async def get_current_user(
     - Brute force protection
 
     Args:
-        authorization: Authorization header
         request: FastAPI request (for IP extraction and rate limiting)
+        authorization: Authorization header
 
     Returns:
         User dictionary with id, email, tier
@@ -72,9 +72,7 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="Missing authorization header")
 
     # P1-3 FIX: Get client IP for rate limiting
-    client_ip = "unknown"
-    if request:
-        client_ip = request.client.host if request.client else "unknown"
+    client_ip = request.client.host if request.client else "unknown"
 
     # Extract token from Bearer format
     parts = authorization.split()
@@ -155,8 +153,8 @@ async def get_current_user(
 
 
 async def get_optional_user(
-    authorization: Optional[str] = Header(None),
-    request: Optional[Request] = None
+    request: Request,
+    authorization: Optional[str] = Header(None)
 ) -> Optional[Dict[str, Any]]:
     """
     Get current user if authentication provided, otherwise return None (free tier).
@@ -167,8 +165,8 @@ async def get_optional_user(
     Supports both JWT tokens and API keys with P0 security fixes.
 
     Args:
+        request: FastAPI request
         authorization: Optional Authorization header
-        request: Optional FastAPI request
 
     Returns:
         User dictionary if authenticated, None otherwise
@@ -179,7 +177,7 @@ async def get_optional_user(
 
     try:
         # Reuse get_current_user logic for consistency
-        user = await get_current_user(authorization, request)
+        user = await get_current_user(request, authorization)
         return user
 
     except HTTPException as e:
@@ -242,7 +240,7 @@ def has_real_time_access(user: Optional[Dict[str, Any]]) -> bool:
 async def login_with_jwt(
     email: str,
     password: str,
-    request: Optional[Request] = None
+    request: Request
 ) -> Dict[str, Any]:
     """
     Login user and return JWT tokens with P0 + P1 security fixes.
@@ -267,9 +265,7 @@ async def login_with_jwt(
         )
 
     # P1-3 FIX: Get client IP for rate limiting
-    client_ip = "unknown"
-    if request:
-        client_ip = request.client.host if request.client else "unknown"
+    client_ip = request.client.host if request.client else "unknown"
 
     # P1-3 FIX: Check rate limit BEFORE attempting authentication
     rate_limiter = get_rate_limiter()
@@ -339,7 +335,7 @@ async def login_with_jwt(
 
 async def logout_with_jwt(
     authorization: str,
-    request: Optional[Request] = None
+    request: Request
 ) -> Dict[str, str]:
     """
     Logout user by revoking JWT token (P0-1 fix).
@@ -387,7 +383,7 @@ async def logout_with_jwt(
 
 async def refresh_jwt_token(
     refresh_token: str,
-    request: Optional[Request] = None
+    request: Request
 ) -> Dict[str, Any]:
     """
     Refresh access token using refresh token with rotation (P1-2 fix).

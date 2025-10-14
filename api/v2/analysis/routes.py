@@ -17,7 +17,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, List
 from pydantic import BaseModel
 
-from api.auth_helpers import get_current_user, User
+from api.auth_helpers import get_current_user
 from analyzers import (
     get_fork_detector,
     get_feature_extractor,
@@ -59,7 +59,7 @@ class ForkGraphResponse(BaseModel):
 @router.get("/fork-detection/{exploit_id}", response_model=ForkAnalysisResponse)
 async def analyze_forks(
     exploit_id: int,
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Analyze if an exploit is a fork of other exploited contracts
@@ -75,7 +75,7 @@ async def analyze_forks(
     It does not analyze arbitrary contracts.
     """
     # Check tier
-    if user.tier not in ['enterprise', 'team']:
+    if user['tier'] not in ['enterprise', 'team']:
         raise HTTPException(
             status_code=403,
             detail="Fork detection requires Enterprise or Team tier"
@@ -99,7 +99,7 @@ async def analyze_forks(
 async def get_fork_graph(
     chain: Optional[str] = Query(None, description="Filter by chain"),
     min_similarity: float = Query(0.8, ge=0.0, le=1.0),
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Get graph of fork relationships across all exploits
@@ -113,7 +113,7 @@ async def get_fork_graph(
 
     Useful for visualizing how exploits are connected through code reuse.
     """
-    if user.tier != 'enterprise':
+    if user['tier'] != 'enterprise':
         raise HTTPException(
             status_code=403,
             detail="Fork graph visualization requires Enterprise tier"
@@ -138,7 +138,7 @@ async def get_fork_families(
     chain: Optional[str] = Query(None, description="Filter by chain"),
     min_similarity: float = Query(0.7, ge=0.0, le=1.0),
     limit: int = Query(50, le=200),
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Get all fork families (groups of related exploits)
@@ -148,7 +148,7 @@ async def get_fork_families(
     Returns fork families with their root contracts and related exploits.
     Used by fork-analysis page for visualization.
     """
-    if user.tier not in ['enterprise', 'team']:
+    if user['tier'] not in ['enterprise', 'team']:
         raise HTTPException(
             status_code=403,
             detail="Fork families require Enterprise or Team tier"
@@ -221,7 +221,7 @@ async def get_fork_families(
 @router.get("/fork-family/{exploit_id}")
 async def get_fork_family(
     exploit_id: int,
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Get all exploits in the same fork family
@@ -231,7 +231,7 @@ async def get_fork_family(
     Returns chronological timeline of exploits that share the same codebase.
     Useful for understanding how a vulnerable codebase was exploited over time.
     """
-    if user.tier != 'enterprise':
+    if user['tier'] != 'enterprise':
         raise HTTPException(
             status_code=403,
             detail="Fork family analysis requires Enterprise tier"
@@ -263,7 +263,7 @@ async def get_fork_family(
 @router.get("/pattern-cluster/{exploit_id}", response_model=PatternAnalysisResponse)
 async def analyze_pattern(
     exploit_id: int,
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Analyze which pattern cluster an exploit belongs to
@@ -278,7 +278,7 @@ async def analyze_pattern(
 
     Returns exploits with similar characteristics.
     """
-    if user.tier not in ['enterprise', 'team']:
+    if user['tier'] not in ['enterprise', 'team']:
         raise HTTPException(
             status_code=403,
             detail="Pattern clustering requires Enterprise or Team tier"
@@ -302,7 +302,7 @@ async def analyze_pattern(
 async def find_anomalies(
     chain: Optional[str] = Query(None, description="Filter by chain"),
     limit: int = Query(50, le=200),
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Find exploit anomalies (outliers that don't fit patterns)
@@ -312,7 +312,7 @@ async def find_anomalies(
     Returns exploits that are unusual or unique in their characteristics.
     These are often the most interesting exploits to study.
     """
-    if user.tier not in ['enterprise', 'team']:
+    if user['tier'] not in ['enterprise', 'team']:
         raise HTTPException(
             status_code=403,
             detail="Anomaly detection requires Enterprise or Team tier"
@@ -341,7 +341,7 @@ async def find_anomalies(
 @router.get("/feature-extraction/{exploit_id}")
 async def extract_features(
     exploit_id: int,
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Extract analytical features from an exploit
@@ -351,7 +351,7 @@ async def extract_features(
     Returns feature vector used for clustering and pattern matching.
     Useful for custom analysis and research.
     """
-    if user.tier == 'free':
+    if user['tier'] == 'free':
         raise HTTPException(
             status_code=403,
             detail="Feature extraction requires Pro tier or higher"
@@ -377,7 +377,7 @@ async def extract_features(
 async def get_all_clusters(
     chain: Optional[str] = Query(None, description="Filter by chain"),
     limit: int = Query(100, le=500),
-    user: User = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Get all exploit clusters with their characteristics
@@ -389,7 +389,7 @@ async def get_all_clusters(
     - Cluster statistics
     - Common characteristics of each cluster
     """
-    if user.tier not in ['enterprise', 'team']:
+    if user['tier'] not in ['enterprise', 'team']:
         raise HTTPException(
             status_code=403,
             detail="Cluster analysis requires Enterprise or Team tier"
