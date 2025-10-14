@@ -59,12 +59,12 @@ export default function Home() {
                         <div className="space-y-8">
                             {/* Heading */}
                             <div>
-                                <h2 className="text-4xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    Blockchain Exploit Alerts within 4 minutes – not 4 hours.
+                                <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
+                                    DeFi exploit alerts within <br />4 minutes – <br />not 4 hours
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                Track verified exploits from trusted security sources.<br/>
-                                Real-time awareness across every chain.
+                                    Aggregating verified exploit data from 20+ trusted security sources across 54 blockchain networks.<br/>
+                                    Receive instant alerts without manual monitoring.
                                 </p>
                             </div>
 
@@ -94,7 +94,7 @@ export default function Home() {
                             </div>
 
                             <p className="text-sm text-gray-500">
-                                Free: Unlimited email alerts • Pro: Real time alerts, unlimited • Webhooks start at Team tier
+                                Free: 10 alerts/month • Pro: Unlimited • Webhooks start at Team tier
                             </p>
 
                             <button
@@ -119,8 +119,8 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* Right column: Video */}
-                        <div className="flex justify-center md:justify-end">
+                        {/* Right column: Video (hidden on mobile) */}
+                        <div className="hidden md:flex justify-center md:justify-end">
                             <video
                                 autoPlay
                                 loop
@@ -168,7 +168,7 @@ export default function Home() {
                     <p className="text-gray-400 text-lg">Start free. Upgrade when you need real-time alerts.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
                     {/* Free Tier */}
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Free</h3>
@@ -223,7 +223,7 @@ export default function Home() {
                         </div>
                         <h3 className="text-xl font-light mb-2">Pro</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$89</span>
+                            <span className="text-4xl font-light gradient-text">$99</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -274,7 +274,7 @@ export default function Home() {
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Team</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$199</span>
+                            <span className="text-4xl font-light gradient-text">$299</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -301,7 +301,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Fork detection</span>
+                                <span className="text-gray-300">Fork detection analysis</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -332,7 +332,7 @@ export default function Home() {
                         <h3 className="text-xl font-light mb-2">Enterprise</h3>
                         <div className="mb-6">
                             <span className="text-gray-400 text-xs">from </span>
-                            <span className="text-4xl font-light gradient-text">$499</span>
+                            <span className="text-4xl font-light gradient-text">$999</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -411,9 +411,9 @@ export default function Home() {
                         <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
                             <h4 className="text-lg mb-4 text-white">KAMIYO</h4>
                             <ul className="space-y-2 text-sm text-gray-300">
-                                <li>• Organized exploit tracking</li>
+                                <li>• Consistent 4-minute alerts</li>
                                 <li>• Full API + WebSocket</li>
-                                <li>• Multi-channel alerts</li>
+                                <li>• All sources in one place</li>
                                 <li>• Sign up in 30 seconds</li>
                             </ul>
                         </div>
@@ -428,10 +428,10 @@ export default function Home() {
                     <h3 className="text-gray-500 text-sm uppercase tracking-wider mb-6">Trusted By</h3>
                     <div className="flex flex-wrap justify-center gap-6">
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Developers</span>
+                            <span className="text-sm text-gray-400">Trading Bot Developers</span>
                         </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Traders</span>
+                            <span className="text-sm text-gray-400">DeFi Traders</span>
                         </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
                             <span className="text-sm text-gray-400">Security Researchers</span>
@@ -445,21 +445,21 @@ export default function Home() {
                 {/* Features Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Organized Aggregation</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Real-Time Intelligence</h3>
                         <p className="text-gray-500 text-sm">
-                            Exploits from verified security sources organized in one place
+                            We collect and deliver exploit intelligence from 20+ verified sources within minutes of detection
                         </p>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Verified Only</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Verified Data Only</h3>
                         <p className="text-gray-500 text-sm">
-                            Only confirmed exploits with transaction hashes from trusted sources
+                            All reported incidents include on-chain transaction verification from trusted blockchain explorers
                         </p>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Developer API</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Developer-Ready API</h3>
                         <p className="text-gray-500 text-sm">
-                            REST API and WebSocket support for integration into your tools
+                            Our REST API and WebSocket feeds enable seamless integration with your existing security infrastructure
                         </p>
                     </div>
                 </div>
