@@ -300,61 +300,6 @@ export default function Features() {
                     </div>
                 </div>
 
-                {/* What We Don't Do */}
-                <div className="mb-20 border border-gray-500 border-opacity-25 rounded-lg p-8">
-                    <h2 className="text-2xl md:text-3xl font-light mb-6">Important: What KAMIYO Does NOT Do</h2>
-                    <p className="mb-4">KAMIYO is an exploit intelligence <strong>aggregator</strong>, not a security analysis tool. We want to be transparent about what we don't offer:</p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <ul className="space-y-3 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    <span className="text-gray-400"><strong>No vulnerability scanning:</strong> We don't analyze your smart contracts for vulnerabilities</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    <span className="text-gray-400"><strong>No security scoring:</strong> We don't evaluate or rate the security of protocols</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    <span className="text-gray-400"><strong>No predictive analysis:</strong> We report confirmed exploits, not predictions</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <ul className="space-y-3 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    <span className="text-gray-400"><strong>No code auditing:</strong> We aggregate external reports, not perform audits</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    <span className="text-gray-400"><strong>No security consulting:</strong> We provide data, not security advice</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    <span className="text-gray-400"><strong>No bug discovery:</strong> We aggregate confirmed incidents from trusted sources</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <p className="mt-6 text-sm text-gray-500">Our value is in being <strong>fast</strong> to aggregate and organize scattered exploit intelligence from trusted sources. For vulnerability detection and security audits, consult professional security firms.</p>
-                </div>
-
             </section>
 
         </div>
