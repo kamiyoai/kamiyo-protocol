@@ -27,6 +27,7 @@ from database import get_db
 from api.community import router as community_router
 from intelligence.source_scorer import SourceScorer
 from api.websocket_server import websocket_endpoint, get_websocket_manager
+from api.scheduled_tasks import get_task_runner
 
 # Week 2 Payment System Routers
 # Temporarily disabled due to missing dependencies (prometheus_client, psycopg2)
@@ -673,6 +674,11 @@ async def startup_event():
     await ws_manager.start_heartbeat_task()
     logger.info("WebSocket manager started")
 
+    # Start scheduled task runner
+    task_runner = get_task_runner()
+    await task_runner.start()
+    logger.info("Scheduled task runner started")
+
     # Initialize cache
     if cache_config.l2_enabled:
         try:
@@ -710,6 +716,11 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Kamiyo API shutting down...")
+
+    # Stop scheduled task runner
+    task_runner = get_task_runner()
+    task_runner.stop()
+    logger.info("Scheduled task runner stopped")
 
     # Stop WebSocket heartbeat
     ws_manager = get_websocket_manager()
