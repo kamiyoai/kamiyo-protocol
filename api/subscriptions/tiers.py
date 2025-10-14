@@ -69,12 +69,12 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         display_name="Free",
         price_monthly_usd=Decimal("0.00"),
 
-        # Rate Limits - No API access
-        api_requests_per_day=0,
-        api_requests_per_hour=0,
-        api_requests_per_minute=0,
+        # Rate Limits - 1K API requests/day
+        api_requests_per_day=1000,
+        api_requests_per_hour=42,
+        api_requests_per_minute=10,
 
-        # Alerts - Email only, 10 alerts/month, 24h delay
+        # Alerts - Unlimited email alerts, 24h delay
         email_alerts=True,
         discord_alerts=False,
         telegram_alerts=False,
@@ -96,7 +96,7 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         # Export - Basic
         csv_export=True,
         json_export=True,
-        api_access=False
+        api_access=True  # API access enabled for free tier
     ),
 
     TierName.PRO: SubscriptionTier(

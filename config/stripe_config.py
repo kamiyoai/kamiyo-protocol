@@ -116,14 +116,15 @@ class StripeConfig:
                 'price': 0,
                 'currency': 'usd',
                 'interval': 'month',
-                'alerts_per_month': 10,
+                'alerts_per_month': 'unlimited',
+                'rate_limit_per_day': 1000,  # 1K API requests/day
                 'features': [
-                    '10 alerts per month',
-                    '24-hour delayed alerts',
-                    'Basic search & filtering',
-                    'Email only',
+                    'Unlimited email alerts',
+                    '24-hour delayed data',
+                    '1K API calls/day',
                     'Public dashboard access',
-                    'Community support (email, 48h)'
+                    '7 days historical data',
+                    'Community support'
                 ]
             },
             'pro': {
