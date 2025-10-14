@@ -537,6 +537,71 @@ async def get_source_score(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/admin/clean-test-data", tags=["Admin"])
+async def clean_test_data(
+    x_api_key: Optional[str] = Header(None, description="Admin API key")
+):
+    """
+    Delete test/dummy data from database
+
+    Removes only the test protocol entry (source='test').
+    DeFiLlama exploits with 'generated-' tx hashes are kept as they are real exploits.
+
+    **Requires admin API key in X-API-Key header**
+    """
+    try:
+        # Check admin API key
+        admin_key = os.getenv("ADMIN_API_KEY")
+        if not admin_key:
+            raise HTTPException(status_code=500, detail="Admin API key not configured")
+
+        if x_api_key != admin_key:
+            raise HTTPException(status_code=403, detail="Invalid admin API key")
+
+        # Delete test exploit
+        query = """
+            DELETE FROM exploits
+            WHERE source = 'test'
+            RETURNING id, protocol, source, tx_hash
+        """
+
+        result = db.execute_with_retry(query, readonly=False)
+
+        if result:
+            deleted_count = len(result)
+            deleted_items = [
+                {
+                    "id": row[0],
+                    "protocol": row[1],
+                    "source": row[2],
+                    "tx_hash": row[3]
+                }
+                for row in result
+            ]
+
+            logger.info(f"Deleted {deleted_count} test exploit(s)")
+
+            return {
+                "status": "success",
+                "deleted_count": deleted_count,
+                "deleted_items": deleted_items,
+                "message": f"Successfully removed {deleted_count} test exploit(s)"
+            }
+        else:
+            return {
+                "status": "success",
+                "deleted_count": 0,
+                "deleted_items": [],
+                "message": "No test exploits found (may have already been deleted)"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cleaning test data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
