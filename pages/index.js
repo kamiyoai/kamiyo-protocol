@@ -60,11 +60,10 @@ export default function Home() {
                             {/* Heading */}
                             <div>
                                 <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    DeFi exploit alerts within <br />4 minutes – <br />not 4 hours
+                                    Blockchain exploit alerts within <br />4 minutes – <br />not 4 hours
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Aggregating verified exploit data from 20+ trusted security sources across 54 blockchain networks.<br/>
-                                    Receive instant alerts without manual monitoring.
+                                    Get verified exploit data and analysis from 20+ trusted security sources across 54 networks.
                                 </p>
                             </div>
 
@@ -93,9 +92,6 @@ export default function Home() {
                                 </div>
                             </div>
 
-                            <p className="text-sm text-gray-500">
-                                Free: Unlimited email alerts + 1K API calls/day • Pro: Real-time + 50K calls/day • Webhooks start at Team tier
-                            </p>
 
                             <button
                                 onClick={() => {
