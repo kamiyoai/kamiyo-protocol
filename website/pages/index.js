@@ -1,5 +1,6 @@
 // pages/index.js
 import { useState, useEffect } from "react";
+import Head from "next/head";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
@@ -46,8 +47,29 @@ export default function Home() {
     };
 
     return (
-        <div className="text-white bg-black min-h-screen">
-            {/* Hero Section */}
+        <>
+            <Head>
+                <title>KAMIYO - Blockchain exploit alerts within 4 minutes</title>
+                <meta name="description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
+
+                {/* Open Graph */}
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content="https://kamiyo.ai/" />
+                <meta property="og:title" content="KAMIYO - Blockchain exploit alerts within 4 minutes" />
+                <meta property="og:description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
+                <meta property="og:image" content="https://kamiyo.ai/media/opengraph.jpeg?v=2" />
+
+                {/* Twitter */}
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:url" content="https://kamiyo.ai/" />
+                <meta name="twitter:title" content="KAMIYO - Blockchain exploit alerts within 4 minutes" />
+                <meta name="twitter:description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
+                <meta name="twitter:image" content="https://kamiyo.ai/media/opengraph.jpeg?v=2" />
+                <meta name="twitter:site" content="@KamiyoAI" />
+                <meta name="twitter:creator" content="@KamiyoAI" />
+            </Head>
+            <div className="text-white bg-black min-h-screen">
+                {/* Hero Section */}
             <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
                 <div className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
                     {/* SEO-friendly H1 (visually hidden) */}
@@ -468,5 +490,6 @@ export default function Home() {
             {/* FAQ Section */}
             <FAQ />
         </div>
+        </>
     );
 }
