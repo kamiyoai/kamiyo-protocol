@@ -20,6 +20,7 @@ export default function ForkAnalysis() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedExploit, setSelectedExploit] = useState(null);
+  const [usingDemoData, setUsingDemoData] = useState(false);
   const [filters, setFilters] = useState({
     chain: 'all',
     minSimilarity: 0.5,
@@ -91,12 +92,14 @@ export default function ForkAnalysis() {
       // Transform API data to graph format
       const graphData = transformToGraphData(data.fork_families || []);
       setGraphData(graphData);
+      setUsingDemoData(false); // Real data loaded successfully
     } catch (err) {
       console.error('Failed to load fork data:', err);
       setError(err.message);
 
       // Use demo data as fallback
       setGraphData(getDemoData());
+      setUsingDemoData(true); // Fallback to demo data
     } finally {
       setLoading(false);
     }
@@ -257,25 +260,27 @@ export default function ForkAnalysis() {
       </Head>
 
       <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
-        {/* Beta Warning Banner */}
-        <div className="bg-yellow-900 bg-opacity-20 border border-yellow-500 border-opacity-40 rounded-lg p-4 mb-8">
-          <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <h3 className="text-yellow-500 font-medium mb-1">⚠️ Beta Feature - Demo Data</h3>
-              <p className="text-sm text-gray-300">
-                This fork detection analysis is currently in beta and displays demo/sample data for visualization purposes.
-                Real bytecode analysis and fork detection features are under active development.
-              </p>
+        {/* Beta Warning Banner - Only show when using demo data */}
+        {usingDemoData && (
+          <div className="bg-yellow-900 bg-opacity-20 border border-yellow-500 border-opacity-40 rounded-lg p-4 mb-8">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <h3 className="text-yellow-500 font-medium mb-1">⚠️ Demo Data Fallback</h3>
+                <p className="text-sm text-gray-300">
+                  Unable to load real fork detection data from API. Displaying demo data for visualization purposes.
+                  Please check your connection or contact support if this persists.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="border-dotted border-b border-cyan mb-12 pb-6">
           <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;Analysis</p>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Fork Detection & Relationship Mapping <span className="text-yellow-500 text-xl">[BETA]</span></h1>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Fork Detection & Relationship Mapping</h1>
           <p className="text-gray-400 mt-4">
             Visualize relationships between forked contracts and exploit families. Identify systemic vulnerabilities across the DeFi ecosystem.
           </p>
