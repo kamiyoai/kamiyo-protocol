@@ -53,7 +53,11 @@ class KamiyoWatcher:
 
         # Track posted exploits to avoid duplicates
         self.posted_tx_hashes = set()
-        self.last_check = datetime.utcnow() - timedelta(hours=1)
+
+        # On first run, check exploits from the viral max age window
+        # This ensures we don't miss recent exploits that are still relevant
+        viral_max_age_hours = int(os.getenv('VIRAL_MAX_AGE_HOURS', 72))  # Default 3 days
+        self.last_check = datetime.utcnow() - timedelta(hours=viral_max_age_hours)
 
         # Filters
         self.min_amount_usd = float(os.getenv('SOCIAL_MIN_AMOUNT_USD', 100000))  # $100k minimum
@@ -123,8 +127,8 @@ class KamiyoWatcher:
             tx_hash=api_exploit['tx_hash'],
             protocol=api_exploit['protocol'],
             chain=api_exploit['chain'],
-            loss_amount_usd=api_exploit['loss_amount_usd'],
-            exploit_type=api_exploit['exploit_type'],
+            loss_amount_usd=api_exploit.get('amount_usd', 0),  # API returns 'amount_usd'
+            exploit_type=api_exploit.get('category') or 'Unknown',  # API returns 'category'
             timestamp=datetime.fromisoformat(api_exploit['timestamp'].replace('Z', '+00:00')),
             description=api_exploit.get('description'),
             recovery_status=api_exploit.get('recovery_status'),
