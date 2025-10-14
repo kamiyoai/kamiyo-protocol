@@ -79,7 +79,8 @@ export default function ForkAnalysis() {
         params.append('chain', filters.chain);
       }
 
-      const response = await fetch(`http://localhost:8000/api/v2/analysis/fork-families?${params}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.kamiyo.ai';
+      const response = await fetch(`${apiUrl}/api/v2/analysis/fork-families?${params}`);
 
       if (!response.ok) {
         throw new Error(`API returned ${response.status}`);
