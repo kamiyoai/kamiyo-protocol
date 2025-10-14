@@ -32,6 +32,7 @@ from aggregators.arbitrum_security import ArbitrumSecurityAggregator
 from aggregators.peckshield import PeckShieldAggregator
 from aggregators.blocksec import BlockSecAggregator
 from aggregators.beosin import BeosinAggregator
+from aggregators.twitter import TwitterAggregator
 from database import get_db
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class AggregationOrchestrator:
             PeckShieldAggregator(),
             BlockSecAggregator(),
             BeosinAggregator(),
+            TwitterAggregator(),  # 18th source - monitors security researchers
         ]
 
         logger.info(f"Orchestrator initialized with {len(self.aggregators)} aggregators")
