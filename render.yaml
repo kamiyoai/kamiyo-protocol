@@ -76,3 +76,54 @@ services:
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
         sync: false
     healthCheckPath: /
+
+  # Autonomous Growth Engine (Social Media Bot)
+  - type: worker
+    name: kamiyo-social-bot
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 social/autonomous_growth_engine.py --mode poll
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      - key: KAMIYO_API_URL
+        value: https://api.kamiyo.ai
+      # Social posting intervals and thresholds
+      - key: POLL_INTERVAL_SECONDS
+        value: 300  # Check every 5 minutes
+      - key: SOCIAL_MIN_AMOUNT_USD
+        value: 500000  # $500K minimum
+      # Twitter/X credentials
+      - key: X_TWITTER_ENABLED
+        sync: false
+      - key: X_API_KEY
+        sync: false
+      - key: X_API_SECRET
+        sync: false
+      - key: X_ACCESS_TOKEN
+        sync: false
+      - key: X_ACCESS_SECRET
+        sync: false
+      # Reddit credentials (optional)
+      - key: REDDIT_ENABLED
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USERNAME
+        sync: false
+      - key: REDDIT_PASSWORD
+        sync: false
+      - key: REDDIT_SUBREDDITS
+        value: CryptoCurrency,defi,ethereum,ethdev
+      # Discord credentials (optional)
+      - key: DISCORD_ENABLED
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CHANNEL_ID
+        sync: false
