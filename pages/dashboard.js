@@ -117,15 +117,21 @@ export default function DashboardPage() {
                                     className="border border-gray-500 border-opacity-25 rounded p-4 hover:border-cyan transition-colors"
                                 >
                                     <div className="flex justify-between items-start mb-2">
-                                        <h3 className="text-white font-light">{exploit.protocol}</h3>
-                                        <span className="text-sm text-gray-400">{exploit.chain}</span>
+                                        <h3 className="text-white font-light text-lg">{exploit.protocol}</h3>
+                                        <span className="text-sm text-cyan">{exploit.chain}</span>
                                     </div>
-                                    <p className="text-gray-400 text-sm mb-2">{exploit.description || 'No description available'}</p>
+                                    <p className="text-gray-400 text-sm mb-2">
+                                        {exploit.description || (
+                                            <span>
+                                                Exploit detected {exploit.category ? `(${exploit.category})` : ''} – <a href={exploit.source_url} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-magenta underline">View source</a>
+                                            </span>
+                                        )}
+                                    </p>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-gray-500">
                                             {exploit.timestamp ? new Date(exploit.timestamp).toLocaleDateString() : 'N/A'}
                                         </span>
-                                        <span className="text-magenta">
+                                        <span className="text-magenta font-medium">
                                             ${exploit.amount_usd ? exploit.amount_usd.toLocaleString() : 'Unknown'}
                                         </span>
                                     </div>
