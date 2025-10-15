@@ -243,13 +243,14 @@ class ReportGenerator:
             # Only include tx hash if it's a real blockchain transaction
             tx_info = ""
             if not exploit.tx_hash.startswith("generated"):
-                tx_info = f"The exploit was confirmed via transaction {exploit.tx_hash[:10]}... and "
+                tx_info = f"The exploit was confirmed via transaction {exploit.tx_hash[:10]}..."
 
             summary = (
                 f"{exploit.protocol} on {exploit.chain} suffered a "
-                f"{exploit.exploit_type} attack resulting in {amount_str} in losses. "
-                f"{tx_info}reported by {exploit.source or 'external sources'}."
+                f"{exploit.exploit_type} attack resulting in {amount_str} in losses."
             )
+            if tx_info:
+                summary += f" {tx_info}"
             if impact.recovery_percentage > 0:
                 summary += (
                     f" Recovery efforts are underway with "
