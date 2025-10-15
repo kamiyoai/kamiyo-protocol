@@ -112,7 +112,9 @@ services:
       - key: POLL_INTERVAL_SECONDS
         value: 300  # Check every 5 minutes
       - key: SOCIAL_MIN_AMOUNT_USD
-        value: 500000  # $500K minimum
+        value: 500000  # $500K minimum for posting
+      - key: DEEP_DIVE_THRESHOLD_USD
+        value: 20000000  # $20M minimum for deep dive threads (vs quick alerts)
       # Twitter/X credentials
       - key: X_TWITTER_ENABLED
         sync: false

@@ -288,9 +288,24 @@ class AutonomousGrowthEngine:
         # Generate base content
         post = self.post_generator.generate_post(exploit, platforms or list(self.social_poster.platforms.keys()))
 
+        # Determine if exploit qualifies for deep dive thread (>$20M)
+        deep_dive_threshold = float(os.getenv('DEEP_DIVE_THRESHOLD_USD', 20_000_000))
+        is_major_exploit = exploit.loss_amount_usd >= deep_dive_threshold
+
+        if is_major_exploit:
+            logger.info(
+                f"Major exploit detected (${exploit.loss_amount_usd:,.0f}) - generating deep dive thread",
+                extra={'protocol': exploit.protocol, 'threshold': deep_dive_threshold}
+            )
+        else:
+            logger.info(
+                f"Medium exploit detected (${exploit.loss_amount_usd:,.0f}) - using quick alert",
+                extra={'protocol': exploit.protocol, 'threshold': deep_dive_threshold}
+            )
+
         # Enhance with analysis insights
         for platform in post.platforms:
-            if platform == Platform.X_TWITTER:
+            if platform == Platform.X_TWITTER and is_major_exploit:
                 # Create professional analytical thread
                 thread = []
 
