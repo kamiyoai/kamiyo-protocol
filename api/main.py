@@ -673,8 +673,20 @@ async def startup_event():
     except Exception as e:
         logger.error(f"[STRIPE VERSION] Failed to check version health: {e}")
 
-    logger.info(f"Database exploits: {db.get_total_exploits()}")
-    logger.info(f"Tracked chains: {len(db.get_chains())}")
+    # Log database stats with error handling
+    try:
+        total_exploits = db.get_total_exploits()
+        logger.info(f"Database exploits: {total_exploits}")
+    except Exception as e:
+        logger.error(f"Failed to get database exploits count: {e}")
+        # Don't fail startup, continue without this stat
+
+    try:
+        chains = db.get_chains()
+        logger.info(f"Tracked chains: {len(chains)}")
+    except Exception as e:
+        logger.error(f"Failed to get chains: {e}")
+        # Don't fail startup, continue without this stat
 
     # Start WebSocket heartbeat
     ws_manager = get_websocket_manager()
