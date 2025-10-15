@@ -116,13 +116,13 @@ class PostgresManager:
 
     def _initialize_schema(self):
         """
-        Initialize database schema from SQL file if tables don't exist.
+        Initialize database schema and run migrations.
         Idempotent - safe to run multiple times.
         """
-        schema_path = Path(__file__).parent / 'migrations' / '001_initial_schema.sql'
+        migrations_dir = Path(__file__).parent / 'migrations'
 
-        if not schema_path.exists():
-            logger.warning(f"Schema file not found: {schema_path}")
+        if not migrations_dir.exists():
+            logger.warning(f"Migrations directory not found: {migrations_dir}")
             return
 
         conn = None
@@ -133,28 +133,23 @@ class PostgresManager:
             cursor = conn.cursor()
 
             try:
-                # Check if main table exists
-                cursor.execute("""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables
-                        WHERE table_schema = 'public'
-                        AND table_name = 'exploits'
-                    )
-                """)
-                table_exists = cursor.fetchone()[0]
+                # Get all migration files in order
+                migration_files = sorted(migrations_dir.glob('*.sql'))
 
-                if table_exists:
-                    logger.debug("Database schema already initialized")
-                    return
+                for migration_file in migration_files:
+                    migration_name = migration_file.name
 
-                # Read and execute schema
-                with open(schema_path, 'r') as f:
-                    schema_sql = f.read()
+                    # Read and execute migration
+                    with open(migration_file, 'r') as f:
+                        migration_sql = f.read()
 
-                logger.info("Initializing database schema from 001_initial_schema.sql")
-
-                cursor.execute(schema_sql)
-                logger.info("Database schema initialized successfully")
+                    try:
+                        logger.info(f"Applying migration: {migration_name}")
+                        cursor.execute(migration_sql)
+                        logger.info(f"Migration {migration_name} applied successfully")
+                    except Exception as e:
+                        # Log error but continue with other migrations
+                        logger.warning(f"Migration {migration_name} had issues (may already be applied): {e}")
 
             finally:
                 cursor.close()
