@@ -246,6 +246,7 @@ class PostgresManager:
         with self.get_connection(readonly=readonly) as conn:
             cursor_factory = extras.RealDictCursor if dict_cursor else None
             cursor = conn.cursor(cursor_factory=cursor_factory)
+            had_error = False
 
             try:
                 # Set statement timeout for this connection
@@ -256,16 +257,30 @@ class PostgresManager:
                 if not readonly:
                     conn.commit()
             except Exception as e:
-                conn.rollback()
+                had_error = True
+                # Rollback to end the failed transaction
+                try:
+                    conn.rollback()
+                except Exception as rollback_error:
+                    logger.error(f"Rollback failed: {rollback_error}")
+                    # Connection is in bad state, close it
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
                 logger.error(f"Transaction failed: {e}")
                 raise
             finally:
-                # Reset timeout to default before returning connection to pool
+                # Only reset timeout if no error occurred (connection is healthy)
+                if not had_error:
+                    try:
+                        cursor.execute("RESET statement_timeout")
+                    except Exception:
+                        pass
                 try:
-                    cursor.execute("RESET statement_timeout")
+                    cursor.close()
                 except Exception:
                     pass
-                cursor.close()
 
     def execute_with_retry(self,
                           query: str,
