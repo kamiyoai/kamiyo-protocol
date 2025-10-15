@@ -57,10 +57,18 @@ class KamiyoWatcher:
         # Track posted exploits to avoid duplicates
         self.posted_tx_hashes = set()
 
+        # Track rate limit status
+        self.rate_limited_until = None
+        self.rate_limit_backoff = 15 * 60  # 15 minutes backoff on 429
+
         # On first run, check exploits from the viral max age window
         # This ensures we don't miss recent exploits that are still relevant
         viral_max_age_hours = int(os.getenv('VIRAL_MAX_AGE_HOURS', 720))  # Default 30 days
         self.last_check = datetime.utcnow() - timedelta(hours=viral_max_age_hours)
+
+        # Limit backlog posting to avoid rate limits
+        self.max_posts_per_cycle = int(os.getenv('MAX_POSTS_PER_CYCLE', 3))
+        self.posts_this_cycle = 0
 
         # Filters
         self.min_amount_usd = float(os.getenv('SOCIAL_MIN_AMOUNT_USD', 100000))  # $100k minimum
@@ -183,6 +191,16 @@ class KamiyoWatcher:
 
         while True:
             try:
+                # Check if we're rate limited
+                if self.rate_limited_until and datetime.utcnow() < self.rate_limited_until:
+                    wait_seconds = (self.rate_limited_until - datetime.utcnow()).total_seconds()
+                    logger.warning(f"Rate limited. Waiting {wait_seconds:.0f}s before next attempt")
+                    time.sleep(min(interval, wait_seconds))
+                    continue
+
+                # Reset posts counter for new cycle
+                self.posts_this_cycle = 0
+
                 # Fetch recent exploits
                 exploits = self.fetch_recent_exploits(since=self.last_check)
 
@@ -197,6 +215,14 @@ class KamiyoWatcher:
                         newest_timestamp = exploit.timestamp
 
                     if not self.should_post(exploit):
+                        continue
+
+                    # Check if we've hit the post limit for this cycle
+                    if self.posts_this_cycle >= self.max_posts_per_cycle:
+                        logger.info(
+                            f"Reached max posts per cycle ({self.max_posts_per_cycle}). "
+                            f"Skipping {exploit.protocol} until next cycle"
+                        )
                         continue
 
                     logger.info(
@@ -222,11 +248,23 @@ class KamiyoWatcher:
                             auto_post=review_callback is None  # Auto-post if no review callback
                         )
 
+                    # Check for rate limit errors
+                    if result.get('posting_results'):
+                        for platform_result in result['posting_results'].get('results', {}).values():
+                            error = platform_result.get('error', '')
+                            if '429' in str(error) or 'Too Many Requests' in str(error):
+                                self.rate_limited_until = datetime.utcnow() + timedelta(seconds=self.rate_limit_backoff)
+                                logger.warning(
+                                    f"Rate limit hit. Pausing posting until {self.rate_limited_until.strftime('%H:%M:%S')} UTC"
+                                )
+                                break
+
                     if result['success'] or result.get('partial'):
                         # Mark as posted
                         self.posted_tx_hashes.add(exploit.tx_hash)
+                        self.posts_this_cycle += 1
                         logger.info(
-                            f"Successfully posted exploit: {exploit.protocol} "
+                            f"Successfully posted exploit {self.posts_this_cycle}/{self.max_posts_per_cycle}: {exploit.protocol} "
                             f"to {sum(1 for r in result['posting_results']['results'].values() if r.get('success'))} platforms"
                         )
                         # Add delay between exploit posts to respect rate limits

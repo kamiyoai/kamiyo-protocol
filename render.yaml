@@ -115,6 +115,8 @@ services:
         value: 500000  # $500K minimum for posting
       - key: DEEP_DIVE_THRESHOLD_USD
         value: 20000000  # $20M minimum for deep dive threads (vs quick alerts)
+      - key: MAX_POSTS_PER_CYCLE
+        value: 3  # Max exploits to post per 5-minute cycle (prevents rate limits)
       # Twitter/X credentials
       - key: X_TWITTER_ENABLED
         sync: false
