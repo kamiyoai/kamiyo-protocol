@@ -62,6 +62,36 @@ export default function DashboardPage() {
             <Head><title>Dashboard - KAMIYO</title></Head>
 
             <div className="max-w-7xl mx-auto">
+                {/* Navigation */}
+                <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            ← Home
+                        </button>
+                        <button
+                            onClick={() => router.push('/dashboard')}
+                            className="text-white text-sm border-b border-cyan"
+                        >
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => router.push('/dashboard/api-keys')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            API Keys
+                        </button>
+                        <button
+                            onClick={() => router.push('/pricing')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Pricing
+                        </button>
+                    </div>
+                </div>
+
                 <h1 className="text-4xl font-light mb-2">Dashboard</h1>
                 <p className="text-gray-400 mb-8">
                     Subscription Tier: <span className="text-white">{tierDisplay}</span>
@@ -129,7 +159,7 @@ export default function DashboardPage() {
                                     </p>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-gray-500">
-                                            {exploit.timestamp ? new Date(exploit.timestamp).toLocaleDateString() : 'N/A'}
+                                            {new Date(exploit.date).toLocaleDateString()}
                                         </span>
                                         <span className="text-magenta font-medium">
                                             ${exploit.amount_usd ? exploit.amount_usd.toLocaleString() : 'Unknown'}
