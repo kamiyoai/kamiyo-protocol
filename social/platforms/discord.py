@@ -124,17 +124,27 @@ class DiscordPoster(BasePlatformPoster):
         """
         # Safety check: ensure self.webhooks is not None
         if self.webhooks is None:
+            logger.warning("self.webhooks was None, initializing to empty dict")
             self.webhooks = {}
+
+        # Debug logging
+        logger.debug(f"Discord post() called with content length: {len(content) if content else 0}")
+        logger.debug(f"self.webhooks type: {type(self.webhooks)}, value: {self.webhooks}")
+        logger.debug(f"kwargs.get('webhooks'): {kwargs.get('webhooks')}")
 
         target_webhooks = kwargs.get('webhooks', self.webhooks)
 
         # If list of names provided, get URLs
         if isinstance(target_webhooks, list):
-            target_webhooks = {
-                name: self.webhooks.get(name)
-                for name in target_webhooks
-                if name in self.webhooks
-            }
+            # Extra safety: ensure self.webhooks is dict before using it
+            if self.webhooks and isinstance(self.webhooks, dict):
+                target_webhooks = {
+                    name: self.webhooks.get(name)
+                    for name in target_webhooks
+                    if name in self.webhooks
+                }
+            else:
+                target_webhooks = {}
         elif target_webhooks is None:
             target_webhooks = {}
 
@@ -157,7 +167,13 @@ class DiscordPoster(BasePlatformPoster):
         results = []
         errors = []
 
-        for name, webhook_url in target_webhooks.items():
+        try:
+            items_to_iterate = target_webhooks.items() if target_webhooks else []
+        except (AttributeError, TypeError) as e:
+            logger.error(f"Error calling .items() on target_webhooks: {e}, type: {type(target_webhooks)}, value: {target_webhooks}")
+            return {'success': False, 'error': f'Invalid webhooks configuration: {e}'}
+
+        for name, webhook_url in items_to_iterate:
             if not webhook_url:
                 errors.append(f"No webhook URL for {name}")
                 continue
