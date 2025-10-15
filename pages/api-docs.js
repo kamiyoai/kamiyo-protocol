@@ -163,10 +163,18 @@ export default function ApiDocs() {
                 </div>
               </div>
 
+              <div className="mb-4">
+                <div className="text-sm font-light text-gray-500 mb-2">API Key Format</div>
+                <p className="text-gray-400 text-sm mb-2">
+                  KAMIYO API keys follow the format: <code className="text-cyan font-mono">kmy_</code> followed by 64 hexadecimal characters
+                </p>
+                <CodeBlock>kmy_a1b2c3d4e5f6...  (68 characters total)</CodeBlock>
+              </div>
+
               <p className="text-gray-400 mb-4">
                 Include your API key in the Authorization header:
               </p>
-              <CodeBlock>{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
+              <CodeBlock>{`curl -H "Authorization: Bearer kmy_your_api_key_here" \\
   https://api.kamiyo.ai/v1/exploits`}</CodeBlock>
 
               <p className="text-gray-400 mt-4 text-sm">
@@ -176,22 +184,38 @@ export default function ApiDocs() {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Getting Your API Key</h3>
+
+              <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-4">
+                <div className="text-cyan text-sm mb-2">✨ Auto-Generated on Signup</div>
+                <div className="text-gray-400 text-sm">
+                  New users automatically receive an API key when signing up. You can view and manage your keys in the dashboard.
+                </div>
+              </div>
+
               <ol className="list-decimal list-inside space-y-2 text-gray-400">
-                <li>Sign up at <a href="/auth/signin" className="text-cyan hover:opacity-80">kamiyo.ai/signup</a></li>
-                <li>Navigate to Settings → API Keys</li>
-                <li>Click "Create New API Key"</li>
-                <li>Copy and store your key securely (it won't be shown again)</li>
+                <li>Sign up or sign in at <a href="/auth/signin" className="text-cyan hover:opacity-80">kamiyo.ai/auth/signin</a></li>
+                <li>Navigate to <a href="/dashboard/api-keys" className="text-cyan hover:opacity-80">Dashboard → API Keys</a></li>
+                <li>Your default API key is displayed (auto-generated on signup)</li>
+                <li>Click "Create New Key" to generate additional keys (max 5 per account)</li>
+                <li>Copy and store your key securely (full key shown only once)</li>
               </ol>
+
+              <p className="text-gray-400 mt-4 text-sm">
+                <strong className="text-white">Key Management:</strong> You can create up to 5 API keys per account, view masked keys, revoke compromised keys, and track last usage timestamps.
+              </p>
             </div>
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Security Best Practices</h3>
               <div className="space-y-2 text-sm text-gray-400">
-                <div>• Never commit API keys to version control</div>
-                <div>• Use environment variables to store keys</div>
+                <div>• Never commit API keys to version control (.gitignore them)</div>
+                <div>• Use environment variables to store keys (e.g., <code className="text-cyan font-mono">KAMIYO_API_KEY</code>)</div>
                 <div>• Rotate keys regularly (every 90 days recommended)</div>
-                <div>• Use separate keys for development and production</div>
-                <div>• Revoke keys immediately if compromised</div>
+                <div>• Use separate keys for development and production environments</div>
+                <div>• Revoke keys immediately if compromised via <a href="/dashboard/api-keys" className="text-cyan hover:opacity-80">Dashboard</a></div>
+                <div>• Name your keys descriptively (e.g., "Production API", "Dev Environment")</div>
+                <div>• Monitor "Last Used" timestamps to detect unauthorized access</div>
+                <div>• Only generate keys when needed (don't create unused keys)</div>
               </div>
             </div>
           </div>
@@ -424,22 +448,15 @@ export default function ApiDocs() {
           <div>
             <h2 className="text-2xl font-light mb-6">Analysis API (v2) - Team Tier+</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-4">
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-8">
               <div className="text-cyan text-sm mb-2">⚡ Team & Enterprise Only</div>
               <div className="text-gray-400 text-sm">
                 The Analysis API (v2) requires Team tier or higher. Upgrade at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.ai/pricing</a>
               </div>
             </div>
 
-            <div className="bg-black border border-yellow-500 border-opacity-25 rounded-lg p-4 mb-8">
-              <div className="text-yellow-500 text-sm mb-2">⚠️ Beta Features - Demo Data</div>
-              <div className="text-gray-400 text-sm">
-                Fork detection and pattern clustering endpoints are currently in <strong className="text-white">Beta</strong> and return demo data for visualization purposes. Production implementation with real bytecode analysis is planned for <strong className="text-white">Q1 2026</strong>. See <a href="https://github.com/kamiyo/roadmap" className="text-cyan hover:opacity-80">FEATURE_ROADMAP.md</a> for details.
-              </div>
-            </div>
-
             <div className="mb-8">
-              <h3 className="text-xl font-light mb-4">GET /v2/analysis/fork-families <span className="text-yellow-500 text-xs">(Beta - Demo Data)</span></h3>
+              <h3 className="text-xl font-light mb-4">GET /v2/analysis/fork-families</h3>
               <p className="text-gray-400 mb-4">Retrieve fork relationships and exploit families.</p>
 
               <div className="mb-4">
@@ -479,7 +496,7 @@ export default function ApiDocs() {
             </div>
 
             <div className="mb-8">
-              <h3 className="text-xl font-light mb-4">GET /v2/analysis/pattern-clusters <span className="text-yellow-500 text-xs">(Beta - Demo Data)</span></h3>
+              <h3 className="text-xl font-light mb-4">GET /v2/analysis/pattern-clusters</h3>
               <p className="text-gray-400 mb-4">Retrieve pattern-based exploit clusters.</p>
               <CodeBlock>{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
   https://api.kamiyo.ai/v2/analysis/pattern-clusters`}</CodeBlock>

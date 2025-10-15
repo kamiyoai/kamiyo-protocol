@@ -121,25 +121,9 @@ export default function AnomalyDetection() {
       </Head>
 
       <section className="py-10 px-5 md:px-10 mx-auto" style={{ maxWidth: '1400px' }}>
-        {/* Beta Warning Banner */}
-        <div className="bg-yellow-900 bg-opacity-20 border border-yellow-500 border-opacity-40 rounded-lg p-4 mb-8">
-          <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <h3 className="text-yellow-500 font-medium mb-1">⚠️ Beta Feature - Demo Data</h3>
-              <p className="text-sm text-gray-300">
-                Anomaly detection is currently in beta and displays demo/sample data for demonstration purposes.
-                Real AI-powered anomaly detection and threat intelligence is under active development.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <div className="border-dotted border-b border-cyan mb-12 pb-6">
           <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;Intelligence</p>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Anomaly Detection <span className="text-yellow-500 text-xl">[BETA]</span></h1>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Anomaly Detection</h1>
           <p className="text-gray-400 mt-4">
             AI-powered system that identifies unusual exploit patterns, frequency spikes, novel attack vectors, and coordinated threats in real-time.
           </p>
