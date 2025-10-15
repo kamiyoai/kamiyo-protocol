@@ -61,7 +61,8 @@ class KamiyoWatcher:
 
         # Filters
         self.min_amount_usd = float(os.getenv('SOCIAL_MIN_AMOUNT_USD', 100000))  # $100k minimum
-        self.enabled_chains = os.getenv('SOCIAL_ENABLED_CHAINS', '').split(',') or None
+        chains_str = os.getenv('SOCIAL_ENABLED_CHAINS', '')
+        self.enabled_chains = chains_str.split(',') if chains_str else None
 
     def fetch_recent_exploits(self, since: Optional[datetime] = None) -> List[Dict]:
         """
