@@ -31,7 +31,8 @@ class KamiyoWatcher:
         api_base_url: str,
         social_poster: SocialMediaPoster,
         api_key: Optional[str] = None,
-        websocket_url: Optional[str] = None
+        websocket_url: Optional[str] = None,
+        process_callback: Optional[Callable] = None
     ):
         """
         Initialize Kamiyo watcher
@@ -41,11 +42,13 @@ class KamiyoWatcher:
             social_poster: Configured social media poster
             api_key: Optional API key for authenticated requests
             websocket_url: Optional WebSocket URL for real-time updates
+            process_callback: Optional callback for processing exploits (for autonomous engine)
         """
         self.api_base_url = api_base_url.rstrip('/')
         self.social_poster = social_poster
         self.api_key = api_key
         self.websocket_url = websocket_url
+        self.process_callback = process_callback
 
         self.headers = {}
         if api_key:
@@ -201,13 +204,23 @@ class KamiyoWatcher:
                         f"({exploit.formatted_amount}) on {exploit.chain}"
                     )
 
-                    # Process exploit through social posting workflow
-                    result = self.social_poster.process_exploit(
-                        exploit,
-                        platforms=list(self.social_poster.platforms.keys()),
-                        review_callback=review_callback,
-                        auto_post=review_callback is None  # Auto-post if no review callback
-                    )
+                    # Process exploit through autonomous engine or basic poster
+                    if self.process_callback:
+                        # Use autonomous growth engine for enhanced content
+                        result = self.process_callback(
+                            exploit,
+                            platforms=list(self.social_poster.platforms.keys()),
+                            review_callback=review_callback,
+                            auto_post=review_callback is None
+                        )
+                    else:
+                        # Fall back to basic social posting workflow
+                        result = self.social_poster.process_exploit(
+                            exploit,
+                            platforms=list(self.social_poster.platforms.keys()),
+                            review_callback=review_callback,
+                            auto_post=review_callback is None  # Auto-post if no review callback
+                        )
 
                     if result['success'] or result.get('partial'):
                         # Mark as posted
@@ -274,13 +287,23 @@ class KamiyoWatcher:
                                     f"({exploit.formatted_amount}) on {exploit.chain}"
                                 )
 
-                                # Process in background to not block WebSocket
-                                result = self.social_poster.process_exploit(
-                                    exploit,
-                                    platforms=list(self.social_poster.platforms.keys()),
-                                    review_callback=review_callback,
-                                    auto_post=review_callback is None
-                                )
+                                # Process through autonomous engine or basic poster
+                                if self.process_callback:
+                                    # Use autonomous growth engine for enhanced content
+                                    result = self.process_callback(
+                                        exploit,
+                                        platforms=list(self.social_poster.platforms.keys()),
+                                        review_callback=review_callback,
+                                        auto_post=review_callback is None
+                                    )
+                                else:
+                                    # Fall back to basic social posting workflow
+                                    result = self.social_poster.process_exploit(
+                                        exploit,
+                                        platforms=list(self.social_poster.platforms.keys()),
+                                        review_callback=review_callback,
+                                        auto_post=review_callback is None
+                                    )
 
                                 if result['success'] or result.get('partial'):
                                     self.posted_tx_hashes.add(exploit.tx_hash)

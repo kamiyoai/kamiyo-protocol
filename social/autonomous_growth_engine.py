@@ -80,12 +80,13 @@ class AutonomousGrowthEngine:
         if enable_alerting:
             self.alert_manager = AlertManager()
 
-        # Initialize watcher
+        # Initialize watcher with callback to this engine's process_exploit
         self.watcher = KamiyoWatcher(
             api_base_url=kamiyo_api_url,
             social_poster=self.social_poster,  # Pass the actual social poster
             api_key=kamiyo_api_key,
-            websocket_url=os.getenv('KAMIYO_WEBSOCKET_URL')
+            websocket_url=os.getenv('KAMIYO_WEBSOCKET_URL'),
+            process_callback=self.process_exploit  # Use autonomous engine's enhanced processing
         )
 
         # Statistics
