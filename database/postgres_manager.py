@@ -472,17 +472,19 @@ class PostgresManager:
     def get_stats_custom(self, days: int = 7, readonly: bool = True) -> Dict:
         """Get statistics for custom time period"""
 
-        query = """
+        # Use string formatting for INTERVAL since parameterized queries don't work well with it
+        # days parameter is validated by FastAPI (ge=1, le=365) so it's safe
+        query = f"""
             SELECT
                 COUNT(*) as total_exploits,
-                SUM(amount_usd) as total_loss_usd,
+                COALESCE(SUM(amount_usd), 0) as total_loss_usd,
                 COUNT(DISTINCT chain) as chains_affected,
                 COUNT(DISTINCT protocol) as protocols_affected
             FROM exploits
-            WHERE date >= CURRENT_TIMESTAMP - INTERVAL '%s days'
+            WHERE date >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
         """
 
-        result = self.execute_with_retry(query, (days,), readonly=readonly)
+        result = self.execute_with_retry(query, readonly=readonly)
         return dict(result[0]) if result else {}
 
     @use_read_replica
