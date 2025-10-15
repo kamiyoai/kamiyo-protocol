@@ -56,7 +56,7 @@ class KamiyoWatcher:
 
         # On first run, check exploits from the viral max age window
         # This ensures we don't miss recent exploits that are still relevant
-        viral_max_age_hours = int(os.getenv('VIRAL_MAX_AGE_HOURS', 72))  # Default 3 days
+        viral_max_age_hours = int(os.getenv('VIRAL_MAX_AGE_HOURS', 720))  # Default 30 days
         self.last_check = datetime.utcnow() - timedelta(hours=viral_max_age_hours)
 
         # Filters
