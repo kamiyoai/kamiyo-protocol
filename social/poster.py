@@ -156,18 +156,23 @@ class SocialMediaPoster:
                     result = poster.post_with_retry(content, title=title)
 
                 elif platform == Platform.DISCORD:
-                    # Use rich embed for Discord
-                    result = poster.post_exploit_alert({
-                        'protocol': post.exploit_data.protocol,
-                        'chain': post.exploit_data.chain,
-                        'loss_amount_usd': post.exploit_data.loss_amount_usd,
-                        'exploit_type': post.exploit_data.exploit_type,
-                        'tx_hash': post.exploit_data.tx_hash,
-                        'recovery_status': post.exploit_data.recovery_status,
-                        'description': post.exploit_data.description,
-                        'source_url': post.exploit_data.source_url,
-                        'timestamp': post.exploit_data.timestamp.isoformat()
-                    })
+                    # Check if deep dive content exists (from autonomous engine)
+                    if isinstance(content, str) and len(content) > 500:
+                        # Deep dive content - post as formatted text
+                        result = poster.post(content)
+                    else:
+                        # Fallback to basic alert with embed
+                        result = poster.post_exploit_alert({
+                            'protocol': post.exploit_data.protocol,
+                            'chain': post.exploit_data.chain,
+                            'loss_amount_usd': post.exploit_data.loss_amount_usd,
+                            'exploit_type': post.exploit_data.exploit_type,
+                            'tx_hash': post.exploit_data.tx_hash,
+                            'recovery_status': post.exploit_data.recovery_status,
+                            'description': post.exploit_data.description,
+                            'source_url': post.exploit_data.source_url,
+                            'timestamp': post.exploit_data.timestamp.isoformat()
+                        })
 
                 elif platform == Platform.TELEGRAM:
                     result = poster.post_with_retry(

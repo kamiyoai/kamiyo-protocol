@@ -354,6 +354,35 @@ class AutonomousGrowthEngine:
 
                 post.content[platform] = thread
 
+            elif platform == Platform.DISCORD and is_major_exploit:
+                # Create Discord deep dive content (no emojis)
+                discord_content = f"**EXPLOIT ALERT: {exploit.protocol}**\n\n"
+                discord_content += f"**Loss:** {exploit.formatted_amount}\n"
+                discord_content += f"**Chain:** {exploit.chain}\n"
+                discord_content += f"**Type:** {exploit.exploit_type}\n\n"
+
+                # Add executive summary
+                discord_content += f"**Analysis:**\n{report.executive_summary}\n\n"
+
+                # Add key insight
+                if report.engagement_hooks:
+                    discord_content += f"**Key Insight:**\n{report.engagement_hooks[0]}\n\n"
+
+                # Add timeline
+                if report.timeline:
+                    detection_speed_str = report.detection_speed() if callable(getattr(report, 'detection_speed', None)) else "minutes"
+                    discord_content += f"**Timeline:**\n"
+                    discord_content += f"- Occurred: {report.timeline[0].timestamp.strftime('%H:%M UTC')}\n"
+                    discord_content += f"- Detected: {report.timeline[-1].timestamp.strftime('%H:%M UTC')}\n"
+                    discord_content += f"- Detection speed: {detection_speed_str}\n\n"
+
+                # Add source
+                discord_content += f"**Source:** {exploit.source or 'Kamiyo Intelligence'}\n"
+                discord_content += f"Real-time blockchain exploit intelligence from 20+ verified sources.\n\n"
+                discord_content += f"https://kamiyo.ai"
+
+                post.content[platform] = discord_content
+
             elif platform == Platform.REDDIT:
                 # Enhanced Reddit post with full analysis
                 enhanced = post.content[platform]
@@ -476,7 +505,7 @@ if __name__ == "__main__":
             'subreddits': os.getenv('REDDIT_SUBREDDITS', 'defi').split(',')
         },
         'discord': {
-            'enabled': os.getenv('DISCORD_SOCIAL_ENABLED', 'false').lower() == 'true',
+            'enabled': os.getenv('DISCORD_ENABLED', 'false').lower() == 'true',
             'webhooks': {
                 name: url
                 for name, url in (
