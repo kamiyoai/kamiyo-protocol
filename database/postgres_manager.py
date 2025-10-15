@@ -341,9 +341,11 @@ class PostgresManager:
     def insert_exploit(self, exploit: Dict[str, Any]) -> Optional[int]:
         """Insert exploit into database (ignore duplicates)"""
 
+        # Use 'date' column for production schema (init_postgres.sql)
+        # or 'timestamp' for migration schema (001_initial_schema.sql)
         query = """
             INSERT INTO exploits
-            (tx_hash, chain, protocol, amount_usd, timestamp, source,
+            (tx_hash, chain, protocol, amount_usd, date, source,
              source_url, category, description, recovery_status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (tx_hash) DO NOTHING
@@ -355,7 +357,7 @@ class PostgresManager:
             exploit['chain'],
             exploit['protocol'],
             exploit.get('amount_usd'),
-            exploit['timestamp'],
+            exploit.get('timestamp') or exploit.get('date'),  # Support both field names
             exploit['source'],
             exploit.get('source_url'),
             exploit.get('category'),
@@ -398,7 +400,7 @@ class PostgresManager:
             query += " AND amount_usd >= %s"
             params.append(min_amount)
 
-        query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
+        query += " ORDER BY COALESCE(timestamp, date, created_at) DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
         return self.execute_with_retry(query, tuple(params), readonly=readonly)
@@ -431,7 +433,7 @@ class PostgresManager:
     def get_exploits_by_chain(self, chain: str, readonly: bool = True) -> List[Dict]:
         """Get all exploits for specific chain"""
 
-        query = "SELECT * FROM exploits WHERE chain = %s ORDER BY timestamp DESC"
+        query = "SELECT * FROM exploits WHERE chain = %s ORDER BY COALESCE(timestamp, date, created_at) DESC"
         return self.execute_with_retry(query, (chain,), readonly=readonly)
 
     @use_read_replica
@@ -453,7 +455,7 @@ class PostgresManager:
                 COUNT(DISTINCT chain) as chains_affected,
                 COUNT(DISTINCT protocol) as protocols_affected
             FROM exploits
-            WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '%s days'
+            WHERE COALESCE(timestamp, date, created_at) >= CURRENT_TIMESTAMP - INTERVAL '%s days'
         """
 
         result = self.execute_with_retry(query, (days,), readonly=readonly)
