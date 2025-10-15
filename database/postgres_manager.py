@@ -386,8 +386,14 @@ class PostgresManager:
                            readonly: bool = True) -> List[Dict]:
         """Get recent exploits with optional filtering"""
 
+        # Rename 'date' column to 'timestamp' for API compatibility
         query = """
-            SELECT * FROM exploits
+            SELECT
+                id, tx_hash, chain, protocol, amount_usd,
+                date as timestamp,
+                source, source_url, category, description,
+                recovery_status, created_at
+            FROM exploits
             WHERE 1=1
         """
         params = []
@@ -410,7 +416,16 @@ class PostgresManager:
     def get_exploit_by_tx_hash(self, tx_hash: str, readonly: bool = True) -> Optional[Dict]:
         """Get single exploit by transaction hash"""
 
-        query = "SELECT * FROM exploits WHERE tx_hash = %s"
+        # Rename 'date' to 'timestamp' for API compatibility
+        query = """
+            SELECT
+                id, tx_hash, chain, protocol, amount_usd,
+                date as timestamp,
+                source, source_url, category, description,
+                recovery_status, created_at
+            FROM exploits
+            WHERE tx_hash = %s
+        """
         results = self.execute_with_retry(query, (tx_hash,), readonly=readonly)
         return results[0] if results else None
 
