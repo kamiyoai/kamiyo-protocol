@@ -29,7 +29,7 @@ from social.monitoring.metrics import (
     record_generation_duration, record_api_duration
 )
 from social.monitoring.structured_logging import get_logger, log_context
-from social.monitoring.alerting import AlertManager
+from social.monitoring.alerting import AlertManager, Alert, AlertSeverity
 
 logger = get_logger(__name__)
 
@@ -231,16 +231,17 @@ class AutonomousGrowthEngine:
 
                     # Alert on total failure
                     if self.enable_alerting:
-                        self.alert_manager.send_alert(
+                        alert = Alert(
                             title=f"Social Posting Failed: {exploit.protocol}",
                             message=f"Failed to post {exploit.protocol} exploit to any platform",
-                            severity='high',
-                            context={
+                            severity=AlertSeverity.ERROR,
+                            details={
                                 'exploit_tx': exploit.tx_hash,
                                 'protocol': exploit.protocol,
                                 'platforms_attempted': [p.value for p in post.platforms]
                             }
                         )
+                        self.alert_manager.send_alert(alert)
 
                 return {
                     'success': posting_result['success'],
@@ -262,12 +263,13 @@ class AutonomousGrowthEngine:
                     track_api_error('processing_pipeline', str(type(e).__name__))
 
                 if self.enable_alerting:
-                    self.alert_manager.send_alert(
+                    alert = Alert(
                         title="Exploit Processing Error",
                         message=f"Error processing {exploit.protocol}: {str(e)}",
-                        severity='high',
-                        context={'exploit_tx': exploit.tx_hash, 'error': str(e)}
+                        severity=AlertSeverity.ERROR,
+                        details={'exploit_tx': exploit.tx_hash, 'error': str(e)}
                     )
+                    self.alert_manager.send_alert(alert)
 
                 return {
                     'success': False,

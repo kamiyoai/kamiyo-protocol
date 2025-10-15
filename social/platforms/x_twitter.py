@@ -5,6 +5,7 @@ Posts exploit alerts to X/Twitter
 """
 
 import logging
+import time
 from typing import Dict, List, Optional
 import tweepy
 from tweepy.errors import TweepyException
@@ -178,6 +179,10 @@ class XTwitterPoster(BasePlatformPoster):
                 reply_to = tweet_id
 
                 logger.info(f"Posted thread tweet {i+1}/{len(tweets)}: {tweet_id}")
+
+                # Add small delay between tweets to respect rate limits (3 seconds)
+                if i < len(tweets) - 1:
+                    time.sleep(3)
 
             except TweepyException as e:
                 error_msg = f"Error posting thread tweet {i+1}: {e}"

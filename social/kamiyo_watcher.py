@@ -229,6 +229,8 @@ class KamiyoWatcher:
                             f"Successfully posted exploit: {exploit.protocol} "
                             f"to {sum(1 for r in result['posting_results']['results'].values() if r.get('success'))} platforms"
                         )
+                        # Add delay between exploit posts to respect rate limits
+                        time.sleep(5)
                     else:
                         logger.error(
                             f"Failed to post exploit: {exploit.protocol} - "
