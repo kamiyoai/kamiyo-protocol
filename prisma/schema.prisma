@@ -3,9 +3,6 @@ generator client {
 }
 
 datasource db {
-  // Use PostgreSQL for both development and production
-  // Local: Use Render preview URL or set up local PostgreSQL
-  // Production: Provided by Render
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
@@ -13,6 +10,9 @@ datasource db {
 model User {
   id            String         @id @default(uuid())
   email         String         @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
   passwordHash  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -22,6 +22,43 @@ model User {
   watchlists    Watchlist[]
   apiRequests   ApiRequest[]
   apiKeys       ApiKey[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Kami {
@@ -108,15 +145,15 @@ model ApiRequest {
 }
 
 model ApiKey {
-  id         String   @id @default(uuid())
-  userId     String
-  key        String   @unique
-  name       String?
-  lastUsed   DateTime?
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime?
-  status     String   @default("active")  // active, revoked, expired
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String
+  key         String   @unique
+  name        String?  // User-friendly name for the key
+  status      String   @default("active")  // active, revoked
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  revokedAt   DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([key])
