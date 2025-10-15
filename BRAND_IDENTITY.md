@@ -6,7 +6,7 @@
 ## Brand Essence
 
 ### Core Identity
-**Kamiyo** (神代) — *"Ancient wisdom illuminating the blockchain's hidden truths"*
+**KAMIYO** 
 
 A blockchain exploit aggregation platform that channels omniscient awareness through modern information architecture, bringing divine-level visibility to confirmed incidents across all chains.
 
@@ -141,14 +141,14 @@ module.exports = {
 <section className="px-6 py-20 text-center">
   <h1 className="text-5xl font-display font-bold mb-4">
     <span className="bg-divine-gradient bg-clip-text text-transparent">
-      Kamiyo
+      KAMIYO
     </span>
   </h1>
   <p className="text-xl text-kamiyo-text-secondary mb-8">
     Track every confirmed exploit across all blockchains in real-time
   </p>
   <p className="text-sm text-kamiyo-text-muted max-w-2xl mx-auto">
-    We aggregate verified incidents from 20+ sources. 
+    We aggregate verified incidents from 20+ sources.
     We don't detect vulnerabilities — we ensure you never miss a confirmed exploit.
   </p>
   <div className="flex gap-4 justify-center mt-8">
@@ -270,7 +270,7 @@ module.exports = {
   <div className="container mx-auto px-6">
     <div className="text-center text-sm text-kamiyo-text-muted">
       <p className="mb-2">
-        Kamiyo aggregates confirmed exploit information from public sources.
+        KAMIYO aggregates confirmed exploit information from public sources.
       </p>
       <p>
         We do not provide security analysis, vulnerability detection, or investment advice.
@@ -345,10 +345,12 @@ module.exports = {
 ## Implementation Notes
 
 ### Key Messaging Points
-1. Always clarify: "We aggregate, we don't analyze"
-2. Use terms: "incidents", "exploits", "reports" not "vulnerabilities" or "threats"
-3. Emphasize: Speed of information, not depth of analysis
-4. Be transparent: All data comes from external sources
+1. **Brand Name**: Always use "KAMIYO" (all caps)
+2. Always clarify: "We aggregate, we don't analyze"
+3. Use terms: "incidents", "exploits", "reports" not "vulnerabilities" or "threats"
+4. Emphasize: Speed of information, not depth of analysis
+5. Be transparent: All data comes from external sources
+6. **No emojis** in brand communication (except severity indicators: 🟢🟡🟠🔴)
 
 ### Component Naming
 - Use `ExploitFeed` not `ThreatDetection`

@@ -463,8 +463,34 @@ class PostgresManager:
     def get_source_health(self, readonly: bool = True) -> List[Dict]:
         """Get health status of all sources"""
 
-        query = "SELECT * FROM v_source_health ORDER BY success_rate DESC"
-        return self.execute_with_retry(query, readonly=readonly)
+        try:
+            query = "SELECT * FROM v_source_health ORDER BY success_rate DESC"
+            return self.execute_with_retry(query, readonly=readonly)
+        except Exception as e:
+            error_str = str(e).lower()
+            # If view doesn't exist, fall back to direct query
+            if 'does not exist' in error_str and 'v_source_health' in error_str:
+                logger.warning("View v_source_health does not exist, using fallback query")
+                fallback_query = """
+                    SELECT
+                        name,
+                        last_fetch,
+                        fetch_count,
+                        error_count,
+                        ROUND((1.0 * (fetch_count - error_count) / NULLIF(fetch_count, 0)) * 100, 2) as success_rate,
+                        is_active
+                    FROM sources
+                    WHERE fetch_count > 0
+                    ORDER BY success_rate DESC
+                """
+                try:
+                    return self.execute_with_retry(fallback_query, readonly=readonly)
+                except Exception as fallback_error:
+                    logger.error(f"Fallback query failed: {fallback_error}")
+                    return []
+            else:
+                logger.error(f"Failed to get source health: {e}")
+                return []
 
     def update_source_status(self,
                             source_name: str,
