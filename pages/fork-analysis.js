@@ -71,8 +71,9 @@ export default function ForkAnalysis() {
     setError(null);
 
     try {
-      // Fetch fork families from API v2
+      // Fetch fork families from Next.js API proxy (which handles authentication)
       const params = new URLSearchParams({
+        email: session.user.email,
         min_similarity: filters.minSimilarity.toString(),
       });
 
@@ -80,11 +81,12 @@ export default function ForkAnalysis() {
         params.append('chain', filters.chain);
       }
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.kamiyo.ai';
-      const response = await fetch(`${apiUrl}/api/v2/analysis/fork-families?${params}`);
+      // Use Next.js API route instead of calling FastAPI directly
+      const response = await fetch(`/api/analysis/fork-families?${params}`);
 
       if (!response.ok) {
-        throw new Error(`API returned ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API returned ${response.status}`);
       }
 
       const data = await response.json();
