@@ -18,6 +18,7 @@ model User {
   webhooks      Webhook[]
   watchlists    Watchlist[]
   apiRequests   ApiRequest[]
+  apiKeys       ApiKey[]
 }
 
 model Kami {
@@ -101,4 +102,19 @@ model ApiRequest {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  userId      String
+  key         String   @unique
+  name        String?  // User-friendly name for the key
+  status      String   @default("active")  // active, revoked
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  revokedAt   DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([key])
 }
