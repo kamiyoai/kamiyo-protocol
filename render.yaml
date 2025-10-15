@@ -112,9 +112,9 @@ services:
       - key: POLL_INTERVAL_SECONDS
         value: 300  # Check every 5 minutes
       - key: SOCIAL_MIN_AMOUNT_USD
-        value: 500000  # $500K minimum for posting
+        value: 20000000  # $20M minimum - ONLY post major exploits
       - key: DEEP_DIVE_THRESHOLD_USD
-        value: 20000000  # $20M minimum for deep dive threads (vs quick alerts)
+        value: 20000000  # $20M minimum for deep dive threads (same as min = always deep dive)
       - key: MAX_POSTS_PER_CYCLE
         value: 3  # Max exploits to post per 5-minute cycle (prevents rate limits)
       # Twitter/X credentials
