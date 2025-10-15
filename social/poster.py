@@ -139,6 +139,16 @@ class SocialMediaPoster:
                 all_success = False
                 continue
 
+            # Safety check for content dict
+            if not post.content or not isinstance(post.content, dict):
+                logger.warning(f"Invalid content structure for {platform.value}")
+                results[platform.value] = {
+                    'success': False,
+                    'error': 'Invalid content structure'
+                }
+                all_success = False
+                continue
+
             content = post.content.get(platform)
             if not content:
                 logger.warning(f"No content generated for {platform.value}")
@@ -198,6 +208,10 @@ class SocialMediaPoster:
                     result = poster.post_with_retry(content)
 
                 results[platform.value] = result
+
+                # Safety check before assigning to posting_results
+                if not hasattr(post, 'posting_results') or post.posting_results is None:
+                    post.posting_results = {}
                 post.posting_results[platform] = result
 
                 if not result.get('success'):

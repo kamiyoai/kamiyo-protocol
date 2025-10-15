@@ -136,13 +136,33 @@ class BasePlatformPoster(ABC):
                     last_error = result.get('error', 'Unknown error')
                     logger.warning(f"Post attempt {attempt} failed: {last_error}")
 
+                    # Check for rate limit error (429)
+                    if '429' in str(last_error):
+                        logger.error(f"Rate limit error detected (429) - aborting retries")
+                        return {
+                            'success': False,
+                            'error': f'Rate limit exceeded (429): {last_error}',
+                            'rate_limited': True
+                        }
+
             except Exception as e:
                 last_error = str(e)
                 logger.error(f"Post attempt {attempt} error: {e}")
 
-            # Wait before retry
+                # Check for rate limit error in exception
+                if '429' in str(e):
+                    logger.error(f"Rate limit error detected (429) in exception - aborting retries")
+                    return {
+                        'success': False,
+                        'error': f'Rate limit exceeded (429): {e}',
+                        'rate_limited': True
+                    }
+
+            # Wait before retry with exponential backoff
             if attempt < self.retry_attempts:
-                time.sleep(self.retry_delay)
+                delay = self.retry_delay * (2 ** (attempt - 1))  # Exponential backoff
+                logger.info(f"Waiting {delay}s before retry...")
+                time.sleep(delay)
 
         return {
             'success': False,
