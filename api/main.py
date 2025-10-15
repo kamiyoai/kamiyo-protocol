@@ -304,13 +304,19 @@ async def get_exploits(
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
             filtered_exploits = []
             for e in exploits:
-                timestamp_str = e.get('timestamp', '')
-                if timestamp_str:
-                    # Parse timestamp and make timezone-aware if needed
-                    ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                exploit_timestamp = e.get('timestamp')
+                if exploit_timestamp:
+                    # Handle both datetime objects (from PostgreSQL) and strings (from SQLite)
+                    if isinstance(exploit_timestamp, str):
+                        ts = datetime.fromisoformat(exploit_timestamp.replace('Z', '+00:00'))
+                    else:
+                        # Already a datetime object from psycopg2
+                        ts = exploit_timestamp
+
+                    # Make timezone-aware if needed
                     if ts.tzinfo is None:
-                        # Make naive datetime UTC-aware
                         ts = ts.replace(tzinfo=timezone.utc)
+
                     if ts < cutoff_time:
                         filtered_exploits.append(e)
                 else:
