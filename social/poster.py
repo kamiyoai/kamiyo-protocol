@@ -172,16 +172,24 @@ class SocialMediaPoster:
                         result = poster.post(content)
                     else:
                         # Fallback to basic alert with embed
+                        # Safety: handle None timestamp
+                        timestamp_str = ''
+                        if post.exploit_data.timestamp:
+                            try:
+                                timestamp_str = post.exploit_data.timestamp.isoformat()
+                            except (AttributeError, ValueError):
+                                timestamp_str = str(post.exploit_data.timestamp)
+
                         result = poster.post_exploit_alert({
-                            'protocol': post.exploit_data.protocol,
-                            'chain': post.exploit_data.chain,
-                            'loss_amount_usd': post.exploit_data.loss_amount_usd,
-                            'exploit_type': post.exploit_data.exploit_type,
-                            'tx_hash': post.exploit_data.tx_hash,
+                            'protocol': post.exploit_data.protocol or 'Unknown',
+                            'chain': post.exploit_data.chain or 'Unknown',
+                            'loss_amount_usd': post.exploit_data.loss_amount_usd or 0,
+                            'exploit_type': post.exploit_data.exploit_type or 'Unknown',
+                            'tx_hash': post.exploit_data.tx_hash or 'N/A',
                             'recovery_status': post.exploit_data.recovery_status,
                             'description': post.exploit_data.description,
                             'source_url': post.exploit_data.source_url,
-                            'timestamp': post.exploit_data.timestamp.isoformat()
+                            'timestamp': timestamp_str
                         })
 
                 elif platform == Platform.TELEGRAM:

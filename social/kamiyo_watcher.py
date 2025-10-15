@@ -270,9 +270,20 @@ class KamiyoWatcher:
                         # Add delay between exploit posts to respect rate limits
                         time.sleep(5)
                     else:
+                        # Extract detailed error information
+                        error_msg = result.get('reason') or result.get('error', 'Unknown error')
+                        if result.get('posting_results'):
+                            # Get errors from individual platforms
+                            platform_errors = []
+                            for platform, platform_result in result['posting_results'].get('results', {}).items():
+                                if not platform_result.get('success'):
+                                    err = platform_result.get('error', 'Unknown')
+                                    platform_errors.append(f"{platform}: {err}")
+                            if platform_errors:
+                                error_msg = '; '.join(platform_errors)
+
                         logger.error(
-                            f"Failed to post exploit: {exploit.protocol} - "
-                            f"{result.get('reason', 'Unknown error')}"
+                            f"Failed to post exploit: {exploit.protocol} - {error_msg}"
                         )
 
                 # Update last_check to the newest exploit timestamp we saw
