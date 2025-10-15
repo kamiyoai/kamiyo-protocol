@@ -387,12 +387,16 @@ class PostgresManager:
         """Get recent exploits with optional filtering"""
 
         # Rename 'date' column to 'timestamp' for API compatibility
+        # Only select columns that exist in production schema (init_postgres.sql)
         query = """
             SELECT
                 id, tx_hash, chain, protocol, amount_usd,
                 date as timestamp,
-                source, source_url, category, description,
-                recovery_status, created_at
+                source, created_at,
+                exploit_type as category,
+                description,
+                NULL as source_url,
+                NULL as recovery_status
             FROM exploits
             WHERE 1=1
         """
@@ -417,12 +421,16 @@ class PostgresManager:
         """Get single exploit by transaction hash"""
 
         # Rename 'date' to 'timestamp' for API compatibility
+        # Only select columns that exist in production schema
         query = """
             SELECT
                 id, tx_hash, chain, protocol, amount_usd,
                 date as timestamp,
-                source, source_url, category, description,
-                recovery_status, created_at
+                source, created_at,
+                exploit_type as category,
+                description,
+                NULL as source_url,
+                NULL as recovery_status
             FROM exploits
             WHERE tx_hash = %s
         """
