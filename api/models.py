@@ -14,7 +14,7 @@ class ExploitResponse(BaseModel):
     tx_hash: str
     chain: str
     protocol: str
-    amount_usd: float
+    amount_usd: Optional[float] = None
     timestamp: datetime
     source: str
     source_url: Optional[str] = None
