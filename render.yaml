@@ -141,10 +141,10 @@ services:
         sync: false
       - key: REDDIT_SUBREDDITS
         value: CryptoCurrency,defi,ethereum,ethdev
-      # Discord credentials (optional)
+      # Discord credentials (optional) - Uses webhooks for posting
       - key: DISCORD_ENABLED
         sync: false
-      - key: DISCORD_BOT_TOKEN
+      - key: DISCORD_SOCIAL_WEBHOOKS
         sync: false
-      - key: DISCORD_CHANNEL_ID
-        sync: false
+        # Format: channel_name=webhook_url,another_channel=another_url
+        # Example: exploits=https://discord.com/api/webhooks/...

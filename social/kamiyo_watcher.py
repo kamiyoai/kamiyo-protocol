@@ -385,7 +385,7 @@ if __name__ == "__main__":
             'subreddits': os.getenv('REDDIT_SUBREDDITS', 'defi,CryptoCurrency').split(',')
         },
         'discord': {
-            'enabled': os.getenv('DISCORD_SOCIAL_ENABLED', 'false').lower() == 'true',
+            'enabled': os.getenv('DISCORD_ENABLED', 'false').lower() == 'true',
             'webhooks': {
                 name: url
                 for name, url in (

@@ -28,7 +28,7 @@ const Footer = () => {
                         X/Twitter
                     </a>
                     <a
-                        href="https://discord.gg/6Qxps5XP"
+                        href="https://discord.gg/DCNRrFuG"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-light text-gray-500 text-[0.6rem] flex items-center gap-2"
