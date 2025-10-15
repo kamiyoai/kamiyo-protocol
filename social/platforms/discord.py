@@ -97,14 +97,38 @@ class DiscordPoster(BasePlatformPoster):
 
         if kwargs.get('fields'):
             # Max 25 fields
-            fields = kwargs['fields'][:25]
+            fields = kwargs['fields']
+            if fields is None:
+                logger.warning("fields is None in create_embed")
+                fields = []
+
+            try:
+                fields = fields[:25]
+            except TypeError as e:
+                logger.error(f"Error slicing fields: {e}, fields type: {type(fields)}, value: {fields}")
+                fields = []
+
             embed['fields'] = []
             for field in fields:
-                embed['fields'].append({
-                    'name': field.get('name', '')[:256],
-                    'value': field.get('value', '')[:1024],
-                    'inline': field.get('inline', False)
-                })
+                if field is None:
+                    logger.warning("Skipping None field in create_embed")
+                    continue
+                try:
+                    name = field.get('name', '') if field else ''
+                    value = field.get('value', '') if field else ''
+
+                    # Safe string slicing
+                    name_str = name[:256] if name else ''
+                    value_str = value[:1024] if value else ''
+
+                    embed['fields'].append({
+                        'name': name_str,
+                        'value': value_str,
+                        'inline': field.get('inline', False) if field else False
+                    })
+                except (TypeError, AttributeError) as e:
+                    logger.error(f"Error processing field: {e}, field: {field}")
+                    continue
 
         return embed
 
@@ -231,70 +255,87 @@ class DiscordPoster(BasePlatformPoster):
         Returns:
             dict: Result
         """
-        # Determine severity color
-        amount = exploit_data.get('loss_amount_usd', 0)
-        if amount >= 10_000_000:
-            color = self.SEVERITY_COLORS['critical']
-            severity = 'CRITICAL'
-        elif amount >= 1_000_000:
-            color = self.SEVERITY_COLORS['high']
-            severity = 'HIGH'
-        elif amount >= 100_000:
-            color = self.SEVERITY_COLORS['medium']
-            severity = 'MEDIUM'
-        else:
-            color = self.SEVERITY_COLORS['low']
-            severity = 'LOW'
+        try:
+            # Safety: ensure exploit_data is not None
+            if not exploit_data or not isinstance(exploit_data, dict):
+                logger.error(f"Invalid exploit_data: {type(exploit_data)}")
+                return {'success': False, 'error': 'Invalid exploit data'}
 
-        # Format amount
-        if amount >= 1_000_000:
-            formatted_amount = f"${amount / 1_000_000:.2f}M"
-        else:
-            formatted_amount = f"${amount / 1_000:.1f}K"
+            # Determine severity color
+            amount = exploit_data.get('loss_amount_usd', 0)
+            if amount >= 10_000_000:
+                color = self.SEVERITY_COLORS['critical']
+                severity = 'CRITICAL'
+            elif amount >= 1_000_000:
+                color = self.SEVERITY_COLORS['high']
+                severity = 'HIGH'
+            elif amount >= 100_000:
+                color = self.SEVERITY_COLORS['medium']
+                severity = 'MEDIUM'
+            else:
+                color = self.SEVERITY_COLORS['low']
+                severity = 'LOW'
 
-        # Create embed (no emojis)
-        embed = self.create_embed(
-            title=f"{exploit_data.get('protocol')} Exploit Alert",
-            description=exploit_data.get('description', 'Exploit detected'),
-            color=color,
-            url=exploit_data.get('source_url'),
-            timestamp=exploit_data.get('timestamp', ''),
-            fields=[
-                {
-                    'name': 'Loss Amount',
-                    'value': formatted_amount,
-                    'inline': True
-                },
-                {
-                    'name': 'Chain',
-                    'value': exploit_data.get('chain', 'Unknown'),
-                    'inline': True
-                },
-                {
-                    'name': 'Type',
-                    'value': exploit_data.get('exploit_type', 'Unknown'),
-                    'inline': True
-                },
-                {
-                    'name': 'Transaction',
-                    'value': f"`{exploit_data.get('tx_hash', 'N/A')[:16]}...`",
-                    'inline': False
-                },
-                {
-                    'name': 'Recovery',
-                    'value': exploit_data.get('recovery_status', 'Unknown'),
-                    'inline': True
-                },
-                {
-                    'name': 'Severity',
-                    'value': severity,
-                    'inline': True
-                }
-            ],
-            footer='Kamiyo Intelligence Platform'
-        )
+            # Format amount
+            if amount >= 1_000_000:
+                formatted_amount = f"${amount / 1_000_000:.2f}M"
+            else:
+                formatted_amount = f"${amount / 1_000:.1f}K"
 
-        return self.post(
-            content=f"**EXPLOIT ALERT: {exploit_data.get('protocol')}**",
-            embeds=[embed]
-        )
+            # Safely get tx_hash and slice it
+            tx_hash = exploit_data.get('tx_hash', 'N/A')
+            tx_hash_short = tx_hash[:16] if tx_hash else 'N/A'
+
+            # Create embed (no emojis)
+            embed = self.create_embed(
+                title=f"{exploit_data.get('protocol', 'Unknown')} Exploit Alert",
+                description=exploit_data.get('description', 'Exploit detected'),
+                color=color,
+                url=exploit_data.get('source_url'),
+                timestamp=exploit_data.get('timestamp', ''),
+                fields=[
+                    {
+                        'name': 'Loss Amount',
+                        'value': formatted_amount,
+                        'inline': True
+                    },
+                    {
+                        'name': 'Chain',
+                        'value': exploit_data.get('chain', 'Unknown'),
+                        'inline': True
+                    },
+                    {
+                        'name': 'Type',
+                        'value': exploit_data.get('exploit_type', 'Unknown'),
+                        'inline': True
+                    },
+                    {
+                        'name': 'Transaction',
+                        'value': f"`{tx_hash_short}...`",
+                        'inline': False
+                    },
+                    {
+                        'name': 'Recovery',
+                        'value': exploit_data.get('recovery_status', 'Unknown'),
+                        'inline': True
+                    },
+                    {
+                        'name': 'Severity',
+                        'value': severity,
+                        'inline': True
+                    }
+                ],
+                footer='Kamiyo Intelligence Platform'
+            )
+
+            return self.post(
+                content=f"**EXPLOIT ALERT: {exploit_data.get('protocol', 'Unknown')}**",
+                embeds=[embed]
+            )
+
+        except Exception as e:
+            import traceback
+            logger.error(f"FATAL ERROR in post_exploit_alert: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"exploit_data type: {type(exploit_data)}, value: {exploit_data}")
+            return {'success': False, 'error': f'Exception in post_exploit_alert: {e}'}
