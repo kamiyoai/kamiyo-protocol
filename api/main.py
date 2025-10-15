@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, Query, HTTPException, Path, WebSocket, Header
+from fastapi import FastAPI, Query, HTTPException, Path, WebSocket, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
@@ -242,6 +242,7 @@ async def root():
 
 @app.get("/exploits", response_model=ExploitsListResponse, tags=["Exploits"])
 async def get_exploits(
+    request: Request,
     page: int = Query(1, ge=1, le=10000, description="Page number (max 10,000)"),
     page_size: int = Query(100, ge=1, le=500, description="Items per page (max 500 for performance)"),
     chain: Optional[str] = Query(None, max_length=100, description="Filter by blockchain"),
@@ -280,7 +281,7 @@ async def get_exploits(
         from datetime import datetime, timedelta
 
         # Get user from optional auth
-        user = await get_optional_user(authorization)
+        user = await get_optional_user(request, authorization)
 
         # Check if user has real-time access
         is_real_time = has_real_time_access(user)
