@@ -157,7 +157,7 @@ class SocialMediaPoster:
 
                 elif platform == Platform.DISCORD:
                     # Check if deep dive content exists (from autonomous engine)
-                    if isinstance(content, str) and len(content) > 500:
+                    if content and isinstance(content, str) and len(content) > 500:
                         # Deep dive content - post as formatted text
                         result = poster.post(content)
                     else:
