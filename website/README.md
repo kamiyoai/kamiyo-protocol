@@ -81,7 +81,31 @@ See [ADVANCED_FEATURES.md](ADVANCED_FEATURES.md) for detailed documentation.
 
 ## Quick Start
 
-### Option 1: Run Everything (Recommended)
+### Option 1: Production Deployment (Docker Compose)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/kamiyo/kamiyo.git
+cd kamiyo
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# 3. Start all services
+docker-compose -f docker-compose.production.yml up -d
+
+# 4. Verify deployment
+./scripts/health_check.sh
+
+# Access:
+# - Website: https://kamiyo.ai
+# - API: https://api.kamiyo.ai
+# - API Docs: https://api.kamiyo.ai/docs
+# - Metrics: https://metrics.kamiyo.ai
+```
+
+### Option 2: Development Mode
 
 ```bash
 # Install dependencies
@@ -96,15 +120,40 @@ python3 main.py all
 # - API Docs: http://localhost:8000/docs
 ```
 
-### Option 2: Docker
+### Option 3: Autonomous Growth Engine
+
+Start the social media automation for organic traffic generation:
 
 ```bash
-docker-compose up
+# 1. Configure social media credentials
+cp .env.example .env
+# Add credentials for Reddit, Discord, Telegram, Twitter/X
 
-# Same URLs as above
+# 2. Start autonomous growth engine
+cd social
+python autonomous_growth_engine.py --mode websocket
+
+# Or with polling mode
+python autonomous_growth_engine.py --mode poll --interval 60
+
+# Engine will:
+# - Monitor Kamiyo for new exploits (aggregated from external sources)
+# - Generate detailed analysis reports
+# - Create platform-optimized content
+# - Post automatically to all enabled social media platforms
+# - Track metrics and alert on failures
 ```
 
-### Option 3: Individual Components
+**Autonomous Growth Engine Features:**
+- Real-time exploit monitoring via WebSocket or polling
+- Automated analysis report generation
+- Multi-platform social media posting (Reddit, Discord, Telegram, Twitter/X)
+- Platform-specific content optimization
+- Rate limiting and retry logic
+- Prometheus metrics and alerting
+- Human review workflow (optional)
+
+### Option 4: Individual Components
 
 ```bash
 python3 main.py api         # API only
@@ -193,6 +242,84 @@ for exploit in exploits["data"]:
 ```
 
 [**Full API Documentation →**](https://docs.kamiyo.ai)
+
+---
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Load Balancer                         │
+│                (Nginx / Cloudflare CDN)                  │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+        ┌───────────────┼──────────────────┐
+        │               │                  │
+        ▼               ▼                  ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────────┐
+│   API (x3)   │ │  Aggregator  │ │ Social Engine    │
+│  FastAPI     │ │  Multi-source│ │ Autonomous Growth│
+│  Port: 8000  │ │  Parallel    │ │ Multi-platform   │
+└──────┬───────┘ └──────┬───────┘ └──────┬───────────┘
+       │                │                 │
+       └────────────────┼─────────────────┘
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+      ┌──────────────┐    ┌──────────────┐
+      │  PostgreSQL  │    │    Redis     │
+      │  Primary DB  │    │  Cache + RL  │
+      │  Port: 5432  │    │  Port: 6379  │
+      └──────────────┘    └──────────────┘
+              │
+              ▼
+      ┌──────────────┐
+      │ Monitoring   │
+      │ Prometheus + │
+      │   Grafana    │
+      └──────────────┘
+```
+
+### Key Components
+
+1. **API Layer (FastAPI)**
+   - RESTful API with 15+ endpoints
+   - JWT authentication
+   - Tier-based rate limiting
+   - WebSocket support for real-time updates
+   - Comprehensive error handling
+
+2. **Aggregator System**
+   - Parallel data collection from 20+ sources
+   - Automatic deduplication
+   - Source health monitoring
+   - Configurable fetch intervals
+
+3. **Autonomous Growth Engine** (NEW)
+   - Real-time exploit monitoring
+   - Automated analysis report generation
+   - Multi-platform social media posting
+   - Platform-specific content optimization
+   - Metrics tracking and alerting
+
+4. **Database (PostgreSQL)**
+   - 415+ confirmed exploits
+   - 54+ blockchains tracked
+   - Optimized indexes for performance
+   - Connection pooling
+
+5. **Cache Layer (Redis)**
+   - API response caching
+   - Rate limiting
+   - Session management
+   - Pub/sub for real-time updates
+
+6. **Monitoring Stack**
+   - Prometheus metrics
+   - Grafana dashboards
+   - Sentry error tracking
+   - Structured logging
 
 ---
 
@@ -438,12 +565,46 @@ kamiyo/
 
 ## Documentation
 
-1. **[RUN_ME.txt](RUN_ME.txt)** - Quick start instructions
+### Getting Started
+1. **[README.md](README.md)** - This file (overview and quick start)
 2. **[QUICK_START.md](QUICK_START.md)** - Detailed setup guide
-3. **[MVP_COMPLETE.md](MVP_COMPLETE.md)** - v1.0 MVP features
-4. **[ADVANCED_FEATURES.md](ADVANCED_FEATURES.md)** - v2.0 advanced features (NEW)
-5. **[CLAUDE.md](CLAUDE.md)** - Project boundaries and guidelines
-6. **[API Docs](http://localhost:8000/docs)** - Interactive Swagger UI (when running)
+3. **[DEPLOYMENT_SUMMARY.md](DEPLOYMENT_SUMMARY.md)** - Deployment instructions
+
+### Feature Documentation
+4. **[ADVANCED_FEATURES.md](ADVANCED_FEATURES.md)** - v2.0 advanced features
+5. **[SOCIAL_MEDIA_POSTING_GUIDE.md](SOCIAL_MEDIA_POSTING_GUIDE.md)** - Social media automation
+6. **[COSMOS_INTEGRATION.md](COSMOS_INTEGRATION.md)** - Cosmos ecosystem support
+
+### Operations Documentation (NEW)
+7. **[PRODUCTION_RUNBOOK.md](PRODUCTION_RUNBOOK.md)** - Complete operational procedures
+   - Deployment procedures (Docker, Kubernetes, systemd)
+   - 15+ common troubleshooting scenarios with solutions
+   - Incident response procedures
+   - Rollback procedures
+   - Maintenance tasks (daily, weekly, monthly)
+   - Emergency procedures
+   - Performance tuning guide
+   - Scaling guidelines
+
+8. **[OPERATIONS_CHECKLIST.md](OPERATIONS_CHECKLIST.md)** - Operational checklists
+   - Pre-deployment checklist
+   - Post-deployment validation
+   - Daily operational checks
+   - Weekly maintenance tasks
+   - Monthly review tasks
+   - Incident response checklist
+   - Rollback checklist
+   - Security review checklist
+
+### Technical Documentation
+9. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+10. **[INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md)** - Incident handling procedures
+11. **[SECURITY_AUDIT_REPORT.md](SECURITY_AUDIT_REPORT.md)** - Security assessment
+12. **[CLAUDE.md](CLAUDE.md)** - Project boundaries and guidelines
+
+### API Documentation
+13. **[API Docs](https://api.kamiyo.ai/docs)** - Interactive Swagger UI
+14. **[API Reference](https://docs.kamiyo.ai)** - Complete API documentation
 
 ---
 

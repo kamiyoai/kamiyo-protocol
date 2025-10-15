@@ -386,6 +386,29 @@ class DatabaseManager:
             logger.error(f"Failed to get chains: {e}")
             return []
 
+    def get_chains_with_counts(self) -> List[Dict[str, Any]]:
+        """Get list of chains with exploit counts (optimized - single query)"""
+
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT
+                        chain,
+                        COUNT(*) as exploit_count
+                    FROM exploits
+                    WHERE LOWER(protocol) NOT LIKE '%test%'
+                    AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'
+                    GROUP BY chain
+                    ORDER BY exploit_count DESC, chain
+                """)
+
+                return [dict(row) for row in cursor.fetchall()]
+
+        except Exception as e:
+            logger.error(f"Failed to get chains with counts: {e}")
+            return []
+
     def _trigger_webhooks(self, exploit_id: int):
         """
         Trigger webhook deliveries for new exploit

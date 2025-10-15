@@ -1,0 +1,9 @@
+INFO:database.manager:Database schema initialized
+INFO:database.manager:Database manager initialized: data/kamiyo.db
+INFO:website.api.test_main:Kamiyo Test API starting up...
+INFO:website.api.test_main:Database exploits: 431
+INFO:website.api.test_main:Tracked chains: 55
+INFO:website.api.test_main:New feature routers loaded:
+INFO:website.api.test_main:  - Alert Status (/api/v1/alerts/*)
+INFO:website.api.test_main:  - Protocol Watchlists (/api/v1/watchlists/*)
+INFO:website.api.test_main:  - Slack Integration (/api/v1/slack/*)

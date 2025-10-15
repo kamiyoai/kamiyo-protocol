@@ -46,6 +46,9 @@ class WebSocketClient:
 class WebSocketManager:
     """Manages WebSocket connections and message broadcasting"""
 
+    # Maximum concurrent WebSocket connections per instance (prevents memory exhaustion)
+    MAX_CONNECTIONS = 10000
+
     def __init__(self):
         self.active_connections: Dict[str, WebSocketClient] = {}
         self.rate_limits = {
@@ -67,6 +70,15 @@ class WebSocketManager:
         min_amount: float = 0.0
     ):
         """Accept and register a new WebSocket connection"""
+        # Check connection limit (prevents memory exhaustion attack)
+        if len(self.active_connections) >= self.MAX_CONNECTIONS:
+            await websocket.close(code=1008, reason="Server at capacity. Please try again later.")
+            logger.warning(
+                f"WebSocket connection rejected: Server at capacity "
+                f"({self.MAX_CONNECTIONS} connections)"
+            )
+            return
+
         await websocket.accept()
 
         # Parse chains filter

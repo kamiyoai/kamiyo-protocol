@@ -5,7 +5,14 @@ Provides database management for exploit aggregation
 
 import os
 from .manager import DatabaseManager
-from .postgres_manager import PostgresManager
+
+# Conditionally import PostgresManager only if psycopg2 is available
+try:
+    from .postgres_manager import PostgresManager
+    HAS_POSTGRES = True
+except ImportError:
+    HAS_POSTGRES = False
+    PostgresManager = None
 
 def get_db():
     """
@@ -19,7 +26,7 @@ def get_db():
     """
     database_url = os.getenv('DATABASE_URL')
 
-    if database_url:
+    if database_url and HAS_POSTGRES:
         # Production: PostgreSQL with connection pooling
         return PostgresManager(
             database_url=database_url,
@@ -29,6 +36,10 @@ def get_db():
         )
     else:
         # Development: SQLite for local testing
+        # Also fallback if DATABASE_URL set but psycopg2 not installed
+        if database_url and not HAS_POSTGRES:
+            import logging
+            logging.warning("DATABASE_URL set but psycopg2 not installed, falling back to SQLite")
         return DatabaseManager()
 
 __all__ = ['DatabaseManager', 'PostgresManager', 'get_db']

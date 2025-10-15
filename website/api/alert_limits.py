@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Alert Limits Module
-Handles monthly alert limits for free tier users
+Handles monthly alert limits for all tiers (all tiers now have unlimited email alerts)
 """
 
 import sys
@@ -16,9 +16,9 @@ from database import get_db
 
 logger = logging.getLogger(__name__)
 
-# Tier alert limits (per month)
+# Tier alert limits (per month) - All tiers now have unlimited email alerts
 ALERT_LIMITS = {
-    'free': 10,
+    'free': None,  # Unlimited email alerts
     'pro': None,  # Unlimited
     'team': None,  # Unlimited
     'enterprise': None  # Unlimited

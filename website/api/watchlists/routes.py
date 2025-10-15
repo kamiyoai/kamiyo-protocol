@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 import logging
 
-from api.auth import get_current_user
+from api.auth_helpers import get_current_user
 from api.watchlists.manager import get_watchlist_manager
 
 logger = logging.getLogger(__name__)

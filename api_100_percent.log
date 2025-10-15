@@ -224,3 +224,38 @@ ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exception
 ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
 INFO:     127.0.0.1:52631 - "GET /exploits?page=1&page_size=50 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:52662 - "GET /exploits?page=1&page_size=50 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:57367 - "GET /exploits?page=1&page_size=100&min_amount=100000.0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57385 - "GET /exploits?page=1&page_size=100&min_amount=100000.0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57393 - "GET /exploits?page=1&page_size=100&min_amount=100000.0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57505 - "GET /exploits?page=1&page_size=100&min_amount=100000.0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57542 - "GET /exploits?page=1&page_size=100&min_amount=100000.0 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:59521 - "GET /api/v2/analysis/fork-families HTTP/1.1" 401 Unauthorized
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:56994 - "GET /exploits?page=1&page_size=10&min_amount=500000 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:58467 - "GET /exploits?page=1&page_size=10&min_amount=500000 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:59839 - "GET /exploits?page=1&page_size=1 HTTP/1.1" 200 OK

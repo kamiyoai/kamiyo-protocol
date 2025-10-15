@@ -156,18 +156,23 @@ class SocialMediaPoster:
                     result = poster.post_with_retry(content, title=title)
 
                 elif platform == Platform.DISCORD:
-                    # Use rich embed for Discord
-                    result = poster.post_exploit_alert({
-                        'protocol': post.exploit_data.protocol,
-                        'chain': post.exploit_data.chain,
-                        'loss_amount_usd': post.exploit_data.loss_amount_usd,
-                        'exploit_type': post.exploit_data.exploit_type,
-                        'tx_hash': post.exploit_data.tx_hash,
-                        'recovery_status': post.exploit_data.recovery_status,
-                        'description': post.exploit_data.description,
-                        'source_url': post.exploit_data.source_url,
-                        'timestamp': post.exploit_data.timestamp.isoformat()
-                    })
+                    # Check if deep dive content exists (from autonomous engine)
+                    if content and isinstance(content, str) and len(content) > 500:
+                        # Deep dive content - post as formatted text
+                        result = poster.post(content)
+                    else:
+                        # Fallback to basic alert with embed
+                        result = poster.post_exploit_alert({
+                            'protocol': post.exploit_data.protocol,
+                            'chain': post.exploit_data.chain,
+                            'loss_amount_usd': post.exploit_data.loss_amount_usd,
+                            'exploit_type': post.exploit_data.exploit_type,
+                            'tx_hash': post.exploit_data.tx_hash,
+                            'recovery_status': post.exploit_data.recovery_status,
+                            'description': post.exploit_data.description,
+                            'source_url': post.exploit_data.source_url,
+                            'timestamp': post.exploit_data.timestamp.isoformat()
+                        })
 
                 elif platform == Platform.TELEGRAM:
                     result = poster.post_with_retry(
@@ -177,11 +182,16 @@ class SocialMediaPoster:
                     )
 
                 elif platform == Platform.X_TWITTER:
-                    # Check if content needs threading
-                    if len(content) > 280:
+                    # Check if content is already a thread (list) or needs threading
+                    if isinstance(content, list):
+                        # Content is already a thread from autonomous_growth_engine
+                        result = poster.post_thread(content)
+                    elif len(content) > 280:
+                        # Content is a long string, split into tweets
                         tweets = poster.split_into_tweets(content)
                         result = poster.post_thread(tweets)
                     else:
+                        # Content is a short string, post as single tweet
                         result = poster.post_with_retry(content)
 
                 else:

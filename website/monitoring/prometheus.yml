@@ -36,6 +36,14 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 30s
 
+  # Social Media Poster metrics
+  - job_name: 'kamiyo-social-media'
+    static_configs:
+      - targets: ['social-poster:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
   # PostgreSQL metrics (using postgres_exporter)
   - job_name: 'postgres'
     static_configs:

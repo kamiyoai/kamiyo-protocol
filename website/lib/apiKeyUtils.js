@@ -3,8 +3,8 @@
  * Helper functions for API key generation and management
  */
 
-import { PrismaClient } from '@prisma/client';
-import crypto from 'crypto';
+const { PrismaClient } = require('@prisma/client');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
  * Generate a secure API key
  * Format: kmy_<64 random hex characters>
  */
-export function generateApiKey() {
+function generateApiKey() {
     return 'kmy_' + crypto.randomBytes(32).toString('hex');
 }
 
@@ -23,7 +23,7 @@ export function generateApiKey() {
  * @param {string} userId - The user's ID
  * @returns {Promise<Object>} The created API key
  */
-export async function createDefaultApiKey(userId) {
+async function createDefaultApiKey(userId) {
     try {
         const apiKey = generateApiKey();
 
@@ -53,7 +53,7 @@ export async function createDefaultApiKey(userId) {
  * @param {string} key - The API key to hash
  * @returns {string} Hashed key
  */
-export function hashApiKey(key) {
+function hashApiKey(key) {
     return crypto
         .createHash('sha256')
         .update(key)
@@ -66,7 +66,7 @@ export function hashApiKey(key) {
  * @param {string} key - The API key to validate
  * @returns {boolean} True if valid format
  */
-export function isValidApiKeyFormat(key) {
+function isValidApiKeyFormat(key) {
     // Must start with kmy_ followed by 64 hex characters
     return /^kmy_[a-f0-9]{64}$/.test(key);
 }
@@ -78,7 +78,7 @@ export function isValidApiKeyFormat(key) {
  * @param {string} key - The API key
  * @returns {Promise<Object|null>} User object if found
  */
-export async function getUserByApiKey(key) {
+async function getUserByApiKey(key) {
     try {
         // Validate format first
         if (!isValidApiKeyFormat(key)) {
@@ -127,6 +127,16 @@ export async function getUserByApiKey(key) {
 /**
  * Cleanup: Close Prisma connection
  */
-export async function disconnectPrisma() {
+async function disconnectPrisma() {
     await prisma.$disconnect();
 }
+
+// Export all functions
+module.exports = {
+    generateApiKey,
+    createDefaultApiKey,
+    hashApiKey,
+    isValidApiKeyFormat,
+    getUserByApiKey,
+    disconnectPrisma
+};

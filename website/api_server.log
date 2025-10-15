@@ -37,18 +37,12 @@ Traceback (most recent call last):
     return _bootstrap._gcd_import(name[level:], package, level)
   File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
   File "<frozen importlib._bootstrap>", line 991, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 961, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
-  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
   File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
   File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
   File "<frozen importlib._bootstrap_external>", line 783, in exec_module
   File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
-  File "~/project/Projekter/kamiyo/website/api/__init__.py", line 6, in <module>
-    from .main import app
-  File "~/project/Projekter/kamiyo/website/api/main.py", line 39, in <module>
+  File "~/project/Projekter/kamiyo/api/main.py", line 39, in <module>
     from api.user_webhooks import routes as user_webhook_routes
-  File "~/project/Projekter/kamiyo/website/api/user_webhooks/routes.py", line 18, in <module>
+  File "~/project/Projekter/kamiyo/api/user_webhooks/routes.py", line 18, in <module>
     from sqlalchemy.orm import Session
 ModuleNotFoundError: No module named 'sqlalchemy'

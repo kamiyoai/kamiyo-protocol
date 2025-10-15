@@ -228,41 +228,41 @@ class DiscordPoster(BasePlatformPoster):
         else:
             formatted_amount = f"${amount / 1_000:.1f}K"
 
-        # Create embed
+        # Create embed (no emojis)
         embed = self.create_embed(
-            title=f"🚨 {exploit_data.get('protocol')} Exploit Alert",
+            title=f"{exploit_data.get('protocol')} Exploit Alert",
             description=exploit_data.get('description', 'Exploit detected'),
             color=color,
             url=exploit_data.get('source_url'),
             timestamp=exploit_data.get('timestamp', ''),
             fields=[
                 {
-                    'name': '💰 Loss Amount',
+                    'name': 'Loss Amount',
                     'value': formatted_amount,
                     'inline': True
                 },
                 {
-                    'name': '⛓️ Chain',
+                    'name': 'Chain',
                     'value': exploit_data.get('chain', 'Unknown'),
                     'inline': True
                 },
                 {
-                    'name': '🔥 Type',
+                    'name': 'Type',
                     'value': exploit_data.get('exploit_type', 'Unknown'),
                     'inline': True
                 },
                 {
-                    'name': '🔗 Transaction',
+                    'name': 'Transaction',
                     'value': f"`{exploit_data.get('tx_hash', 'N/A')[:16]}...`",
                     'inline': False
                 },
                 {
-                    'name': '♻️ Recovery',
+                    'name': 'Recovery',
                     'value': exploit_data.get('recovery_status', 'Unknown'),
                     'inline': True
                 },
                 {
-                    'name': '📊 Severity',
+                    'name': 'Severity',
                     'value': severity,
                     'inline': True
                 }
@@ -271,6 +271,6 @@ class DiscordPoster(BasePlatformPoster):
         )
 
         return self.post(
-            content=f"🚨 **Exploit Alert: {exploit_data.get('protocol')}** 🚨",
+            content=f"**EXPLOIT ALERT: {exploit_data.get('protocol')}**",
             embeds=[embed]
         )

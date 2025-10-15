@@ -9,11 +9,45 @@ import time
 import logging
 from typing import Dict, List, Any, Optional
 from contextlib import contextmanager
+from pathlib import Path
+from functools import wraps
+import inspect
 import psycopg2
 from psycopg2 import pool, extras, OperationalError
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
+# Import connection monitor
+try:
+    from .connection_monitor import get_monitor
+    MONITORING_ENABLED = True
+except ImportError:
+    MONITORING_ENABLED = False
+    logger.warning("Connection monitoring not available")
+
 logger = logging.getLogger(__name__)
+
+
+def use_read_replica(func):
+    """
+    Decorator to automatically use read replica for read-only queries
+    Applies readonly=True if not explicitly set in method call
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # Get function signature
+        sig = inspect.signature(func)
+
+        # Check if function has 'readonly' parameter and it's not set
+        if 'readonly' in sig.parameters:
+            # Check if readonly is not already in kwargs
+            if 'readonly' not in kwargs:
+                # Inject readonly=True for automatic read replica usage
+                kwargs['readonly'] = True
+                logger.debug(f"Auto-selecting read replica for {func.__name__}")
+
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class PostgresManager:
@@ -74,63 +108,186 @@ class PostgresManager:
             except Exception as e:
                 logger.warning(f"Failed to create read replica pool: {e}")
 
-    @contextmanager
-    def get_connection(self, readonly: bool = False):
+        # Initialize connection monitor
+        self.monitor = get_monitor() if MONITORING_ENABLED else None
+
+        # Initialize schema if needed
+        self._initialize_schema()
+
+    def _initialize_schema(self):
         """
-        Get database connection from pool with automatic cleanup
+        Initialize database schema and run migrations.
+        Idempotent - safe to run multiple times.
+        """
+        migrations_dir = Path(__file__).parent / 'migrations'
+
+        if not migrations_dir.exists():
+            logger.warning(f"Migrations directory not found: {migrations_dir}")
+            return
+
+        conn = None
+        try:
+            # Get connection directly from pool to avoid recursion
+            conn = self.pool.getconn()
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            cursor = conn.cursor()
+
+            try:
+                # Get all migration files in order
+                migration_files = sorted(migrations_dir.glob('*.sql'))
+
+                for migration_file in migration_files:
+                    migration_name = migration_file.name
+
+                    # Read and execute migration
+                    with open(migration_file, 'r') as f:
+                        migration_sql = f.read()
+
+                    try:
+                        logger.info(f"Applying migration: {migration_name}")
+                        cursor.execute(migration_sql)
+                        logger.info(f"Migration {migration_name} applied successfully")
+                    except Exception as e:
+                        # Log error but continue with other migrations
+                        logger.warning(f"Migration {migration_name} had issues (may already be applied): {e}")
+
+            finally:
+                cursor.close()
+
+        except Exception as e:
+            logger.error(f"Schema initialization failed: {e}")
+            # Don't raise - allow application to start even if schema init fails
+            # This allows for manual schema setup if needed
+
+        finally:
+            if conn:
+                self.pool.putconn(conn)
+
+    @contextmanager
+    def get_connection(self, readonly: bool = False, timeout: int = 30):
+        """
+        Get database connection from pool with automatic cleanup and timeout
 
         Args:
             readonly: Use read replica if available
+            timeout: Maximum seconds to wait for connection (default: 30)
 
         Yields:
             Database connection
+
+        Raises:
+            TimeoutError: If connection cannot be acquired within timeout
         """
         # Use read replica for readonly queries if available
         if readonly and self.read_pool:
-            pool = self.read_pool
+            target_pool = self.read_pool
         else:
-            pool = self.pool
+            target_pool = self.pool
 
         connection = None
+        acquisition_start = time.time()
+        success = False
+
         try:
-            connection = pool.getconn()
+            # Attempt to get connection with timeout
+            while time.time() - acquisition_start < timeout:
+                try:
+                    connection = target_pool.getconn()
+                    success = True
+                    break
+                except pool.PoolError:
+                    elapsed = time.time() - acquisition_start
+                    if elapsed >= timeout:
+                        logger.error(f"Connection pool exhausted - timeout after {timeout}s")
+                        raise TimeoutError(
+                            f"Failed to acquire database connection after {timeout}s. "
+                            "Pool may be exhausted or database may be unresponsive."
+                        )
+                    # Brief sleep before retry
+                    time.sleep(0.1)
+
+            if connection is None:
+                raise TimeoutError(f"Failed to acquire connection after {timeout}s")
+
+            # Record successful acquisition
+            if self.monitor:
+                acquisition_duration = (time.time() - acquisition_start) * 1000
+                self.monitor.record_acquisition(acquisition_duration, success=True)
+
             yield connection
+
+        except (TimeoutError, pool.PoolError) as e:
+            # Record failed acquisition
+            if self.monitor:
+                acquisition_duration = (time.time() - acquisition_start) * 1000
+                self.monitor.record_acquisition(acquisition_duration, success=False)
+            raise
+
         finally:
             if connection:
-                pool.putconn(connection)
+                target_pool.putconn(connection)
 
     @contextmanager
-    def get_cursor(self, readonly: bool = False, dict_cursor: bool = True):
+    def get_cursor(self, readonly: bool = False, dict_cursor: bool = True, timeout: int = None):
         """
-        Get database cursor with automatic commit/rollback
+        Get database cursor with automatic commit/rollback and query timeout
 
         Args:
             readonly: Use read replica if available
             dict_cursor: Return rows as dictionaries
+            timeout: Query timeout in seconds (default: 30s from env var DB_QUERY_TIMEOUT)
 
         Yields:
             Database cursor
         """
+        # Get timeout from parameter, environment, or default
+        query_timeout = timeout or int(os.getenv('DB_QUERY_TIMEOUT', '30'))
+
         with self.get_connection(readonly=readonly) as conn:
             cursor_factory = extras.RealDictCursor if dict_cursor else None
             cursor = conn.cursor(cursor_factory=cursor_factory)
+            had_error = False
 
             try:
+                # Set statement timeout for this connection
+                cursor.execute(f"SET statement_timeout = '{query_timeout}s'")
+
                 yield cursor
+
                 if not readonly:
                     conn.commit()
             except Exception as e:
-                conn.rollback()
+                had_error = True
+                # Rollback to end the failed transaction
+                try:
+                    conn.rollback()
+                except Exception as rollback_error:
+                    logger.error(f"Rollback failed: {rollback_error}")
+                    # Connection is in bad state, close it
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
                 logger.error(f"Transaction failed: {e}")
                 raise
             finally:
-                cursor.close()
+                # Only reset timeout if no error occurred (connection is healthy)
+                if not had_error:
+                    try:
+                        cursor.execute("RESET statement_timeout")
+                    except Exception:
+                        pass
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
 
     def execute_with_retry(self,
                           query: str,
                           params: tuple = None,
                           readonly: bool = False,
-                          max_retries: int = 3) -> List[Dict]:
+                          max_retries: int = 3,
+                          timeout: int = None) -> List[Dict]:
         """
         Execute query with automatic retry on failure
 
@@ -139,35 +296,66 @@ class PostgresManager:
             params: Query parameters
             readonly: Use read replica
             max_retries: Maximum retry attempts
+            timeout: Query timeout in seconds (default: 30s)
 
         Returns:
             Query results as list of dictionaries
         """
+        query_start = time.time()
+        error = None
+
         for attempt in range(max_retries):
             try:
-                with self.get_cursor(readonly=readonly) as cursor:
+                with self.get_cursor(readonly=readonly, timeout=timeout) as cursor:
                     cursor.execute(query, params)
 
                     # Return results for SELECT queries
                     if cursor.description:
-                        return cursor.fetchall()
-                    return []
+                        results = cursor.fetchall()
+                    else:
+                        results = []
+
+                    # Record successful query execution
+                    if self.monitor:
+                        duration_ms = (time.time() - query_start) * 1000
+                        self.monitor.record_query_execution(query, duration_ms)
+
+                    return results
 
             except OperationalError as e:
+                error = e
+                error_str = str(e).lower()
+
+                # Don't retry on timeout errors (intentional limits)
+                if 'timeout' in error_str or 'statement timeout' in error_str:
+                    logger.error(f"Query timeout after {timeout or 30}s: {query[:100]}...")
+                    if self.monitor:
+                        duration_ms = (time.time() - query_start) * 1000
+                        self.monitor.record_query_execution(query, duration_ms, error=e)
+                    raise
+
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt  # Exponential backoff
                     logger.warning(f"Query failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}")
                     time.sleep(wait_time)
                 else:
                     logger.error(f"Query failed after {max_retries} attempts: {e}")
+
+                    # Record failed query
+                    if self.monitor:
+                        duration_ms = (time.time() - query_start) * 1000
+                        self.monitor.record_query_execution(query, duration_ms, error=e)
+
                     raise
 
     def insert_exploit(self, exploit: Dict[str, Any]) -> Optional[int]:
         """Insert exploit into database (ignore duplicates)"""
 
+        # Use 'date' column for production schema (init_postgres.sql)
+        # or 'timestamp' for migration schema (001_initial_schema.sql)
         query = """
             INSERT INTO exploits
-            (tx_hash, chain, protocol, amount_usd, timestamp, source,
+            (tx_hash, chain, protocol, amount_usd, date, source,
              source_url, category, description, recovery_status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (tx_hash) DO NOTHING
@@ -179,7 +367,7 @@ class PostgresManager:
             exploit['chain'],
             exploit['protocol'],
             exploit.get('amount_usd'),
-            exploit['timestamp'],
+            exploit.get('timestamp') or exploit.get('date'),  # Support both field names
             exploit['source'],
             exploit.get('source_url'),
             exploit.get('category'),
@@ -199,15 +387,27 @@ class PostgresManager:
             logger.error(f"Failed to insert exploit: {e}")
             return None
 
+    @use_read_replica
     def get_recent_exploits(self,
                            limit: int = 100,
                            offset: int = 0,
                            chain: str = None,
-                           min_amount: float = None) -> List[Dict]:
+                           min_amount: float = None,
+                           readonly: bool = True) -> List[Dict]:
         """Get recent exploits with optional filtering"""
 
+        # Rename 'date' column to 'timestamp' for API compatibility
+        # Only select columns that exist in production schema (init_postgres.sql)
         query = """
-            SELECT * FROM exploits
+            SELECT
+                id, tx_hash, chain, protocol, amount_usd,
+                date as timestamp,
+                source, created_at,
+                exploit_type as category,
+                description,
+                NULL as source_url,
+                NULL as recovery_status
+            FROM exploits
             WHERE 1=1
         """
         params = []
@@ -220,66 +420,115 @@ class PostgresManager:
             query += " AND amount_usd >= %s"
             params.append(min_amount)
 
-        query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
+        # Production schema uses 'date' column (init_postgres.sql)
+        query += " ORDER BY date DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
-        return self.execute_with_retry(query, tuple(params), readonly=True)
+        return self.execute_with_retry(query, tuple(params), readonly=readonly)
 
-    def get_exploit_by_tx_hash(self, tx_hash: str) -> Optional[Dict]:
+    @use_read_replica
+    def get_exploit_by_tx_hash(self, tx_hash: str, readonly: bool = True) -> Optional[Dict]:
         """Get single exploit by transaction hash"""
 
-        query = "SELECT * FROM exploits WHERE tx_hash = %s"
-        results = self.execute_with_retry(query, (tx_hash,), readonly=True)
+        # Rename 'date' to 'timestamp' for API compatibility
+        # Only select columns that exist in production schema
+        query = """
+            SELECT
+                id, tx_hash, chain, protocol, amount_usd,
+                date as timestamp,
+                source, created_at,
+                exploit_type as category,
+                description,
+                NULL as source_url,
+                NULL as recovery_status
+            FROM exploits
+            WHERE tx_hash = %s
+        """
+        results = self.execute_with_retry(query, (tx_hash,), readonly=readonly)
         return results[0] if results else None
 
-    def get_total_exploits(self) -> int:
+    @use_read_replica
+    def get_total_exploits(self, readonly: bool = True) -> int:
         """Get total exploit count"""
 
         query = "SELECT COUNT(*) as count FROM exploits"
-        result = self.execute_with_retry(query, readonly=True)
+        result = self.execute_with_retry(query, params=None, readonly=readonly)
         return result[0]['count'] if result else 0
 
-    def get_chains(self) -> List[str]:
+    @use_read_replica
+    def get_chains(self, readonly: bool = True) -> List[str]:
         """Get list of all chains"""
 
         query = "SELECT DISTINCT chain FROM exploits ORDER BY chain"
-        results = self.execute_with_retry(query, readonly=True)
+        results = self.execute_with_retry(query, params=None, readonly=readonly)
         return [row['chain'] for row in results]
 
-    def get_exploits_by_chain(self, chain: str) -> List[Dict]:
+    @use_read_replica
+    def get_exploits_by_chain(self, chain: str, readonly: bool = True) -> List[Dict]:
         """Get all exploits for specific chain"""
 
-        query = "SELECT * FROM exploits WHERE chain = %s ORDER BY timestamp DESC"
-        return self.execute_with_retry(query, (chain,), readonly=True)
+        query = "SELECT * FROM exploits WHERE chain = %s ORDER BY date DESC"
+        return self.execute_with_retry(query, (chain,), readonly=readonly)
 
-    def get_stats_24h(self) -> Dict:
+    @use_read_replica
+    def get_stats_24h(self, readonly: bool = True) -> Dict:
         """Get statistics for last 24 hours"""
 
         query = "SELECT * FROM v_stats_24h"
-        result = self.execute_with_retry(query, readonly=True)
+        result = self.execute_with_retry(query, params=None, readonly=readonly)
         return dict(result[0]) if result else {}
 
-    def get_stats_custom(self, days: int = 7) -> Dict:
+    @use_read_replica
+    def get_stats_custom(self, days: int = 7, readonly: bool = True) -> Dict:
         """Get statistics for custom time period"""
 
-        query = """
+        # Use string formatting for INTERVAL since parameterized queries don't work well with it
+        # days parameter is validated by FastAPI (ge=1, le=365) so it's safe
+        query = f"""
             SELECT
                 COUNT(*) as total_exploits,
-                SUM(amount_usd) as total_loss_usd,
+                COALESCE(SUM(amount_usd), 0) as total_loss_usd,
                 COUNT(DISTINCT chain) as chains_affected,
                 COUNT(DISTINCT protocol) as protocols_affected
             FROM exploits
-            WHERE timestamp >= CURRENT_TIMESTAMP - INTERVAL '%s days'
+            WHERE date >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
         """
 
-        result = self.execute_with_retry(query, (days,), readonly=True)
+        result = self.execute_with_retry(query, params=None, readonly=readonly)
         return dict(result[0]) if result else {}
 
-    def get_source_health(self) -> List[Dict]:
+    @use_read_replica
+    def get_source_health(self, readonly: bool = True) -> List[Dict]:
         """Get health status of all sources"""
 
-        query = "SELECT * FROM v_source_health ORDER BY success_rate DESC"
-        return self.execute_with_retry(query, readonly=True)
+        try:
+            query = "SELECT * FROM v_source_health ORDER BY success_rate DESC"
+            return self.execute_with_retry(query, params=None, readonly=readonly)
+        except Exception as e:
+            error_str = str(e).lower()
+            # If view doesn't exist, fall back to direct query
+            if 'does not exist' in error_str and 'v_source_health' in error_str:
+                logger.warning("View v_source_health does not exist, using fallback query")
+                fallback_query = """
+                    SELECT
+                        name,
+                        last_fetch,
+                        fetch_count,
+                        error_count,
+                        ROUND((1.0 * (fetch_count - error_count) / NULLIF(fetch_count, 0)) * 100, 2) as success_rate,
+                        is_active
+                    FROM sources
+                    WHERE fetch_count > 0
+                    ORDER BY success_rate DESC
+                """
+                try:
+                    return self.execute_with_retry(fallback_query, params=None, readonly=readonly)
+                except Exception as fallback_error:
+                    logger.error(f"Fallback query failed: {fallback_error}")
+                    return []
+            else:
+                logger.error(f"Failed to get source health: {e}")
+                return []
 
     def update_source_status(self,
                             source_name: str,
@@ -316,11 +565,72 @@ class PostgresManager:
 
         try:
             query = "SELECT 1 as healthy"
-            result = self.execute_with_retry(query, readonly=True)
+            result = self.execute_with_retry(query, params=None, readonly=True)
             return result[0]['healthy'] == 1 if result else False
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False
+
+    def get_pool_metrics(self) -> Dict[str, Any]:
+        """
+        Get connection pool metrics and health status
+
+        Returns:
+            Dictionary with pool metrics and warnings
+        """
+        if not self.monitor:
+            return {
+                "monitoring_enabled": False,
+                "message": "Connection monitoring not available"
+            }
+
+        # Capture current pool snapshot
+        # Note: psycopg2 pool doesn't expose current size easily
+        # We use configured values as approximation
+        try:
+            # Attempt to determine pool utilization
+            # This is approximate since psycopg2 doesn't expose internals
+            snapshot = self.monitor.capture_pool_snapshot(
+                pool_size=self.pool.maxconn,
+                available=self.pool.minconn,  # Approximate
+                waiting=0  # Not easily detectable
+            )
+
+            health = self.monitor.get_health_status()
+            slow_queries = self.monitor.get_slow_queries(limit=5)
+
+            return {
+                "monitoring_enabled": True,
+                "health_status": health,
+                "slow_queries": slow_queries,
+                "pool_config": {
+                    "min_connections": self.pool.minconn,
+                    "max_connections": self.pool.maxconn
+                },
+                "leak_warnings": self.monitor.detect_connection_leaks()
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get pool metrics: {e}")
+            return {
+                "monitoring_enabled": True,
+                "error": str(e)
+            }
+
+    def get_query_performance(self, limit: int = 10) -> List[Dict]:
+        """
+        Get query performance metrics
+
+        Args:
+            limit: Maximum number of queries to return
+
+        Returns:
+            List of query performance data
+        """
+        if not self.monitor:
+            return []
+
+        return self.monitor.get_slow_queries(limit=limit)
 
     def close(self):
         """Close all connection pools"""

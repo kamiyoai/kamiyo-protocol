@@ -1,7 +1,8 @@
 // pages/api/health.js
 import { getHealthStats } from "../../lib/exploitDb";
+import { withRateLimit } from "../../lib/rateLimit";
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     try {
         // Get REAL health stats from the exploit intelligence database
         const data = getHealthStats();
@@ -11,3 +12,5 @@ export default async function handler(req, res) {
         res.status(503).json({ error: 'Service unavailable', details: error.message });
     }
 }
+
+export default withRateLimit(handler);

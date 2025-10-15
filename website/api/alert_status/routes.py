@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import logging
 
-from api.auth import get_current_user
+from api.auth_helpers import get_current_user
 from api.alert_limits import get_alert_limit_manager
 
 logger = logging.getLogger(__name__)

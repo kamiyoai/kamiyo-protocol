@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "last_updated": "2025-10-06T00:09:34.175604",
+  "total_patterns": 5,
+  "patterns": [
+    {
+      "pattern_type": "reentrancy",
+      "severity": "CRITICAL",
+      "description": "Potential reentrancy vulnerability - external call before state update",
+      "solidity_regex": [
+        "\\.call\\{value:",
+        "\\.transfer\\(",
+        "\\.send\\(",
+        "function\\s+\\w+.*external.*\\{[^}]*\\.call"
+      ],
+      "exclusion_regex": [
+        "nonReentrant",
+        "ReentrancyGuard"
+      ],
+      "historical_exploits": [
+        "CREAM_2021"
+      ],
+      "detection_confidence": 0.7
+    },
+    {
+      "pattern_type": "oracle_manipulation",
+      "severity": "CRITICAL",
+      "description": "Potential oracle manipulation - price from manipulatable source",
+      "solidity_regex": [
+        "balanceOf\\([^)]+\\)\\s*/\\s*totalSupply",
+        "getReserves\\(",
+        "\\.price\\(\\)",
+        "latestAnswer\\("
+      ],
+      "exclusion_regex": [
+        "TWAP",
+        "twapPrice",
+        "require.*timestamp"
+      ],
+      "historical_exploits": [
+        "MANGO_2022",
+        "GMX_2023"
+      ],
+      "detection_confidence": 0.7
+    },
+    {
+      "pattern_type": "access_control",
+      "severity": "CRITICAL",
+      "description": "Potential access control issue - privileged operation without protection",
+      "solidity_regex": [
+        "delegatecall\\([^)]*msg\\.data",
+        "function\\s+\\w+.*public.*delegatecall",
+        "\\.call\\(msg\\.data\\)",
+        "function\\s+initialize.*public"
+      ],
+      "exclusion_regex": [
+        "onlyOwner",
+        "require\\(msg\\.sender\\s*==",
+        "initializer"
+      ],
+      "historical_exploits": [
+        "POLY_NETWORK_2021",
+        "TRANSIT_SWAP_2022"
+      ],
+      "detection_confidence": 0.7
+    },
+    {
+      "pattern_type": "flash_loan_price_manipulation",
+      "severity": "HIGH",
+      "description": "Potential flash loan manipulation - price derived from manipulatable balance",
+      "solidity_regex": [
+        "flashLoan",
+        "balanceOf.*liquidat",
+        "totalSupply\\(\\).*shares",
+        "function\\s+donate"
+      ],
+      "exclusion_regex": [
+        "require.*minReturn",
+        "balanceOf.*before"
+      ],
+      "historical_exploits": [],
+      "detection_confidence": 0.7
+    },
+    {
+      "pattern_type": "cross_chain_bridge",
+      "severity": "CRITICAL",
+      "description": "Potential bridge vulnerability - insufficient message validation",
+      "solidity_regex": [
+        "verifyProof.*merkle",
+        "ecrecover",
+        "function\\s+relay.*Message",
+        "executeMessage"
+      ],
+      "exclusion_regex": [
+        "require.*threshold",
+        "nonce\\["
+      ],
+      "historical_exploits": [
+        "WORMHOLE_2022",
+        "RONIN_2022",
+        "NOMAD_2022",
+        "BNB_BRIDGE_2022"
+      ],
+      "detection_confidence": 0.7
+    }
+  ]
+}

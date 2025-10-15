@@ -1,0 +1,49 @@
+[Unit]
+Description=Kamiyo Social Media Posting Service
+Documentation=https://docs.kamiyo.ai
+After=network-online.target
+Wants=network-online.target
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+User=kamiyo
+Group=kamiyo
+WorkingDirectory=/opt/kamiyo/social
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/etc/kamiyo/social.env
+
+# Start service with docker-compose
+ExecStartPre=/usr/local/bin/docker-compose -f /opt/kamiyo/deploy/docker-compose.yml pull
+ExecStart=/usr/local/bin/docker-compose -f /opt/kamiyo/deploy/docker-compose.yml up --remove-orphans
+ExecStop=/usr/local/bin/docker-compose -f /opt/kamiyo/deploy/docker-compose.yml down
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/kamiyo/social/logs /opt/kamiyo/social/data
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kamiyo-social
+
+# Health check
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

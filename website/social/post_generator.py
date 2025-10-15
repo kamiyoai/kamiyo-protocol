@@ -26,11 +26,11 @@ class PostGenerator:
             platform=Platform.X_TWITTER,
             template_type='short',
             template=(
-                "🚨 {protocol} Exploit Alert 🚨\n\n"
-                "💰 Loss: {amount}\n"
-                "⛓️ Chain: {chain}\n"
-                "🔥 Type: {exploit_type}\n\n"
-                "🔗 TX: {tx_short}\n\n"
+                "EXPLOIT ALERT: {protocol}\n\n"
+                "Loss: {amount}\n"
+                "Chain: {chain}\n"
+                "Type: {exploit_type}\n\n"
+                "TX: {tx_short}\n\n"
                 "#{chain} #DeFi #CryptoSecurity #Kamiyo"
             ),
             max_length=280,
@@ -227,14 +227,14 @@ class PostGenerator:
 
         # Thread post 1: Alert
         thread.append(
-            f"🚨 EXPLOIT ALERT: {exploit.protocol} 🚨\n\n"
-            f"💰 {exploit.formatted_amount} lost in {exploit.chain} exploit\n\n"
-            f"🧵 Thread 👇"
+            f"EXPLOIT ALERT: {exploit.protocol}\n\n"
+            f"{exploit.formatted_amount} lost in {exploit.chain} exploit\n\n"
+            f"Thread below"
         )
 
         # Thread post 2: Details
         thread.append(
-            f"📊 Exploit Details:\n\n"
+            f"Exploit Details:\n\n"
             f"Type: {exploit.exploit_type}\n"
             f"Chain: {exploit.chain}\n"
             f"Time: {exploit.timestamp.strftime('%Y-%m-%d %H:%M UTC')}\n"
@@ -245,14 +245,14 @@ class PostGenerator:
         if exploit.description:
             desc = exploit.description[:250] + '...' if len(exploit.description) > 250 else exploit.description
             thread.append(
-                f"🔍 What Happened:\n\n{desc}"
+                f"What Happened:\n\n{desc}"
             )
 
         # Thread post 4: Recovery status
         thread.append(
-            f"♻️ Recovery Status: {exploit.recovery_status or 'Unknown'}\n\n"
+            f"Recovery Status: {exploit.recovery_status or 'Unknown'}\n\n"
             f"Stay safe in #DeFi\n\n"
-            f"🤖 Detected by Kamiyo Intelligence Platform"
+            f"Detected by Kamiyo Intelligence Platform"
         )
 
         return thread

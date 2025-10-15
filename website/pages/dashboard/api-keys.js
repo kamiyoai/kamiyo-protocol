@@ -130,6 +130,36 @@ export default function ApiKeysPage() {
     return (
         <div className="min-h-screen bg-void text-white p-8">
             <div className="max-w-4xl mx-auto">
+                {/* Navigation */}
+                <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            ← Home
+                        </button>
+                        <button
+                            onClick={() => router.push('/dashboard')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => router.push('/dashboard/api-keys')}
+                            className="text-white text-sm border-b border-cyan"
+                        >
+                            API Keys
+                        </button>
+                        <button
+                            onClick={() => router.push('/pricing')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Pricing
+                        </button>
+                    </div>
+                </div>
+
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-4xl font-bold mb-2">API Keys</h1>

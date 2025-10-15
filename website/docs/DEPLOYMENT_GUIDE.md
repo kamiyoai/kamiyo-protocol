@@ -163,14 +163,16 @@ cat ~/.ssh/kamiyo_deploy
 
 1. **Identify Active Environment**
    ```bash
-   CURRENT_ENV=$(docker ps --filter "name=kamiyo-api" --format "{{.Names}}" | grep -o "blue\|green")
+   # Note: Current docker-compose.yml uses a single 'kamiyo' container
+   # For blue-green deployment, you need docker-compose.production.yml configured
+   CURRENT_ENV=$(docker ps --filter "name=kamiyo" --format "{{.Names}}" | grep -o "blue\|green" || echo "none")
    ```
 
 2. **Deploy to Inactive Environment**
    ```bash
    NEW_ENV="green"  # if current is blue
    export DEPLOY_ENV=$NEW_ENV
-   docker-compose -f docker-compose.production.yml up -d
+   docker compose -f docker-compose.production.yml up -d
    ```
 
 3. **Health Check**
@@ -180,7 +182,7 @@ cat ~/.ssh/kamiyo_deploy
 
 4. **Switch Traffic**
    ```bash
-   sudo sed -i "s/kamiyo-api-$CURRENT_ENV/kamiyo-api-$NEW_ENV/g" /etc/nginx/sites-available/kamiyo
+   sudo sed -i "s/kamiyo-$CURRENT_ENV/kamiyo-$NEW_ENV/g" /etc/nginx/sites-available/kamiyo
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
@@ -215,7 +217,7 @@ ssh $SSH_USER@$SERVER_HOST
 cd ~/kamiyo
 
 # Get current environment
-CURRENT_ENV=$(docker ps --filter "name=kamiyo-api" --format "{{.Names}}" | grep -o "blue\|green")
+CURRENT_ENV=$(docker ps --filter "name=kamiyo" --format "{{.Names}}" | grep -o "blue\|green")
 
 # Determine rollback environment
 if [ "$CURRENT_ENV" = "blue" ]; then
@@ -226,18 +228,18 @@ fi
 
 # Start previous environment
 export DEPLOY_ENV=$ROLLBACK_ENV
-docker-compose -f docker-compose.production.yml up -d
+docker compose -f docker-compose.production.yml up -d
 
 # Wait for startup
 sleep 30
 
 # Update nginx
-sudo sed -i "s/kamiyo-api-$CURRENT_ENV/kamiyo-api-$ROLLBACK_ENV/g" /etc/nginx/sites-available/kamiyo
+sudo sed -i "s/kamiyo-$CURRENT_ENV/kamiyo-$ROLLBACK_ENV/g" /etc/nginx/sites-available/kamiyo
 sudo nginx -t && sudo systemctl reload nginx
 
 # Stop current environment
 export DEPLOY_ENV=$CURRENT_ENV
-docker-compose -f docker-compose.production.yml down
+docker compose -f docker-compose.production.yml down
 ```
 
 ### GitHub Manual Rollback
@@ -296,14 +298,14 @@ Access: `http://SERVER_HOST:3000`
 ### Logs
 
 ```bash
-# API logs
-docker logs kamiyo-api-blue -f
+# Application logs (main container)
+docker logs kamiyo -f
 
-# Aggregator logs
-docker logs kamiyo-aggregator-blue -f
+# Or for blue-green deployments
+docker logs kamiyo-blue -f
 
 # All logs with structured format
-docker-compose -f docker-compose.production.yml logs -f
+docker compose -f docker-compose.production.yml logs -f
 ```
 
 ## Troubleshooting
@@ -317,7 +319,7 @@ docker-compose -f docker-compose.production.yml logs -f
 **Debug:**
 ```bash
 # Check container logs
-docker logs kamiyo-api-green
+docker logs kamiyo
 
 # Check container status
 docker ps -a | grep kamiyo
@@ -355,7 +357,7 @@ curl http://localhost:8000/health
 sudo systemctl restart nginx
 
 # Check API is running
-docker ps | grep kamiyo-api
+docker ps | grep kamiyo
 ```
 
 ### Database Migration Issues
@@ -366,20 +368,24 @@ docker ps | grep kamiyo-api
 
 **Debug:**
 ```bash
-# Connect to database
-docker exec -it kamiyo-postgres psql -U kamiyo -d kamiyo_prod
+# Note: Current setup uses SQLite (data/kamiyo.db)
+# Check database file
+docker exec kamiyo ls -lh /app/data/kamiyo.db
 
 # Check tables
-\dt
+docker exec kamiyo sqlite3 /app/data/kamiyo.db ".tables"
 
-# Check migration status
-SELECT * FROM schema_migrations;
+# Check database integrity
+docker exec kamiyo sqlite3 /app/data/kamiyo.db "PRAGMA integrity_check;"
 ```
 
 **Fix:**
 ```bash
-# Run migrations manually
-docker exec -i kamiyo-postgres psql -U kamiyo -d kamiyo_prod < database/migrations/001_initial_schema.sql
+# Restart service
+docker compose restart kamiyo
+
+# Check logs for database errors
+docker logs kamiyo | grep -i database
 ```
 
 ### Blue-Green Switch Not Working
@@ -391,7 +397,7 @@ docker exec -i kamiyo-postgres psql -U kamiyo -d kamiyo_prod < database/migratio
 **Debug:**
 ```bash
 # Check nginx config
-cat /etc/nginx/sites-available/kamiyo | grep kamiyo-api
+cat /etc/nginx/sites-available/kamiyo | grep kamiyo
 
 # Check which containers are running
 docker ps | grep kamiyo
@@ -399,8 +405,8 @@ docker ps | grep kamiyo
 
 **Fix:**
 ```bash
-# Manually update nginx
-sudo sed -i 's/kamiyo-api-blue/kamiyo-api-green/g' /etc/nginx/sites-available/kamiyo
+# Manually update nginx (for blue-green deployments)
+sudo sed -i 's/kamiyo-blue/kamiyo-green/g' /etc/nginx/sites-available/kamiyo
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -485,20 +491,20 @@ docker volume prune
 
 ```bash
 # Quick status check
-docker ps && curl -s https://api.kamiyo.io/health | jq
+docker ps && curl -s http://localhost:8000/health | jq
 
 # Restart all services
-cd ~/kamiyo && docker-compose -f docker-compose.production.yml restart
+cd ~/kamiyo && docker compose restart
 
 # View recent logs
-docker-compose -f docker-compose.production.yml logs --tail=100 -f
+docker compose logs --tail=100 -f
 
 # Check resource usage
 docker stats
 
 # Force pull and redeploy
-docker-compose -f docker-compose.production.yml pull
-docker-compose -f docker-compose.production.yml up -d --force-recreate
+docker compose pull
+docker compose up -d --force-recreate
 ```
 
 ## Additional Resources

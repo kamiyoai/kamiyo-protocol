@@ -14,7 +14,7 @@ class ExploitResponse(BaseModel):
     tx_hash: str
     chain: str
     protocol: str
-    amount_usd: float
+    amount_usd: Optional[float] = None
     timestamp: datetime
     source: str
     source_url: Optional[str] = None
@@ -59,11 +59,13 @@ class SourceHealth(BaseModel):
 
 class HealthResponse(BaseModel):
     """Overall health response"""
+    status: str
     database_exploits: int
     tracked_chains: int
     active_sources: int
     total_sources: int
     sources: List[SourceHealth]
+    timestamp: str
 
 
 class ErrorResponse(BaseModel):

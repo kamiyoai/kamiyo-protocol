@@ -1,6 +1,5 @@
 // pages/index.js
 import { useState, useEffect } from "react";
-import Head from "next/head";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
@@ -47,29 +46,8 @@ export default function Home() {
     };
 
     return (
-        <>
-            <Head>
-                <title>KAMIYO - Blockchain exploit alerts within 4 minutes</title>
-                <meta name="description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
-
-                {/* Open Graph */}
-                <meta property="og:type" content="website" />
-                <meta property="og:url" content="https://kamiyo.ai/" />
-                <meta property="og:title" content="KAMIYO - Blockchain exploit alerts within 4 minutes" />
-                <meta property="og:description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
-                <meta property="og:image" content="https://kamiyo.ai/media/opengraph.jpeg?v=2" />
-
-                {/* Twitter */}
-                <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:url" content="https://kamiyo.ai/" />
-                <meta name="twitter:title" content="KAMIYO - Blockchain exploit alerts within 4 minutes" />
-                <meta name="twitter:description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
-                <meta name="twitter:image" content="https://kamiyo.ai/media/opengraph.jpeg?v=2" />
-                <meta name="twitter:site" content="@KamiyoAI" />
-                <meta name="twitter:creator" content="@KamiyoAI" />
-            </Head>
-            <div className="text-white bg-black min-h-screen">
-                {/* Hero Section */}
+        <div className="text-white bg-black min-h-screen">
+            {/* Hero Section */}
             <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
                 <div className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
                     {/* SEO-friendly H1 (visually hidden) */}
@@ -85,8 +63,7 @@ export default function Home() {
                                     Blockchain exploit alerts within <br />4 minutes – <br />not 4 hours
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Get verified exploit data and analysis from 20+ trusted security sources across 54 blockchain networks.<br/>
-                                    Receive instant alerts without manual monitoring.
+                                    Get verified exploit data and analysis from 20+ trusted security sources across 54 networks.
                                 </p>
                             </div>
 
@@ -115,9 +92,6 @@ export default function Home() {
                                 </div>
                             </div>
 
-                            <p className="text-sm text-gray-500">
-                                Free: 10 alerts/month • Pro: Unlimited • Webhooks start at Team tier
-                            </p>
 
                             <button
                                 onClick={() => {
@@ -204,25 +178,25 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
+                                <span className="text-gray-300">Unlimited email alerts</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
                                 <span className="text-gray-300">24-hour delayed data</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">10 alerts/month</span>
+                                <span className="text-gray-300">1K API calls/day</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Public dashboard</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Email only</span>
+                                <span className="text-gray-300">Public dashboard access</span>
                             </li>
                         </ul>
 
@@ -245,7 +219,7 @@ export default function Home() {
                         </div>
                         <h3 className="text-xl font-light mb-2">Pro</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$99</span>
+                            <span className="text-4xl font-light gradient-text">$89</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -296,7 +270,7 @@ export default function Home() {
                     <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
                         <h3 className="text-xl font-light mb-2">Team</h3>
                         <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$299</span>
+                            <span className="text-4xl font-light gradient-text">$199</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -354,7 +328,7 @@ export default function Home() {
                         <h3 className="text-xl font-light mb-2">Enterprise</h3>
                         <div className="mb-6">
                             <span className="text-gray-400 text-xs">from </span>
-                            <span className="text-4xl font-light gradient-text">$999</span>
+                            <span className="text-4xl font-light gradient-text">$499</span>
                             <span className="text-gray-500 text-xs ml-1">/mo</span>
                         </div>
 
@@ -490,6 +464,5 @@ export default function Home() {
             {/* FAQ Section */}
             <FAQ />
         </div>
-        </>
     );
 }

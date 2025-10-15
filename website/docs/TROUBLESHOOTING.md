@@ -18,6 +18,18 @@ Comprehensive guide for diagnosing and resolving common issues in the Kamiyo pla
 
 ## Quick Diagnostics
 
+### Prerequisites Check
+
+First, verify your Docker containers are running:
+
+```bash
+# List running containers
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Expected output should show 'kamiyo' container running
+# Note: Current docker-compose.yml uses a single 'kamiyo' container
+```
+
 ### Run Health Check
 
 ```bash
@@ -27,20 +39,24 @@ Comprehensive guide for diagnosing and resolving common issues in the Kamiyo pla
 ### Check Service Status
 
 ```bash
-docker-compose -f docker-compose.production.yml ps
+# Use docker compose (v2) not docker-compose (v1)
+docker compose ps
+
+# For production environment
+docker compose -f docker-compose.production.yml ps
 ```
 
 ### View Logs
 
 ```bash
 # All services
-docker-compose -f docker-compose.production.yml logs -f
+docker compose logs -f
 
-# Specific service
-docker-compose -f docker-compose.production.yml logs -f api
+# Specific service (kamiyo container)
+docker compose logs -f kamiyo
 
 # Last 100 lines
-docker-compose -f docker-compose.production.yml logs --tail=100
+docker compose logs --tail=100 kamiyo
 ```
 
 ### Check Resource Usage
@@ -63,11 +79,11 @@ docker stats
 **Diagnosis:**
 
 ```bash
-# Check if API container is running
-docker ps | grep kamiyo-api
+# Check if container is running
+docker ps | grep kamiyo
 
 # Check API logs
-docker logs kamiyo-api --tail=50
+docker logs kamiyo --tail=50
 
 # Check if port is listening
 netstat -tuln | grep 8000
@@ -75,19 +91,19 @@ netstat -tuln | grep 8000
 
 **Solutions:**
 
-1. **Restart API service:**
+1. **Restart service:**
    ```bash
-   docker-compose -f docker-compose.production.yml restart api
+   docker compose restart kamiyo
    ```
 
 2. **Check environment variables:**
    ```bash
-   docker exec kamiyo-api env | grep -E "DATABASE_URL|REDIS_URL|STRIPE"
+   docker exec kamiyo env | grep -E "DATABASE_URL|REDIS_URL|STRIPE"
    ```
 
 3. **Rebuild and restart:**
    ```bash
-   docker-compose -f docker-compose.production.yml up -d --build api
+   docker compose up -d --build kamiyo
    ```
 
 4. **Check firewall:**
@@ -108,40 +124,50 @@ netstat -tuln | grep 8000
 **Diagnosis:**
 
 ```bash
-# Check database container
-docker ps | grep postgres
+# Note: Current setup uses SQLite (data/kamiyo.db) not PostgreSQL
+# Database is embedded in the kamiyo container
 
-# Check database logs
-docker logs postgres --tail=50
+# Check if container is running
+docker ps | grep kamiyo
 
-# Test database connection
-docker exec postgres pg_isready -U kamiyo
+# Check database file exists
+docker exec kamiyo ls -lh /app/data/kamiyo.db
+
+# Check database logs in API logs
+docker logs kamiyo --tail=50 | grep -i database
 ```
 
 **Solutions:**
 
-1. **Restart PostgreSQL:**
+1. **Restart service:**
    ```bash
-   docker-compose -f docker-compose.production.yml restart postgres
+   docker compose restart kamiyo
    ```
 
-2. **Check connection pool:**
+2. **Check database file permissions:**
    ```bash
-   docker exec postgres psql -U kamiyo -d kamiyo_prod -c \
-     "SELECT count(*) FROM pg_stat_activity;"
+   docker exec kamiyo ls -la /app/data/
    ```
 
-3. **Increase max connections:**
-   ```sql
-   ALTER SYSTEM SET max_connections = 200;
-   SELECT pg_reload_conf();
+3. **Check database integrity:**
+   ```bash
+   docker exec kamiyo python -c "
+   import sqlite3
+   conn = sqlite3.connect('/app/data/kamiyo.db')
+   cursor = conn.cursor()
+   cursor.execute('PRAGMA integrity_check')
+   print(cursor.fetchone())
+   conn.close()
+   "
    ```
 
-4. **Kill idle connections:**
-   ```sql
-   SELECT pg_terminate_backend(pid)
-   FROM pg_stat_activity
-   WHERE state = 'idle' AND state_change < NOW() - INTERVAL '1 hour';
+4. **Backup and restore database:**
+   ```bash
+   # Backup
+   docker exec kamiyo sqlite3 /app/data/kamiyo.db ".backup /app/data/backup.db"
+
+   # Restore if needed
+   docker exec kamiyo sqlite3 /app/data/kamiyo.db ".restore /app/data/backup.db"
    ```
 
 ---
@@ -156,36 +182,41 @@ docker exec postgres pg_isready -U kamiyo
 **Diagnosis:**
 
 ```bash
-# Check Redis container
-docker ps | grep redis
+# Note: Current setup may not include Redis as a separate container
+# Check if Redis is running in the kamiyo container or as a separate service
 
-# Test Redis connection
-docker exec redis redis-cli ping
+# Check for Redis in docker-compose
+docker compose config | grep -i redis
 
-# Check Redis memory
-docker exec redis redis-cli INFO memory
+# If Redis is in kamiyo container
+docker exec kamiyo pgrep redis-server || echo "Redis not running"
+
+# Check Redis connection from API
+docker logs kamiyo --tail=100 | grep -i redis
 ```
 
 **Solutions:**
 
-1. **Restart Redis:**
+1. **If Redis is external, restart service:**
    ```bash
-   docker-compose -f docker-compose.production.yml restart redis
+   # Only if you have a separate Redis container
+   docker compose restart redis
    ```
 
-2. **Clear cache:**
+2. **If using in-memory caching:**
    ```bash
-   docker exec redis redis-cli FLUSHALL
+   # Restart the main service
+   docker compose restart kamiyo
    ```
 
-3. **Check Redis logs:**
+3. **Check cache configuration:**
    ```bash
-   docker logs redis --tail=100
+   docker exec kamiyo env | grep -i cache
    ```
 
-4. **Verify Redis password:**
+4. **Verify cache is enabled in settings:**
    ```bash
-   docker exec redis redis-cli -a $REDIS_PASSWORD ping
+   docker logs kamiyo | grep -i "cache\|redis"
    ```
 
 ---
@@ -243,9 +274,9 @@ docker exec redis redis-cli INFO memory
 
 ```bash
 # Check application logs
-docker logs kamiyo-api --tail=100 | grep ERROR
+docker logs kamiyo --tail=100 | grep ERROR
 
-# Check Sentry for errors
+# Check Sentry for errors (if configured)
 # Visit: https://sentry.io/organizations/your-org/issues/
 ```
 
@@ -259,13 +290,12 @@ docker logs kamiyo-api --tail=100 | grep ERROR
 2. **Rollback if needed:**
    ```bash
    git revert HEAD
-   ./scripts/deploy.sh
+   docker compose up -d --build kamiyo
    ```
 
-3. **Check database migrations:**
+3. **Check application health:**
    ```bash
-   docker exec kamiyo-api alembic current
-   docker exec kamiyo-api alembic history
+   docker exec kamiyo curl -f http://localhost:8000/health || echo "Health check failed"
    ```
 
 ---
@@ -412,7 +442,7 @@ docker exec redis redis-cli INFO memory
 
 ```bash
 # Check webhook logs
-docker logs kamiyo-api | grep webhook
+docker logs kamiyo | grep webhook
 
 # Test webhook endpoint
 curl -X POST http://localhost:8000/api/v1/payments/webhook \
@@ -451,7 +481,7 @@ curl -X POST http://localhost:8000/api/v1/payments/webhook \
 
 ```bash
 # Check payment logs
-docker logs kamiyo-api | grep -i "payment\|stripe"
+docker logs kamiyo | grep -i "payment\|stripe"
 
 # Check Stripe dashboard
 # Visit: https://dashboard.stripe.com/payments
@@ -496,19 +526,19 @@ docker logs kamiyo-api | grep -i "payment\|stripe"
 **Diagnosis:**
 
 ```bash
-# Check aggregator logs
-docker logs kamiyo-aggregator --tail=100
+# Check aggregator logs (part of main kamiyo service)
+docker logs kamiyo --tail=100 | grep -i aggregat
 
-# Check last successful fetch
-docker exec postgres psql -U kamiyo -d kamiyo_prod -c \
+# Check last successful fetch in SQLite database
+docker exec kamiyo sqlite3 /app/data/kamiyo.db \
   "SELECT source, MAX(discovered_at) FROM exploits GROUP BY source;"
 ```
 
 **Solutions:**
 
-1. **Restart aggregator:**
+1. **Restart service:**
    ```bash
-   docker-compose -f docker-compose.production.yml restart aggregator
+   docker compose restart kamiyo
    ```
 
 2. **Check source APIs:**
@@ -519,7 +549,7 @@ docker exec postgres psql -U kamiyo -d kamiyo_prod -c \
 
 3. **Verify API keys:**
    ```bash
-   docker exec kamiyo-aggregator env | grep -E "TWITTER|GITHUB"
+   docker exec kamiyo env | grep -E "TWITTER|GITHUB"
    ```
 
 4. **Check rate limits:**
@@ -568,7 +598,7 @@ HAVING COUNT(*) > 1;
 
 ```bash
 docker stats
-top -p $(docker inspect --format '{{.State.Pid}}' kamiyo-api)
+top -p $(docker inspect --format '{{.State.Pid}}' kamiyo)
 ```
 
 **Solutions:**
@@ -592,7 +622,8 @@ top -p $(docker inspect --format '{{.State.Pid}}' kamiyo-api)
 
 3. **Scale horizontally:**
    ```bash
-   docker-compose -f docker-compose.production.yml up -d --scale api=3
+   # Note: Requires production docker-compose with multiple containers
+   docker compose -f docker-compose.production.yml up -d --scale api=3
    ```
 
 ### High Memory Usage
@@ -600,7 +631,7 @@ top -p $(docker inspect --format '{{.State.Pid}}' kamiyo-api)
 **Diagnosis:**
 
 ```bash
-docker stats kamiyo-api
+docker stats kamiyo
 ```
 
 **Solutions:**
@@ -623,9 +654,9 @@ docker stats kamiyo-api
 
 3. **Set memory limits:**
    ```yaml
-   # docker-compose.production.yml
+   # docker-compose.yml
    services:
-     api:
+     kamiyo:
        deploy:
          resources:
            limits:
@@ -645,7 +676,7 @@ docker stats kamiyo-api
 cat deployments/deployment_*.json | jq -s 'sort_by(.timestamp) | last'
 
 # Check Docker Compose status
-docker-compose -f docker-compose.production.yml ps
+docker compose ps
 ```
 
 **Solutions:**
@@ -654,19 +685,18 @@ docker-compose -f docker-compose.production.yml ps
    ```bash
    git log --oneline -5
    git checkout <previous-commit>
-   ./scripts/deploy.sh
+   docker compose up -d --build kamiyo
    ```
 
-2. **Check migration errors:**
+2. **Check application health:**
    ```bash
-   docker-compose -f docker-compose.production.yml run --rm api alembic current
-   docker-compose -f docker-compose.production.yml run --rm api alembic history
+   docker exec kamiyo curl -f http://localhost:8000/health
    ```
 
 3. **Manual deployment:**
    ```bash
-   docker-compose -f docker-compose.production.yml down
-   docker-compose -f docker-compose.production.yml up -d --build
+   docker compose down
+   docker compose up -d --build
    ```
 
 ### Docker Build Failed
@@ -674,19 +704,19 @@ docker-compose -f docker-compose.production.yml ps
 **Diagnosis:**
 
 ```bash
-docker-compose -f docker-compose.production.yml build api
+docker compose build kamiyo
 ```
 
 **Solutions:**
 
 1. **Clear build cache:**
    ```bash
-   docker-compose -f docker-compose.production.yml build --no-cache api
+   docker compose build --no-cache kamiyo
    ```
 
 2. **Check Dockerfile:**
    ```bash
-   docker build -f Dockerfile.api.prod -t kamiyo-api:test .
+   docker build -f Dockerfile -t kamiyo:test .
    ```
 
 3. **Free up disk space:**
@@ -713,8 +743,8 @@ docker-compose -f docker-compose.production.yml build api
 
 3. **Restart all services:**
    ```bash
-   docker-compose -f docker-compose.production.yml down
-   docker-compose -f docker-compose.production.yml up -d
+   docker compose down
+   docker compose up -d
    ```
 
 4. **Verify health:**
@@ -753,7 +783,7 @@ docker-compose -f docker-compose.production.yml build api
 
 ```bash
 # Application logs
-docker logs kamiyo-api --tail=100
+docker logs kamiyo --tail=100
 
 # System logs
 sudo journalctl -u docker -n 100
@@ -765,11 +795,11 @@ sudo tail -f /var/log/nginx/error.log
 ### Enable Debug Mode
 
 ```bash
-# .env.production
+# .env file
 LOG_LEVEL=DEBUG
 
 # Restart
-docker-compose -f docker-compose.production.yml restart api
+docker compose restart kamiyo
 ```
 
 ### Contact Support
@@ -785,17 +815,17 @@ docker-compose -f docker-compose.production.yml restart api
 ./scripts/health_check.sh
 
 # View all services
-docker-compose -f docker-compose.production.yml ps
+docker compose ps
 
 # Follow logs
-docker-compose -f docker-compose.production.yml logs -f
+docker compose logs -f
 
 # Restart everything
-docker-compose -f docker-compose.production.yml restart
+docker compose restart
 
 # Full rebuild
-docker-compose -f docker-compose.production.yml down
-docker-compose -f docker-compose.production.yml up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ---

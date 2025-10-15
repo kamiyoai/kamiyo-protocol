@@ -69,12 +69,12 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         display_name="Free",
         price_monthly_usd=Decimal("0.00"),
 
-        # Rate Limits - 100 requests/day
-        api_requests_per_day=100,
-        api_requests_per_hour=20,  # Spread evenly across 24 hours
-        api_requests_per_minute=5,
+        # Rate Limits - 1K API requests/day
+        api_requests_per_day=1000,
+        api_requests_per_hour=42,
+        api_requests_per_minute=10,
 
-        # Alerts - Email only
+        # Alerts - Unlimited email alerts, 24h delay
         email_alerts=True,
         discord_alerts=False,
         telegram_alerts=False,
@@ -84,7 +84,7 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         historical_data_days=7,
         real_time_alerts=False,
 
-        # Support - Community only
+        # Support - Community/email only
         support_level="community",
 
         # Advanced Features - None
@@ -96,31 +96,31 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         # Export - Basic
         csv_export=True,
         json_export=True,
-        api_access=True
+        api_access=True  # API access enabled for free tier
     ),
 
     TierName.PRO: SubscriptionTier(
         name=TierName.PRO,
         display_name="Pro",
-        price_monthly_usd=Decimal("99.00"),
+        price_monthly_usd=Decimal("89.00"),
 
-        # Rate Limits - 50,000 requests/day
+        # Rate Limits - 50K requests/day
         api_requests_per_day=50000,
-        api_requests_per_hour=5000,
-        api_requests_per_minute=100,
+        api_requests_per_hour=2083,  # ~2K per hour
+        api_requests_per_minute=35,
 
-        # Alerts - All channels
+        # Alerts - Multi-channel, unlimited, real-time
         email_alerts=True,
         discord_alerts=True,
         telegram_alerts=True,
-        webhook_alerts=False,
+        webhook_alerts=True,  # 2 webhook endpoints
 
-        # Data Access - Extended
+        # Data Access - 90 days historical
         historical_data_days=90,
         real_time_alerts=True,
 
-        # Support - Email support
-        support_level="email",
+        # Support - Standard (24h)
+        support_level="standard",
 
         # Advanced Features - None
         custom_integrations=False,
@@ -137,28 +137,28 @@ TIERS: Dict[TierName, SubscriptionTier] = {
     TierName.TEAM: SubscriptionTier(
         name=TierName.TEAM,
         display_name="Team",
-        price_monthly_usd=Decimal("299.00"),
+        price_monthly_usd=Decimal("199.00"),
 
-        # Rate Limits - 200,000 requests/day
-        api_requests_per_day=200000,
-        api_requests_per_hour=20000,
-        api_requests_per_minute=500,
+        # Rate Limits - 100K requests/day (2x Pro)
+        api_requests_per_day=100000,
+        api_requests_per_hour=4167,  # ~4K per hour
+        api_requests_per_minute=70,
 
-        # Alerts - All channels including webhooks
+        # Alerts - All channels including 5 webhooks
         email_alerts=True,
         discord_alerts=True,
         telegram_alerts=True,
-        webhook_alerts=True,
+        webhook_alerts=True,  # 5 webhook endpoints
 
-        # Data Access - 1 year
+        # Data Access - 1 year historical
         historical_data_days=365,
         real_time_alerts=True,
 
-        # Support - Priority support
+        # Support - Priority (12h)
         support_level="priority",
 
-        # Advanced Features - Some
-        custom_integrations=True,
+        # Advanced Features - Slack, beta features
+        custom_integrations=False,
         dedicated_account_manager=False,
         sla_guarantee=False,
         white_label=False,
@@ -179,14 +179,14 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         api_requests_per_hour=99999,
         api_requests_per_minute=1000,
 
-        # Alerts - All channels
+        # Alerts - All channels, 50 webhook endpoints
         email_alerts=True,
         discord_alerts=True,
         telegram_alerts=True,
         webhook_alerts=True,
 
-        # Data Access - Unlimited
-        historical_data_days=36500,  # 100 years (effectively unlimited)
+        # Data Access - 2+ years historical
+        historical_data_days=730,  # 2+ years
         real_time_alerts=True,
 
         # Support - Dedicated
