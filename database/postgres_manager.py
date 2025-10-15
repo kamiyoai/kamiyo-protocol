@@ -400,7 +400,8 @@ class PostgresManager:
             query += " AND amount_usd >= %s"
             params.append(min_amount)
 
-        query += " ORDER BY COALESCE(timestamp, date, created_at) DESC LIMIT %s OFFSET %s"
+        # Production schema uses 'date' column (init_postgres.sql)
+        query += " ORDER BY date DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
         return self.execute_with_retry(query, tuple(params), readonly=readonly)
@@ -433,7 +434,7 @@ class PostgresManager:
     def get_exploits_by_chain(self, chain: str, readonly: bool = True) -> List[Dict]:
         """Get all exploits for specific chain"""
 
-        query = "SELECT * FROM exploits WHERE chain = %s ORDER BY COALESCE(timestamp, date, created_at) DESC"
+        query = "SELECT * FROM exploits WHERE chain = %s ORDER BY date DESC"
         return self.execute_with_retry(query, (chain,), readonly=readonly)
 
     @use_read_replica
@@ -455,7 +456,7 @@ class PostgresManager:
                 COUNT(DISTINCT chain) as chains_affected,
                 COUNT(DISTINCT protocol) as protocols_affected
             FROM exploits
-            WHERE COALESCE(timestamp, date, created_at) >= CURRENT_TIMESTAMP - INTERVAL '%s days'
+            WHERE date >= CURRENT_TIMESTAMP - INTERVAL '%s days'
         """
 
         result = self.execute_with_retry(query, (days,), readonly=readonly)
