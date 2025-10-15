@@ -182,8 +182,15 @@ class KamiyoWatcher:
                 # Fetch recent exploits
                 exploits = self.fetch_recent_exploits(since=self.last_check)
 
+                # Track the newest exploit timestamp we see
+                newest_timestamp = self.last_check
+
                 for api_exploit in exploits:
                     exploit = self.convert_to_exploit_data(api_exploit)
+
+                    # Track newest timestamp
+                    if exploit.timestamp > newest_timestamp:
+                        newest_timestamp = exploit.timestamp
 
                     if not self.should_post(exploit):
                         continue
@@ -214,8 +221,10 @@ class KamiyoWatcher:
                             f"{result.get('reason', 'Unknown error')}"
                         )
 
-                # Update last check time
-                self.last_check = datetime.utcnow()
+                # Update last_check to the newest exploit timestamp we saw
+                # This prevents reprocessing exploits and missing new ones
+                self.last_check = newest_timestamp
+                logger.debug(f"Updated last_check to {newest_timestamp}")
 
                 # Wait before next poll
                 time.sleep(interval)
