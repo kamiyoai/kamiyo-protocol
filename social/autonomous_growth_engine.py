@@ -348,7 +348,7 @@ class AutonomousGrowthEngine:
                 thread.append(
                     f"Source: {exploit.source or 'Kamiyo Intelligence'}\n\n"
                     f"Real-time blockchain exploit intelligence from 20+ verified sources.\n"
-                    f"Follow @KamiyoAI for alerts.\n\n"
+                    f"Follow @KamiyoAI for more blockchain exploit analysis.\n\n"
                     f"kamiyo.ai"
                 )
 
