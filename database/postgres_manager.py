@@ -442,7 +442,7 @@ class PostgresManager:
         """Get total exploit count"""
 
         query = "SELECT COUNT(*) as count FROM exploits"
-        result = self.execute_with_retry(query, readonly=readonly)
+        result = self.execute_with_retry(query, params=None, readonly=readonly)
         return result[0]['count'] if result else 0
 
     @use_read_replica
@@ -450,7 +450,7 @@ class PostgresManager:
         """Get list of all chains"""
 
         query = "SELECT DISTINCT chain FROM exploits ORDER BY chain"
-        results = self.execute_with_retry(query, readonly=readonly)
+        results = self.execute_with_retry(query, params=None, readonly=readonly)
         return [row['chain'] for row in results]
 
     @use_read_replica
@@ -465,7 +465,7 @@ class PostgresManager:
         """Get statistics for last 24 hours"""
 
         query = "SELECT * FROM v_stats_24h"
-        result = self.execute_with_retry(query, readonly=readonly)
+        result = self.execute_with_retry(query, params=None, readonly=readonly)
         return dict(result[0]) if result else {}
 
     @use_read_replica
@@ -484,7 +484,7 @@ class PostgresManager:
             WHERE date >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
         """
 
-        result = self.execute_with_retry(query, readonly=readonly)
+        result = self.execute_with_retry(query, params=None, readonly=readonly)
         return dict(result[0]) if result else {}
 
     @use_read_replica
@@ -493,7 +493,7 @@ class PostgresManager:
 
         try:
             query = "SELECT * FROM v_source_health ORDER BY success_rate DESC"
-            return self.execute_with_retry(query, readonly=readonly)
+            return self.execute_with_retry(query, params=None, readonly=readonly)
         except Exception as e:
             error_str = str(e).lower()
             # If view doesn't exist, fall back to direct query
@@ -512,7 +512,7 @@ class PostgresManager:
                     ORDER BY success_rate DESC
                 """
                 try:
-                    return self.execute_with_retry(fallback_query, readonly=readonly)
+                    return self.execute_with_retry(fallback_query, params=None, readonly=readonly)
                 except Exception as fallback_error:
                     logger.error(f"Fallback query failed: {fallback_error}")
                     return []
@@ -555,7 +555,7 @@ class PostgresManager:
 
         try:
             query = "SELECT 1 as healthy"
-            result = self.execute_with_retry(query, readonly=True)
+            result = self.execute_with_retry(query, params=None, readonly=True)
             return result[0]['healthy'] == 1 if result else False
         except Exception as e:
             logger.error(f"Health check failed: {e}")
