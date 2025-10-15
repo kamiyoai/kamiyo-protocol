@@ -37,7 +37,9 @@ class DiscordPoster(BasePlatformPoster):
                 - avatar_url: Bot avatar URL (optional)
         """
         super().__init__(config)
-        self.webhooks = config.get('webhooks', {})
+        # Ensure webhooks is always a dict, never None
+        webhooks = config.get('webhooks', {})
+        self.webhooks = webhooks if webhooks is not None else {}
         self.username = config.get('username', 'Kamiyo Intelligence')
         self.avatar_url = config.get('avatar_url', 'https://kamiyo.ai/logo.png')
 
@@ -120,6 +122,10 @@ class DiscordPoster(BasePlatformPoster):
         Returns:
             dict: Result
         """
+        # Safety check: ensure self.webhooks is not None
+        if self.webhooks is None:
+            self.webhooks = {}
+
         target_webhooks = kwargs.get('webhooks', self.webhooks)
 
         # If list of names provided, get URLs
@@ -129,6 +135,8 @@ class DiscordPoster(BasePlatformPoster):
                 for name in target_webhooks
                 if name in self.webhooks
             }
+        elif target_webhooks is None:
+            target_webhooks = {}
 
         if not target_webhooks:
             return {'success': False, 'error': 'No webhooks configured'}
