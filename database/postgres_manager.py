@@ -126,42 +126,63 @@ class PostgresManager:
             return
 
         conn = None
+        conn_broken = False
+
         try:
             # Get connection directly from pool to avoid recursion
             conn = self.pool.getconn()
-            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-            cursor = conn.cursor()
 
             try:
-                # Get all migration files in order
-                migration_files = sorted(migrations_dir.glob('*.sql'))
+                conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                cursor = conn.cursor()
 
-                for migration_file in migration_files:
-                    migration_name = migration_file.name
+                try:
+                    # Get all migration files in order
+                    migration_files = sorted(migrations_dir.glob('*.sql'))
 
-                    # Read and execute migration
-                    with open(migration_file, 'r') as f:
-                        migration_sql = f.read()
+                    for migration_file in migration_files:
+                        migration_name = migration_file.name
 
+                        # Read and execute migration
+                        with open(migration_file, 'r') as f:
+                            migration_sql = f.read()
+
+                        try:
+                            logger.info(f"Applying migration: {migration_name}")
+                            cursor.execute(migration_sql)
+                            logger.info(f"Migration {migration_name} applied successfully")
+                        except Exception as e:
+                            # Log error but continue with other migrations
+                            logger.warning(f"Migration {migration_name} had issues (may already be applied): {e}")
+                            # Migration errors in AUTOCOMMIT mode don't break the connection
+
+                finally:
                     try:
-                        logger.info(f"Applying migration: {migration_name}")
-                        cursor.execute(migration_sql)
-                        logger.info(f"Migration {migration_name} applied successfully")
-                    except Exception as e:
-                        # Log error but continue with other migrations
-                        logger.warning(f"Migration {migration_name} had issues (may already be applied): {e}")
+                        cursor.close()
+                    except Exception:
+                        pass
 
-            finally:
-                cursor.close()
+            except Exception as e:
+                logger.error(f"Failed to set up migration cursor: {e}")
+                conn_broken = True
 
         except Exception as e:
             logger.error(f"Schema initialization failed: {e}")
+            conn_broken = True
             # Don't raise - allow application to start even if schema init fails
-            # This allows for manual schema setup if needed
 
         finally:
             if conn:
-                self.pool.putconn(conn)
+                if conn_broken:
+                    # Connection is broken, close it instead of returning to pool
+                    try:
+                        self.pool.putconn(conn, close=True)
+                        logger.warning("Closed broken connection from schema initialization")
+                    except Exception as e:
+                        logger.error(f"Failed to close broken connection: {e}")
+                else:
+                    # Connection is healthy, return to pool
+                    self.pool.putconn(conn)
 
     @contextmanager
     def get_connection(self, readonly: bool = False, timeout: int = 30):
