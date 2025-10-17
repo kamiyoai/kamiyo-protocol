@@ -115,13 +115,19 @@ services:
         value: 1000000  # $1M minimum - post significant exploits (2-3x per week)
       - key: DEEP_DIVE_THRESHOLD_USD
         value: 1000000  # $1M minimum for deep dive threads (same as min = always deep dive)
-      # Claude AI for enhanced analysis
+      # Claude AI for enhanced analysis (REQUIRED for deep dive)
       - key: ANTHROPIC_API_KEY
-        sync: false  # Set in Render dashboard
+        sync: false
       - key: MAX_POSTS_PER_CYCLE
         value: 3  # Max exploits to post per cycle (prevents rate limits)
       - key: SOCIAL_ENABLED_CHAINS
         value: Ethereum,BSC,Polygon,Arbitrum
+      # Lookback period for initial run (hours)
+      - key: SOCIAL_LOOKBACK_HOURS
+        value: 168  # 7 days - posts recent exploits on first run
+      # Pre-populate with already posted tx hashes (comma-separated) to avoid duplicates
+      - key: ALREADY_POSTED_TX_HASHES
+        value: ""  # Leave empty on first deploy, or add tx hashes that were already posted
       # Twitter/X credentials (REQUIRED)
       - key: X_TWITTER_ENABLED
         value: true

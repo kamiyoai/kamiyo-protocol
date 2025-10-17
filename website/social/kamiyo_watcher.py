@@ -55,17 +55,24 @@ class KamiyoWatcher:
             self.headers['Authorization'] = f'Bearer {api_key}'
 
         # Track posted exploits to avoid duplicates
+        # Load from environment or use empty set
         self.posted_tx_hashes = set()
+        # Pre-populate with exploits we know were already posted to avoid duplicates
+        pre_posted = os.getenv('ALREADY_POSTED_TX_HASHES', '')
+        if pre_posted:
+            self.posted_tx_hashes = set(pre_posted.split(','))
+            logger.info(f"Loaded {len(self.posted_tx_hashes)} previously posted tx hashes")
 
         # Track rate limit status
         self.rate_limited_until = None
         self.rate_limit_backoff = 15 * 60  # 15 minutes backoff on 429
 
-        # On first run, start from NOW to avoid reposting historical exploits
-        # Only post NEW exploits that come in after the watcher starts
-        self.last_check = datetime.utcnow()
+        # On first run, check exploits from the last 7 days
+        # This allows posting recent high-value exploits while avoiding very old ones
+        lookback_hours = int(os.getenv('SOCIAL_LOOKBACK_HOURS', 168))  # Default 7 days
+        self.last_check = datetime.utcnow() - timedelta(hours=lookback_hours)
 
-        logger.info(f"Watcher initialized - will only post exploits AFTER {self.last_check.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        logger.info(f"Watcher initialized - will check exploits since {self.last_check.strftime('%Y-%m-%d %H:%M:%S UTC')} ({lookback_hours/24:.0f} days ago)")
 
         # Limit backlog posting to avoid rate limits
         self.max_posts_per_cycle = int(os.getenv('MAX_POSTS_PER_CYCLE', 3))
