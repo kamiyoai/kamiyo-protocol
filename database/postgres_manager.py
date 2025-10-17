@@ -111,8 +111,9 @@ class PostgresManager:
         # Initialize connection monitor
         self.monitor = get_monitor() if MONITORING_ENABLED else None
 
-        # Initialize schema if needed
-        self._initialize_schema()
+        # DISABLED: Schema initialization can poison connection pool if migrations fail
+        # Migrations should be run separately during deployment, not at startup
+        # self._initialize_schema()
 
     def _initialize_schema(self):
         """
