@@ -61,10 +61,11 @@ class KamiyoWatcher:
         self.rate_limited_until = None
         self.rate_limit_backoff = 15 * 60  # 15 minutes backoff on 429
 
-        # On first run, check exploits from the viral max age window
-        # This ensures we don't miss recent exploits that are still relevant
-        viral_max_age_hours = int(os.getenv('VIRAL_MAX_AGE_HOURS', 720))  # Default 30 days
-        self.last_check = datetime.utcnow() - timedelta(hours=viral_max_age_hours)
+        # On first run, start from NOW to avoid reposting historical exploits
+        # Only post NEW exploits that come in after the watcher starts
+        self.last_check = datetime.utcnow()
+
+        logger.info(f"Watcher initialized - will only post exploits AFTER {self.last_check.strftime('%Y-%m-%d %H:%M:%S UTC')}")
 
         # Limit backlog posting to avoid rate limits
         self.max_posts_per_cycle = int(os.getenv('MAX_POSTS_PER_CYCLE', 3))
