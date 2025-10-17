@@ -94,13 +94,13 @@ services:
           name: kamiyo-postgres
           property: connectionString
 
-  # Autonomous Growth Engine (Social Media Bot)
+  # Social Media Watcher (24/7 Posting to X/Discord)
   - type: worker
-    name: kamiyo-social-bot
+    name: kamiyo-social-watcher
     runtime: python
     branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 social/autonomous_growth_engine.py --mode poll
+    startCommand: cd website && python3 social/kamiyo_watcher.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
@@ -110,16 +110,18 @@ services:
         value: https://api.kamiyo.ai
       # Social posting intervals and thresholds
       - key: POLL_INTERVAL_SECONDS
-        value: 300  # Check every 5 minutes
+        value: 60  # Check every 60 seconds
       - key: SOCIAL_MIN_AMOUNT_USD
         value: 1000000  # $1M minimum - post significant exploits (2-3x per week)
       - key: DEEP_DIVE_THRESHOLD_USD
         value: 1000000  # $1M minimum for deep dive threads (same as min = always deep dive)
       - key: MAX_POSTS_PER_CYCLE
-        value: 3  # Max exploits to post per 5-minute cycle (prevents rate limits)
-      # Twitter/X credentials
+        value: 3  # Max exploits to post per cycle (prevents rate limits)
+      - key: SOCIAL_ENABLED_CHAINS
+        value: Ethereum,BSC,Polygon,Arbitrum
+      # Twitter/X credentials (REQUIRED)
       - key: X_TWITTER_ENABLED
-        sync: false
+        value: true
       - key: X_API_KEY
         sync: false
       - key: X_API_SECRET
@@ -128,9 +130,16 @@ services:
         sync: false
       - key: X_ACCESS_SECRET
         sync: false
-      # Reddit credentials (optional)
-      - key: REDDIT_ENABLED
+      - key: X_BEARER_TOKEN
         sync: false
+      # Discord webhooks (optional)
+      - key: DISCORD_SOCIAL_ENABLED
+        value: false
+      - key: DISCORD_SOCIAL_WEBHOOKS
+        sync: false
+      # Reddit (optional)
+      - key: REDDIT_ENABLED
+        value: false
       - key: REDDIT_CLIENT_ID
         sync: false
       - key: REDDIT_CLIENT_SECRET
@@ -142,9 +151,16 @@ services:
       - key: REDDIT_SUBREDDITS
         value: CryptoCurrency,defi,ethereum,ethdev
       # Discord credentials (optional) - Uses webhooks for posting
-      - key: DISCORD_ENABLED
-        sync: false
+      - key: DISCORD_SOCIAL_ENABLED
+        value: false
       - key: DISCORD_SOCIAL_WEBHOOKS
         sync: false
         # Format: channel_name=webhook_url,another_channel=another_url
         # Example: exploits=https://discord.com/api/webhooks/...
+      # Telegram (optional)
+      - key: TELEGRAM_SOCIAL_ENABLED
+        value: false
+      - key: TELEGRAM_SOCIAL_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_SOCIAL_CHATS
+        sync: false
