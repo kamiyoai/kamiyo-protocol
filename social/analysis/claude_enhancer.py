@@ -168,9 +168,9 @@ Enhanced executive summary (2-3 sentences):"""
         try:
             # Build timeline text
             timeline_text = "\n".join([
-                f"- {event.get('time', 'Unknown')}: {event.get('description', '')}"
+                f"- {event.get('timestamp', event.get('time', 'Unknown'))}: {event.get('description', '')}"
                 for event in timeline[:4]  # First 4 events
-            ])
+            ]) if timeline else "No timeline data available"
 
             # Build context
             context_text = ""
@@ -205,18 +205,19 @@ ENGAGEMENT HOOKS:
 {hooks_text}
 
 REQUIREMENTS:
-1. Create a 4-6 tweet thread
+1. Create a 5-7 tweet thread
 2. Each tweet MUST be ≤280 characters (critical!)
-3. Tweet 1: Alert with severity, protocol, loss amount
-4. Tweet 2: What happened (attack type, how it worked)
-5. Tweet 3: Timeline of events
-6. Tweet 4: Historical context & significance
-7. Tweet 5-6 (optional): Recovery status, implications
-8. NO emojis except severity (🟢🟡🟠🔴)
-9. Professional, data-driven tone
-10. Credit source in thread
+3. Tweet 1: Alert with protocol, chain, loss amount, attack type
+4. Tweet 2: Technical explanation of how the attack worked
+5. Tweet 3: Timeline of events with timestamps
+6. Tweet 4: Impact and significance
+7. Tweet 5-7: Recovery status, lessons learned, source attribution
+8. ABSOLUTELY NO EMOJIS - not even severity indicators
+9. Professional, analytical, data-driven tone only
+10. Credit source in final tweet
 11. Use "KAMIYO" (all caps) for brand mentions
 12. End with "Detected by KAMIYO Intelligence Platform"
+13. NO bullet points, NO special characters, plain text only
 
 OUTPUT FORMAT:
 Tweet 1: [text]
@@ -236,24 +237,26 @@ etc."""
 
             thread_text = response.content[0].text.strip()
 
-            # Parse tweets
+            # Parse tweets - Claude returns multiline tweets
+            import re
+            tweet_pattern = r'Tweet \d+:\s*\n(.*?)(?=Tweet \d+:|$)'
+            matches = re.findall(tweet_pattern, thread_text, re.DOTALL)
+
             tweets = []
-            for line in thread_text.split('\n'):
-                line = line.strip()
-                if line.startswith('Tweet '):
-                    # Extract tweet text after "Tweet X:"
-                    if ':' in line:
-                        tweet = line.split(':', 1)[1].strip()
-                        # Ensure ≤280 chars
-                        if len(tweet) > 280:
-                            tweet = tweet[:277] + '...'
-                        tweets.append(tweet)
+            for match in matches:
+                tweet = match.strip()
+                if tweet:  # Only add non-empty tweets
+                    # Ensure ≤280 chars
+                    if len(tweet) > 280:
+                        tweet = tweet[:277] + '...'
+                    tweets.append(tweet)
 
             if tweets:
                 logger.info(f"Generated {len(tweets)}-tweet thread with Claude")
                 return tweets
             else:
-                logger.warning("Failed to parse Claude thread. Using template.")
+                logger.warning(f"Failed to parse Claude thread. Raw output: {thread_text[:200]}")
+                logger.warning("Using template thread instead.")
                 return self._generate_template_thread(exploit_data, impact)
 
         except Exception as e:
@@ -262,13 +265,17 @@ etc."""
 
     def _generate_template_thread(self, exploit_data: dict, impact: dict) -> list:
         """Fallback template-based thread if Claude is unavailable"""
-        severity = impact.get('severity_indicator', '🟠')
         amount = f"${exploit_data.get('loss_amount_usd', 0):,.0f}"
+        protocol = exploit_data.get('protocol', 'Unknown')
+        chain = exploit_data.get('chain', 'Unknown')
+        exploit_type = exploit_data.get('exploit_type', 'Unknown')
+        source = exploit_data.get('source', 'external sources')
 
         tweets = [
-            f"{severity} EXPLOIT ALERT\n\n{exploit_data.get('protocol')} on {exploit_data.get('chain')}\n💰 {amount} lost\n🔥 Attack: {exploit_data.get('exploit_type')}\n\n🧵 Thread 👇",
-            f"What Happened:\n\n{exploit_data.get('protocol')} suffered a {exploit_data.get('exploit_type')} attack resulting in {amount} in losses. Reported by {exploit_data.get('source', 'external sources')}.",
-            f"This incident highlights ongoing security challenges in the {exploit_data.get('chain')} DeFi ecosystem.\n\nDetected by KAMIYO Intelligence Platform.",
+            f"EXPLOIT ALERT: {protocol}\n\nLoss: {amount}\nChain: {chain}\nType: {exploit_type}\n\nAnalysis thread below",
+            f"{protocol} on {chain} suffered a {exploit_type} attack resulting in {amount} in losses.",
+            f"The attack was confirmed via on-chain analysis and reported by {source}.",
+            f"This incident highlights ongoing security challenges in the {chain} DeFi ecosystem.\n\nDetected by KAMIYO Intelligence Platform",
         ]
 
         return tweets
