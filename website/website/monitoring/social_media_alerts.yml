@@ -1,0 +1,195 @@
+# Prometheus Alert Rules for Social Media Posting
+# Version: 1.0.0
+
+groups:
+  - name: social_media_alerts
+    interval: 30s
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(social_posts_total{status="failed"}[5m]))
+            /
+            sum(rate(social_posts_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "High error rate in social media posting"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 10%)"
+
+      # Critical error rate
+      - alert: CriticalErrorRate
+        expr: |
+          (
+            sum(rate(social_posts_total{status="failed"}[5m]))
+            /
+            sum(rate(social_posts_total[5m]))
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          component: social_media
+        annotations:
+          summary: "Critical error rate in social media posting"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 50%)"
+
+      # Platform authentication failure
+      - alert: PlatformAuthenticationFailed
+        expr: social_platform_authenticated == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: social_media
+        annotations:
+          summary: "Platform authentication failed for {{ $labels.platform }}"
+          description: "{{ $labels.platform }} authentication has been down for 2+ minutes"
+
+      # Rate limit exhaustion
+      - alert: RateLimitLow
+        expr: social_rate_limit_remaining < 5
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "Rate limit low for {{ $labels.platform }}"
+          description: "Only {{ $value }} requests remaining for {{ $labels.platform }}"
+
+      # Rate limit exhausted
+      - alert: RateLimitExhausted
+        expr: social_rate_limit_remaining == 0
+        for: 1m
+        labels:
+          severity: error
+          component: social_media
+        annotations:
+          summary: "Rate limit exhausted for {{ $labels.platform }}"
+          description: "{{ $labels.platform }} has no remaining API requests"
+
+      # High API error rate
+      - alert: HighAPIErrorRate
+        expr: |
+          sum by (platform) (rate(social_api_errors_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "High API error rate for {{ $labels.platform }}"
+          description: "{{ $labels.platform }} is experiencing {{ $value }} errors per second"
+
+      # Slow post generation
+      - alert: SlowPostGeneration
+        expr: |
+          histogram_quantile(0.95,
+            rate(social_post_generation_duration_seconds_bucket[5m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "Slow post generation for {{ $labels.platform }}"
+          description: "95th percentile post generation time is {{ $value }}s (threshold: 10s)"
+
+      # Slow API calls
+      - alert: SlowAPICalls
+        expr: |
+          histogram_quantile(0.95,
+            rate(social_post_api_duration_seconds_bucket[5m])
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "Slow API calls for {{ $labels.platform }}"
+          description: "95th percentile API call time is {{ $value }}s (threshold: 30s)"
+
+      # High retry rate
+      - alert: HighRetryRate
+        expr: |
+          sum by (platform) (rate(social_retries_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "High retry rate for {{ $labels.platform }}"
+          description: "{{ $labels.platform }} is experiencing {{ $value }} retries per second"
+
+      # Queue backing up
+      - alert: QueueBackingUp
+        expr: social_posts_in_queue{status="pending"} > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "Post queue is backing up"
+          description: "{{ $value }} posts are pending in the queue"
+
+      # Queue critically backed up
+      - alert: QueueCriticallyBackedUp
+        expr: social_posts_in_queue{status="pending"} > 500
+        for: 5m
+        labels:
+          severity: critical
+          component: social_media
+        annotations:
+          summary: "Post queue is critically backed up"
+          description: "{{ $value }} posts are pending in the queue (threshold: 500)"
+
+      # High validation failure rate
+      - alert: HighValidationFailureRate
+        expr: |
+          sum(rate(social_validation_failures_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "High content validation failure rate"
+          description: "Validation failures occurring at {{ $value }} per second"
+
+      # No posts being sent
+      - alert: NoPostsBeingSent
+        expr: |
+          sum(rate(social_posts_total{status="success"}[10m])) == 0
+        for: 15m
+        labels:
+          severity: warning
+          component: social_media
+        annotations:
+          summary: "No successful posts in the last 15 minutes"
+          description: "Social media posting may be stalled or disabled"
+
+      # Platform completely down
+      - alert: PlatformDown
+        expr: |
+          sum by (platform) (rate(social_posts_total{status="success"}[10m])) == 0
+          and
+          sum by (platform) (rate(social_posts_total{status="failed"}[10m])) > 0
+        for: 10m
+        labels:
+          severity: critical
+          component: social_media
+        annotations:
+          summary: "{{ $labels.platform }} appears to be down"
+          description: "{{ $labels.platform }} has had no successful posts but is receiving failures"
+
+      # Consecutive failures (tracking pattern)
+      - alert: ConsecutiveFailures
+        expr: |
+          sum by (platform) (increase(social_posts_total{status="failed"}[5m])) >= 5
+        for: 1m
+        labels:
+          severity: error
+          component: social_media
+        annotations:
+          summary: "Consecutive failures detected for {{ $labels.platform }}"
+          description: "{{ $labels.platform }} has had {{ $value }} failures in the last 5 minutes"

@@ -1,0 +1,151 @@
+name: Load Tests
+
+on:
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL for load test'
+        required: true
+        default: 'https://staging.kamiyo.io'
+      users:
+        description: 'Number of concurrent users'
+        required: true
+        default: '1000'
+      duration:
+        description: 'Test duration (seconds)'
+        required: true
+        default: '300'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  load-test:
+    name: Locust Load Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install locust requests
+
+      - name: Run load test
+        env:
+          TARGET_URL: ${{ github.event.inputs.target_url || 'https://staging.kamiyo.io' }}
+          USERS: ${{ github.event.inputs.users || '1000' }}
+          DURATION: ${{ github.event.inputs.duration || '300' }}
+        run: |
+          cd tests/load
+          locust -f locustfile.py \
+            --host=$TARGET_URL \
+            --users=$USERS \
+            --spawn-rate=10 \
+            --run-time=${DURATION}s \
+            --html=load-test-report.html \
+            --csv=load-test \
+            --headless
+
+      - name: Upload load test report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-report
+          path: |
+            tests/load/load-test-report.html
+            tests/load/load-test_*.csv
+          retention-days: 90
+
+      - name: Check performance thresholds
+        run: |
+          python tests/load/check_thresholds.py
+
+      - name: Notify on failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Load test failed! Check the results.'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  stress-test:
+    name: Stress Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install locust
+
+      - name: Run stress test
+        run: |
+          cd tests/load
+          locust -f locustfile.py \
+            --host=https://staging.kamiyo.io \
+            --users=5000 \
+            --spawn-rate=50 \
+            --run-time=600s \
+            --html=stress-test-report.html \
+            --headless
+
+      - name: Upload stress test report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: stress-test-report
+          path: tests/load/stress-test-report.html
+          retention-days: 90
+
+  endurance-test:
+    name: Endurance Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Run endurance test
+        run: |
+          cd tests/load
+          locust -f locustfile.py \
+            --host=https://staging.kamiyo.io \
+            --users=1000 \
+            --spawn-rate=10 \
+            --run-time=3600s \
+            --html=endurance-test-report.html \
+            --headless
+
+      - name: Upload endurance test report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: endurance-test-report
+          path: tests/load/endurance-test-report.html
+          retention-days: 90

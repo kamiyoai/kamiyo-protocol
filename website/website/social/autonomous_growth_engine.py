@@ -21,7 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from social.models import ExploitData, Platform, PostStatus
 from social.analysis import ReportGenerator
-from social.analysis.claude_enhancer import ClaudeEnhancer
 from social.post_generator import PostGenerator
 from social.poster import SocialMediaPoster
 from social.kamiyo_watcher import KamiyoWatcher
@@ -74,9 +73,6 @@ class AutonomousGrowthEngine:
         self.report_generator = ReportGenerator()
         self.post_generator = PostGenerator()
         self.social_poster = SocialMediaPoster(social_config)
-
-        # Claude AI enhancer for deep dive analysis
-        self.claude_enhancer = ClaudeEnhancer()
 
         # Monitoring and alerting
         self.enable_monitoring = enable_monitoring
@@ -292,13 +288,13 @@ class AutonomousGrowthEngine:
         # Generate base content
         post = self.post_generator.generate_post(exploit, platforms or list(self.social_poster.platforms.keys()))
 
-        # Determine if exploit qualifies for deep dive thread
-        deep_dive_threshold = float(os.getenv('DEEP_DIVE_THRESHOLD_USD', 1_000_000))
+        # Determine if exploit qualifies for deep dive thread (>$20M)
+        deep_dive_threshold = float(os.getenv('DEEP_DIVE_THRESHOLD_USD', 20_000_000))
         is_major_exploit = exploit.loss_amount_usd >= deep_dive_threshold
 
         if is_major_exploit:
             logger.info(
-                f"Major exploit detected (${exploit.loss_amount_usd:,.0f}) - generating Claude AI deep dive thread",
+                f"Major exploit detected (${exploit.loss_amount_usd:,.0f}) - generating deep dive thread",
                 extra={'protocol': exploit.protocol, 'threshold': deep_dive_threshold}
             )
         else:
@@ -310,64 +306,53 @@ class AutonomousGrowthEngine:
         # Enhance with analysis insights
         for platform in post.platforms:
             if platform == Platform.X_TWITTER and is_major_exploit:
-                # Use Claude AI to generate deep dive thread
-                if self.claude_enhancer and self.claude_enhancer.client:
-                    try:
-                        logger.info("Generating Claude AI-enhanced Twitter thread")
+                # Create professional analytical thread
+                thread = []
 
-                        # Convert exploit and report to dict format for Claude
-                        exploit_dict = {
-                            'tx_hash': exploit.tx_hash,
-                            'protocol': exploit.protocol,
-                            'chain': exploit.chain,
-                            'amount_usd': exploit.loss_amount_usd,
-                            'exploit_type': exploit.exploit_type,
-                            'timestamp': exploit.timestamp.isoformat(),
-                            'description': exploit.description or '',
-                            'recovery_status': exploit.recovery_status or 'Unknown'
-                        }
+                # Tweet 1: Alert with key details
+                thread.append(
+                    f"EXPLOIT ALERT: {exploit.protocol}\n\n"
+                    f"Loss: {exploit.formatted_amount}\n"
+                    f"Chain: {exploit.chain}\n"
+                    f"Type: {exploit.exploit_type}\n\n"
+                    f"Analysis thread below"
+                )
 
-                        timeline_dict = [
-                            {
-                                'timestamp': event.timestamp.isoformat(),
-                                'event_type': event.event_type,
-                                'description': event.description,
-                                'source': event.source
-                            }
-                            for event in (report.timeline or [])
-                        ]
+                # Tweet 2: Executive summary
+                thread.append(report.executive_summary[:280])
 
-                        impact_dict = {
-                            'loss_amount_usd': report.impact.loss_amount_usd,
-                            'affected_protocols': report.impact.affected_protocols,
-                            'affected_chains': report.impact.affected_chains,
-                            'recovery_status': report.impact.recovery_status
-                        } if hasattr(report, 'impact') else {}
+                # Tweet 3: Key fact from engagement hooks
+                if report.engagement_hooks:
+                    thread.append(f"Key Insight:\n\n{report.engagement_hooks[0]}")
 
-                        historical_dict = {
-                            'total_losses_in_category': report.historical_context.total_losses_in_category,
-                            'trend_direction': report.historical_context.trend_direction,
-                            'trend_percentage': report.historical_context.trend_percentage
-                        } if hasattr(report, 'historical_context') else None
+                # Tweet 4: Timeline
+                if report.timeline:
+                    detection_speed_str = report.detection_speed() if callable(getattr(report, 'detection_speed', None)) else "minutes"
+                    thread.append(
+                        f"Timeline:\n\n"
+                        f"Occurred: {report.timeline[0].timestamp.strftime('%H:%M UTC')}\n"
+                        f"Detected: {report.timeline[-1].timestamp.strftime('%H:%M UTC')}\n"
+                        f"Detection speed: {detection_speed_str}"
+                    )
 
-                        thread = self.claude_enhancer.generate_twitter_thread(
-                            exploit_data=exploit_dict,
-                            timeline=timeline_dict,
-                            impact=impact_dict,
-                            historical_context=historical_dict,
-                            engagement_hooks=report.engagement_hooks or []
+                # Tweet 5: Context (simplified to avoid attribute errors)
+                if hasattr(report, 'historical_context') and report.historical_context:
+                    ctx = report.historical_context
+                    if hasattr(ctx, 'total_losses_in_category') and ctx.total_losses_in_category > 0:
+                        thread.append(
+                            f"Historical Context:\n\n"
+                            f"Total losses in {exploit.exploit_type}: ${ctx.total_losses_in_category / 1_000_000:.1f}M this quarter"
                         )
-                        post.content[platform] = thread
-                        logger.info(f"Claude AI deep dive thread generated ({len(thread)} tweets)")
-                    except Exception as e:
-                        logger.error(f"Claude enhancement failed, using basic thread: {e}")
-                        # Fall back to basic thread
-                        thread = self._generate_basic_thread(exploit, report)
-                        post.content[platform] = thread
-                else:
-                    logger.warning("Claude enhancer not available, using basic thread")
-                    thread = self._generate_basic_thread(exploit, report)
-                    post.content[platform] = thread
+
+                # Tweet 6: Source and call to action
+                thread.append(
+                    f"Source: {exploit.source or 'Kamiyo Intelligence'}\n\n"
+                    f"Real-time blockchain exploit intelligence from 20+ verified sources.\n"
+                    f"Follow @KamiyoAI for more blockchain exploit analysis.\n\n"
+                    f"kamiyo.ai"
+                )
+
+                post.content[platform] = thread
 
             elif platform == Platform.DISCORD and is_major_exploit:
                 # Create Discord deep dive content (no emojis)
@@ -412,45 +397,6 @@ class AutonomousGrowthEngine:
                 post.content[platform] = enhanced
 
         return post
-
-    def _generate_basic_thread(self, exploit: ExploitData, report) -> List[str]:
-        """Generate basic thread as fallback when Claude AI is not available"""
-        thread = []
-
-        # Tweet 1: Alert with key details
-        thread.append(
-            f"EXPLOIT ALERT: {exploit.protocol}\n\n"
-            f"Loss: {exploit.formatted_amount}\n"
-            f"Chain: {exploit.chain}\n"
-            f"Type: {exploit.exploit_type}\n\n"
-            f"Analysis thread below"
-        )
-
-        # Tweet 2: Executive summary
-        thread.append(report.executive_summary[:280])
-
-        # Tweet 3: Key fact from engagement hooks
-        if report.engagement_hooks:
-            thread.append(f"Key Insight:\n\n{report.engagement_hooks[0]}")
-
-        # Tweet 4: Timeline
-        if report.timeline:
-            detection_speed_str = report.detection_speed() if callable(getattr(report, 'detection_speed', None)) else "minutes"
-            thread.append(
-                f"Timeline:\n\n"
-                f"Occurred: {report.timeline[0].timestamp.strftime('%H:%M UTC')}\n"
-                f"Detected: {report.timeline[-1].timestamp.strftime('%H:%M UTC')}\n"
-                f"Detection speed: {detection_speed_str}"
-            )
-
-        # Tweet 5: Source and call to action
-        thread.append(
-            f"Source: {exploit.source or 'defillama'}\n\n"
-            f"Real-time blockchain exploit intelligence from 20+ verified sources.\n"
-            f"Follow @KamiyoAI for more blockchain exploit analysis."
-        )
-
-        return thread
 
     def _review_post(self, post, review_callback):
         """Review post with callback or auto-approve"""
