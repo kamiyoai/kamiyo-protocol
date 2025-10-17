@@ -12,6 +12,9 @@ export default function Document() {
     return (
         <Html lang="en">
             <Head>
+                {/* Favicon */}
+                <link rel="icon" type="image/png" href="/favicon.png" />
+
                 {/* Content Security Policy */}
                 <meta httpEquiv="Content-Security-Policy" content={csp} />
 
