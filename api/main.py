@@ -434,7 +434,14 @@ async def health_check():
     try:
         from datetime import datetime
 
-        sources = db.get_source_health()
+        # Try to get source health, but don't fail if it errors
+        sources = []
+        try:
+            sources = db.get_source_health()
+        except Exception as source_error:
+            logger.warning(f"Failed to get source health (non-fatal): {source_error}")
+            # Continue with empty sources list
+
         total_exploits = db.get_total_exploits()
         chains = db.get_chains()
 
