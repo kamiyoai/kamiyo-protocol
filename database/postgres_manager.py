@@ -243,10 +243,15 @@ class PostgresManager:
         # Get timeout from parameter, environment, or default
         query_timeout = timeout or int(os.getenv('DB_QUERY_TIMEOUT', '30'))
 
-        with self.get_connection(readonly=readonly) as conn:
+        # Determine target pool for this operation
+        target_pool = self.read_pool if readonly and self.read_pool else self.pool
+        connection = None
+        connection_broken = False
+
+        try:
+            connection = target_pool.getconn()
             cursor_factory = extras.RealDictCursor if dict_cursor else None
-            cursor = conn.cursor(cursor_factory=cursor_factory)
-            had_error = False
+            cursor = connection.cursor(cursor_factory=cursor_factory)
 
             try:
                 # Set statement timeout for this connection
@@ -255,32 +260,41 @@ class PostgresManager:
                 yield cursor
 
                 if not readonly:
-                    conn.commit()
+                    connection.commit()
+
+                # Reset timeout on successful completion
+                try:
+                    cursor.execute("RESET statement_timeout")
+                except Exception:
+                    pass
+
             except Exception as e:
-                had_error = True
                 # Rollback to end the failed transaction
                 try:
-                    conn.rollback()
+                    connection.rollback()
                 except Exception as rollback_error:
                     logger.error(f"Rollback failed: {rollback_error}")
-                    # Connection is in bad state, close it
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
+                    connection_broken = True
                 logger.error(f"Transaction failed: {e}")
                 raise
             finally:
-                # Only reset timeout if no error occurred (connection is healthy)
-                if not had_error:
-                    try:
-                        cursor.execute("RESET statement_timeout")
-                    except Exception:
-                        pass
                 try:
                     cursor.close()
                 except Exception:
                     pass
+
+        finally:
+            if connection:
+                if connection_broken:
+                    # Connection is in bad state, close it instead of returning to pool
+                    try:
+                        target_pool.putconn(connection, close=True)
+                        logger.warning("Closed broken database connection")
+                    except Exception as e:
+                        logger.error(f"Failed to close broken connection: {e}")
+                else:
+                    # Connection is healthy, return to pool
+                    target_pool.putconn(connection)
 
     def execute_with_retry(self,
                           query: str,
