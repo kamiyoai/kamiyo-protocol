@@ -114,7 +114,7 @@ services:
       - key: SOCIAL_MIN_AMOUNT_USD
         value: 1000000  # $1M minimum - post significant exploits (2-3x per week)
       - key: DEEP_DIVE_THRESHOLD_USD
-        value: 1000000  # $1M minimum for deep dive threads (same as min = always deep dive)
+        value: 1000000  # $1M minimum - ALL posts >= $1M get Claude AI deep dive
       # Claude AI for enhanced analysis (REQUIRED for deep dive)
       - key: ANTHROPIC_API_KEY
         sync: false
