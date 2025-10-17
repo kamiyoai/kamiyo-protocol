@@ -189,7 +189,7 @@ class CacheManager:
         self.key_patterns: Set[str] = set()
 
     async def connect(self):
-        """Connect to Redis"""
+        """Connect to Redis (graceful degradation to L1-only if Redis unavailable)"""
         if self._redis is not None:
             return
 
@@ -211,9 +211,9 @@ class CacheManager:
             await self._redis.ping()
             logger.info(f"Connected to Redis: {self.redis_url}")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.warning(f"Redis unavailable, using L1 cache only: {e}")
             self._redis = None
-            raise
+            # Don't raise - gracefully degrade to L1-only cache
         finally:
             self._connecting = False
 
@@ -273,6 +273,17 @@ class CacheManager:
             # Try Redis (L2)
             if self._redis is None:
                 await self.connect()
+
+            # Skip Redis if still unavailable after connect attempt
+            if self._redis is None:
+                duration = time.time() - start_time
+                self.stats.miss(duration)
+                self._update_key_stats(key, hit=False, duration=duration)
+                cache_operations_total.labels(
+                    operation='get',
+                    result='miss'
+                ).inc()
+                return default
 
             data = await self._redis.get(full_key)
 
@@ -343,6 +354,11 @@ class CacheManager:
             if self._redis is None:
                 await self.connect()
 
+            # Skip Redis if still unavailable after connect attempt
+            if self._redis is None:
+                # L1-only mode, still return success
+                return True
+
             data = self._serialize(value)
 
             if nx:
@@ -393,6 +409,11 @@ class CacheManager:
             # Delete from Redis
             if self._redis is None:
                 await self.connect()
+
+            # Skip Redis if still unavailable after connect attempt
+            if self._redis is None:
+                # L1-only mode, return True since L1 was cleared
+                return True
 
             result = await self._redis.delete(full_key)
             self.stats.delete()
@@ -638,7 +659,9 @@ def get_cache_manager() -> CacheManager:
     """Get global cache manager instance"""
     global _cache_manager
     if _cache_manager is None:
-        _cache_manager = CacheManager()
+        import os
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        _cache_manager = CacheManager(redis_url=redis_url)
     return _cache_manager
 
 
