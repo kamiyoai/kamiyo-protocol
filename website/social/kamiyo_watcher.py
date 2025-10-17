@@ -270,9 +270,20 @@ class KamiyoWatcher:
                         # Add delay between exploit posts to respect rate limits
                         time.sleep(5)
                     else:
+                        # Extract detailed error information
+                        error_msg = result.get('reason') or result.get('error', 'Unknown error')
+                        if result.get('posting_results'):
+                            # Get errors from individual platforms
+                            platform_errors = []
+                            for platform, platform_result in result['posting_results'].get('results', {}).items():
+                                if not platform_result.get('success'):
+                                    err = platform_result.get('error', 'Unknown')
+                                    platform_errors.append(f"{platform}: {err}")
+                            if platform_errors:
+                                error_msg = '; '.join(platform_errors)
+
                         logger.error(
-                            f"Failed to post exploit: {exploit.protocol} - "
-                            f"{result.get('reason', 'Unknown error')}"
+                            f"Failed to post exploit: {exploit.protocol} - {error_msg}"
                         )
 
                 # Update last_check to the newest exploit timestamp we saw
@@ -385,7 +396,7 @@ if __name__ == "__main__":
             'subreddits': os.getenv('REDDIT_SUBREDDITS', 'defi,CryptoCurrency').split(',')
         },
         'discord': {
-            'enabled': os.getenv('DISCORD_ENABLED', 'false').lower() == 'true',
+            'enabled': os.getenv('DISCORD_SOCIAL_ENABLED', 'false').lower() == 'true',
             'webhooks': {
                 name: url
                 for name, url in (
@@ -417,15 +428,26 @@ if __name__ == "__main__":
         }
     }
 
-    # Initialize social poster
-    poster = SocialMediaPoster(social_config)
+    # Import and initialize autonomous growth engine for deep dive analysis
+    from social.autonomous_growth_engine import AutonomousGrowthEngine
 
-    # Initialize watcher
+    logger.info("Initializing Autonomous Growth Engine with Claude AI deep dive analysis...")
+
+    engine = AutonomousGrowthEngine(
+        social_config=social_config,
+        kamiyo_api_url=os.getenv('KAMIYO_API_URL', 'https://api.kamiyo.ai'),
+        kamiyo_api_key=os.getenv('KAMIYO_API_KEY'),
+        enable_monitoring=False,  # Disable monitoring (we only want posting)
+        enable_alerting=False     # Disable alerting (we only want posting)
+    )
+
+    # Initialize watcher with autonomous engine callback
     watcher = KamiyoWatcher(
         api_base_url=os.getenv('KAMIYO_API_URL', 'https://api.kamiyo.ai'),
-        social_poster=poster,
+        social_poster=engine.poster,
         api_key=os.getenv('KAMIYO_API_KEY'),
-        websocket_url=os.getenv('KAMIYO_WEBSOCKET_URL', 'wss://api.kamiyo.ai/ws')
+        websocket_url=os.getenv('KAMIYO_WEBSOCKET_URL', 'wss://api.kamiyo.ai/ws'),
+        process_callback=engine.process_exploit  # Use autonomous engine for deep dive analysis
     )
 
     # Choose mode
