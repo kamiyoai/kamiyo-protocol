@@ -3,20 +3,28 @@ import { useState, useEffect } from "react";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
+import { useRouter } from "next/router";
 
 export default function Home() {
+    const router = useRouter();
     const [stats, setStats] = useState({
         totalExploits: '-',
         totalLoss: '-',
         chainsTracked: '-',
         activeSources: '-'
     });
+    const [exploits, setExploits] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [exploitsLoading, setExploitsLoading] = useState(true);
 
     useEffect(() => {
         loadStats();
+        loadPublicExploits();
         // Refresh stats every 30 seconds
-        const interval = setInterval(loadStats, 30000);
+        const interval = setInterval(() => {
+            loadStats();
+            loadPublicExploits();
+        }, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -42,6 +50,19 @@ export default function Home() {
         } catch (error) {
             console.error('Error loading stats:', error);
             setLoading(false);
+        }
+    };
+
+    const loadPublicExploits = async () => {
+        try {
+            // Public/free tier exploits (24h delayed)
+            const res = await fetch('/api/exploits?page=1&page_size=5');
+            const data = await res.json();
+            setExploits(data.data || []);
+            setExploitsLoading(false);
+        } catch (error) {
+            console.error('Error loading public exploits:', error);
+            setExploitsLoading(false);
         }
     };
 
@@ -154,6 +175,71 @@ export default function Home() {
                             loading={loading}
                         />
                     </div>
+                </div>
+            </section>
+
+            {/* Recent Exploits Section */}
+            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
+                <div className="mb-8">
+                    <h2 className="text-4xl md:text-5xl font-light mb-4">Recent Exploits</h2>
+                    <p className="text-gray-400 text-lg">
+                        Live feed of confirmed blockchain exploits from 20+ trusted sources
+                        <span className="ml-2 text-sm text-yellow-500">(24h delayed for free tier)</span>
+                    </p>
+                </div>
+
+                {exploitsLoading ? (
+                    <div className="text-center py-12">
+                        <div className="text-gray-400">Loading recent exploits...</div>
+                    </div>
+                ) : exploits.length === 0 ? (
+                    <div className="text-center py-12">
+                        <p className="text-gray-400">No exploits available</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4 mb-8">
+                        {exploits.map((exploit, index) => (
+                            <div
+                                key={index}
+                                className="border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors"
+                            >
+                                <div className="flex justify-between items-start mb-3">
+                                    <h3 className="text-white font-light text-xl">{exploit.protocol}</h3>
+                                    <span className="text-sm text-cyan px-3 py-1 border border-cyan border-opacity-50 rounded-full">
+                                        {exploit.chain}
+                                    </span>
+                                </div>
+                                <p className="text-gray-400 text-sm mb-4">
+                                    {exploit.description || (
+                                        <span>
+                                            Exploit detected {exploit.category ? `(${exploit.category})` : ''} – <a href={exploit.source_url} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-magenta underline">View source</a>
+                                        </span>
+                                    )}
+                                </p>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-500">
+                                        {new Date(exploit.timestamp || exploit.date).toLocaleDateString('en-US', {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                    </span>
+                                    <span className="text-magenta font-medium text-lg">
+                                        ${(exploit.loss_amount_usd || exploit.amount_usd || 0).toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="text-center">
+                    <button
+                        onClick={() => router.push('/inquiries')}
+                        className="text-cyan hover:text-magenta transition-colors text-sm uppercase tracking-wider"
+                    >
+                        View All Exploits →
+                    </button>
                 </div>
             </section>
 

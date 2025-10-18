@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import { ScrambleButton } from "../components/ScrambleButton";
+import { hasMinimumTier, TierName } from "../lib/tiers";
 
 export default function DashboardPage() {
     const { data: session, status } = useSession();
@@ -26,7 +27,10 @@ export default function DashboardPage() {
                 const exploitsRes = await fetch("/api/exploits?page=1&page_size=10");
                 if (exploitsRes.ok) {
                     const data = await exploitsRes.json();
+                    console.log("Exploits data:", data); // Debug log
                     setExploits(data.data || []);
+                } else {
+                    console.error("Failed to fetch exploits:", exploitsRes.status);
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
@@ -56,6 +60,7 @@ export default function DashboardPage() {
 
     const tierDisplay = subscription.tier ? subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1) : "Free";
     const isRealTime = subscription.isSubscribed && subscription.tier && subscription.tier.toLowerCase() !== 'free';
+    const hasForkAnalysisAccess = subscription.tier && hasMinimumTier(subscription.tier, TierName.TEAM);
 
     return (
         <div className="bg-black text-white min-h-screen p-8">
@@ -83,11 +88,19 @@ export default function DashboardPage() {
                         >
                             API Keys
                         </button>
+                        {hasForkAnalysisAccess && (
+                            <button
+                                onClick={() => router.push('/fork-analysis')}
+                                className="text-gray-400 hover:text-white transition-colors text-sm"
+                            >
+                                Fork Analysis
+                            </button>
+                        )}
                         <button
-                            onClick={() => router.push('/pricing')}
+                            onClick={() => router.push('/dashboard/subscription')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
-                            Pricing
+                            Subscription
                         </button>
                     </div>
                 </div>
@@ -159,10 +172,10 @@ export default function DashboardPage() {
                                     </p>
                                     <div className="flex justify-between items-center text-xs">
                                         <span className="text-gray-500">
-                                            {new Date(exploit.date).toLocaleDateString()}
+                                            {new Date(exploit.timestamp || exploit.date).toLocaleDateString()}
                                         </span>
                                         <span className="text-magenta font-medium">
-                                            ${exploit.amount_usd ? exploit.amount_usd.toLocaleString() : 'Unknown'}
+                                            ${(exploit.loss_amount_usd || exploit.amount_usd || 0).toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
