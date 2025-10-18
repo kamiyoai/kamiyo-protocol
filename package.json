@@ -57,13 +57,17 @@
     "zlib-sync": "^0.1.9"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@eslint/eslintrc": "^3",
     "@faker-js/faker": "^9.9.0",
     "@playwright/test": "^1.56.1",
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.20",
+    "@types/pg": "^8.15.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/webpack": "^5.28.5",
+    "@types/ws": "^8.18.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
