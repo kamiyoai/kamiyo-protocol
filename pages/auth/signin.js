@@ -21,12 +21,14 @@ export default function SignIn() {
                         </p>
                     </div>
 
-                    <div className="space-y-4 flex flex-col items-center">
-                        <ScrambleButton
-                            text="Continue with Google"
-                            enabled={true}
-                            onClick={() => signIn('google', { callbackUrl: callbackUrl || '/dashboard' })}
-                        />
+                    <div className="space-y-4 flex flex-col items-center justify-center">
+                        <div className="flex justify-center w-full">
+                            <ScrambleButton
+                                text="Continue with Google"
+                                enabled={true}
+                                onClick={() => signIn('google', { callbackUrl: callbackUrl || '/dashboard' })}
+                            />
+                        </div>
 
                         {/* Alternative traditional button if needed */}
                         <button
@@ -54,7 +56,7 @@ export default function SignIn() {
                             Continue with Google
                         </button>
 
-                        <div className="relative">
+                        <div className="relative w-full">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-gray-500 border-opacity-25"></div>
                             </div>
@@ -63,7 +65,7 @@ export default function SignIn() {
                             </div>
                         </div>
 
-                        <div className="text-center text-sm text-gray-500">
+                        <div className="text-center text-sm text-gray-500 w-full">
                             By signing in, you agree to our Terms of Service and Privacy Policy
                         </div>
                     </div>
