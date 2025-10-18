@@ -181,11 +181,14 @@ export default function Home() {
             {/* Recent Exploits Section */}
             <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
                 <div className="mb-8">
-                    <h2 className="text-4xl md:text-5xl font-light mb-4">Recent Exploits</h2>
-                    <p className="text-gray-400 text-lg">
-                        Live feed of confirmed blockchain exploits from 20+ trusted sources
-                        <span className="ml-2 text-sm text-yellow-500">(24h delayed for free tier)</span>
-                    </p>
+                    <h2 className="text-2xl font-light mb-4 flex items-center gap-3">
+                        <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span className="text-gray-400">DASHBOARD</span>
+                        <span className="text-yellow-500 text-sm">(24h delay)</span>
+                    </h2>
                 </div>
 
                 {exploitsLoading ? (
@@ -232,15 +235,6 @@ export default function Home() {
                         ))}
                     </div>
                 )}
-
-                <div className="text-center">
-                    <button
-                        onClick={() => router.push('/inquiries')}
-                        className="text-cyan hover:text-magenta transition-colors text-sm uppercase tracking-wider"
-                    >
-                        View All Exploits →
-                    </button>
-                </div>
             </section>
 
             {/* Pricing Section */}

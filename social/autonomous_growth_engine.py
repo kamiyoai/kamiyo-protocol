@@ -296,6 +296,9 @@ class AutonomousGrowthEngine:
         deep_dive_threshold = float(os.getenv('DEEP_DIVE_THRESHOLD_USD', 1_000_000))
         is_major_exploit = exploit.loss_amount_usd >= deep_dive_threshold
 
+        # NOTE: Visualization generation is DISABLED - we use source images when available
+        # from exploit.source_url instead of generating custom visuals
+
         if is_major_exploit:
             logger.info(
                 f"Major exploit detected (${exploit.loss_amount_usd:,.0f}) - generating Claude AI deep dive thread",

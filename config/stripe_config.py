@@ -38,7 +38,8 @@ class StripeConfig:
         self.is_test_mode = self._check_test_mode()
 
         # API version (Stripe recommends pinning version)
-        self.api_version = '2023-10-16'
+        # Updated to latest stable version (2024-10-28.acacia)
+        self.api_version = '2024-10-28'
 
         # Webhook endpoint URL
         self.webhook_endpoint = os.getenv(
