@@ -11,12 +11,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
 import time
+import hashlib
 from datetime import datetime
 from typing import List, Dict, Any
 from aggregators.base import BaseAggregator
 
-# For now, we'll prepare the structure - actual scraping requires additional setup
-# Users can plug in their preferred scraping method (playwright, selenium, or nitter instances)
+from bs4 import BeautifulSoup
 
 
 class TwitterAggregator(BaseAggregator):
@@ -25,31 +25,97 @@ class TwitterAggregator(BaseAggregator):
     def __init__(self):
         super().__init__('twitter')
 
-        # Top security researchers and alert accounts
+        # Top security researchers and alert accounts (expanded list)
         self.accounts_to_monitor = [
-            'pcaversaccio',      # Smart contract security
-            'samczsun',          # Paradigm researcher
-            'zachxbt',           # On-chain investigator
-            'PeckShieldAlert',   # Real-time alerts
+            # Security Researchers (High Trust)
+            'pcaversaccio',      # Smart contract security expert
+            'samczsun',          # Paradigm researcher (legendary)
+            'zachxbt',           # On-chain investigator (scam hunter)
+            'officer_cia',       # DeFi security researcher
+            'bantg',             # Yearn developer, security focus
+            'bertcmiller',       # Flashbots researcher
+            'foobar_01',         # Security researcher
+            'spreekaway',        # Smart contract security
+            'pashovkrum',        # Independent security researcher
+            'bytes032',          # MEV/security researcher
+
+            # Security Firms & Alert Services (Verified)
+            'PeckShieldAlert',   # Real-time alerts (very active)
             'CertiKAlert',       # CertiK alerts
             'BlockSecTeam',      # BlockSec team
             'slowmist_team',     # SlowMist alerts
             'HalbornSecurity',   # Halborn security
-            'immunefi',          # Bug bounty platform
             'BeosinAlert',       # Beosin alerts
             'AnciliaInc',        # On-chain monitoring
-            'runtime_xyz'        # Formal verification
+            'CyversAlerts',      # Cyvers real-time alerts
+            'DedaubAlert',       # Dedaub monitoring
+            'de_fi_security',    # DeFi security aggregator
+
+            # Blockchain Security Companies
+            'immunefi',          # Bug bounty platform
+            'OpenZeppelin',      # Smart contract security
+            'trailofbits',       # Security auditing firm
+            'ConsenSys',         # Ethereum dev company
+            'QuillAudits',       # Audit firm
+            'Hacxyk',            # Blockchain security
+
+            # Formal Verification & Analysis
+            'runtime_xyz',       # Formal verification
+            'certora',           # Formal verification platform
+
+            # On-Chain Analytics
+            'tayvano_',          # MyCrypto founder, security focus
+            'chainalysis',       # Blockchain analytics
+            'elliptic',          # Crypto compliance/security
+            'whale_alert',       # Large transaction monitoring
+
+            # MEV & Front-running Detection
+            'mevrefund',         # MEV monitoring
+            'bertcmiller',       # Flashbots (duplicate but important)
+
+            # Additional Trusted Researchers
+            'trust__90',         # Security researcher
+            'Mudit__Gupta',      # Polygon CISO
+            'lukasrosario',      # Security researcher
+            '0xKofi',            # Smart contract security
+            'shegenerates',      # Security researcher
         ]
 
-        # Search queries for exploit detection
+        # Search queries for exploit detection (expanded)
         self.search_queries = [
+            # Direct exploit mentions
             'rugpull crypto',
             'exploit defi',
             'hack blockchain',
             'drain contract',
+            'protocol exploited',
+            'funds stolen',
+            'reentrancy attack',
+
+            # Attack types
             'flash loan attack',
+            'oracle manipulation',
+            'bridge exploit',
+            'smart contract bug',
+            'access control exploit',
+            'sandwich attack',
+
+            # Incident responses
             'vulnerability disclosed',
-            'emergency pause protocol'
+            'emergency pause protocol',
+            'post-mortem',
+            'incident report',
+            'emergency shutdown',
+
+            # Financial impact
+            'million lost crypto',
+            'million stolen defi',
+            'billion drained',
+
+            # On-chain indicators
+            'suspicious transaction',
+            'unusual drain',
+            'abnormal withdraw'
         ]
 
         # Patterns to detect exploit mentions
@@ -62,41 +128,18 @@ class TwitterAggregator(BaseAggregator):
 
     def fetch_exploits(self) -> List[Dict[str, Any]]:
         """
-        Fetch exploits from Twitter
-
-        NOTE: This is a framework. Users need to implement actual scraping
-        based on their preferred method:
-
-        1. Official API (requires paid tier)
-        2. Playwright/Selenium scraping
-        3. Nitter instances (free Twitter frontend)
-        4. Third-party aggregators
+        Fetch exploits from Twitter using Nitter instances
         """
 
         self.logger.info("Twitter aggregator initialized")
         self.logger.info(f"Monitoring {len(self.accounts_to_monitor)} accounts")
-        self.logger.info(f"Tracking {len(self.search_queries)} search queries")
 
         exploits = []
 
-        # IMPLEMENTATION OPTIONS:
+        # Fetch from Nitter (free Twitter frontend)
+        exploits.extend(self._fetch_from_nitter())
 
-        # Option 1: Nitter (recommended for free access)
-        # exploits.extend(self._fetch_from_nitter())
-
-        # Option 2: Official API (if available)
-        # exploits.extend(self._fetch_from_api())
-
-        # Option 3: Direct scraping
-        # exploits.extend(self._fetch_from_scraping())
-
-        # For now, return empty list with instructions
-        self.logger.warning("Twitter scraping not configured")
-        self.logger.info("To enable Twitter monitoring:")
-        self.logger.info("1. Implement _fetch_from_nitter() for free access")
-        self.logger.info("2. Or add Twitter API credentials")
-        self.logger.info("3. See aggregators/twitter.py for details")
-
+        self.logger.info(f"Found {len(exploits)} exploit-related tweets")
         return exploits
 
     def _parse_tweet(self, tweet_text: str, author: str, tweet_url: str = None) -> Dict[str, Any]:
@@ -140,6 +183,7 @@ class TwitterAggregator(BaseAggregator):
 
         # Look for common patterns
         patterns = [
+            r'(?:stolen|drained|lost|exploited)\s+from\s+(\w+)',
             r'(?:exploit|hack|rugpull|drain)\s+(?:of|on)\s+(\w+)',
             r'(\w+)\s+(?:exploited|hacked|drained)',
             r'@(\w+)\s+(?:exploit|hack)',
@@ -193,35 +237,106 @@ class TwitterAggregator(BaseAggregator):
 
         return 'Unknown'
 
-    # IMPLEMENTATION HELPERS (uncomment when ready to use)
-
     def _fetch_from_nitter(self) -> List[Dict[str, Any]]:
         """
-        Fetch from Nitter instance (free Twitter frontend)
-
-        Example implementation:
+        Fetch from Nitter instances (free Twitter frontend)
+        Tries multiple instances for reliability
         """
-        # import requests
-        # from bs4 import BeautifulSoup
+        exploits = []
 
-        # exploits = []
-        # nitter_instance = "https://nitter.net"  # Or other instance
+        # List of Nitter instances to try (expanded list for reliability)
+        nitter_instances = [
+            "https://nitter.net",
+            "https://nitter.poast.org",
+            "https://nitter.privacydev.net",
+            "https://nitter.unixfox.eu",
+            "https://nitter.42l.fr",
+            "https://nitter.fdn.fr",
+            "https://nitter.1d4.us",
+            "https://nitter.kavin.rocks"
+        ]
 
-        # for account in self.accounts_to_monitor:
-        #     url = f"{nitter_instance}/{account}"
-        #     response = self.make_request(url)
-        #     if response:
-        #         soup = BeautifulSoup(response.text, 'html.parser')
-        #         tweets = soup.find_all('div', class_='tweet-content')
-        #
-        #         for tweet in tweets:
-        #             text = tweet.get_text()
-        #             if self._is_exploit_related(text):
-        #                 exploit = self._parse_tweet(text, account)
-        #                 exploits.append(exploit)
+        # Track which accounts we've already processed to avoid duplicates
+        processed_tweets = set()
 
-        # return exploits
-        pass
+        for account in self.accounts_to_monitor:
+            self.logger.info(f"Fetching tweets from @{account}")
+
+            # Try each Nitter instance until one works
+            account_exploits = []
+            for instance in nitter_instances:
+                try:
+                    url = f"{instance}/{account}"
+                    response = self.make_request(url, timeout=10)
+
+                    if not response:
+                        self.logger.warning(f"Failed to fetch from {instance}, trying next...")
+                        continue
+
+                    # Parse HTML with BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+
+                    # Find all tweet items
+                    timeline_items = soup.find_all('div', class_='timeline-item')
+
+                    if not timeline_items:
+                        self.logger.warning(f"No tweets found at {instance}/{account}")
+                        continue
+
+                    self.logger.info(f"Found {len(timeline_items)} tweets from @{account} on {instance}")
+
+                    # Process each tweet
+                    for item in timeline_items[:20]:  # Limit to last 20 tweets
+                        try:
+                            # Extract tweet content
+                            tweet_content = item.find('div', class_='tweet-content')
+                            if not tweet_content:
+                                continue
+
+                            text = tweet_content.get_text(strip=True)
+
+                            # Generate unique ID for deduplication
+                            tweet_id = hashlib.sha256(f"{account}:{text[:100]}".encode()).hexdigest()
+                            if tweet_id in processed_tweets:
+                                continue
+
+                            # Check if tweet is exploit-related
+                            if not self._is_exploit_related(text):
+                                continue
+
+                            # Extract tweet URL
+                            tweet_link = item.find('a', class_='tweet-link')
+                            tweet_url = None
+                            if tweet_link and 'href' in tweet_link.attrs:
+                                tweet_path = tweet_link['href']
+                                tweet_url = f"https://twitter.com{tweet_path}"
+
+                            # Parse tweet into exploit format
+                            exploit = self._parse_tweet(text, account, tweet_url)
+
+                            # Validate before adding
+                            if self.validate_exploit(exploit):
+                                account_exploits.append(exploit)
+                                processed_tweets.add(tweet_id)
+                                self.logger.info(f"Parsed exploit from @{account}: {exploit['protocol']}")
+
+                        except Exception as e:
+                            self.logger.error(f"Error parsing tweet from @{account}: {e}")
+                            continue
+
+                    # If we successfully got tweets, break and don't try other instances
+                    if account_exploits:
+                        exploits.extend(account_exploits)
+                        break
+
+                except Exception as e:
+                    self.logger.error(f"Error fetching from {instance}: {e}")
+                    continue
+
+            # Rate limiting - be nice to Nitter instances
+            time.sleep(2)
+
+        return exploits
 
     def _fetch_from_api(self) -> List[Dict[str, Any]]:
         """
@@ -250,15 +365,46 @@ class TwitterAggregator(BaseAggregator):
         pass
 
     def _is_exploit_related(self, text: str) -> bool:
-        """Check if tweet is likely about an exploit"""
+        """Check if tweet is likely about an exploit (expanded detection)"""
 
-        keywords = [
-            'exploit', 'hack', 'rugpull', 'drain', 'stolen',
-            'vulnerability', 'attack', 'breach', 'compromised'
+        # Primary exploit keywords (high confidence)
+        primary_keywords = [
+            'exploit', 'exploited', 'hack', 'hacked', 'rugpull',
+            'rug pull', 'drain', 'drained', 'stolen', 'compromised',
+            'vulnerability', 'attack', 'breach', 'flash loan',
+            'reentrancy', 'emergency pause', 'emergency shutdown',
+            'funds lost', 'protocol paused', 'incident'
+        ]
+
+        # Financial impact keywords (often indicate real exploit)
+        impact_keywords = [
+            'million', 'billion', '$', 'usd', 'lost', 'stolen',
+            'drained', 'exploited', 'recovered'
+        ]
+
+        # Technical indicators (transaction/address mentions)
+        technical_patterns = [
+            r'0x[a-fA-F0-9]{40,64}',  # Ethereum address or tx hash
+            r'tx:?\s*0x',              # Transaction hash mention
+            r'attacker:?\s*0x',        # Attacker address
+            r'contract:?\s*0x'         # Contract address
         ]
 
         text_lower = text.lower()
-        return any(keyword in text_lower for keyword in keywords)
+
+        # Check for primary keywords
+        has_primary = any(keyword in text_lower for keyword in primary_keywords)
+
+        # Check for financial impact
+        has_impact = any(keyword in text_lower for keyword in impact_keywords)
+
+        # Check for technical indicators
+        has_technical = any(re.search(pattern, text, re.IGNORECASE) for pattern in technical_patterns)
+
+        # Tweet is exploit-related if:
+        # - Has primary keyword AND (impact OR technical indicator)
+        # - OR has both impact and technical (even without primary keyword)
+        return (has_primary and (has_impact or has_technical)) or (has_impact and has_technical)
 
 
 # Test function
@@ -276,10 +422,8 @@ if __name__ == '__main__':
     for i, account in enumerate(aggregator.accounts_to_monitor[:5], 1):
         print(f"  {i}. @{account}")
 
-    print("\nTo enable Twitter scraping, implement one of:")
-    print("  1. _fetch_from_nitter() - Free, no API needed")
-    print("  2. _fetch_from_api() - Official API (paid)")
-    print("  3. Custom scraping solution")
+    print("\nNitter scraping is now enabled!")
+    print("The aggregator will fetch from multiple Nitter instances for reliability.")
 
     # Test parsing
     sample_tweet = "$5.2M stolen from ExampleDEX on Ethereum via flash loan attack. Tx: 0x1234..."
@@ -289,3 +433,14 @@ if __name__ == '__main__':
     print(f"  Amount: ${parsed['amount_usd']:,.0f}")
     print(f"  Chain: {parsed['chain']}")
     print(f"  Category: {parsed['category']}")
+
+    # Optional: Run a live test (commented out to avoid hitting Nitter unnecessarily)
+    print("\nTo run a live test, uncomment the following lines:")
+    print("  exploits = aggregator.fetch_exploits()")
+    print("  print(f'\\nFound {len(exploits)} exploit-related tweets')")
+    # exploits = aggregator.fetch_exploits()
+    # print(f'\nFound {len(exploits)} exploit-related tweets')
+    # for exploit in exploits[:3]:
+    #     print(f"\n  - {exploit['protocol']} on {exploit['chain']}")
+    #     print(f"    Amount: ${exploit['amount_usd']:,.0f}")
+    #     print(f"    Category: {exploit['category']}")

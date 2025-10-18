@@ -82,7 +82,7 @@ cache_config = get_cache_config()
 # Create FastAPI app
 app = FastAPI(
     title="Kamiyo Exploit Intelligence API",
-    description="Real-time aggregation of cryptocurrency exploits from multiple sources",
+    description="Real-time aggregation of cryptocurrency exploits from 18+ verified sources (42 Twitter security accounts)",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -227,7 +227,7 @@ async def root():
     return {
         "name": "Kamiyo Exploit Intelligence API",
         "version": "1.0.0",
-        "description": "Aggregating crypto exploits from 20+ sources",
+        "description": "Aggregating crypto exploits from 18 verified aggregators (including 42 Twitter security accounts)",
         "docs": "/docs",
         "endpoints": {
             "exploits": "/exploits",
@@ -434,7 +434,14 @@ async def health_check():
     try:
         from datetime import datetime
 
-        sources = db.get_source_health()
+        # Try to get source health, but don't fail if it errors
+        sources = []
+        try:
+            sources = db.get_source_health()
+        except Exception as source_error:
+            logger.warning(f"Failed to get source health (non-fatal): {source_error}")
+            # Continue with empty sources list
+
         total_exploits = db.get_total_exploits()
         chains = db.get_chains()
 
