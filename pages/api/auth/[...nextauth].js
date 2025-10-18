@@ -11,7 +11,14 @@ export const authOptions = {
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || '',
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET || ''
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+            authorization: {
+                params: {
+                    prompt: "consent",
+                    access_type: "offline",
+                    response_type: "code"
+                }
+            }
         })
     ],
     callbacks: {
@@ -32,6 +39,13 @@ export const authOptions = {
             // Add user ID to session
             session.user.id = user.id;
             return session;
+        },
+        async redirect({ url, baseUrl }) {
+            // Allows relative callback URLs
+            if (url.startsWith("/")) return `${baseUrl}${url}`;
+            // Allows callback URLs on the same origin
+            else if (new URL(url).origin === baseUrl) return url;
+            return baseUrl + "/dashboard";
         }
     },
     pages: {
@@ -42,6 +56,7 @@ export const authOptions = {
         strategy: 'database',
         maxAge: 30 * 24 * 60 * 60, // 30 days
     },
+    secret: process.env.NEXTAUTH_SECRET,
     debug: process.env.NODE_ENV === 'development',
 };
 
