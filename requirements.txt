@@ -72,6 +72,9 @@ praw==7.7.1  # Reddit API wrapper
 # tweepy already listed above (line 52)
 websockets==12.0  # WebSocket client for real-time Kamiyo updates
 
+# AI Enhancement for Deep Dive Analysis
+anthropic>=0.34.0  # Claude AI for enhanced thread generation
+
 # Testing
 pytest==8.3.4
 pytest-cov==4.1.0

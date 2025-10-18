@@ -51,13 +51,13 @@ class ClaudeEnhancer:
             return
 
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = "claude-3-5-sonnet-20241022"  # Latest model
+        self.model = "claude-sonnet-4-20250514"  # Claude Sonnet 4 with extended thinking support
 
         # Brand guidelines
         self.brand_voice = """
 KAMIYO Brand Voice Guidelines:
 - Professional, analytical, data-driven
-- NO emojis (except severity indicators: 🟢🟡🟠🔴)
+- ABSOLUTELY NO EMOJIS - none whatsoever, not even severity indicators
 - NO hype or sensationalism
 - Clear, concise, fact-based
 - Always credit sources
@@ -112,7 +112,7 @@ REQUIREMENTS:
 1. Make it engaging and readable for crypto Twitter audience
 2. Keep it factual - use ONLY the confirmed data provided
 3. Professional tone, data-driven
-4. NO emojis except severity indicators (🟢🟡🟠🔴)
+4. ABSOLUTELY NO EMOJIS - zero emojis, none whatsoever
 5. 2-3 sentences maximum
 6. Include specific numbers ($X loss, Xth largest, etc.)
 7. Credit the source
@@ -124,17 +124,27 @@ Enhanced executive summary (2-3 sentences):"""
 
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=512,
-                temperature=0.7,  # Some creativity, but not too much
+                max_tokens=3000,  # Must be > thinking.budget_tokens
+                temperature=1,  # Required to be 1 when extended thinking is enabled
+                thinking={
+                    "type": "enabled",
+                    "budget_tokens": 2000  # Allow extended thinking for better analysis
+                },
                 messages=[{
                     "role": "user",
                     "content": prompt
                 }]
             )
 
-            enhanced = response.content[0].text.strip()
+            # Extract text content (skip thinking block if present)
+            text_content = ""
+            for block in response.content:
+                if block.type == "text":
+                    text_content = block.text.strip()
+                    break
+
             logger.info(f"Enhanced summary with Claude for {exploit_data.get('protocol')}")
-            return enhanced
+            return text_content if text_content else base_summary
 
         except Exception as e:
             logger.error(f"Claude enhancement failed: {e}. Using base summary.")
@@ -227,20 +237,39 @@ etc."""
 
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=1024,
-                temperature=0.7,
+                max_tokens=5000,  # Must be > thinking.budget_tokens
+                temperature=1,  # Required to be 1 when extended thinking is enabled
+                thinking={
+                    "type": "enabled",
+                    "budget_tokens": 3000  # More thinking for complex thread generation
+                },
                 messages=[{
                     "role": "user",
                     "content": prompt
                 }]
             )
 
-            thread_text = response.content[0].text.strip()
+            # Extract text content (skip thinking block if present)
+            thread_text = ""
+            for block in response.content:
+                if block.type == "text":
+                    thread_text = block.text.strip()
+                    break
 
-            # Parse tweets - Claude returns multiline tweets
+            if not thread_text:
+                logger.warning("No text content in Claude response. Using template.")
+                return self._generate_template_thread(exploit_data, impact)
+
+            # Parse tweets - Claude can return either multiline or single-line format
             import re
-            tweet_pattern = r'Tweet \d+:\s*\n(.*?)(?=Tweet \d+:|$)'
-            matches = re.findall(tweet_pattern, thread_text, re.DOTALL)
+            # Try multiline pattern first: "Tweet 1:\n[content]"
+            tweet_pattern_multiline = r'Tweet \d+:\s*\n(.*?)(?=Tweet \d+:|$)'
+            matches = re.findall(tweet_pattern_multiline, thread_text, re.DOTALL)
+
+            # If no matches, try single-line pattern: "Tweet 1: [content]"
+            if not matches:
+                tweet_pattern_single = r'Tweet \d+:\s*(.+?)(?=\s*Tweet \d+:|$)'
+                matches = re.findall(tweet_pattern_single, thread_text, re.DOTALL)
 
             tweets = []
             for match in matches:
@@ -326,15 +355,28 @@ Enhanced Reddit post (markdown):"""
 
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=2048,
-                temperature=0.7,
+                max_tokens=4000,  # Must be > thinking.budget_tokens
+                temperature=1,  # Required to be 1 when extended thinking is enabled
+                thinking={
+                    "type": "enabled",
+                    "budget_tokens": 2500  # Extended thinking for longer Reddit posts
+                },
                 messages=[{
                     "role": "user",
                     "content": prompt
                 }]
             )
 
-            enhanced = response.content[0].text.strip()
+            # Extract text content (skip thinking block if present)
+            enhanced = ""
+            for block in response.content:
+                if block.type == "text":
+                    enhanced = block.text.strip()
+                    break
+
+            if not enhanced:
+                logger.warning("No text content in Claude response. Using base post.")
+                return base_post
 
             # Truncate if needed
             if len(enhanced) > max_length:
