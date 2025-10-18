@@ -10,6 +10,7 @@ export const authOptions = {
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || '',
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+            allowDangerousEmailAccountLinking: true, // Auto-link existing users by email
             authorization: {
                 params: {
                     prompt: "consent",
