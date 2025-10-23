@@ -118,13 +118,13 @@ services:
         # Required for Claude AI deep dive thread generation
       # Social posting intervals and thresholds
       - key: POLL_INTERVAL_SECONDS
-        value: 300  # Check every 5 minutes
+        value: 14400  # Check every 4 hours (spreads posts evenly over time)
       - key: SOCIAL_MIN_AMOUNT_USD
         value: 500000  # $500k minimum - post significant exploits (multiple per week)
       - key: DEEP_DIVE_THRESHOLD_USD
         value: 1000000  # $1M minimum for deep dive threads (quick alerts for $500k-$1M)
       - key: MAX_POSTS_PER_CYCLE
-        value: 3  # Max exploits to post per 5-minute cycle (prevents rate limits)
+        value: 1  # Post 1 exploit per cycle (6 per day = 18 over 3 days)
       # Twitter/X credentials
       - key: X_TWITTER_ENABLED
         sync: false
