@@ -214,20 +214,21 @@ HISTORICAL CONTEXT:
 ENGAGEMENT HOOKS:
 {hooks_text}
 
-REQUIREMENTS:
+CRITICAL RULES:
 1. Create a 5-7 tweet thread
 2. Each tweet MUST be ≤280 characters (critical!)
 3. Tweet 1: Alert with protocol, chain, loss amount, attack type
 4. Tweet 2: Technical explanation of how the attack worked
-5. Tweet 3: Timeline of events with timestamps
+5. Tweet 3: Only mention timeline events if data is provided above - do NOT fabricate detection times
 6. Tweet 4: Impact and significance
 7. Tweet 5-7: Recovery status, lessons learned, source attribution
 8. ABSOLUTELY NO EMOJIS - not even severity indicators
 9. Professional, analytical, data-driven tone only
 10. Credit source in final tweet
-11. Use "KAMIYO" (all caps) for brand mentions
-12. End with "Detected by KAMIYO Intelligence Platform"
-13. NO bullet points, NO special characters, plain text only
+11. Use "KAMIYO" (all caps) for brand mentions if relevant
+12. NO bullet points, NO special characters, plain text only
+13. NEVER invent timestamps - only use timestamps from TIMELINE section above
+14. If timeline only has one event, focus on impact and context instead
 
 OUTPUT FORMAT:
 Tweet 1: [text]
@@ -304,7 +305,7 @@ etc."""
             f"EXPLOIT ALERT: {protocol}\n\nLoss: {amount}\nChain: {chain}\nType: {exploit_type}\n\nAnalysis thread below",
             f"{protocol} on {chain} suffered a {exploit_type} attack resulting in {amount} in losses.",
             f"The attack was confirmed via on-chain analysis and reported by {source}.",
-            f"This incident highlights ongoing security challenges in the {chain} DeFi ecosystem.\n\nDetected by KAMIYO Intelligence Platform",
+            f"This incident highlights ongoing security challenges in the {chain} DeFi ecosystem.",
         ]
 
         return tweets

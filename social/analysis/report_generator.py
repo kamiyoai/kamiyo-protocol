@@ -144,47 +144,29 @@ class ReportGenerator:
 
         Reconstructs what happened and when based on available data.
         Only includes confirmed events, never speculation.
+
+        CRITICAL: We only report timestamps we actually have.
+        We do NOT fabricate detection times or add fake precision.
         """
         timeline = []
 
-        # Exploit occurrence (from blockchain timestamp)
+        # Exploit occurrence (from blockchain timestamp or source report)
         timeline.append(TimelineEvent(
             timestamp=exploit.timestamp,
             event_type='occurred',
-            description=f'{exploit.exploit_type} attack executed on {exploit.protocol}',
-            source='Blockchain'
+            description=f'{exploit.exploit_type} attack on {exploit.protocol}',
+            source='Blockchain' if not exploit.tx_hash.startswith('generated') else exploit.source or 'External Report'
         ))
 
-        # Detection by source (if we know when)
-        if exploit.source:
-            # In production, would track exact detection time
-            # For now, assume detection shortly after occurrence
-            detection_time = exploit.timestamp + timedelta(minutes=5)
-            timeline.append(TimelineEvent(
-                timestamp=detection_time,
-                event_type='reported',
-                description=f'Exploit reported by {exploit.source}',
-                source=exploit.source
-            ))
+        # Only add additional events if we have REAL timestamps
+        # Do NOT fabricate detection times with +5min, +10min assumptions
+        # If we don't know when something was detected, we don't claim to know
 
-        # Detection by Kamiyo
-        kamiyo_detection_time = exploit.timestamp + timedelta(minutes=10)
-        timeline.append(TimelineEvent(
-            timestamp=kamiyo_detection_time,
-            event_type='detected',
-            description='Exploit aggregated by Kamiyo Intelligence Platform',
-            source='Kamiyo'
-        ))
-
-        # Recovery status (if applicable)
+        # Recovery status (only if we have confirmed recovery info)
         if exploit.recovery_status and 'recov' in exploit.recovery_status.lower():
-            recovery_time = exploit.timestamp + timedelta(hours=1)
-            timeline.append(TimelineEvent(
-                timestamp=recovery_time,
-                event_type='recovery',
-                description=exploit.recovery_status,
-                source=exploit.source
-            ))
+            # NOTE: We don't have the actual recovery timestamp, so we omit this
+            # unless we add real recovery timestamp tracking to the database
+            pass
 
         return sorted(timeline, key=lambda e: e.timestamp)
 
@@ -296,9 +278,12 @@ class ReportGenerator:
 
         Properly credits the original sources of the exploit information.
         This is critical for maintaining transparency and trust.
+
+        CRITICAL: We do NOT fabricate detection timestamps.
         """
-        # In production, would track exact detection timestamp
-        detection_time = exploit.timestamp + timedelta(minutes=10)
+        # Use created_at timestamp from database if available, otherwise None
+        # We do NOT add fake +10min assumptions
+        detection_time = None  # We don't track exact Kamiyo detection time yet
 
         attribution = SourceAttribution(
             primary_source=exploit.source or "Multiple Sources",
