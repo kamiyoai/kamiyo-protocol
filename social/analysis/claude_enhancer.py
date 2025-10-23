@@ -320,12 +320,18 @@ etc."""
             hook = f"{protocol} on {chain} just got exploited. Here's what went down..."
             damage = f"Funds were drained in what looks like a coordinated attack. Amount still being confirmed."
 
+        # Build attack description based on exploit type
+        if exploit_type and exploit_type != 'Unknown':
+            attack_method = f"Attack vector: {exploit_type}. Classic pattern - attacker drains funds before any safeguards can trigger."
+        else:
+            attack_method = f"Attack method still being analyzed. Funds drained before the protocol could respond."
+
         # Conversational, share-worthy template (aligned with X algorithm)
         tweets = [
             hook,
-            f"They exploited a {exploit_type} vulnerability. Think of it like finding a backdoor that lets you withdraw funds without permission.",
+            attack_method,
             damage,
-            f"This follows a pattern we've seen before with {exploit_type} attacks. The scary part? It's getting more sophisticated.",
+            f"This isn't the first {exploit_type} we've seen this year. The attacks are getting more sophisticated.",
             f"What's your take - are we seeing an evolution in DeFi attack methods? (via {source})",
         ]
 
