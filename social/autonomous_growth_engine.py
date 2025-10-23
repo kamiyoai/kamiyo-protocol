@@ -144,6 +144,22 @@ class AutonomousGrowthEngine:
             protocol=exploit.protocol,
             chain=exploit.chain
         ):
+            # Validate exploit has actual loss data
+            if not exploit.loss_amount_usd or exploit.loss_amount_usd <= 0:
+                logger.warning(
+                    "Skipping exploit with $0 or missing loss amount - nothing to post",
+                    extra={
+                        'protocol': exploit.protocol,
+                        'loss_amount': exploit.loss_amount_usd,
+                        'chain': exploit.chain
+                    }
+                )
+                return {
+                    'success': False,
+                    'reason': 'No actual loss - exploit skipped',
+                    'stats': self.stats.copy()
+                }
+
             logger.info(
                 "Processing exploit for autonomous growth",
                 extra={
@@ -323,11 +339,12 @@ class AutonomousGrowthEngine:
                             'tx_hash': exploit.tx_hash,
                             'protocol': exploit.protocol,
                             'chain': exploit.chain,
-                            'amount_usd': exploit.loss_amount_usd,
+                            'loss_amount_usd': exploit.loss_amount_usd,  # Fixed: use consistent key name
                             'exploit_type': exploit.exploit_type,
                             'timestamp': exploit.timestamp.isoformat(),
                             'description': exploit.description or '',
-                            'recovery_status': exploit.recovery_status or 'Unknown'
+                            'recovery_status': exploit.recovery_status or 'Unknown',
+                            'source': exploit.source or 'defillama'
                         }
 
                         timeline_dict = [

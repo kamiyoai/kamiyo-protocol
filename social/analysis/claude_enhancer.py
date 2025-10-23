@@ -304,17 +304,27 @@ etc."""
 
     def _generate_template_thread(self, exploit_data: dict, impact: dict) -> list:
         """Fallback template-based thread if Claude is unavailable"""
-        amount = f"${exploit_data.get('loss_amount_usd', 0):,.0f}"
+        loss_amount = exploit_data.get('loss_amount_usd', 0)
         protocol = exploit_data.get('protocol', 'Unknown')
         chain = exploit_data.get('chain', 'Unknown')
         exploit_type = exploit_data.get('exploit_type', 'Unknown')
         source = exploit_data.get('source', 'external sources')
 
+        # Format amount or use fallback phrasing
+        if loss_amount and loss_amount > 0:
+            amount_str = f"${loss_amount:,.0f}"
+            hook = f"A hacker just walked away with {amount_str} from {protocol} on {chain}. Here's what happened..."
+            damage = f"The damage: {amount_str} drained in what looks like a coordinated attack."
+        else:
+            # Better phrasing when amount is unknown or zero
+            hook = f"{protocol} on {chain} just got exploited. Here's what went down..."
+            damage = f"Funds were drained in what looks like a coordinated attack. Amount still being confirmed."
+
         # Conversational, share-worthy template (aligned with X algorithm)
         tweets = [
-            f"A hacker just walked away with {amount} from {protocol} on {chain}. Here's what happened...",
+            hook,
             f"They exploited a {exploit_type} vulnerability. Think of it like finding a backdoor that lets you withdraw funds without permission.",
-            f"The damage: {amount} drained in what looks like a coordinated attack. That's roughly [context would go here].",
+            damage,
             f"This follows a pattern we've seen before with {exploit_type} attacks. The scary part? It's getting more sophisticated.",
             f"What's your take - are we seeing an evolution in DeFi attack methods? (via {source})",
         ]
