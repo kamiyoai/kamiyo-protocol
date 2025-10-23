@@ -322,9 +322,10 @@ etc."""
 
         # Build attack description based on exploit type
         if exploit_type and exploit_type != 'Unknown':
-            attack_method = f"Attack vector: {exploit_type}. Classic pattern - attacker drains funds before any safeguards can trigger."
+            attack_method = f"Attack vector: {exploit_type}. Attacker drained funds before safeguards could trigger."
         else:
-            attack_method = f"Attack method still being analyzed. Funds drained before the protocol could respond."
+            # If we don't know, just say so - don't make up generic explanations
+            attack_method = f"Attack method: Unknown. Still analyzing how they got in."
 
         # Conversational, share-worthy template (aligned with X algorithm)
         tweets = [
