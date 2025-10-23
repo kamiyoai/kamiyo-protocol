@@ -26,12 +26,9 @@ class PostGenerator:
             platform=Platform.X_TWITTER,
             template_type='short',
             template=(
-                "EXPLOIT ALERT: {protocol}\n\n"
-                "Loss: {amount}\n"
-                "Chain: {chain}\n"
-                "Type: {exploit_type}\n\n"
-                "TX: {tx_short}\n\n"
-                "#{chain} #DeFi #CryptoSecurity #Kamiyo"
+                "{protocol} on {chain} just got hit for {amount}. "
+                "{exploit_type} exploit. "
+                "TX: {tx_short}"
             ),
             max_length=280,
             supports_images=True,
@@ -225,11 +222,9 @@ class PostGenerator:
         """
         thread = []
 
-        # Thread post 1: Alert
+        # Thread post 1: Hook (conversational)
         thread.append(
-            f"EXPLOIT ALERT: {exploit.protocol}\n\n"
-            f"{exploit.formatted_amount} lost in {exploit.chain} exploit\n\n"
-            f"Thread below"
+            f"{exploit.protocol} on {exploit.chain} just got exploited for {exploit.formatted_amount}. Here's what happened..."
         )
 
         # Thread post 2: Details

@@ -437,13 +437,9 @@ class AutonomousGrowthEngine:
         """Generate basic thread as fallback when Claude AI is not available"""
         thread = []
 
-        # Tweet 1: Alert with key details
+        # Tweet 1: Hook (conversational, X algorithm optimized)
         thread.append(
-            f"EXPLOIT ALERT: {exploit.protocol}\n\n"
-            f"Loss: {exploit.formatted_amount}\n"
-            f"Chain: {exploit.chain}\n"
-            f"Type: {exploit.exploit_type}\n\n"
-            f"Analysis thread below"
+            f"{exploit.protocol} on {exploit.chain} just got exploited for {exploit.formatted_amount}. Here's the breakdown..."
         )
 
         # Tweet 2: Executive summary
