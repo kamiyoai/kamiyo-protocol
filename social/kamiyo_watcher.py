@@ -77,7 +77,7 @@ class KamiyoWatcher:
 
     def fetch_recent_exploits(self, since: Optional[datetime] = None) -> List[Dict]:
         """
-        Fetch recent exploits from Kamiyo API
+        Fetch recent exploits from Kamiyo API with retry logic
 
         Args:
             since: Only fetch exploits after this timestamp
@@ -85,45 +85,90 @@ class KamiyoWatcher:
         Returns:
             List of exploit dicts
         """
-        try:
-            params = {
-                'page': 1,
-                'page_size': 100,
-                'min_amount': self.min_amount_usd
-            }
+        params = {
+            'page': 1,
+            'page_size': 100,
+            'min_amount': self.min_amount_usd
+        }
 
-            response = requests.get(
-                f"{self.api_base_url}/exploits",
-                headers=self.headers,
-                params=params,
-                timeout=30
-            )
+        # Retry with exponential backoff
+        max_retries = 3
+        base_delay = 2  # seconds
 
-            response.raise_for_status()
-            data = response.json()
+        for attempt in range(max_retries):
+            try:
+                # Use shorter timeout to fail fast
+                response = requests.get(
+                    f"{self.api_base_url}/exploits",
+                    headers=self.headers,
+                    params=params,
+                    timeout=10  # Reduced from 30s to 10s
+                )
 
-            exploits = data.get('data', [])
+                response.raise_for_status()
+                data = response.json()
 
-            # Filter by timestamp if provided
-            if since:
-                exploits = [
-                    e for e in exploits
-                    if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > since
-                ]
+                exploits = data.get('data', [])
 
-            # Filter by chain if configured
-            if self.enabled_chains:
-                exploits = [
-                    e for e in exploits
-                    if e['chain'] in self.enabled_chains
-                ]
+                # Filter by timestamp if provided
+                if since:
+                    exploits = [
+                        e for e in exploits
+                        if datetime.fromisoformat(e['timestamp'].replace('Z', '+00:00')) > since
+                    ]
 
-            logger.info(f"Fetched {len(exploits)} recent exploits from Kamiyo API")
-            return exploits
+                # Filter by chain if configured
+                if self.enabled_chains:
+                    exploits = [
+                        e for e in exploits
+                        if e['chain'] in self.enabled_chains
+                    ]
 
-        except requests.RequestException as e:
-            logger.error(f"Error fetching exploits from Kamiyo API: {e}")
-            return []
+                logger.info(f"Fetched {len(exploits)} recent exploits from Kamiyo API")
+                return exploits
+
+            except requests.Timeout as e:
+                delay = base_delay * (2 ** attempt)  # Exponential backoff
+                logger.warning(
+                    f"API timeout on attempt {attempt + 1}/{max_retries}. "
+                    f"Retrying in {delay}s... ({e})"
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                else:
+                    logger.error(f"API timeout after {max_retries} attempts: {e}")
+                    return []
+
+            except requests.HTTPError as e:
+                # Don't retry on 4xx errors (client errors)
+                if 400 <= e.response.status_code < 500:
+                    logger.error(f"Client error fetching exploits: {e.response.status_code} - {e}")
+                    return []
+                # Retry on 5xx errors (server errors)
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    f"Server error {e.response.status_code} on attempt {attempt + 1}/{max_retries}. "
+                    f"Retrying in {delay}s..."
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Server error after {max_retries} attempts: {e}")
+                    return []
+
+            except requests.RequestException as e:
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    f"Request error on attempt {attempt + 1}/{max_retries}: {e}. "
+                    f"Retrying in {delay}s..."
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Request failed after {max_retries} attempts: {e}")
+                    return []
+
+        return []
 
     def convert_to_exploit_data(self, api_exploit: Dict) -> ExploitData:
         """

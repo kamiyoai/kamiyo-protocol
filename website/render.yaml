@@ -107,14 +107,22 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: KAMIYO_API_URL
-        value: https://api.kamiyo.ai
+        value: https://kamiyo-api.onrender.com
+      - key: KAMIYO_API_KEY
+        sync: false
+        # IMPORTANT: Set this in Render dashboard to a valid API key with real-time access
+        # Without this, the watcher will get 24h delayed data (free tier) and post nothing
+      # Claude AI enhancer
+      - key: ANTHROPIC_API_KEY
+        sync: false
+        # Required for Claude AI deep dive thread generation
       # Social posting intervals and thresholds
       - key: POLL_INTERVAL_SECONDS
         value: 300  # Check every 5 minutes
       - key: SOCIAL_MIN_AMOUNT_USD
-        value: 1000000  # $1M minimum - post significant exploits (2-3x per week)
+        value: 500000  # $500k minimum - post significant exploits (multiple per week)
       - key: DEEP_DIVE_THRESHOLD_USD
-        value: 1000000  # $1M minimum for deep dive threads (same as min = always deep dive)
+        value: 1000000  # $1M minimum for deep dive threads (quick alerts for $500k-$1M)
       - key: MAX_POSTS_PER_CYCLE
         value: 3  # Max exploits to post per 5-minute cycle (prevents rate limits)
       # Twitter/X credentials
