@@ -195,40 +195,49 @@ Enhanced executive summary (2-3 sentences):"""
             if engagement_hooks:
                 hooks_text = "\n".join([f"- {hook}" for hook in engagement_hooks[:3]])
 
-            prompt = f"""Create an engaging Twitter thread about this confirmed blockchain exploit.
+            prompt = f"""Create a highly shareable Twitter thread about this blockchain exploit that feels like you're texting a smart friend.
 
 EXPLOIT DATA:
 Protocol: {exploit_data.get('protocol')}
 Chain: {exploit_data.get('chain')}
 Loss: ${exploit_data.get('loss_amount_usd', 0):,.0f}
 Type: {exploit_data.get('exploit_type')}
-Severity: {impact.get('severity_indicator', '🟠')}
 Source: {exploit_data.get('source')}
 
-TIMELINE:
+CONTEXT:
 {timeline_text}
-
-HISTORICAL CONTEXT:
 {context_text}
 
-ENGAGEMENT HOOKS:
+HOOKS:
 {hooks_text}
 
+X ALGORITHM OPTIMIZATION (CRITICAL):
+- Elon: "Imagine you're texting a smart human who you've never met"
+- People should think "wow, I should share this with everyone I know"
+- Conversational > Professional announcements
+- Story-driven > Data dumps
+- Intrigue > Alerts
+
+THREAD STRUCTURE:
+1. Tweet 1 (Hook): Open with intrigue, not "ALERT". Example: "A hacker just walked away with $1.7M from [protocol]. Here's the clever part..." Make it impossible to scroll past.
+
+2. Tweet 2-3 (Story): Tell what happened like a thriller. "They exploited X to do Y, which let them Z." Make it visual and dramatic while staying factual.
+
+3. Tweet 4 (Impact): Put the loss in perspective. "That's enough to [relatable comparison]" or "[historical ranking]"
+
+4. Tweet 5-6 (Analysis): Why this matters. What's interesting/surprising. What pattern this reveals.
+
+5. Tweet 7 (CTA): End with thought-provoking question or insight that invites replies. Credit source naturally.
+
 CRITICAL RULES:
-1. Create a 5-7 tweet thread
-2. Each tweet MUST be ≤280 characters (critical!)
-3. Tweet 1: Alert with protocol, chain, loss amount, attack type
-4. Tweet 2: Technical explanation of how the attack worked
-5. Tweet 3: Only mention timeline events if data is provided above - do NOT fabricate detection times
-6. Tweet 4: Impact and significance
-7. Tweet 5-7: Recovery status, lessons learned, source attribution
-8. ABSOLUTELY NO EMOJIS - not even severity indicators
-9. Professional, analytical, data-driven tone only
-10. Credit source in final tweet
-11. Use "KAMIYO" (all caps) for brand mentions if relevant
-12. NO bullet points, NO special characters, plain text only
-13. NEVER invent timestamps - only use timestamps from TIMELINE section above
-14. If timeline only has one event, focus on impact and context instead
+- Each tweet ≤280 characters
+- ABSOLUTELY NO EMOJIS
+- Conversational tone - sound human, not like a bot
+- NO "EXPLOIT ALERT" or formal announcements
+- NO bullet points or special characters
+- NEVER invent timestamps - use only provided data
+- Make people want to share it
+- Credit source: "via {source}" naturally in final tweet
 
 OUTPUT FORMAT:
 Tweet 1: [text]
@@ -301,11 +310,13 @@ etc."""
         exploit_type = exploit_data.get('exploit_type', 'Unknown')
         source = exploit_data.get('source', 'external sources')
 
+        # Conversational, share-worthy template (aligned with X algorithm)
         tweets = [
-            f"EXPLOIT ALERT: {protocol}\n\nLoss: {amount}\nChain: {chain}\nType: {exploit_type}\n\nAnalysis thread below",
-            f"{protocol} on {chain} suffered a {exploit_type} attack resulting in {amount} in losses.",
-            f"The attack was confirmed via on-chain analysis and reported by {source}.",
-            f"This incident highlights ongoing security challenges in the {chain} DeFi ecosystem.",
+            f"A hacker just walked away with {amount} from {protocol} on {chain}. Here's what happened...",
+            f"They exploited a {exploit_type} vulnerability. Think of it like finding a backdoor that lets you withdraw funds without permission.",
+            f"The damage: {amount} drained in what looks like a coordinated attack. That's roughly [context would go here].",
+            f"This follows a pattern we've seen before with {exploit_type} attacks. The scary part? It's getting more sophisticated.",
+            f"What's your take - are we seeing an evolution in DeFi attack methods? (via {source})",
         ]
 
         return tweets
