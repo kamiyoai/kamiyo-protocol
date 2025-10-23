@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
+import ExploitList from "../components/ExploitList";
 
 export default function Home() {
     const [stats, setStats] = useState({
@@ -32,7 +33,7 @@ export default function Home() {
 
             setStats({
                 totalExploits: healthData.database_exploits?.toLocaleString() || '-',
-                totalLoss: statsData.total_loss_usd
+                totalLoss: statsData.total_loss_usd != null
                     ? `$${(statsData.total_loss_usd / 1000000).toFixed(1)}M`
                     : '-',
                 chainsTracked: healthData.tracked_chains || '-',
@@ -63,7 +64,7 @@ export default function Home() {
                                     Blockchain exploit alerts within <br />4 minutes – <br />not 4 hours
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Get verified exploit data and analysis from 20+ trusted security sources across 54 networks.
+                                    Get verified exploit data and analysis from 75 sources across 54 networks.
                                 </p>
                             </div>
 
@@ -154,6 +155,35 @@ export default function Home() {
                             loading={loading}
                         />
                     </div>
+                </div>
+            </section>
+
+            {/* Recent Exploits Section */}
+            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
+                <div className="mb-8">
+                    <h2 className="text-3xl md:text-4xl font-light mb-3">
+                        Public dashboard
+                    </h2>
+                    <p className="text-gray-400 text-sm flex items-center gap-2">
+                        Recent blockchain exploits
+                        <span className="mx-1">•</span>
+                        <svg className="w-4 h-4" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+                        </svg>
+                        <span style={{ color: '#fbbf24' }}>24h delay</span>
+                    </p>
+                </div>
+
+                <ExploitList limit={5} showFilters={true} />
+
+                <div className="text-center mt-6">
+                    <button
+                        onClick={() => window.location.href = '/dashboard'}
+                        className="text-cyan hover:text-magenta transition-colors text-sm font-medium"
+                    >
+                        View All Exploits →
+                    </button>
                 </div>
             </section>
 
@@ -443,7 +473,7 @@ export default function Home() {
                     <div className="text-center">
                         <h3 className="text-lg font-light mb-3 gradient-text">Real-Time Intelligence</h3>
                         <p className="text-gray-500 text-sm">
-                            We collect and deliver exploit intelligence from 20+ verified sources within minutes of detection
+                            We collect and deliver exploit intelligence from 75 sources within minutes of detection
                         </p>
                     </div>
                     <div className="text-center">
