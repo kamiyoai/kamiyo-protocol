@@ -274,7 +274,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 with db.get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT id, tier FROM users WHERE api_key = ?",
+                        "SELECT id, tier FROM users WHERE api_key = %s",
                         (api_key,)
                     )
                     row = cursor.fetchone()

@@ -134,10 +134,13 @@ async def get_current_user(
     api_key = token
 
     db = get_db()
-    user = db.conn.execute(
-        "SELECT id, email, tier FROM users WHERE api_key = ?",
-        (api_key,)
-    ).fetchone()
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, email, tier FROM users WHERE api_key = %s",
+            (api_key,)
+        )
+        user = cursor.fetchone()
 
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -285,10 +288,13 @@ async def login_with_jwt(
     # Verify user credentials
     # TODO: Implement proper password hashing verification
     db = get_db()
-    user = db.conn.execute(
-        "SELECT id, email, tier FROM users WHERE email = ?",
-        (email,)
-    ).fetchone()
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, email, tier FROM users WHERE email = %s",
+            (email,)
+        )
+        user = cursor.fetchone()
 
     if not user:
         logger.warning(f"Login attempt for non-existent user: {email} from IP: {client_ip}")
