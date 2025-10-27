@@ -127,7 +127,8 @@ class DatabaseManager:
         limit: int = 100,
         offset: int = 0,
         chain: Optional[str] = None,
-        min_amount: Optional[float] = None
+        min_amount: Optional[float] = None,
+        exclude_sources: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """Get recent exploits with optional filtering"""
 
@@ -145,6 +146,12 @@ class DatabaseManager:
         if min_amount:
             query += " AND amount_usd >= ?"
             params.append(min_amount)
+
+        # Filter out non-blockchain sources (github_advisories, test, etc.)
+        if exclude_sources:
+            placeholders = ','.join(['?'] * len(exclude_sources))
+            query += f" AND source NOT IN ({placeholders})"
+            params.extend(exclude_sources)
 
         query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])

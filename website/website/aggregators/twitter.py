@@ -71,7 +71,6 @@ class TwitterAggregator(BaseAggregator):
 
             # MEV & Front-running Detection
             'mevrefund',         # MEV monitoring
-            'bertcmiller',       # Flashbots (duplicate but important)
 
             # Additional Trusted Researchers
             'trust__90',         # Security researcher

@@ -57,6 +57,11 @@ from api.slack import router as slack_router
 # API v2 - Deep Analysis Router
 from api.v2 import analysis_router
 
+# x402 Payment System
+from api.x402 import routes as x402_routes
+from api.x402.middleware import X402Middleware
+from api.x402.payment_tracker import payment_tracker
+
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
 from caching.cache_manager import get_cache_manager
@@ -166,6 +171,13 @@ app.add_middleware(
 )
 logger.info(f"Rate limiting middleware enabled (Redis: {use_redis_rate_limit})")
 
+# x402 Payment Middleware
+app.add_middleware(
+    X402Middleware,
+    payment_tracker=payment_tracker
+)
+logger.info("x402 Payment middleware enabled")
+
 # Cache middleware
 if cache_config.middleware_enabled:
     app.add_middleware(
@@ -213,6 +225,9 @@ app.include_router(slack_router, tags=["Slack"])
 
 # API v2 - Deep Analysis Router
 app.include_router(analysis_router, tags=["Deep Analysis"])
+
+# x402 Payment Router
+app.include_router(x402_routes.router, tags=["x402 Payments"])
 
 # WebSocket endpoint
 @app.websocket("/ws")

@@ -3,12 +3,12 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import { ScrambleButton } from "../components/ScrambleButton";
+import ExploitList from "../components/ExploitList";
 
 export default function DashboardPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const [subscription, setSubscription] = useState(null);
-    const [exploits, setExploits] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -21,13 +21,6 @@ export default function DashboardPage() {
             try {
                 const subStatus = await fetch(`/api/subscription/status?email=${encodeURIComponent(session.user.email)}`).then(res => res.json());
                 setSubscription(subStatus);
-
-                // Fetch recent exploits
-                const exploitsRes = await fetch("/api/exploits?page=1&page_size=10");
-                if (exploitsRes.ok) {
-                    const data = await exploitsRes.json();
-                    setExploits(data.data || []);
-                }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
             } finally {
@@ -83,11 +76,19 @@ export default function DashboardPage() {
                         >
                             API Keys
                         </button>
+                        {subscription?.tier && (subscription.tier === 'team' || subscription.tier === 'enterprise') && (
+                            <button
+                                onClick={() => router.push('/fork-analysis')}
+                                className="text-gray-400 hover:text-white transition-colors text-sm"
+                            >
+                                Fork Analysis
+                            </button>
+                        )}
                         <button
-                            onClick={() => router.push('/pricing')}
+                            onClick={() => router.push('/dashboard/subscription')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
-                            Pricing
+                            Subscription
                         </button>
                     </div>
                 </div>
@@ -137,38 +138,7 @@ export default function DashboardPage() {
                         </button>
                     </div>
 
-                    {exploits.length === 0 ? (
-                        <p className="text-gray-400">No exploits available</p>
-                    ) : (
-                        <div className="space-y-4">
-                            {exploits.map((exploit, index) => (
-                                <div
-                                    key={index}
-                                    className="border border-gray-500 border-opacity-25 rounded p-4 hover:border-cyan transition-colors"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h3 className="text-white font-light text-lg">{exploit.protocol}</h3>
-                                        <span className="text-sm text-cyan">{exploit.chain}</span>
-                                    </div>
-                                    <p className="text-gray-400 text-sm mb-2">
-                                        {exploit.description || (
-                                            <span>
-                                                Exploit detected {exploit.category ? `(${exploit.category})` : ''} – <a href={exploit.source_url} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-magenta underline">View source</a>
-                                            </span>
-                                        )}
-                                    </p>
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-gray-500">
-                                            {new Date(exploit.date).toLocaleDateString()}
-                                        </span>
-                                        <span className="text-magenta font-medium">
-                                            ${exploit.amount_usd ? exploit.amount_usd.toLocaleString() : 'Unknown'}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <ExploitList limit={10} showFilters={true} />
                 </div>
             </div>
         </div>

@@ -24,7 +24,7 @@ export default function Features() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4">Real-time Alerts</h3>
-                            <p className="mb-4">Receive instant notifications when new exploits are detected across the blockchain ecosystem. KAMIYO monitors 20+ verified sources continuously and delivers alerts within minutes from initial detection.</p>
+                            <p className="mb-4">Receive instant notifications when new exploits are detected across the blockchain ecosystem. KAMIYO monitors 18 aggregators (56 sources) continuously and delivers alerts within minutes from initial detection.</p>
                             <p className="mb-4">Free tier receives 24-hour delayed data. Pro, Team, and Enterprise tiers get real-time alerts with unlimited frequency.</p>
                             <p className="text-sm text-gray-500">Available: Free (24h delay), Pro/Team/Enterprise (real-time)</p>
                         </div>

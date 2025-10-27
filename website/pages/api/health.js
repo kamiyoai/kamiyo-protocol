@@ -19,11 +19,11 @@ async function handler(req, res) {
         res.status(503).json({
             error: 'Service unavailable',
             details: error.message,
-            // Fallback data for display purposes
-            database_exploits: 433,
+            // Fallback data for display purposes (if backend is unavailable)
+            database_exploits: 423,
             tracked_chains: 55,
-            active_sources: 18,
-            total_sources: 18  // Updated: 18 aggregators (Twitter monitors 42 accounts)
+            active_sources: 75,
+            total_sources: 75  // 75+ sources: aggregators, RSS feeds, Twitter security accounts, security firms
         });
     }
 }

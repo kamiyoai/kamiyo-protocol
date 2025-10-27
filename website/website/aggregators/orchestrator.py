@@ -65,7 +65,7 @@ class AggregationOrchestrator:
             PeckShieldAggregator(),
             BlockSecAggregator(),
             BeosinAggregator(),
-            TwitterAggregator(),  # 18th source - monitors 42 security researchers
+            TwitterAggregator(),  # 18th source - monitors 38 security researchers
         ]
 
         logger.info(f"Orchestrator initialized with {len(self.aggregators)} aggregators")

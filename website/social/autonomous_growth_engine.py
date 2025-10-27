@@ -296,8 +296,8 @@ class AutonomousGrowthEngine:
         # Generate base content
         post = self.post_generator.generate_post(exploit, platforms or list(self.social_poster.platforms.keys()))
 
-        # Determine if exploit qualifies for deep dive thread (>$20M)
-        deep_dive_threshold = float(os.getenv('DEEP_DIVE_THRESHOLD_USD', 20_000_000))
+        # Determine if exploit qualifies for deep dive thread (>$1M)
+        deep_dive_threshold = float(os.getenv('DEEP_DIVE_THRESHOLD_USD', 1_000_000))
         is_major_exploit = exploit.loss_amount_usd >= deep_dive_threshold
 
         if is_major_exploit:
@@ -333,10 +333,25 @@ class AutonomousGrowthEngine:
                         'recovery_status': exploit.recovery_status
                     }
 
+                    # Prepare data for Claude thread generation (no emojis)
+                    impact_data = {
+                        'severity_indicator': ''  # No emojis
+                    }
+
+                    historical_context_data = None
+                    if hasattr(report, 'historical_context') and report.historical_context:
+                        historical_context_data = {
+                            'ranking': getattr(report.historical_context, 'ranking', None),
+                            'trend_direction': getattr(report.historical_context, 'trend_direction', 'stable'),
+                            'trend_percentage': getattr(report.historical_context, 'trend_percentage', 0.0)
+                        }
+
                     # Generate Claude-enhanced thread
                     thread = self.claude_enhancer.generate_twitter_thread(
                         exploit_data,
                         report.executive_summary,
+                        impact_data,
+                        historical_context_data,
                         report.engagement_hooks
                     )
                     post.content[platform] = thread
@@ -347,33 +362,60 @@ class AutonomousGrowthEngine:
                     post.content[platform] = thread
 
             elif platform == Platform.DISCORD and is_major_exploit:
-                # Create Discord deep dive content (no emojis)
-                discord_content = f"**EXPLOIT ALERT: {exploit.protocol}**\n\n"
-                discord_content += f"**Loss:** {exploit.formatted_amount}\n"
-                discord_content += f"**Chain:** {exploit.chain}\n"
-                discord_content += f"**Type:** {exploit.exploit_type}\n\n"
+                # Use Claude AI to enhance Discord content if available
+                if self.claude_enhancer and self.claude_enhancer.client:
+                    logger.info(f"Using Claude AI to generate Discord deep dive for {exploit.protocol}")
 
-                # Add executive summary
-                discord_content += f"**Analysis:**\n{report.executive_summary}\n\n"
+                    # Use executive summary as enhanced description
+                    enhanced = self.claude_enhancer.enhance_executive_summary(
+                        {
+                            'protocol': exploit.protocol,
+                            'chain': exploit.chain,
+                            'loss_amount_usd': exploit.loss_amount_usd,
+                            'exploit_type': exploit.exploit_type,
+                            'source': exploit.source
+                        },
+                        f"{exploit.protocol} on {exploit.chain} suffered a {exploit.exploit_type} attack resulting in ${exploit.loss_amount_usd:,.0f} in losses.",
+                        historical_context={
+                            'ranking': getattr(report.historical_context, 'ranking', None) if hasattr(report, 'historical_context') and report.historical_context else None,
+                            'trend_direction': getattr(report.historical_context, 'trend_direction', 'stable') if hasattr(report, 'historical_context') and report.historical_context else 'stable'
+                        }
+                    )
 
-                # Add key insight
-                if report.engagement_hooks:
-                    discord_content += f"**Key Insight:**\n{report.engagement_hooks[0]}\n\n"
+                    # Handle dict or string response
+                    if isinstance(enhanced, dict):
+                        analysis = enhanced.get('analysis', '')
+                        root_cause = enhanced.get('root_cause', '')
+                    else:
+                        analysis = enhanced
+                        root_cause = ''
 
-                # Add timeline
-                if report.timeline:
-                    detection_speed_str = report.detection_speed() if callable(getattr(report, 'detection_speed', None)) else "minutes"
-                    discord_content += f"**Timeline:**\n"
-                    discord_content += f"- Occurred: {report.timeline[0].timestamp.strftime('%H:%M UTC')}\n"
-                    discord_content += f"- Detected: {report.timeline[-1].timestamp.strftime('%H:%M UTC')}\n"
-                    discord_content += f"- Detection speed: {detection_speed_str}\n\n"
+                    # Create Discord embed with Claude-enhanced content
+                    discord_content = f"**EXPLOIT ALERT: {exploit.protocol}**\n\n"
+                    discord_content += f"**Loss:** {exploit.formatted_amount}\n"
+                    discord_content += f"**Chain:** {exploit.chain}\n"
+                    discord_content += f"**Type:** {exploit.exploit_type}\n\n"
+                    discord_content += f"**Analysis:**\n{analysis}\n\n"
 
-                # Add source
-                discord_content += f"**Source:** {exploit.source or 'Kamiyo Intelligence'}\n"
-                discord_content += f"Real-time blockchain exploit intelligence from 20+ verified sources.\n\n"
-                discord_content += f"https://kamiyo.ai"
+                    # Add Root Cause if available
+                    if root_cause:
+                        discord_content += f"**Root Cause:**\n{root_cause}\n\n"
 
-                post.content[platform] = discord_content
+                    if exploit.source:
+                        discord_content += f"**Source:** {exploit.source}"
+
+                    post.content[platform] = discord_content
+                else:
+                    # Fallback to template
+                    logger.warning(f"Claude AI not available - using template for Discord")
+                    discord_content = f"**EXPLOIT ALERT: {exploit.protocol}**\n\n"
+                    discord_content += f"**Loss:** {exploit.formatted_amount}\n"
+                    discord_content += f"**Chain:** {exploit.chain}\n"
+                    discord_content += f"**Type:** {exploit.exploit_type}\n\n"
+                    discord_content += f"**Analysis:**\n{report.executive_summary}\n\n"
+                    if exploit.source:
+                        discord_content += f"**Source:** {exploit.source}"
+                    post.content[platform] = discord_content
 
             elif platform == Platform.REDDIT:
                 # Enhanced Reddit post with full analysis
@@ -408,7 +450,11 @@ class AutonomousGrowthEngine:
 
         # Tweet 3: Key fact from engagement hooks
         if report.engagement_hooks:
-            thread.append(f"Key Insight:\n\n{report.engagement_hooks[0]}")
+            # Remove any emojis from engagement hooks
+            hook = report.engagement_hooks[0]
+            # Remove common emoji patterns
+            hook = hook.replace('➡️', '').replace('🟢', '').replace('🟡', '').replace('🟠', '').replace('🔴', '').strip()
+            thread.append(f"Key Insight:\n\n{hook}")
 
         # Tweet 4: Timeline
         if report.timeline:
@@ -429,11 +475,9 @@ class AutonomousGrowthEngine:
                     f"Total losses in {exploit.exploit_type}: ${ctx.total_losses_in_category / 1_000_000:.1f}M this quarter"
                 )
 
-        # Tweet 6: Source and call to action
+        # Tweet 6: Source
         thread.append(
-            f"Source: {exploit.source or 'Kamiyo Intelligence'}\n\n"
-            f"Real-time blockchain exploit intelligence from 20+ verified sources.\n"
-            f"Follow @KamiyoAI for more blockchain exploit analysis.\n\n"
+            f"Source: {exploit.source or 'Kamiyo'}\n\n"
             f"kamiyo.ai"
         )
 
