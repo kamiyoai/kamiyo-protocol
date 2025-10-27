@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 const injectRandomNoise = (str) => {
     let chars = str.split("");
@@ -12,16 +12,36 @@ const injectRandomNoise = (str) => {
     return chars.join("");
 };
 
-const AnimatedNoiseText = ({ baseText = "Initiating summon mode", interval = 500 }) => {
-    const [scrambledText, setScrambledText] = useState(baseText);
+// Blockchain exploit-themed loading messages
+const LOADING_MESSAGES = [
+    "Scanning transaction pool",
+    "Tracing exploit vectors",
+    "Monitoring mempool activity",
+    "Aggregating security feeds",
+    "Decoding attack patterns",
+    "Analyzing smart contracts",
+    "Tracking suspicious txs",
+    "Validating exploit data",
+    "Querying blockchain nodes",
+    "Detecting reentrancy",
+];
+
+const AnimatedNoiseText = ({ baseText, interval = 500 }) => {
+    // Pick a random message once when component mounts
+    const randomMessage = useMemo(() => {
+        const messages = baseText ? [baseText] : LOADING_MESSAGES;
+        return messages[Math.floor(Math.random() * messages.length)];
+    }, [baseText]);
+
+    const [scrambledText, setScrambledText] = useState(randomMessage);
 
     useEffect(() => {
         const scrambleInterval = setInterval(() => {
-            setScrambledText(injectRandomNoise(baseText));
+            setScrambledText(injectRandomNoise(randomMessage));
         }, interval);
 
         return () => clearInterval(scrambleInterval);
-    }, [baseText, interval]);
+    }, [randomMessage, interval]);
 
     return <span className="text-white tracking-wider">{scrambledText}</span>;
 };

@@ -1,0 +1,114 @@
+name: Local Config
+version: 1.0.0
+schema: v1
+
+# -----------------------
+# Models
+# -----------------------
+models:
+  - name: DeepSeek Chat
+    provider: deepseek
+    model: deepseek-chat
+    apiKey: sk-7464a07db62e4ed28897e8bdedba9c18
+  - name: DeepSeek Coder
+    provider: deepseek
+    model: deepseek-coder
+    apiKey: sk-7464a07db62e4ed28897e8bdedba9c18
+  - name: DeepSeek Reasoner
+    provider: deepseek
+    model: deepseek-reasoner
+    apiKey: sk-7464a07db62e4ed28897e8bdedba9c18
+
+tabAutocompleteModel:
+  name: DeepSeek Coder
+  provider: deepseek
+  model: deepseek-coder
+  apiKey: sk-7464a07db62e4ed28897e8bdedba9c18
+
+# -----------------------
+# Tool Permissions - NEVER ASK
+# -----------------------
+tools:
+  enabled: true
+  autoApprove: true
+  requirePermission: false
+  dangerousCommandMode: ignore   # <<< key addition
+  allowedTools:
+    - bash
+    - read
+    - write
+    - edit
+    - glob
+    - grep
+    - webFetch
+    - webSearch
+    - task
+    - notebook
+    - slashCommand
+
+# -----------------------
+# Comprehensive Permissions
+# -----------------------
+permissions:
+  defaultMode: auto
+  requirePermission: false
+  dangerousCommandMode: ignore   # <<< key addition
+  bash:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  read:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  write:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  edit:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  glob:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  grep:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  webFetch:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+    domains: ["*"]
+  webSearch:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  task:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  notebook:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+  slashCommand:
+    enabled: true
+    autoApprove: true
+    requirePermission: false
+
+# -----------------------
+# Context Providers
+# -----------------------
+contextProviders:
+  - name: code
+  - name: docs
+  - name: diff
+  - name: terminal
+  - name: problems
+  - name: folder
+  - name: codebase
+
+allowAnonymousTelemetry: false

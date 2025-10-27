@@ -5,11 +5,11 @@ import PayButton from './PayButton';
 const faqs = [
     {
         question: 'How is KAMIYO different from X alerts?',
-        answer: 'X alerts from @PeckShield and @CertiK are inconsistent (15 mins to 4+ hours) and require following multiple accounts. KAMIYO provides consistent 4-minute alerts from 20+ sources in one place, with API access and filtering.'
+        answer: 'X alerts from @PeckShield and @CertiK are inconsistent (15 mins to 4+ hours) and require following multiple accounts. KAMIYO aggregates confirmed exploits from 75+ sources in one place, with fast alerts, API access, and filtering.'
     },
     {
-        question: 'Why not just use CertiK or other security firms?',
-        answer: 'CertiK and similar firms focus on audits ($50k-200k) and enterprise sales. KAMIYO is a developer-first product you can sign up for in 30 seconds, with pricing starting at $0.'
+        question: 'Do you scan smart contracts for vulnerabilities?',
+        answer: 'No, we aggregate confirmed exploits from external sources. We don\'t scan code or predict vulnerabilities. For code auditing, consult security firms like CertiK or Trail of Bits.'
     },
     {
         question: 'What\'s the difference between Free and Pro?',
@@ -17,7 +17,7 @@ const faqs = [
     },
     {
         question: 'How fast are the alerts really?',
-        answer: 'Average detection time is 4 minutes from when an exploit happens. Pro users get alerted immediately. Free users see the same data with a 24-hour delay.'
+        answer: 'We aggregate confirmed exploits from trusted sources within minutes of them being reported. Pro users get alerted immediately. Free users see the same data with a 24-hour delay.'
     },
     {
         question: 'Can I integrate this into my trading bot?',
@@ -25,11 +25,11 @@ const faqs = [
     },
     {
         question: 'What chains do you cover?',
-        answer: 'We track 54+ chains including Ethereum, BSC, Arbitrum, Polygon, Cosmos, Osmosis, and more. New chains added regularly.'
+        answer: 'We track 54+ chains including Ethereum, BSC, Arbitrum, Polygon, Cosmos, Osmosis, and more. New chains added regularly based on confirmed exploit reports.'
     },
     {
         question: 'How do you verify exploits?',
-        answer: 'We only report confirmed exploits with transaction hashes from 20+ trusted sources (Rekt News, security firms, on-chain data). No speculation or predictions.'
+        answer: 'We only report confirmed exploits with transaction hashes from 75+ trusted sources (Rekt News, BlockSec, PeckShield, Etherscan, on-chain data). No speculation or predictions.'
     },
     {
         question: 'Can I cancel anytime?',
@@ -37,7 +37,7 @@ const faqs = [
     },
     {
         question: 'What advanced features do you offer?',
-        answer: 'Team and Enterprise tiers include fork detection analysis, pattern clustering, and fork graph visualization - all production-ready features for advanced security research. Plus real-time alerts, API access, webhooks, and priority support.'
+        answer: 'Team and Enterprise tiers include historical exploit pattern analysis, custom filtering, webhooks, and priority support - all based on confirmed, verified exploit data from our aggregated sources.'
     }
 ];
 

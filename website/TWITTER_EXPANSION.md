@@ -168,7 +168,7 @@ Tweet is exploit-related if:
 
 ### 1. More Exploit Coverage
 - **Before:** 12 accounts = ~40-50 exploit tweets/week
-- **After:** 42 accounts = ~120-150 exploit tweets/week (3x increase)
+- **After:** 38 accounts = ~120-150 exploit tweets/week (3x increase)
 
 ### 2. Faster Detection
 - Alert services (CyversAlerts, DedaubAlert) post within **seconds** of detection
@@ -200,7 +200,7 @@ python3 aggregators/twitter.py
 Expected output:
 ```
 Twitter Aggregator Initialized
-Monitoring: 42 accounts
+Monitoring: 38 accounts
 Search queries: 24
 
 Top accounts to monitor:
@@ -228,7 +228,7 @@ print(f'\nFound {len(exploits)} exploit-related tweets')
 
 ## Account Selection Criteria
 
-All 42 accounts meet at least 3 of these criteria:
+All 38 accounts meet at least 3 of these criteria:
 
 ✅ **Verified Identity** - Real person/company, not anonymous bot
 ✅ **Track Record** - History of accurate exploit reporting (6+ months)
@@ -257,9 +257,9 @@ These accounts have 10+ year track records:
 - **20 tweets max** per account (not full timeline)
 - **10-second timeout** per request
 
-**With 42 accounts:**
+**With 38 accounts:**
 - Total fetch time: ~42 × 2s = **84 seconds** (~1.5 minutes)
-- API calls: 42 accounts × 1 request = **42 requests per cycle**
+- API calls: 38 accounts × 1 request = **42 requests per cycle**
 - Bandwidth: ~42 × 50KB = **~2MB per cycle**
 
 **Totally safe** - well below any reasonable rate limits.
@@ -301,7 +301,7 @@ The Twitter aggregator is **already in the orchestrator** and will automatically
    ```bash
    # In Render.com logs, look for:
    INFO - Twitter aggregator initialized
-   INFO - Monitoring 42 accounts
+   INFO - Monitoring 38 accounts
    INFO - Found X exploit-related tweets
    ```
 

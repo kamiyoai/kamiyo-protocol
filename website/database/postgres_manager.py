@@ -413,6 +413,7 @@ class PostgresManager:
                            offset: int = 0,
                            chain: str = None,
                            min_amount: float = None,
+                           exclude_sources: List[str] = None,
                            readonly: bool = True) -> List[Dict]:
         """Get recent exploits with optional filtering"""
 
@@ -439,6 +440,12 @@ class PostgresManager:
         if min_amount is not None:
             query += " AND amount_usd >= %s"
             params.append(min_amount)
+
+        # Filter out non-blockchain sources (github_advisories, test, etc.)
+        if exclude_sources:
+            placeholders = ','.join(['%s'] * len(exclude_sources))
+            query += f" AND source NOT IN ({placeholders})"
+            params.extend(exclude_sources)
 
         # Production schema uses 'date' column (init_postgres.sql)
         query += " ORDER BY date DESC LIMIT %s OFFSET %s"

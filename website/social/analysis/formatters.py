@@ -361,26 +361,23 @@ class ReportFormatter:
         trend_percentage: float
     ) -> str:
         """
-        Create visual trend indicator
+        Create visual trend indicator (NO EMOJIS)
 
         Args:
             trend_direction: 'increasing', 'decreasing', 'stable'
             trend_percentage: Percentage change
 
         Returns:
-            Formatted trend string with emoji
+            Formatted trend string without emojis
         """
-        if trend_direction == 'increasing':
-            emoji = "📈" if trend_percentage > 0 else "📊"
+        if trend_direction == 'increasing' or trend_direction == 'UP':
             direction = "UP"
-        elif trend_direction == 'decreasing':
-            emoji = "📉"
+        elif trend_direction == 'decreasing' or trend_direction == 'DOWN':
             direction = "DOWN"
         else:
-            emoji = "➡️"
             direction = "STABLE"
 
-        return f"{emoji} {direction} {abs(trend_percentage):.1f}%"
+        return f"{direction} {abs(trend_percentage):.1f}%"
 
     def _truncate_tweet(self, text: str, max_length: int = 280) -> str:
         """Truncate text to fit Twitter length limit"""

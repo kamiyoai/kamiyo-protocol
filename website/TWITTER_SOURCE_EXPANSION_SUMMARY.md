@@ -7,9 +7,9 @@
 
 ## What Changed
 
-Expanded Twitter/X aggregator to monitor **42 verified security accounts** (up from 12) - a **250% increase** in coverage.
+Expanded Twitter/X aggregator to monitor **38 verified security accounts** (up from 12) - a **217% increase** in coverage.
 
-### New Accounts Added: +30
+### New Accounts Added: +26
 
 **Security Researchers (High Trust):**
 - officer_cia, bantg, bertcmiller, foobar_01, spreekaway
@@ -45,7 +45,7 @@ Expanded Twitter/X aggregator to monitor **42 verified security accounts** (up f
 
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
-| **Twitter Accounts** | 12 | 42 | +250% |
+| **Twitter Accounts** | 12 | 38 | +217% |
 | **Search Queries** | 7 | 24 | +243% |
 | **Weekly Exploit Coverage** | ~40 | ~120 | +200% |
 | **Cross-verification** | Medium | High | ✅ |
@@ -56,7 +56,7 @@ Expanded Twitter/X aggregator to monitor **42 verified security accounts** (up f
 ## Files Modified
 
 1. ✅ `aggregators/twitter.py` - Expanded accounts + queries + logic
-2. ✅ `aggregators/orchestrator.py` - Updated comment (42 accounts)
+2. ✅ `aggregators/orchestrator.py` - Updated comment (38 accounts)
 3. ✅ `api/main.py` - Updated description
 4. ✅ `pages/api/health.js` - Updated comments
 5. ✅ `TWITTER_SOURCE_EXPANSION.md` - Full documentation
@@ -84,15 +84,15 @@ Expanded Twitter/X aggregator to monitor **42 verified security accounts** (up f
 15. PeckShield
 16. BlockSec
 17. Beosin
-18. **Twitter/X (42 accounts)** ⭐
+18. **Twitter/X (38 accounts)** ⭐
 
-**Effective Sources:** 18 aggregators + 42 Twitter accounts = **60 total data sources**
+**Effective Sources:** 18 aggregators + 38 Twitter accounts = **56 total data sources**
 
 ---
 
 ## Benefits
 
-✅ **3x more Twitter coverage** (12 → 42 accounts)
+✅ **3x more Twitter coverage** (12 → 38 accounts)
 ✅ **Faster detection** (alert services post within seconds)
 ✅ **Better cross-verification** (multiple sources per exploit)
 ✅ **Global perspective** (not just US/EU)
@@ -105,8 +105,8 @@ Expanded Twitter/X aggregator to monitor **42 verified security accounts** (up f
 
 **No configuration needed** - Enhancement is ready immediately!
 
-The Twitter aggregator will automatically use all 42 accounts on the next orchestrator run.
+The Twitter aggregator will automatically use all 38 accounts on the next orchestrator run.
 
 ---
 
-**✅ Twitter source expansion complete!** Now monitoring 42 trusted security accounts for 3x coverage improvement. 🚀
+**✅ Twitter source expansion complete!** Now monitoring 38 trusted security accounts for 3x coverage improvement. 🚀

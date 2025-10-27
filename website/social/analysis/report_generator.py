@@ -346,15 +346,20 @@ class ReportGenerator:
         if historical_context and historical_context.ranking:
             hooks.append(historical_context.ranking)
 
-        # Trend hook
+        # Trend hook - only add if there's a meaningful trend (not stable at 0%)
         if historical_context:
-            trend_desc = self.formatter.format_trend_indicator(
-                historical_context.trend_direction,
-                historical_context.trend_percentage
-            )
-            hooks.append(
-                f"{exploit.exploit_type} attacks trend: {trend_desc}"
-            )
+            # Only show trend if it's meaningful (case-insensitive check)
+            trend_dir = historical_context.trend_direction.upper() if historical_context.trend_direction else 'STABLE'
+            is_meaningful = (trend_dir != 'STABLE') or (abs(historical_context.trend_percentage) > 0.1)
+
+            if is_meaningful:
+                trend_desc = self.formatter.format_trend_indicator(
+                    historical_context.trend_direction,
+                    historical_context.trend_percentage
+                )
+                hooks.append(
+                    f"{exploit.exploit_type} attacks trend: {trend_desc}"
+                )
 
         # Chain-specific hook
         chain_stats = {

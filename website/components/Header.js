@@ -67,14 +67,6 @@ export default function Header({ children }) {
                                 Dashboard
                             </Link>
                         )}
-                        {hasForkAnalysisAccess && (
-                            <Link
-                                href="/fork-analysis"
-                                className="hidden md:block text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
-                            >
-                                Fork Analysis
-                            </Link>
-                        )}
                         {!session && (
                             <Link
                                 href="/auth/signin"
@@ -180,15 +172,6 @@ export default function Header({ children }) {
                                             className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
                                         >
                                             Dashboard
-                                        </Link>
-                                    )}
-                                    {hasForkAnalysisAccess && (
-                                        <Link
-                                            href="/fork-analysis"
-                                            onClick={closeMenu}
-                                            className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
-                                        >
-                                            Fork Analysis
                                         </Link>
                                     )}
                                     {!session && (

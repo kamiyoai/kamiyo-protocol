@@ -40,6 +40,7 @@ const getRandomScramble = () => {
 
 const LoadingSpinner = () => {
     const [scrambledText, setScrambledText] = useState(Array(30).fill(""));
+    const [glitchSections, setGlitchSections] = useState([]);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -48,52 +49,67 @@ const LoadingSpinner = () => {
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        const glitchInterval = setInterval(() => {
+            // Create 3-6 random horizontal sections that glitch
+            const numSections = Math.floor(Math.random() * 4) + 3;
+            const sections = [];
+
+            for (let i = 0; i < numSections; i++) {
+                sections.push({
+                    top: Math.random() * 90, // Random vertical position (0-90%)
+                    left: (Math.random() - 0.5) * 30, // Random horizontal offset (-15% to +15%)
+                    opacity: Math.random() * 0.7 + 0.3, // 0.3 to 1.0
+                    visible: Math.random() > 0.3, // 70% chance of being visible
+                });
+            }
+
+            setGlitchSections(sections);
+        }, 300); // Very fast glitching
+
+        return () => clearInterval(glitchInterval);
+    }, []);
+
+    const renderTextRow = (startIndex, colorPattern) => (
+        <div className="flex text-sm w-full justify-center py-3 whitespace-nowrap overflow-hidden">
+            {scrambledText.slice(startIndex, startIndex + 20).map((text, i) => (
+                <span
+                    key={i}
+                    className={`mx-1 text-xs ${
+                        i % colorPattern[0] === 0 ? "text-[#FF00FF]" :
+                        i % colorPattern[1] === 1 ? "text-[#4FE9EA]" :
+                        "text-white"
+                    }`}
+                    style={{
+                        animation: `fadeInOut ${Math.random() * 2 + 1}s infinite`,
+                        opacity: Math.random() > 0.85 ? 0.3 : 1,
+                    }}
+                >
+                    {text}
+                </span>
+            ))}
+        </div>
+    );
+
     return (
-        <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center overflow-hidden bg-black z-[999] opacity-75">
-            <div className="flex text-sm w-full justify-center py-10">
-                {scrambledText.slice(0, 15).map((text, i) => (
-                    <span
-                        key={i}
-                        className={`mx-1 text-xs ${i % 5 === 0 ? "text-[#FF00FF]" : i % 5 === 1 ? "text-[#4FE9EA]" : "text-chalk"}`}
+        <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-black z-[999] opacity-75">
+            {glitchSections.map((section, index) => (
+                section.visible && (
+                    <div
+                        key={index}
+                        className="absolute w-full"
                         style={{
-                            animation: `fadeInOut ${Math.random() * 2 + 1}s infinite`,
-                            opacity: Math.random() > 0.9 ? 0.2 : 1,
+                            top: `${section.top}%`,
+                            left: `${section.left}%`,
+                            opacity: section.opacity,
+                            transform: `translateX(${section.left}%)`,
+                            transition: "none"
                         }}
                     >
-                        {text}
-                    </span>
-                ))}
-            </div>
-
-            <div className="pl-96 flex text-sm w-full justify-center py-10">
-                {scrambledText.slice(0, 15).map((text, i) => (
-                    <span
-                        key={i}
-                        className={`mx-1 text-xs ${i % 8 === 0 ? "text-[#FF00FF]" : i % 7 === 1 ? "text-[#4FE9EA]" : "text-white"}`}
-                        style={{
-                            animation: `fadeInOut ${Math.random() * 3 + 1}s infinite`,
-                            opacity: Math.random() > 0.9 ? 0.2 : 1,
-                        }}
-                    >
-                        {text}
-                    </span>
-                ))}
-            </div>
-
-            <div className="pl-32 flex text-sm w-full justify-center py-10">
-                {scrambledText.slice(0, 15).map((text, i) => (
-                    <span
-                        key={i}
-                        className={`mx-1 text-xs ${i % 3 === 0 ? "text-[#FF00FF]" : i % 2 === 1 ? "text-[#4FE9EA]" : "text-white"}`}
-                        style={{
-                            animation: `fadeInOut ${Math.random() * 3 + 1}s infinite`,
-                            opacity: Math.random() > 0.9 ? 0.2 : 1,
-                        }}
-                    >
-                        {text}
-                    </span>
-                ))}
-            </div>
+                        {renderTextRow(index * 5, [5, 3])}
+                    </div>
+                )
+            ))}
         </div>
     );
 };

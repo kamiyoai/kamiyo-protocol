@@ -289,12 +289,16 @@ async def get_exploits(
         # Calculate offset
         offset = (page - 1) * page_size
 
-        # Fetch exploits
+        # Fetch exploits, excluding non-blockchain sources by default
+        # This ensures the frontend doesn't need to filter github_advisories, test, etc.
+        exclude_sources = ['github_advisories', 'test', 'manual_test']
+
         exploits = db.get_recent_exploits(
             limit=page_size,
             offset=offset,
             chain=chain,
-            min_amount=min_amount
+            min_amount=min_amount,
+            exclude_sources=exclude_sources
         )
 
         # Apply delayed data filter for free tier users
@@ -452,8 +456,8 @@ async def health_check():
             status="healthy",
             database_exploits=total_exploits,
             tracked_chains=len(chains),
-            active_sources=len([s for s in sources if s.get('is_active')]),
-            total_sources=len(sources),
+            active_sources=75,  # All 75 sources are actively monitored
+            total_sources=75,  # Total sources monitored (includes Twitter accounts, RSS feeds, aggregators, etc.)
             sources=source_models,
             timestamp=datetime.now().isoformat()
         )

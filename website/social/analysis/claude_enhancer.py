@@ -57,12 +57,12 @@ class ClaudeEnhancer:
         self.brand_voice = """
 KAMIYO Brand Voice Guidelines:
 - Professional, analytical, data-driven
-- NO emojis (except severity indicators: 🟢🟡🟠🔴)
+- ABSOLUTELY NO emojis or special characters
 - NO hype or sensationalism
 - Clear, concise, fact-based
 - Always credit sources
 - Never speculate or predict
-- Use "KAMIYO" (all caps) for brand name
+- Use "Kamiyo" for brand name
 """
 
     def enhance_executive_summary(
@@ -95,32 +95,40 @@ KAMIYO Brand Voice Guidelines:
                 if historical_context.get('trend_direction'):
                     context_info += f"\nTrend: {historical_context['trend_direction']} {historical_context.get('trend_percentage', 0):.1f}%"
 
-            prompt = f"""Transform this exploit report into an engaging, professional summary suitable for crypto Twitter.
+            prompt = f"""You are a blockchain security analyst writing a technical deep-dive analysis.
 
-CONFIRMED EXPLOIT DATA:
+EXPLOIT DATA:
 Protocol: {exploit_data.get('protocol', 'Unknown')}
 Chain: {exploit_data.get('chain', 'Unknown')}
-Loss Amount: ${exploit_data.get('loss_amount_usd', 0):,.0f}
-Exploit Type: {exploit_data.get('exploit_type', 'Unknown')}
+Loss: ${exploit_data.get('loss_amount_usd', 0):,.0f}
+Attack Vector: {exploit_data.get('exploit_type', 'Unknown')}
 Source: {exploit_data.get('source', 'Unknown')}
 {context_info}
 
-BASE SUMMARY:
-{base_summary}
+Generate TWO sections:
 
-REQUIREMENTS:
-1. Make it engaging and readable for crypto Twitter audience
-2. Keep it factual - use ONLY the confirmed data provided
-3. Professional tone, data-driven
-4. NO emojis except severity indicators (🟢🟡🟠🔴)
-5. 2-3 sentences maximum
-6. Include specific numbers ($X loss, Xth largest, etc.)
-7. Credit the source
-8. Use "KAMIYO" (all caps) if mentioning the platform
-9. Never speculate or predict
+SECTION 1 - ANALYSIS (3-4 sentences):
+Write a technical analysis that:
+1. Explains WHAT happened (attack mechanics)
+2. Explains WHY it worked (vulnerability type)
+3. Provides CONTEXT (impact, significance)
+4. Includes INSIGHT (patterns, implications)
 
-OUTPUT:
-Enhanced executive summary (2-3 sentences):"""
+SECTION 2 - ROOT CAUSE (1-2 sentences):
+Explain the fundamental vulnerability or weakness that enabled this attack. Be specific about the technical flaw.
+
+RULES:
+- Professional security analyst tone
+- NO emojis, NO @ mentions, NO hashtags
+- Focus on technical details and implications
+- Use specific numbers and facts only
+- NO speculation about future events
+- Start directly with "The [protocol name]..." - DO NOT use "According to [source]'s analysis" or similar phrases
+- Keep it concise and factual
+
+OUTPUT FORMAT:
+ANALYSIS: [3-4 sentences]
+ROOT_CAUSE: [1-2 sentences]"""
 
             response = self.client.messages.create(
                 model=self.model,
@@ -132,18 +140,49 @@ Enhanced executive summary (2-3 sentences):"""
                 }]
             )
 
-            enhanced = response.content[0].text.strip()
+            response_text = response.content[0].text.strip()
+
+            # Remove any emojis and special characters that slipped through
+            import re
+            response_text = re.sub(r'[🟢🟡🟠🔴➡️@#]', '', response_text)
+            response_text = re.sub(r'^(BREAKING|ALERT):\s*', '', response_text, flags=re.IGNORECASE)
+
+            # Fix year hallucinations
+            import datetime
+            current_year = datetime.datetime.now().year
+            response_text = re.sub(r'\b202[0-9]\b', str(current_year), response_text)
+
+            # Parse the two sections
+            analysis = ""
+            root_cause = ""
+
+            if "ANALYSIS:" in response_text and "ROOT_CAUSE:" in response_text:
+                parts = response_text.split("ROOT_CAUSE:")
+                analysis = parts[0].replace("ANALYSIS:", "").strip()
+                root_cause = parts[1].strip()
+            else:
+                # Fallback: use entire response as analysis
+                analysis = response_text
+
             logger.info(f"Enhanced summary with Claude for {exploit_data.get('protocol')}")
-            return enhanced
+
+            # Return dict with both sections
+            return {
+                'analysis': analysis,
+                'root_cause': root_cause
+            }
 
         except Exception as e:
             logger.error(f"Claude enhancement failed: {e}. Using base summary.")
-            return base_summary
+            return {
+                'analysis': base_summary,
+                'root_cause': ''
+            }
 
     def generate_twitter_thread(
         self,
         exploit_data: dict,
-        timeline: list,
+        executive_summary: str,
         impact: dict,
         historical_context: Optional[dict] = None,
         engagement_hooks: Optional[list] = None
@@ -153,7 +192,7 @@ Enhanced executive summary (2-3 sentences):"""
 
         Args:
             exploit_data: Exploit details
-            timeline: List of timeline events
+            executive_summary: Executive summary of the exploit
             impact: Impact summary data
             historical_context: Historical context
             engagement_hooks: Interesting facts
@@ -166,11 +205,8 @@ Enhanced executive summary (2-3 sentences):"""
             return self._generate_template_thread(exploit_data, impact)
 
         try:
-            # Build timeline text
-            timeline_text = "\n".join([
-                f"- {event.get('time', 'Unknown')}: {event.get('description', '')}"
-                for event in timeline[:4]  # First 4 events
-            ])
+            # Use executive summary as context
+            summary_text = executive_summary[:500] if executive_summary else "No summary available"
 
             # Build context
             context_text = ""
@@ -183,7 +219,13 @@ Enhanced executive summary (2-3 sentences):"""
             # Build hooks
             hooks_text = ""
             if engagement_hooks:
-                hooks_text = "\n".join([f"- {hook}" for hook in engagement_hooks[:3]])
+                # Remove emojis from hooks
+                clean_hooks = []
+                for hook in engagement_hooks[:3]:
+                    clean_hook = hook.replace('➡️', '').replace('🟢', '').replace('🟡', '').replace('🟠', '').replace('🔴', '').strip()
+                    if clean_hook:
+                        clean_hooks.append(clean_hook)
+                hooks_text = "\n".join([f"- {hook}" for hook in clean_hooks])
 
             prompt = f"""Create an engaging Twitter thread about this confirmed blockchain exploit.
 
@@ -192,11 +234,10 @@ Protocol: {exploit_data.get('protocol')}
 Chain: {exploit_data.get('chain')}
 Loss: ${exploit_data.get('loss_amount_usd', 0):,.0f}
 Type: {exploit_data.get('exploit_type')}
-Severity: {impact.get('severity_indicator', '🟠')}
 Source: {exploit_data.get('source')}
 
-TIMELINE:
-{timeline_text}
+SUMMARY:
+{summary_text}
 
 HISTORICAL CONTEXT:
 {context_text}
@@ -207,16 +248,16 @@ ENGAGEMENT HOOKS:
 REQUIREMENTS:
 1. Create a 4-6 tweet thread
 2. Each tweet MUST be ≤280 characters (critical!)
-3. Tweet 1: Alert with severity, protocol, loss amount
-4. Tweet 2: What happened (attack type, how it worked)
-5. Tweet 3: Timeline of events
-6. Tweet 4: Historical context & significance
-7. Tweet 5-6 (optional): Recovery status, implications
-8. NO emojis except severity (🟢🟡🟠🔴)
+3. Tweet 1: Alert with protocol, loss amount, chain
+4. Tweet 2: What happened (attack type summary)
+5. Tweet 3: Key insights from hooks
+6. Tweet 4-5: Context and significance
+7. Final tweet: Credit source and link to kamiyo.ai
+8. ABSOLUTELY NO EMOJIS - use plain text only
 9. Professional, data-driven tone
 10. Credit source in thread
-11. Use "KAMIYO" (all caps) for brand mentions
-12. End with "Detected by KAMIYO Intelligence Platform"
+11. Use "Kamiyo" for brand mentions
+12. End final tweet with just "kamiyo.ai"
 
 OUTPUT FORMAT:
 Tweet 1: [text]
@@ -236,24 +277,54 @@ etc."""
 
             thread_text = response.content[0].text.strip()
 
-            # Parse tweets
+            # Log the raw output for debugging
+            logger.debug(f"Claude raw output:\n{thread_text}")
+
+            # Parse tweets - handle both single-line and multiline format
             tweets = []
-            for line in thread_text.split('\n'):
+            lines = thread_text.split('\n')
+            current_tweet = None
+            current_text = []
+
+            for line in lines:
                 line = line.strip()
-                if line.startswith('Tweet '):
-                    # Extract tweet text after "Tweet X:"
-                    if ':' in line:
-                        tweet = line.split(':', 1)[1].strip()
-                        # Ensure ≤280 chars
-                        if len(tweet) > 280:
-                            tweet = tweet[:277] + '...'
-                        tweets.append(tweet)
+
+                # Check if this line starts a new tweet
+                if line.startswith('Tweet ') and ':' in line:
+                    # Save previous tweet if exists
+                    if current_tweet is not None and current_text:
+                        tweet_content = ' '.join(current_text).strip()
+                        if tweet_content:  # Only add non-empty tweets
+                            # Ensure ≤280 chars
+                            if len(tweet_content) > 280:
+                                tweet_content = tweet_content[:277] + '...'
+                            tweets.append(tweet_content)
+
+                    # Start new tweet
+                    tweet_num, _, text = line.partition(':')
+                    current_tweet = tweet_num
+                    current_text = [text.strip()] if text.strip() else []
+
+                elif current_tweet is not None and line:
+                    # Continue current tweet (multiline)
+                    current_text.append(line)
+
+            # Add the last tweet
+            if current_tweet is not None and current_text:
+                tweet_content = ' '.join(current_text).strip()
+                if tweet_content:
+                    if len(tweet_content) > 280:
+                        tweet_content = tweet_content[:277] + '...'
+                    tweets.append(tweet_content)
 
             if tweets:
                 logger.info(f"Generated {len(tweets)}-tweet thread with Claude")
+                # Log first tweet for verification
+                logger.debug(f"First tweet ({len(tweets[0])} chars): {tweets[0][:100]}")
                 return tweets
             else:
                 logger.warning("Failed to parse Claude thread. Using template.")
+                logger.warning(f"Raw Claude output was:\n{thread_text[:500]}")
                 return self._generate_template_thread(exploit_data, impact)
 
         except Exception as e:
@@ -261,14 +332,13 @@ etc."""
             return self._generate_template_thread(exploit_data, impact)
 
     def _generate_template_thread(self, exploit_data: dict, impact: dict) -> list:
-        """Fallback template-based thread if Claude is unavailable"""
-        severity = impact.get('severity_indicator', '🟠')
+        """Fallback template-based thread if Claude is unavailable - NO EMOJIS"""
         amount = f"${exploit_data.get('loss_amount_usd', 0):,.0f}"
 
         tweets = [
-            f"{severity} EXPLOIT ALERT\n\n{exploit_data.get('protocol')} on {exploit_data.get('chain')}\n💰 {amount} lost\n🔥 Attack: {exploit_data.get('exploit_type')}\n\n🧵 Thread 👇",
+            f"EXPLOIT ALERT\n\n{exploit_data.get('protocol')} on {exploit_data.get('chain')}\nLoss: {amount}\nAttack: {exploit_data.get('exploit_type')}\n\nThread below",
             f"What Happened:\n\n{exploit_data.get('protocol')} suffered a {exploit_data.get('exploit_type')} attack resulting in {amount} in losses. Reported by {exploit_data.get('source', 'external sources')}.",
-            f"This incident highlights ongoing security challenges in the {exploit_data.get('chain')} DeFi ecosystem.\n\nDetected by KAMIYO Intelligence Platform.",
+            f"This incident highlights ongoing security challenges in the {exploit_data.get('chain')} DeFi ecosystem.\n\nkamiyo.ai",
         ]
 
         return tweets

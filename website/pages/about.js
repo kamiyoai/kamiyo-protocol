@@ -18,7 +18,7 @@ export default function About() {
                         <h4 className="text-xl md:text-2xl mb-4">Real-time Exploit Intelligence</h4>
                         <p>We operate as a blockchain exploit intelligence aggregator, collecting and analyzing data from trusted sources to deliver real-time insights into on-chain security incidents.</p>
 
-                        <p>In the rapidly evolving blockchain security landscape, timely access to verified exploit information is essential. Our platform consolidates data from 20+ established sources—including security firms, blockchain explorers, and verified security researchers—into a centralized intelligence feed.</p>
+                        <p>In the rapidly evolving blockchain security landscape, timely access to verified exploit information is essential. Our platform consolidates data from 18 aggregators (56 established sources)—including security firms, blockchain explorers, and verified security researchers—into a centralized intelligence feed.</p>
 
                         <p>By prioritizing speed and data accuracy, we enable security teams, DeFi protocols, and institutional investors to respond to threats more efficiently than manual monitoring allows.</p>
 
@@ -52,7 +52,7 @@ export default function About() {
                         <h4 className="text-xl md:text-2xl mb-4">How Our Platform Works</h4>
                         <ul data-spread="true">
                             <li>
-                                <p><strong>Multi-Source Data Collection:</strong><br/>Our systems continuously monitor 20+ verified sources including Rekt News, BlockSec, PeckShield, Certik, Immunefi, Trail of Bits, and established security researchers across social platforms.</p>
+                                <p><strong>Multi-Source Data Collection:</strong><br/>Our systems continuously monitor 18 aggregators (56 sources) including Rekt News, BlockSec, PeckShield, Certik, Immunefi, Trail of Bits, and established security researchers across social platforms.</p>
                             </li>
                             <li>
                                 <p><strong>On-Chain Data Verification:</strong><br/>We validate every reported incident against transaction data from blockchain explorers like Etherscan, ensuring all intelligence includes verifiable on-chain evidence.</p>

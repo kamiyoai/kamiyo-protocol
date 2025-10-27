@@ -83,6 +83,16 @@ export function withRateLimit(handler) {
   return async (req, res) => {
     const { method, url } = req;
 
+    // Skip rate limiting in development mode (localhost)
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+                          req.headers.host?.includes('localhost') ||
+                          req.headers.host?.startsWith('127.0.0.1');
+
+    if (isDevelopment) {
+      console.log('[DEV] Rate limiting bypassed for localhost');
+      return handler(req, res);
+    }
+
     // Only rate limit GET requests to data endpoints
     if (method !== 'GET') {
       return handler(req, res);
