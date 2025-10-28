@@ -3,18 +3,20 @@
 import { useEffect, useState } from "react";
 
 const baseText = [
-    "かみよ.えくすぷろいと", "KAMIYO.AI",
-    "SCANNING CHAINS", "ちぇーんをすきゃん中...",
-    "AGGREGATING EXPLOIT DATA", "えくすぷろいとでーたを集約中",
-    "ANALYZING TRANSACTIONS", "とらんざくしょんを解析中",
-    "DEFI PROTOCOL MONITORING", "でふぃぷろとこるを監視中",
-    "BLOCKCHAIN INTEL SYNC", "ぶろっくちぇーんいんてる同期中",
-    "VULNERABILITY FEED ACTIVE", "ぜいじゃくせい情報を受信中",
-    "SMART CONTRACT VERIFICATION", "すまーとこんとらくとを検証中",
-    "REKT NEWS AGGREGATION", "れくとにゅーすを集約中",
-    "MEMPOOL ANALYSIS", "めむぷーるを分析中",
-    "ON-CHAIN FORENSICS", "おんちぇーんふぉれんじっく実行中",
-    "EXPLOIT PATTERN MATCHING", "えくすぷろいとぱたーんをまっちんぐ中",
+    "かみよ.えーあい", "KAMIYO.AI",
+    "x402 PROTOCOL ACTIVE", "x402プロトコル起動中",
+    "PROCESSING PAYMENT", "ペイメント処理中...",
+    "VERIFYING TRANSACTION", "トランザクション検証中",
+    "AI AGENT AUTHENTICATED", "AIエージェント認証済",
+    "HTTP 402 HANDSHAKE", "HTTP402ハンドシェイク中",
+    "USDC PAYMENT CONFIRMED", "USDC支払い確認完了",
+    "ON-CHAIN VERIFICATION", "オンチェーン検証中",
+    "PAYMENT TOKEN MINTED", "ペイメントトークン発行中",
+    "AUTONOMOUS AGENT ONLINE", "自律エージェントオンライン",
+    "BASE NETWORK CONNECTED", "Baseネットワーク接続済",
+    "BLOCKCHAIN PAYMENT SYNC", "ブロックチェーン支払い同期中",
+    "FACILITATOR ACTIVE", "ファシリテーター起動中",
+    "AGENT API ACCESS GRANTED", "エージェントAPI接続許可",
 ];
 
 const getRandomScramble = () => {
