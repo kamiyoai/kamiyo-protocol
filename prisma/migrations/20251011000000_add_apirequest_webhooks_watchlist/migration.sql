@@ -42,16 +42,41 @@ CREATE TABLE IF NOT EXISTS "ApiRequest" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX IF NOT EXISTS "Watchlist_userId_protocol_chain_key" ON "Watchlist"("userId", "protocol", "chain");
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'Watchlist_userId_protocol_chain_key') THEN
+        CREATE UNIQUE INDEX "Watchlist_userId_protocol_chain_key" ON "Watchlist"("userId", "protocol", "chain");
+    END IF;
+END $$;
 
 -- CreateIndex
-CREATE INDEX IF NOT EXISTS "ApiRequest_userId_date_idx" ON "ApiRequest"("userId", "date");
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ApiRequest_userId_date_idx') THEN
+        CREATE INDEX "ApiRequest_userId_date_idx" ON "ApiRequest"("userId", "date");
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Webhook" ADD CONSTRAINT IF NOT EXISTS "Webhook_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Webhook_userId_fkey') THEN
+        ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "Watchlist" ADD CONSTRAINT IF NOT EXISTS "Watchlist_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Watchlist_userId_fkey') THEN
+        ALTER TABLE "Watchlist" ADD CONSTRAINT "Watchlist_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- AddForeignKey
-ALTER TABLE "ApiRequest" ADD CONSTRAINT IF NOT EXISTS "ApiRequest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ApiRequest_userId_fkey') THEN
+        ALTER TABLE "ApiRequest" ADD CONSTRAINT "ApiRequest_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
