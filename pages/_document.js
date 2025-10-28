@@ -9,29 +9,76 @@ export default function Document() {
             ? "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://accounts.google.com;"
             : "script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com;";
 
+    const structuredData = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "KAMIYO",
+        "legalName": "KAMIYO x402 Payment Facilitator",
+        "description": "KAMIYO is an x402 Payment Facilitator platform enabling HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments using USDC on Base, Ethereum, and Solana blockchains without account signup.",
+        "url": "https://kamiyo.ai",
+        "logo": "https://kamiyo.ai/favicon.png",
+        "foundingDate": "2024",
+        "sameAs": [
+            "https://twitter.com/KAMIYO",
+            "https://github.com/kamiyo-ai"
+        ],
+        "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "Customer Support",
+            "email": "support@kamiyo.ai",
+            "url": "https://kamiyo.ai"
+        },
+        "offers": {
+            "@type": "Offer",
+            "description": "x402 protocol implementation for blockchain API billing and autonomous agent payments"
+        }
+    };
+
     return (
         <Html lang="en">
             <Head>
                 {/* Favicon */}
                 <link rel="icon" type="image/png" href="/favicon.png" />
 
+                {/* Canonical URL */}
+                <link rel="canonical" href="https://kamiyo.ai" />
+
                 {/* Content Security Policy */}
                 <meta httpEquiv="Content-Security-Policy" content={csp} />
 
+                {/* Primary Meta Tags */}
+                <meta name="author" content="KAMIYO" />
+                <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+                <meta name="keywords" content="HTTP 402 Payment Required implementation, x402 protocol, AI agent payments, on-chain API payments, autonomous agent payments, blockchain API billing, USDC API payments, payment facilitator, blockchain payments, crypto API, Web3 payments, decentralized payments, smart contract payments, Base blockchain, Ethereum payments, Solana payments" />
+
+                {/* Mobile Optimization */}
+                <meta name="theme-color" content="#000000" />
+                <meta name="mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
-                <meta property="og:title" content="KAMIYO - DeFi Exploit Intelligence" />
-                <meta property="og:description" content="Real-time exploit alerts across 54+ chains. Get notified within 4 minutes of confirmed exploits. Track $200M+ in losses from 400+ verified sources." />
+                <meta property="og:title" content="KAMIYO - x402 Payment Facilitator | HTTP 402 Payment Required for AI Agents" />
+                <meta property="og:description" content="HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments with USDC on Base, Ethereum, or Solana. x402 protocol for blockchain API billing without account signup." />
                 <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:url" content="https://kamiyo.ai" />
                 <meta property="og:type" content="website" />
-                <meta property="og:site_name" content="Kamiyo.ai" />
+                <meta property="og:site_name" content="KAMIYO" />
+                <meta property="og:locale" content="en_US" />
 
-                {/* X Cards */}
+                {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="KAMIYO - DeFi Exploit Intelligence" />
-                <meta name="twitter:description" content="Real-time exploit alerts across 54+ chains. Get notified within 4 minutes of confirmed exploits. Track $200M+ in losses from 400+ verified sources." />
+                <meta name="twitter:title" content="KAMIYO - x402 Payment Facilitator | HTTP 402 Payment Required for AI Agents" />
+                <meta name="twitter:description" content="HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments with USDC on Base, Ethereum, or Solana. x402 protocol for blockchain API billing." />
                 <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
+                <meta name="twitter:creator" content="@KAMIYO" />
+
+                {/* JSON-LD Structured Data */}
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+                />
 
                 {/* Preconnect to Google Fonts */}
                 <link rel="preconnect" href="https://fonts.googleapis.com" />

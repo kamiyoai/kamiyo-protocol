@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { csrfFetch } from '../../utils/csrf'; // BLOCKER 1: CSRF Protection
 
 export default function ApiKeysPage() {
     const { data: session, status } = useSession();
@@ -53,7 +54,8 @@ export default function ApiKeysPage() {
         try {
             setError(null);
 
-            const response = await fetch('/api/user/api-keys', {
+            // Use csrfFetch for CSRF-protected POST request (BLOCKER 1)
+            const response = await csrfFetch('/api/user/api-keys', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -90,7 +92,8 @@ export default function ApiKeysPage() {
         try {
             setError(null);
 
-            const response = await fetch('/api/user/api-keys', {
+            // Use csrfFetch for CSRF-protected DELETE request (BLOCKER 1)
+            const response = await csrfFetch('/api/user/api-keys', {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json'
@@ -152,6 +155,12 @@ export default function ApiKeysPage() {
                             API Keys
                         </button>
                         <button
+                            onClick={() => router.push('/dashboard/usage')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Usage Analytics
+                        </button>
+                        <button
                             onClick={() => router.push('/pricing')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
@@ -182,7 +191,7 @@ export default function ApiKeysPage() {
                             API Key Created Successfully!
                         </h3>
                         <p className="text-sm text-gray-400 mb-4">
-                            ⚠️ Save this key securely. You won't be able to see it again.
+                            Save this key securely. You won't be able to see it again.
                         </p>
 
                         <div className="bg-obsidian rounded p-4 font-mono text-sm">
@@ -201,7 +210,7 @@ export default function ApiKeysPage() {
                             onClick={() => setCreatedKey(null)}
                             className="mt-4 text-sm text-gray-400 hover:text-white"
                         >
-                            ✓ I've saved this key
+                            I've saved this key
                         </button>
                     </div>
                 )}
@@ -280,7 +289,7 @@ export default function ApiKeysPage() {
                                                         : 'bg-red-900/30 text-red-400'
                                                 }`}
                                             >
-                                                {key.status === 'active' ? '✓ Active' : '✗ Revoked'}
+                                                {key.status === 'active' ? 'Active' : 'Revoked'}
                                             </span>
                                         </div>
 

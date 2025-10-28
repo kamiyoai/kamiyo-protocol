@@ -22,7 +22,7 @@ export default function SignIn() {
                     </div>
 
                     <div className="space-y-4 flex flex-col items-center justify-center">
-                        <div className="flex justify-center w-full">
+                        <div className="flex justify-center w-full -ml-8">
                             <ScrambleButton
                                 text="Continue with Google"
                                 enabled={true}

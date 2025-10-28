@@ -1,0 +1,22 @@
+# KAMIYO x402 Payment Facilitator - Robots.txt
+# https://kamiyo.ai
+
+# Allow all crawlers to index public content
+User-agent: *
+Allow: /
+
+# Disallow authentication pages
+Disallow: /auth/
+Disallow: /api/auth/
+
+# Disallow dashboard and user-specific pages
+Disallow: /dashboard/
+
+# Disallow API endpoints
+Disallow: /api/
+
+# Allow public media assets
+Allow: /media/
+
+# Sitemap location
+Sitemap: https://kamiyo.ai/sitemap.xml

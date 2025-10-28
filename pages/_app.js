@@ -2,31 +2,40 @@ import Head from 'next/head';
 import { SessionProvider } from 'next-auth/react';
 import { MenuProvider } from '../context/MenuContext';
 import Layout from '../components/Layout';
+import { useEffect } from 'react';
+import { initCsrfProtection } from '../utils/csrf';
 import '../styles/globals.css';
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
+  // Initialize CSRF protection on app load (BLOCKER 1)
+  useEffect(() => {
+    initCsrfProtection().catch(err => {
+      console.error('[App] CSRF initialization failed:', err);
+    });
+  }, []);
+
   return (
     <SessionProvider session={session}>
       <MenuProvider>
         <Head>
           {/* Primary Meta Tags */}
-          <title>KAMIYO - Blockchain Exploit Intelligence</title>
-          <meta name="title" content="KAMIYO - Blockchain Exploit Intelligence" />
-          <meta name="description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
+          <title>On-chain API payments with x402 for autonomous AI agents</title>
+          <meta name="title" content="On-chain API payments with x402 for autonomous AI agents" />
+          <meta name="description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain exploit intelligence powered by x402 payments." />
 
           {/* Open Graph / Facebook */}
           <meta property="og:type" content="website" />
           <meta property="og:url" content="https://kamiyo.ai/" />
-          <meta property="og:title" content="KAMIYO - Blockchain Exploit Intelligence" />
-          <meta property="og:description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
-          <meta property="og:image" content="https://kamiyo.ai/media/opengraph.jpeg" />
+          <meta property="og:title" content="On-chain API payments with x402 for autonomous AI agents" />
+          <meta property="og:description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain exploit intelligence powered by x402 payments." />
+          <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
 
           {/* Twitter */}
           <meta property="twitter:card" content="summary_large_image" />
           <meta property="twitter:url" content="https://kamiyo.ai/" />
-          <meta property="twitter:title" content="KAMIYO - Blockchain Exploit Intelligence" />
-          <meta property="twitter:description" content="Get verified exploit data from 20+ trusted security sources across 54 blockchain networks. Instant alerts without manual monitoring." />
-          <meta property="twitter:image" content="https://kamiyo.ai/media/opengraph.jpeg" />
+          <meta property="twitter:title" content="On-chain API payments with x402 for autonomous AI agents" />
+          <meta property="twitter:description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain exploit intelligence powered by x402 payments." />
+          <meta property="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
           <meta name="twitter:site" content="@KamiyoAI" />
           <meta name="twitter:creator" content="@KamiyoAI" />
         </Head>
