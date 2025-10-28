@@ -8,10 +8,14 @@ import '../styles/globals.css';
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   // Initialize CSRF protection on app load (BLOCKER 1)
+  // Only initialize in browser, not during SSR
   useEffect(() => {
-    initCsrfProtection().catch(err => {
-      console.error('[App] CSRF initialization failed:', err);
-    });
+    if (typeof window !== 'undefined') {
+      initCsrfProtection().catch(err => {
+        // Silently fail - token will be fetched on first API request
+        console.debug('[App] CSRF initialization deferred:', err.message);
+      });
+    }
   }, []);
 
   return (

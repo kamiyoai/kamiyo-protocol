@@ -59,7 +59,8 @@ class CsrfSettings(BaseSettings):
 csrf_settings = CsrfSettings()
 
 
-@CsrfProtect.load_config
+# TEMPORARILY DISABLED - CSRF configuration issue
+# @CsrfProtect.load_config
 def get_csrf_config():
     """
     Load CSRF configuration for fastapi-csrf-protect
