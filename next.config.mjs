@@ -18,7 +18,7 @@ const csp = process.env.NODE_ENV === 'development'
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      connect-src 'self' https://accounts.google.com https://api.dexscreener.com ws://localhost:3001 wss://localhost:3001 ws://localhost:* wss://localhost:*;
+      connect-src 'self' http://localhost:8000 http://localhost:8001 https://accounts.google.com https://api.dexscreener.com ws://localhost:* wss://localhost:*;
     `
     : `
       default-src 'self';
