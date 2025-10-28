@@ -201,119 +201,10 @@ export default function PricingPage() {
             </Head>
             <div className="w-full flex flex-col items-start border-dotted border-b border-cyan mb-6 pb-6">
                 <p className="font-light text-left text-sm uppercase tracking-widest text-cyan mb-8" role="doc-subtitle">— &nbsp;Pricing Options</p>
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-light text-left">x402 API Pricing: Pay-per-Use or Subscribe</h1>
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-light text-left">x402 API Pricing</h1>
             </div>
-            <p className="text-gray-400 text-sm mb-12 text-left max-w-2xl self-start">
-                Choose <strong>x402 protocol on-chain payments</strong> with USDC (perfect for AI agent payments) or traditional monthly subscriptions.
-                Our <strong>HTTP 402 Payment Required</strong> workflow enables autonomous payment capabilities on Base, Ethereum, and Solana blockchains.
-                Both options provide instant API access with cryptographic payment verification for exploit intelligence data.
-            </p>
 
-            {/* Payment Method Tabs */}
-            <section className="w-full mb-12" aria-labelledby="payment-methods-heading">
-                <h2 id="payment-methods-heading" className="sr-only">Payment Methods</h2>
-                <div className="flex gap-4 justify-center mb-8">
-                    <article
-                        className="bg-black border border-cyan border-opacity-50 rounded-lg p-6 flex-1 max-w-md"
-                        itemScope
-                        itemType="https://schema.org/PaymentMethod"
-                        title="x402 Pay-per-Use: On-chain USDC payments with HTTP 402 Payment Required protocol"
-                    >
-                        <h3 className="text-cyan text-lg mb-2" itemProp="name">x402 Pay-per-Use</h3>
-                        <p className="text-gray-400 text-sm mb-4" itemProp="description">
-                            <strong>HTTP 402 Payment Required protocol</strong> with on-chain USDC payments.
-                            No account required. Perfect for <strong>AI agent autonomous payments</strong>.
-                        </p>
-                        <div className="text-white text-3xl font-light mb-2" itemProp="price" content="0.0001">
-                            $0.0001 <span className="text-gray-500 text-sm">per API call</span>
-                        </div>
-                        <div className="text-gray-400 text-xs mb-4">10,000 requests per $1.00 USDC</div>
-                        <ul className="space-y-2 text-xs text-gray-400 mb-4" role="list">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Pay with USDC on <strong>Base, Ethereum, or Solana</strong> blockchains</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span><strong>HTTP 402 Payment Required</strong> workflow</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Payment tokens valid for 24 hours</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>No signup or API keys required for <strong>AI agent payments</strong></span>
-                            </li>
-                        </ul>
-                        <a href="/api-docs#x402" className="text-cyan hover:text-magenta text-sm transition-colors" aria-label="Learn more about x402 protocol">
-                            Learn more about x402 protocol →
-                        </a>
-                    </article>
-                    <article
-                        className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 flex-1 max-w-md"
-                        itemScope
-                        itemType="https://schema.org/PaymentMethod"
-                        title="Monthly Subscriptions: Traditional billing with higher rate limits"
-                    >
-                        <h3 className="text-gray-400 text-lg mb-2" itemProp="name">Monthly Subscriptions</h3>
-                        <p className="text-gray-400 text-sm mb-4" itemProp="description">
-                            Traditional billing with credit card payments. Account required. Better for sustained high-volume API usage.
-                        </p>
-                        <div className="text-white text-3xl font-light mb-2" itemProp="price" content="89">
-                            $89+ <span className="text-gray-500 text-sm">per month</span>
-                        </div>
-                        <div className="text-gray-400 text-xs mb-4">50,000+ API calls included per day</div>
-                        <ul className="space-y-2 text-xs text-gray-400 mb-4" role="list">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Pay with credit card (Stripe)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Traditional API key authentication</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Higher rate limits included</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
-                                    <title>Check icon</title>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span>Better for sustained high-volume usage</span>
-                            </li>
-                        </ul>
-                        <div className="text-gray-500 text-sm">
-                            See plans below ↓
-                        </div>
-                    </article>
-                </div>
-            </section>
-
-            <section className="w-full border-t border-gray-500 border-opacity-25 pt-8 mb-8" aria-labelledby="subscription-plans-heading">
+            <section className="w-full pt-8 mb-8" aria-labelledby="subscription-plans-heading">
                 <h2 id="subscription-plans-heading" className="text-2xl font-light text-center mb-4">Subscription Plans with x402 Support</h2>
                 <p className="text-gray-400 text-sm text-center mb-8">
                     Monthly billing with included API calls. All plans support <strong>x402 protocol</strong> for <strong>AI agent payments</strong>.
@@ -528,6 +419,57 @@ export default function PricingPage() {
                     </article>
                 ))}
             </div>
+
+            {/* x402 Pay-per-Use info */}
+            <article
+                className="w-full bg-black p-6 rounded-lg mt-12"
+                itemScope
+                itemType="https://schema.org/PaymentMethod"
+                title="x402 Pay-per-Use: On-chain USDC payments with HTTP 402 Payment Required protocol"
+            >
+                <h3 className="text-cyan text-lg mb-2" itemProp="name">x402 Pay-per-Use</h3>
+                <p className="text-gray-400 text-sm mb-4" itemProp="description">
+                    <strong>HTTP 402 Payment Required protocol</strong> with on-chain USDC payments.
+                    No account required. Perfect for <strong>AI agent autonomous payments</strong>.
+                </p>
+                <div className="text-white text-3xl font-light mb-2" itemProp="price" content="0.0001">
+                    $0.0001 <span className="text-gray-500 text-sm">per API call</span>
+                </div>
+                <div className="text-gray-400 text-xs mb-4">10,000 requests per $1.00 USDC</div>
+                <ul className="space-y-2 text-xs text-gray-400 mb-4" role="list">
+                    <li className="flex items-start gap-2">
+                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                            <title>Check icon</title>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Pay with USDC on <strong>Base, Ethereum, or Solana</strong> blockchains</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                            <title>Check icon</title>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span><strong>HTTP 402 Payment Required</strong> workflow</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                            <title>Check icon</title>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Payment tokens valid for 24 hours</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                            <title>Check icon</title>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>No signup or API keys required for <strong>AI agent payments</strong></span>
+                    </li>
+                </ul>
+                <a href="/api-docs#x402" className="text-cyan hover:text-magenta text-sm transition-colors" aria-label="Learn more about x402 protocol">
+                    Learn more about x402 protocol →
+                </a>
+            </article>
 
             <section className="mt-16 w-full" aria-labelledby="feature-comparison-heading">
                 <h2 id="feature-comparison-heading" className="text-2xl mb-6 font-light">Feature Comparison: x402 and Subscription Plans</h2>
