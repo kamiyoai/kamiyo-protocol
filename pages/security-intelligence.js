@@ -51,15 +51,22 @@ export default function SecurityIntelligence() {
 
                             <div className="flex flex-col md:flex-row gap-4 justify-center">
                                 <PayButton
-                                    textOverride="View API Docs"
-                                    onClickOverride={() => router.push('/api-docs')}
+                                    textOverride="Add to Claude Desktop"
+                                    onClickOverride={() => router.push('/pricing')}
                                 />
                                 <button
-                                    onClick={() => router.push('/pricing')}
+                                    onClick={() => router.push('/api-docs')}
                                     className="px-6 py-3 border border-gray-500 border-opacity-50 rounded-lg hover:border-cyan transition-colors text-sm"
                                 >
-                                    View Pricing
+                                    View API Docs (x402)
                                 </button>
+                            </div>
+
+                            <div className="max-w-4xl mx-auto mt-8 p-6 border border-gray-500 border-opacity-25 rounded-lg">
+                                <p className="text-center text-gray-400">
+                                    <strong className="text-white">Two ways to access:</strong> MCP subscription
+                                    for AI agents ($19/mo unlimited) or x402 API for direct queries ($0.01 each)
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -270,20 +277,20 @@ export default function SecurityIntelligence() {
                 {/* CTA Section */}
                 <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]">
                     <div className="max-w-3xl mx-auto text-center">
-                        <h2 className="text-3xl md:text-4xl font-light mb-6">Ready to Secure Your Deployments?</h2>
+                        <h2 className="text-3xl md:text-4xl font-light mb-6">Ready to Secure Your AI Agents?</h2>
                         <p className="text-gray-400 text-lg mb-8">
-                            Start with free tier (24h delayed data) or pay-per-query for real-time intelligence.
+                            Subscribe to MCP for unlimited queries, or use x402 API pay-per-query.
                         </p>
                         <div className="flex flex-col md:flex-row gap-4 justify-center">
                             <PayButton
-                                textOverride="Start Free"
-                                onClickOverride={() => router.push('/auth/signin')}
+                                textOverride="Subscribe to MCP"
+                                onClickOverride={() => router.push('/pricing')}
                             />
                             <button
                                 onClick={() => router.push('/api-docs')}
                                 className="px-6 py-3 border border-gray-500 border-opacity-50 rounded-lg hover:border-cyan transition-colors text-sm"
                             >
-                                Read API Docs
+                                x402 API Documentation
                             </button>
                         </div>
                     </div>

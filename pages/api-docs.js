@@ -14,8 +14,8 @@ export default function ApiDocs() {
   const techArticleSchema = {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "x402 Payment Facilitator API Documentation",
-    "description": "Complete API documentation for KAMIYO x402 Payment Facilitator implementing HTTP 402 Payment Required protocol for autonomous AI agent payments with on-chain USDC",
+    "headline": "KAMIYO Security Intelligence API Documentation",
+    "description": "Complete API documentation for KAMIYO security intelligence platform: MCP integration for AI agents, x402 payment protocol, and crypto exploit data access",
     "url": "https://kamiyo.io/api-docs",
     "datePublished": "2024-01-01",
     "dateModified": "2025-10-28",
@@ -34,40 +34,40 @@ export default function ApiDocs() {
       }
     },
     "keywords": [
-      "x402 API",
-      "HTTP 402 Payment Required",
-      "payment protocol API",
-      "blockchain API integration",
+      "security intelligence API",
+      "MCP integration",
       "AI agent API",
-      "USDC payments API",
-      "on-chain API documentation",
-      "payment facilitator API"
+      "crypto exploit data",
+      "x402 API",
+      "blockchain security API",
+      "exploit detection API",
+      "security monitoring API"
     ]
   };
 
   const softwareAppSchema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "KAMIYO x402 API",
+    "name": "KAMIYO Security Intelligence API",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Web, Node.js, Browser",
-    "description": "HTTP 402 Payment Required API for autonomous AI agent payments with on-chain USDC verification on Base, Ethereum, and Solana blockchains",
+    "description": "Security intelligence API for AI agents with MCP integration and x402 payment protocol. Access real-time crypto exploit data from 20+ sources.",
     "url": "https://kamiyo.io/api-docs",
     "offers": {
       "@type": "Offer",
-      "price": "0.10",
+      "price": "0.01",
       "priceCurrency": "USDC",
-      "description": "Pay-per-request API access with on-chain USDC payments"
+      "description": "Pay-per-query API access or MCP subscription for unlimited queries"
     }
   };
 
   return (
     <div className="min-h-screen bg-black text-white">
       <Head>
-        <title>x402 API Documentation | HTTP 402 Payment Required API | KAMIYO</title>
-        <meta name="title" content="x402 API Documentation | HTTP 402 Payment Required API | KAMIYO" />
-        <meta name="description" content="Complete x402 API documentation: HTTP 402 Payment Required implementation for AI agents. On-chain USDC payments on Base, Ethereum, Solana. Payment verification, token generation, and SDK integration." />
-        <meta name="keywords" content="x402 API, HTTP 402 Payment Required, payment protocol API, blockchain API integration, AI agent API documentation, USDC payments API, on-chain API payments, payment facilitator API, crypto API documentation, Web3 API, autonomous agent API" />
+        <title>Security Intelligence API Documentation | MCP & x402 | KAMIYO</title>
+        <meta name="title" content="Security Intelligence API Documentation | MCP & x402 | KAMIYO" />
+        <meta name="description" content="Complete KAMIYO API documentation: MCP integration for AI agents, x402 payment protocol, crypto exploit data access. Real-time security intelligence from 20+ sources with unlimited queries via subscription." />
+        <meta name="keywords" content="security intelligence API, MCP integration documentation, AI agent API, crypto exploit API, x402 API, blockchain security API, exploit detection API, security monitoring API, AI security tools, protocol risk API" />
 
         {/* Canonical URL */}
         <link rel="canonical" href="https://kamiyo.io/api-docs" />
@@ -80,8 +80,8 @@ export default function ApiDocs() {
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="article" />
         <meta property="og:url" content="https://kamiyo.io/api-docs" />
-        <meta property="og:title" content="x402 API Documentation | HTTP 402 Payment Required API" />
-        <meta property="og:description" content="Complete x402 API documentation for implementing HTTP 402 Payment Required with on-chain USDC payments for AI agents." />
+        <meta property="og:title" content="Security Intelligence API Documentation | MCP & x402" />
+        <meta property="og:description" content="Complete KAMIYO API documentation: MCP integration for AI agents and x402 payment protocol for crypto exploit intelligence." />
         <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
         <meta property="og:site_name" content="KAMIYO" />
         <meta property="og:locale" content="en_US" />
@@ -89,8 +89,8 @@ export default function ApiDocs() {
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:url" content="https://kamiyo.io/api-docs" />
-        <meta name="twitter:title" content="x402 API Documentation | HTTP 402 Payment Required API" />
-        <meta name="twitter:description" content="Complete x402 API documentation for implementing HTTP 402 Payment Required with on-chain USDC payments." />
+        <meta name="twitter:title" content="Security Intelligence API Documentation | MCP & x402" />
+        <meta name="twitter:description" content="MCP integration for AI agents and x402 payment protocol for crypto exploit intelligence." />
         <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
         <meta name="twitter:site" content="@KAMIYO" />
         <meta name="twitter:creator" content="@KAMIYO" />
@@ -109,15 +109,15 @@ export default function ApiDocs() {
       <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
         <div className="border-dotted border-b border-cyan mb-12 pb-6">
           <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;API Documentation</p>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">x402 Payment Facilitator API</h1>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence API</h1>
           <p className="text-gray-400 mt-4">
-            HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments with USDC on Base, Ethereum, and Solana.
+            Access real-time crypto exploit data via MCP subscription or x402 API. AI agent integration with unlimited queries.
           </p>
         </div>
 
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500 border-opacity-25 pb-4">
-          {['overview', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
+          {['overview', 'mcp', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -127,7 +127,8 @@ export default function ApiDocs() {
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {tab === 'quickstart' ? 'Quick Start' :
+              {tab === 'mcp' ? 'MCP Integration' :
+               tab === 'quickstart' ? 'Quick Start' :
                tab === 'payment-flow' ? 'Payment Flow' :
                tab === 'sdk' ? 'JavaScript SDK' :
                tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -141,15 +142,15 @@ export default function ApiDocs() {
             <h2 className="text-2xl font-light mb-6">Overview</h2>
 
             <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
-              <div className="text-cyan text-sm mb-2">x402 Protocol Implementation</div>
+              <div className="text-cyan text-sm mb-2">Security Intelligence Platform</div>
               <p className="text-gray-400 text-sm mb-4">
-                KAMIYO implements the HTTP 402 Payment Required standard, enabling autonomous AI agents to discover pricing, pay with USDC on-chain, and access APIs without account signup or API keys.
+                KAMIYO provides real-time crypto exploit intelligence from 20+ security researchers. Access via MCP subscription (recommended for AI agents) or x402 API (pay-per-query).
               </p>
               <div className="text-white text-sm space-y-2">
-                <div>• <strong>No Account Required:</strong> Pay with USDC, get instant API access</div>
-                <div>• <strong>Multi-Chain Support:</strong> Base, Ethereum, and Solana</div>
-                <div>• <strong>Cryptographic Verification:</strong> All payments verified on-chain</div>
-                <div>• <strong>AI Agent Optimized:</strong> Designed for autonomous payment discovery</div>
+                <div>• <strong>MCP Integration:</strong> Unlimited queries for AI agents via subscription</div>
+                <div>• <strong>20+ Sources:</strong> CertiK, PeckShield, BlockSec, SlowMist, Chainalysis, and more</div>
+                <div>• <strong>Real-Time Detection:</strong> Exploits indexed within minutes</div>
+                <div>• <strong>Alternative Access:</strong> x402 API at $0.01 per query</div>
               </div>
             </div>
 
@@ -182,10 +183,10 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Pricing</h3>
               <div className="border border-gray-500 border-opacity-25 rounded p-4">
-                <div className="text-white mb-2">$0.10 USDC per API call</div>
+                <div className="text-white mb-2">$0.01 USDC per API call</div>
                 <div className="text-gray-400 text-sm space-y-1">
-                  <div>• Minimum payment: $0.10 USDC</div>
-                  <div>• 10 API calls per $1.00 USDC</div>
+                  <div>• Minimum payment: $0.01 USDC</div>
+                  <div>• 100 API calls per $1.00 USDC</div>
                   <div>• Payment tokens valid for 24 hours</div>
                   <div>• No monthly commitments or account signup</div>
                 </div>
@@ -241,15 +242,95 @@ export default function ApiDocs() {
           </div>
         )}
 
+        {/* MCP Integration */}
+        {activeTab === 'mcp' && (
+          <div>
+            <h2 className="text-2xl font-light mb-6">Option 1: MCP Integration (Recommended for AI Agents)</h2>
+
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+              <h3 className="text-xl font-light mb-4">Add to Claude Desktop</h3>
+              <p className="text-gray-400 mb-4">
+                The easiest way to access KAMIYO security intelligence is via MCP subscription.
+                Your AI agents get unlimited queries with persistent access.
+              </p>
+
+              <h4 className="font-light mb-2">Installation Steps:</h4>
+              <ol className="list-decimal list-inside space-y-2 text-gray-400 text-sm mb-6">
+                <li>Subscribe to KAMIYO MCP at https://kamiyo.ai/pricing</li>
+                <li>Open Claude Desktop → Settings → MCP Servers</li>
+                <li>Click "Add Server" and enter your subscription key</li>
+                <li>Claude can now call KAMIYO security tools</li>
+              </ol>
+
+              <h4 className="font-light mb-2">Available Tools:</h4>
+              <CodeBlock language="javascript">{`check_latest_exploits(hours: number, min_amount: number)
+assess_protocol_risk(protocol: string, chain: string)
+check_wallet_involvement(address: string)
+query_exploit_history(chain: string, days: number)
+get_source_rankings()`}</CodeBlock>
+            </div>
+
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+              <h4 className="text-lg font-light mb-3">Example: Claude Checking Protocol Safety</h4>
+              <CodeBlock language="text">{`User: "Should I deploy my contract to Uniswap V3 on Arbitrum?"
+
+Claude: Let me check the security history for Uniswap V3 on Arbitrum...
+[Calls: assess_protocol_risk(protocol="Uniswap V3", chain="arbitrum")]
+
+KAMIYO returns: {
+  "exploits_found": 2,
+  "total_lost_usd": 1200000,
+  "last_incident_days_ago": 145,
+  "risk_score": 0.32,
+  "risk_level": "moderate"
+}
+
+Claude: Based on KAMIYO data, Uniswap V3 on Arbitrum has moderate risk.
+Two exploits totaling $1.2M, but the last incident was 145 days ago.
+The protocol has improved security since then. Risk score: 0.32/1.0.
+
+I'd recommend proceeding with caution: thorough audit, start with small
+TVL, monitor closely for first 30 days.`}</CodeBlock>
+              <p className="text-gray-400 text-sm mt-3">
+                Your AI agents make security-aware decisions automatically.
+              </p>
+            </div>
+
+            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+              <h4 className="font-light mb-3">MCP vs x402 API - Which to use?</h4>
+              <div className="grid md:grid-cols-2 gap-6 text-sm">
+                <div>
+                  <strong>Use MCP if:</strong>
+                  <ul className="text-gray-400 mt-2 space-y-1">
+                    <li>• Running AI agents (Claude, AutoGPT, etc.)</li>
+                    <li>• Need unlimited queries</li>
+                    <li>• Want persistent connection</li>
+                    <li>• Prefer subscription billing</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>Use x402 API if:</strong>
+                  <ul className="text-gray-400 mt-2 space-y-1">
+                    <li>• Building custom integrations</li>
+                    <li>• Making sporadic queries</li>
+                    <li>• Don't need AI agent features</li>
+                    <li>• Prefer pay-per-use</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quick Start */}
         {activeTab === 'quickstart' && (
           <div>
-            <h2 className="text-2xl font-light mb-6">Quick Start Guide</h2>
+            <h2 className="text-2xl font-light mb-6">Option 2: x402 API Quick Start (For Direct/Custom Access)</h2>
 
             <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">5-Minute Setup</div>
               <p className="text-gray-400 text-sm">
-                Get started with x402 payments in 5 minutes. No account signup, no API keys, just send USDC and start using the API.
+                Get started with x402 payments in 5 minutes. No account signup, no API keys, just send USDC and start querying security intelligence at $0.01 per query.
               </p>
             </div>
 

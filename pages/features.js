@@ -5,51 +5,51 @@ export default function Features() {
     const itemListSchema = {
         "@context": "https://schema.org",
         "@type": "ItemList",
-        "name": "KAMIYO x402 Payment Facilitator Features",
-        "description": "Complete list of features for the x402 Payment Facilitator platform",
+        "name": "KAMIYO Security Intelligence Platform Features",
+        "description": "Complete list of features for KAMIYO's crypto exploit intelligence and security monitoring platform",
         "url": "https://kamiyo.io/features",
         "itemListElement": [
             {
                 "@type": "ListItem",
                 "position": 1,
-                "name": "HTTP 402 Payment Required Protocol",
-                "description": "Full implementation of HTTP 402 Payment Required standard for payment-gated API access with autonomous AI agent support"
+                "name": "20+ Source Aggregation",
+                "description": "Real-time crypto exploit data from CertiK, PeckShield, BlockSec, SlowMist, Chainalysis, and 15+ security researchers"
             },
             {
                 "@type": "ListItem",
                 "position": 2,
-                "name": "Multi-Chain USDC Support",
-                "description": "Accept USDC payments on Base, Ethereum, and Solana blockchains with automatic verification"
+                "name": "MCP Integration for AI Agents",
+                "description": "Native integration with Claude Desktop and AI agents via Model Context Protocol with unlimited queries"
             },
             {
                 "@type": "ListItem",
                 "position": 3,
-                "name": "Pay-Per-Request Model",
-                "description": "Transparent pricing at $0.10 per 1,000 API calls with micropayments for AI agents"
+                "name": "Protocol Risk Scoring",
+                "description": "AI-powered risk assessment based on exploit history, amount lost, time since incident, and attack patterns"
             },
             {
                 "@type": "ListItem",
                 "position": 4,
-                "name": "No Account Required",
-                "description": "AI agents can access APIs immediately with on-chain payments without registration or API keys"
+                "name": "Real-Time Detection",
+                "description": "Exploits detected and indexed within minutes with critical alerts pushed immediately"
             },
             {
                 "@type": "ListItem",
                 "position": 5,
-                "name": "Cryptographic Verification",
-                "description": "Every payment is verified on-chain with cryptographic proof ensuring secure trustless transactions"
+                "name": "Historical Database",
+                "description": "Query 2+ years of exploit history filtered by chain, protocol, amount, and attack category"
             },
             {
                 "@type": "ListItem",
                 "position": 6,
-                "name": "JavaScript SDK",
-                "description": "Automated x402 payment handling with detection, verification, and retry logic built-in"
+                "name": "Wallet Screening",
+                "description": "Check wallet addresses for involvement in known exploits with blacklist status and risk classification"
             },
             {
                 "@type": "ListItem",
                 "position": 7,
-                "name": "WebSocket Support",
-                "description": "Real-time WebSocket connections with x402 authentication for high-frequency trading and monitoring"
+                "name": "x402 API Access",
+                "description": "Alternative pay-per-query API access at $0.01 per query with on-chain USDC payments"
             }
         ]
     };
@@ -57,9 +57,9 @@ export default function Features() {
     const webPageSchema = {
         "@context": "https://schema.org",
         "@type": "WebPage",
-        "name": "x402 Payment Facilitator Features",
+        "name": "Security Intelligence Features for AI Agents",
         "url": "https://kamiyo.io/features",
-        "description": "Explore KAMIYO's x402 payment protocol features: HTTP 402 Payment Required, multi-chain USDC support, cryptographic verification, and developer tools",
+        "description": "KAMIYO security intelligence features: 20+ source aggregation, MCP integration for AI agents, protocol risk scoring, real-time exploit detection, and historical database",
         "breadcrumb": {
             "@type": "BreadcrumbList",
             "itemListElement": [
@@ -82,10 +82,10 @@ export default function Features() {
     return (
         <div className="min-h-screen">
             <Head>
-                <title>x402 Features | Payment Protocol Capabilities | KAMIYO</title>
-                <meta name="title" content="x402 Features | Payment Protocol Capabilities | KAMIYO" />
-                <meta name="description" content="Explore x402 Payment Facilitator features: HTTP 402 Payment Required protocol, multi-chain USDC support on Base/Ethereum/Solana, cryptographic verification, JavaScript SDK, and WebSocket connections for AI agents." />
-                <meta name="keywords" content="x402 features, HTTP 402 capabilities, payment protocol features, multi-chain payments, AI agent integration, USDC payments, blockchain API features, on-chain payment verification, payment facilitator features, crypto micropayments, Web3 API features" />
+                <title>Security Intelligence Features | AI Agent Integration | KAMIYO</title>
+                <meta name="title" content="Security Intelligence Features | AI Agent Integration | KAMIYO" />
+                <meta name="description" content="KAMIYO security intelligence features: 20+ source aggregation, MCP integration for AI agents, protocol risk scoring, real-time exploit detection, historical database, and wallet screening for crypto security monitoring." />
+                <meta name="keywords" content="crypto security intelligence, AI agent security tools, MCP integration, protocol risk assessment, exploit detection, security monitoring, crypto intelligence API, blockchain security features, wallet screening, exploit database, AI security agents" />
 
                 {/* Canonical URL */}
                 <link rel="canonical" href="https://kamiyo.io/features" />
@@ -98,8 +98,8 @@ export default function Features() {
                 {/* Open Graph / Facebook */}
                 <meta property="og:type" content="website" />
                 <meta property="og:url" content="https://kamiyo.io/features" />
-                <meta property="og:title" content="x402 Features | Payment Protocol Capabilities" />
-                <meta property="og:description" content="Explore x402 Payment Facilitator features: HTTP 402 protocol, multi-chain USDC support, cryptographic verification, and developer tools for AI agents." />
+                <meta property="og:title" content="Security Intelligence Features | AI Agent Integration" />
+                <meta property="og:description" content="KAMIYO security intelligence features: 20+ source aggregation, MCP integration for AI agents, protocol risk scoring, and real-time exploit detection." />
                 <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:site_name" content="KAMIYO" />
                 <meta property="og:locale" content="en_US" />
@@ -107,8 +107,8 @@ export default function Features() {
                 {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:url" content="https://kamiyo.io/features" />
-                <meta name="twitter:title" content="x402 Features | Payment Protocol Capabilities" />
-                <meta name="twitter:description" content="HTTP 402 protocol, multi-chain USDC support, cryptographic verification, and developer tools for AI agents." />
+                <meta name="twitter:title" content="Security Intelligence Features | AI Agent Integration" />
+                <meta name="twitter:description" content="20+ source aggregation, MCP integration for AI agents, protocol risk scoring, and real-time exploit detection." />
                 <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
                 <meta name="twitter:creator" content="@KAMIYO" />
@@ -127,234 +127,228 @@ export default function Features() {
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;Features</p>
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">x402 Payment Facilitator</h1>
-                    <p className="text-gray-400 mt-4">On-chain payments for API access. No accounts. No credentials. Just pay and access.</p>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence for AI Agents</h1>
+                    <p className="text-gray-400 mt-4 text-xl">Real-time crypto exploit data from 20+ sources. Access via MCP subscription or x402 API.</p>
                 </div>
 
-                {/* Core x402 Features */}
+                {/* Security Intelligence Features */}
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">CORE FEATURES</p>
-                        <h2 className="text-2xl md:text-3xl font-light">HTTP 402 Payment Required</h2>
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY INTELLIGENCE</p>
+                        <h2 className="text-2xl md:text-3xl font-light">What You Get</h2>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Pay-Per-Use API Access</h3>
-                            <p className="mb-4">APIs return HTTP 402 Payment Required when authentication is needed. Payment details are included in response headers, allowing AI agents to discover pricing and payment addresses automatically.</p>
-                            <p className="mb-4">No account creation, no API keys to manage, no OAuth flows. Just send a USDC payment on-chain and receive an access token valid for 1,000 API calls (24 hours).</p>
-                            <p className="mb-4">Perfect for autonomous AI agents that need instant API access without human intervention for signup flows.</p>
-                            <p className="text-sm text-gray-500">Pricing: $0.10 per 1,000 API calls</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">20+ Source Aggregation</h3>
+                            <p className="text-gray-400 text-sm">
+                                CertiK, PeckShield, BlockSec, SlowMist, Chainalysis, and 15+ more security
+                                researchers. All exploits in one feed.
+                            </p>
                         </div>
 
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Multi-Chain USDC Support</h3>
-                            <p className="mb-4">Pay with USDC on your preferred blockchain:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Base:</strong> Low fees (~$0.01), fast confirmation (~2 seconds)</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Ethereum:</strong> Maximum security, established network</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Solana:</strong> Ultra-low fees (~$0.0001), instant finality</span>
-                                </li>
-                            </ul>
-                            <p className="mb-4">AI agents automatically choose the optimal chain based on balance availability and transaction costs.</p>
-                            <p className="text-sm text-gray-500">Supported: Base, Ethereum mainnet, Solana mainnet</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Payment Verification */}
-                <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">VERIFICATION</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Cryptographic Payment Proof</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">On-Chain Verification</h3>
-                            <p className="mb-4">All payments are verified directly on the blockchain using RPC endpoints. No centralized database of credentials, no API keys that can leak, no passwords to remember.</p>
-                            <p className="mb-4">Payment verification checks:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Transaction exists and is confirmed on-chain</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Correct recipient address (KAMIYO payment address)</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Sufficient payment amount (minimum $0.10 USDC)</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Payment hasn't been used before (no double-spend)</span>
-                                </li>
-                            </ul>
-                            <p className="text-sm text-gray-500">Verification time: ~5-30 seconds</p>
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Real-Time Detection</h3>
+                            <p className="text-gray-400 text-sm">
+                                Exploits detected and indexed within minutes. Critical alerts pushed
+                                immediately. $2.1B tracked in H1 2025.
+                            </p>
                         </div>
 
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Access Token Generation</h3>
-                            <p className="mb-4">After payment verification, receive a secure access token:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Valid for 1,000 API requests</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Expires after 24 hours</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Cryptographically signed JWT token</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Include in X-Payment-Token header for API calls</span>
-                                </li>
-                            </ul>
-                            <p className="mb-4">Tokens are tied to the blockchain transaction hash, providing cryptographic proof of payment without storing sensitive credentials.</p>
-                            <p className="text-sm text-gray-500">Token format: kmy_xxxxxxxxx</p>
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Protocol Risk Scoring</h3>
+                            <p className="text-gray-400 text-sm">
+                                AI-powered risk assessment based on exploit history, amount lost,
+                                time since last incident, and attack patterns.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Historical Database</h3>
+                            <p className="text-gray-400 text-sm">
+                                Query 2+ years of exploit history. Filter by chain, protocol, amount,
+                                category. Learn from past incidents.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Source Quality Ranking</h3>
+                            <p className="text-gray-400 text-sm">
+                                Proprietary scoring algorithm ranks sources on speed, accuracy,
+                                exclusivity, and coverage. Know which sources to trust.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Wallet Screening</h3>
+                            <p className="text-gray-400 text-sm">
+                                Check if wallet addresses are involved in known exploits.
+                                Blacklist status and risk classification.
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Developer Tools */}
+                {/* MCP Integration Features */}
+                <div className="mb-20 border-t border-gray-500 border-opacity-25 pt-20">
+                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">AI AGENT INTEGRATION</p>
+                        <h2 className="text-2xl md:text-3xl font-light">MCP Integration for AI Agents</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Claude Desktop Integration</h3>
+                            <p className="text-gray-400 text-sm">
+                                Add KAMIYO to Claude Desktop with one click. Your AI agents can
+                                query exploit data during conversations and decision-making.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Unlimited Tool Calls</h3>
+                            <p className="text-gray-400 text-sm">
+                                MCP subscriptions include unlimited security queries. No per-query
+                                charges, no rate limits. Your AI agents can check security freely.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Persistent Connections</h3>
+                            <p className="text-gray-400 text-sm">
+                                WebSocket connections for real-time updates. AI agents stay connected
+                                and receive exploit alerts as they happen.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                            <h3 className="text-xl font-light mb-3">Team Collaboration</h3>
+                            <p className="text-gray-400 text-sm">
+                                Share MCP workspace with team. Multiple AI agents can access
+                                security intelligence with centralized billing and analytics.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Alternative: x402 API Access */}
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">DEVELOPER TOOLS</p>
-                        <h2 className="text-2xl md:text-3xl font-light">SDKs & Integrations</h2>
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">ALTERNATIVE ACCESS</p>
+                        <h2 className="text-2xl md:text-3xl font-light">x402 API for Direct/Custom Integration</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">JavaScript SDK</h3>
-                            <p className="mb-4">Official JavaScript SDK handles the complete x402 payment flow automatically:</p>
+                            <h3 className="text-xl md:text-2xl mb-4">Pay-Per-Query Access</h3>
+                            <p className="mb-4">Don't need MCP? Access KAMIYO directly via x402 API with on-chain USDC payments:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Detect HTTP 402 responses automatically</span>
+                                    <span>$0.01 per API query</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Extract payment details from response headers</span>
+                                    <span>No account creation required</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Send USDC payment on preferred chain</span>
+                                    <span>Pay with USDC on Base, Ethereum, or Solana</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Wait for verification and receive access token</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Retry original request with token</span>
+                                    <span>Cryptographic verification on-chain</span>
                                 </li>
                             </ul>
-                            <p className="mb-4">Install: <code className="text-xs bg-black border border-gray-500 border-opacity-25 px-2 py-1 rounded">npm install kamiyo-x402-sdk</code></p>
-                            <p className="text-sm text-gray-500">Works in Node.js and browsers</p>
+                            <p className="text-sm text-gray-500">Pricing: 100 queries per $1.00 USDC</p>
                         </div>
 
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">REST API</h3>
-                            <p className="mb-4">Complete REST API for manual integration:</p>
+                            <h3 className="text-xl md:text-2xl mb-4">HTTP 402 Payment Required</h3>
+                            <p className="mb-4">Industry-standard payment protocol for API access:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><code className="text-xs">GET /x402/supported-chains</code> - List payment chains</span>
+                                    <span>Automatic price discovery via HTTP headers</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><code className="text-xs">GET /x402/pricing</code> - Get current pricing</span>
+                                    <span>JavaScript SDK for automated payments</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><code className="text-xs">POST /x402/verify-payment</code> - Verify payment and get token</span>
+                                    <span>REST API for custom integrations</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><code className="text-xs">GET /x402/token/status</code> - Check token usage</span>
+                                    <span>Payment tokens valid for 100 queries or 24 hours</span>
                                 </li>
                             </ul>
-                            <p className="mb-4">All endpoints return standardized x402 headers for payment discovery and verification status.</p>
                             <p className="text-sm text-gray-500">Full API docs: <a href="/api-docs" className="text-cyan hover:text-magenta">kamiyo.ai/api-docs</a></p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">WebSocket Support</h3>
-                            <p className="mb-4">Real-time WebSocket connections support x402 authentication. Send payment transaction hash via WebSocket message to authenticate connection.</p>
-                            <p className="text-sm text-gray-500">Available: Pro/Team/Enterprise tiers</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Subscription Alternative */}
+                {/* Billing Options */}
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">BILLING OPTIONS</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Flexible Payment Models</h2>
+                        <h2 className="text-2xl md:text-3xl font-light">Choose Your Access Model</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Pay-Per-Use (x402)</h3>
-                            <p className="mb-4">Perfect for AI agents and low-volume users:</p>
+                            <h3 className="text-xl md:text-2xl mb-4">MCP Subscriptions (Recommended)</h3>
+                            <p className="mb-4">Unlimited access for AI agents and teams:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>No account creation</span>
+                                    <span><strong>Starter ($19/mo):</strong> 1 MCP connection, unlimited queries</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Pro ($99/mo):</strong> 5 MCP connections, team workspace, analytics</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span><strong>Enterprise ($299/mo):</strong> Unlimited connections, SLA, priority support</span>
+                                </li>
+                            </ul>
+                            <p className="mb-4">Credit card billing via Stripe. Includes Claude Desktop integration, WebSocket connections, and unlimited security queries.</p>
+                            <p className="text-sm text-gray-500">Ideal for: AI agents, production apps, teams, high-frequency usage</p>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xl md:text-2xl mb-4">Pay-Per-Query (x402)</h3>
+                            <p className="mb-4">Perfect for sporadic or custom access:</p>
+                            <ul className="space-y-2 mb-4 text-sm">
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>No account creation required</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -366,113 +360,103 @@ export default function Features() {
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Instant access with on-chain payment</span>
+                                    <span>Instant access with on-chain USDC payment</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>$0.10 per 1,000 API calls</span>
+                                    <span>$0.01 per API query (100 queries per $1)</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-500">Ideal for: AI agents, developers, testing</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Monthly Subscriptions</h3>
-                            <p className="mb-4">Better value for high-volume usage:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Pro ($89/mo):</strong> 50K calls/day, WebSockets, email support</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Team ($199/mo):</strong> 100K calls/day, multiple API keys, analytics</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Enterprise ($499/mo):</strong> Unlimited calls, custom integrations, SLA</span>
-                                </li>
-                            </ul>
-                            <p className="mb-4">Traditional credit card billing via Stripe. Includes API key management, dashboard access, and priority support.</p>
-                            <p className="text-sm text-gray-500">Ideal for: Production apps, teams, high-volume users</p>
+                            <p className="mb-4">On-chain USDC payments on Base, Ethereum, or Solana. No subscription commitment.</p>
+                            <p className="text-sm text-gray-500">Ideal for: Testing, low-volume users, custom integrations</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Security & Compliance */}
+                {/* Data Quality & Coverage */}
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Enterprise-Grade Security</h2>
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">DATA QUALITY</p>
+                        <h2 className="text-2xl md:text-3xl font-light">Comprehensive & Reliable Coverage</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">No Credential Storage</h3>
-                            <p className="mb-4">Unlike traditional API key systems, x402 payments don't require storing user credentials. Every payment is verified on-chain, eliminating the risk of credential database breaches.</p>
-                            <p className="mb-4">Access tokens are short-lived (24 hours) and tied to blockchain transactions, providing natural rate limiting and preventing unauthorized access.</p>
-                            <p className="text-sm text-gray-500">Zero stored passwords, zero leaked API keys</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">CSRF Protection</h3>
-                            <p className="mb-4">All state-changing endpoints (payment verification, token generation) require CSRF tokens to prevent cross-site request forgery attacks.</p>
-                            <p className="text-sm text-gray-500">SameSite cookies, X-CSRF-Token headers</p>
+                            <h3 className="text-xl md:text-2xl mb-4">Multi-Source Validation</h3>
+                            <p className="mb-4">Every exploit is cross-referenced across multiple security researchers to ensure accuracy and reduce false positives.</p>
+                            <p className="mb-4">Our proprietary source ranking algorithm evaluates:</p>
+                            <ul className="space-y-2 mb-4 text-sm">
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Detection speed and timeliness</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Historical accuracy and false positive rate</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Exclusive coverage and unique insights</span>
+                                </li>
+                            </ul>
+                            <p className="text-sm text-gray-500">20+ security researchers, 2+ years of history</p>
                         </div>
 
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Rate Limiting</h3>
-                            <p className="mb-4">Automatic rate limiting based on payment tier and token usage:</p>
+                            <h3 className="text-xl md:text-2xl mb-4">Chain Coverage</h3>
+                            <p className="mb-4">Comprehensive monitoring across all major chains:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Per-token request tracking</span>
+                                    <span>Ethereum, Arbitrum, Optimism, Base, zkSync</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Redis-backed rate limit counters</span>
+                                    <span>Solana, BNB Chain, Polygon, Avalanche</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Automatic token expiration after 1,000 calls or 24 hours</span>
+                                    <span>Cosmos, Polkadot, Aptos, Sui, and more</span>
                                 </li>
                             </ul>
 
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Monitoring & Logging</h3>
-                            <p className="mb-4">Enterprise tier includes:</p>
+                            <h3 className="text-xl md:text-2xl mb-4 mt-8">API Reliability</h3>
+                            <p className="mb-4">Enterprise-grade infrastructure:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Payment verification audit logs</span>
+                                    <span>99.9% uptime SLA (Enterprise tier)</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>API usage analytics and reporting</span>
+                                    <span>Real-time monitoring and alerting</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Real-time error tracking (Sentry integration)</span>
+                                    <span>Detailed usage analytics and reporting</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-500">Available: Enterprise tier</p>
+                            <p className="text-sm text-gray-500">Built for production AI agents</p>
                         </div>
                     </div>
                 </div>

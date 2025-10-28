@@ -1,50 +1,47 @@
 // components/PayButton.js
 import { useState } from "react";
+import { useRouter } from "next/router";
 import { useScrambleText } from "../hooks/useScrambleText";
 
 export default function PayButton({
-                                      textOverride = "Summon a Kami",  // Default text, overridden by services.js
-                                      onClickOverride,                // Custom onClick from services.js
-                                      disabled = false                // Controlled by services.js
+                                      textOverride,
+                                      onClickOverride,
+                                      disabled = false
                                   }) {
+    const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const isEnabled = !disabled && !loading; // Only scramble if not disabled and not loading
-    const displayText = loading ? "Processing..." : textOverride; // Use textOverride instead of hardcoded text
-    const { text, setIsHovering } = useScrambleText(displayText, isEnabled);
+
+    // Default: Go to MCP pricing page
+    const defaultText = "Add to Claude Desktop";
+    const defaultAction = () => router.push('/pricing');
+
+    const text = textOverride || defaultText;
+    const action = onClickOverride || defaultAction;
+
+    const isEnabled = !disabled && !loading;
+    const displayText = loading ? "Processing..." : text;
+    const { text: scrambledText, setIsHovering } = useScrambleText(displayText, isEnabled);
 
     const handlePayment = async () => {
-        if (onClickOverride) {
+        if (isEnabled) {
             setLoading(true);
-            await onClickOverride(); // Use the passed-in onClick from services.js
+            await action();
             setLoading(false);
-        } else {
-            setLoading(true);
-            try {
-                const res = await fetch("/api/payment/checkout", { method: "POST" });
-                const data = await res.json();
-                if (data.sessionId) {
-                    window.location = `https://checkout.stripe.com/pay/${data.sessionId}`;
-                }
-            } catch (error) {
-                console.error("Payment request failed:", error);
-            } finally {
-                setLoading(false);
-            }
         }
     };
 
     return (
         <button
-            onClick={isEnabled ? handlePayment : undefined} // Prevent click if disabled or loading
-            onMouseEnter={() => isEnabled && setIsHovering(true)} // Prevent hover if disabled or loading
+            onClick={isEnabled ? handlePayment : undefined}
+            onMouseEnter={() => isEnabled && setIsHovering(true)}
             onMouseLeave={() => isEnabled && setIsHovering(false)}
-            disabled={!isEnabled} // Disable when loading or if explicitly disabled
+            disabled={!isEnabled}
             className={`group transition-all duration-300 relative px-6 py-3 bg-transparent text-white text-xs uppercase overflow-visible -ml-8
                 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             {/* Button text */}
             <span className="relative z-10 ml-8 tracking-wider transition-all duration-300 ease-out">
-                {text}
+                {scrambledText}
             </span>
 
             {/* Borders with conditional hover effects */}
