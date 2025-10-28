@@ -10,7 +10,7 @@ export default function PricingCard({ plan, isHighlighted = false, onSelect, isR
 
     return (
         <div
-            className={`relative bg-black border ${isHighlighted ? 'border-cyan' : 'border-gray-500 border-opacity-25'} rounded-lg p-6 card ${isHighlighted ? 'card-highlighted -translate-y-1' : 'hover:-translate-y-1'} transition-all duration-300 flex flex-col`}
+            className={`relative bg-black border ${isHighlighted ? 'border-cyan' : 'border-gray-500 border-opacity-25'} rounded-lg p-6 card ${isHighlighted ? '-translate-y-1' : ''} hover:-translate-y-1 transition-all duration-300 flex flex-col`}
             itemScope
             itemType="https://schema.org/Offer"
         >
