@@ -1,0 +1,11 @@
+-- DropForeignKey
+ALTER TABLE "Kami" DROP CONSTRAINT IF EXISTS "Kami_userId_fkey";
+
+-- DropTable
+DROP TABLE IF EXISTS "Kami" CASCADE;
+
+-- DropTable
+DROP TABLE IF EXISTS "Agent" CASCADE;
+
+-- DropTable
+DROP TABLE IF EXISTS "Kami_42" CASCADE;

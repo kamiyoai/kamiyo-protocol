@@ -16,7 +16,6 @@ model User {
   passwordHash  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  kami          Kami[]
   subscriptions Subscription[]
   webhooks      Webhook[]
   watchlists    Watchlist[]
@@ -59,38 +58,6 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-model Kami {
-  id          String   @id @default(uuid())
-  userId      String
-  workerId    String?  // Add this to store the TEE worker ID
-  attestation String?  // Add this to store the attestation report
-  image       String
-  title       String
-  japanese    String
-  tier        String
-  status      String   @default("summoned") // Track status of the kami
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
-}
-
-
-model Agent {
-  id            String   @id @default(uuid())
-  userId        String
-  status        String
-  deploymentId  String?
-  characterFile Json
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-model Kami_42 {
-  id         String @id @default(uuid())
-  stateHash  String
-  origin     String @default("pfn-shadow-02")
-  confidence Float
 }
 
 model Subscription {
