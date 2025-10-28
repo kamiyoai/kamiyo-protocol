@@ -1,11 +1,82 @@
 import Head from 'next/head';
 
 export default function About() {
+    // JSON-LD Structured Data for About/Organization page
+    const organizationSchema = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "KAMIYO",
+        "legalName": "KAMIYO x402 Payment Facilitator",
+        "url": "https://kamiyo.io",
+        "logo": "https://kamiyo.io/favicon.png",
+        "description": "Leading x402 Payment Facilitator platform implementing HTTP 402 Payment Required protocol for autonomous AI agent payments with on-chain USDC across Base, Ethereum, and Solana blockchains",
+        "foundingDate": "2024",
+        "sameAs": [
+            "https://twitter.com/KAMIYO",
+            "https://github.com/kamiyo-ai"
+        ],
+        "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "Customer Support",
+            "email": "support@kamiyo.io",
+            "url": "https://kamiyo.io"
+        }
+    };
+
+    const aboutPageSchema = {
+        "@context": "https://schema.org",
+        "@type": "AboutPage",
+        "name": "About KAMIYO x402 Payment Facilitator",
+        "url": "https://kamiyo.io/about",
+        "description": "Learn about KAMIYO's x402 Payment Facilitator platform, HTTP 402 Payment Required implementation, and our mission to enable autonomous AI agent payments with on-chain USDC",
+        "mainEntity": {
+            "@id": "https://kamiyo.io/#organization"
+        }
+    };
+
     return (
         <div className="min-h-screen">
             <Head>
-                <title>About KAMIYO - x402 Payment Facilitator Platform</title>
-                <meta name="description" content="KAMIYO is an x402 Payment Facilitator platform enabling autonomous AI agent payments with on-chain USDC. Implements HTTP 402 Payment Required protocol." />
+                <title>About KAMIYO | x402 Payment Facilitator for AI Agent Payments</title>
+                <meta name="title" content="About KAMIYO | x402 Payment Facilitator for AI Agent Payments" />
+                <meta name="description" content="KAMIYO is the leading x402 Payment Facilitator platform implementing HTTP 402 Payment Required for autonomous AI agents. On-chain USDC payments on Base, Ethereum, and Solana without account signup." />
+                <meta name="keywords" content="x402 protocol, HTTP 402 Payment Required, payment facilitator, AI agent payments, on-chain API payments, USDC payments, autonomous agent billing, blockchain payment infrastructure, AI commerce platform, crypto micropayments, Web3 payments, decentralized payments" />
+
+                {/* Canonical URL */}
+                <link rel="canonical" href="https://kamiyo.io/about" />
+
+                {/* Robots Meta */}
+                <meta name="robots" content="index, follow" />
+                <meta name="language" content="English" />
+                <meta name="author" content="KAMIYO" />
+
+                {/* Open Graph / Facebook */}
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content="https://kamiyo.io/about" />
+                <meta property="og:title" content="About KAMIYO | x402 Payment Facilitator for AI Agent Payments" />
+                <meta property="og:description" content="Leading x402 Payment Facilitator implementing HTTP 402 Payment Required for autonomous AI agents. On-chain USDC payments without account signup." />
+                <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta property="og:site_name" content="KAMIYO" />
+                <meta property="og:locale" content="en_US" />
+
+                {/* Twitter Card */}
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:url" content="https://kamiyo.io/about" />
+                <meta name="twitter:title" content="About KAMIYO | x402 Payment Facilitator for AI Agent Payments" />
+                <meta name="twitter:description" content="Leading x402 Payment Facilitator implementing HTTP 402 Payment Required for autonomous AI agents with on-chain USDC payments." />
+                <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:site" content="@KAMIYO" />
+                <meta name="twitter:creator" content="@KAMIYO" />
+
+                {/* JSON-LD Structured Data */}
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+                />
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutPageSchema) }}
+                />
             </Head>
 
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>

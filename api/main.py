@@ -134,7 +134,7 @@ ALLOWED_ORIGINS = validate_origins(raw_origins, is_production)
 
 # In development, allow localhost
 if not is_production:
-    ALLOWED_ORIGINS.extend(["http://localhost:3000", "http://localhost:8000"])
+    ALLOWED_ORIGINS.extend(["http://localhost:3000", "http://localhost:3001", "http://localhost:8000"])
 
 # In production, ensure at least one valid origin
 if is_production and not ALLOWED_ORIGINS:
@@ -291,8 +291,8 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
     The token is user-session specific and bound to the client's browser.
     """
     try:
-        # Generate CSRF token
-        csrf_token = csrf_protect.generate_csrf()
+        # Generate CSRF token (returns tuple of token and signed_token)
+        csrf_token, signed_token = csrf_protect.generate_csrf()
 
         logger.debug(f"Generated CSRF token for client")
 
@@ -312,6 +312,8 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
         )
     except Exception as e:
         logger.error(f"Failed to generate CSRF token: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail="Failed to generate CSRF token"

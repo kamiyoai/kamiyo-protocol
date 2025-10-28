@@ -1,11 +1,127 @@
 import Head from 'next/head';
 
 export default function Features() {
+    // JSON-LD Structured Data for Features page
+    const itemListSchema = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "KAMIYO x402 Payment Facilitator Features",
+        "description": "Complete list of features for the x402 Payment Facilitator platform",
+        "url": "https://kamiyo.io/features",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "HTTP 402 Payment Required Protocol",
+                "description": "Full implementation of HTTP 402 Payment Required standard for payment-gated API access with autonomous AI agent support"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Multi-Chain USDC Support",
+                "description": "Accept USDC payments on Base, Ethereum, and Solana blockchains with automatic verification"
+            },
+            {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Pay-Per-Request Model",
+                "description": "Transparent pricing at $0.10 per 1,000 API calls with micropayments for AI agents"
+            },
+            {
+                "@type": "ListItem",
+                "position": 4,
+                "name": "No Account Required",
+                "description": "AI agents can access APIs immediately with on-chain payments without registration or API keys"
+            },
+            {
+                "@type": "ListItem",
+                "position": 5,
+                "name": "Cryptographic Verification",
+                "description": "Every payment is verified on-chain with cryptographic proof ensuring secure trustless transactions"
+            },
+            {
+                "@type": "ListItem",
+                "position": 6,
+                "name": "JavaScript SDK",
+                "description": "Automated x402 payment handling with detection, verification, and retry logic built-in"
+            },
+            {
+                "@type": "ListItem",
+                "position": 7,
+                "name": "WebSocket Support",
+                "description": "Real-time WebSocket connections with x402 authentication for high-frequency trading and monitoring"
+            }
+        ]
+    };
+
+    const webPageSchema = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "x402 Payment Facilitator Features",
+        "url": "https://kamiyo.io/features",
+        "description": "Explore KAMIYO's x402 payment protocol features: HTTP 402 Payment Required, multi-chain USDC support, cryptographic verification, and developer tools",
+        "breadcrumb": {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": "Home",
+                    "item": "https://kamiyo.io"
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Features",
+                    "item": "https://kamiyo.io/features"
+                }
+            ]
+        }
+    };
+
     return (
         <div className="min-h-screen">
             <Head>
-                <title>Features - KAMIYO x402 Payment Facilitator</title>
-                <meta name="description" content="KAMIYO x402 payment system: on-chain USDC payments, instant API access, no account signup required. HTTP 402 Payment Required implementation for AI agents." />
+                <title>x402 Features | Payment Protocol Capabilities | KAMIYO</title>
+                <meta name="title" content="x402 Features | Payment Protocol Capabilities | KAMIYO" />
+                <meta name="description" content="Explore x402 Payment Facilitator features: HTTP 402 Payment Required protocol, multi-chain USDC support on Base/Ethereum/Solana, cryptographic verification, JavaScript SDK, and WebSocket connections for AI agents." />
+                <meta name="keywords" content="x402 features, HTTP 402 capabilities, payment protocol features, multi-chain payments, AI agent integration, USDC payments, blockchain API features, on-chain payment verification, payment facilitator features, crypto micropayments, Web3 API features" />
+
+                {/* Canonical URL */}
+                <link rel="canonical" href="https://kamiyo.io/features" />
+
+                {/* Robots Meta */}
+                <meta name="robots" content="index, follow" />
+                <meta name="language" content="English" />
+                <meta name="author" content="KAMIYO" />
+
+                {/* Open Graph / Facebook */}
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content="https://kamiyo.io/features" />
+                <meta property="og:title" content="x402 Features | Payment Protocol Capabilities" />
+                <meta property="og:description" content="Explore x402 Payment Facilitator features: HTTP 402 protocol, multi-chain USDC support, cryptographic verification, and developer tools for AI agents." />
+                <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta property="og:site_name" content="KAMIYO" />
+                <meta property="og:locale" content="en_US" />
+
+                {/* Twitter Card */}
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:url" content="https://kamiyo.io/features" />
+                <meta name="twitter:title" content="x402 Features | Payment Protocol Capabilities" />
+                <meta name="twitter:description" content="HTTP 402 protocol, multi-chain USDC support, cryptographic verification, and developer tools for AI agents." />
+                <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:site" content="@KAMIYO" />
+                <meta name="twitter:creator" content="@KAMIYO" />
+
+                {/* JSON-LD Structured Data */}
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+                />
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
+                />
             </Head>
 
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>

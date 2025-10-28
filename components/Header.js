@@ -55,8 +55,8 @@ export default function Header({ children }) {
                                 alt="Kamiyo.ai"
                                 width={240}
                                 height={64}
-                                className="object-contain h-10 sm:h-12 md:h-14"
-                                style={{ width: 'auto', height: 'auto' }}
+                                className="object-contain h-10 sm:h-12 md:h-14 w-auto"
+                                style={{ transform: 'translateX(-40px)' }}
                             />
                         </Link>
                     </div>

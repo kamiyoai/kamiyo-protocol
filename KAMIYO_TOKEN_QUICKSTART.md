@@ -65,6 +65,13 @@ After each phase, you'll be asked to review production readiness checkpoints:
 ✅ Token-gated premium features
 ✅ Points system ("align-to-earn") for engagement
 
+### Community Hype Milestones (NEW!)
+✅ 6 strategic frontend updates throughout development
+✅ Pre-written X (Twitter) posts for each milestone
+✅ "Build in public" strategy with progress transparency
+✅ Viral mechanics (points, referrals, leaderboards)
+✅ See: `KAMIYO_COMMUNITY_HYPE_ADDENDUM.md`
+
 ---
 
 ## Production Readiness Checkpoints
@@ -161,7 +168,15 @@ Every phase ends with a mandatory checkpoint:
 - **Launch:** April-May 2026
 - **Work Schedule:** 3 days/week
 - **Agent Hours:** 188 hours (autonomous)
-- **Human Hours:** 35 hours (oversight)
+- **Human Hours:** 40 hours (35 oversight + 5 hype management)
+
+### Community Hype Timeline
+- **Week 2:** Vision Drop (announce tokenomics)
+- **Week 7:** Devnet Launch (working product demo)
+- **Week 10:** Alignment Reveal (showcase features)
+- **Week 14:** Airdrop Hype (viral points system)
+- **Week 18:** Mainnet Soon (final countdown)
+- **Week 19:** Launch Day (go live celebration)
 
 ---
 

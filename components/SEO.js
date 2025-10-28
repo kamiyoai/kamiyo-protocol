@@ -58,8 +58,8 @@ export default function SEO({
     "autonomous payment systems",
     "blockchain payment protocol"
   ],
-  canonical = "https://kamiyo.ai",
-  ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
+  canonical = "https://kamiyo.io",
+  ogImage = "https://kamiyo.io/media/KAMIYO_OpenGraphImage.png",
   ogType = "website",
   schemaData = null,
   noindex = false,
@@ -72,7 +72,7 @@ export default function SEO({
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
     "description": "x402 Payment Facilitator platform implementing HTTP 402 Payment Required for autonomous AI agents with on-chain API payments using USDC",
-    "url": "https://kamiyo.ai",
+    "url": "https://kamiyo.io",
     "offers": [
       {
         "@type": "Offer",
@@ -175,8 +175,8 @@ export default function SEO({
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
       <meta name="twitter:image:alt" content={title} />
-      <meta name="twitter:site" content="@KamiyoAI" />
-      <meta name="twitter:creator" content="@KamiyoAI" />
+      <meta name="twitter:site" content="@KAMIYO" />
+      <meta name="twitter:creator" content="@KAMIYO" />
 
       {/* Additional SEO Meta Tags */}
       <meta name="format-detection" content="telephone=no" />

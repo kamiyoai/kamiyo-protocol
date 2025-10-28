@@ -126,7 +126,7 @@ class AIAgentPoster:
 
     def generate_quote_tweet(self, original_tweet: Dict) -> Optional[str]:
         """
-        Use Claude to generate an insightful quote tweet
+        Use Claude to generate an insightful quote tweet with variable length
 
         Args:
             original_tweet: Tweet dict with text, author, etc.
@@ -138,14 +138,39 @@ class AIAgentPoster:
         username = original_tweet['author']['username']
         text = original_tweet['text']
 
-        # Direct prompt to Claude - no templates, no patterns
-        prompt = f"""Quote this tweet from @{username} ({author}):
+        # Randomly choose between short, medium, and long form responses
+        response_styles = [
+            {
+                'name': 'short',
+                'prompt': f"""Quote this tweet from @{username} ({author}):
 
 "{text}"
 
-Write a 6-sentence thoughtful response that offers valuable insight related to this post. Write it like you're talking to a very intelligent human being that you've just met - be genuine, insightful, and interesting. Not promotional. Just real conversation.
+Write a brief, punchy 1-2 sentence response that captures a key insight. Be concise and impactful. Keep it under 100 characters."""
+            },
+            {
+                'name': 'medium',
+                'prompt': f"""Quote this tweet from @{username} ({author}):
 
-Keep it under 280 characters total."""
+"{text}"
+
+Write a 3-4 sentence thoughtful response. Be insightful and conversational, like talking to an intelligent peer. Keep it under 200 characters."""
+            },
+            {
+                'name': 'long',
+                'prompt': f"""Quote this tweet from @{username} ({author}):
+
+"{text}"
+
+Write a 5-7 sentence deep response that offers valuable perspective. Be genuine, insightful, and interesting - like sharing thoughts with someone smart you just met. Not promotional, just real conversation. Keep it under 280 characters."""
+            }
+        ]
+
+        # Randomly select a style
+        style = random.choice(response_styles)
+        logger.info(f"Generating {style['name']}-form response")
+
+        prompt = style['prompt']
 
         try:
             message = self.claude.messages.create(
@@ -174,7 +199,7 @@ Keep it under 280 characters total."""
                 )
                 response_text = message.content[0].text.strip()
 
-            logger.info(f"Generated quote tweet: {response_text[:100]}...")
+            logger.info(f"Generated {style['name']}-form quote tweet ({len(response_text)} chars): {response_text[:100]}...")
             return response_text
 
         except Exception as e:
