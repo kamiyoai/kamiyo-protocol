@@ -64,15 +64,36 @@ export const authOptions = {
         },
         async redirect({ url, baseUrl }) {
             try {
-                console.log('Redirect:', { url, baseUrl });
+                // Don't redirect for internal NextAuth endpoints (_log, etc)
+                if (url.includes('/api/auth/_')) {
+                    return baseUrl;
+                }
+
                 // Allows relative callback URLs
                 if (url.startsWith("/")) return `${baseUrl}${url}`;
-                // Allows callback URLs on the same origin
-                else if (new URL(url).origin === baseUrl) return url;
-                return baseUrl + "/dashboard";
+
+                // Allows callback URLs on the same origin (handle different ports in dev)
+                try {
+                    const urlObj = new URL(url);
+                    const baseUrlObj = new URL(baseUrl);
+                    // Same origin including port
+                    if (urlObj.origin === baseUrlObj.origin) {
+                        return url;
+                    }
+                    // Same hostname (different port is ok in dev)
+                    if (urlObj.hostname === baseUrlObj.hostname) {
+                        // Rewrite to correct port
+                        urlObj.port = baseUrlObj.port;
+                        return urlObj.toString();
+                    }
+                } catch (e) {
+                    // Not a valid URL, continue
+                }
+
+                return baseUrl;
             } catch (error) {
                 console.error('Redirect callback error:', error);
-                return baseUrl + "/dashboard";
+                return baseUrl;
             }
         }
     },
