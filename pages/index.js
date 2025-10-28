@@ -3,138 +3,76 @@ import { useState, useEffect } from "react";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
+import SEO from "../components/SEO";
 import { useRouter } from "next/router";
 
 export default function Home() {
     const router = useRouter();
-    const [stats, setStats] = useState({
-        totalExploits: '-',
-        totalLoss: '-',
-        chainsTracked: '-',
-        activeSources: '-'
-    });
-    const [exploits, setExploits] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [exploitsLoading, setExploitsLoading] = useState(true);
-
-    useEffect(() => {
-        loadStats();
-        loadPublicExploits();
-        // Refresh stats every 30 seconds
-        const interval = setInterval(() => {
-            loadStats();
-            loadPublicExploits();
-        }, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const loadStats = async () => {
-        try {
-            const [healthRes, statsRes] = await Promise.all([
-                fetch('/api/health'),
-                fetch('/api/stats?days=7')
-            ]);
-
-            const healthData = await healthRes.json();
-            const statsData = await statsRes.json();
-
-            setStats({
-                totalExploits: healthData.database_exploits?.toLocaleString() || '-',
-                totalLoss: statsData.total_loss_usd
-                    ? `$${(statsData.total_loss_usd / 1000000).toFixed(1)}M`
-                    : '-',
-                chainsTracked: healthData.tracked_chains || '-',
-                activeSources: `${healthData.active_sources || 0}/${healthData.total_sources || 0}`
-            });
-            setLoading(false);
-        } catch (error) {
-            console.error('Error loading stats:', error);
-            setLoading(false);
-        }
-    };
-
-    const loadPublicExploits = async () => {
-        try {
-            // Public/free tier exploits (24h delayed)
-            const res = await fetch('/api/exploits?page=1&page_size=5');
-            const data = await res.json();
-            setExploits(data.data || []);
-            setExploitsLoading(false);
-        } catch (error) {
-            console.error('Error loading public exploits:', error);
-            setExploitsLoading(false);
-        }
-    };
 
     return (
-        <div className="text-white bg-black min-h-screen">
-            {/* Hero Section */}
-            <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
+        <>
+            <SEO />
+            <div className="text-white bg-black min-h-screen">
+                {/* Hero Section */}
+                <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
                 <div className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
                     {/* SEO-friendly H1 (visually hidden) */}
-                    <h1 className="sr-only">KAMIYO - Real-time blockchain exploit intelligence</h1>
+                    <h1 className="sr-only">x402 Payment Facilitator: HTTP 402 Payment Required for AI Agent Payments and On-Chain API Payments</h1>
 
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
                         {/* Left column: Content */}
-                        <div className="space-y-8">
+                        <article className="space-y-8">
                             {/* Heading */}
-                            <div>
+                            <header>
                                 <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    Blockchain exploit alerts within <br />4 minutes – <br />not 4 hours
+                                    On-chain API payments<br />with x402 for<br />autonomous AI agents
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Get verified exploit data and analysis from 20+ trusted security sources across 54 networks.
+                                    HTTP 402 Payment Required implementation. Pay with USDC on-chain without account signup. Built for AI agents that need instant API access.
                                 </p>
-                            </div>
+                            </header>
 
                             {/* Feature Badges */}
                             <div className="flex flex-wrap gap-3">
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    Free tier available
+                                    HTTP 402 Payment Required
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    Real-time alerts (Pro)
+                                    USDC on Base, Ethereum, Solana
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    No credit card required
+                                    No account signup
+                                </span>
+                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                    Built for AI agents
                                 </span>
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-wrap gap-6 items-center">
+                            <div className="flex flex-wrap gap-6 items-center justify-between">
                                 <div className="scale-110 origin-left ml-8">
                                     <PayButton
-                                        textOverride="Get Free Alerts"
+                                        textOverride="View API Docs"
                                         onClickOverride={() => {
-                                            window.location.href = '/auth/signin';
+                                            window.location.href = '/api-docs';
                                         }}
                                     />
                                 </div>
+                                <button
+                                    onClick={() => {
+                                        document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                                    }}
+                                    className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300"
+                                    style={{ color: '#ff44f5', marginRight: '20px' }}
+                                    title="View x402 payment facilitator pricing plans for AI agent payments"
+                                    aria-label="View pricing plans for HTTP 402 Payment Required implementation"
+                                >
+                                    View Pricing
+                                </button>
                             </div>
 
-
-                            <button
-                                onClick={() => {
-                                    document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-                                }}
-                                className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300"
-                                style={{ color: '#ff44f5', marginRight: '40px' }}
-                            >
-                                View Pricing
-                            </button>
-
-                            {/* Stats Row */}
-                            <div className="pt-8">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex gap-1">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
-                                        <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
-                                        <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        </article>
 
                         {/* Right column: Video (hidden on mobile) */}
                         <div className="hidden md:flex justify-center md:justify-end">
@@ -145,104 +83,22 @@ export default function Home() {
                                 playsInline
                                 className="w-auto"
                                 style={{ height: '24rem', filter: 'saturate(2.0) contrast(1.2)' }}
-                                aria-label="Kamiyo"
+                                aria-label="KAMIYO x402 Payment Facilitator demonstration showing HTTP 402 Payment Required implementation for autonomous AI agent payments"
+                                title="x402 protocol implementation for on-chain API payments with USDC"
                             >
                                 <source src="/media/pfn_x_42.mp4" type="video/mp4" />
                             </video>
                         </div>
                     </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatsCard
-                            label="Total Exploits"
-                            value={stats.totalExploits}
-                            loading={loading}
-                        />
-                        <StatsCard
-                            label="Total Loss (7 Days)"
-                            value={stats.totalLoss}
-                            loading={loading}
-                        />
-                        <StatsCard
-                            label="Chains Tracked"
-                            value={stats.chainsTracked}
-                            loading={loading}
-                        />
-                        <StatsCard
-                            label="Active Sources"
-                            value={stats.activeSources}
-                            loading={loading}
-                        />
-                    </div>
                 </div>
-            </section>
-
-            {/* Recent Exploits Section */}
-            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
-                <div className="mb-8">
-                    <h2 className="text-2xl font-light mb-4 flex items-center gap-3">
-                        <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        <span className="text-gray-400">DASHBOARD</span>
-                        <span className="text-yellow-500 text-sm">(24h delay)</span>
-                    </h2>
-                </div>
-
-                {exploitsLoading ? (
-                    <div className="text-center py-12">
-                        <div className="text-gray-400">Loading recent exploits...</div>
-                    </div>
-                ) : exploits.length === 0 ? (
-                    <div className="text-center py-12">
-                        <p className="text-gray-400">No exploits available</p>
-                    </div>
-                ) : (
-                    <div className="space-y-4 mb-8">
-                        {exploits.map((exploit, index) => (
-                            <div
-                                key={index}
-                                className="border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors"
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <h3 className="text-white font-light text-xl">{exploit.protocol}</h3>
-                                    <span className="text-sm text-cyan px-3 py-1 border border-cyan border-opacity-50 rounded-full">
-                                        {exploit.chain}
-                                    </span>
-                                </div>
-                                <p className="text-gray-400 text-sm mb-4">
-                                    {exploit.description || (
-                                        <span>
-                                            Exploit detected {exploit.category ? `(${exploit.category})` : ''} – <a href={exploit.source_url} target="_blank" rel="noopener noreferrer" className="text-cyan hover:text-magenta underline">View source</a>
-                                        </span>
-                                    )}
-                                </p>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-500">
-                                        {new Date(exploit.timestamp || exploit.date).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </span>
-                                    <span className="text-magenta font-medium text-lg">
-                                        ${(exploit.loss_amount_usd || exploit.amount_usd || 0).toLocaleString()}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </section>
 
             {/* Pricing Section */}
-            <section id="pricing" className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl md:text-5xl font-light mb-4">Simple Pricing</h2>
-                    <p className="text-gray-400 text-lg">Start free. Upgrade when you need real-time alerts.</p>
-                </div>
+            <section id="pricing" className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="pricing-heading">
+                <header className="text-center mb-12">
+                    <h2 id="pricing-heading" className="text-4xl md:text-5xl font-light mb-4">x402 Payment Facilitator Pricing</h2>
+                    <p className="text-gray-400 text-lg">Pay-per-use with x402 or subscribe monthly. Your choice.</p>
+                </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
                     {/* Free Tier */}
@@ -258,13 +114,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Unlimited email alerts</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">24-hour delayed data</span>
+                                <span className="text-gray-300">x402 pay-per-use access</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -276,7 +126,13 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Public dashboard access</span>
+                                <span className="text-gray-300">USDC payments (Base/ETH/Solana)</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-gray-300">No account required</span>
                             </li>
                         </ul>
 
@@ -286,6 +142,7 @@ export default function Home() {
                                 onClickOverride={() => {
                                     window.location.href = '/auth/signin';
                                 }}
+                                title="Start using x402 payment facilitator for free - no credit card required"
                             />
                         </div>
                     </div>
@@ -308,31 +165,31 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Unlimited real-time alerts</span>
+                                <span className="text-gray-300">Everything in Free</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">50K API req/day</span>
+                                <span className="text-gray-300">50K API calls/day</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">WebSocket feed</span>
+                                <span className="text-gray-300">WebSocket connections</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Discord/Telegram/Email</span>
+                                <span className="text-gray-300">JavaScript SDK access</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Historical data (90 days)</span>
+                                <span className="text-gray-300">Email support</span>
                             </li>
                         </ul>
 
@@ -342,6 +199,7 @@ export default function Home() {
                                 onClickOverride={() => {
                                     window.location.href = '/pricing';
                                 }}
+                                title="Start Pro plan trial - 50K API calls per day with HTTP 402 Payment Required"
                             />
                         </div>
                     </div>
@@ -365,25 +223,19 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">5 webhook endpoints</span>
+                                <span className="text-gray-300">100K API calls/day</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Slack integration</span>
+                                <span className="text-gray-300">Multiple API keys</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Fork detection analysis</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Pattern clustering</span>
+                                <span className="text-gray-300">Usage analytics dashboard</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -399,6 +251,7 @@ export default function Home() {
                                 onClickOverride={() => {
                                     window.location.href = '/pricing';
                                 }}
+                                title="Start Team plan trial - 100K API calls per day with on-chain API payments"
                             />
                         </div>
                     </div>
@@ -423,31 +276,25 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">50 webhook endpoints</span>
+                                <span className="text-gray-300">Unlimited API calls</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Protocol watchlists</span>
+                                <span className="text-gray-300">Custom payment integrations</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Fork graph visualization</span>
+                                <span className="text-gray-300">99.9% SLA guarantee</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Historical data (2+ years)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Dedicated support</span>
+                                <span className="text-gray-300">Dedicated support engineer</span>
                             </li>
                         </ul>
 
@@ -457,52 +304,137 @@ export default function Home() {
                                 onClickOverride={() => {
                                     window.location.href = '/inquiries';
                                 }}
+                                title="Contact sales for Enterprise x402 payment facilitator solutions"
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* Comparison Section */}
-                <div className="border-t border-gray-500 border-opacity-25 pt-12">
-                    <h3 className="text-2xl font-light text-center mb-8">Compared to Alternatives</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-gray-400">X Alerts</h4>
-                            <ul className="space-y-2 text-sm text-gray-500">
-                                <li>• Random timing (15 mins - 4 hours)</li>
-                                <li>• No API access</li>
-                                <li>• Follow multiple accounts</li>
-                                <li>• No filtering</li>
-                            </ul>
+            </section>
+
+            {/* x402 payment facilitator Section */}
+            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="ai-agents-heading">
+                <header className="text-center mb-12">
+                    <h2 id="ai-agents-heading" className="text-4xl md:text-5xl font-light mb-4">Built for AI Agents</h2>
+                    <p className="text-gray-400 text-lg">x402 payment facilitator: On-chain payments without accounts</p>
+                </header>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="text-white text-lg mb-3">1. Discover</div>
+                        <div className="text-gray-400 text-sm mb-4">
+                            AI agent makes API request and receives HTTP 402 Payment Required response with payment details
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-gray-400">Security Firms</h4>
-                            <ul className="space-y-2 text-sm text-gray-500">
-                                <li>• $50k+ audits only</li>
-                                <li>• Enterprise sales process</li>
-                                <li>• No self-serve access</li>
-                                <li>• Weeks to get started</li>
-                            </ul>
+                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
+                            <span className="text-cyan">HTTP/1.1 402 Payment Required</span><br/>
+                            <span className="text-magenta">X-Payment-Amount:</span> <span className="text-yellow-400">0.10 USDC</span><br/>
+                            <span className="text-magenta">X-Payment-Chain:</span> <span className="text-yellow-400">base</span>
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-white">KAMIYO</h4>
-                            <ul className="space-y-2 text-sm text-gray-300">
-                                <li>• Consistent 4-minute alerts</li>
-                                <li>• Full API + WebSocket</li>
-                                <li>• All sources in one place</li>
-                                <li>• Sign up in 30 seconds</li>
-                            </ul>
+                    </div>
+
+                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="text-white text-lg mb-3">2. Pay</div>
+                        <div className="text-gray-400 text-sm mb-4">
+                            Agent sends USDC payment on Base, Ethereum, or Solana. No account signup required
+                        </div>
+                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
+                            <span className="text-cyan">Transfer</span> <span className="text-yellow-400">0.10 USDC</span><br/>
+                            <span className="text-magenta">To:</span> <span className="text-gray-400">0x742d...7b7b7</span><br/>
+                            <span className="text-magenta">Chain:</span> <span className="text-yellow-400">Base</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="text-white text-lg mb-3">3. Access</div>
+                        <div className="text-gray-400 text-sm mb-4">
+                            Agent receives access token good for 1,000 API calls (24 hours). Automatic verification
+                        </div>
+                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
+                            <span className="text-magenta">X-Payment-Token:</span> <span className="text-cyan">kmy_...</span><br/>
+                            <span className="text-magenta">Requests:</span> <span className="text-yellow-400">1000</span><br/>
+                            <span className="text-magenta">Expires:</span> <span className="text-yellow-400">24h</span>
                         </div>
                     </div>
                 </div>
+
+                <article className="text-center mb-16">
+                    <h3 className="text-2xl font-light mb-6">Why x402 Payment Facilitator?</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
+                        <div className="flex gap-3">
+                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <div>
+                                <div className="text-white mb-1">No account creation</div>
+                                <div className="text-gray-500 text-sm">AI agents can pay directly without signup flows</div>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <div>
+                                <div className="text-white mb-1">Cryptographic verification</div>
+                                <div className="text-gray-500 text-sm">On-chain payment proof, no API keys to leak</div>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <div>
+                                <div className="text-white mb-1">Pay-per-use pricing</div>
+                                <div className="text-gray-500 text-sm">$0.10 per call, 1000 requests per $1 USDC</div>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <div>
+                                <div className="text-white mb-1">Multi-chain support</div>
+                                <div className="text-gray-500 text-sm">Base, Ethereum, Solana – agent chooses</div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <article className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-8 max-w-3xl mx-auto">
+                    <h3 className="text-2xl font-light mb-4 text-center">For AI Agent Developers</h3>
+                    <p className="text-gray-400 text-center mb-6">
+                        Integrate KAMIYO into your autonomous agents with our JavaScript SDK
+                    </p>
+                    <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4 text-xs font-mono text-gray-300 overflow-x-auto">
+                        <div className="text-gray-500">// Install SDK</div>
+                        <div className="text-cyan">npm install kamiyo-x402-sdk</div>
+                        <br/>
+                        <div className="text-gray-500">// Use in your agent</div>
+                        <div><span className="text-magenta">const</span> kamiyo = <span className="text-cyan">new</span> <span className="text-yellow-400">KamiyoClient</span>();</div>
+                        <div><span className="text-magenta">const</span> exploits = <span className="text-magenta">await</span> kamiyo.<span className="text-yellow-400">getExploits</span>();</div>
+                        <div className="text-gray-500">// SDK handles 402 responses and USDC payments automatically</div>
+                    </div>
+                    <div className="text-center mt-6">
+                        <a
+                            href="/api-docs"
+                            className="text-cyan hover:text-magenta transition-colors"
+                            title="View complete API documentation for HTTP 402 Payment Required implementation"
+                            aria-label="Navigate to KAMIYO x402 API documentation"
+                        >
+                            View API Documentation →
+                        </a>
+                    </div>
+                </article>
             </section>
 
             {/* Social Proof & Features Section */}
-            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
+            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="features-heading">
                 {/* Trusted By */}
                 <div className="text-center mb-16">
                     <h3 className="text-gray-500 text-sm uppercase tracking-wider mb-6">Trusted By</h3>
                     <div className="flex flex-wrap justify-center gap-6">
+                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
+                            <span className="text-sm text-gray-400">AI Agent Developers</span>
+                        </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
                             <span className="text-sm text-gray-400">Trading Bot Developers</span>
                         </div>
@@ -521,21 +453,21 @@ export default function Home() {
                 {/* Features Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Real-Time Intelligence</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Instant API Access</h3>
                         <p className="text-gray-500 text-sm">
-                            We collect and deliver exploit intelligence from 20+ verified sources within minutes of detection
+                            AI agents discover APIs, pay with USDC on-chain, and get instant access without signup or API keys
                         </p>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Verified Data Only</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">On-Chain Verification</h3>
                         <p className="text-gray-500 text-sm">
-                            All reported incidents include on-chain transaction verification from trusted blockchain explorers
+                            Cryptographic payment proof via blockchain transactions eliminates chargebacks and credential leaks
                         </p>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Developer-Ready API</h3>
+                        <h3 className="text-lg font-light mb-3 gradient-text">Developer-Friendly SDK</h3>
                         <p className="text-gray-500 text-sm">
-                            Our REST API and WebSocket feeds enable seamless integration with your existing security infrastructure
+                            JavaScript SDK handles 402 responses and USDC payments automatically - just install and integrate
                         </p>
                     </div>
                 </div>
@@ -543,6 +475,57 @@ export default function Home() {
 
             {/* FAQ Section */}
             <FAQ />
+
+            {/* Hidden SEO Content - Visually hidden but crawlable */}
+            <section className="sr-only" aria-hidden="true">
+                <h2>Understanding HTTP 402 Payment Required and x402 Protocol</h2>
+                <article>
+                    <h3>What is HTTP 402 Payment Required?</h3>
+                    <p>
+                        HTTP 402 Payment Required is an HTTP status code originally reserved for future digital payment systems.
+                        KAMIYO implements this protocol as an x402 Payment Facilitator, enabling seamless on-chain API payments
+                        for autonomous AI agents. When an AI agent makes an API request, the server returns HTTP 402 Payment Required
+                        with payment details, allowing the agent to complete payment using USDC on Base, Ethereum, or Solana blockchains.
+                    </p>
+                </article>
+                <article>
+                    <h3>x402 Payment Facilitator Implementation</h3>
+                    <p>
+                        As a leading x402 Payment Facilitator, KAMIYO provides a complete implementation of HTTP 402 Payment Required
+                        for AI agent payments. The x402 protocol enables autonomous agent payments without traditional account signup,
+                        using cryptographic verification and blockchain transactions. AI agents can make on-chain API payments
+                        instantly, receiving access tokens valid for thousands of API calls.
+                    </p>
+                </article>
+                <article>
+                    <h3>On-Chain API Payments for AI Agents</h3>
+                    <p>
+                        On-chain API payments represent the future of AI agent billing. KAMIYO's x402 payment facilitator platform
+                        enables autonomous AI agents to discover APIs, receive HTTP 402 Payment Required responses, send USDC payments
+                        on-chain, and gain immediate API access. This eliminates the need for account creation, API key management,
+                        and traditional payment methods that don't work for autonomous agent payments.
+                    </p>
+                </article>
+                <article>
+                    <h3>Benefits of x402 for AI Agent Developers</h3>
+                    <p>
+                        AI agent payments through the x402 protocol offer significant advantages: no account signup friction,
+                        cryptographic payment verification, pay-per-use pricing with USDC, multi-chain support across Base,
+                        Ethereum, and Solana, and automated payment handling through the KAMIYO JavaScript SDK. The HTTP 402
+                        Payment Required implementation ensures AI agents can autonomously access APIs without human intervention.
+                    </p>
+                </article>
+                <article>
+                    <h3>Blockchain API Billing and Payment Verification</h3>
+                    <p>
+                        KAMIYO's x402 Payment Facilitator uses blockchain technology for transparent, verifiable API billing.
+                        On-chain API payments provide cryptographic proof of payment, eliminating chargebacks and fraud.
+                        The HTTP 402 Payment Required protocol works seamlessly with USDC stablecoins on Base, Ethereum,
+                        and Solana networks, enabling fast, low-cost AI agent payments globally.
+                    </p>
+                </article>
+            </section>
         </div>
+        </>
     );
 }
