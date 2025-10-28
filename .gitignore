@@ -98,6 +98,10 @@ web_modules/
 
 .yarn-integrity
 
+# Lock files (prevent platform-specific dependencies from being committed)
+
+package-lock.json
+
 # dotenv environment variable files
 
 .env
