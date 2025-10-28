@@ -11,27 +11,87 @@ export default function Document() {
 
     const structuredData = {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "KAMIYO",
-        "legalName": "KAMIYO x402 Payment Facilitator",
-        "description": "KAMIYO is an x402 Payment Facilitator platform enabling HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments using USDC on Base, Ethereum, and Solana blockchains without account signup.",
-        "url": "https://kamiyo.ai",
-        "logo": "https://kamiyo.ai/favicon.png",
-        "foundingDate": "2024",
-        "sameAs": [
-            "https://twitter.com/KAMIYO",
-            "https://github.com/kamiyo-ai"
-        ],
-        "contactPoint": {
-            "@type": "ContactPoint",
-            "contactType": "Customer Support",
-            "email": "support@kamiyo.ai",
-            "url": "https://kamiyo.ai"
-        },
-        "offers": {
-            "@type": "Offer",
-            "description": "x402 protocol implementation for blockchain API billing and autonomous agent payments"
-        }
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": "https://kamiyo.ai/#organization",
+                "name": "KAMIYO",
+                "legalName": "KAMIYO x402 Payment Facilitator",
+                "description": "KAMIYO is an x402 Payment Facilitator platform enabling HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments using USDC on Base, Ethereum, and Solana blockchains without account signup.",
+                "url": "https://kamiyo.ai",
+                "logo": "https://kamiyo.ai/favicon.png",
+                "foundingDate": "2024",
+                "sameAs": [
+                    "https://twitter.com/KAMIYO",
+                    "https://github.com/kamiyo-ai"
+                ],
+                "contactPoint": {
+                    "@type": "ContactPoint",
+                    "contactType": "Customer Support",
+                    "email": "support@kamiyo.ai",
+                    "url": "https://kamiyo.ai"
+                },
+                "offers": {
+                    "@type": "Offer",
+                    "description": "x402 protocol implementation for blockchain API billing and autonomous agent payments"
+                }
+            },
+            {
+                "@type": "WebSite",
+                "@id": "https://kamiyo.ai/#website",
+                "name": "KAMIYO",
+                "url": "https://kamiyo.ai",
+                "description": "x402 Payment Facilitator enabling HTTP 402 Payment Required for autonomous AI agents with on-chain API payments",
+                "publisher": {
+                    "@id": "https://kamiyo.ai/#organization"
+                },
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": "https://kamiyo.ai/api-docs?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                },
+                "inLanguage": "en-US"
+            },
+            {
+                "@type": "ItemList",
+                "@id": "https://kamiyo.ai/#sitenavigatation",
+                "name": "KAMIYO Site Navigation",
+                "description": "Main navigation elements for KAMIYO x402 Payment Facilitator",
+                "itemListElement": [
+                    {
+                        "@type": "SiteNavigationElement",
+                        "position": 1,
+                        "name": "Features",
+                        "description": "Explore x402 payment protocol features and capabilities",
+                        "url": "https://kamiyo.ai/features"
+                    },
+                    {
+                        "@type": "SiteNavigationElement",
+                        "position": 2,
+                        "name": "Pricing",
+                        "description": "View pricing for x402 API access and payment processing",
+                        "url": "https://kamiyo.ai/pricing"
+                    },
+                    {
+                        "@type": "SiteNavigationElement",
+                        "position": 3,
+                        "name": "API Documentation",
+                        "description": "Complete API documentation for x402 payment implementation",
+                        "url": "https://kamiyo.ai/api-docs"
+                    },
+                    {
+                        "@type": "SiteNavigationElement",
+                        "position": 4,
+                        "name": "Fork Analysis",
+                        "description": "Analyze blockchain forks for payment verification",
+                        "url": "https://kamiyo.ai/fork-analysis"
+                    }
+                ]
+            }
+        ]
     };
 
     return (
