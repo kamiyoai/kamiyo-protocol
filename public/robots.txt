@@ -1,7 +1,7 @@
 # ============================================================================
 # KAMIYO x402 Payment Facilitator - Robots.txt
 # Advanced SEO Configuration for Maximum Crawl Efficiency
-# https://kamiyo.ai
+# https://kamiyo.io
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -307,12 +307,10 @@ Crawl-delay: 3
 # ----------------------------------------------------------------------------
 
 # Preferred domain (helps search engines understand canonical domain)
-Host: https://kamiyo.ai
+Host: https://kamiyo.io
 
 # Sitemap locations (XML sitemap for efficient crawling)
-Sitemap: https://kamiyo.ai/sitemap.xml
-Sitemap: https://kamiyo.ai/sitemap-pages.xml
-Sitemap: https://kamiyo.ai/sitemap-blog.xml
+Sitemap: https://kamiyo.io/sitemap.xml
 
 # ============================================================================
 # END OF ROBOTS.TXT

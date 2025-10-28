@@ -59,8 +59,6 @@ class CsrfSettings(BaseSettings):
 csrf_settings = CsrfSettings()
 
 
-# TEMPORARILY DISABLED - CSRF configuration issue
-# @CsrfProtect.load_config
 def get_csrf_config():
     """
     Load CSRF configuration for fastapi-csrf-protect
@@ -80,6 +78,13 @@ def get_csrf_config():
         ("header_type", None),  # No prefix required
         ("max_age", csrf_settings.csrf_token_expiration),
     ]
+
+
+# Apply configuration using the decorator at module level
+@CsrfProtect.load_config
+def _load_csrf_config():
+    """Configuration loader for CsrfProtect class"""
+    return get_csrf_config()
 
 
 def validate_csrf_production_config():

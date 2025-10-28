@@ -70,6 +70,12 @@ const nextConfig = {
     compress: true,
 
     // ========================================================================
+    // TRAILING SLASH CONFIGURATION
+    // ========================================================================
+    // Disable trailing slashes to prevent NextAuth redirect loops
+    trailingSlash: false,
+
+    // ========================================================================
     // PAGE EXTENSIONS
     // ========================================================================
     pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
@@ -234,11 +240,7 @@ const nextConfig = {
     async redirects() {
         return [
             // Trailing slash normalization (prevents duplicate content issues)
-            {
-                source: '/:path((?!.*\\.).*[^/])',
-                destination: '/:path/',
-                permanent: true,
-            },
+            // Note: API routes are excluded to prevent NextAuth redirect loops
         ];
     },
 

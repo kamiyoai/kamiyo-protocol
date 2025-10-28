@@ -29,19 +29,19 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
 
           {/* Open Graph / Facebook */}
           <meta property="og:type" content="website" />
-          <meta property="og:url" content="https://kamiyo.ai/" />
+          <meta property="og:url" content="https://kamiyo.io/" />
           <meta property="og:title" content="On-chain API payments with x402 for autonomous AI agents" />
           <meta property="og:description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain exploit intelligence powered by x402 payments." />
-          <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+          <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
 
           {/* Twitter */}
           <meta property="twitter:card" content="summary_large_image" />
-          <meta property="twitter:url" content="https://kamiyo.ai/" />
+          <meta property="twitter:url" content="https://kamiyo.io/" />
           <meta property="twitter:title" content="On-chain API payments with x402 for autonomous AI agents" />
           <meta property="twitter:description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain exploit intelligence powered by x402 payments." />
-          <meta property="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
-          <meta name="twitter:site" content="@KamiyoAI" />
-          <meta name="twitter:creator" content="@KamiyoAI" />
+          <meta property="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+          <meta name="twitter:site" content="@KAMIYO" />
+          <meta name="twitter:creator" content="@KAMIYO" />
         </Head>
         <Layout>
           <Component {...pageProps} />
