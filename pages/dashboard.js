@@ -26,7 +26,7 @@ export default function DashboardPage() {
                 setSubscription(subStatus);
 
                 // Fetch API keys
-                const keysRes = await fetch("/api/keys");
+                const keysRes = await fetch("/api/user/api-keys");
                 if (keysRes.ok) {
                     const keysData = await keysRes.json();
                     setApiKeys(keysData.keys || []);
