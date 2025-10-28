@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 
+# Import checkout processor
+from api.webhooks.processors import process_checkout_session_completed
+
 # Event type to processor mapping
 EVENT_PROCESSORS: Dict[str, Callable] = {
     # Customer events
@@ -59,6 +62,9 @@ EVENT_PROCESSORS: Dict[str, Callable] = {
     # Payment events (PRIORITY)
     'invoice.payment_succeeded': process_payment_succeeded,
     'invoice.payment_failed': process_payment_failed,
+
+    # Checkout events (MCP TOKEN GENERATION)
+    'checkout.session.completed': process_checkout_session_completed,
 
     # Payment method events
     'payment_method.attached': process_payment_method_attached,

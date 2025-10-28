@@ -1,45 +1,13 @@
 // pages/pricing.js
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState } from "react";
 import PricingCard from "../components/PricingCard";
 import PayButton from "../components/PayButton";
-import { useSession } from "next-auth/react";
 import { MinusIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { mcpSubscriptionPlans, x402Plan } from "../config/pricingPlans";
 
 export default function PricingPage() {
     const router = useRouter();
-    const { data: session } = useSession();
-    const [isRedirecting, setIsRedirecting] = useState(false);
-
-    const handlePaymentRedirect = async (tier) => {
-        if (!session) {
-            router.push("/auth/signin");
-            return;
-        }
-
-        if (tier === 'free') {
-            // For free tier, just redirect to dashboard
-            router.push("/dashboard");
-            return;
-        }
-
-        setIsRedirecting(true);
-        try {
-            const res = await fetch(`/api/payment/checkout?plan=${tier}&userId=${session.user.id}`);
-            if (res.ok) {
-                const { url } = await res.json();
-                window.location.href = url;
-            } else {
-                console.error("Failed to initiate payment");
-            }
-        } catch (error) {
-            console.error("Payment error:", error);
-        } finally {
-            setIsRedirecting(false);
-        }
-    };
 
     // JSON-LD structured data for pricing offers
     const pricingSchema = {
@@ -147,14 +115,6 @@ export default function PricingPage() {
                         key={plan.tier}
                         plan={plan}
                         isHighlighted={plan.tier === 'team'}
-                        onSelect={() => {
-                            if (plan.tier === 'enterprise') {
-                                window.location.href = '/inquiries';
-                            } else {
-                                handlePaymentRedirect(plan.tier);
-                            }
-                        }}
-                        isRedirecting={isRedirecting}
                     />
                 ))}
             </div>

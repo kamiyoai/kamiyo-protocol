@@ -1,12 +1,59 @@
 // components/PricingCard.js
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import { useSession } from 'next-auth/react';
 import PayButton from './PayButton';
 
 /**
  * Reusable pricing card component for MCP and x402 tiers
  * Used on homepage and pricing page for consistency
  */
-export default function PricingCard({ plan, isHighlighted = false, onSelect, isRedirecting = false }) {
+export default function PricingCard({ plan, isHighlighted = false }) {
     const { name, price, priceDetail, tier, features } = plan;
+    const [isRedirecting, setIsRedirecting] = useState(false);
+    const router = useRouter();
+    const { data: session } = useSession();
+
+    const handleSelect = async () => {
+        // Special cases: Enterprise and x402
+        if (tier === 'enterprise') {
+            router.push('/inquiries');
+            return;
+        }
+
+        if (tier === 'x402') {
+            router.push('/api-docs');
+            return;
+        }
+
+        // Stripe checkout for personal/team
+        setIsRedirecting(true);
+
+        try {
+            const response = await fetch('/api/billing/create-checkout-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tier: tier,
+                    user_email: session?.user?.email,
+                    success_url: `${window.location.origin}/dashboard/success?session_id={CHECKOUT_SESSION_ID}`,
+                    cancel_url: window.location.href
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Checkout failed');
+            }
+
+            const { checkout_url } = await response.json();
+            window.location.href = checkout_url;
+
+        } catch (error) {
+            console.error('Checkout error:', error);
+            alert('Unable to start checkout. Please try again or contact support.');
+            setIsRedirecting(false);
+        }
+    };
 
     return (
         <div
@@ -49,14 +96,14 @@ export default function PricingCard({ plan, isHighlighted = false, onSelect, isR
                         isRedirecting
                             ? 'Processing...'
                             : tier === 'personal'
-                                ? 'Add to Claude Desktop'
+                                ? 'Subscribe - $19/mo'
                                 : tier === 'team'
-                                    ? 'Start Free Trial'
+                                    ? 'Subscribe - $99/mo'
                                     : tier === 'enterprise'
                                         ? 'Contact Sales'
                                         : 'View API Docs'
                     }
-                    onClickOverride={onSelect}
+                    onClickOverride={handleSelect}
                     disabled={isRedirecting}
                     title={`${name} Plan: ${price} ${priceDetail}`}
                 />
