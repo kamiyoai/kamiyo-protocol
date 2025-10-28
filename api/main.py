@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI, Query, HTTPException, Path, WebSocket, Header, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
 import logging
 import asyncio
 
@@ -454,6 +455,229 @@ async def get_exploit(
     except Exception as e:
         logger.error(f"Error fetching exploit: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/exploits/latest-alert", tags=["Exploits"])
+async def get_latest_exploit_alert(
+    request: Request,
+    hours: int = Query(1, ge=1, le=24, description="Time window in hours"),
+    authorization: Optional[str] = Header(None, description="Authorization header (Bearer token)"),
+):
+    """
+    Get latest exploit alert with risk assessment
+
+    **Premium endpoint: $0.01 per query via x402**
+
+    Returns the most recent exploit within the specified time window with:
+    - Alert status (critical/high/medium/low/none)
+    - Full exploit details (protocol, chain, amount, timestamp)
+    - Risk score (0-100 based on amount, recency, and protocol reputation)
+    - Affected protocols list
+    - Recommended actions based on risk level
+
+    **Parameters:**
+    - **hours**: Time window to check for exploits (1-24 hours, default: 1)
+
+    **Authentication:**
+    - x402 payment required: $0.01 per query
+    - Provide payment via x402-Payment header
+
+    **Rate Limits:**
+    - Authenticated users: 30 requests/minute
+    - x402 payment users: 5 requests/minute
+
+    **Response Codes:**
+    - 200: Success (exploit found or no recent exploits)
+    - 400: Invalid parameters
+    - 402: Payment required (x402)
+    - 429: Rate limit exceeded
+    - 500: Internal server error
+    """
+    try:
+        from datetime import timezone
+
+        # Calculate cutoff time for the time window
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        # Get recent exploits from database
+        exploits = db.get_recent_exploits(limit=100, offset=0)
+
+        # Filter exploits within the time window
+        recent_exploits = []
+        for exploit in exploits:
+            exploit_timestamp = exploit.get('timestamp')
+            if exploit_timestamp:
+                # Handle both datetime objects and strings
+                if isinstance(exploit_timestamp, str):
+                    ts = datetime.fromisoformat(exploit_timestamp.replace('Z', '+00:00'))
+                else:
+                    ts = exploit_timestamp
+
+                # Make timezone-aware if needed
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+
+                if ts >= cutoff_time:
+                    recent_exploits.append(exploit)
+
+        # No recent exploits
+        if not recent_exploits:
+            return {
+                "alert_status": "none",
+                "message": f"No exploits detected in the last {hours} hour(s)",
+                "time_window_hours": hours,
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "exploit": None,
+                "risk_score": 0,
+                "affected_protocols": [],
+                "recommended_action": "Continue monitoring. No immediate threats detected."
+            }
+
+        # Get the most recent exploit
+        latest_exploit = recent_exploits[0]
+
+        # Calculate risk score (0-100)
+        risk_score = _calculate_risk_score(latest_exploit, hours)
+
+        # Determine alert status based on risk score
+        if risk_score >= 80:
+            alert_status = "critical"
+        elif risk_score >= 60:
+            alert_status = "high"
+        elif risk_score >= 40:
+            alert_status = "medium"
+        else:
+            alert_status = "low"
+
+        # Get affected protocols from recent exploits
+        affected_protocols = list(set([e.get('protocol', 'Unknown') for e in recent_exploits]))
+
+        # Generate recommended action based on alert status
+        recommended_action = _generate_recommended_action(
+            alert_status=alert_status,
+            risk_score=risk_score,
+            exploit=latest_exploit,
+            affected_protocols=affected_protocols
+        )
+
+        # Format response
+        return {
+            "alert_status": alert_status,
+            "message": f"Exploit detected {hours} hour(s) ago",
+            "time_window_hours": hours,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "exploit": {
+                "tx_hash": latest_exploit.get('tx_hash'),
+                "chain": latest_exploit.get('chain'),
+                "protocol": latest_exploit.get('protocol'),
+                "amount_usd": latest_exploit.get('amount_usd', 0),
+                "timestamp": latest_exploit.get('timestamp'),
+                "source": latest_exploit.get('source'),
+                "source_url": latest_exploit.get('source_url'),
+                "category": latest_exploit.get('category'),
+                "description": latest_exploit.get('description'),
+                "recovery_status": latest_exploit.get('recovery_status')
+            },
+            "risk_score": risk_score,
+            "affected_protocols": affected_protocols,
+            "recommended_action": recommended_action
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching latest exploit alert: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _calculate_risk_score(exploit: Dict[str, Any], time_window_hours: int) -> int:
+    """
+    Calculate risk score (0-100) for an exploit based on:
+    - Amount lost (50% weight)
+    - Recency (30% weight)
+    - Protocol reputation/category (20% weight)
+    """
+    score = 0
+
+    # Amount score (0-50 points)
+    amount_usd = exploit.get('amount_usd', 0)
+    if amount_usd >= 10_000_000:  # $10M+
+        score += 50
+    elif amount_usd >= 1_000_000:  # $1M-10M
+        score += 40
+    elif amount_usd >= 100_000:  # $100K-1M
+        score += 30
+    elif amount_usd >= 10_000:  # $10K-100K
+        score += 20
+    else:  # < $10K
+        score += 10
+
+    # Recency score (0-30 points)
+    # More recent = higher risk
+    if time_window_hours <= 1:
+        score += 30  # Last hour
+    elif time_window_hours <= 3:
+        score += 25  # Last 3 hours
+    elif time_window_hours <= 6:
+        score += 20  # Last 6 hours
+    elif time_window_hours <= 12:
+        score += 15  # Last 12 hours
+    else:
+        score += 10  # Last 24 hours
+
+    # Category/Protocol score (0-20 points)
+    category = exploit.get('category', '').lower()
+    if any(keyword in category for keyword in ['critical', 'flash loan', 'reentrancy', 'private key']):
+        score += 20
+    elif any(keyword in category for keyword in ['exploit', 'hack', 'vulnerability']):
+        score += 15
+    else:
+        score += 10
+
+    return min(score, 100)  # Cap at 100
+
+
+def _generate_recommended_action(
+    alert_status: str,
+    risk_score: int,
+    exploit: Dict[str, Any],
+    affected_protocols: List[str]
+) -> str:
+    """
+    Generate recommended action based on alert status and exploit details
+    """
+    protocol = exploit.get('protocol', 'Unknown')
+    chain = exploit.get('chain', 'Unknown')
+    amount = exploit.get('amount_usd', 0)
+
+    if alert_status == "critical":
+        return (
+            f"🚨 CRITICAL ALERT: Immediately audit {protocol} on {chain}. "
+            f"${amount:,.0f} exploit detected. "
+            f"Review all similar protocols: {', '.join(affected_protocols[:3])}. "
+            f"Consider pausing protocol interactions and checking for exposed vulnerabilities."
+        )
+    elif alert_status == "high":
+        return (
+            f"⚠️ HIGH RISK: Monitor {protocol} on {chain} closely. "
+            f"${amount:,.0f} exploit detected. "
+            f"Verify security measures for similar protocols: {', '.join(affected_protocols[:3])}. "
+            f"Review protocol permissions and consider risk mitigation."
+        )
+    elif alert_status == "medium":
+        return (
+            f"⚡ MEDIUM RISK: {protocol} on {chain} compromised (${amount:,.0f}). "
+            f"Review security practices and monitor for patterns. "
+            f"Affected protocols: {', '.join(affected_protocols[:3])}."
+        )
+    else:  # low
+        return (
+            f"ℹ️ LOW RISK: Minor exploit detected on {protocol} ({chain}). "
+            f"Continue standard monitoring. "
+            f"Total affected protocols: {len(affected_protocols)}."
+        )
 
 
 @app.get("/stats", response_model=StatsResponse, tags=["Statistics"])

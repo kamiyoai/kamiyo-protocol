@@ -17,7 +17,7 @@ export default function Home() {
                 <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
                 <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                     {/* SEO-friendly H1 (visually hidden) */}
-                    <h1 className="sr-only">x402 Payment Facilitator: HTTP 402 Payment Required for AI Agent Payments and On-Chain API Payments</h1>
+                    <h1 className="sr-only">KAMIYO: Real-Time Crypto Exploit Intelligence via x402 - Security Data for AI Agents</h1>
 
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
@@ -26,10 +26,10 @@ export default function Home() {
                             {/* Heading */}
                             <header>
                                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4 leading-tight text-white">
-                                    On-chain x402 payments for autonomous AI agents
+                                    Real-Time Crypto Exploit Intelligence via x402
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    HTTP 402 Payment Required implementation. Pay with USDC on-chain without account signup. Built for AI agents that need instant API access.
+                                    Security data for AI agents. Aggregating exploits from 20+ sources. Pay with USDC on-chain, no API keys required. $2.1B stolen in H1 2025 - know before you deploy.
                                 </p>
                             </header>
 
@@ -171,7 +171,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">50K API calls/day</span>
+                                <span className="text-gray-300">50K queries/day (real-time exploit data)</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -223,7 +223,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">100K API calls/day</span>
+                                <span className="text-gray-300">100K queries/day (real-time exploit data)</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -276,7 +276,7 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">Unlimited API calls</span>
+                                <span className="text-gray-300">Unlimited queries (real-time exploit data)</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
