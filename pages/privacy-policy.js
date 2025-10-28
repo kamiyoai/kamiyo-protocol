@@ -16,10 +16,10 @@ export default function PrivacyPolicy() {
                 <div className="grid grid-cols-1 gap-8 md:gap-16">
                     <div>
                         <h4 className="text-xl md:text-2xl mb-4">1. Introduction</h4>
-                        <p className="mb-10">KAMIYO (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates a blockchain exploit intelligence aggregation platform. This Privacy Policy explains how we collect, use, and protect your information when you use our services. By accessing KAMIYO, you agree to the terms outlined in this policy.</p>
+                        <p className="mb-10">KAMIYO (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates an x402 Payment Facilitator platform for autonomous AI agent payments. This Privacy Policy explains how we collect, use, and protect your information when you use our services. By accessing KAMIYO, you agree to the terms outlined in this policy.</p>
 
                         <h4 className="text-xl md:text-2xl mb-4">2. Data Collection & Usage</h4>
-                        <p>We collect and process user data to provide exploit intelligence services and maintain platform functionality:</p>
+                        <p>We collect and process user data to provide API payment services and maintain platform functionality:</p>
                         <ul className="text-xs mb-10">
                             <li>Account information: Email address, username, and authentication credentials</li>
                             <li>Payment information: Processed securely through Stripe (we do not store complete payment card details)</li>
@@ -30,7 +30,7 @@ export default function PrivacyPolicy() {
                         <h4 className="text-xl md:text-2xl mb-4">3. How We Use Your Data</h4>
                         <p>We use collected information to:</p>
                         <ul className="text-xs mb-10">
-                            <li>Deliver exploit intelligence alerts and notifications</li>
+                            <li>Deliver payment notifications and API access confirmations</li>
                             <li>Process API requests and maintain service uptime</li>
                             <li>Manage subscriptions and billing through Stripe</li>
                             <li>Improve platform features and user experience</li>
@@ -43,7 +43,7 @@ export default function PrivacyPolicy() {
                             <li>Account data is retained while your account remains active</li>
                             <li>API request logs are retained for 90 days for debugging and analytics</li>
                             <li>Payment records are retained per Stripe's data retention policies and tax regulations</li>
-                            <li>Exploit intelligence data is retained indefinitely as part of our historical database</li>
+                            <li>Payment transaction data is retained per regulatory requirements and blockchain records</li>
                             <li>You may request account deletion at any time, which removes personal data within 30 days</li>
                         </ul>
 

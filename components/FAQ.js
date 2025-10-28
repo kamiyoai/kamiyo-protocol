@@ -26,7 +26,7 @@ const faqs = [
     },
     {
         question: 'What APIs are available via x402 protocol?',
-        answer: 'Currently we offer blockchain exploit intelligence as our example implementation - real-time data from 20+ sources across 54+ networks. The x402 payment system is designed to support any API that wants to enable AI agent payments using the HTTP 402 Payment Required standard.'
+        answer: 'Currently we offer blockchain intelligence data as our example implementation - real-time information from 20+ sources across 54+ networks. The x402 payment system is designed to support any API that wants to enable AI agent payments using the HTTP 402 Payment Required standard.'
     },
     {
         question: 'How long do x402 payment tokens last?',
@@ -70,7 +70,7 @@ export default function FAQ() {
             <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
                 <div className="text-center mb-12">
                     <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Frequently Asked Questions</h2>
-                    <p className="text-gray-400 text-lg">Everything you need to know about KAMIYO x402 Protocol</p>
+                    <p className="text-gray-400 text-sm md:text-lg">Everything you need to know about KAMIYO x402 Protocol</p>
                 </div>
 
                 <div className="max-w-3xl mx-auto space-y-4 mb-12">
