@@ -26,10 +26,10 @@ export default function DashboardPage() {
                 setSubscription(subStatus);
 
                 // Fetch API keys
-                const keysRes = await fetch("/api/user/api-keys");
+                const keysRes = await fetch(`/api/user/api-keys?email=${encodeURIComponent(session.user.email)}`);
                 if (keysRes.ok) {
                     const keysData = await keysRes.json();
-                    setApiKeys(keysData.keys || []);
+                    setApiKeys(keysData.apiKeys || []);
                 }
 
                 // Fetch usage stats for Team+ tiers
