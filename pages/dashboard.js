@@ -78,12 +78,6 @@ export default function DashboardPage() {
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button
-                            onClick={() => router.push('/')}
-                            className="text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                            ← Home
-                        </button>
-                        <button
                             onClick={() => router.push('/dashboard')}
                             className="text-white text-sm border-b border-cyan"
                         >
