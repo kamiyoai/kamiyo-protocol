@@ -14,6 +14,7 @@ from starlette.responses import Response
 
 from .payment_verifier import payment_verifier, PaymentVerification
 from .payment_tracker import PaymentTracker
+from .config import get_x402_config
 
 logger = logging.getLogger(__name__)
 
@@ -31,39 +32,64 @@ class X402Middleware(BaseHTTPMiddleware):
     def __init__(self, app, payment_tracker: PaymentTracker):
         super().__init__(app)
         self.payment_tracker = payment_tracker
+        self.config = get_x402_config()
+
+        # Convert endpoint prices from config to middleware format
         self.require_payment_paths = {
-            '/exploits': {'methods': ['GET'], 'price': 0.10},
-            '/stats': {'methods': ['GET'], 'price': 0.05},
-            '/chains': {'methods': ['GET'], 'price': 0.02},
-            '/health': {'methods': ['GET'], 'price': 0.01},
+            endpoint: {'methods': ['GET'], 'price': price}
+            for endpoint, price in self.config.endpoint_prices.items()
         }
+
+        logger.info(f"x402 Middleware initialized with {len(self.require_payment_paths)} paid endpoints")
+        logger.info(f"Paid endpoints: {list(self.require_payment_paths.keys())}")
     
     async def dispatch(self, request: Request, call_next) -> Response:
-        """Process request and handle x402 payments"""
-        
-        # Skip payment check for certain paths
-        if self._should_skip_payment_check(request):
+        """Process request and handle x402 payments with comprehensive error handling"""
+
+        try:
+            # Skip payment check if x402 is disabled
+            if not self.config.enabled:
+                return await call_next(request)
+
+            # Skip payment check for certain paths
+            if self._should_skip_payment_check(request):
+                return await call_next(request)
+
+            # Check if this endpoint requires payment
+            payment_config = self._get_payment_config(request)
+            if not payment_config:
+                return await call_next(request)
+
+            # Check for valid payment authorization
+            try:
+                payment_auth = await self._get_payment_authorization(request)
+            except Exception as e:
+                logger.error(f"Error during payment authorization: {e}")
+                # On authorization error, return 402 (fail closed for security)
+                return self._create_402_response(request, payment_config)
+
+            if payment_auth and payment_auth['is_valid']:
+                # Valid payment - track usage and proceed
+                try:
+                    await self.payment_tracker.record_usage(
+                        payment_auth['payment_id'],
+                        request.url.path,
+                        payment_config['price']
+                    )
+                except Exception as e:
+                    logger.error(f"Error recording payment usage: {e}")
+                    # Continue anyway - don't block user for tracking failure
+
+                return await call_next(request)
+            else:
+                # No valid payment - return 402 with payment details
+                return self._create_402_response(request, payment_config)
+
+        except Exception as e:
+            # Catch-all error handler - log and fail open (allow request through)
+            logger.error(f"Unexpected error in x402 middleware: {e}", exc_info=True)
+            # Fail open - don't block legitimate requests due to middleware bugs
             return await call_next(request)
-        
-        # Check if this endpoint requires payment
-        payment_config = self._get_payment_config(request)
-        if not payment_config:
-            return await call_next(request)
-        
-        # Check for valid payment authorization
-        payment_auth = await self._get_payment_authorization(request)
-        
-        if payment_auth and payment_auth['is_valid']:
-            # Valid payment - track usage and proceed
-            await self.payment_tracker.record_usage(
-                payment_auth['payment_id'],
-                request.url.path,
-                payment_config['price']
-            )
-            return await call_next(request)
-        else:
-            # No valid payment - return 402 with payment details
-            return self._create_402_response(request, payment_config)
     
     def _should_skip_payment_check(self, request: Request) -> bool:
         """Check if payment check should be skipped"""

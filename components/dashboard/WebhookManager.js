@@ -119,10 +119,10 @@ export default function WebhookManager() {
 
             if (res.ok) {
                 const data = await res.json();
-                alert(`✅ Test successful!\nStatus: ${data.status_code}\nLatency: ${data.latency_ms}ms`);
+                alert(`Test successful!\nStatus: ${data.status_code}\nLatency: ${data.latency_ms}ms`);
             } else {
                 const errorData = await res.json();
-                alert(`❌ Test failed: ${errorData.detail}`);
+                alert(`Test failed: ${errorData.detail}`);
             }
         } catch (err) {
             alert('Network error testing webhook');
@@ -151,7 +151,7 @@ export default function WebhookManager() {
 
             {newSecret && (
                 <div className="bg-yellow-500 bg-opacity-10 border border-yellow-500 p-4 rounded">
-                    <h3 className="text-yellow-500 font-semibold mb-2">⚠️ Save Your Secret</h3>
+                    <h3 className="text-yellow-500 font-semibold mb-2">Save Your Secret</h3>
                     <p className="text-gray-300 text-sm mb-2">This secret will only be shown once. Copy it now:</p>
                     <code className="block bg-black p-2 rounded text-xs text-cyan break-all">{newSecret}</code>
                     <button
@@ -311,8 +311,8 @@ export default function WebhookManager() {
             )}
 
             <div className="text-xs text-gray-500 mt-8">
-                <p>💡 <strong>Tip:</strong> Webhooks send POST requests with HMAC-SHA256 signatures in the X-Kamiyo-Signature header.</p>
-                <p className="mt-1">📖 <a href="/api/v1/user-webhooks/docs" target="_blank" className="text-cyan hover:underline">View API Documentation</a></p>
+                <p><strong>Tip:</strong> Webhooks send POST requests with HMAC-SHA256 signatures in the X-Kamiyo-Signature header.</p>
+                <p className="mt-1"><a href="/api/v1/user-webhooks/docs" target="_blank" className="text-cyan hover:underline">View API Documentation</a></p>
             </div>
         </div>
     );

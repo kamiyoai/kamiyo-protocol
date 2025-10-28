@@ -22,7 +22,6 @@ export default function AuthError() {
             <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
                 <div className="max-w-md w-full space-y-6 p-8 border border-red-500 border-opacity-25 rounded-lg">
                     <div className="text-center">
-                        <div className="text-red-500 text-5xl mb-4">⚠️</div>
                         <h2 className="text-2xl font-light mb-2">Authentication Error</h2>
                         <p className="text-gray-400">{errorMessage}</p>
                     </div>

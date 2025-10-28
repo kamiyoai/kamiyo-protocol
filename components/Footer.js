@@ -3,7 +3,7 @@ import React from "react";
 import { useMenu } from "../context/MenuContext";
 
 const Footer = () => {
-    const { isMenuOpen } = useMenu(); // ✅ Correctly getting isMenuOpen from context
+    const { isMenuOpen } = useMenu(); // Correctly getting isMenuOpen from context
 
     return (
         <footer

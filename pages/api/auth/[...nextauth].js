@@ -10,7 +10,10 @@ export const authOptions = {
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || '',
             clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-            allowDangerousEmailAccountLinking: true, // Auto-link existing users by email
+            // SECURITY: Prevent account takeover attacks. When true, attackers can create
+            // a Google account with a victim's email and automatically take over their account.
+            // Email verification should be required before linking accounts.
+            allowDangerousEmailAccountLinking: false,
             authorization: {
                 params: {
                     prompt: "consent",
@@ -23,7 +26,7 @@ export const authOptions = {
     callbacks: {
         async signIn({ user, account, profile, isNewUser }) {
             try {
-                console.log('🔐 Sign-in attempt:', {
+                console.log('Sign-in attempt:', {
                     email: user?.email,
                     isNewUser,
                     provider: account?.provider
@@ -33,15 +36,15 @@ export const authOptions = {
                 if (isNewUser) {
                     try {
                         await createDefaultApiKey(user.id);
-                        console.log(`✅ Auto-generated API key for new user: ${user.email}`);
+                        console.log(`Auto-generated API key for new user: ${user.email}`);
                     } catch (error) {
-                        console.error(`❌ Failed to auto-generate API key for ${user.email}:`, error);
+                        console.error(`Failed to auto-generate API key for ${user.email}:`, error);
                         // Don't block signup if key generation fails
                     }
                 }
                 return true;
             } catch (error) {
-                console.error('❌ SignIn callback error:', error);
+                console.error('SignIn callback error:', error);
                 // Still allow sign-in to prevent redirect loop
                 return true;
             }
@@ -54,21 +57,21 @@ export const authOptions = {
                 }
                 return session;
             } catch (error) {
-                console.error('❌ Session callback error:', error);
+                console.error('Session callback error:', error);
                 // Return session even if error to avoid auth loop
                 return session;
             }
         },
         async redirect({ url, baseUrl }) {
             try {
-                console.log('🔀 Redirect:', { url, baseUrl });
+                console.log('Redirect:', { url, baseUrl });
                 // Allows relative callback URLs
                 if (url.startsWith("/")) return `${baseUrl}${url}`;
                 // Allows callback URLs on the same origin
                 else if (new URL(url).origin === baseUrl) return url;
                 return baseUrl + "/dashboard";
             } catch (error) {
-                console.error('❌ Redirect callback error:', error);
+                console.error('Redirect callback error:', error);
                 return baseUrl + "/dashboard";
             }
         }
