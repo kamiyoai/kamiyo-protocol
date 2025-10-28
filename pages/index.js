@@ -15,7 +15,7 @@ export default function Home() {
             <div className="text-white bg-black min-h-screen">
                 {/* Hero Section */}
                 <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
-                <div className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
+                <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                     {/* SEO-friendly H1 (visually hidden) */}
                     <h1 className="sr-only">x402 Payment Facilitator: HTTP 402 Payment Required for AI Agent Payments and On-Chain API Payments</h1>
 
@@ -94,7 +94,7 @@ export default function Home() {
             </section>
 
             {/* Pricing Section */}
-            <section id="pricing" className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="pricing-heading">
+            <section id="pricing" className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="pricing-heading">
                 <header className="text-center mb-12">
                     <h2 id="pricing-heading" className="text-4xl md:text-5xl font-light mb-4">x402 Payments Pricing</h2>
                     <p className="text-gray-400 text-lg">Pay-per-use with x402 or subscribe monthly. Your choice.</p>
@@ -313,7 +313,7 @@ export default function Home() {
             </section>
 
             {/* x402 payment facilitator Section */}
-            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="ai-agents-heading">
+            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
                 <header className="text-center mb-12">
                     <h2 id="ai-agents-heading" className="text-4xl md:text-5xl font-light mb-4">Built for AI Agents</h2>
                     <p className="text-gray-400 text-lg">x402 payment facilitator: On-chain payments without accounts</p>
@@ -409,8 +409,8 @@ export default function Home() {
                         <div className="text-cyan">npm install kamiyo-x402-sdk</div>
                         <br/>
                         <div className="text-gray-500">// Use in your agent</div>
-                        <div><span className="text-magenta">const</span> kamiyo = <span className="text-cyan">new</span> <span className="text-yellow-400">KamiyoClient</span>();</div>
-                        <div><span className="text-magenta">const</span> exploits = <span className="text-magenta">await</span> kamiyo.<span className="text-yellow-400">getExploits</span>();</div>
+                        <div><span className="text-magenta">const</span> client = <span className="text-cyan">new</span> <span className="text-yellow-400">KamiyoClient</span>();</div>
+                        <div><span className="text-magenta">const</span> response = <span className="text-magenta">await</span> client.<span className="text-yellow-400">fetch</span>(<span className="text-green-400">'/api/endpoint'</span>);</div>
                         <div className="text-gray-500">// SDK handles 402 responses and USDC payments automatically</div>
                     </div>
                     <div className="text-center mt-6">
@@ -427,7 +427,7 @@ export default function Home() {
             </section>
 
             {/* Social Proof & Features Section */}
-            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="features-heading">
+            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="features-heading">
                 {/* Trusted By */}
                 <div className="text-center mb-16">
                     <h3 className="text-gray-500 text-sm uppercase tracking-wider mb-6">Trusted By</h3>
