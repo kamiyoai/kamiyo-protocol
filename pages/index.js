@@ -96,7 +96,7 @@ export default function Home() {
             {/* Pricing Section */}
             <section id="pricing" className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }} aria-labelledby="pricing-heading">
                 <header className="text-center mb-12">
-                    <h2 id="pricing-heading" className="text-4xl md:text-5xl font-light mb-4">x402 Payment Facilitator Pricing</h2>
+                    <h2 id="pricing-heading" className="text-4xl md:text-5xl font-light mb-4">x402 Payments Pricing</h2>
                     <p className="text-gray-400 text-lg">Pay-per-use with x402 or subscribe monthly. Your choice.</p>
                 </header>
 
