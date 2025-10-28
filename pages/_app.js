@@ -23,22 +23,22 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       <MenuProvider>
         <Head>
           {/* Primary Meta Tags */}
-          <title>On-chain API payments with x402 for autonomous AI agents</title>
-          <meta name="title" content="On-chain API payments with x402 for autonomous AI agents" />
-          <meta name="description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain intelligence API powered by x402 payments." />
+          <title>Security Intelligence for AI Agents | MCP & x402 | KAMIYO</title>
+          <meta name="title" content="Security Intelligence for AI Agents | MCP & x402 | KAMIYO" />
+          <meta name="description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API ($0.01/query). Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec." />
 
           {/* Open Graph / Facebook */}
           <meta property="og:type" content="website" />
           <meta property="og:url" content="https://kamiyo.io/" />
-          <meta property="og:title" content="On-chain API payments with x402 for autonomous AI agents" />
-          <meta property="og:description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain intelligence API powered by x402 payments." />
+          <meta property="og:title" content="Security Intelligence for AI Agents | MCP & x402" />
+          <meta property="og:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
           <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
 
           {/* Twitter */}
           <meta property="twitter:card" content="summary_large_image" />
           <meta property="twitter:url" content="https://kamiyo.io/" />
-          <meta property="twitter:title" content="On-chain API payments with x402 for autonomous AI agents" />
-          <meta property="twitter:description" content="HTTP 402 Payment Required implementation for AI agents. Pay with USDC on-chain without account signup. Blockchain intelligence API powered by x402 payments." />
+          <meta property="twitter:title" content="Security Intelligence for AI Agents | MCP & x402" />
+          <meta property="twitter:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
           <meta property="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
           <meta name="twitter:site" content="@KAMIYO" />
           <meta name="twitter:creator" content="@KAMIYO" />

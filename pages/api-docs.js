@@ -346,7 +346,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
                   <CodeBlock language="json">{`{
   "error": "payment_required",
   "payment_info": {
-    "amount_usdc": 0.10,
+    "amount_usdc": 0.01,
     "supported_chains": ["base", "ethereum", "solana"],
     "payment_addresses": {
       "base": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
@@ -533,7 +533,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                       AI agent makes API request without payment. Server responds with 402 Payment Required including pricing and payment addresses.
                     </p>
                     <CodeBlock language="http">{`HTTP/1.1 402 Payment Required
-X-Payment-Amount: 0.10
+X-Payment-Amount: 0.01
 X-Payment-Currency: USDC
 
 {
@@ -638,9 +638,9 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 <CodeBlock language="json">{`{
   "pricing_tiers": {
     "pay_per_use": {
-      "price_per_call": 0.10,
-      "min_payment": 0.10,
-      "requests_per_dollar": 10.0,
+      "price_per_call": 0.01,
+      "min_payment": 0.01,
+      "requests_per_dollar": 100.0,
       "supported_chains": ["base", "ethereum", "solana"],
       "token_expiry_hours": 24
     },
@@ -663,9 +663,9 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
     }
   },
   "endpoint_specific_pricing": {
-    "/exploits": 0.10,
-    "/stats": 0.05,
-    "/chains": 0.02,
+    "/exploits": 0.01,
+    "/stats": 0.01,
+    "/chains": 0.01,
     "/health": 0.01
   },
   "payment_methods": [
@@ -703,7 +703,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
     "ethereum": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
     "solana": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
   },
-  "min_payment_amount": 0.10
+  "min_payment_amount": 0.01
 }`}</CodeBlock>
               </div>
             </div>
@@ -1061,7 +1061,7 @@ client.on('payment_verified', (paymentToken) => {
                   <CodeBlock language="json">{`{
   "error": "payment_required",
   "payment_info": {
-    "amount_usdc": 0.10,
+    "amount_usdc": 0.01,
     "supported_chains": ["base", "ethereum", "solana"],
     "payment_addresses": {...}
   }
