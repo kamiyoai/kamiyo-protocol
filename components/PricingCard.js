@@ -57,10 +57,14 @@ export default function PricingCard({ plan, isHighlighted = false }) {
 
     return (
         <div
-            className={`relative bg-black border ${isHighlighted ? 'border-cyan' : 'border-gray-500 border-opacity-25'} rounded-lg p-6 card ${isHighlighted ? '-translate-y-1' : ''} hover:-translate-y-1 transition-all duration-300 flex flex-col`}
+            className={`relative bg-black ${isHighlighted ? 'border-2 border-transparent bg-gradient-to-br from-cyan via-cyan to-magenta bg-clip-padding' : 'border border-gray-500 border-opacity-25'} rounded-lg ${isHighlighted ? '-translate-y-1' : ''} hover:-translate-y-1 transition-all duration-300 flex flex-col`}
             itemScope
             itemType="https://schema.org/Offer"
+            style={isHighlighted ? {
+                background: 'linear-gradient(black, black) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box'
+            } : {}}
         >
+            <div className="p-6 flex flex-col flex-grow">
             {isHighlighted && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                     <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
@@ -107,6 +111,7 @@ export default function PricingCard({ plan, isHighlighted = false }) {
                     disabled={isRedirecting}
                     title={`${name} Plan: ${price} ${priceDetail}`}
                 />
+            </div>
             </div>
         </div>
     );
