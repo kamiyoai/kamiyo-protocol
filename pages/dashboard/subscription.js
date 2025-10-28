@@ -67,7 +67,13 @@ export default function SubscriptionPage() {
     const [upgrading, setUpgrading] = useState(false);
 
     useEffect(() => {
-        if (status !== "authenticated" || !session?.user) {
+        // Wait for session to finish loading before making redirect decisions
+        if (status === "loading") {
+            return;
+        }
+
+        // Only redirect if we're certain the user is not authenticated
+        if (status === "unauthenticated" || !session?.user) {
             router.push("/auth/signin");
             return;
         }

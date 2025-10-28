@@ -1,8 +1,10 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import prisma from '../../../lib/prisma';
 import { createDefaultApiKey } from '../../../lib/apiKeyUtils';
+import bcrypt from 'bcryptjs';
 
 export const authOptions = {
     adapter: PrismaAdapter(prisma),
@@ -19,6 +21,55 @@ export const authOptions = {
                     prompt: "consent",
                     access_type: "offline",
                     response_type: "code"
+                }
+            }
+        }),
+        CredentialsProvider({
+            name: 'credentials',
+            credentials: {
+                email: { label: "Email", type: "email" },
+                password: { label: "Password", type: "password" }
+            },
+            async authorize(credentials) {
+                try {
+                    // Validate input
+                    if (!credentials?.email || !credentials?.password) {
+                        console.log('Missing email or password');
+                        return null;
+                    }
+
+                    // Find user by email
+                    const user = await prisma.user.findUnique({
+                        where: { email: credentials.email.toLowerCase() }
+                    });
+
+                    // Generic error message to prevent user enumeration
+                    if (!user || !user.passwordHash) {
+                        console.log('User not found or no password set');
+                        return null;
+                    }
+
+                    // Verify password
+                    const isPasswordValid = await bcrypt.compare(
+                        credentials.password,
+                        user.passwordHash
+                    );
+
+                    if (!isPasswordValid) {
+                        console.log('Invalid password');
+                        return null;
+                    }
+
+                    // Return user object (without password)
+                    return {
+                        id: user.id,
+                        email: user.email,
+                        name: user.name,
+                        image: user.image
+                    };
+                } catch (error) {
+                    console.error('Authorization error:', error);
+                    return null;
                 }
             }
         })
@@ -49,17 +100,29 @@ export const authOptions = {
                 return true;
             }
         },
-        async session({ session, user }) {
+        async session({ session, token }) {
             try {
-                // Add user ID to session
-                if (user && user.id) {
-                    session.user.id = user.id;
+                // Add user ID to session from JWT token
+                if (token && token.sub) {
+                    session.user.id = token.sub;
                 }
                 return session;
             } catch (error) {
                 console.error('Session callback error:', error);
                 // Return session even if error to avoid auth loop
                 return session;
+            }
+        },
+        async jwt({ token, user }) {
+            try {
+                // Add user ID to token on sign in
+                if (user) {
+                    token.id = user.id;
+                }
+                return token;
+            } catch (error) {
+                console.error('JWT callback error:', error);
+                return token;
             }
         },
         async redirect({ url, baseUrl }) {
@@ -102,7 +165,7 @@ export const authOptions = {
         error: '/auth/error',
     },
     session: {
-        strategy: 'database',
+        strategy: 'jwt', // Changed to JWT for compatibility with CredentialsProvider
         maxAge: 30 * 24 * 60 * 60, // 30 days
     },
     secret: process.env.NEXTAUTH_SECRET,
