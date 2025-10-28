@@ -117,7 +117,7 @@ export default function ApiDocs() {
 
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500 border-opacity-25 pb-4">
-          {['overview', 'mcp', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
+          {['overview', 'mcp', 'mcp-setup', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -128,7 +128,8 @@ export default function ApiDocs() {
               }`}
             >
               {tab === 'mcp' ? 'MCP Integration' :
-               tab === 'quickstart' ? 'Quick Start' :
+               tab === 'mcp-setup' ? 'MCP Setup' :
+               tab === 'quickstart' ? 'x402 Quick Start' :
                tab === 'payment-flow' ? 'Payment Flow' :
                tab === 'sdk' ? 'JavaScript SDK' :
                tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -248,26 +249,82 @@ export default function ApiDocs() {
             <h2 className="text-2xl font-light mb-6">Option 1: MCP Integration (Recommended for AI Agents)</h2>
 
             <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
-              <h3 className="text-xl font-light mb-4">Add to Claude Desktop</h3>
+              <h3 className="text-xl font-light mb-4">Claude Desktop Integration</h3>
               <p className="text-gray-400 mb-4">
                 The easiest way to access KAMIYO security intelligence is via MCP subscription.
-                Your AI agents get unlimited queries with persistent access.
+                Your AI agents get unlimited queries with persistent access through the Model Context Protocol.
               </p>
 
-              <h4 className="font-light mb-2">Installation Steps:</h4>
+              <h4 className="font-light mb-2">Quick Setup (5 minutes):</h4>
               <ol className="list-decimal list-inside space-y-2 text-gray-400 text-sm mb-6">
-                <li>Subscribe to KAMIYO MCP at https://kamiyo.ai/pricing</li>
-                <li>Open Claude Desktop → Settings → MCP Servers</li>
-                <li>Click "Add Server" and enter your subscription key</li>
-                <li>Claude can now call KAMIYO security tools</li>
+                <li>Subscribe to KAMIYO MCP at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.io/pricing</a></li>
+                <li>Receive your MCP access token via email</li>
+                <li>Install the KAMIYO MCP server (Python 3.11+)</li>
+                <li>Configure Claude Desktop with your token</li>
+                <li>Start querying security intelligence</li>
               </ol>
 
-              <h4 className="font-light mb-2">Available Tools:</h4>
-              <CodeBlock language="javascript">{`check_latest_exploits(hours: number, min_amount: number)
-assess_protocol_risk(protocol: string, chain: string)
-check_wallet_involvement(address: string)
-query_exploit_history(chain: string, days: number)
-get_source_rankings()`}</CodeBlock>
+              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4 mb-4">
+                <div className="text-white text-sm mb-2">Configuration Example (macOS):</div>
+                <CodeBlock language="json">{`{
+  "mcpServers": {
+    "kamiyo-security": {
+      "command": "python3.11",
+      "args": ["-m", "mcp.server"],
+      "cwd": "/Users/yourname/kamiyo-mcp-server",
+      "env": {
+        "MCP_JWT_SECRET": "eyJhbGciOiJIUzI1NiIs...",
+        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "ENVIRONMENT": "production"
+      }
+    }
+  }
+}`}</CodeBlock>
+              </div>
+
+              <div className="flex gap-4 mb-6">
+                <a
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setActiveTab('mcp-setup'); }}
+                  className="inline-block px-4 py-2 bg-cyan text-black rounded hover:opacity-80 transition-opacity text-sm font-medium"
+                >
+                  Full Setup Guide
+                </a>
+                <a
+                  href="https://github.com/kamiyo-ai/kamiyo-mcp-server"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-4 py-2 border border-cyan text-cyan rounded hover:bg-cyan hover:text-black transition-all text-sm font-medium"
+                >
+                  Download MCP Server
+                </a>
+              </div>
+
+              <h4 className="font-light mb-2">Available MCP Tools:</h4>
+              <CodeBlock language="javascript">{`// Search exploit database
+search_crypto_exploits(
+  query: string,        // Protocol, vulnerability type, chain
+  limit: number,        // Max results (capped by tier)
+  since: string,        // ISO 8601 date filter
+  chain: string         // Blockchain filter
+)
+
+// Assess protocol security risk
+assess_defi_protocol_risk(
+  protocol_name: string,
+  chain: string,
+  time_window_days: number
+)
+
+// Monitor wallet interactions (Team+ only)
+monitor_wallet(
+  wallet_address: string,
+  chain: string,
+  lookback_days: number
+)
+
+// Check server health
+health_check()`}</CodeBlock>
             </div>
 
             <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
@@ -296,6 +353,42 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               </p>
             </div>
 
+            <div className="bg-black border border-yellow-500 border-opacity-25 rounded-lg p-6 mb-8">
+              <h4 className="text-lg font-light mb-3">Subscription Tier Access</h4>
+              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-cyan font-medium mb-2">Personal ($19/mo)</div>
+                  <ul className="text-gray-400 space-y-1 text-xs">
+                    <li>• 1 AI agent</li>
+                    <li>• Max 50 search results</li>
+                    <li>• Basic risk assessment</li>
+                    <li>• Real-time data (20+ sources)</li>
+                    <li>• Email support</li>
+                  </ul>
+                </div>
+                <div className="border border-cyan border-opacity-50 rounded p-4">
+                  <div className="text-cyan font-medium mb-2">Team ($99/mo)</div>
+                  <ul className="text-gray-400 space-y-1 text-xs">
+                    <li>• 5 concurrent agents</li>
+                    <li>• Max 200 search results</li>
+                    <li>• + Recent exploit summaries</li>
+                    <li>• + Wallet monitoring</li>
+                    <li>• Priority support</li>
+                  </ul>
+                </div>
+                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-cyan font-medium mb-2">Enterprise ($299/mo)</div>
+                  <ul className="text-gray-400 space-y-1 text-xs">
+                    <li>• Unlimited agents</li>
+                    <li>• Max 1000 search results</li>
+                    <li>• + Risk recommendations</li>
+                    <li>• + Custom MCP tools</li>
+                    <li>• Dedicated support, 99.9% SLA</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
               <h4 className="font-light mb-3">MCP vs x402 API - Which to use?</h4>
               <div className="grid md:grid-cols-2 gap-6 text-sm">
@@ -314,7 +407,200 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
                     <li>• Building custom integrations</li>
                     <li>• Making sporadic queries</li>
                     <li>• Don't need AI agent features</li>
-                    <li>• Prefer pay-per-use</li>
+                    <li>• Prefer pay-per-use ($0.01/query)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MCP Setup Guide */}
+        {activeTab === 'mcp-setup' && (
+          <div>
+            <h2 className="text-2xl font-light mb-6">MCP Setup for Claude Desktop</h2>
+
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+              <div className="text-cyan text-sm mb-2">Complete Integration in 5 Steps</div>
+              <p className="text-gray-400 text-sm">
+                Follow this guide to integrate KAMIYO security intelligence into Claude Desktop via the Model Context Protocol.
+              </p>
+            </div>
+
+            {/* Step 1 */}
+            <div className="mb-8 border-l-2 border-cyan pl-6">
+              <h3 className="text-xl font-light mb-3">Step 1: Subscribe to KAMIYO MCP</h3>
+              <p className="text-gray-400 mb-4">
+                Choose your subscription tier at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.io/pricing</a>
+              </p>
+              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="text-sm text-gray-400 space-y-2">
+                  <div>• <strong>Personal:</strong> $19/month - 1 agent, unlimited queries</div>
+                  <div>• <strong>Team:</strong> $99/month - 5 agents, wallet monitoring</div>
+                  <div>• <strong>Enterprise:</strong> $299/month - Unlimited agents, custom tools</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="mb-8 border-l-2 border-cyan pl-6">
+              <h3 className="text-xl font-light mb-3">Step 2: Get Your MCP Access Token</h3>
+              <p className="text-gray-400 mb-4">
+                After subscribing, you'll receive an email with your MCP access token:
+              </p>
+              <CodeBlock>{`Subject: Your KAMIYO MCP Access Token
+
+Your MCP Access Token:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsInRpZXIiOi...
+
+Subscription Tier: Team
+Valid Until: 2026-10-28
+
+Keep this token secure - it provides access to KAMIYO security intelligence.`}</CodeBlock>
+              <p className="text-gray-400 mt-4 text-sm">
+                Or retrieve it from your dashboard: <a href="/dashboard/api-keys" className="text-cyan hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="mb-8 border-l-2 border-cyan pl-6">
+              <h3 className="text-xl font-light mb-3">Step 3: Install the MCP Server</h3>
+              <p className="text-gray-400 mb-4">
+                Download and install the KAMIYO MCP server (requires Python 3.11+):
+              </p>
+              <CodeBlock>{`# Clone the repository
+git clone https://github.com/kamiyo-ai/kamiyo-mcp-server.git
+cd kamiyo-mcp-server
+
+# Install dependencies
+pip3.11 install -r requirements-mcp.txt
+pip3.11 install -r requirements.txt
+
+# Verify installation
+python3.11 -m mcp.server --help`}</CodeBlock>
+            </div>
+
+            {/* Step 4 */}
+            <div className="mb-8 border-l-2 border-cyan pl-6">
+              <h3 className="text-xl font-light mb-3">Step 4: Configure Claude Desktop</h3>
+              <p className="text-gray-400 mb-4">
+                Edit your Claude Desktop configuration file:
+              </p>
+
+              <div className="mb-4">
+                <div className="text-sm font-light text-gray-500 mb-2">macOS:</div>
+                <code className="text-cyan text-xs">~/Library/Application Support/Claude/claude_desktop_config.json</code>
+              </div>
+
+              <div className="mb-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Windows:</div>
+                <code className="text-cyan text-xs">%APPDATA%\\Claude\\claude_desktop_config.json</code>
+              </div>
+
+              <div className="mb-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Linux:</div>
+                <code className="text-cyan text-xs">~/.config/Claude/claude_desktop_config.json</code>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Configuration (macOS example):</div>
+                <CodeBlock language="json">{`{
+  "mcpServers": {
+    "kamiyo-security": {
+      "command": "python3.11",
+      "args": ["-m", "mcp.server"],
+      "cwd": "/Users/yourname/kamiyo-mcp-server",
+      "env": {
+        "MCP_JWT_SECRET": "YOUR_TOKEN_HERE",
+        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "ENVIRONMENT": "production"
+      }
+    }
+  }
+}`}</CodeBlock>
+              </div>
+
+              <div className="mt-4 bg-black border border-yellow-500 border-opacity-25 rounded p-4">
+                <div className="text-yellow-500 text-sm mb-2">Important</div>
+                <div className="text-gray-400 text-sm space-y-1">
+                  <div>• Replace <code className="text-cyan">/Users/yourname/kamiyo-mcp-server</code> with your actual installation path</div>
+                  <div>• Replace <code className="text-cyan">YOUR_TOKEN_HERE</code> with your MCP access token from Step 2</div>
+                  <div>• Use full path to Python if <code className="text-cyan">python3.11</code> is not in PATH</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 5 */}
+            <div className="mb-8 border-l-2 border-cyan pl-6">
+              <h3 className="text-xl font-light mb-3">Step 5: Test the Integration</h3>
+              <p className="text-gray-400 mb-4">
+                Restart Claude Desktop and try these test queries:
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-light text-gray-500 mb-2">Test 1: Health Check</div>
+                  <CodeBlock>Check KAMIYO MCP server health</CodeBlock>
+                  <div className="text-gray-400 text-xs mt-1">Expected: Server status showing "healthy"</div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-light text-gray-500 mb-2">Test 2: Search Exploits</div>
+                  <CodeBlock>Search for recent Uniswap exploits</CodeBlock>
+                  <div className="text-gray-400 text-xs mt-1">Expected: List of Uniswap security incidents</div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-light text-gray-500 mb-2">Test 3: Risk Assessment</div>
+                  <CodeBlock>Assess the security risk of Curve Finance on Ethereum</CodeBlock>
+                  <div className="text-gray-400 text-xs mt-1">Expected: Risk score and recommendations (varies by tier)</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Troubleshooting */}
+            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 mb-8">
+              <h3 className="text-lg font-light mb-4">Troubleshooting</h3>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <div className="text-white mb-2">MCP server not found</div>
+                  <div className="text-gray-400">
+                    Use full path to Python: <code className="text-cyan">/usr/local/bin/python3.11</code>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-white mb-2">Invalid token error</div>
+                  <div className="text-gray-400">
+                    Regenerate token at <a href="/dashboard/api-keys" className="text-cyan hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-white mb-2">Subscription inactive</div>
+                  <div className="text-gray-400">
+                    Check billing status at <a href="/dashboard/billing" className="text-cyan hover:opacity-80">kamiyo.io/dashboard/billing</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Documentation Links */}
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6">
+              <h3 className="text-lg font-light mb-4">Additional Resources</h3>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-white mb-2">Documentation</div>
+                  <ul className="text-gray-400 space-y-1">
+                    <li>• <a href="https://github.com/kamiyo-ai/kamiyo-mcp-server" className="text-cyan hover:opacity-80">GitHub Repository</a></li>
+                    <li>• <a href="/docs/MCP_SETUP_GUIDE.md" className="text-cyan hover:opacity-80">Full Setup Guide (PDF)</a></li>
+                    <li>• <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('mcp'); }} className="text-cyan hover:opacity-80">MCP Integration Overview</a></li>
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-white mb-2">Support</div>
+                  <ul className="text-gray-400 space-y-1">
+                    <li>• Email: <a href="mailto:support@kamiyo.io" className="text-cyan hover:opacity-80">support@kamiyo.io</a></li>
+                    <li>• Discord: <a href="https://discord.gg/kamiyo" className="text-cyan hover:opacity-80">discord.gg/kamiyo</a></li>
+                    <li>• Status: <a href="https://status.kamiyo.io" className="text-cyan hover:opacity-80">status.kamiyo.io</a></li>
                   </ul>
                 </div>
               </div>

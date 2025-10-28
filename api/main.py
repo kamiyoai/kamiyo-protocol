@@ -736,9 +736,12 @@ async def health_check():
     Get health status of aggregation sources and database
 
     Returns source health, database statistics, and system status with detailed monitoring metrics.
+    Production-ready health check for monitoring and alerting.
     """
     try:
         from datetime import datetime
+        import psutil
+        import sys
 
         # Try to get source health, but don't fail if it errors
         sources = []
@@ -754,15 +757,31 @@ async def health_check():
         # Convert sources to models
         source_models = [SourceHealth(**source) for source in sources]
 
-        return HealthResponse(
-            status="healthy",
-            database_exploits=total_exploits,
-            tracked_chains=len(chains),
-            active_sources=len([s for s in sources if s.get('is_active')]),
-            total_sources=len(sources),
-            sources=source_models,
-            timestamp=datetime.now().isoformat()
-        )
+        # Add system metrics for monitoring
+        health_data = {
+            "status": "healthy",
+            "database_exploits": total_exploits,
+            "tracked_chains": len(chains),
+            "active_sources": len([s for s in sources if s.get('is_active')]),
+            "total_sources": len(sources),
+            "sources": source_models,
+            "timestamp": datetime.now().isoformat(),
+            "version": app.version,
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "environment": os.getenv("ENVIRONMENT", "unknown")
+        }
+
+        # Add system metrics (CPU, memory) for monitoring dashboards
+        try:
+            health_data["system"] = {
+                "cpu_percent": psutil.cpu_percent(interval=0.1),
+                "memory_percent": psutil.virtual_memory().percent,
+                "disk_percent": psutil.disk_usage('/').percent if os.path.exists('/') else None
+            }
+        except Exception as sys_error:
+            logger.debug(f"System metrics unavailable: {sys_error}")
+
+        return HealthResponse(**health_data)
 
     except Exception as e:
         logger.error(f"Error fetching health: {e}")
