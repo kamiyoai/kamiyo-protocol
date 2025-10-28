@@ -1,4 +1,4 @@
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Head from "next/head";
@@ -100,6 +100,15 @@ export default function DashboardPage() {
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
                             Subscription
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <span className="text-gray-400 text-sm">{session?.user?.email}</span>
+                        <button
+                            onClick={() => signOut({ callbackUrl: '/' })}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Sign Out
                         </button>
                     </div>
                 </div>
