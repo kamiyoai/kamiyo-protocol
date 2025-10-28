@@ -28,7 +28,7 @@ export default function Home() {
                                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4 leading-tight text-white">
                                     On-chain x402 payments for autonomous AI agents
                                 </h2>
-                                <p className="text-gray-400 text-lg leading-relaxed">
+                                <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
                                     HTTP 402 Payment Required implementation. Pay with USDC on-chain without account signup. Built for AI agents that need instant API access.
                                 </p>
                             </header>
@@ -36,16 +36,16 @@ export default function Home() {
                             {/* Feature Badges */}
                             <div className="flex flex-wrap gap-3">
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    HTTP 402 Payment Required
+                                    20+ Exploit Sources
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    USDC on Base, Ethereum, Solana
+                                    Real-Time Alerts
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    No account signup
+                                    $0.01 per Query via x402
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    Built for AI agents
+                                    No API Keys Required
                                 </span>
                             </div>
 
@@ -96,8 +96,8 @@ export default function Home() {
             {/* Pricing Section */}
             <section id="pricing" className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="pricing-heading">
                 <header className="text-center mb-12">
-                    <h2 id="pricing-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">x402 Payments Pricing</h2>
-                    <p className="text-gray-400 text-lg">Pay-per-use with x402 or subscribe monthly. Your choice.</p>
+                    <h2 id="pricing-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Security Intelligence Pricing</h2>
+                    <p className="text-gray-400 text-sm md:text-lg">Pay-per-query via x402 or subscribe for unlimited access. Your choice.</p>
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
@@ -114,25 +114,25 @@ export default function Home() {
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">x402 pay-per-use access</span>
+                                <span className="text-gray-300">24h delayed exploit data</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">1K API calls/day</span>
+                                <span className="text-gray-300">1K queries/day</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">USDC payments (Base/ETH/Solana)</span>
+                                <span className="text-gray-300">x402 pay-per-query ($0.01/query)</span>
                             </li>
                             <li className="flex items-start gap-2">
                                 <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
-                                <span className="text-gray-300">No account required</span>
+                                <span className="text-gray-300">No API keys or account required</span>
                             </li>
                         </ul>
 
@@ -316,7 +316,7 @@ export default function Home() {
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
                 <header className="text-center mb-12">
                     <h2 id="ai-agents-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Built for AI Agents</h2>
-                    <p className="text-gray-400 text-lg">x402 payment facilitator: On-chain payments without accounts</p>
+                    <p className="text-gray-400 text-sm md:text-lg">x402 payment facilitator: On-chain payments without accounts</p>
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
@@ -436,16 +436,16 @@ export default function Home() {
                             <span className="text-sm text-gray-400">AI Agent Developers</span>
                         </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Trading Bot Developers</span>
+                            <span className="text-sm text-gray-400">API Providers</span>
                         </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">DeFi Traders</span>
+                            <span className="text-sm text-gray-400">Autonomous System Builders</span>
                         </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Security Researchers</span>
+                            <span className="text-sm text-gray-400">Web3 Developers</span>
                         </div>
                         <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Protocol Teams</span>
+                            <span className="text-sm text-gray-400">Blockchain Infrastructure Teams</span>
                         </div>
                     </div>
                 </div>

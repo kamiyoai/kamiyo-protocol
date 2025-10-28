@@ -82,7 +82,7 @@ export default function PricingPage() {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": "KAMIYO x402 Payment Facilitator API",
-        "description": "HTTP 402 Payment Required API with on-chain USDC payments for AI agents. Pay-per-request or subscribe to exploit intelligence API with x402 protocol support on Base, Ethereum, and Solana blockchains.",
+        "description": "HTTP 402 Payment Required API with on-chain USDC payments for AI agents. Pay-per-request or subscribe to blockchain intelligence API with x402 protocol support on Base, Ethereum, and Solana blockchains.",
         "url": "https://kamiyo.io/pricing",
         "brand": {
             "@type": "Brand",
@@ -171,7 +171,7 @@ export default function PricingPage() {
             <Head>
                 <title>x402 API Pricing | Pay-Per-Request with USDC On-Chain | KAMIYO</title>
                 <meta name="description" content="KAMIYO x402 Payment Facilitator: Pay-per-request API with on-chain USDC payments on Base, Ethereum, and Solana. HTTP 402 Payment Required protocol for AI agents. No accounts needed, $0.0001 per call." />
-                <meta name="keywords" content="x402, HTTP 402 Payment Required, API pricing, pay per request, USDC payments, on-chain payments, AI agent payments, blockchain API, Base USDC, Ethereum USDC, Solana USDC, payment facilitator, exploit intelligence API, real-time security data" />
+                <meta name="keywords" content="x402, HTTP 402 Payment Required, API pricing, pay per request, USDC payments, on-chain payments, AI agent payments, blockchain API, Base USDC, Ethereum USDC, Solana USDC, payment facilitator, blockchain intelligence API, real-time blockchain data" />
 
                 {/* Open Graph / Facebook */}
                 <meta property="og:type" content="website" />
