@@ -52,9 +52,9 @@ export default function Home() {
                             <div className="flex flex-col md:flex-row md:flex-wrap gap-6 items-center md:justify-between">
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
-                                        textOverride="Add to Claude Desktop"
+                                        textOverride="Subscribe to MCP"
                                         onClickOverride={() => {
-                                            window.location.href = '/api-docs';
+                                            window.location.href = '/pricing';
                                         }}
                                     />
                                 </div>
