@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
         if (!user) {
             console.warn(`[Subscription API] User not found: ${email}`);
-            return res.status(404).json({ error: "User not found", isSubscribed: false, kamiCount: 0 });
+            return res.status(404).json({ error: "User not found", isSubscribed: false });
         }
 
         const userId = user.id;
@@ -41,14 +41,7 @@ export default async function handler(req, res) {
         const tier = subscription?.tier || "free";
         const isActive = subscription?.status === 'active';
 
-        console.log(`[Subscription API] Subscription found: { isActive: ${isActive}, tier: ${tier} }`);
-
-        console.log(`[Subscription API] Fetching Kami count for user ID: ${userId}`);
-        const kamiCount = await prisma.kami.count({
-            where: { userId },
-        });
-
-        console.log(`[Subscription API] Subscription check complete. { isSubscribed: ${isActive}, tier: ${tier}, kamiCount: ${kamiCount} }`);
+        console.log(`[Subscription API] Subscription check complete. { isSubscribed: ${isActive}, tier: ${tier} }`);
 
         return res.status(200).json({
             isSubscribed: isActive,
