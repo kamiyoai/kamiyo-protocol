@@ -5,22 +5,9 @@ import PayButton from "../components/PayButton";
 import PricingCard from "../components/PricingCard";
 import FAQ from "../components/FAQ";
 import SEO from "../components/SEO";
-import { useRouter } from "next/router";
 import { mcpPlans } from "../config/pricingPlans";
 
 export default function Home() {
-    const router = useRouter();
-
-    const handlePlanSelect = (tier) => {
-        if (tier === 'personal' || tier === 'x402') {
-            router.push('/api-docs');
-        } else if (tier === 'team') {
-            router.push('/pricing');
-        } else if (tier === 'enterprise') {
-            router.push('/inquiries');
-        }
-    };
-
     return (
         <>
             <SEO />
@@ -118,7 +105,6 @@ export default function Home() {
                             key={plan.tier}
                             plan={plan}
                             isHighlighted={plan.tier === 'team'}
-                            onSelect={() => handlePlanSelect(plan.tier)}
                         />
                     ))}
                 </div>

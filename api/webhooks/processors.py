@@ -295,6 +295,14 @@ async def process_subscription_created(event: Dict[str, Any]) -> None:
             }
             notify_subscription_created(user_id, subscription_data)
 
+        # Generate MCP token for subscription (if not already created by checkout)
+        try:
+            from api.webhooks.mcp_processors import process_mcp_subscription_events
+            await process_mcp_subscription_events(event)
+        except Exception as e:
+            logger.error(f"Error in MCP subscription processing: {e}")
+            # Don't fail the main webhook - MCP is supplementary
+
         logger.info(f"Successfully processed subscription.created for {subscription_id}")
 
     except Exception as e:
@@ -391,6 +399,14 @@ async def process_subscription_updated(event: Dict[str, Any]) -> None:
                 }
                 notify_subscription_cancelled(user_id, subscription_data)
 
+        # Update MCP token tier if changed
+        try:
+            from api.webhooks.mcp_processors import process_mcp_subscription_events
+            await process_mcp_subscription_events(event)
+        except Exception as e:
+            logger.error(f"Error in MCP subscription processing: {e}")
+            # Don't fail the main webhook
+
         logger.info(f"Successfully processed subscription.updated for {subscription_id}")
 
     except Exception as e:
@@ -452,6 +468,14 @@ async def process_subscription_deleted(event: Dict[str, Any]) -> None:
                     'cancel_at_period_end': True
                 }
                 notify_subscription_cancelled(user_id, subscription_data)
+
+        # Revoke MCP token access
+        try:
+            from api.webhooks.mcp_processors import process_mcp_subscription_events
+            await process_mcp_subscription_events(event)
+        except Exception as e:
+            logger.error(f"Error in MCP subscription processing: {e}")
+            # Don't fail the main webhook
 
         logger.info(f"Successfully processed subscription.deleted for {subscription_id}")
 
@@ -578,6 +602,155 @@ async def process_payment_failed(event: Dict[str, Any]) -> None:
 
     except Exception as e:
         logger.error(f"Error processing payment_failed: {e}")
+        raise
+
+
+# ==========================================
+# CHECKOUT EVENT PROCESSORS
+# ==========================================
+
+async def process_checkout_session_completed(event: Dict[str, Any]) -> None:
+    """
+    Process checkout.session.completed webhook event
+
+    This is the PRIMARY event for MCP token generation.
+    When a user completes checkout, this handler:
+    1. Creates/updates customer record
+    2. Waits for subscription to be created (async by Stripe)
+    3. Generates MCP token via mcp_processors
+    4. TODO: Sends welcome email with token and setup instructions
+
+    Args:
+        event: Stripe checkout.session.completed event
+    """
+    try:
+        session = event['data']['object']
+        session_id = session['id']
+        customer_id = session['customer']
+        subscription_id = session.get('subscription')
+
+        logger.info(f"Processing checkout.session.completed: {session_id}")
+
+        db = get_db()
+
+        # Extract customer email and metadata
+        customer_email = session.get('customer_email') or session.get('customer_details', {}).get('email')
+        tier = session.get('metadata', {}).get('tier', 'personal')
+
+        logger.info(f"Checkout completed - Email: {customer_email}, Tier: {tier}, Subscription: {subscription_id}")
+
+        # Get or create customer record
+        customer_query = "SELECT id, user_id, email FROM customers WHERE stripe_customer_id = %s"
+        customer_result = db.execute_with_retry(customer_query, (customer_id,), readonly=True)
+
+        if not customer_result:
+            # Create customer record
+            logger.info(f"Creating customer record for {customer_id} ({customer_email})")
+
+            # Generate user_id (UUID) for new customer
+            import uuid
+            user_id = str(uuid.uuid4())
+
+            insert_customer = """
+                INSERT INTO customers (
+                    stripe_customer_id, user_id, email, name, metadata,
+                    last_webhook_event_id, last_webhook_updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                RETURNING id, user_id, email
+            """
+
+            customer_result = db.execute_with_retry(
+                insert_customer,
+                (
+                    customer_id,
+                    user_id,
+                    customer_email,
+                    session.get('customer_details', {}).get('name'),
+                    {'tier': tier, 'source': 'checkout'},
+                    event['id']
+                ),
+                readonly=False
+            )
+
+            logger.info(f"Created customer record with user_id: {user_id}")
+
+        customer = customer_result[0]
+        user_id = str(customer['user_id'])
+
+        # If subscription exists, generate MCP token immediately
+        # Otherwise, it will be generated when subscription.created fires
+        if subscription_id:
+            logger.info(f"Subscription {subscription_id} exists - generating MCP token")
+
+            # Import MCP token generation
+            from mcp.auth.jwt_handler import create_mcp_token, get_token_hash
+            from datetime import datetime, timedelta
+
+            # Generate MCP token (1 year expiration)
+            mcp_token = create_mcp_token(
+                user_id=user_id,
+                tier=tier,
+                subscription_id=subscription_id,
+                expires_days=365
+            )
+
+            # Get token hash for storage
+            token_hash = get_token_hash(mcp_token)
+
+            # Calculate expiration date
+            expires_at = datetime.utcnow() + timedelta(days=365)
+
+            # Store token hash in database
+            insert_token = """
+                INSERT INTO mcp_tokens (
+                    user_id, token_hash, subscription_id, tier,
+                    expires_at, is_active, created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id, subscription_id)
+                DO UPDATE SET
+                    token_hash = EXCLUDED.token_hash,
+                    tier = EXCLUDED.tier,
+                    expires_at = EXCLUDED.expires_at,
+                    is_active = TRUE,
+                    created_at = CURRENT_TIMESTAMP
+            """
+
+            db.execute_with_retry(
+                insert_token,
+                (user_id, token_hash, subscription_id, tier, expires_at),
+                readonly=False
+            )
+
+            logger.info(
+                f"MCP token created for user {user_id}, tier {tier}, "
+                f"subscription {subscription_id}"
+            )
+
+            # TODO: Send welcome email with MCP token
+            # This is CRITICAL - user needs token to use MCP
+            # Email should include:
+            # - Welcome message
+            # - MCP token (ONLY send once!)
+            # - Claude Desktop setup instructions
+            # - Link to documentation
+            # - Support contact info
+
+            logger.warning(f"TODO: Send MCP welcome email to {customer_email} with token")
+            logger.info(f"MCP Token (STORE SECURELY - not logged in production): {mcp_token[:20]}...")
+
+        else:
+            logger.info(f"No subscription yet - MCP token will be generated on subscription.created")
+
+        # Track metrics
+        from monitoring.prometheus_metrics import subscriptions_total
+        subscriptions_total.labels(tier=tier, event='checkout_completed').inc()
+
+        logger.info(f"Successfully processed checkout.session.completed for {session_id}")
+
+    except Exception as e:
+        logger.error(f"Error processing checkout.session.completed: {e}", exc_info=True)
         raise
 
 
