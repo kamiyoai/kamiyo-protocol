@@ -26,7 +26,7 @@ export default function Home() {
                             {/* Heading */}
                             <header>
                                 <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    On-chain API payments<br />with x402 for<br />autonomous AI agents
+                                    On-chain API x402 payments for autonomous AI agents
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
                                     HTTP 402 Payment Required implementation. Pay with USDC on-chain without account signup. Built for AI agents that need instant API access.
