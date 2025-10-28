@@ -121,7 +121,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                <h1 className="text-4xl font-light mb-2">x402 Payment Dashboard</h1>
+                <h1 className="text-4xl font-light mb-2">Security Intelligence Dashboard</h1>
                 <p className="text-gray-400 mb-8">
                     Subscription Tier: <span className="text-white">{tierDisplay}</span>
                 </p>
@@ -135,7 +135,7 @@ export default function DashboardPage() {
                             <p className="text-white text-xl">{tierDisplay}</p>
                         </div>
                         <div>
-                            <p className="text-gray-400 text-sm">x402 Payment Access</p>
+                            <p className="text-gray-400 text-sm">API Access (MCP/x402)</p>
                             <p className="text-white text-xl">{subscription.isSubscribed ? 'Full Access' : 'Pay-per-use'}</p>
                         </div>
                         <div>
@@ -158,13 +158,13 @@ export default function DashboardPage() {
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => router.push('/api-docs')}>
                         <h3 className="text-lg font-light mb-2">API Documentation</h3>
-                        <p className="text-gray-400 text-sm mb-4">Learn how to integrate x402 payments into your AI agents</p>
+                        <p className="text-gray-400 text-sm mb-4">Learn how to integrate security intelligence via MCP or x402</p>
                         <span className="text-cyan text-sm">View Docs →</span>
                     </div>
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => router.push('/dashboard/api-keys')}>
                         <h3 className="text-lg font-light mb-2">Manage API Keys</h3>
-                        <p className="text-gray-400 text-sm mb-4">Create and manage your x402 payment API keys</p>
+                        <p className="text-gray-400 text-sm mb-4">Create and manage your API keys for security intelligence</p>
                         <span className="text-cyan text-sm">Manage Keys →</span>
                     </div>
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
@@ -226,27 +226,27 @@ export default function DashboardPage() {
                 {/* Getting Started for Free Tier */}
                 {!subscription.isSubscribed && (
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                        <h2 className="text-2xl font-light mb-4">Getting Started with x402 Payments</h2>
+                        <h2 className="text-2xl font-light mb-4">Getting Started with Security Intelligence</h2>
                         <div className="space-y-4">
                             <div className="flex items-start gap-4">
                                 <div className="text-cyan text-2xl font-light">1</div>
                                 <div>
                                     <h3 className="text-white mb-1">Create an API Key</h3>
-                                    <p className="text-gray-400 text-sm">Generate your first x402 payment API key to start accepting on-chain USDC payments</p>
+                                    <p className="text-gray-400 text-sm">Generate your first API key to start accessing security intelligence</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-4">
                                 <div className="text-cyan text-2xl font-light">2</div>
                                 <div>
                                     <h3 className="text-white mb-1">Read the Documentation</h3>
-                                    <p className="text-gray-400 text-sm">Learn how to implement HTTP 402 Payment Required in your AI agent applications</p>
+                                    <p className="text-gray-400 text-sm">Learn how to integrate security intelligence via MCP or x402 in your AI agents</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-4">
                                 <div className="text-cyan text-2xl font-light">3</div>
                                 <div>
-                                    <h3 className="text-white mb-1">Test x402 Payments</h3>
-                                    <p className="text-gray-400 text-sm">Start with pay-per-use x402 payments on Base, Ethereum, or Solana</p>
+                                    <h3 className="text-white mb-1">Start Querying</h3>
+                                    <p className="text-gray-400 text-sm">Start with MCP subscription or pay-per-query x402 access</p>
                                 </div>
                             </div>
                         </div>

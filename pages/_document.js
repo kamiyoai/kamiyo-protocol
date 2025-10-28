@@ -16,8 +16,8 @@ export default function Document() {
                 "@type": "Organization",
                 "@id": "https://kamiyo.io/#organization",
                 "name": "KAMIYO",
-                "legalName": "KAMIYO x402 Payment Facilitator",
-                "description": "KAMIYO is an x402 Payment Facilitator platform enabling HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments using USDC on Base, Ethereum, and Solana blockchains without account signup.",
+                "legalName": "KAMIYO Security Intelligence",
+                "description": "KAMIYO provides real-time cryptocurrency exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API. Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec, and SlowMist.",
                 "url": "https://kamiyo.io",
                 "logo": "https://kamiyo.io/favicon.png",
                 "foundingDate": "2024",
@@ -33,7 +33,7 @@ export default function Document() {
                 },
                 "offers": {
                     "@type": "Offer",
-                    "description": "x402 protocol implementation for blockchain API billing and autonomous agent payments"
+                    "description": "Security intelligence via MCP subscriptions ($19-299/mo) or x402 API ($0.01/query) for real-time exploit detection and protocol risk assessment"
                 }
             },
             {
@@ -41,7 +41,7 @@ export default function Document() {
                 "@id": "https://kamiyo.io/#website",
                 "name": "KAMIYO",
                 "url": "https://kamiyo.io",
-                "description": "x402 Payment Facilitator enabling HTTP 402 Payment Required for autonomous AI agents with on-chain API payments",
+                "description": "Security intelligence platform for AI agents delivering real-time crypto exploit data via MCP and x402",
                 "publisher": {
                     "@id": "https://kamiyo.io/#organization"
                 },
@@ -59,27 +59,27 @@ export default function Document() {
                 "@type": "ItemList",
                 "@id": "https://kamiyo.io/#sitenavigatation",
                 "name": "KAMIYO Site Navigation",
-                "description": "Main navigation elements for KAMIYO x402 Payment Facilitator",
+                "description": "Main navigation elements for KAMIYO Security Intelligence platform",
                 "itemListElement": [
                     {
                         "@type": "SiteNavigationElement",
                         "position": 1,
                         "name": "Features",
-                        "description": "Explore x402 payment protocol features and capabilities",
+                        "description": "Explore security intelligence features: 20+ source aggregation, MCP integration, protocol risk scoring",
                         "url": "https://kamiyo.io/features"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 2,
                         "name": "Pricing",
-                        "description": "View pricing for x402 API access and payment processing",
+                        "description": "View pricing for MCP subscriptions and x402 API access to security intelligence",
                         "url": "https://kamiyo.io/pricing"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 3,
                         "name": "API Documentation",
-                        "description": "Complete API documentation for x402 payment implementation",
+                        "description": "Complete API documentation for MCP integration and x402 security intelligence access",
                         "url": "https://kamiyo.io/api-docs"
                     },
                     {
@@ -109,7 +109,7 @@ export default function Document() {
                 {/* Primary Meta Tags */}
                 <meta name="author" content="KAMIYO" />
                 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-                <meta name="keywords" content="HTTP 402 Payment Required implementation, x402 protocol, AI agent payments, on-chain API payments, autonomous agent payments, blockchain API billing, USDC API payments, payment facilitator, blockchain payments, crypto API, Web3 payments, decentralized payments, smart contract payments, Base blockchain, Ethereum payments, Solana payments" />
+                <meta name="keywords" content="crypto exploit intelligence, AI agent security, MCP server security, Claude Desktop security, real-time exploit detection, DeFi security intelligence, blockchain exploit database, protocol risk assessment, security intelligence API, CertiK API alternative, crypto threat intelligence, smart contract exploits, DeFi hack database, on-chain security monitoring, x402 API, blockchain security alerts, protocol vulnerability tracking, AI security agents, crypto security MCP" />
 
                 {/* Mobile Optimization */}
                 <meta name="theme-color" content="#000000" />
@@ -118,8 +118,8 @@ export default function Document() {
                 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
-                <meta property="og:title" content="KAMIYO - x402 Payment Facilitator | HTTP 402 Payment Required for AI Agents" />
-                <meta property="og:description" content="HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments with USDC on Base, Ethereum, or Solana. x402 protocol for blockchain API billing without account signup." />
+                <meta property="og:title" content="KAMIYO - Security Intelligence for AI Agents | MCP & x402" />
+                <meta property="og:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API ($0.01/query). Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec." />
                 <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:url" content="https://kamiyo.io" />
                 <meta property="og:type" content="website" />
@@ -128,8 +128,8 @@ export default function Document() {
 
                 {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="KAMIYO - x402 Payment Facilitator | HTTP 402 Payment Required for AI Agents" />
-                <meta name="twitter:description" content="HTTP 402 Payment Required implementation for autonomous AI agents. On-chain API payments with USDC on Base, Ethereum, or Solana. x402 protocol for blockchain API billing." />
+                <meta name="twitter:title" content="KAMIYO - Security Intelligence for AI Agents | MCP & x402" />
+                <meta name="twitter:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
                 <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
                 <meta name="twitter:creator" content="@KAMIYO" />

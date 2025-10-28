@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
                 <div className="grid grid-cols-1 gap-8 md:gap-16">
                     <div>
                         <h4 className="text-xl md:text-2xl mb-4">1. Introduction</h4>
-                        <p className="mb-10">KAMIYO (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates an x402 Payment Facilitator platform for autonomous AI agent payments. This Privacy Policy explains how we collect, use, and protect your information when you use our services. By accessing KAMIYO, you agree to the terms outlined in this policy.</p>
+                        <p className="mb-10">KAMIYO (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates a security intelligence platform for AI agents. This Privacy Policy explains how we collect, use, and protect your information when you use our services. By accessing KAMIYO, you agree to the terms outlined in this policy.</p>
 
                         <h4 className="text-xl md:text-2xl mb-4">2. Data Collection & Usage</h4>
                         <p>We collect and process user data to provide API payment services and maintain platform functionality:</p>

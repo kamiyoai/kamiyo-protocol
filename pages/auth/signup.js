@@ -137,7 +137,7 @@ export default function SignUp() {
                     <div>
                         <h2 className="text-3xl font-light text-center mb-2">Join KAMIYO</h2>
                         <p className="text-gray-400 text-center text-sm">
-                            Create an account to access x402 payment platform
+                            Create an account to access security intelligence platform
                         </p>
                     </div>
 

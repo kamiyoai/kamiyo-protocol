@@ -142,7 +142,7 @@ export default function Home() {
                                 onClickOverride={() => {
                                     window.location.href = '/auth/signin';
                                 }}
-                                title="Start using x402 payment facilitator for free - no credit card required"
+                                title="Start using security intelligence for free - no credit card required"
                             />
                         </div>
                     </div>
@@ -304,7 +304,7 @@ export default function Home() {
                                 onClickOverride={() => {
                                     window.location.href = '/inquiries';
                                 }}
-                                title="Contact sales for Enterprise x402 payment facilitator solutions"
+                                title="Contact sales for Enterprise security intelligence solutions"
                             />
                         </div>
                     </div>
