@@ -34,31 +34,31 @@ import PropTypes from 'prop-types';
  * />
  */
 export default function SEO({
-  title = "x402 Payment Facilitator | HTTP 402 Payment Required for AI Agents",
-  description = "KAMIYO is the leading x402 Payment Facilitator implementing HTTP 402 Payment Required for autonomous AI agents. Enable seamless on-chain API payments with USDC across Base, Ethereum, and Solana blockchains. AI agent payments without account signup, powered by cryptographic verification and blockchain technology.",
+  title = "Security Intelligence for AI Agents | KAMIYO | MCP & x402",
+  description = "Real-time crypto exploit intelligence for AI agents. Access via MCP subscription (Claude Desktop) or x402 API. Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec. $0.01 per query or unlimited with MCP.",
   keywords = [
-    "HTTP 402 Payment Required",
-    "x402 protocol",
-    "x402 Payment Facilitator",
-    "AI agent payments",
-    "on-chain API payments",
-    "autonomous agent payments",
-    "blockchain API billing",
-    "USDC API payments",
-    "cryptocurrency API",
-    "payment facilitator",
-    "Web3 payments",
-    "decentralized API payments",
-    "smart contract payments",
-    "Base blockchain payments",
-    "Ethereum API payments",
-    "Solana payments",
-    "crypto payment gateway",
-    "AI agent billing",
-    "autonomous payment systems",
-    "blockchain payment protocol"
+    "crypto exploit intelligence",
+    "AI agent security",
+    "MCP server security",
+    "Claude Desktop security",
+    "real-time exploit detection",
+    "DeFi security intelligence",
+    "blockchain exploit database",
+    "protocol risk assessment",
+    "security intelligence API",
+    "x402 security data",
+    "CertiK API alternative",
+    "crypto threat intelligence",
+    "smart contract exploits",
+    "DeFi hack database",
+    "on-chain security monitoring",
+    "AI security agent",
+    "crypto security MCP",
+    "exploit aggregation",
+    "blockchain security alerts",
+    "protocol vulnerability tracking"
   ],
-  canonical = "https://kamiyo.io",
+  canonical = "https://kamiyo.ai",
   ogImage = "https://kamiyo.io/media/KAMIYO_OpenGraphImage.png",
   ogType = "website",
   schemaData = null,
@@ -68,58 +68,54 @@ export default function SEO({
   const defaultSchema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "KAMIYO",
-    "applicationCategory": "BusinessApplication",
-    "operatingSystem": "Web",
-    "description": "x402 Payment Facilitator platform implementing HTTP 402 Payment Required for autonomous AI agents with on-chain API payments using USDC",
-    "url": "https://kamiyo.io",
+    "name": "KAMIYO Security Intelligence",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Web, MCP",
+    "description": "Real-time cryptocurrency exploit intelligence for AI agents via MCP subscriptions or x402 API",
+    "url": "https://kamiyo.ai",
     "offers": [
       {
         "@type": "Offer",
-        "name": "Free Tier",
-        "price": "0",
+        "name": "MCP Personal",
+        "price": "19",
         "priceCurrency": "USD",
-        "description": "x402 pay-per-use access with 1K API calls per day"
+        "description": "Unlimited security intelligence queries for Claude Desktop and AI agents"
       },
       {
         "@type": "Offer",
-        "name": "Pro Tier",
-        "price": "89",
+        "name": "MCP Team",
+        "price": "99",
         "priceCurrency": "USD",
-        "description": "50K API calls per day with WebSocket connections and JavaScript SDK access"
+        "description": "5 concurrent AI agents, team workspace, webhook notifications"
       },
       {
         "@type": "Offer",
-        "name": "Team Tier",
-        "price": "199",
+        "name": "MCP Enterprise",
+        "price": "299",
         "priceCurrency": "USD",
-        "description": "100K API calls per day with multiple API keys and analytics dashboard"
+        "description": "Unlimited AI agents, custom tools, SLA guarantees, dedicated support"
       },
       {
         "@type": "Offer",
-        "name": "Enterprise Tier",
-        "price": "499",
+        "name": "x402 API",
+        "price": "0.01",
         "priceCurrency": "USD",
-        "description": "Unlimited API calls with custom payment integrations and 99.9% SLA"
+        "description": "Pay-per-query exploit intelligence, no subscription required"
       }
     ],
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.8",
-      "ratingCount": "127"
-    },
     "featureList": [
-      "HTTP 402 Payment Required implementation",
-      "x402 protocol support",
-      "On-chain API payments with USDC",
-      "Multi-chain support (Base, Ethereum, Solana)",
-      "No account signup required",
-      "Autonomous AI agent payments",
-      "Cryptographic payment verification",
-      "Real-time payment tracking",
-      "JavaScript SDK for developers",
-      "WebSocket connections",
-      "Usage analytics dashboard"
+      "20+ security source aggregation",
+      "Real-time exploit detection",
+      "MCP server for Claude Desktop",
+      "Protocol risk assessment",
+      "Wallet address screening",
+      "Historical exploit database",
+      "Source quality scoring",
+      "x402 pay-per-query API",
+      "Multi-chain coverage (15+ blockchains)",
+      "AI agent integration",
+      "WebSocket streaming",
+      "Unlimited MCP queries"
     ]
   };
 
