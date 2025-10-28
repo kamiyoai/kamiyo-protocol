@@ -10,8 +10,8 @@ echo "==> KAMIYO Frontend Build Script"
 echo "==> Removing platform-specific package-lock.json..."
 rm -f package-lock.json
 
-echo "==> Installing dependencies with --legacy-peer-deps..."
-npm install --legacy-peer-deps
+echo "==> Installing dependencies with --legacy-peer-deps and --no-optional..."
+npm install --legacy-peer-deps --no-optional
 
 echo "==> Generating Prisma client..."
 npx prisma generate
