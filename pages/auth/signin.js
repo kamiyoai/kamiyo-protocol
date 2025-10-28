@@ -17,7 +17,7 @@ export default function SignIn() {
                     <div>
                         <h2 className="text-3xl font-light text-center mb-2">Sign in to KAMIYO</h2>
                         <p className="text-gray-400 text-center text-sm">
-                            Access blockchain exploit intelligence
+                            Access x402 payment platform for AI agents
                         </p>
                     </div>
 
