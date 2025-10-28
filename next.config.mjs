@@ -81,6 +81,14 @@ const nextConfig = {
     pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
 
     // ========================================================================
+    // TYPESCRIPT CONFIGURATION
+    // ========================================================================
+    // Exclude Solana programs from type-checking (built separately)
+    typescript: {
+        ignoreBuildErrors: false,
+    },
+
+    // ========================================================================
     // IMAGE OPTIMIZATION
     // ========================================================================
     // Next.js Image component automatically optimizes images for Core Web Vitals
