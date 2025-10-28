@@ -28,7 +28,7 @@ export default function ApiDocs() {
 
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500 border-opacity-25 pb-4">
-          {['overview', 'authentication', 'exploits', 'analysis', 'websocket', 'errors', 'examples'].map((tab) => (
+          {['overview', 'x402', 'authentication', 'exploits', 'analysis', 'websocket', 'errors', 'examples'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -38,10 +38,325 @@ export default function ApiDocs() {
                   : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'x402' ? 'x402 Payments' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
+
+        {/* x402 Payments */}
+        {activeTab === 'x402' && (
+          <div>
+            <h2 className="text-2xl font-light mb-6">x402 Payment Facilitator</h2>
+
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+              <div className="text-cyan text-sm mb-2">On-Chain Payments for AI Agents</div>
+              <p className="text-gray-400 text-sm mb-4">
+                KAMIYO implements HTTP 402 Payment Required responses, enabling AI agents to discover pricing, pay with USDC, and access APIs without account signup.
+              </p>
+              <div className="text-white text-sm">Supported chains: Base, Ethereum, Solana</div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">How It Works</h3>
+              <div className="space-y-4">
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-white font-medium mb-2">1. Make API Request (No Payment)</div>
+                  <CodeBlock>{`curl https://api.kamiyo.ai/v1/exploits`}</CodeBlock>
+                </div>
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-white font-medium mb-2">2. Receive 402 Payment Required</div>
+                  <CodeBlock language="json">{`HTTP/1.1 402 Payment Required
+X-Payment-Amount: 0.10
+X-Payment-Currency: USDC
+
+{
+  "payment_required": true,
+  "amount_usdc": 0.10,
+  "payment_methods": [{
+    "type": "onchain",
+    "supported_chains": ["base", "ethereum", "solana"],
+    "payment_addresses": {
+      "base": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+      "ethereum": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+      "solana": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+    }
+  }]
+}`}</CodeBlock>
+                </div>
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-white font-medium mb-2">3. Send USDC Payment On-Chain</div>
+                  <p className="text-gray-400 text-sm mb-2">Transfer USDC to the payment address on your preferred chain.</p>
+                </div>
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-white font-medium mb-2">4. Verify Payment & Get Token</div>
+                  <CodeBlock>{`curl -X POST https://api.kamiyo.ai/x402/verify-payment \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "tx_hash": "0xabc123...",
+    "chain": "base"
+  }'`}</CodeBlock>
+                </div>
+                <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+                  <div className="text-white font-medium mb-2">5. Use Payment Token for API Calls</div>
+                  <CodeBlock>{`curl -H "x-payment-token: kmy_..." \\
+  https://api.kamiyo.ai/v1/exploits`}</CodeBlock>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">GET /x402/supported-chains</h3>
+              <p className="text-gray-400 mb-4">Get list of supported blockchain networks and payment addresses.</p>
+              <CodeBlock>{`curl https://api.kamiyo.ai/x402/supported-chains`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response</div>
+                <CodeBlock language="json">{`{
+  "supported_chains": ["base", "ethereum", "solana"],
+  "payment_addresses": {
+    "base": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+    "ethereum": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+    "solana": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+  },
+  "min_payment_amount": 0.10
+}`}</CodeBlock>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">POST /x402/verify-payment</h3>
+              <p className="text-gray-400 mb-4">Verify on-chain USDC payment and create payment record in database.</p>
+              <div className="mb-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Request Body</div>
+                <div className="border border-gray-500 border-opacity-25 rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-500 bg-opacity-10">
+                      <tr>
+                        <th className="text-left p-3 text-gray-400 font-light">Field</th>
+                        <th className="text-left p-3 text-gray-400 font-light">Type</th>
+                        <th className="text-left p-3 text-gray-400 font-light">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-500 divide-opacity-25">
+                      <tr>
+                        <td className="p-3 font-mono text-cyan">tx_hash</td>
+                        <td className="p-3 text-gray-400">string</td>
+                        <td className="p-3 text-gray-400">Transaction hash on specified chain</td>
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-mono text-cyan">chain</td>
+                        <td className="p-3 text-gray-400">string</td>
+                        <td className="p-3 text-gray-400">Blockchain network (base, ethereum, solana)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-mono text-cyan">expected_amount</td>
+                        <td className="p-3 text-gray-400">number</td>
+                        <td className="p-3 text-gray-400">Optional: Expected payment amount in USDC</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <CodeBlock>{`curl -X POST https://api.kamiyo.ai/x402/verify-payment \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "tx_hash": "0xabc123...",
+    "chain": "base",
+    "expected_amount": 1.00
+  }'`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response (Success)</div>
+                <CodeBlock language="json">{`{
+  "is_valid": true,
+  "verification": {
+    "tx_hash": "0xabc123...",
+    "chain": "base",
+    "amount_usdc": 1.00,
+    "from_address": "0xdef456...",
+    "to_address": "0x742d35...",
+    "block_number": 12345678,
+    "confirmations": 12,
+    "risk_score": 0.1
+  },
+  "payment": {
+    "id": 42,
+    "status": "verified",
+    "requests_allocated": 10,
+    "requests_used": 0,
+    "requests_remaining": 10,
+    "expires_at": "2025-10-28T12:00:00Z"
+  }
+}`}</CodeBlock>
+              </div>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response (Insufficient Confirmations)</div>
+                <CodeBlock language="json">{`{
+  "is_valid": false,
+  "error_message": "Insufficient confirmations: 3/12",
+  "verification": {
+    "tx_hash": "0xabc123...",
+    "chain": "ethereum",
+    "confirmations": 3,
+    "required_confirmations": 12
+  }
+}`}</CodeBlock>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">POST /x402/generate-token/{payment_id}</h3>
+              <p className="text-gray-400 mb-4">Generate payment access token for verified payment stored in database.</p>
+              <CodeBlock>{`curl -X POST https://api.kamiyo.ai/x402/generate-token/42`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response</div>
+                <CodeBlock language="json">{`{
+  "payment_token": "kmy_a1b2c3d4e5f6...",
+  "payment_id": 42,
+  "expires_at": "2025-10-28T12:00:00Z",
+  "requests_allocated": 10,
+  "requests_used": 0,
+  "requests_remaining": 10
+}`}</CodeBlock>
+              </div>
+              <p className="text-gray-400 mt-4 text-sm">
+                <strong className="text-white">Note:</strong> The payment token is only shown once. Store it securely. Tokens are hashed with SHA256 before storage.
+              </p>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">GET /x402/payment/{payment_id}</h3>
+              <p className="text-gray-400 mb-4">Get payment status and remaining requests from database.</p>
+              <CodeBlock>{`curl https://api.kamiyo.ai/x402/payment/42`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response</div>
+                <CodeBlock language="json">{`{
+  "id": 42,
+  "tx_hash": "0xabc123...",
+  "chain": "base",
+  "amount_usdc": 1.00,
+  "from_address": "0xdef456...",
+  "to_address": "0x742d35...",
+  "status": "verified",
+  "risk_score": 0.1,
+  "requests_allocated": 10,
+  "requests_used": 3,
+  "requests_remaining": 7,
+  "created_at": "2025-10-27T10:00:00Z",
+  "verified_at": "2025-10-27T10:01:00Z",
+  "expires_at": "2025-10-28T10:01:00Z"
+}`}</CodeBlock>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">GET /x402/stats</h3>
+              <p className="text-gray-400 mb-4">Get payment analytics and statistics.</p>
+              <div className="mb-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Query Parameters</div>
+                <div className="border border-gray-500 border-opacity-25 rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-500 bg-opacity-10">
+                      <tr>
+                        <th className="text-left p-3 text-gray-400 font-light">Parameter</th>
+                        <th className="text-left p-3 text-gray-400 font-light">Type</th>
+                        <th className="text-left p-3 text-gray-400 font-light">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-500 divide-opacity-25">
+                      <tr>
+                        <td className="p-3 font-mono text-cyan">chain</td>
+                        <td className="p-3 text-gray-400">string</td>
+                        <td className="p-3 text-gray-400">Optional: Filter by blockchain (base, ethereum, solana)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-3 font-mono text-cyan">from_address</td>
+                        <td className="p-3 text-gray-400">string</td>
+                        <td className="p-3 text-gray-400">Optional: Filter by payer address</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <CodeBlock>{`curl https://api.kamiyo.ai/x402/stats?chain=base`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response</div>
+                <CodeBlock language="json">{`{
+  "total_payments": 1247,
+  "total_amount_usdc": 3542.50,
+  "total_requests_allocated": 35425,
+  "total_requests_used": 28340,
+  "unique_payers": 156,
+  "average_payment_usdc": 2.84,
+  "period_hours": 24
+}`}</CodeBlock>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">GET /x402/pricing</h3>
+              <p className="text-gray-400 mb-4">Get x402 payment pricing information and configuration.</p>
+              <CodeBlock>{`curl https://api.kamiyo.ai/x402/pricing`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response</div>
+                <CodeBlock language="json">{`{
+  "pricing": {
+    "price_per_call": 0.10,
+    "min_payment_usd": 0.10,
+    "requests_per_dollar": 10.0,
+    "token_expiry_hours": 24
+  },
+  "confirmations_required": {
+    "base": 6,
+    "ethereum": 12,
+    "solana": 32
+  },
+  "endpoint_specific_pricing": {
+    "/exploits": 0.10,
+    "/stats": 0.05,
+    "/chains": 0.02,
+    "/health": 0.01
+  }
+}`}</CodeBlock>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">Using Payment Tokens</h3>
+              <p className="text-gray-400 mb-4">Once you have a payment token, include it in the <code className="text-cyan">x-payment-token</code> header:</p>
+              <CodeBlock>{`curl -H "x-payment-token: kmy_your_token_here" \\
+  https://api.kamiyo.ai/v1/exploits`}</CodeBlock>
+              <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mt-4">
+                <h4 className="text-white text-sm mb-2">Token Details</h4>
+                <ul className="text-gray-400 text-sm space-y-2">
+                  <li>• <strong className="text-white">Expiry:</strong> 24 hours from payment verification</li>
+                  <li>• <strong className="text-white">Requests:</strong> 10 API calls per $1.00 USDC paid</li>
+                  <li>• <strong className="text-white">Storage:</strong> Tokens are hashed with SHA256 and stored in PostgreSQL database</li>
+                  <li>• <strong className="text-white">Validation:</strong> Each request checks token validity and decrements request counter</li>
+                  <li>• <strong className="text-white">Usage Tracking:</strong> All API calls are logged with endpoint, method, status code, and response time</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6">
+              <h3 className="text-xl font-light mb-4">JavaScript SDK</h3>
+              <p className="text-gray-400 mb-4">Use our SDK to handle x402 payments automatically:</p>
+              <CodeBlock language="javascript">{`const { KamiyoClient } = require('kamiyo-x402-sdk');
+
+const client = new KamiyoClient({
+  chain: 'base',
+  walletPrivateKey: process.env.WALLET_KEY
+});
+
+// SDK automatically handles 402 responses and USDC payments
+const exploits = await client.getExploits({
+  chain: 'ethereum',
+  start_date: '2025-01-01'
+});`}</CodeBlock>
+              <p className="text-gray-400 mt-4 text-sm">
+                The SDK is available at: <code className="text-cyan">npm install kamiyo-x402-sdk</code>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Overview */}
         {activeTab === 'overview' && (
@@ -96,7 +411,7 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Data Access by Tier</h3>
               <div className="bg-black border border-yellow-500 border-opacity-25 rounded-lg p-4 mb-4">
-                <div className="text-yellow-500 text-sm mb-2">⚠️ Free Tier Limitation</div>
+                <div className="text-yellow-500 text-sm mb-2">Free Tier Limitation</div>
                 <div className="text-gray-400 text-sm">
                   Free tier users receive exploit data with a <strong className="text-white">24-hour delay</strong>.
                   Paid tiers (Pro, Team, Enterprise) get <strong className="text-white">real-time data access</strong>.
@@ -156,7 +471,7 @@ export default function ApiDocs() {
               </p>
 
               <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-4">
-                <div className="text-cyan text-sm mb-2">💡 Optional Authentication</div>
+                <div className="text-cyan text-sm mb-2">Optional Authentication</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• <strong className="text-white">No API key:</strong> Free tier access with 24-hour delayed data</div>
                   <div>• <strong className="text-white">With API key:</strong> Real-time data, higher rate limits, advanced features</div>
@@ -186,7 +501,7 @@ export default function ApiDocs() {
               <h3 className="text-xl font-light mb-4">Getting Your API Key</h3>
 
               <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-4">
-                <div className="text-cyan text-sm mb-2">✨ Auto-Generated on Signup</div>
+                <div className="text-cyan text-sm mb-2">Auto-Generated on Signup</div>
                 <div className="text-gray-400 text-sm">
                   New users automatically receive an API key when signing up. You can view and manage your keys in the dashboard.
                 </div>
@@ -449,7 +764,7 @@ export default function ApiDocs() {
             <h2 className="text-2xl font-light mb-6">Analysis API (v2) - Team Tier+</h2>
 
             <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-8">
-              <div className="text-cyan text-sm mb-2">⚡ Team & Enterprise Only</div>
+              <div className="text-cyan text-sm mb-2">Team & Enterprise Only</div>
               <div className="text-gray-400 text-sm">
                 The Analysis API (v2) requires Team tier or higher. Upgrade at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.ai/pricing</a>
               </div>
@@ -836,7 +1151,7 @@ exploits = response.json()
 for exploit in exploits['data']:
     name = exploit['name']
     amount = exploit['amount_usd']
-    print(f"{name}: ${amount}")`}</CodeBlock>
+    print(f"{name}: $${amount}")`}</CodeBlock>
             </div>
 
             <div className="mb-8">

@@ -1,42 +1,41 @@
-# Use Ubuntu 22.04 (works for both amd64 and arm64)
-FROM ubuntu:22.04
+# KAMIYO x402 Payment Facilitator
+# Production Docker Image
 
-# Set non-interactive mode to avoid prompts
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install curl, gnupg, and other dependencies
-RUN apt-get update -y && apt-get install -y \
-    curl \
-    ca-certificates \
-    gnupg \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Add NodeSource repository for Node.js 23 (auto-detects architecture)
-RUN curl -fsSL https://deb.nodesource.com/setup_23.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g npm@latest
-
-# Ensure Node.js is globally available in PATH
-ENV PATH="/usr/bin:$PATH"
-
-# Verify installation
-RUN node -v && npm -v
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm fetch --prod && pnpm install --prod
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the full application code
+# Copy requirements first (for layer caching)
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
 
-# Expose the port your Node.js app runs on (if needed)
-EXPOSE 3000
+# Create non-root user
+RUN useradd -m -u 1000 kamiyo && \
+    chown -R kamiyo:kamiyo /app
 
-# Set the default command
-CMD ["node", "server.js"]
+# Switch to non-root user
+USER kamiyo
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run with uvicorn
+CMD ["uvicorn", "api.main_x402:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

@@ -34,24 +34,32 @@ class SubscriptionTier(BaseModel):
     api_requests_per_hour: int = Field(..., description="Hourly API request limit")
     api_requests_per_minute: int = Field(..., description="Per-minute API request limit")
 
-    # Alert Features
-    email_alerts: bool = Field(True, description="Email alerts enabled")
-    discord_alerts: bool = Field(False, description="Discord alerts enabled")
-    telegram_alerts: bool = Field(False, description="Telegram alerts enabled")
-    webhook_alerts: bool = Field(False, description="Webhook alerts enabled")
+    # x402 Payment Features
+    x402_payments: bool = Field(True, description="x402 pay-per-use enabled")
+    usdc_payments: bool = Field(True, description="USDC on-chain payments enabled")
+    no_account_required: bool = Field(True, description="x402 no-account mode enabled")
+
+    # Integration Features
+    websocket_connections: bool = Field(False, description="WebSocket connections enabled")
+    javascript_sdk: bool = Field(True, description="JavaScript SDK access")
+    multiple_api_keys: bool = Field(False, description="Multiple API keys allowed")
+
+    # Analytics & Monitoring
+    usage_analytics: bool = Field(False, description="Usage analytics dashboard")
+    real_time_monitoring: bool = Field(False, description="Real-time monitoring enabled")
 
     # Data Access
     historical_data_days: int = Field(..., description="Days of historical data access")
-    real_time_alerts: bool = Field(False, description="Real-time alert delivery")
 
-    # Support
+    # Support Levels
     support_level: str = Field(..., description="Support level (community/email/priority/dedicated)")
+    email_support: bool = Field(False, description="Email support enabled")
+    priority_support: bool = Field(False, description="Priority support enabled")
+    dedicated_support_engineer: bool = Field(False, description="Dedicated support engineer")
 
-    # Advanced Features
-    custom_integrations: bool = Field(False, description="Custom integration support")
-    dedicated_account_manager: bool = Field(False, description="Dedicated account manager")
-    sla_guarantee: bool = Field(False, description="SLA guarantee")
-    white_label: bool = Field(False, description="White label option")
+    # Enterprise Features
+    custom_payment_integrations: bool = Field(False, description="Custom payment integrations")
+    sla_guarantee: bool = Field(False, description="99.9% SLA guarantee")
 
     # Export Features
     csv_export: bool = Field(True, description="CSV export enabled")
@@ -74,29 +82,37 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         api_requests_per_hour=42,
         api_requests_per_minute=10,
 
-        # Alerts - Unlimited email alerts, 24h delay
-        email_alerts=True,
-        discord_alerts=False,
-        telegram_alerts=False,
-        webhook_alerts=False,
+        # x402 Payment Features - All tiers
+        x402_payments=True,
+        usdc_payments=True,
+        no_account_required=True,
+
+        # Integration Features
+        websocket_connections=False,
+        javascript_sdk=True,
+        multiple_api_keys=False,
+
+        # Analytics & Monitoring
+        usage_analytics=False,
+        real_time_monitoring=False,
 
         # Data Access - Limited
         historical_data_days=7,
-        real_time_alerts=False,
 
-        # Support - Community/email only
+        # Support - Community only
         support_level="community",
+        email_support=False,
+        priority_support=False,
+        dedicated_support_engineer=False,
 
-        # Advanced Features - None
-        custom_integrations=False,
-        dedicated_account_manager=False,
+        # Enterprise Features - None
+        custom_payment_integrations=False,
         sla_guarantee=False,
-        white_label=False,
 
         # Export - Basic
         csv_export=True,
         json_export=True,
-        api_access=True  # API access enabled for free tier
+        api_access=True
     ),
 
     TierName.PRO: SubscriptionTier(
@@ -109,24 +125,32 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         api_requests_per_hour=2083,  # ~2K per hour
         api_requests_per_minute=35,
 
-        # Alerts - Multi-channel, unlimited, real-time
-        email_alerts=True,
-        discord_alerts=True,
-        telegram_alerts=True,
-        webhook_alerts=True,  # 2 webhook endpoints
+        # x402 Payment Features - All tiers
+        x402_payments=True,
+        usdc_payments=True,
+        no_account_required=True,
+
+        # Integration Features
+        websocket_connections=True,
+        javascript_sdk=True,
+        multiple_api_keys=False,
+
+        # Analytics & Monitoring
+        usage_analytics=False,
+        real_time_monitoring=True,
 
         # Data Access - 90 days historical
         historical_data_days=90,
-        real_time_alerts=True,
 
-        # Support - Standard (24h)
-        support_level="standard",
+        # Support - Email
+        support_level="email",
+        email_support=True,
+        priority_support=False,
+        dedicated_support_engineer=False,
 
-        # Advanced Features - None
-        custom_integrations=False,
-        dedicated_account_manager=False,
+        # Enterprise Features - None
+        custom_payment_integrations=False,
         sla_guarantee=False,
-        white_label=False,
 
         # Export - Full
         csv_export=True,
@@ -139,29 +163,37 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         display_name="Team",
         price_monthly_usd=Decimal("199.00"),
 
-        # Rate Limits - 100K requests/day (2x Pro)
+        # Rate Limits - 100K requests/day
         api_requests_per_day=100000,
         api_requests_per_hour=4167,  # ~4K per hour
         api_requests_per_minute=70,
 
-        # Alerts - All channels including 5 webhooks
-        email_alerts=True,
-        discord_alerts=True,
-        telegram_alerts=True,
-        webhook_alerts=True,  # 5 webhook endpoints
+        # x402 Payment Features - All tiers
+        x402_payments=True,
+        usdc_payments=True,
+        no_account_required=True,
+
+        # Integration Features
+        websocket_connections=True,
+        javascript_sdk=True,
+        multiple_api_keys=True,
+
+        # Analytics & Monitoring
+        usage_analytics=True,
+        real_time_monitoring=True,
 
         # Data Access - 1 year historical
         historical_data_days=365,
-        real_time_alerts=True,
 
-        # Support - Priority (12h)
+        # Support - Priority
         support_level="priority",
+        email_support=True,
+        priority_support=True,
+        dedicated_support_engineer=False,
 
-        # Advanced Features - Slack, beta features
-        custom_integrations=False,
-        dedicated_account_manager=False,
+        # Enterprise Features - None
+        custom_payment_integrations=False,
         sla_guarantee=False,
-        white_label=False,
 
         # Export - Full
         csv_export=True,
@@ -179,24 +211,32 @@ TIERS: Dict[TierName, SubscriptionTier] = {
         api_requests_per_hour=99999,
         api_requests_per_minute=1000,
 
-        # Alerts - All channels, 50 webhook endpoints
-        email_alerts=True,
-        discord_alerts=True,
-        telegram_alerts=True,
-        webhook_alerts=True,
+        # x402 Payment Features - All tiers
+        x402_payments=True,
+        usdc_payments=True,
+        no_account_required=True,
+
+        # Integration Features
+        websocket_connections=True,
+        javascript_sdk=True,
+        multiple_api_keys=True,
+
+        # Analytics & Monitoring
+        usage_analytics=True,
+        real_time_monitoring=True,
 
         # Data Access - 2+ years historical
         historical_data_days=730,  # 2+ years
-        real_time_alerts=True,
 
         # Support - Dedicated
         support_level="dedicated",
+        email_support=True,
+        priority_support=True,
+        dedicated_support_engineer=True,
 
-        # Advanced Features - All
-        custom_integrations=True,
-        dedicated_account_manager=True,
+        # Enterprise Features - All
+        custom_payment_integrations=True,
         sla_guarantee=True,
-        white_label=True,
 
         # Export - Full
         csv_export=True,
@@ -303,26 +343,19 @@ if __name__ == '__main__':
         print(f"\n{tier.display_name} - ${tier.price_monthly_usd}/month")
         print("-" * 60)
         print(f"  API Requests/Day: {tier.api_requests_per_day:,}")
-        print(f"  Alert Channels: ", end="")
-        channels = []
-        if tier.email_alerts:
-            channels.append("Email")
-        if tier.discord_alerts:
-            channels.append("Discord")
-        if tier.telegram_alerts:
-            channels.append("Telegram")
-        if tier.webhook_alerts:
-            channels.append("Webhooks")
-        print(", ".join(channels))
+        print(f"  WebSocket Connections: {'Yes' if tier.websocket_connections else 'No'}")
+        print(f"  JavaScript SDK: {'Yes' if tier.javascript_sdk else 'No'}")
+        print(f"  Multiple API Keys: {'Yes' if tier.multiple_api_keys else 'No'}")
+        print(f"  Usage Analytics: {'Yes' if tier.usage_analytics else 'No'}")
         print(f"  Historical Data: {tier.historical_data_days} days")
-        print(f"  Real-time Alerts: {'Yes' if tier.real_time_alerts else 'No'}")
+        print(f"  Real-time Monitoring: {'Yes' if tier.real_time_monitoring else 'No'}")
         print(f"  Support Level: {tier.support_level.title()}")
-        if tier.custom_integrations:
-            print(f"  Custom Integrations: Yes")
-        if tier.dedicated_account_manager:
-            print(f"  Account Manager: Yes")
+        if tier.custom_payment_integrations:
+            print(f"  Custom Payment Integrations: Yes")
         if tier.sla_guarantee:
             print(f"  SLA Guarantee: Yes")
+        if tier.dedicated_support_engineer:
+            print(f"  Dedicated Support Engineer: Yes")
 
     print("\n\n=== Tier Comparison ===")
     print(f"FREE -> PRO: {'Upgrade' if is_upgrade(TierName.FREE, TierName.PRO) else 'Not an upgrade'}")

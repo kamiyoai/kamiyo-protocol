@@ -22,7 +22,7 @@ from api.payments.stripe_client import get_stripe_client
 from api.subscriptions.manager import get_subscription_manager
 from database.postgres_manager import get_db
 from monitoring.prometheus_metrics import api_requests_total
-from security.auth import get_current_user, User
+from api.auth_helpers import get_current_user, User
 
 logger = logging.getLogger(__name__)
 

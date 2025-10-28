@@ -11,7 +11,7 @@ PyYAML==6.0.2
 fastapi==0.115.0
 uvicorn==0.32.1
 pydantic==2.10.3
-httpx==0.25.2  # Compatible with python-telegram-bot 20.7
+httpx  # Version auto-resolved for compatibility
 
 # Database - PostgreSQL (Production)
 psycopg2-binary==2.9.9
@@ -55,6 +55,7 @@ celery==5.3.4  # For background tasks
 
 # Web3 & Blockchain
 web3==6.11.3
+solana>=0.34.0  # Solana blockchain interaction for x402 payments (updated for httpx compatibility)
 
 # Twitter/Social
 tweepy==4.14.0
@@ -70,7 +71,7 @@ discord.py==2.3.2  # Discord bot library with slash command support
 # Social Media Posting (Day 31)
 praw==7.7.1  # Reddit API wrapper
 # tweepy already listed above (line 52)
-websockets==12.0  # WebSocket client for real-time Kamiyo updates
+websockets>=10.0,<12.0  # WebSocket client, compatible with solana and web3
 
 # AI Enhancement for Deep Dive Analysis
 anthropic>=0.34.0  # Claude AI for enhanced thread generation
@@ -88,6 +89,7 @@ mypy==1.7.1
 # Security
 python-dotenv==1.0.0
 cryptography==41.0.7
+fastapi-csrf-protect==0.3.4  # Python 3.10+ required (now using Python 3.11.14)
 
 # Performance & Optimization (Days 14-15)
 brotli==1.1.0  # Brotli compression (better than gzip)

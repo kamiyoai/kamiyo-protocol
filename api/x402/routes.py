@@ -7,13 +7,26 @@ API endpoints for x402 payment management
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, Request
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from .payment_verifier import payment_verifier
-from .payment_tracker import payment_tracker
+from .payment_tracker import get_payment_tracker, PaymentTracker
+from .config import get_x402_config
 
 logger = logging.getLogger(__name__)
+
+# Rate limiter for x402 endpoints
+# x402 endpoints are more expensive (blockchain RPC calls) so need stricter limits
+limiter = Limiter(key_func=get_remote_address)
+
+# Load x402 configuration
+x402_config = get_x402_config()
+
+# Initialize payment tracker (in-memory for now, will be replaced with database-backed in production)
+payment_tracker = PaymentTracker(db=None)
 
 router = APIRouter(prefix="/x402", tags=["x402 Payments"])
 
@@ -49,7 +62,8 @@ class PaymentStatsResponse(BaseModel):
     total_requests_used: float
 
 @router.get("/supported-chains")
-async def get_supported_chains():
+@limiter.limit("20/minute")  # Lightweight endpoint
+async def get_supported_chains(request: Request):
     """Get list of supported blockchain networks for payments"""
     return {
         "supported_chains": payment_verifier.get_supported_chains(),
@@ -61,7 +75,8 @@ async def get_supported_chains():
     }
 
 @router.post("/verify-payment", response_model=PaymentVerificationResponse)
-async def verify_payment(request: PaymentVerificationRequest):
+@limiter.limit("5/minute")  # Very restrictive - blockchain RPC calls are expensive
+async def verify_payment(request: Request, payment_request: PaymentVerificationRequest):
     """
     Verify on-chain payment and create payment record
     
@@ -73,9 +88,9 @@ async def verify_payment(request: PaymentVerificationRequest):
     try:
         # Verify the payment
         verification = await payment_verifier.verify_payment(
-            request.tx_hash,
-            request.chain,
-            request.expected_amount
+            payment_request.tx_hash,
+            payment_request.chain,
+            payment_request.expected_amount
         )
         
         # Convert to response model
@@ -95,8 +110,8 @@ async def verify_payment(request: PaymentVerificationRequest):
         # If payment is valid, create payment record
         if verification.is_valid:
             payment_record = await payment_tracker.create_payment_record(
-                tx_hash=request.tx_hash,
-                chain=request.chain,
+                tx_hash=payment_request.tx_hash,
+                chain=payment_request.chain,
                 amount_usdc=float(verification.amount_usdc),
                 from_address=verification.from_address,
                 risk_score=verification.risk_score
@@ -110,7 +125,8 @@ async def verify_payment(request: PaymentVerificationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/generate-token/{payment_id}", response_model=PaymentTokenResponse)
-async def generate_payment_token(payment_id: int):
+@limiter.limit("10/minute")  # Moderate limit for token generation
+async def generate_payment_token(request: Request, payment_id: int):
     """
     Generate payment access token for verified payment
     
@@ -141,7 +157,8 @@ async def generate_payment_token(payment_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/payment/{payment_id}")
-async def get_payment_status(payment_id: int):
+@limiter.limit("30/minute")  # Lightweight status check
+async def get_payment_status(request: Request, payment_id: int):
     """Get payment status and remaining requests"""
     try:
         # Find payment record
@@ -170,7 +187,9 @@ async def get_payment_status(payment_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stats", response_model=PaymentStatsResponse)
+@limiter.limit("15/minute")  # Moderate limit for stats queries
 async def get_payment_stats(
+    request: Request,
     from_address: Optional[str] = Query(None, description="Filter by sender address")
 ):
     """Get payment statistics"""
@@ -183,28 +202,29 @@ async def get_payment_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cleanup")
+@limiter.limit("1/minute")  # Very restrictive - admin only, expensive operation
 async def cleanup_expired_payments(
+    request: Request,
     x_admin_key: Optional[str] = Header(None, description="Admin API key")
 ):
     """
     Clean up expired payments and tokens
-    
+
     This is an admin endpoint that should be called periodically
     to remove expired payment records and tokens.
     """
     try:
-        # Simple admin auth (in production, use proper auth)
-        admin_key = "test-admin-key"  # Should be from environment
-        if x_admin_key != admin_key:
+        # Validate admin key from configuration
+        if x_admin_key != x402_config.admin_key:
             raise HTTPException(status_code=403, detail="Invalid admin key")
-        
+
         await payment_tracker.cleanup_expired_payments()
-        
+
         return {
             "status": "success",
             "message": "Expired payments cleaned up"
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -212,24 +232,37 @@ async def cleanup_expired_payments(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/pricing")
-async def get_pricing_info():
-    """Get x402 payment pricing information"""
+@limiter.limit("30/minute")  # Public endpoint, allow frequent access
+async def get_pricing_info(request: Request):
+    """Get x402 payment pricing information from configuration"""
     return {
         "pricing_tiers": {
             "pay_per_use": {
-                "price_per_call": 0.10,  # $0.10
-                "min_payment": 1.00,     # $1.00 minimum
-                "requests_per_dollar": 1000,  # 1000 requests per $1.00
-                "supported_chains": payment_verifier.get_supported_chains()
+                "price_per_call": x402_config.price_per_call,
+                "min_payment": x402_config.min_payment_usd,
+                "requests_per_dollar": x402_config.requests_per_dollar,
+                "supported_chains": payment_verifier.get_supported_chains(),
+                "token_expiry_hours": x402_config.token_expiry_hours
             },
             "subscription_included": {
                 "pro_tier": {
-                    "monthly_price": 29.00,
-                    "included_calls": 1000,  # 1000 included calls
-                    "overage_rate": 0.05     # $0.05 per additional call
+                    "monthly_price": 89.00,
+                    "included_calls": 50000,
+                    "overage_enabled": False
+                },
+                "team_tier": {
+                    "monthly_price": 199.00,
+                    "included_calls": 100000,
+                    "overage_enabled": False
+                },
+                "enterprise_tier": {
+                    "monthly_price": 499.00,
+                    "included_calls": "unlimited",
+                    "overage_enabled": False
                 }
             }
         },
+        "endpoint_specific_pricing": x402_config.endpoint_prices,
         "payment_methods": [
             {
                 "type": "onchain",
@@ -241,5 +274,9 @@ async def get_pricing_info():
                 "description": "Use payment token for multiple requests",
                 "instructions": "Use /x402/generate-token after payment verification"
             }
-        ]
+        ],
+        "payment_addresses": {
+            chain: payment_verifier.get_payment_address(chain)
+            for chain in payment_verifier.get_supported_chains()
+        }
     }

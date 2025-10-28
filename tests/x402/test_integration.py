@@ -7,11 +7,6 @@ Integration tests for KAMIYO x402 Payment System
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
-from fastapi.testclient import TestClient
-
-from api.main import app
-from api.x402.payment_verifier import payment_verifier
-from api.x402.payment_tracker import payment_tracker
 
 
 class TestX402Integration:
@@ -19,16 +14,16 @@ class TestX402Integration:
 
     def setup_method(self):
         """Set up test fixtures"""
-        self.client = TestClient(app)
+        from api.x402.payment_tracker import payment_tracker
         
         # Clear any existing test data
         payment_tracker.payments.clear()
         payment_tracker.tokens.clear()
         payment_tracker.next_payment_id = 1
         
-    def test_get_supported_chains(self):
+    def test_get_supported_chains(self, test_client):
         """Test getting supported chains endpoint"""
-        response = self.client.get("/x402/supported-chains")
+        response = test_client.get("/x402/supported-chains")
         
         assert response.status_code == 200
         data = response.json()
@@ -42,9 +37,9 @@ class TestX402Integration:
         assert 'ethereum' in chains
         assert 'solana' in chains
         
-    def test_get_pricing_info(self):
+    def test_get_pricing_info(self, test_client):
         """Test getting pricing information"""
-        response = self.client.get("/x402/pricing")
+        response = test_client.get("/x402/pricing")
         
         assert response.status_code == 200
         data = response.json()
@@ -57,8 +52,10 @@ class TestX402Integration:
         assert pay_per_use['min_payment'] == 1.00
         
     @pytest.mark.asyncio
-    async def test_verify_payment_endpoint_success(self):
+    async def test_verify_payment_endpoint_success(self, test_client):
         """Test payment verification endpoint with successful payment"""
+        from api.x402.payment_verifier import payment_verifier
+        
         # Mock successful payment verification
         with patch.object(payment_verifier, 'verify_payment') as mock_verify:
             mock_verify.return_value = Mock(
@@ -74,7 +71,7 @@ class TestX402Integration:
                 error_message=None
             )
             
-            response = self.client.post(
+            response = test_client.post(
                 "/x402/verify-payment",
                 json={
                     "tx_hash": "0x123",

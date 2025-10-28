@@ -27,8 +27,21 @@ import logging
 
 from database import get_db
 from api.subscriptions.tiers import TierName, get_tier
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+# User model for type hints
+class User(BaseModel):
+    """User model for authenticated requests"""
+    id: str
+    email: str
+    tier: str
+    auth_method: str = "api_key"
+
+    class Config:
+        from_attributes = True
 
 # Import JWT manager with P0 + P1 fixes
 try:
@@ -43,7 +56,7 @@ except ImportError as e:
 async def get_current_user(
     request: Request,
     authorization: Optional[str] = Header(None)
-) -> Dict[str, Any]:
+) -> User:
     """
     Get current user from Authorization header.
 
@@ -63,7 +76,7 @@ async def get_current_user(
         authorization: Authorization header
 
     Returns:
-        User dictionary with id, email, tier
+        User object with id, email, tier
 
     Raises:
         HTTPException: If authentication fails or rate limited
@@ -94,12 +107,12 @@ async def get_current_user(
             rate_limiter = get_rate_limiter()
             rate_limiter.check_auth_attempt(client_ip, is_success=True)
 
-            return {
-                "id": payload.get("sub"),
-                "email": payload.get("email"),
-                "tier": payload.get("tier", "free"),
-                "auth_method": "jwt"
-            }
+            return User(
+                id=payload.get("sub"),
+                email=payload.get("email"),
+                tier=payload.get("tier", "free"),
+                auth_method="jwt"
+            )
 
         except HTTPException as e:
             # JWT verification failed - could be invalid JWT or rate limit exceeded
@@ -144,12 +157,12 @@ async def get_current_user(
 
     logger.debug(f"API key authentication successful: user={user[0]}")
 
-    return {
-        "id": user[0],
-        "email": user[1],
-        "tier": user[2],
-        "auth_method": "api_key"
-    }
+    return User(
+        id=str(user[0]),
+        email=user[1],
+        tier=user[2],
+        auth_method="api_key"
+    )
 
 
 async def get_optional_user(

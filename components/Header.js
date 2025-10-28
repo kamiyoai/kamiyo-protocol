@@ -47,14 +47,14 @@ export default function Header({ children }) {
         <>
             {/* Sticky header container */}
                 <header className={`w-full px-5 md:w-5/6 md:px-0 mx-auto text-white py-3 flex items-center justify-between transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"}`}>
-                    <div>
+                    <div className="flex-shrink-0 overflow-hidden">
                         <Link href="/" className="flex items-center">
                             <Image
                                 src="/media/kamiyo-ai_logomark.svg"
                                 alt="Kamiyo.ai"
                                 width={240}
                                 height={64}
-                                className="object-contain"
+                                className="object-contain h-10 sm:h-12 md:h-14 w-auto"
                             />
                         </Link>
                     </div>
@@ -161,7 +161,7 @@ export default function Header({ children }) {
                                         alt="Kamiyo.ai"
                                         width={240}
                                         height={64}
-                                        className="object-contain"
+                                        className="object-contain w-48 h-auto"
                                     />
                                 </Link>
                                 <nav className="md:hidden flex flex-col items-center space-y-4 py-6 border-b border-gray-500 border-opacity-25">
