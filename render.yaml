@@ -38,7 +38,7 @@ services:
     name: kamiyo-frontend
     runtime: node
     branch: main
-    buildCommand: npm install --legacy-peer-deps && npx prisma generate && npx prisma migrate deploy && npm run build
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
     startCommand: npm start
     disk:
       name: kamiyo-data
