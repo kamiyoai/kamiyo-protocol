@@ -3,6 +3,8 @@ databases:
     databaseName: kamiyo
     user: kamiyo
     plan: starter
+    # Automated daily backups enabled by default
+    # Backup retention: 7 days
 
 services:
   # FastAPI Backend
@@ -11,7 +13,7 @@ services:
     runtime: python
     branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 4
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
@@ -31,6 +33,26 @@ services:
         sync: false
       - key: ADMIN_API_KEY
         sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: X402_ADMIN_KEY
+        sync: false
+      - key: X402_BASE_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_ETHEREUM_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_SOLANA_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_BASE_RPC_URL
+        sync: false
+      - key: X402_ETHEREUM_RPC_URL
+        sync: false
+      - key: X402_SOLANA_RPC_URL
+        sync: false
+      - key: CSRF_SECRET_KEY
+        sync: false
     healthCheckPath: /health
 
   # Next.js Frontend
@@ -49,6 +71,8 @@ services:
         value: 18.20.8
       - key: PORT
         value: 3000
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         fromDatabase:
           name: kamiyo-postgres
@@ -78,6 +102,8 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: SENTRY_DSN
         sync: false
     healthCheckPath: /
 
