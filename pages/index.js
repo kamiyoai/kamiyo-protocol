@@ -25,7 +25,7 @@ export default function Home() {
                         <article className="space-y-8">
                             {/* Heading */}
                             <header>
-                                <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
+                                <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4 leading-tight text-white">
                                     On-chain x402 payments for autonomous AI agents
                                 </h2>
                                 <p className="text-gray-400 text-lg leading-relaxed">
@@ -50,8 +50,8 @@ export default function Home() {
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-wrap gap-6 items-center justify-between">
-                                <div className="scale-110 origin-left ml-8">
+                            <div className="flex flex-col md:flex-row md:flex-wrap gap-6 items-center md:justify-between">
+                                <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="View API Docs"
                                         onClickOverride={() => {
@@ -63,8 +63,8 @@ export default function Home() {
                                     onClick={() => {
                                         document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
                                     }}
-                                    className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300"
-                                    style={{ color: '#ff44f5', marginRight: '20px' }}
+                                    className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300 md:mr-5"
+                                    style={{ color: '#ff44f5' }}
                                     title="View x402 payment facilitator pricing plans for AI agent payments"
                                     aria-label="View pricing plans for HTTP 402 Payment Required implementation"
                                 >
@@ -96,7 +96,7 @@ export default function Home() {
             {/* Pricing Section */}
             <section id="pricing" className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="pricing-heading">
                 <header className="text-center mb-12">
-                    <h2 id="pricing-heading" className="text-4xl md:text-5xl font-light mb-4">x402 Payments Pricing</h2>
+                    <h2 id="pricing-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">x402 Payments Pricing</h2>
                     <p className="text-gray-400 text-lg">Pay-per-use with x402 or subscribe monthly. Your choice.</p>
                 </header>
 
@@ -315,7 +315,7 @@ export default function Home() {
             {/* x402 payment facilitator Section */}
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
                 <header className="text-center mb-12">
-                    <h2 id="ai-agents-heading" className="text-4xl md:text-5xl font-light mb-4">Built for AI Agents</h2>
+                    <h2 id="ai-agents-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Built for AI Agents</h2>
                     <p className="text-gray-400 text-lg">x402 payment facilitator: On-chain payments without accounts</p>
                 </header>
 
