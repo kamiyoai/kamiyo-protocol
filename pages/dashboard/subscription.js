@@ -183,10 +183,10 @@ export default function SubscriptionPage() {
                         return (
                             <div
                                 key={tier.name}
-                                className={`relative bg-black border rounded-lg p-6 flex flex-col ${
+                                className={`relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 flex flex-col transition-all duration-300 ${
                                     isCurrent
-                                        ? 'border-gray-500 border-opacity-25'
-                                        : 'border-gray-500 border-opacity-25'
+                                        ? 'card card-highlighted -translate-y-1'
+                                        : ''
                                 }`}
                             >
                                 {isCurrent && (
