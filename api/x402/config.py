@@ -74,10 +74,14 @@ def load_x402_config() -> X402Config:
     endpoint_prices = parse_endpoint_prices(endpoint_prices_str)
 
     # Default pricing if not configured
-    # For x402 payment facilitator, no endpoints are paid by default
-    # (the x402 system itself is the product, not the endpoints)
+    # Security intelligence endpoints use premium pricing
     if not endpoint_prices:
-        endpoint_prices = {}
+        endpoint_prices = {
+            '/exploits': 0.01,          # Real-time exploit data
+            '/exploits/latest-alert': 0.01,  # Latest exploit alert
+            '/protocols/risk-score': 0.02,   # Protocol risk assessment (future)
+            '/wallets/risk-check': 0.005,    # Wallet screening (future)
+        }
 
     return X402Config(
         # Admin
@@ -93,10 +97,12 @@ def load_x402_config() -> X402Config:
         ethereum_payment_address=os.getenv('X402_ETHEREUM_PAYMENT_ADDRESS', '0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7'),
         solana_payment_address=os.getenv('X402_SOLANA_PAYMENT_ADDRESS', '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'),
 
-        # Pricing
-        price_per_call=float(os.getenv('X402_PRICE_PER_CALL', '0.10')),
-        requests_per_dollar=float(os.getenv('X402_REQUESTS_PER_DOLLAR', '10.0')),
-        min_payment_usd=float(os.getenv('X402_MIN_PAYMENT_USD', '0.10')),
+        # Pricing (aligned with x402 market standards)
+        # Generic x402 test: $0.001/call (market standard)
+        # Security intelligence endpoints: $0.01/query (premium)
+        price_per_call=float(os.getenv('X402_PRICE_PER_CALL', '0.001')),
+        requests_per_dollar=float(os.getenv('X402_REQUESTS_PER_DOLLAR', '1000.0')),
+        min_payment_usd=float(os.getenv('X402_MIN_PAYMENT_USD', '0.10')),  # $0.10 minimum to reduce tx spam
         token_expiry_hours=int(os.getenv('X402_TOKEN_EXPIRY_HOURS', '24')),
 
         # Endpoint-specific pricing

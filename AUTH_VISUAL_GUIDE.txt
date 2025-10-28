@@ -1,0 +1,267 @@
+========================================
+EMAIL/PASSWORD AUTHENTICATION - VISUAL GUIDE
+========================================
+
+┌─────────────────────────────────────────────────────────────┐
+│                     SIGN IN PAGE                             │
+│                  /auth/signin                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│              Sign in to KAMIYO                               │
+│         Access x402 payment platform for AI agents           │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Email                                              │    │
+│   │  [your@email.com                    ]              │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Password                                           │    │
+│   │  [••••••••••••••••                 ]              │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │              [Sign in]                             │    │
+│   │         (Cyan background)                          │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│                 ─────── or ───────                          │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │    [Continue with Google] ◄ ScrambleButton         │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│          Don't have an account? Sign up                      │
+│                                                               │
+│                  ← Back to home                              │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────┐
+│                     SIGN UP PAGE                             │
+│                  /auth/signup                                │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│                   Join KAMIYO                                │
+│      Create an account to access x402 payment platform      │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Name (Optional)                                    │    │
+│   │  [Your name                     ]                  │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Email                                              │    │
+│   │  [your@email.com                    ]              │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Password                                           │    │
+│   │  [••••••••••••••••                 ]              │    │
+│   │  Strength: Medium (yellow)                         │    │
+│   │  Must include uppercase, lowercase, and number     │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │  Confirm Password                                   │    │
+│   │  [••••••••••••••••                 ]              │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │           [Create Account]                         │    │
+│   │         (Cyan background)                          │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│                 ─────── or ───────                          │
+│                                                               │
+│   ┌───────────────────────────────────────────────────┐    │
+│   │    [Sign up with Google] ◄ ScrambleButton          │    │
+│   └───────────────────────────────────────────────────┘    │
+│                                                               │
+│         Already have an account? Sign in                     │
+│                                                               │
+│                  ← Back to home                              │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+
+
+========================================
+COLOR SCHEME
+========================================
+Background:        Black (#000000)
+Text:              White (#FFFFFF)
+Labels:            Light Gray (#D1D5DB)
+Input Borders:     Gray with 25% opacity
+Input Focus:       Cyan
+Primary Button:    Cyan background, Black text
+Hover States:      Magenta
+Error Messages:    Red border, Red background (10% opacity)
+Dividers:          Gray with 25% opacity
+
+Password Strength Colors:
+- Strong:          Green (#10B981)
+- Medium:          Yellow (#F59E0B)
+- Weak:            Red (#EF4444)
+
+
+========================================
+AUTHENTICATION FLOW DIAGRAM
+========================================
+
+┌────────────────┐
+│   User Visit   │
+│   /auth/signup │
+└────────┬───────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Fill Registration    │
+│   Form                 │
+│   - Name (optional)    │
+│   - Email              │
+│   - Password           │
+│   - Confirm Password   │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Frontend Validation  │
+│   - Email format       │
+│   - Password match     │
+│   - Password strength  │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   POST /api/auth/      │
+│        signup          │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Backend Validation   │
+│   - Email format       │
+│   - Password strength  │
+│   - User doesn't exist │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Hash Password        │
+│   (bcrypt, 12 rounds)  │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Create User in DB    │
+│   with passwordHash    │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Auto-Generate        │
+│   API Key              │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Auto Sign In         │
+│   (credentials)        │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Redirect to          │
+│   Dashboard            │
+└────────────────────────┘
+
+
+========================================
+SIGN IN FLOW (EXISTING USER)
+========================================
+
+┌────────────────┐
+│   User Visit   │
+│   /auth/signin │
+└────────┬───────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Enter Credentials    │
+│   - Email              │
+│   - Password           │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   signIn('credentials')│
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   NextAuth             │
+│   CredentialsProvider  │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Find User by Email   │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Verify Password      │
+│   bcrypt.compare()     │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Generate JWT Token   │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Create Session       │
+└────────┬───────────────┘
+         │
+         ▼
+┌────────────────────────┐
+│   Redirect to          │
+│   Dashboard            │
+└────────────────────────┘
+
+
+========================================
+KEY FEATURES
+========================================
+
+✓ Real-time Password Strength Indicator
+  - Visual feedback as user types
+  - Color-coded (Green/Yellow/Red)
+  
+✓ Inline Validation
+  - Email format validation
+  - Password requirements hint
+  - Confirm password matching
+  
+✓ Error Handling
+  - Red banner for errors
+  - Generic messages for security
+  - Clear user feedback
+  
+✓ Loading States
+  - Disabled inputs during submit
+  - Loading text on buttons
+  - Prevents double submission
+  
+✓ Navigation
+  - Easy toggle between signin/signup
+  - Back to home link
+  - Smooth transitions
+  
+✓ Dual Authentication
+  - Email/Password (primary)
+  - Google OAuth (alternative)
+  - Clear "or" separator
+

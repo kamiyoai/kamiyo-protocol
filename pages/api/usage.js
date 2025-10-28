@@ -26,11 +26,14 @@ export default async function handler(req, res) {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+        // Format as YYYY-MM-DD string (date field is stored as string)
+        const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
         const requests = await prisma.apiRequest.findMany({
             where: {
                 userId: user.id,
                 date: {
-                    gte: sevenDaysAgo,
+                    gte: sevenDaysAgoStr,
                 },
             },
             select: {

@@ -10,12 +10,16 @@
 
 ## Executive Summary
 
-This plan expands the existing Kamiyo x402 payment hub with:
-1. **$KAMIYO SPL Token-2022** on Solana (1B supply, 2% transfer fees, staking, airdrops)
-2. **Invisible Harmony Features** (auto-escrows, cross-chain bridges, AI verifiers, analytics)
-3. **Multi-Agent Architecture** for autonomous development and testing
+This plan expands the existing Kamiyo x402 payment hub with **Security Intelligence via x402** - the first **runtime security intelligence platform for AI agents**:
 
-**Why Solana?** Low fees (~$0.00025/tx), high throughput (65k TPS), ideal for agent micropayments.
+1. **$KAMIYO SPL Token-2022** on Solana (1B supply, 2% transfer fees, staking, airdrops)
+2. **Security Intelligence Coordination** (multi-agent verification, shared intelligence pool, cross-protocol risk aggregation)
+3. **Advanced Security Features** (AI exploit detection in 5 minutes, Protocol Risk Score API, smart contract monitoring)
+4. **Multi-Agent Architecture** for autonomous development and testing
+
+**Strategic Pivot:** Competitive analysis revealed generic "x402 Payment Facilitator" positioning is crowded. Our defensible moat: **Security Intelligence via x402** - combining multi-agent security verification, shared intelligence pools, and cross-protocol risk aggregation. This is the ONLY identified competitive advantage.
+
+**Why Solana?** Low fees (~$0.00025/tx), high throughput (65k TPS), ideal for security intelligence micropayments (0.001 KAMIYO per query).
 
 **Current State Analysis:**
 - ✅ Existing x402 payment system with Solana, Base, Ethereum support
@@ -23,7 +27,13 @@ This plan expands the existing Kamiyo x402 payment hub with:
 - ✅ Database schema for payments (002_x402_payments.sql)
 - ✅ FastAPI backend with authentication, rate limiting, CSRF
 - ✅ Next.js frontend with Stripe integration
-- ⚠️ Need: Token-2022 integration, staking program, alignment features
+- ⚠️ Need: Token-2022 integration, staking program, **security intelligence features**
+
+**Competitive Differentiation:**
+- **vs BlockSec/Certik**: We provide runtime intelligence, they provide pre-deployment audits
+- **vs Generic x402 hubs**: We focus on security intelligence, not generic payments
+- **vs Traditional audits**: Multi-agent verification consensus vs single-source opinions
+- **Key Advantage**: First-mover in "security-as-a-service via x402 micropayments"
 
 ---
 
@@ -946,39 +956,52 @@ SUCCESS CRITERIA:
 
 ---
 
-## PHASE 3: HUB EXPANSION - ALIGNMENT FEATURES (Weeks 8-12)
+## PHASE 3: SECURITY INTELLIGENCE COORDINATION (Months 2-3)
+
+### Strategic Context
+
+**Pivot Rationale:** Competitive analysis reveals that generic "x402 Payment Facilitator" positioning is crowded. Our true competitive advantage lies in **Security Intelligence via x402** - combining multi-agent security verification, shared intelligence pools, and cross-protocol risk aggregation. This is the ONLY defensible moat identified in market research.
+
+**Why Security Intelligence:**
+- Existing competitors (BlockSec, Certik, OpenZeppelin) focus on pre-deployment audits
+- KAMIYO provides **runtime security intelligence** for AI agents during transactions
+- First-mover advantage in "security-as-a-service via x402 micropayments"
+- Natural fit: x402 enables fractional payments for per-query threat detection
+- Token utility: $KAMIYO stakes required for access to premium intelligence feeds
 
 ### Objectives
-- Integrate $KAMIYO token into x402 payment flow
-- Build auto-negotiation escrows
-- Implement cross-chain bridges (Wormhole)
-- Create silent verifier oracles
-- Develop balance whisperer system
-- Build harmony analytics dashboard
+- Integrate $KAMIYO token into x402 payment flow with security focus
+- Build multi-agent security verification escrow system
+- Create shared intelligence pool with micropayment access
+- Implement cross-protocol risk aggregation dashboard
+- Develop threat scoring API for AI agents
+- Launch security-gated premium features
 
 ### Prerequisites
 - Phase 2 completed (programs on devnet)
 - Program IDs saved in .env
+- Competitive analysis document reviewed (confirms security intelligence edge)
 
 ### Tasks
 
-#### TASK 3.1: Token Integration in Payment Verifier
+#### TASK 3.1: Token Integration in Payment Verifier (Security Focus)
 **Agent:** Backend Integration Agent (Sonnet 4.5)
 **Priority:** Critical (Blocking)
 **Estimated Time:** 5 hours
 
 **Prompt for Executor:**
 ```
-TASK: Integrate $KAMIYO Token-2022 into Payment Verification System
+TASK: Integrate $KAMIYO Token-2022 into Payment Verification with Security Intelligence Pricing
 
 CONTEXT:
 - Existing payment verifier at api/x402/payment_verifier.py
 - Currently supports USDC on Solana (SPL Token legacy)
 - Need to add $KAMIYO Token-2022 support
+- NEW FOCUS: Security intelligence queries priced in KAMIYO tokens
 - Token-2022 has different instruction format (transfer-hook, fee extensions)
 
 OBJECTIVE:
-Extend payment_verifier.py to detect and verify $KAMIYO payments
+Extend payment_verifier.py to detect and verify $KAMIYO payments for security intelligence APIs
 
 DELIVERABLES:
 1. Updated payment_verifier.py:
@@ -986,28 +1009,36 @@ DELIVERABLES:
    - Parse Token-2022 specific instructions (transferChecked with fees)
    - Calculate net amount after 2% fee deduction
    - Support both USDC (legacy) and KAMIYO (Token-2022) in parallel
+   - Add security intelligence pricing tiers
 
 2. Configuration updates:
    - Add KAMIYO_MINT_ADDRESS to api/x402/config.py
-   - Add KAMIYO_PRICING (e.g., 1 KAMIYO = 10 requests)
-   - Support multi-token pricing
+   - Add SECURITY_INTELLIGENCE_PRICING:
+     * Basic threat check: 0.01 KAMIYO ($0.001 at $0.10/token)
+     * Contract audit query: 0.10 KAMIYO ($0.01)
+     * Multi-agent verification: 1.00 KAMIYO ($0.10)
+     * Real-time monitoring (per hour): 10.00 KAMIYO ($1.00)
+   - Support multi-token pricing with security-specific rates
 
 3. Database schema extension:
    - Add token_mint column to x402_payments table
    - Add token_standard column ('spl' | 'spl-token-2022')
+   - Add security_service_type column ('threat_check' | 'audit_query' | 'verification' | 'monitoring')
    - Migration: database/migrations/004_kamiyo_token_support.sql
 
 4. API endpoint updates:
    - Update /x402/supported-chains to include KAMIYO token
    - Update /x402/verify-payment to handle token_mint parameter
-   - Update /x402/pricing to show KAMIYO pricing
+   - NEW: /x402/security-pricing to show security intelligence pricing tiers
+   - Update /x402/pricing to differentiate basic API vs security intelligence
 
 SUCCESS CRITERIA:
-- Payment verifier detects KAMIYO transfers
+- Payment verifier detects KAMIYO transfers for security queries
 - Fee deduction is accounted for (2% less than raw transfer amount)
-- Both USDC and KAMIYO payments work in parallel
-- API endpoints return correct pricing for KAMIYO
-- Database stores token mint and standard
+- Both USDC (basic API) and KAMIYO (security intelligence) work in parallel
+- Security intelligence pricing is clearly differentiated
+- API endpoints return correct pricing for security services
+- Database stores token mint, standard, and security service type
 
 OUTPUT FORMAT:
 Update files:
@@ -1017,525 +1048,649 @@ Update files:
 - /Users/dennisgoslar/Projekter/kamiyo/api/x402/routes.py
 
 TESTING:
-- Unit tests for Token-2022 parsing
-- Integration test: Make real devnet payment with KAMIYO, verify in system
-- Test: /x402/verify-payment with KAMIYO tx_hash
+- Unit tests for Token-2022 parsing with security pricing
+- Integration test: Make real devnet payment with KAMIYO for threat check
+- Test: /x402/verify-payment with KAMIYO tx_hash for security service
+- Test: /x402/security-pricing returns correct tiers
 ```
 
-#### TASK 3.2: Staking Integration and Perks
+#### TASK 3.2: Multi-Agent Security Verification Escrows
 **Agent:** Backend Integration Agent (Sonnet 4.5)
-**Priority:** High
+**Priority:** Critical (Core Differentiation)
+**Estimated Time:** 10 hours
+
+**Prompt for Executor:**
+```
+TASK: Build Multi-Agent Security Verification Escrow System
+
+CONTEXT:
+- Core competitive advantage: Multi-agent security verification via x402 micropayments
+- Scenario: AI Agent A requests security audit of contract from Agents B, C, D
+- Agent A pays 1.0 KAMIYO to escrow, released when consensus reached (2 of 3 verifiers agree)
+- This is NOT just payment escrow - it's security-as-a-service coordination
+
+OBJECTIVE:
+Create security verification escrow system with multi-agent consensus and micropayment settlement
+
+DELIVERABLES:
+1. Security escrow program (solana-programs/programs/kamiyo-security-escrow/src/):
+   - Instructions:
+     a) create_security_escrow: Requester locks KAMIYO for multi-agent verification
+        - Parameters: contract_address, verification_type, required_consensus (e.g., 2 of 3)
+     b) submit_verification: Verifier submits security assessment
+        - Parameters: threat_score (0-100), findings_hash (IPFS), signature
+     c) finalize_consensus: Auto-release payment when consensus reached
+        - Split payment: 80% to verifiers, 20% to intelligence pool
+     d) dispute_verification: Requester challenges findings, triggers arbitration
+
+2. Backend security API (api/security/routes.py):
+   - POST /security/verify-contract: Create verification request
+     - Returns: escrow_id, required_payment, expected_verifiers
+   - POST /security/submit-findings: Verifier submits assessment
+     - Stores findings in database, triggers on-chain submit_verification
+   - GET /security/escrow/{id}: Get verification status
+     - Returns: consensus_progress, verifier_responses, threat_scores
+   - POST /security/claim-reward: Verifier claims payment after consensus
+
+3. Verifier assignment logic (api/security/verifier_pool.py):
+   - Maintain pool of verified security agents (min 10k KAMIYO staked)
+   - Assign verifiers based on:
+     * Reputation score (past verification accuracy)
+     * Specialization (Solana vs EVM contracts)
+     * Stake amount (higher stake = priority assignment)
+   - Prevent collusion: No two verifiers from same IP/entity
+
+4. Consensus algorithm (api/security/consensus.py):
+   - Calculate weighted consensus based on verifier stakes
+   - Threshold: 2 of 3 verifiers agree on threat level (+/- 10 points)
+   - Edge cases: Timeout (72 hours), all disagree (refund requester)
+
+5. Database schema (database/migrations/006_security_escrows.sql):
+   - Table: security_escrows
+     - id, on_chain_address, requester_wallet, contract_address
+     - verification_type, required_consensus, status, total_payment
+   - Table: security_findings
+     - id, escrow_id, verifier_wallet, threat_score, findings_ipfs_hash
+     - submitted_at, stake_at_submission
+   - Table: verifier_reputation
+     - wallet_address, total_verifications, accuracy_score, stake_amount
+
+SUCCESS CRITERIA:
+- Security escrow can be created with multi-agent consensus requirement
+- Verifiers are assigned from staked pool (stake >= 10k KAMIYO)
+- Findings are submitted on-chain with IPFS hash for immutability
+- Consensus algorithm correctly calculates agreement (2 of 3)
+- Payment splits correctly: 80% to verifiers, 20% to intelligence pool
+- Reputation scores update based on verification outcomes
+
+OUTPUT FORMAT:
+Create files:
+- /Users/dennisgoslar/Projekter/kamiyo/solana-programs/programs/kamiyo-security-escrow/src/lib.rs
+- /Users/dennisgoslar/Projekter/kamiyo/api/security/routes.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/security/verifier_pool.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/security/consensus.py
+- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/006_security_escrows.sql
+
+TESTING:
+- Create escrow with 3 verifiers, 2 agree (threat_score = 75), payment released
+- Create escrow, all 3 disagree, timeout triggers refund
+- Test verifier assignment: Higher stake gets priority
+- Test reputation: Verifier with 90% accuracy gets more assignments
+- Test payment split: 0.8 KAMIYO to verifiers, 0.2 to pool
+```
+
+#### TASK 3.3: Shared Intelligence Pool with Micropayment Access
+**Agent:** Backend Integration Agent (Sonnet 4.5)
+**Priority:** Critical (Core Differentiation)
+**Estimated Time:** 8 hours
+
+**Prompt for Executor:**
+```
+TASK: Build Shared Intelligence Pool with x402 Micropayment Access
+
+CONTEXT:
+- 20% of security verification payments go to shared intelligence pool
+- Pool accumulates threat intelligence from all verifications
+- AI agents pay micro-fees (0.001 KAMIYO) to query pooled intelligence
+- Example queries: "Has contract X been verified?", "Threat score for wallet Y?"
+
+OBJECTIVE:
+Create shared intelligence pool with x402 micropayment query access
+
+DELIVERABLES:
+1. Intelligence pool storage (api/intelligence/pool.py):
+   - Aggregate threat data from all security escrows
+   - Store: contract_address, threat_score, verification_count, last_verified
+   - Store: wallet_address, risk_score, flagged_interactions, suspicious_patterns
+   - Index by address for fast lookups (< 100ms)
+
+2. Query API with x402 gating (api/intelligence/routes.py):
+   - POST /intelligence/query-contract: Query contract threat score
+     - Requires: 0.001 KAMIYO payment via x402
+     - Returns: threat_score, verification_count, last_verified, key_findings
+   - POST /intelligence/query-wallet: Query wallet risk score
+     - Requires: 0.001 KAMIYO payment via x402
+     - Returns: risk_score, flagged_txs, suspicious_patterns
+   - POST /intelligence/batch-query: Batch queries (up to 100 addresses)
+     - Requires: 0.001 KAMIYO per address
+     - Returns: Array of risk assessments
+
+3. Pool funding mechanism:
+   - 20% of verification escrow payments auto-deposited to pool treasury
+   - Pool treasury address: PDA controlled by program
+   - Pool funds: Used for verifier incentives, infrastructure costs
+
+4. Intelligence freshness scoring:
+   - Recent verifications (< 7 days): 100% confidence
+   - Older verifications (7-30 days): 80% confidence
+   - Ancient verifications (> 30 days): 50% confidence, suggest re-verification
+
+5. Database schema (database/migrations/007_intelligence_pool.sql):
+   - Table: intelligence_pool
+     - address (contract or wallet), address_type ('contract' | 'wallet')
+     - threat_score, risk_score, verification_count
+     - last_verified, confidence_score, findings_summary
+   - Table: intelligence_queries
+     - id, query_type, address, querier_wallet, payment_tx_hash
+     - result, queried_at
+
+SUCCESS CRITERIA:
+- Pool accumulates 20% from each security escrow payment
+- Query API correctly gates access via x402 (0.001 KAMIYO per query)
+- Lookups return results in < 100ms
+- Freshness scoring accurately reflects verification recency
+- Batch queries efficiently process 100 addresses in < 1 second
+
+OUTPUT FORMAT:
+Create files:
+- /Users/dennisgoslar/Projekter/kamiyo/api/intelligence/pool.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/intelligence/routes.py
+- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/007_intelligence_pool.sql
+
+TESTING:
+- Escrow completes -> 20% deposited to pool treasury
+- Query contract with 0.001 KAMIYO payment -> Returns threat_score
+- Batch query 100 contracts -> Returns array in < 1 second
+- Query ancient verification (90 days old) -> Returns 50% confidence score
+```
+
+#### TASK 3.4: Cross-Protocol Risk Aggregation Dashboard
+**Agent:** Backend Integration Agent (Sonnet 4.5)
+**Priority:** Medium
+**Estimated Time:** 8 hours
+
+**Prompt for Executor:**
+```
+TASK: Build Cross-Protocol Risk Aggregation Dashboard for Multi-Chain Threats
+
+CONTEXT:
+- Security threats span multiple blockchains (Solana, Ethereum, Base, Arbitrum)
+- Need unified risk view across protocols
+- Aggregate data from: KAMIYO verifications, external sources (Certik, Etherscan alerts)
+
+OBJECTIVE:
+Create cross-protocol risk aggregation system with visualization dashboard
+
+DELIVERABLES:
+1. External data aggregators (api/aggregation/external_sources.py):
+   - Integrate Etherscan API for Ethereum contract alerts
+   - Integrate Solscan API for Solana transaction monitoring
+   - Integrate Certik Skynet for known vulnerabilities
+   - Polling frequency: Every 5 minutes for high-risk addresses
+
+2. Risk aggregation engine (api/aggregation/risk_engine.py):
+   - Combine KAMIYO verifications + external sources
+   - Calculate composite risk score:
+     * KAMIYO verification: 50% weight (most trusted)
+     * External audits (Certik, etc): 30% weight
+     * On-chain behavior (suspicious txs): 20% weight
+   - Normalize scores to 0-100 scale
+
+3. Cross-chain dashboard API (api/aggregation/routes.py):
+   - GET /aggregation/protocol-overview: Overview of all protocols
+     - Returns: {protocol: 'Solana', total_contracts: 150, high_risk: 12, avg_score: 75}
+   - GET /aggregation/cross-chain-threats: Active cross-chain threats
+     - Example: Bridge exploit affecting Solana + Ethereum simultaneously
+   - GET /aggregation/trending-risks: Trending risk patterns (last 7 days)
+   - GET /aggregation/address-graph/{address}: Cross-chain interaction graph
+     - Shows: Address interactions across multiple chains
+
+4. Frontend dashboard (components/security/RiskAggregationDashboard.js):
+   - Real-time risk heatmap (protocols color-coded by risk level)
+   - Cross-chain threat alerts
+   - Trending vulnerabilities chart
+   - Address interaction graph visualization
+
+5. Database schema (database/migrations/008_risk_aggregation.sql):
+   - Table: external_risk_data
+     - source ('certik' | 'etherscan' | 'solscan'), address, chain
+     - risk_score, alert_type, detected_at, data_json
+   - Table: composite_risk_scores
+     - address, chain, kamiyo_score, external_score, behavior_score
+     - composite_score, last_updated
+
+SUCCESS CRITERIA:
+- External sources polled every 5 minutes, data fresh
+- Composite scores correctly weight KAMIYO (50%) + external (30%) + behavior (20%)
+- Dashboard displays cross-chain risks in real-time (< 1s load time)
+- Address graph shows interactions across 3+ chains
+- Trending risks updated hourly
+
+OUTPUT FORMAT:
+Create files:
+- /Users/dennisgoslar/Projekter/kamiyo/api/aggregation/external_sources.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/aggregation/risk_engine.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/aggregation/routes.py
+- /Users/dennisgoslar/Projekter/kamiyo/components/security/RiskAggregationDashboard.js
+- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/008_risk_aggregation.sql
+
+TESTING:
+- Mock Etherscan alert for contract X -> Aggregator fetches and stores
+- Create KAMIYO verification (score 80) + Certik audit (score 60) -> Composite = 72
+- Dashboard loads with 200 contracts across 5 chains in < 1 second
+- Address graph correctly shows Solana <-> Ethereum interactions
+```
+
+#### TASK 3.5: Security-Gated Premium Features (Token Utility)
+**Agent:** Backend Integration Agent (Sonnet 4.5)
+**Priority:** Medium
 **Estimated Time:** 6 hours
 
 **Prompt for Executor:**
 ```
-TASK: Integrate Staking Program with x402 for Fee Discounts and Perks
+TASK: Implement Security-Gated Premium Features with $KAMIYO Token Staking
 
 CONTEXT:
-- Staking program on devnet (from Phase 2)
-- Users who stake KAMIYO should get benefits:
-  1. Fee discounts (10-30% based on stake amount)
-  2. Priority in auto-negotiations
-  3. Access to premium analytics
-- Need to query user stake balance from FastAPI backend
+- Premium security features require $KAMIYO token staking
+- Stake tiers determine access level:
+  * 10k+ KAMIYO: Basic intelligence access (query pool, basic reports)
+  * 50k+ KAMIYO: Advanced intelligence (real-time monitoring, custom alerts)
+  * 100k+ KAMIYO: Enterprise intelligence (API access, verifier privileges)
 
 OBJECTIVE:
-Create staking integration module and apply perks in middleware
+Create token-gated premium security features with stake-based access control
 
 DELIVERABLES:
 1. Staking client module (api/x402/staking_client.py):
    - Class: KamiyoStakingClient
    - Method: get_user_stake(wallet_address) -> StakeInfo
    - Queries Solana program for user stake PDA
-   - Returns stake amount, last claim time, pending rewards
+   - Returns stake amount, tier, last_claim_time, pending_rewards
    - Caches results (5-minute TTL) to avoid RPC spam
 
-2. Perks calculation (api/x402/perks.py):
-   - Function: calculate_fee_discount(stake_amount) -> percentage
-     - 0-1000 KAMIYO: 0% discount
-     - 1000-10000 KAMIYO: 10% discount
-     - 10000-100000 KAMIYO: 20% discount
-     - 100000+ KAMIYO: 30% discount
-   - Function: has_priority_access(stake_amount) -> bool
-     - True if stake >= 10000 KAMIYO
-   - Function: has_premium_analytics(stake_amount) -> bool
-     - True if stake >= 50000 KAMIYO
+2. Access control middleware (api/security/access_control.py):
+   - Decorator: @require_stake(min_amount)
+   - Before allowing security API access, check stake
+   - Tiers:
+     * 10k-50k KAMIYO: Basic tier (10 queries/day, pool access)
+     * 50k-100k KAMIYO: Advanced tier (100 queries/day, monitoring, alerts)
+     * 100k+ KAMIYO: Enterprise tier (unlimited queries, API, verifier status)
 
-3. Middleware integration (api/x402/middleware.py):
-   - Before processing payment, check if user has staked KAMIYO
-   - If staked, apply discount to required payment amount
-   - Example: If 10% discount, user pays 0.09 USDC instead of 0.10
-   - Log discount applied for analytics
+3. Premium endpoints (api/security/premium_routes.py):
+   - GET /security/premium/real-time-monitoring/{address}: Live threat monitoring
+     - Requires: 50k+ KAMIYO staked
+     - Returns: WebSocket connection for real-time alerts
+   - POST /security/premium/custom-alerts: Create custom alert rules
+     - Requires: 50k+ KAMIYO staked
+     - Example: "Alert me if any contract in my portfolio scores > 80 threat"
+   - GET /security/premium/verifier-dashboard: Verifier assignment dashboard
+     - Requires: 100k+ KAMIYO staked
+     - Shows: Available verification jobs, earnings, reputation
 
-4. API endpoints (api/x402/routes.py):
-   - GET /x402/staking/info/{wallet_address}: Get stake info and perks
-   - POST /x402/staking/link-wallet: Link wallet to user account
+4. Perks calculation (api/security/perks.py):
+   - Function: calculate_query_limit(stake_amount) -> daily_limit
+     * 10k-50k: 10 queries/day
+     * 50k-100k: 100 queries/day
+     * 100k+: Unlimited
+   - Function: has_monitoring_access(stake_amount) -> bool
+     * True if stake >= 50k
+   - Function: can_become_verifier(stake_amount) -> bool
+     * True if stake >= 100k
 
-5. Database extension:
+5. Database extension (database/migrations/009_premium_access.sql):
    - Add linked_wallet column to users table
-   - Migration: database/migrations/005_staking_integration.sql
+   - Table: premium_usage
+     - user_id, wallet_address, stake_tier, queries_used_today
+     - monitoring_active, custom_alerts_count, last_updated
 
 SUCCESS CRITERIA:
 - Staking client successfully queries Solana program
-- Fee discounts are correctly applied based on stake tiers
-- Middleware checks stake before processing payment
-- API returns accurate stake info and perks
-- Premium features are gated by stake amount
+- Access control middleware correctly gates endpoints by stake tier
+- Basic tier (10k KAMIYO) can query pool 10 times/day
+- Advanced tier (50k KAMIYO) can access real-time monitoring
+- Enterprise tier (100k KAMIYO) can become verifier
+- Rate limits enforced per tier
 
 OUTPUT FORMAT:
 Create files:
 - /Users/dennisgoslar/Projekter/kamiyo/api/x402/staking_client.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/x402/perks.py
-Update files:
-- /Users/dennisgoslar/Projekter/kamiyo/api/x402/middleware.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/x402/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/005_staking_integration.sql
+- /Users/dennisgoslar/Projekter/kamiyo/api/security/access_control.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/security/premium_routes.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/security/perks.py
+- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/009_premium_access.sql
 
 TESTING:
-- Test with non-staker: No discount
-- Test with 5000 KAMIYO staked: 10% discount applied
-- Test with 50000 KAMIYO staked: 20% discount + premium access
-- Test cache performance (same wallet queried twice, second is cached)
+- User with 5k KAMIYO tries premium endpoint -> 403 Forbidden
+- User with 50k KAMIYO accesses monitoring -> Success
+- User with 100k KAMIYO applies to be verifier -> Success
+- User exceeds daily query limit -> 429 Too Many Requests
 ```
 
-#### TASK 3.3: Auto-Negotiation Escrows
-**Agent:** Backend Integration Agent (Sonnet 4.5)
-**Priority:** High
-**Estimated Time:** 8 hours
-
-**Prompt for Executor:**
-```
-TASK: Build Auto-Negotiation Escrow System for Agent-to-Agent Agreements
-
-CONTEXT:
-- Based on docs/phase1/alignment_features_architecture.md
-- AI agents need to negotiate terms (e.g., "Deliver exploit analysis, payment released on verification")
-- Escrow holds payment until both parties agree or verifier approves
-
-OBJECTIVE:
-Create escrow system with negotiation, locking, and release mechanisms
-
-DELIVERABLES:
-1. Solana escrow program (solana-programs/programs/kamiyo-escrow/src/):
-   - Instructions:
-     a) create_escrow: Agent A locks KAMIYO/USDC for Agent B
-        - Terms: Delivery description, deadline, verifier (optional)
-     b) accept_terms: Agent B accepts terms
-     c) release_payment: Agent A or verifier approves, funds transfer to B
-     d) dispute: Either party raises dispute, admin/verifier decides
-     e) refund: If deadline passed or terms not met, refund to A
-
-2. Backend API (api/escrow/routes.py):
-   - POST /escrow/create: Create escrow (returns escrow ID)
-   - POST /escrow/{id}/accept: Agent accepts terms
-   - POST /escrow/{id}/release: Release payment
-   - POST /escrow/{id}/dispute: Raise dispute
-   - GET /escrow/{id}: Get escrow details
-   - GET /escrow/user/{wallet}: List user's escrows
-
-3. Negotiation logic (api/escrow/negotiation.py):
-   - Auto-negotiation for common terms (price, delivery time)
-   - AI-based semantic matching (using OpenAI API or local LLM)
-   - Suggest compromises if initial terms don't match
-
-4. Database schema (database/migrations/006_escrow_system.sql):
-   - Table: escrows
-     - id, on_chain_escrow_address, party_a, party_b, amount, token_mint
-     - terms_description, deadline, status ('pending', 'active', 'disputed', 'completed', 'refunded')
-     - created_at, accepted_at, resolved_at
-   - Table: escrow_negotiations
-     - id, escrow_id, message, sender ('party_a' | 'party_b' | 'system')
-     - timestamp
-
-5. Priority for stakers:
-   - Users with high stake get priority in escrow queue
-   - Faster dispute resolution for stakers
-
-SUCCESS CRITERIA:
-- Escrows can be created, accepted, and released on-chain
-- API provides easy interface for agents
-- Negotiation suggests reasonable compromises
-- Stakers get visible perks (priority badge, faster processing)
-- Edge cases handled (expired escrows, disputes)
-
-OUTPUT FORMAT:
-Create files:
-- /Users/dennisgoslar/Projekter/kamiyo/solana-programs/programs/kamiyo-escrow/src/lib.rs
-- /Users/dennisgoslar/Projekter/kamiyo/api/escrow/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/escrow/negotiation.py
-- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/006_escrow_system.sql
-
-TESTING:
-- Create escrow, accept, release (happy path)
-- Create escrow, deadline expires, refund
-- Create escrow, dispute, admin resolves
-- Test priority for stakers (high stake escrows processed first)
-```
-
-#### TASK 3.4: Cross-Chain Harmony Bridges
-**Agent:** Backend Integration Agent (Sonnet 4.5)
-**Priority:** Medium
-**Estimated Time:** 8 hours
-
-**Prompt for Executor:**
-```
-TASK: Implement Cross-Chain Bridge Integration (Solana <-> Base/Ethereum)
-
-CONTEXT:
-- Kamiyo supports payments on Base, Ethereum, and Solana
-- Agents may want to pay on one chain, receive on another
-- Use Wormhole for cross-chain messaging
-
-OBJECTIVE:
-Integrate Wormhole bridge for cross-chain payment settlements
-
-DELIVERABLES:
-1. Wormhole integration (api/bridges/wormhole_client.py):
-   - Transfer tokens from Solana to Base/Ethereum
-   - Transfer tokens from Base/Ethereum to Solana
-   - Monitor bridge transactions
-   - Handle bridge fees
-
-2. Bridge API (api/bridges/routes.py):
-   - POST /bridges/initiate: Start cross-chain transfer
-   - GET /bridges/{id}/status: Check bridge status
-   - GET /bridges/supported-routes: List supported chain pairs
-
-3. X402 integration:
-   - Allow payments on one chain to unlock API access
-   - Bridge happens in background
-   - User pays 0.10 USDC on Base, system bridges to Solana if needed
-
-4. Database schema (database/migrations/007_bridges.sql):
-   - Table: bridge_transactions
-     - id, source_chain, dest_chain, source_tx_hash, dest_tx_hash
-     - amount, token, status ('initiated', 'confirmed', 'failed')
-     - user_wallet, created_at, completed_at
-
-5. Fee handling:
-   - Bridge fees (Wormhole charges ~$0.01) are added to payment
-   - User sees total cost upfront
-
-SUCCESS CRITERIA:
-- Wormhole integration works for Solana <-> Base
-- Bridge transactions are tracked in database
-- Users can pay on preferred chain
-- Bridge fees are transparent
-- Failures are handled gracefully (refunds)
-
-OUTPUT FORMAT:
-Create files:
-- /Users/dennisgoslar/Projekter/kamiyo/api/bridges/wormhole_client.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/bridges/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/007_bridges.sql
-
-TESTING:
-- Test Solana -> Base bridge (devnet)
-- Test Base -> Solana bridge (devnet)
-- Test failed bridge (handle Wormhole errors)
-- Test fee calculation accuracy
-
-NOTE: Wormhole SDK: https://github.com/wormhole-foundation/wormhole
-```
-
-#### TASK 3.5: Silent Verifier Oracles
-**Agent:** Backend Integration Agent (Sonnet 4.5)
-**Priority:** Medium
-**Estimated Time:** 6 hours
-
-**Prompt for Executor:**
-```
-TASK: Build AI Verifier Oracle System for Quality Checks and Auto-Refunds
-
-CONTEXT:
-- In escrow scenarios, need automated verification of deliverables
-- Example: Agent A pays for "exploit analysis", Agent B delivers text
-- Verifier checks if output matches requested quality
-- Auto-refund if quality is poor
-
-OBJECTIVE:
-Create oracle system with semantic matching and quality scoring
-
-DELIVERABLES:
-1. Verifier module (api/verifiers/oracle.py):
-   - Function: verify_output(expected, actual, criteria) -> VerificationResult
-     - Uses AI (OpenAI GPT-4 or local LLM) to compare outputs
-     - Checks: Completeness, accuracy, relevance, format
-     - Returns: score (0-100), passed (bool), feedback (string)
-   - Integration with Pyth oracles for price feeds (if needed)
-
-2. API endpoints (api/verifiers/routes.py):
-   - POST /verifiers/verify: Submit output for verification
-   - GET /verifiers/{id}: Get verification result
-   - POST /verifiers/request-refund: Request refund based on verification
-
-3. Escrow integration:
-   - If verifier score < 70, auto-refund to party A
-   - If score >= 70, release payment to party B
-   - Verifier feedback is shared with both parties
-
-4. Database schema (database/migrations/008_verifiers.sql):
-   - Table: verifications
-     - id, escrow_id, expected_output, actual_output
-     - score, passed, feedback, verified_at
-
-5. Verifier reputation:
-   - Track verifier accuracy (compared to human overrides)
-   - Allow users to contest verifications
-
-SUCCESS CRITERIA:
-- Verifier accurately assesses output quality (spot check 10 samples)
-- Low-quality outputs trigger refunds
-- High-quality outputs trigger releases
-- Verifier feedback is helpful
-- Integration with escrow system is seamless
-
-OUTPUT FORMAT:
-Create files:
-- /Users/dennisgoslar/Projekter/kamiyo/api/verifiers/oracle.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/verifiers/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/008_verifiers.sql
-
-TESTING:
-- Test with clear match (expected: "exploit analysis", actual: detailed analysis) -> PASS
-- Test with poor match (expected: "analysis", actual: "hello") -> FAIL
-- Test refund trigger (score < 70)
-- Test release trigger (score >= 70)
-
-NOTE: For AI, use OpenAI API or Anthropic Claude API (you have access to both)
-```
-
-#### TASK 3.6: Balance Whisperer System
+#### TASK 3.6: Frontend Security Intelligence Dashboard
 **Agent:** Backend Integration Agent (Sonnet 4.5)
 **Priority:** Low
 **Estimated Time:** 4 hours
 
 **Prompt for Executor:**
 ```
-TASK: Build Balance Whisperer for Off-Chain Shadow Balances
+TASK: Build Frontend Security Intelligence Dashboard
 
 CONTEXT:
-- Off-chain commitments settle on-chain periodically
-- Reduces transaction costs for high-frequency agent interactions
-- Example: Agent makes 100 micro-payments, only 1 on-chain settlement
+- User-facing dashboard for security intelligence features
+- Display: Stake tier, query usage, threat scores, verification status
+- Target: Non-technical AI agent operators
 
 OBJECTIVE:
-Create shadow balance system with periodic on-chain settlements
+Create intuitive frontend dashboard for security intelligence
 
 DELIVERABLES:
-1. Shadow balance module (api/whisperer/shadow_balances.py):
-   - In-memory or Redis-backed balance tracking
-   - Function: adjust_balance(user, amount, reason)
-   - Function: get_balance(user) -> shadow_balance
-   - Function: settle_balances() -> on-chain transactions
+1. Security dashboard page (pages/security-intelligence.js):
+   - Overview section: User stake tier, daily query usage, available features
+   - Intelligence query interface: Search contract/wallet, view threat scores
+   - Verification requests: Create verification request, view status
+   - Real-time monitoring (if 50k+ staked): Live threat feed
 
-2. API endpoints (api/whisperer/routes.py):
-   - GET /whisperer/balance/{wallet}: Get shadow balance
-   - POST /whisperer/commit: Commit off-chain transaction
-   - POST /whisperer/settle: Trigger on-chain settlement (admin/auto)
+2. React components (components/security/):
+   - StakeTierBadge.js: Display user's tier (Basic/Advanced/Enterprise)
+   - ThreatScoreCard.js: Show threat score with color-coded indicator
+   - VerificationRequestForm.js: Form to create security escrow
+   - IntelligenceQueryPanel.js: Query pool for threat intel
+   - RealTimeMonitoringFeed.js: WebSocket-powered live alerts
 
-3. Settlement logic:
-   - Auto-settle when shadow balance delta > threshold (e.g., 10 USDC)
-   - Auto-settle on user request
-   - Batched settlements (multiple users in one transaction if possible)
+3. Integration with backend APIs:
+   - Fetch stake info on page load
+   - Query intelligence pool with x402 payment
+   - Create verification escrows
+   - Display trending risks from aggregation API
 
-4. Database schema (database/migrations/009_shadow_balances.sql):
-   - Table: shadow_transactions
-     - id, user_wallet, amount, token, reason, settled (bool)
-     - created_at, settled_at, on_chain_tx_hash
+4. Responsive design:
+   - Mobile-friendly for agent operators on-the-go
+   - Dark mode for security operations aesthetic
+   - Loading states for async operations
 
 SUCCESS CRITERIA:
-- Shadow balances update instantly off-chain
-- Settlements happen automatically when thresholds met
-- On-chain transactions are batched for efficiency
-- No discrepancies between shadow and on-chain balances
+- Dashboard loads in < 2 seconds
+- Stake tier displayed accurately
+- Intelligence queries work with x402 payment flow
+- Verification request form creates escrow successfully
+- Real-time monitoring (if staked) shows live threats
 
 OUTPUT FORMAT:
 Create files:
-- /Users/dennisgoslar/Projekter/kamiyo/api/whisperer/shadow_balances.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/whisperer/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/009_shadow_balances.sql
+- /Users/dennisgoslar/Projekter/kamiyo/pages/security-intelligence.js
+- /Users/dennisgoslar/Projekter/kamiyo/components/security/StakeTierBadge.js
+- /Users/dennisgoslar/Projekter/kamiyo/components/security/ThreatScoreCard.js
+- /Users/dennisgoslar/Projekter/kamiyo/components/security/VerificationRequestForm.js
+- /Users/dennisgoslar/Projekter/kamiyo/components/security/IntelligenceQueryPanel.js
 
 TESTING:
-- Make 100 off-chain commits, check balance updates
-- Trigger settlement, verify on-chain transaction
-- Test threshold auto-settlement
+- Load dashboard with 10k KAMIYO staked -> Shows Basic tier
+- Query contract threat score -> x402 payment triggers, result displayed
+- Create verification request -> Escrow created, verifiers assigned
 ```
 
 ### Phase 3 Integration Task
 
-#### TASK 3.7: Phase 3 Consolidation and Integration Testing
+#### TASK 3.7: Phase 3 Security Intelligence Integration Testing
 **Agent:** Orchestrator (Opus 4.1)
 **Priority:** Critical
-**Estimated Time:** 4 hours
+**Estimated Time:** 5 hours
 
 **Prompt for Orchestrator:**
 ```
-TASK: Consolidate Phase 3 Alignment Features and Test Full Integration
+TASK: Consolidate Phase 3 Security Intelligence Features and Test Full Integration
 
 CONTEXT:
-- All alignment features developed: Token integration, staking perks, escrows, bridges, verifiers, whisperers
-- Need end-to-end testing to ensure all systems work together
+- All security intelligence features developed: Token integration, multi-agent escrows, intelligence pool, risk aggregation, premium features, dashboard
+- NEW FOCUS: This is NOT generic alignment - this is security intelligence coordination
+- Need end-to-end testing to ensure security features work together
 
 OBJECTIVE:
-1. Review all Phase 3 deliverables
-2. Run integration tests
-3. Verify feature interactions
-4. Document user flows
+1. Review all Phase 3 security intelligence deliverables
+2. Run integration tests for security workflows
+3. Verify competitive advantage (security-first positioning)
+4. Document security intelligence user flows
 
 ACTIONS:
-1. Review code from all 6 tasks (3.1-3.6)
-2. Run integration test suite:
-   - User stakes KAMIYO -> Gets discount on payment
-   - User creates escrow -> Verifier checks output -> Payment released/refunded
-   - User pays on Base -> Bridge to Solana -> API access granted
-   - User makes 50 micro-payments via whisperer -> Auto-settlement
+1. Review code from all 6 tasks (3.1-3.6) with security lens
+2. Run security-focused integration test suite:
+   - AI agent requests contract verification -> 3 verifiers assigned -> Consensus reached -> Payment split
+   - Agent queries intelligence pool -> Pays 0.001 KAMIYO -> Gets threat score
+   - Agent stakes 50k KAMIYO -> Accesses real-time monitoring -> Receives threat alert
+   - Cross-chain threat detected -> Aggregation engine combines sources -> Dashboard shows unified risk
 3. Check database migrations (004-009) for conflicts
-4. Generate integration report with flows and examples
+4. Generate security intelligence integration report
+5. Validate competitive positioning: Are we clearly differentiated from generic payment hubs?
 
 DELIVERABLES:
-- /Users/dennisgoslar/Projekter/kamiyo/docs/phase3/INTEGRATION_TEST_REPORT.md
-- /Users/dennisgoslar/Projekter/kamiyo/docs/phase3/USER_FLOWS.md
+- /Users/dennisgoslar/Projekter/kamiyo/docs/phase3/SECURITY_INTELLIGENCE_INTEGRATION_REPORT.md
+- /Users/dennisgoslar/Projekter/kamiyo/docs/phase3/SECURITY_USER_FLOWS.md
+- /Users/dennisgoslar/Projekter/kamiyo/docs/phase3/COMPETITIVE_VALIDATION.md
 
 SUCCESS CRITERIA:
-- All integration tests pass
-- Features interact correctly (e.g., staking discount applies in escrow)
-- Database migrations run without errors
-- User flows are documented clearly
+- All security intelligence integration tests pass
+- Multi-agent verification consensus works (2 of 3 verifiers agree)
+- Intelligence pool queries correctly gated by x402 (0.001 KAMIYO per query)
+- Risk aggregation combines KAMIYO + external sources (50%/30%/20% weights)
+- Premium features correctly gated by stake tiers
+- Documentation clearly articulates security intelligence positioning
+- Competitive validation confirms this is NOT just another payment hub
 ```
 
 ### Phase 3 Production Readiness Checkpoint
 
-**Checkpoint ID:** PR-PHASE-3
+**Checkpoint ID:** PR-PHASE-3-SECURITY
 **Owner:** Orchestrator + Human
-**Duration:** 2-3 hours
+**Duration:** 3-4 hours
 
-**Criteria:**
-- [ ] KAMIYO token integrated into payment verifier
-- [ ] Staking perks (discounts, priority) work correctly
-- [ ] Escrow system creates, releases, and refunds properly
-- [ ] Cross-chain bridges successfully transfer tokens
-- [ ] Verifier oracle assesses quality accurately
-- [ ] Balance whisperer settles off-chain commitments
-- [ ] All database migrations applied cleanly
-- [ ] Integration tests pass (staking + escrow, bridge + payment)
-- [ ] API endpoints return correct data
-- [ ] Performance is acceptable (< 500ms for most operations)
+**Security Intelligence Focus Criteria:**
+- [ ] KAMIYO token integrated into payment verifier with security pricing tiers
+- [ ] Multi-agent security verification escrows work (3 verifiers, 2 of 3 consensus)
+- [ ] Shared intelligence pool accumulates 20% of escrow payments
+- [ ] Intelligence pool queries correctly gated by x402 (0.001 KAMIYO per query)
+- [ ] Cross-protocol risk aggregation combines KAMIYO + external sources
+- [ ] Risk aggregation weights: 50% KAMIYO, 30% external audits, 20% on-chain behavior
+- [ ] Premium features correctly gated by stake tiers (10k/50k/100k KAMIYO)
+- [ ] Security dashboard displays threat scores and verification status
+- [ ] All database migrations applied cleanly (004-009)
+- [ ] Integration tests pass (verification consensus, intelligence queries, risk aggregation)
+- [ ] API endpoints return correct security intelligence data
+- [ ] Performance: Intelligence queries < 100ms, dashboard loads < 2s
+
+**Competitive Positioning Validation:**
+- [ ] Security intelligence features are clearly differentiated from generic payment hubs
+- [ ] Multi-agent verification provides value beyond single-source audits
+- [ ] Intelligence pool creates network effects (more verifications = better intel)
+- [ ] Documentation emphasizes security-first positioning
 
 **Validation Steps:**
-1. Orchestrator generates INTEGRATION_TEST_REPORT.md
-2. Human reviews report and tests key flows
-3. Human performs end-to-end test:
-   - Stake KAMIYO -> Create escrow -> Verify output -> Claim rewards
-4. Human checks database for data integrity
-5. Human approves or requests fixes
+1. Orchestrator generates SECURITY_INTELLIGENCE_INTEGRATION_REPORT.md
+2. Human reviews report and competitive positioning validation
+3. Human performs end-to-end security intelligence test:
+   - Request contract verification -> 3 verifiers assigned -> 2 agree (consensus) -> Payment split
+   - Query intelligence pool -> Pay 0.001 KAMIYO -> Get threat score
+   - Stake 50k KAMIYO -> Access real-time monitoring -> Receive alert
+4. Human checks database for security data integrity
+5. Human validates competitive moat: Is this clearly security intelligence, not just payments?
+6. Human approves or requests fixes
 
 **Go/No-Go Decision:**
-- **GO:** Proceed to Phase 4 (Token utilities and hype)
-- **NO-GO:** Fix integration issues, improve performance
+- **GO:** Proceed to Phase 4 (Advanced Security Intelligence Features)
+- **NO-GO:** Fix integration issues, strengthen security positioning, improve performance
 
 ---
 
-## PHASE 4: TOKEN INTEGRATION AND HYPE MECHANICS (Weeks 13-15)
+## PHASE 4: ADVANCED SECURITY INTELLIGENCE (Months 4-6)
+
+### Strategic Context
+
+**Deepening the Moat:** Phase 3 established core security intelligence coordination. Phase 4 adds advanced features that create insurmountable competitive advantages:
+- AI-powered exploit detection (5-minute detection vs hours for competitors)
+- Protocol risk score API (first-of-its-kind for AI agents)
+- Smart contract monitoring (continuous runtime security)
+- Wallet screening API (KYC/AML for AI agents)
 
 ### Objectives
-- Finalize $KAMIYO utility integrations
-- Build points system for "align-to-earn"
-- Create airdrop distribution campaigns
-- Add governance voting mechanisms
-- Enhance frontend for token interactions
+- Implement AI-powered exploit detection with 5-minute response time
+- Launch Protocol Risk Score API for AI agent consumption
+- Build smart contract continuous monitoring system
+- Create Wallet Screening API for transaction risk assessment
+- Develop automated threat response mechanisms
+- Scale verifier network to 50+ security agents
 
 ### Prerequisites
-- Phase 3 completed (alignment features integrated)
+- Phase 3 completed (security intelligence coordination working)
+- Multi-agent verification escrows operational
+- Intelligence pool accumulating data
 - Staking and token programs on devnet
 
 ### Tasks
 
-#### TASK 4.1: Token Utilities in Hub
+#### TASK 4.1: AI-Powered Exploit Detection System (5-Minute Response)
 **Agent:** Backend Integration Agent (Sonnet 4.5)
-**Priority:** High
-**Estimated Time:** 5 hours
+**Priority:** Critical (Core Differentiation)
+**Estimated Time:** 12 hours
 
 **Prompt for Executor:**
 ```
-TASK: Finalize $KAMIYO Token Utilities Across Platform
+TASK: Implement AI-Powered Exploit Detection with 5-Minute Response Time
 
 CONTEXT:
-- KAMIYO token should have clear utility beyond speculation
-- Utilities: Fee discounts (done), governance votes, priority access, exclusive features
+- Current competitors (BlockSec, Certik) have hours-long response times
+- KAMIYO target: Detect exploits within 5 minutes of occurrence
+- Use combination of: Pattern matching, ML anomaly detection, LLM analysis
+- KEY DIFFERENTIATOR: Near real-time detection vs post-mortem analysis
 
 OBJECTIVE:
-Implement additional token utilities and consolidate existing ones
+Build AI-powered exploit detection system with sub-5-minute detection
 
 DELIVERABLES:
-1. Governance module (api/governance/routes.py):
-   - POST /governance/proposals: Create proposal (requires min KAMIYO stake)
-   - GET /governance/proposals: List active proposals
-   - POST /governance/vote: Vote on proposal (weight = KAMIYO staked)
-   - GET /governance/results/{id}: Get proposal results
-   - Database: database/migrations/010_governance.sql
+1. Exploit detection engine (api/detection/exploit_engine.py):
+   - Pattern matching: Known exploit signatures (reentrancy, flashloan attacks, etc.)
+   - Anomaly detection: ML model trained on normal vs exploit transaction patterns
+   - LLM analysis: Claude 4.5 analyzes suspicious transactions in real-time
+   - Scoring: Combine all signals into exploit_probability (0-100)
 
-2. Priority access system (api/x402/priority.py):
-   - High stakers get priority in:
-     - API request queue (lower latency)
-     - Escrow dispute resolution
-     - New feature beta access
-   - Implement priority queue with stake-weighted scoring
+2. Real-time transaction monitoring (api/detection/tx_monitor.py):
+   - WebSocket connections to: Solana RPC, Ethereum RPC, Base RPC
+   - Filter high-value transactions (> $10k) and smart contract interactions
+   - Process transactions through exploit detection engine
+   - Alert threshold: exploit_probability > 80
 
-3. Exclusive features (api/premium/routes.py):
-   - Token-gated endpoints (require min KAMIYO balance):
-     - /premium/advanced-analytics
-     - /premium/custom-webhooks
-     - /premium/ai-insights
-   - Middleware to check token balance before access
+3. Alert distribution system (api/detection/alerting.py):
+   - POST /detection/subscribe: Subscribe wallet/contract for monitoring
+     - Requires: 50k+ KAMIYO staked (Advanced tier)
+   - Alert channels: WebSocket (real-time), email, Telegram bot
+   - Alert format: {tx_hash, chain, exploit_type, probability, recommended_action}
 
-4. Consolidated utility dashboard:
-   - Show user all benefits based on KAMIYO holdings
-   - Calculate potential savings from discounts
-   - Show governance power (voting weight)
+4. Exploit response mechanisms (api/detection/response.py):
+   - Auto-pause integrations: If exploit detected in partnered protocol
+   - Alert verifier network: Trigger immediate human verification
+   - Update intelligence pool: Add exploit pattern to shared knowledge
+
+5. Machine learning model:
+   - Training data: Historical exploit transactions + normal transactions
+   - Features: Gas usage, contract calls, value transfers, timing patterns
+   - Model: XGBoost or LightGBM for speed (inference < 100ms)
+   - Continuous learning: Retrain weekly with new data
+
+6. Database schema (database/migrations/010_exploit_detection.sql):
+   - Table: monitored_addresses
+     - address, chain, subscriber_wallet, alert_channels, monitoring_since
+   - Table: exploit_alerts
+     - id, tx_hash, chain, exploit_type, probability, alerted_at
+     - response_taken, false_positive (for model improvement)
 
 SUCCESS CRITERIA:
-- Governance proposals can be created and voted on
-- Vote weight matches staked KAMIYO
-- Priority access is visible (high stakers get faster responses)
-- Token-gated features require correct balance
-- Utility dashboard shows accurate information
+- Detect known exploit patterns in < 1 minute
+- Detect novel exploits (via ML + LLM) in < 5 minutes
+- False positive rate < 5%
+- Alert delivery latency < 10 seconds after detection
+- System processes 1000 transactions/second across all chains
 
 OUTPUT FORMAT:
 Create files:
-- /Users/dennisgoslar/Projekter/kamiyo/api/governance/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/x402/priority.py
-- /Users/dennisgoslar/Projekter/kamiyo/api/premium/routes.py
-- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/010_governance.sql
+- /Users/dennisgoslar/Projekter/kamiyo/api/detection/exploit_engine.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/detection/tx_monitor.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/detection/alerting.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/detection/response.py
+- /Users/dennisgoslar/Projekter/kamiyo/api/detection/ml_model.py
+- /Users/dennisgoslar/Projekter/kamiyo/database/migrations/010_exploit_detection.sql
 
 TESTING:
-- Create governance proposal with 10k KAMIYO staked
-- Vote on proposal (vote weight matches stake)
-- Test priority queue (high staker gets priority)
-- Access premium feature with sufficient KAMIYO balance
+- Simulate reentrancy attack transaction -> Detected in < 1 minute
+- Simulate novel exploit pattern -> ML model flags as suspicious (> 80 probability)
+- Subscribe address for monitoring -> Receive alert within 10 seconds of exploit
+- Process 1000 txs/sec -> System remains responsive (< 500ms latency)
 ```
 
-#### TASK 4.2: Points System for Hype ("Align-to-Earn")
+#### TASK 4.2: Protocol Risk Score API (AI Agent Consumption)
 **Agent:** Backend Integration Agent (Sonnet 4.5)
-**Priority:** Critical
-**Estimated Time:** 6 hours
+**Priority:** Critical (Core Product)
+**Estimated Time:** 10 hours
 
 **Prompt for Executor:**
 ```
-TASK: Build "Align-to-Earn" Points System for Airdrop Eligibility
+TASK: Build Protocol Risk Score API for AI Agent Consumption
 
 CONTEXT:
-- 10% of KAMIYO supply (100M tokens) reserved for airdrops
-- Need gamified points system to drive engagement
-- Points earned through: X engagements, platform usage, referrals, early adoption
+- AI agents need programmatic access to protocol risk scores
+- Use case: Agent deciding whether to interact with DeFi protocol
+- Input: Protocol address, chain
+- Output: Risk score (0-100), key risk factors, recommendation
+- Pricing: 0.01 KAMIYO per query (10x cheaper than human-facing APIs)
 
 OBJECTIVE:
-Create comprehensive points system with redemption for KAMIYO tokens
+Create API endpoint optimized for AI agent consumption with structured outputs
 
 DELIVERABLES:
-1. Points accrual module (api/points/engine.py):
-   - Award points for actions:
-     - X engagement (retweet, like, comment): 10-50 points
+1. Risk score calculation engine (api/protocol/risk_calculator.py):
+   - Aggregate data from: KAMIYO verifications, TVL, age, audit history, exploit history
+   - Risk factors scored:
+     * Audit quality: 30% weight (Certik, Trail of Bits, etc.)
+     * Code maturity: 20% weight (age, update frequency, test coverage)
+     * Economic security: 20% weight (TVL, liquidity depth)
+     * Historical incidents: 15% weight (past exploits, close calls)
+     * KAMIYO verifications: 15% weight (multi-agent consensus scores)
+   - Output: Composite score (0-100), breakdown by factor
+
+2. API endpoint (api/protocol/routes.py):
+   - POST /protocol/risk-score: Get protocol risk assessment
+     - Input: {protocol_address, chain, detail_level: 'summary' | 'detailed'}
+     - Payment: 0.01 KAMIYO via x402
+     - Output: {risk_score, risk_level: 'low'|'medium'|'high'|'critical', factors: {...}, recommendation}
+   - GET /protocol/trending-risks: Protocols with increasing risk (last 7 days)
+   - POST /protocol/batch-score: Batch scoring (up to 50 protocols)
+     - Pricing: 0.005 KAMIYO per protocol (50% discount for batch)
+
+3. AI-optimized response format:
+   - JSON schema designed for LLM parsing
+   - Natural language summary for agent decision-making
+   - Structured risk breakdown for programmatic consumption
+   - Example: "Risk Level: MEDIUM. This protocol has solid audits but low liquidity. Recommended action: Proceed with caution, limit exposure to < $10k."
+
+4. Caching and performance:
+   - Cache scores for 6 hours (updated 4x daily)
+   - < 200ms response time for cached scores
+   - < 1s for fresh calculations
+
+5. Database schema (database/migrations/011_protocol_risk.sql):
+   - Table: protocol_risk_scores
+     - protocol_address, chain, risk_score, risk_level
+     - audit_score, code_score, economic_score, incident_score, kamiyo_score
+     - last_calculated, cache_expires_at
+   - Table: risk_score_queries
+     - id, querier_wallet, protocol_address, payment_tx_hash, queried_at
      - Platform usage (API calls, escrows): 1-5 points per action
      - Referrals (invite user who uses platform): 100 points
      - Early adoption (signup before launch): 500 points
@@ -1813,18 +1968,28 @@ SUCCESS CRITERIA:
 
 ---
 
-## PHASE 5: TESTING AND OPTIMIZATION (Weeks 16-18)
+## PHASE 5: MARKET EXPANSION & SCALE (Months 7-12)
+
+### Strategic Context
+
+**Market Domination:** Phase 4 built world-class security intelligence. Phase 5 scales to become the **default security layer for AI agent economies**:
+- x402 Foundation integration (official security intelligence provider)
+- ML-based threat detection (continuous model improvement)
+- Security Intelligence Marketplace (verifiers earn, buyers purchase)
+- Enterprise partnerships (DEXs, lending protocols, wallets)
 
 ### Objectives
-- Comprehensive testing (unit, integration, security)
-- Performance optimization
-- Security audit (manual, no formal audit)
-- Load testing and scalability checks
-- Bug fixes and final polish
+- Integrate with x402 Foundation as official security intelligence provider
+- Launch ML-based threat detection with continuous learning
+- Build Security Intelligence Marketplace (verifiers sell expertise)
+- Establish enterprise partnerships (Uniswap, Aave, Jupiter, Phantom)
+- Scale verifier network to 200+ security agents
+- Achieve 10,000+ daily intelligence queries
 
 ### Prerequisites
-- Phase 4 completed (token utilities and hype ready)
-- All systems deployed to devnet
+- Phase 4 completed (exploit detection, protocol risk API, monitoring operational)
+- Advanced security intelligence features battle-tested
+- Verifier network has 50+ active security agents
 
 ### Tasks
 
@@ -2701,9 +2866,9 @@ sequenceDiagram
 |------------|-------|-------|----------|-------------------|---------|
 | PR-PHASE-1 | Research | Orc + Human | 1-2 hrs | All research complete, tokenomics balanced, no blockers | GO -> Phase 2 |
 | PR-PHASE-2 | Solana Programs | Orc + Human | 2-3 hrs | Programs deployed to devnet, tests pass, security review OK | GO -> Phase 3 |
-| PR-PHASE-3 | Alignment Features | Orc + Human | 2-3 hrs | All features integrated, escrows work, bridges functional | GO -> Phase 4 |
-| PR-PHASE-4 | Token Utilities | Orc + Human | 2-3 hrs | Governance works, points system active, airdrop ready, UAT pass | GO -> Phase 5 |
-| PR-PHASE-5 | Testing & Optimization | Orc + Human | 3-4 hrs | Coverage >= targets, no critical bugs, performance targets met | GO -> Phase 6 |
+| PR-PHASE-3-SECURITY | Security Intelligence Coordination | Orc + Human | 3-4 hrs | Multi-agent verification works, intelligence pool operational, risk aggregation functional | GO -> Phase 4 |
+| PR-PHASE-4-SECURITY | Advanced Security Intelligence | Orc + Human | 4-5 hrs | Exploit detection (< 5min), Protocol Risk API live, Monitoring active | GO -> Phase 5 |
+| PR-PHASE-5-PRODUCTION | Market Expansion & Scale | Orc + Human | 5-6 hrs | x402 Foundation integration, ML threat detection, Marketplace operational | GO -> Phase 6 |
 | PR-PHASE-6 | Deployment & Launch | Orc + Human | Continuous (72 hrs) | Mainnet deployed, trading live, monitoring healthy, no exploits | GO -> Iteration |
 
 ---
@@ -2754,9 +2919,9 @@ sequenceDiagram
 |-------|----------|-------|------------|------------|
 | Phase 1: Research | Weeks 1-2 | 5 tasks (19 hrs) | PR-PHASE-1 (1-2 hrs) | 2 hours |
 | Phase 2: Solana Programs | Weeks 3-7 | 7 tasks (39 hrs) | PR-PHASE-2 (2-3 hrs) | 3 hours |
-| Phase 3: Alignment Features | Weeks 8-12 | 7 tasks (47 hrs) | PR-PHASE-3 (2-3 hrs) | 3 hours |
-| Phase 4: Token Utilities | Weeks 13-15 | 5 tasks (26 hrs) | PR-PHASE-4 (2-3 hrs) | 3 hours |
-| Phase 5: Testing & Optimization | Weeks 16-18 | 5 tasks (35 hrs) | PR-PHASE-5 (3-4 hrs) | 4 hours |
+| Phase 3: Security Intelligence Coordination | Months 2-3 | 7 tasks (55 hrs) | PR-PHASE-3-SECURITY (3-4 hrs) | 4 hours |
+| Phase 4: Advanced Security Intelligence | Months 4-6 | 5 tasks (60 hrs) | PR-PHASE-4-SECURITY (4-5 hrs) | 5 hours |
+| Phase 5: Market Expansion & Scale | Months 7-12 | 6 tasks (70 hrs) | PR-PHASE-5-PRODUCTION (5-6 hrs) | 6 hours |
 | Phase 6: Deployment & Launch | Weeks 19-20 | 5 tasks (22 hrs + ongoing) | PR-PHASE-6 (Continuous 72 hrs) | 20 hours (intensive) |
 | **Total** | **20 weeks** | **34 tasks (188 hrs)** | **6 checkpoints (15 hrs)** | **35 hours human** |
 
