@@ -185,13 +185,13 @@ export default function SubscriptionPage() {
                                 key={tier.name}
                                 className={`relative bg-black border rounded-lg p-6 flex flex-col ${
                                     isCurrent
-                                        ? 'border-cyan'
+                                        ? 'border-gray-500 border-opacity-25'
                                         : 'border-gray-500 border-opacity-25'
                                 }`}
                             >
                                 {isCurrent && (
                                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                                        <span className="bg-cyan text-black text-xs uppercase tracking-wider px-3 py-1 rounded-full">
+                                        <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
                                             Current Plan
                                         </span>
                                     </div>
@@ -254,26 +254,14 @@ export default function SubscriptionPage() {
                         <p className="text-gray-400 mb-4">
                             Need to update payment method or view invoices?
                         </p>
-                        <button
-                            onClick={async () => {
-                                try {
-                                    const res = await fetch('/api/subscription/portal', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ email: session.user.email })
-                                    });
-                                    const data = await res.json();
-                                    if (data.url) {
-                                        window.location.href = data.url;
-                                    }
-                                } catch (error) {
-                                    console.error('Error accessing billing portal:', error);
-                                }
-                            }}
+                        <a
+                            href="https://billing.stripe.com/p/login/9B628q7kD3vG0w0fD79bO00"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="text-cyan hover:text-magenta transition-colors text-sm"
                         >
                             Access Billing Portal →
-                        </button>
+                        </a>
                     </div>
                 )}
             </div>
