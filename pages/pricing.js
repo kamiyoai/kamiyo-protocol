@@ -2,43 +2,16 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useState } from "react";
+import PricingCard from "../components/PricingCard";
 import PayButton from "../components/PayButton";
 import { useSession } from "next-auth/react";
 import { MinusIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-// SEO component will be imported once created by another agent
-// import SEO from "../components/SEO";
+import { mcpSubscriptionPlans, x402Plan } from "../config/pricingPlans";
 
 export default function PricingPage() {
     const router = useRouter();
     const { data: session } = useSession();
     const [isRedirecting, setIsRedirecting] = useState(false);
-
-    const plans = [
-        {
-            id: "price_personal",
-            name: "Personal",
-            price: "$19",
-            priceDetail: "/month",
-            tier: "personal",
-            enabled: true
-        },
-        {
-            id: "price_team",
-            name: "Team",
-            price: "$99",
-            priceDetail: "/month",
-            tier: "team",
-            enabled: true
-        },
-        {
-            id: "price_enterprise",
-            name: "Enterprise",
-            price: "$299",
-            priceDetail: "/month",
-            tier: "enterprise",
-            enabled: true
-        }
-    ];
 
     const handlePaymentRedirect = async (tier) => {
         if (!session) {
@@ -169,138 +142,20 @@ export default function PricingPage() {
                 </p>
             </section>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full justify-center mb-16" role="list">
-                {plans.map((plan) => (
-                    <article
+                {mcpSubscriptionPlans.map((plan) => (
+                    <PricingCard
                         key={plan.tier}
-                        className={`relative bg-black border ${plan.tier === 'team' ? 'border-cyan' : 'border-gray-500 border-opacity-25'} p-8 rounded-lg flex flex-col transition-all duration-300 card hover:-translate-y-1`}
-                        itemScope
-                        itemType="https://schema.org/Offer"
-                        role="listitem"
-                        title={`${plan.name} Plan: ${plan.price} per month for unlimited security queries`}
-                    >
-                        {plan.tier === 'team' && (
-                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                                <span className="text-xs text-cyan" role="status">
-                                    MOST POPULAR
-                                </span>
-                            </div>
-                        )}
-                        <h3 className="text-2xl font-light mb-2" itemProp="name">{plan.name}</h3>
-                        <div className="mb-4" itemProp="priceSpecification" itemScope itemType="https://schema.org/PriceSpecification">
-                            <span className="text-4xl font-light" itemProp="price">{plan.price}</span>
-                            <span className="text-lg text-gray-500 ml-1" itemProp="priceCurrency" content="USD">{plan.priceDetail}</span>
-                            <meta itemProp="valueAddedTaxIncluded" content="false" />
-                        </div>
-
-                        {/* Feature List */}
-                        <ul className="space-y-3 mb-8 text-sm flex-grow" role="list" itemProp="description">
-                            {plan.tier === 'personal' && (
-                                <>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Unlimited exploit queries</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Claude Desktop integration</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Real-time data (20+ sources)</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Historical database access</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">WebSocket streaming</span>
-                                    </li>
-                                </>
-                            )}
-                            {plan.tier === 'team' && (
-                                <>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Everything in Personal, plus:</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">5 concurrent AI agents</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Team workspace</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Usage analytics dashboard</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Webhook notifications</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Priority support</span>
-                                    </li>
-                                </>
-                            )}
-                            {plan.tier === 'enterprise' && (
-                                <>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Everything in Team, plus:</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Unlimited AI agents</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Custom MCP tools</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">SLA guarantees (99.9%)</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Dedicated support</span>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-cyan">✓</span>
-                                        <span className="text-gray-300">Custom integrations</span>
-                                    </li>
-                                </>
-                            )}
-                        </ul>
-
-                        <meta itemProp="availability" content="https://schema.org/InStock" />
-                        <meta itemProp="url" content={`https://kamiyo.io/pricing#${plan.tier}`} />
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride={
-                                    isRedirecting
-                                        ? 'Processing...'
-                                        : plan.tier === 'personal'
-                                            ? 'Add to Claude Desktop'
-                                            : plan.tier === 'team'
-                                                ? 'Subscribe Team Plan'
-                                                : 'Contact Sales'
-                                }
-                                onClickOverride={() => {
-                                    if (plan.tier === 'enterprise') {
-                                        window.location.href = '/inquiries';
-                                    } else {
-                                        handlePaymentRedirect(plan.tier);
-                                    }
-                                }}
-                                disabled={isRedirecting}
-                            />
-                        </div>
-                    </article>
+                        plan={plan}
+                        isHighlighted={plan.tier === 'team'}
+                        onSelect={() => {
+                            if (plan.tier === 'enterprise') {
+                                window.location.href = '/inquiries';
+                            } else {
+                                handlePaymentRedirect(plan.tier);
+                            }
+                        }}
+                        isRedirecting={isRedirecting}
+                    />
                 ))}
             </div>
 

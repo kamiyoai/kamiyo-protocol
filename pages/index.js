@@ -2,12 +2,24 @@
 import { useState, useEffect } from "react";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
+import PricingCard from "../components/PricingCard";
 import FAQ from "../components/FAQ";
 import SEO from "../components/SEO";
 import { useRouter } from "next/router";
+import { mcpPlans } from "../config/pricingPlans";
 
 export default function Home() {
     const router = useRouter();
+
+    const handlePlanSelect = (tier) => {
+        if (tier === 'personal' || tier === 'x402') {
+            router.push('/api-docs');
+        } else if (tier === 'team') {
+            router.push('/pricing');
+        } else if (tier === 'enterprise') {
+            router.push('/inquiries');
+        }
+    };
 
     return (
         <>
@@ -101,218 +113,14 @@ export default function Home() {
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
-                    {/* MCP Personal */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                        <h3 className="text-xl font-light mb-2">MCP Personal</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$19</span>
-                            <span className="text-gray-500 text-xs ml-1">/mo</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Unlimited security queries</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Claude Desktop integration</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Real-time exploit data (20+ sources)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">1 AI agent</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Email support</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Add to Claude Desktop"
-                                onClickOverride={() => {
-                                    window.location.href = '/api-docs';
-                                }}
-                                title="Subscribe to MCP Personal for unlimited security intelligence in Claude Desktop"
-                            />
-                        </div>
-                    </div>
-
-                    {/* MCP Team - Highlighted */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card card-highlighted -translate-y-1 transition-all duration-300 flex flex-col">
-                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
-                                Most Popular
-                            </span>
-                        </div>
-                        <h3 className="text-xl font-light mb-2">MCP Team</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$99</span>
-                            <span className="text-gray-500 text-xs ml-1">/mo</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Everything in Personal</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">5 AI agents</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Team workspace</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Webhook notifications</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Priority support</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Start Free Trial"
-                                onClickOverride={() => {
-                                    window.location.href = '/pricing';
-                                }}
-                                title="Start MCP Team trial - 5 AI agents with unlimited security intelligence"
-                            />
-                        </div>
-                    </div>
-
-                    {/* MCP Enterprise */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                        <h3 className="text-xl font-light mb-2">MCP Enterprise</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$299</span>
-                            <span className="text-gray-500 text-xs ml-1">/mo</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Everything in Team</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Unlimited AI agents</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Custom MCP tools</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">99.9% SLA guarantee</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Dedicated support engineer</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Contact Sales"
-                                onClickOverride={() => {
-                                    window.location.href = '/inquiries';
-                                }}
-                                title="Contact sales for MCP Enterprise with unlimited AI agents"
-                            />
-                        </div>
-                    </div>
-
-                    {/* x402 API */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                        <h3 className="text-xl font-light mb-2">x402 API</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$0.01</span>
-                            <span className="text-gray-500 text-xs ml-1">/query</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Pay per query ($0.01 USDC)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">No subscription required</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">No account or API keys needed</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Pay with USDC on Base/ETH/Solana</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">100 queries per token (24h validity)</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="View API Docs"
-                                onClickOverride={() => {
-                                    window.location.href = '/api-docs';
-                                }}
-                                title="View x402 API documentation for pay-per-query access"
-                            />
-                        </div>
-                    </div>
+                    {mcpPlans.map((plan, index) => (
+                        <PricingCard
+                            key={plan.tier}
+                            plan={plan}
+                            isHighlighted={plan.tier === 'team'}
+                            onSelect={() => handlePlanSelect(plan.tier)}
+                        />
+                    ))}
                 </div>
 
             </section>
