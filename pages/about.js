@@ -4,7 +4,8 @@ export default function About() {
     return (
         <div className="min-h-screen">
             <Head>
-                <title>About KAMIYO - Blockchain Exploit Intelligence</title>
+                <title>About KAMIYO - x402 Payment Facilitator Platform</title>
+                <meta name="description" content="KAMIYO is an x402 Payment Facilitator platform enabling autonomous AI agent payments with on-chain USDC. Implements HTTP 402 Payment Required protocol." />
             </Head>
 
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
@@ -15,99 +16,99 @@ export default function About() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4">Real-time Exploit Intelligence</h4>
-                        <p>We operate as a blockchain exploit intelligence aggregator, collecting and analyzing data from trusted sources to deliver real-time insights into on-chain security incidents.</p>
+                        <h4 className="text-xl md:text-2xl mb-4">x402 Payment Facilitator Platform</h4>
+                        <p>KAMIYO is an x402 Payment Facilitator platform that implements the HTTP 402 Payment Required protocol, enabling autonomous AI agents to make seamless on-chain payments for API access without requiring accounts or API keys.</p>
 
-                        <p>In the rapidly evolving blockchain security landscape, timely access to verified exploit information is essential. Our platform consolidates data from 20+ established sources—including security firms, blockchain explorers, and verified security researchers—into a centralized intelligence feed.</p>
+                        <p>In the rapidly evolving AI agent economy, autonomous systems need frictionless ways to pay for services. Our platform enables pay-per-request API access using on-chain USDC payments on Base, Ethereum, and Solana blockchains, verified cryptographically in real-time.</p>
 
-                        <p>By prioritizing speed and data accuracy, we enable security teams, DeFi protocols, and institutional investors to respond to threats more efficiently than manual monitoring allows.</p>
+                        <p>By implementing the x402 protocol standard, we enable any AI agent or autonomous system to access APIs instantly with a simple payment transaction, making machine-to-machine commerce accessible to the next generation of intelligent systems.</p>
 
-                        <h4 className="pt-6 text-xl md:text-2xl mb-4">Core Principles</h4>
+                        <h4 className="pt-6 text-xl md:text-2xl mb-4">Core Features</h4>
                         <ol start="1" data-spread="true">
                             <li>
-                                <p><strong>Verified Sources Only:</strong> Every exploit must have a transaction hash on-chain and be confirmed by reputable security sources like Rekt News, BlockSec, PeckShield, or Etherscan.</p>
+                                <p><strong>HTTP 402 Protocol:</strong> Full implementation of the HTTP 402 Payment Required standard, enabling standardized payment-gated API access across any service or platform.</p>
                             </li>
                             <li>
-                                <p><strong>Speed Over Speculation:</strong> Our value is in being fast to aggregate confirmed information, not in predicting or discovering vulnerabilities. We organize what's already been verified.</p>
+                                <p><strong>Multi-Chain Support:</strong> Accept USDC payments on Base, Ethereum, and Solana blockchains, giving users flexibility in their preferred payment network.</p>
                             </li>
                             <li>
-                                <p><strong>No Security Analysis:</strong> KAMIYO doesn't claim to find vulnerabilities, score risks, or provide security audits. We aggregate external reports and present them clearly.</p>
+                                <p><strong>Pay-Per-Request Model:</strong> Transparent pricing at $0.0001 per API call, enabling micropayments for AI agents without subscription overhead or minimum commitments.</p>
                             </li>
                             <li>
-                                <p><strong>Comprehensive Coverage:</strong> Track exploits across 55+ blockchain networks including Ethereum, Solana, BSC, Arbitrum, and more from a single dashboard.</p>
+                                <p><strong>No Accounts Required:</strong> AI agents can access APIs immediately with on-chain payments—no registration, no API keys, no identity verification needed.</p>
                             </li>
                             <li>
-                                <p><strong>Historical Context:</strong> Access a searchable database of past exploits to identify patterns, understand attack vectors, and learn from the history of blockchain security incidents.</p>
+                                <p><strong>Cryptographic Verification:</strong> Every payment is verified on-chain with cryptographic proof, ensuring secure, trustless transactions without intermediaries.</p>
                             </li>
                             <li>
-                                <p><strong>Developer-Friendly API:</strong> Integrate real-time exploit intelligence into your applications, monitoring tools, or internal security systems via our REST API and WebSocket feeds.</p>
+                                <p><strong>24-Hour Token Validity:</strong> Payment tokens remain valid for 24 hours, enabling efficient batch operations and reducing transaction costs for high-frequency users.</p>
                             </li>
                             <li>
-                                <p><strong>Community-Driven:</strong> Built for security researchers, DeFi protocols, blockchain developers, and crypto investors who need reliable, fast intelligence without the noise.</p>
+                                <p><strong>Developer-Friendly SDK:</strong> Integrate x402 payments into your applications with our comprehensive SDK, supporting multiple programming languages and frameworks.</p>
                             </li>
                         </ol>
 
                     </div>
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4">How Our Platform Works</h4>
+                        <h4 className="text-xl md:text-2xl mb-4">How the Platform Works</h4>
                         <ul data-spread="true">
                             <li>
-                                <p><strong>Multi-Source Data Collection:</strong><br/>Our systems continuously monitor 20+ verified sources including Rekt News, BlockSec, PeckShield, Certik, Immunefi, Trail of Bits, and established security researchers across social platforms.</p>
+                                <p><strong>Payment Request:</strong><br/>When an API request requires payment, the server responds with HTTP 402 status code and payment instructions, including the payment address, amount, and supported blockchains.</p>
                             </li>
                             <li>
-                                <p><strong>On-Chain Data Verification:</strong><br/>We validate every reported incident against transaction data from blockchain explorers like Etherscan, ensuring all intelligence includes verifiable on-chain evidence.</p>
+                                <p><strong>On-Chain Payment:</strong><br/>The AI agent or client sends USDC to the specified payment address on their preferred blockchain (Base, Ethereum, or Solana) with a unique memo identifying their request.</p>
                             </li>
                             <li>
-                                <p><strong>Automated Data Processing:</strong><br/>When multiple sources report the same incident, our deduplication system automatically consolidates and enriches the data, creating a single comprehensive record from all available sources.</p>
+                                <p><strong>Cryptographic Verification:</strong><br/>Our payment verifier monitors the blockchain, validates the transaction amount and memo, then generates a cryptographically signed payment token proving successful payment.</p>
                             </li>
                             <li>
-                                <p><strong>Multi-Channel Alert Delivery:</strong><br/>Clients receive instant notifications through their preferred channels—Discord, Telegram, Slack, or email—when new exploits match their configured monitoring criteria.</p>
+                                <p><strong>API Access Granted:</strong><br/>The client includes the payment token in their API request header, our middleware verifies the signature, and the API responds with the requested data. Tokens remain valid for 24 hours for subsequent requests.</p>
                             </li>
                         </ul>
                         <h4 className="pt-6 text-xl md:text-2xl mb-4">Our Mission</h4>
-                        <p>We exist to provide the blockchain ecosystem with accessible, timely, and reliable security intelligence. While the crypto industry loses billions annually to exploits and vulnerabilities, we help organizations respond faster by delivering verified information the moment incidents occur.</p>
-                        <p>Our platform transforms fragmented security reports into organized, searchable intelligence that security teams can integrate directly into their operational workflows and response procedures.</p>
+                        <p>We exist to enable the autonomous AI agent economy by providing frictionless, decentralized payment infrastructure for machine-to-machine commerce. As AI agents become increasingly autonomous, they need payment systems that work without human intervention, accounts, or traditional payment rails.</p>
+                        <p>KAMIYO makes API access truly permissionless—any AI agent, anywhere, can pay for services on-chain and gain immediate access. We're building the payment layer for the next generation of autonomous systems.</p>
                     </div>
                 </div>
 
             </section>
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="mb-8 font-light text-sm uppercase tracking-widest text-cyan">— &nbsp;Data Sources</p>
-                    <h3 className="text-3xl md:text-4xl lg:text-5xl font-light">Trusted Intelligence</h3>
+                    <p className="mb-8 font-light text-sm uppercase tracking-widest text-cyan">— &nbsp;Technology</p>
+                    <h3 className="text-3xl md:text-4xl lg:text-5xl font-light">Payment Infrastructure</h3>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                     <div>
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY FIRMS</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Professional Auditors</h4>
-                        <p>We collect incident reports from established blockchain security firms including PeckShield, BlockSec, Certik, Quantstamp, Trail of Bits, OpenZeppelin, and Consensys Diligence.</p>
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">BLOCKCHAIN NETWORKS</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Multi-Chain USDC Support</h4>
+                        <p>We support USDC payments on Base (Layer 2 Ethereum with low fees), Ethereum mainnet (maximum decentralization), and Solana (high throughput). Each network is verified using native RPC providers and blockchain explorers.</p>
 
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">BUG BOUNTIES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Verified Discoveries</h4>
-                        <p>Our platform tracks confirmed vulnerabilities and exploits disclosed through major bug bounty programs like Immunefi and HackerOne, where security researchers responsibly report discovered issues.</p>
+                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">PAYMENT VERIFICATION</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Real-Time On-Chain Validation</h4>
+                        <p>Our payment verifier monitors blockchain transactions in real-time, validates payment amounts and memo fields, then issues cryptographically signed tokens that prove payment authenticity without storing sensitive data.</p>
 
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">BLOCKCHAIN DATA</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">On-Chain Verification</h4>
-                        <p>We verify all reported incidents against transaction data from blockchain explorers including Etherscan, BscScan, Solscan, and Arbiscan, ensuring every entry includes provable on-chain evidence.</p>
+                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">SECURITY</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Cryptographic Token System</h4>
+                        <p>Payment tokens are signed using HMAC-SHA256 with secure server secrets, ensuring tokens cannot be forged or replayed. Each token includes transaction hash, chain ID, timestamp, and expiration for complete auditability.</p>
 
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">COMMUNITY SOURCES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Security Research Community</h4>
-                        <p>We monitor verified security researchers and incident reporters across social platforms, capturing early detection signals and community-verified information about emerging security events.</p>
+                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">DEVELOPER TOOLS</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">SDK and Integration Libraries</h4>
+                        <p>Our SDK provides language-specific libraries for Python, JavaScript, and other popular languages, handling payment flow, token management, and request retries automatically for seamless integration.</p>
                     </div>
                     <div>
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">INCIDENT DATABASES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Historical Records</h4>
-                        <p>We maintain comprehensive exploit archives sourced from Rekt News, SlowMist Hacked, and Chainalysis, enabling historical trend analysis and pattern recognition across the blockchain security landscape.</p>
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">API MIDDLEWARE</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">x402 Protocol Implementation</h4>
+                        <p>Our FastAPI middleware implements the complete HTTP 402 Payment Required flow, automatically handling payment verification, token validation, and access control for any protected endpoint with minimal configuration.</p>
 
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">PROTOCOL MONITORING</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Direct Protocol Sources</h4>
-                        <p>Our systems monitor security advisories, GitHub security alerts, and official communications directly from blockchain protocols and DeFi projects, capturing first-party incident disclosures.</p>
+                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">PAYMENT TRACKING</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Transaction Database</h4>
+                        <p>Every payment is recorded in our database with full transaction details, enabling audit trails, usage analytics, and payment history tracking. Data is stored securely with encryption at rest.</p>
 
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">DATA QUALITY</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Quality Standards</h4>
-                        <p>We maintain rigorous data quality standards. All reported exploits must be confirmed by multiple reputable sources and include verifiable on-chain transaction evidence. Our system prioritizes accuracy by filtering unverified reports and speculation.</p>
-                        <p>Our aggregation infrastructure cross-references multiple sources, enriches records with contextual data, and delivers a unified, comprehensive view of each security incident.</p>
+                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">STANDARDS</p>
+                        <h4 className="pt-0 text-xl md:text-2xl mb-4">HTTP 402 Protocol Standard</h4>
+                        <p>We implement the HTTP 402 Payment Required status code as defined in RFC 2616, extended with the x402 protocol specification for on-chain cryptocurrency payments. This ensures interoperability with any compliant client or service.</p>
+                        <p>Our platform adheres to blockchain best practices, using industry-standard libraries like web3.py and solana-py for maximum security and reliability in payment verification.</p>
                     </div>
                 </div>
             </section>
