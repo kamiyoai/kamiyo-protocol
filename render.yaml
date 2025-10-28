@@ -177,3 +177,35 @@ services:
         sync: false
       - key: TELEGRAM_SOCIAL_CHATS
         sync: false
+
+  # AI Agent Quote Tweet Random Scheduler (Posts 2x daily at random times)
+  - type: worker
+    name: kamiyo-ai-quote-scheduler
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 social/random_scheduler.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      # Claude AI for quote generation (REQUIRED)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Twitter/X credentials (REQUIRED)
+      - key: X_API_KEY
+        sync: false
+      - key: X_API_SECRET
+        sync: false
+      - key: X_ACCESS_TOKEN
+        sync: false
+      - key: X_ACCESS_SECRET
+        sync: false
+      - key: X_BEARER_TOKEN
+        sync: false
+      # Discord webhooks (optional)
+      - key: DISCORD_SOCIAL_ENABLED
+        value: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
