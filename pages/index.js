@@ -18,29 +18,6 @@ export default function Home() {
                     {/* SEO-friendly H1 (visually hidden) */}
                     <h1 className="sr-only">KAMIYO: Security Intelligence for AI Agents via MCP & x402</h1>
 
-                    {/* Live Metrics Bar */}
-                    <div className="text-center mb-8 py-4 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
-                        <div className="text-xs uppercase tracking-wider text-cyan mb-3">Live Security Intelligence</div>
-                        <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-sm">
-                            <div className="flex flex-col items-center">
-                                <span className="text-2xl md:text-3xl font-light text-white">$2.1B</span>
-                                <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-2xl md:text-3xl font-light text-white">20+</span>
-                                <span className="text-gray-400 text-xs mt-1">Data Sources</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-2xl md:text-3xl font-light text-white">&lt;200ms</span>
-                                <span className="text-gray-400 text-xs mt-1">Response Time</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-2xl md:text-3xl font-light text-white">99.9%</span>
-                                <span className="text-gray-400 text-xs mt-1">API Uptime</span>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
                         {/* Left column: Content */}
@@ -97,33 +74,20 @@ export default function Home() {
 
                         </article>
 
-                        {/* Right column: Code Example */}
-                        <div className="hidden md:block">
-                            <div className="bg-black border border-cyan/20 rounded-lg p-6 font-mono text-sm">
-                                <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
-                                <div className="space-y-1">
-                                    <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-cyan">=</span> <span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-yellow-400">add</span><span className="text-white">({'{'}</span></div>
-                                    <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">:</span> <span className="text-green-400">"kamiyo-security"</span><span className="text-white">,</span></div>
-                                    <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">:</span> <span className="text-white">process.env.</span><span className="text-yellow-400">MCP_TOKEN</span></div>
-                                    <div><span className="text-white">{'}'});</span></div>
-                                </div>
-
-                                <div className="border-t border-gray-500/20 my-4"></div>
-
-                                <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
-                                <div className="space-y-1">
-                                    <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-yellow-400">ask</span><span className="text-white">(</span></div>
-                                    <div className="ml-4"><span className="text-green-400">"Is Uniswap V3 safe to deploy on?"</span></div>
-                                    <div><span className="text-white">);</span></div>
-                                </div>
-
-                                <div className="border-t border-gray-500/20 my-4"></div>
-
-                                <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
-                                <div className="bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/20 rounded px-3 py-2 mt-2">
-                                    <div className="text-green-400 text-xs">✓ <span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
-                                </div>
-                            </div>
+                        {/* Right column: Video (hidden on mobile) */}
+                        <div className="hidden md:flex justify-center md:justify-end">
+                            <video
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                className="w-auto"
+                                style={{ height: '24rem', filter: 'saturate(2.0) contrast(1.2)' }}
+                                aria-label="KAMIYO Security Intelligence demonstration for AI agents via MCP and x402"
+                                title="Security intelligence for AI agents via MCP and x402"
+                            >
+                                <source src="/media/pfn_x_42.mp4" type="video/mp4" />
+                            </video>
                         </div>
                     </div>
                 </div>
@@ -134,6 +98,58 @@ export default function Home() {
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
                     Real Security Intelligence in Action
                 </h2>
+
+                {/* Live Metrics Bar */}
+                <div className="text-center mb-12 py-4 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
+                    <div className="text-xs uppercase tracking-wider text-cyan mb-3">Live Security Intelligence</div>
+                    <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-sm">
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">$2.1B</span>
+                            <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">20+</span>
+                            <span className="text-gray-400 text-xs mt-1">Data Sources</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">&lt;200ms</span>
+                            <span className="text-gray-400 text-xs mt-1">Response Time</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">99.9%</span>
+                            <span className="text-gray-400 text-xs mt-1">API Uptime</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* MCP Integration Code Example */}
+                <div className="mb-12 max-w-3xl mx-auto">
+                    <div className="bg-black border border-cyan/20 rounded-lg p-6 font-mono text-sm">
+                        <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
+                        <div className="space-y-1">
+                            <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-cyan">=</span> <span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-yellow-400">add</span><span className="text-white">({'{'}</span></div>
+                            <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">:</span> <span className="text-green-400">"kamiyo-security"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">:</span> <span className="text-white">process.env.</span><span className="text-yellow-400">MCP_TOKEN</span></div>
+                            <div><span className="text-white">{'}'});</span></div>
+                        </div>
+
+                        <div className="border-t border-gray-500/20 my-4"></div>
+
+                        <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
+                        <div className="space-y-1">
+                            <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-yellow-400">ask</span><span className="text-white">(</span></div>
+                            <div className="ml-4"><span className="text-green-400">"Is Uniswap V3 safe to deploy on?"</span></div>
+                            <div><span className="text-white">);</span></div>
+                        </div>
+
+                        <div className="border-t border-gray-500/20 my-4"></div>
+
+                        <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
+                        <div className="bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/20 rounded px-3 py-2 mt-2">
+                            <div className="text-green-400 text-xs">✓ <span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
+                        </div>
+                    </div>
+                </div>
 
                 {/* Example: Recent Exploit Alert */}
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
