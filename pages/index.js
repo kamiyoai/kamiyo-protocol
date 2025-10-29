@@ -175,7 +175,7 @@ export default function Home() {
                 </div>
 
                 {/* Example: Agent Making Smart Decisions */}
-                <div className="bg-gradient-to-r from-cyan/5 to-magenta/5 border border-gray-500/20 rounded-lg p-8">
+                <div className="bg-black border border-gray-500/20 rounded-lg p-8">
                     <div className="text-center mb-6">
                         <div className="text-xl font-light text-white mb-2">Claude with KAMIYO MCP</div>
                         <div className="text-sm text-gray-400">Making security-aware decisions automatically</div>
@@ -183,7 +183,7 @@ export default function Home() {
 
                     {/* Claude Desktop Integration Code Example */}
                     <div className="mb-8 max-w-3xl mx-auto">
-                        <div className="bg-black border border-cyan/20 rounded-lg p-6 font-mono text-sm">
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
                             <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
                             <div className="text-white mb-2">
                                 <span className="text-cyan">const</span> kamiyo = <span className="text-cyan">await</span> claude.mcp.<span className="text-cyan">add</span>({'{'}
