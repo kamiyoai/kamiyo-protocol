@@ -99,7 +99,7 @@ export default function PricingPage() {
                 />
             </Head>
             <div className="w-full flex flex-col items-start border-dotted border-b border-cyan mb-6 pb-6">
-                <p className="font-light text-left text-sm uppercase tracking-widest text-cyan mb-8" role="doc-subtitle">— &nbsp;Pricing Options</p>
+                <p className="font-light text-left text-sm uppercase tracking-widest text-cyan mb-8" role="doc-subtitle">— &nbsp;料金プラン</p>
                 <h1 className="text-3xl md:text-4xl lg:text-5xl font-light text-left">Pricing</h1>
             </div>
 

@@ -81,7 +81,7 @@ export default function About() {
 
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;About</p>
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;私たちについて</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">What is KAMIYO</h1>
                     <h4 className="text-xl md:text-2xl mt-4 text-cyan">Security Intelligence for AI Agents</h4>
                 </div>
@@ -162,7 +162,7 @@ export default function About() {
             </section>
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="mb-8 font-light text-sm uppercase tracking-widest text-cyan">— &nbsp;Technology</p>
+                    <p className="mb-8 font-light text-sm uppercase tracking-widest text-cyan">— &nbsp;技術</p>
                     <h3 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence Infrastructure</h3>
                 </div>
 
