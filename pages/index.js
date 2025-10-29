@@ -63,12 +63,12 @@ export default function Home() {
                                     onClick={() => {
                                         window.location.href = '/api-docs';
                                     }}
-                                    className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300 md:mr-5"
+                                    className="text-xs hover:opacity-80 transition-opacity duration-300 md:mr-5"
                                     style={{ color: '#ff44f5' }}
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
-                                    View API Docs
+                                    View Documentation →
                                 </button>
                             </div>
 
