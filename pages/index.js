@@ -104,29 +104,29 @@ export default function Home() {
 
             {/* Live Stats Section */}
             <section className="w-full px-5 mx-auto pt-8 pb-8 border-b border-gray-500/25 max-w-[1400px]">
-                <div className="w-full text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
-                    <div className="text-xs uppercase tracking-wider text-white mb-6">Live Security Intelligence</div>
-                    <div className="grid grid-cols-2 gap-6 text-sm max-w-2xl mx-auto">
+                <div className="text-center mb-12 py-4 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
+                    <div className="text-xs uppercase tracking-wider text-cyan mb-3">Live Security Intelligence</div>
+                    <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-sm">
                         <div className="flex flex-col items-center">
-                            <span className="text-3xl font-light text-magenta">
+                            <span className="text-2xl md:text-3xl font-light text-white">
                                 {stats ? stats.totalStolenH1.formatted : "$2.1B"}
                             </span>
                             <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
                         </div>
                         <div className="flex flex-col items-center">
-                            <span className="text-3xl font-light text-cyan">
+                            <span className="text-2xl md:text-3xl font-light text-white">
                                 {stats ? stats.sources.formatted : "20+"}
                             </span>
                             <span className="text-gray-400 text-xs mt-1">Data Sources</span>
                         </div>
                         <div className="flex flex-col items-center">
-                            <span className="text-3xl font-light text-cyan">
+                            <span className="text-2xl md:text-3xl font-light text-white">
                                 {stats ? stats.responseTime.formatted : "<200ms"}
                             </span>
                             <span className="text-gray-400 text-xs mt-1">Response Time</span>
                         </div>
                         <div className="flex flex-col items-center">
-                            <span className="text-3xl font-light text-cyan">
+                            <span className="text-2xl md:text-3xl font-light text-white">
                                 {stats ? stats.uptime.formatted : "99.9%"}
                             </span>
                             <span className="text-gray-400 text-xs mt-1">API Uptime</span>
