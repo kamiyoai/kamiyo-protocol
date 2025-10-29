@@ -30,7 +30,7 @@ const csp = process.env.NODE_ENV === 'development'
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      connect-src 'self' https://accounts.google.com https://api.dexscreener.com;
+      connect-src 'self' https://api.kamiyo.ai https://accounts.google.com https://api.dexscreener.com;
     `;
 
 /**
