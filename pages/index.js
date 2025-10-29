@@ -26,7 +26,7 @@ export default function Home() {
                 <section className="w-full border-b border-gray-500/25 bg-black">
                 <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                     {/* SEO-friendly H1 (visually hidden) */}
-                    <h1 className="sr-only">KAMIYO: Security Intelligence for AI Agents via MCP & x402</h1>
+                    <h1 className="sr-only leading-[1.25]">KAMIYO: Security Intelligence for AI Agents via MCP & x402</h1>
 
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">

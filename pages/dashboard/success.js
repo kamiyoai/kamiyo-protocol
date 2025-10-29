@@ -66,7 +66,7 @@ export default function CheckoutSuccess() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-light mb-4">
+                            <h1 className="text-3xl md:text-4xl font-light mb-4 leading-[1.25]">
                                 Subscription Successful!
                             </h1>
                             <p className="text-gray-400">

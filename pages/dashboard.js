@@ -121,7 +121,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                <h1 className="text-4xl font-light mb-2">Security Intelligence Dashboard</h1>
+                <h1 className="text-4xl font-light mb-2 leading-[1.25]">Security Intelligence Dashboard</h1>
                 <p className="text-gray-400 mb-8">
                     Subscription Tier: <span className="text-white">{tierDisplay}</span>
                 </p>

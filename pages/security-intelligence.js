@@ -25,7 +25,7 @@ export default function SecurityIntelligence() {
                 <section className="w-full border-b border-gray-500 /25 bg-black">
                     <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                         <div className="max-w-4xl mx-auto text-center">
-                            <h1 className="text-4xl md:text-5xl lg:text-6xl font-light mb-6 leading-tight text-white">
+                            <h1 className="text-4xl md:text-5xl lg:text-6xl font-light mb-6 leading-[1.25] text-white">
                                 Security Intelligence for AI Agents
                             </h1>
                             <p className="text-gray-400 text-lg md:text-xl leading-relaxed mb-8">
