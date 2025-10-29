@@ -38,7 +38,16 @@ class TwitterAggregator(BaseAggregator):
             'immunefi',          # Bug bounty platform
             'BeosinAlert',       # Beosin alerts
             'AnciliaInc',        # On-chain monitoring
-            'runtime_xyz'        # Formal verification
+            'runtime_xyz',       # Formal verification
+            # Phase 1: Tier 1 security researchers
+            'bantg',             # Yearn, catches exploits early
+            'officer_cia',       # OSINT master
+            'spreekaway',        # MEV researcher
+            'bertcmiller',       # Flashbots MEV
+            'Mudit__Gupta',      # CISO at Polygon
+            'real_philogy',      # Smart contract security
+            'pashovkrum',        # Independent auditor
+            'bytes032'           # Security researcher
         ]
 
         # Search queries for exploit detection
@@ -59,6 +68,19 @@ class TwitterAggregator(BaseAggregator):
             r'tx:\s*0x[a-fA-F0-9]{64}',
             r'attacker:\s*0x[a-fA-F0-9]{40}',
         ]
+
+        # Phase 1: Enhanced alert patterns for early detection
+        self.alert_patterns = [
+            r'emergency.*pause',
+            r'whitehack.*rescue',
+            r'post.*mortem',
+            r'\$\d+(?:\.\d+)?[MmBb].*(?:lost|stolen|drained|exploited)',
+            r'vulnerability.*disclosed',
+            r'critical.*bug.*found',
+        ]
+
+        # Phase 1: Protocol mention tracking for spike detection
+        self.protocol_mentions = {}  # {protocol_name: [(timestamp, tweet_text), ...]}
 
     def fetch_exploits(self) -> List[Dict[str, Any]]:
         """
@@ -82,6 +104,12 @@ class TwitterAggregator(BaseAggregator):
         # Extract protocol name
         protocol = self._extract_protocol_from_text(tweet_text)
 
+        # Phase 1: Track protocol mention for spike detection
+        self._track_protocol_mention(protocol, tweet_text)
+
+        # Phase 1: Check for spike
+        spike_detected = self._detect_spike(protocol)
+
         # Extract amount
         amount = self._extract_amount_from_text(tweet_text)
 
@@ -99,6 +127,11 @@ class TwitterAggregator(BaseAggregator):
         # Categorize
         category = self._categorize_from_text(tweet_text)
 
+        # Phase 1: Add spike indicator to description if detected
+        description = tweet_text[:500]
+        if spike_detected:
+            description = f"[SPIKE DETECTED] {description}"
+
         return {
             'tx_hash': tx_hash,
             'chain': chain or 'Unknown',
@@ -108,7 +141,7 @@ class TwitterAggregator(BaseAggregator):
             'source': self.name,
             'source_url': tweet_url,
             'category': category,
-            'description': tweet_text[:500],
+            'description': description,
             'recovery_status': None
         }
 
@@ -307,7 +340,77 @@ class TwitterAggregator(BaseAggregator):
         ]
 
         text_lower = text.lower()
-        return any(keyword in text_lower for keyword in keywords)
+
+        # Check basic keywords
+        if any(keyword in text_lower for keyword in keywords):
+            return True
+
+        # Phase 1: Check enhanced alert patterns
+        for pattern in self.alert_patterns:
+            if re.search(pattern, text_lower):
+                return True
+
+        return False
+
+    def _detect_spike(self, protocol_name: str, window_minutes: int = 60) -> bool:
+        """
+        Phase 1: Detect sentiment spike for a protocol
+        Returns True if mentions spiked >300% in last hour vs baseline
+        """
+        if protocol_name not in self.protocol_mentions:
+            return False
+
+        mentions = self.protocol_mentions[protocol_name]
+        if len(mentions) < 10:  # Need baseline
+            return False
+
+        now = datetime.now()
+
+        # Count mentions in last hour
+        recent_count = sum(
+            1 for timestamp, _ in mentions
+            if (now - timestamp).total_seconds() < (window_minutes * 60)
+        )
+
+        # Count baseline (previous 24 hours, excluding last hour)
+        baseline_count = sum(
+            1 for timestamp, _ in mentions
+            if (window_minutes * 60) < (now - timestamp).total_seconds() < (24 * 3600)
+        )
+
+        if baseline_count == 0:
+            return False
+
+        # Calculate hourly baseline average
+        baseline_hourly = baseline_count / 23.0  # 23 hours of baseline
+
+        # Check if spike >300%
+        if recent_count > (baseline_hourly * 4.0):  # 400% = spike of 300%
+            self.logger.warning(
+                f"Spike detected for {protocol_name}: {recent_count} mentions "
+                f"vs baseline {baseline_hourly:.1f}/hour"
+            )
+            return True
+
+        return False
+
+    def _track_protocol_mention(self, protocol_name: str, tweet_text: str):
+        """Track protocol mention for spike detection"""
+        if protocol_name == 'Unknown':
+            return
+
+        if protocol_name not in self.protocol_mentions:
+            self.protocol_mentions[protocol_name] = []
+
+        # Add new mention
+        self.protocol_mentions[protocol_name].append((datetime.now(), tweet_text))
+
+        # Cleanup old mentions (>7 days)
+        cutoff = datetime.now()
+        self.protocol_mentions[protocol_name] = [
+            (ts, text) for ts, text in self.protocol_mentions[protocol_name]
+            if (cutoff - ts).total_seconds() < (7 * 24 * 3600)
+        ]
 
 
 # Test function

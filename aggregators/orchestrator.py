@@ -33,6 +33,8 @@ from aggregators.peckshield import PeckShieldAggregator
 from aggregators.blocksec import BlockSecAggregator
 from aggregators.beosin import BeosinAggregator
 from aggregators.twitter import TwitterAggregator
+from aggregators.forta import FortaAggregator
+from aggregators.confidence_scorer import ConfidenceScorer
 from database import get_db
 
 logger = logging.getLogger(__name__)
@@ -66,6 +68,7 @@ class AggregationOrchestrator:
             BlockSecAggregator(),
             BeosinAggregator(),
             TwitterAggregator(),  # 18th source - monitors security researchers
+            FortaAggregator(),  # 19th source - real-time blockchain monitoring
         ]
 
         logger.info(f"Orchestrator initialized with {len(self.aggregators)} aggregators")
@@ -146,7 +149,7 @@ class AggregationOrchestrator:
 
     def _fetch_and_store(self, aggregator) -> Dict[str, int]:
         """
-        Fetch from single aggregator and store in database
+        Fetch from single aggregator and store in database with confidence scoring
         Returns statistics
         """
         result = {
@@ -156,18 +159,67 @@ class AggregationOrchestrator:
         }
 
         try:
+            # Initialize confidence scorer
+            scorer = ConfidenceScorer()
+
             # Fetch exploits
             exploits = aggregator.fetch_exploits()
             result['fetched'] = len(exploits)
 
-            # Store each exploit
+            # Store each exploit with confidence scoring
             for exploit in exploits:
-                exploit_id = self.db.insert_exploit(exploit)
+                # Check for similar/duplicate exploits
+                similar = self.db.find_similar_exploits(exploit)
 
-                if exploit_id:
-                    result['inserted'] += 1
+                if similar:
+                    # Multiple reports exist - calculate confidence score
+                    all_reports = similar + [exploit]
+                    confidence = scorer.calculate_confidence(exploit, all_reports)
+
+                    # Only store if confidence >= 70
+                    if confidence >= 70:
+                        # Enrich exploit with confidence data
+                        exploit['confidence_score'] = confidence
+                        exploit['source_count'] = len(all_reports)
+                        exploit['verified_on_chain'] = scorer._verify_on_chain(
+                            exploit.get('tx_hash'),
+                            exploit.get('chain')
+                        )
+
+                        exploit_id = self.db.insert_exploit(exploit)
+                        if exploit_id:
+                            result['inserted'] += 1
+                            logger.debug(
+                                f"Stored {exploit.get('protocol')} exploit with "
+                                f"confidence {confidence} from {len(all_reports)} sources"
+                            )
+                        else:
+                            result['duplicates'] += 1
+                    else:
+                        # Low confidence - skip storing
+                        result['duplicates'] += 1
+                        logger.debug(
+                            f"Skipped low confidence exploit ({confidence}/100): "
+                            f"{exploit.get('protocol')}"
+                        )
                 else:
-                    result['duplicates'] += 1
+                    # First report - store with lower confidence
+                    exploit['confidence_score'] = 40
+                    exploit['source_count'] = 1
+                    exploit['verified_on_chain'] = scorer._verify_on_chain(
+                        exploit.get('tx_hash'),
+                        exploit.get('chain')
+                    )
+
+                    exploit_id = self.db.insert_exploit(exploit)
+                    if exploit_id:
+                        result['inserted'] += 1
+                        logger.debug(
+                            f"Stored first report of {exploit.get('protocol')} exploit "
+                            f"with confidence 40"
+                        )
+                    else:
+                        result['duplicates'] += 1
 
         except Exception as e:
             logger.error(f"Error in {aggregator.name}: {e}")

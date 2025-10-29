@@ -55,7 +55,7 @@ schedule==1.2.2
 celery==5.3.4  # For background tasks
 
 # Web3 & Blockchain
-web3==6.11.3
+web3==6.11.3  # On-chain monitoring (Ethereum, Base, Arbitrum)
 solana>=0.34.0  # Solana blockchain interaction for x402 payments (updated for httpx compatibility)
 
 # Twitter/Social
@@ -64,7 +64,7 @@ beautifulsoup4==4.12.2
 
 # Telegram Integration (Day 25)
 python-telegram-bot==20.7
-telethon==1.34.0  # For advanced channel monitoring
+telethon>=1.36.0  # Telegram monitoring for Phase 1 (production-ready)
 
 # Discord Integration (Day 26)
 discord.py==2.3.2  # Discord bot library with slash command support
@@ -98,3 +98,8 @@ pybloom-live==4.0.0  # Bloom filter for deduplication
 aiodns==3.1.1  # Async DNS resolution for aggregators
 charset-normalizer==3.3.2  # Fast character encoding detection (replaces cchardet, Python 3.11+ compatible)
 click==8.1.7
+
+# Phase 1 Dependencies - On-chain & Forta Monitoring
+gql>=3.5.0  # GraphQL client for Forta Network API
+aiohttp>=3.9.0  # Async HTTP client for Forta API calls
+python-Levenshtein>=0.25.0  # Fuzzy string matching for deduplication

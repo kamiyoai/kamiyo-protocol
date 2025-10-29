@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS exploits (
     category TEXT,
     description TEXT,
     recovery_status TEXT,
+    confidence_score INTEGER DEFAULT 0,
+    source_count INTEGER DEFAULT 1,
+    verified_on_chain BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -100,6 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_exploits_chain ON exploits(chain);
 CREATE INDEX IF NOT EXISTS idx_exploits_amount ON exploits(amount_usd DESC);
 CREATE INDEX IF NOT EXISTS idx_exploits_protocol ON exploits(protocol);
 CREATE INDEX IF NOT EXISTS idx_exploits_source ON exploits(source);
+CREATE INDEX IF NOT EXISTS idx_protocol_chain_time ON exploits(protocol, chain, timestamp);
 CREATE INDEX IF NOT EXISTS idx_sources_active ON sources(is_active);
 CREATE INDEX IF NOT EXISTS idx_users_api_key ON users(api_key);
 CREATE INDEX IF NOT EXISTS idx_alerts_exploit ON alerts_sent(exploit_id);

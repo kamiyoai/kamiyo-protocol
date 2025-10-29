@@ -54,7 +54,41 @@ class DatabaseManager:
         with self.get_connection() as conn:
             conn.executescript(schema_sql)
 
+        # Apply schema migrations for existing databases
+        self._apply_schema_migrations()
+
         logger.info("Database schema initialized")
+
+    def _apply_schema_migrations(self):
+        """Apply schema migrations for new columns and indexes"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Check if new columns exist
+                cursor.execute("PRAGMA table_info(exploits)")
+                columns = {row[1] for row in cursor.fetchall()}
+
+                # Add missing columns
+                if 'confidence_score' not in columns:
+                    cursor.execute("ALTER TABLE exploits ADD COLUMN confidence_score INTEGER DEFAULT 0")
+                    logger.info("Added confidence_score column")
+
+                if 'source_count' not in columns:
+                    cursor.execute("ALTER TABLE exploits ADD COLUMN source_count INTEGER DEFAULT 1")
+                    logger.info("Added source_count column")
+
+                if 'verified_on_chain' not in columns:
+                    cursor.execute("ALTER TABLE exploits ADD COLUMN verified_on_chain BOOLEAN DEFAULT FALSE")
+                    logger.info("Added verified_on_chain column")
+
+                # Create composite index if it doesn't exist (index creation is idempotent)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_protocol_chain_time ON exploits(protocol, chain, timestamp)")
+
+                logger.info("Schema migrations completed")
+
+        except Exception as e:
+            logger.error(f"Failed to apply schema migrations: {e}")
 
     # ==================== EXPLOIT OPERATIONS ====================
 
@@ -440,6 +474,137 @@ class DatabaseManager:
         # Start background thread
         thread = threading.Thread(target=run_webhook_delivery, daemon=True)
         thread.start()
+
+    # ==================== DEDUPLICATION OPERATIONS ====================
+
+    def _get_protocol_variants(self, protocol: str) -> List[str]:
+        """
+        Get protocol name variations for fuzzy matching
+
+        Args:
+            protocol: Protocol name to get variants for
+
+        Returns:
+            List of protocol name variations
+        """
+        protocol_lower = protocol.lower()
+
+        # Define common protocol variations
+        protocol_variants_map = {
+            'aave': ['aave', 'AAVE', 'Aave', 'Aave V2', 'Aave V3', 'aave v2', 'aave v3'],
+            'uniswap': ['uniswap', 'Uniswap', 'UNISWAP', 'Uniswap V2', 'Uniswap V3', 'uniswap v2', 'uniswap v3'],
+            'compound': ['compound', 'Compound', 'COMPOUND', 'Compound V2', 'Compound V3', 'compound v2', 'compound v3'],
+            'curve': ['curve', 'Curve', 'CURVE', 'Curve Finance', 'curve finance'],
+            'balancer': ['balancer', 'Balancer', 'BALANCER', 'Balancer V2', 'balancer v2'],
+            'maker': ['maker', 'Maker', 'MAKER', 'MakerDAO', 'makerdao'],
+            'sushiswap': ['sushiswap', 'SushiSwap', 'SUSHISWAP', 'Sushi', 'sushi'],
+            'pancakeswap': ['pancakeswap', 'PancakeSwap', 'PANCAKESWAP', 'Pancake', 'pancake'],
+            'yearn': ['yearn', 'Yearn', 'YEARN', 'Yearn Finance', 'yearn finance'],
+        }
+
+        # Check if protocol matches any known protocol
+        for base_protocol, variants in protocol_variants_map.items():
+            if base_protocol in protocol_lower or protocol_lower in [v.lower() for v in variants]:
+                return variants
+
+        # If no match, return basic variations of the input
+        return [
+            protocol,
+            protocol.upper(),
+            protocol.lower(),
+            protocol.capitalize(),
+        ]
+
+    def find_similar_exploits(
+        self,
+        exploit: Dict[str, Any],
+        time_window_hours: int = 24
+    ) -> List[Dict[str, Any]]:
+        """
+        Find similar exploits within a time window that match on:
+        - Same protocol name (fuzzy match using variants)
+        - Same chain
+        - Similar amount (±20%)
+
+        Args:
+            exploit: Exploit dict with protocol, chain, amount_usd, timestamp
+            time_window_hours: Time window to search in hours (default: 24)
+
+        Returns:
+            List of matching exploit dicts
+        """
+        try:
+            # Extract exploit details
+            protocol = exploit.get('protocol', '')
+            chain = exploit.get('chain', '')
+            amount_usd = exploit.get('amount_usd', 0) or 0
+            timestamp = exploit.get('timestamp')
+
+            if not protocol or not chain or not timestamp:
+                logger.warning("Missing required fields for deduplication")
+                return []
+
+            # Get protocol variants for fuzzy matching
+            protocol_variants = self._get_protocol_variants(protocol)
+
+            # Calculate time window
+            if isinstance(timestamp, str):
+                timestamp_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            else:
+                timestamp_dt = timestamp
+
+            time_start = timestamp_dt - timedelta(hours=time_window_hours)
+            time_end = timestamp_dt + timedelta(hours=time_window_hours)
+
+            # Calculate amount range (±20%)
+            amount_min = amount_usd * 0.8
+            amount_max = amount_usd * 1.2
+
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Build query with protocol variants
+                # Use LOWER for case-insensitive matching
+                protocol_conditions = ' OR '.join(['LOWER(protocol) = ?' for _ in protocol_variants])
+                protocol_params = [v.lower() for v in protocol_variants]
+
+                query = f"""
+                    SELECT * FROM exploits
+                    WHERE ({protocol_conditions})
+                    AND chain = ?
+                    AND timestamp >= ?
+                    AND timestamp <= ?
+                    AND amount_usd >= ?
+                    AND amount_usd <= ?
+                    AND LOWER(protocol) NOT LIKE '%test%'
+                    AND LOWER(COALESCE(category, '')) NOT LIKE '%test%'
+                    ORDER BY timestamp DESC
+                """
+
+                params = protocol_params + [
+                    chain,
+                    time_start,
+                    time_end,
+                    amount_min,
+                    amount_max
+                ]
+
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+
+                results = [dict(row) for row in rows]
+
+                if results:
+                    logger.info(
+                        f"Found {len(results)} similar exploits for {protocol} on {chain} "
+                        f"(${amount_usd:,.0f})"
+                    )
+
+                return results
+
+        except Exception as e:
+            logger.error(f"Failed to find similar exploits: {e}")
+            return []
 
 
 # Singleton instance

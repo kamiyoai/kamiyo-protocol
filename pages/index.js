@@ -102,8 +102,7 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                     {/* Left Column: Live Metrics */}
                     <div className="flex items-center h-full">
-                        <div className="w-full h-full flex flex-col justify-center text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
-                            <div className="text-xs uppercase tracking-wider text-white mb-6">Live Security Intelligence</div>
+                        <div className="w-full h-full flex flex-col justify-center text-center py-8 bg-black rounded-lg border border-gray-500/25">
                             <div className="grid grid-cols-2 gap-6 text-sm">
                                 <div className="flex flex-col items-center">
                                     <span className="text-3xl font-light text-magenta">$2.1B</span>
@@ -317,7 +316,7 @@ export default function Home() {
                         </div>
 
                         {/* For AI Agents */}
-                        <div className="bg-gradient-to-br from-cyan/10 to-magenta/10 border border-gray-500/20 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6">
                             <div className="text-cyan text-lg font-light mb-4">Built for AI Agents</div>
                             <div className="space-y-3 text-sm text-gray-300">
                                 <div className="flex items-start gap-2">

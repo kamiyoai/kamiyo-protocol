@@ -668,6 +668,133 @@ class PostgresManager:
 
         return self.monitor.get_slow_queries(limit=limit)
 
+    # ==================== DEDUPLICATION OPERATIONS ====================
+
+    def _get_protocol_variants(self, protocol: str) -> List[str]:
+        """
+        Get protocol name variations for fuzzy matching
+
+        Args:
+            protocol: Protocol name to get variants for
+
+        Returns:
+            List of protocol name variations
+        """
+        protocol_lower = protocol.lower()
+
+        # Define common protocol variations
+        protocol_variants_map = {
+            'aave': ['aave', 'AAVE', 'Aave', 'Aave V2', 'Aave V3', 'aave v2', 'aave v3'],
+            'uniswap': ['uniswap', 'Uniswap', 'UNISWAP', 'Uniswap V2', 'Uniswap V3', 'uniswap v2', 'uniswap v3'],
+            'compound': ['compound', 'Compound', 'COMPOUND', 'Compound V2', 'Compound V3', 'compound v2', 'compound v3'],
+            'curve': ['curve', 'Curve', 'CURVE', 'Curve Finance', 'curve finance'],
+            'balancer': ['balancer', 'Balancer', 'BALANCER', 'Balancer V2', 'balancer v2'],
+            'maker': ['maker', 'Maker', 'MAKER', 'MakerDAO', 'makerdao'],
+            'sushiswap': ['sushiswap', 'SushiSwap', 'SUSHISWAP', 'Sushi', 'sushi'],
+            'pancakeswap': ['pancakeswap', 'PancakeSwap', 'PANCAKESWAP', 'Pancake', 'pancake'],
+            'yearn': ['yearn', 'Yearn', 'YEARN', 'Yearn Finance', 'yearn finance'],
+        }
+
+        # Check if protocol matches any known protocol
+        for base_protocol, variants in protocol_variants_map.items():
+            if base_protocol in protocol_lower or protocol_lower in [v.lower() for v in variants]:
+                return variants
+
+        # If no match, return basic variations of the input
+        return [
+            protocol,
+            protocol.upper(),
+            protocol.lower(),
+            protocol.capitalize(),
+        ]
+
+    @use_read_replica
+    def find_similar_exploits(
+        self,
+        exploit: Dict[str, Any],
+        time_window_hours: int = 24,
+        readonly: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Find similar exploits within a time window that match on:
+        - Same protocol name (fuzzy match using variants)
+        - Same chain
+        - Similar amount (±20%)
+
+        Args:
+            exploit: Exploit dict with protocol, chain, amount_usd, timestamp/date
+            time_window_hours: Time window to search in hours (default: 24)
+            readonly: Use read replica (default: True)
+
+        Returns:
+            List of matching exploit dicts
+        """
+        try:
+            # Extract exploit details
+            protocol = exploit.get('protocol', '')
+            chain = exploit.get('chain', '')
+            amount_usd = exploit.get('amount_usd', 0) or 0
+            timestamp = exploit.get('timestamp') or exploit.get('date')
+
+            if not protocol or not chain or not timestamp:
+                logger.warning("Missing required fields for deduplication")
+                return []
+
+            # Get protocol variants for fuzzy matching
+            protocol_variants = self._get_protocol_variants(protocol)
+
+            # Calculate amount range (±20%)
+            amount_min = amount_usd * 0.8
+            amount_max = amount_usd * 1.2
+
+            # Build query with protocol variants
+            # Use LOWER for case-insensitive matching
+            protocol_conditions = ' OR '.join(['LOWER(protocol) = %s' for _ in protocol_variants])
+            protocol_params = [v.lower() for v in protocol_variants]
+
+            # PostgreSQL uses 'date' column and INTERVAL syntax
+            query = f"""
+                SELECT
+                    id, tx_hash, chain, protocol, amount_usd,
+                    date as timestamp,
+                    source, created_at,
+                    exploit_type as category,
+                    description,
+                    confidence_score,
+                    source_count,
+                    verified_on_chain
+                FROM exploits
+                WHERE ({protocol_conditions})
+                AND chain = %s
+                AND date >= (TIMESTAMP %s - INTERVAL '{time_window_hours} hours')
+                AND date <= (TIMESTAMP %s + INTERVAL '{time_window_hours} hours')
+                AND amount_usd >= %s
+                AND amount_usd <= %s
+                ORDER BY date DESC
+            """
+
+            params = tuple(protocol_params + [
+                chain,
+                timestamp,
+                timestamp,
+                amount_min,
+                amount_max
+            ])
+
+            results = self.execute_with_retry(query, params, readonly=readonly)
+
+            if results:
+                logger.info(
+                    f"Found {len(results)} similar exploits for {protocol} on {chain} "
+                    f"(${amount_usd:,.0f})"
+                )
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to find similar exploits: {e}")
+            return []
+
     def close(self):
         """Close all connection pools"""
 
