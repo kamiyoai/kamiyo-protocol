@@ -139,7 +139,7 @@ export default function Home() {
             </section>
 
             {/* Real Security Intelligence in Action Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]">
+            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
                     Real Security Intelligence in Action
                 </h2>
