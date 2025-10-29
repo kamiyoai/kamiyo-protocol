@@ -13,7 +13,7 @@ export default function Home() {
             <SEO />
             <div className="text-white bg-black min-h-screen">
                 {/* Hero Section */}
-                <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
+                <section className="w-full border-b border-gray-500/25 bg-black">
                 <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                     {/* SEO-friendly H1 (visually hidden) */}
                     <h1 className="sr-only">KAMIYO: Security Intelligence for AI Agents via MCP & x402</h1>
@@ -35,22 +35,22 @@ export default function Home() {
 
                             {/* Feature Badges */}
                             <div className="flex flex-wrap gap-3">
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     20+ Exploit Sources
                                 </span>
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     Real-Time Alerts
                                 </span>
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     $0.01 per Query via x402
                                 </span>
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     No API Keys Required
                                 </span>
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-col md:flex-row md:flex-wrap gap-6 items-center md:justify-between">
+                            <div className="flex flex-col md:flex-row gap-6 items-center">
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Subscribe to MCP"
@@ -63,7 +63,7 @@ export default function Home() {
                                     onClick={() => {
                                         window.location.href = '/api-docs';
                                     }}
-                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300 md:mr-5"
+                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300 md:ml-12"
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
@@ -80,8 +80,7 @@ export default function Home() {
                                 loop
                                 muted
                                 playsInline
-                                className="w-auto"
-                                style={{ height: '24rem', filter: 'saturate(2.0) contrast(1.2)' }}
+                                className="w-auto h-96 saturate-[2.0] contrast-[1.2]"
                                 aria-label="KAMIYO Security Intelligence demonstration for AI agents via MCP and x402"
                                 title="Security intelligence for AI agents via MCP and x402"
                             >
@@ -93,7 +92,7 @@ export default function Home() {
             </section>
 
             {/* Real Security Intelligence in Action Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]">
+            <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]">
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
                     Real Security Intelligence in Action
                 </h2>
@@ -221,7 +220,7 @@ export default function Home() {
             </section>
 
             {/* Pricing Section */}
-            <section id="pricing" className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="pricing-heading">
+            <section id="pricing" className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="pricing-heading">
                 <header className="text-center mb-12">
                     <h2 id="pricing-heading" className="text-2xl md:text-3xl font-light mb-4">Pricing</h2>
                     <p className="text-gray-400 text-sm md:text-lg">MCP subscriptions for unlimited AI agent access, or x402 API for pay-per-query</p>
@@ -240,7 +239,7 @@ export default function Home() {
             </section>
 
             {/* Why Developers Choose KAMIYO Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 bg-gradient-to-b from-transparent to-cyan/5 border-t border-gray-500 border-opacity-25">
+            <section className="w-full px-5 mx-auto pt-16 pb-16 bg-gradient-to-b from-transparent to-cyan/5 border-t border-gray-500/25">
                 <div className="max-w-[1400px] mx-auto">
                     <h2 className="text-3xl font-light text-center mb-12">
                         Why Developers Choose KAMIYO
@@ -346,14 +345,14 @@ export default function Home() {
             </section>
 
             {/* Security Intelligence Section */}
-            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
+            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
                 <header className="text-center mb-12">
                     <h2 id="ai-agents-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Built for AI Agents</h2>
                     <p className="text-gray-400 text-sm md:text-lg">Option 1: Add to Claude Desktop (MCP) | Option 2: Pay per query (x402)</p>
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
                         <div className="text-white text-xl mb-2">1. Try It Now (No Payment)</div>
                         <div className="inline-flex items-center gap-2 px-2 py-1 bg-gray-500/10 border border-gray-500/30 rounded text-xs text-gray-400 mb-3">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -457,7 +456,7 @@ export default function Home() {
                     </div>
                 </article>
 
-                <article className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-8 max-w-3xl mx-auto">
+                <article className="bg-black border border-gray-500/25 rounded-lg p-8 max-w-3xl mx-auto">
                     <h3 className="text-2xl font-light mb-4 text-center">For AI Agent Developers</h3>
                     <p className="text-gray-400 text-center mb-6">
                         Integrate KAMIYO security intelligence via MCP or x402
@@ -498,24 +497,24 @@ export default function Home() {
             </section>
 
             {/* Social Proof & Features Section */}
-            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="features-heading">
+            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="features-heading">
                 {/* Trusted By */}
                 <div className="text-center mb-16">
                     <h3 className="text-gray-500 text-sm uppercase tracking-wider mb-6">Trusted By</h3>
                     <div className="flex flex-wrap justify-center gap-6">
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
+                        <div className="px-4 py-2 border border-gray-500/25 rounded-full">
                             <span className="text-sm text-gray-400">AI Agent Developers</span>
                         </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
+                        <div className="px-4 py-2 border border-gray-500/25 rounded-full">
                             <span className="text-sm text-gray-400">API Providers</span>
                         </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
+                        <div className="px-4 py-2 border border-gray-500/25 rounded-full">
                             <span className="text-sm text-gray-400">Autonomous System Builders</span>
                         </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
+                        <div className="px-4 py-2 border border-gray-500/25 rounded-full">
                             <span className="text-sm text-gray-400">Web3 Developers</span>
                         </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
+                        <div className="px-4 py-2 border border-gray-500/25 rounded-full">
                             <span className="text-sm text-gray-400">Blockchain Infrastructure Teams</span>
                         </div>
                     </div>

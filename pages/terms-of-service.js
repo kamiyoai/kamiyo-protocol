@@ -15,7 +15,7 @@ export default function TermsOfService() {
             <div className="min-h-screen bg-black text-white">
                 <div className="max-w-4xl mx-auto px-5 py-16">
                     {/* Header */}
-                    <header className="mb-12 border-b border-gray-500 border-opacity-25 pb-8">
+                    <header className="mb-12 border-b border-gray-500 /25 pb-8">
                         <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;利用規約</p>
                         <h1 className="text-4xl md:text-5xl font-light mb-4">Terms of Service</h1>
                         <p className="text-gray-400 text-sm">
@@ -40,7 +40,7 @@ export default function TermsOfService() {
                     </section>
 
                     {/* Table of Contents */}
-                    <nav className="mb-12 bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <nav className="mb-12 bg-black border border-gray-500 /25 rounded-lg p-6">
                         <h2 className="text-xl font-light mb-4">Table of Contents</h2>
                         <ol className="space-y-2 text-sm text-gray-400">
                             <li><a href="#service-description" className="hover:text-cyan transition-colors">1. Service Description</a></li>
@@ -68,13 +68,13 @@ export default function TermsOfService() {
 
                     {/* Section 1 */}
                     <section id="service-description" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             1. Service Description
                         </h2>
                         <div className="text-gray-300 space-y-4">
                             <p>KAMIYO provides security intelligence for AI agents through two primary offerings:</p>
 
-                            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-4">
+                            <div className="bg-black border border-gray-500 /25 rounded-lg p-4">
                                 <h3 className="font-semibold text-white mb-2">MCP (Model Context Protocol) Subscriptions</h3>
                                 <p className="text-sm mb-2">
                                     Subscription-based access providing unlimited security intelligence queries through MCP servers compatible with Claude Desktop and other AI agent frameworks.
@@ -86,7 +86,7 @@ export default function TermsOfService() {
                                 </ul>
                             </div>
 
-                            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-4">
+                            <div className="bg-black border border-gray-500 /25 rounded-lg p-4">
                                 <h3 className="font-semibold text-white mb-2">x402 Pay-Per-Query API</h3>
                                 <p className="text-sm mb-2">
                                     Pay-as-you-go access at $0.01 per query using USDC payments on Base, Ethereum, or Solana blockchains. No account registration required.
@@ -107,7 +107,7 @@ export default function TermsOfService() {
 
                     {/* Section 2 */}
                     <section id="account-registration" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             2. Account Registration and Security
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -153,7 +153,7 @@ export default function TermsOfService() {
 
                     {/* Section 3 */}
                     <section id="subscription-terms" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             3. MCP Subscription Terms
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -192,7 +192,7 @@ export default function TermsOfService() {
 
                     {/* Section 4 */}
                     <section id="x402-terms" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             4. x402 API Terms
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -249,7 +249,7 @@ export default function TermsOfService() {
 
                     {/* Section 5 */}
                     <section id="payment-terms" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             5. Payment Terms
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -293,7 +293,7 @@ export default function TermsOfService() {
 
                     {/* Section 6 */}
                     <section id="acceptable-use" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             6. Acceptable Use Policy
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -337,7 +337,7 @@ export default function TermsOfService() {
 
                     {/* Section 7 */}
                     <section id="api-usage" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             7. API Usage and Rate Limits
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -345,7 +345,7 @@ export default function TermsOfService() {
                             <p>To ensure fair usage and Service availability, we enforce the following rate limits:</p>
 
                             <div className="space-y-3 mt-4">
-                                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-4">
+                                <div className="bg-black border border-gray-500 /25 rounded-lg p-4">
                                     <h4 className="font-semibold text-white mb-2">MCP Subscriptions</h4>
                                     <ul className="text-sm space-y-1">
                                         <li><strong>Personal:</strong> 100 requests/minute, 10,000 requests/day</li>
@@ -354,7 +354,7 @@ export default function TermsOfService() {
                                     </ul>
                                 </div>
 
-                                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-4">
+                                <div className="bg-black border border-gray-500 /25 rounded-lg p-4">
                                     <h4 className="font-semibold text-white mb-2">x402 API</h4>
                                     <ul className="text-sm space-y-1">
                                         <li><strong>Per Token:</strong> 100 total queries over 24 hours</li>
@@ -388,7 +388,7 @@ export default function TermsOfService() {
 
                     {/* Section 8 */}
                     <section id="intellectual-property" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             8. Intellectual Property Rights
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -420,7 +420,7 @@ export default function TermsOfService() {
 
                     {/* Section 9 */}
                     <section id="data-accuracy" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             9. Data Accuracy and Service Limitations
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -470,7 +470,7 @@ export default function TermsOfService() {
 
                     {/* Section 10 */}
                     <section id="warranties-disclaimer" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             10. Warranties Disclaimer
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -498,7 +498,7 @@ export default function TermsOfService() {
 
                     {/* Section 11 */}
                     <section id="limitation-liability" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             11. Limitation of Liability
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -538,7 +538,7 @@ export default function TermsOfService() {
 
                     {/* Section 12 */}
                     <section id="indemnification" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             12. Indemnification
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -562,7 +562,7 @@ export default function TermsOfService() {
 
                     {/* Section 13 */}
                     <section id="termination" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             13. Termination and Suspension
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -607,7 +607,7 @@ export default function TermsOfService() {
 
                     {/* Section 14 */}
                     <section id="modifications" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             14. Modifications to Service and Terms
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -636,7 +636,7 @@ export default function TermsOfService() {
 
                     {/* Section 15 */}
                     <section id="privacy" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             15. Privacy and Data Protection
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -658,7 +658,7 @@ export default function TermsOfService() {
 
                     {/* Section 16 */}
                     <section id="third-party" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             16. Third-Party Services and Links
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -682,7 +682,7 @@ export default function TermsOfService() {
 
                     {/* Section 17 */}
                     <section id="governing-law" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             17. Governing Law and Jurisdiction
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -697,7 +697,7 @@ export default function TermsOfService() {
 
                     {/* Section 18 */}
                     <section id="dispute-resolution" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             18. Dispute Resolution and Arbitration
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -746,7 +746,7 @@ export default function TermsOfService() {
 
                     {/* Section 19 */}
                     <section id="general-provisions" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             19. General Provisions
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -794,7 +794,7 @@ export default function TermsOfService() {
 
                     {/* Section 20 */}
                     <section id="contact" className="mb-12">
-                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 border-opacity-25 pb-3">
+                        <h2 className="text-2xl font-light mb-6 border-b border-gray-500 /25 pb-3">
                             20. Contact Information
                         </h2>
                         <div className="text-gray-300 space-y-4">
@@ -802,7 +802,7 @@ export default function TermsOfService() {
                                 If you have questions, concerns, or complaints about these Terms or the Service, please contact us:
                             </p>
 
-                            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 mt-4">
+                            <div className="bg-black border border-gray-500 /25 rounded-lg p-6 mt-4">
                                 <p className="font-semibold text-white mb-3">Kamiyo.ai</p>
                                 <p className="text-sm space-y-2">
                                     <span className="block"><strong className="text-white">General Inquiries:</strong>{" "}
@@ -829,7 +829,7 @@ export default function TermsOfService() {
                     </section>
 
                     {/* Acknowledgment */}
-                    <section className="mb-12 bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <section className="mb-12 bg-black border border-gray-500 /25 rounded-lg p-6">
                         <h3 className="text-xl font-light mb-4 text-cyan">Acknowledgment</h3>
                         <p className="text-gray-300 text-sm">
                             BY ACCESSING OR USING THE SERVICE, YOU ACKNOWLEDGE THAT YOU HAVE READ, UNDERSTOOD, AND AGREE TO BE BOUND BY THESE TERMS OF SERVICE. IF YOU DO NOT AGREE TO THESE TERMS, DO NOT USE THE SERVICE.
@@ -837,7 +837,7 @@ export default function TermsOfService() {
                     </section>
 
                     {/* Footer */}
-                    <footer className="mt-16 pt-8 border-t border-gray-500 border-opacity-25">
+                    <footer className="mt-16 pt-8 border-t border-gray-500 /25">
                         <div className="text-center text-sm text-gray-500">
                             <p>These Terms of Service were last updated on {lastUpdated}</p>
                             <p className="mt-2">
