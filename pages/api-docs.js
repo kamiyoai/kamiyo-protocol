@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import { useState } from 'react';
+import { PrimaryButton, SecondaryButton, LinkButton } from '../components/Button';
 
 export default function ApiDocs() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -142,7 +143,7 @@ export default function ApiDocs() {
           <div>
             <h2 className="text-2xl font-light mb-6">Overview</h2>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">Security Intelligence Platform</div>
               <p className="text-gray-400 text-sm mb-4">
                 KAMIYO provides real-time crypto exploit intelligence from 20+ security researchers. Access via MCP subscription (recommended for AI agents) or x402 API (pay-per-query).
@@ -248,7 +249,7 @@ export default function ApiDocs() {
           <div>
             <h2 className="text-2xl font-light mb-6">Option 1: MCP Integration (Recommended for AI Agents)</h2>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <h3 className="text-xl font-light mb-4">Claude Desktop Integration</h3>
               <p className="text-gray-400 mb-4">
                 The easiest way to access KAMIYO security intelligence is via MCP subscription.
@@ -257,7 +258,7 @@ export default function ApiDocs() {
 
               <h4 className="font-light mb-2">Quick Setup (5 minutes):</h4>
               <ol className="list-decimal list-inside space-y-2 text-gray-400 text-sm mb-6">
-                <li>Subscribe to KAMIYO MCP at <a href="/pricing" className="text-magenta hover:opacity-80">kamiyo.io/pricing</a></li>
+                <li>Subscribe to KAMIYO MCP at <LinkButton href="/pricing">kamiyo.io/pricing</LinkButton></li>
                 <li>Receive your MCP access token via email</li>
                 <li>Install the KAMIYO MCP server (Python 3.11+)</li>
                 <li>Configure Claude Desktop with your token</li>
@@ -283,21 +284,18 @@ export default function ApiDocs() {
               </div>
 
               <div className="flex gap-4 mb-6">
-                <a
-                  href="#"
+                <PrimaryButton
                   onClick={(e) => { e.preventDefault(); setActiveTab('mcp-setup'); }}
-                  className="inline-block px-4 py-2 bg-cyan text-black rounded hover:opacity-80 transition-opacity text-sm font-medium"
                 >
                   Full Setup Guide
-                </a>
-                <a
+                </PrimaryButton>
+                <SecondaryButton
                   href="https://github.com/kamiyo-ai/kamiyo-mcp-server"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block px-4 py-2 border border-cyan text-cyan rounded hover:bg-cyan hover:text-black transition-all text-sm font-medium"
                 >
                   Download MCP Server
-                </a>
+                </SecondaryButton>
               </div>
 
               <h4 className="font-light mb-2">Available MCP Tools:</h4>
@@ -327,7 +325,7 @@ monitor_wallet(
 health_check()`}</CodeBlock>
             </div>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <h4 className="text-lg font-light mb-3">Example: Claude Checking Protocol Safety</h4>
               <CodeBlock language="text">{`User: "Should I deploy my contract to Uniswap V3 on Arbitrum?"
 
@@ -366,7 +364,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
                     <li>• Email support</li>
                   </ul>
                 </div>
-                <div className="border border-cyan border-opacity-50 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-cyan font-medium mb-2">Team ($99/mo)</div>
                   <ul className="text-gray-400 space-y-1 text-xs">
                     <li>• 5 concurrent agents</li>
@@ -420,7 +418,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">MCP Setup for Claude Desktop</h2>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">Complete Integration in 5 Steps</div>
               <p className="text-gray-400 text-sm">
                 Follow this guide to integrate KAMIYO security intelligence into Claude Desktop via the Model Context Protocol.
@@ -428,10 +426,10 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
             </div>
 
             {/* Step 1 */}
-            <div className="mb-8 border-l-2 border-cyan pl-6">
+            <div className="mb-8 border-l-2 border-gray-500/25 pl-6">
               <h3 className="text-xl font-light mb-3">Step 1: Subscribe to KAMIYO MCP</h3>
               <p className="text-gray-400 mb-4">
-                Choose your subscription tier at <a href="/pricing" className="text-magenta hover:opacity-80">kamiyo.io/pricing</a>
+                Choose your subscription tier at <LinkButton href="/pricing">kamiyo.io/pricing</LinkButton>
               </p>
               <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="text-sm text-gray-400 space-y-2">
@@ -443,7 +441,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
             </div>
 
             {/* Step 2 */}
-            <div className="mb-8 border-l-2 border-cyan pl-6">
+            <div className="mb-8 border-l-2 border-gray-500/25 pl-6">
               <h3 className="text-xl font-light mb-3">Step 2: Get Your MCP Access Token</h3>
               <p className="text-gray-400 mb-4">
                 After subscribing, you'll receive an email with your MCP access token:
@@ -458,12 +456,12 @@ Valid Until: 2026-10-28
 
 Keep this token secure - it provides access to KAMIYO security intelligence.`}</CodeBlock>
               <p className="text-gray-400 mt-4 text-sm">
-                Or retrieve it from your dashboard: <a href="/dashboard/api-keys" className="text-magenta hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
+                Or retrieve it from your dashboard: <LinkButton href="/dashboard/api-keys">kamiyo.io/dashboard/api-keys</LinkButton>
               </p>
             </div>
 
             {/* Step 3 */}
-            <div className="mb-8 border-l-2 border-cyan pl-6">
+            <div className="mb-8 border-l-2 border-gray-500/25 pl-6">
               <h3 className="text-xl font-light mb-3">Step 3: Install the MCP Server</h3>
               <p className="text-gray-400 mb-4">
                 Download and install the KAMIYO MCP server (requires Python 3.11+):
@@ -481,7 +479,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
             </div>
 
             {/* Step 4 */}
-            <div className="mb-8 border-l-2 border-cyan pl-6">
+            <div className="mb-8 border-l-2 border-gray-500/25 pl-6">
               <h3 className="text-xl font-light mb-3">Step 4: Configure Claude Desktop</h3>
               <p className="text-gray-400 mb-4">
                 Edit your Claude Desktop configuration file:
@@ -531,7 +529,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
             </div>
 
             {/* Step 5 */}
-            <div className="mb-8 border-l-2 border-cyan pl-6">
+            <div className="mb-8 border-l-2 border-gray-500/25 pl-6">
               <h3 className="text-xl font-light mb-3">Step 5: Test the Integration</h3>
               <p className="text-gray-400 mb-4">
                 Restart Claude Desktop and try these test queries:
@@ -571,36 +569,36 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                 <div>
                   <div className="text-white mb-2">Invalid token error</div>
                   <div className="text-gray-400">
-                    Regenerate token at <a href="/dashboard/api-keys" className="text-magenta hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
+                    Regenerate token at <LinkButton href="/dashboard/api-keys">kamiyo.io/dashboard/api-keys</LinkButton>
                   </div>
                 </div>
                 <div>
                   <div className="text-white mb-2">Subscription inactive</div>
                   <div className="text-gray-400">
-                    Check billing status at <a href="/dashboard/billing" className="text-magenta hover:opacity-80">kamiyo.io/dashboard/billing</a>
+                    Check billing status at <LinkButton href="/dashboard/billing">kamiyo.io/dashboard/billing</LinkButton>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Documentation Links */}
-            <div className="bg-black border border-cyan /25 rounded-lg p-6">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6">
               <h3 className="text-lg font-light mb-4">Additional Resources</h3>
               <div className="grid md:grid-cols-2 gap-4 text-sm">
                 <div>
                   <div className="text-white mb-2">Documentation</div>
                   <ul className="text-gray-400 space-y-1">
-                    <li>• <a href="https://github.com/kamiyo-ai/kamiyo-mcp-server" className="text-magenta hover:opacity-80">GitHub Repository</a></li>
-                    <li>• <a href="/docs/MCP_SETUP_GUIDE.md" className="text-magenta hover:opacity-80">Full Setup Guide (PDF)</a></li>
-                    <li>• <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('mcp'); }} className="text-magenta hover:opacity-80">MCP Integration Overview</a></li>
+                    <li>• <LinkButton href="https://github.com/kamiyo-ai/kamiyo-mcp-server">GitHub Repository</LinkButton></li>
+                    <li>• <LinkButton href="/docs/MCP_SETUP_GUIDE.md">Full Setup Guide (PDF)</LinkButton></li>
+                    <li>• <LinkButton onClick={(e) => { e.preventDefault(); setActiveTab('mcp'); }}>MCP Integration Overview</LinkButton></li>
                   </ul>
                 </div>
                 <div>
                   <div className="text-white mb-2">Support</div>
                   <ul className="text-gray-400 space-y-1">
-                    <li>• Email: <a href="mailto:support@kamiyo.io" className="text-magenta hover:opacity-80">support@kamiyo.io</a></li>
-                    <li>• Discord: <a href="https://discord.gg/kamiyo" className="text-magenta hover:opacity-80">discord.gg/kamiyo</a></li>
-                    <li>• Status: <a href="https://status.kamiyo.io" className="text-magenta hover:opacity-80">status.kamiyo.io</a></li>
+                    <li>• Email: <LinkButton href="mailto:support@kamiyo.io">support@kamiyo.io</LinkButton></li>
+                    <li>• Discord: <LinkButton href="https://discord.gg/kamiyo">discord.gg/kamiyo</LinkButton></li>
+                    <li>• Status: <LinkButton href="https://status.kamiyo.io">status.kamiyo.io</LinkButton></li>
                   </ul>
                 </div>
               </div>
@@ -613,7 +611,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">Option 2: x402 API Quick Start (For Direct/Custom Access)</h2>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">5-Minute Setup</div>
               <p className="text-gray-400 text-sm">
                 Get started with x402 payments in 5 minutes. No account signup, no API keys, just send USDC and start querying security intelligence at $0.01 per query.
@@ -621,7 +619,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
             </div>
 
             <div className="space-y-8">
-              <div className="border-l-2 border-cyan pl-6">
+              <div className="border-l-2 border-gray-500/25 pl-6">
                 <div className="text-white font-medium mb-2">Step 1: Discover Pricing</div>
                 <p className="text-gray-400 text-sm mb-4">
                   Make any API request without authentication to receive pricing information via HTTP 402:
@@ -644,7 +642,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="border-l-2 border-cyan pl-6">
+              <div className="border-l-2 border-gray-500/25 pl-6">
                 <div className="text-white font-medium mb-2">Step 2: Send USDC Payment</div>
                 <p className="text-gray-400 text-sm mb-4">
                   Transfer USDC to one of the payment addresses on your preferred chain. Example with Base:
@@ -659,7 +657,7 @@ await tx.wait();
 console.log("Payment sent:", tx.hash);`}</CodeBlock>
               </div>
 
-              <div className="border-l-2 border-cyan pl-6">
+              <div className="border-l-2 border-gray-500/25 pl-6">
                 <div className="text-white font-medium mb-2">Step 3: Verify Payment</div>
                 <p className="text-gray-400 text-sm mb-4">
                   Verify your payment and receive a payment token:
@@ -687,7 +685,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="border-l-2 border-cyan pl-6">
+              <div className="border-l-2 border-gray-500/25 pl-6">
                 <div className="text-white font-medium mb-2">Step 4: Generate Payment Token</div>
                 <p className="text-gray-400 text-sm mb-4">
                   Generate a reusable payment token for your verified payment:
@@ -704,14 +702,14 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="border-l-2 border-cyan pl-6">
+              <div className="border-l-2 border-gray-500/25 pl-6">
                 <div className="text-white font-medium mb-2">Step 5: Make API Calls</div>
                 <p className="text-gray-400 text-sm mb-4">
                   Use your payment token to access the API:
                 </p>
                 <CodeBlock>{`curl -H "x-payment-token: kmy_a1b2c3d4e5f6g7h8i9j0..." \\
   https://api.kamiyo.ai/v1/exploits?chain=ethereum`}</CodeBlock>
-                <div className="mt-4 bg-black border border-cyan /25 rounded-lg p-4">
+                <div className="mt-4 bg-black border border-gray-500/25 rounded-lg p-4">
                   <div className="text-cyan text-sm mb-2">Success!</div>
                   <div className="text-gray-400 text-sm">
                     Your payment token is valid for 24 hours and has 10 API calls remaining. Each call decrements the counter.
@@ -777,7 +775,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                   <div className="mt-2 text-gray-400 pl-4 space-y-1">
                     <div>• Payment came from sanctioned or high-risk address</div>
                     <div>• Use a different wallet not associated with sanctioned entities</div>
-                    <div>• Contact <a href="mailto:support@kamiyo.ai" className="text-magenta hover:opacity-80">support@kamiyo.ai</a> if you believe this is an error</div>
+                    <div>• Contact <LinkButton href="mailto:support@kamiyo.ai">support@kamiyo.ai</LinkButton> if you believe this is an error</div>
                   </div>
                 </details>
               </div>
@@ -796,7 +794,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 After verifying your on-chain USDC payment, you'll receive a payment token that grants API access.
               </p>
 
-              <div className="bg-black border border-cyan /25 rounded-lg p-4 mb-4">
+              <div className="bg-black border border-gray-500/25 rounded-lg p-4 mb-4">
                 <div className="text-cyan text-sm mb-2">Token Format</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• Prefix: <code className="text-cyan font-mono">kmy_</code></div>
@@ -865,7 +863,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">Complete Payment Flow</h2>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">End-to-End Flow</div>
               <p className="text-gray-400 text-sm">
                 Understanding the complete x402 payment flow from discovery to API access.
@@ -915,7 +913,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                     <p className="text-gray-400 text-sm mb-3">
                       Agent calls <code className="text-cyan">/x402/verify-payment</code> with transaction hash. Server verifies on-chain.
                     </p>
-                    <div className="bg-black border border-cyan /25 rounded p-3 text-sm text-gray-400 mb-3">
+                    <div className="bg-black border border-gray-500/25 rounded p-3 text-sm text-gray-400 mb-3">
                       <div className="text-white mb-2">Verification Checks:</div>
                       <div>✓ Transaction exists on blockchain</div>
                       <div>✓ Sufficient confirmations (6-32 depending on chain)</div>
@@ -1216,7 +1214,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">JavaScript SDK</h2>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">Automated x402 Payment Handling</div>
               <p className="text-gray-400 text-sm">
                 Use our JavaScript SDK to automatically handle HTTP 402 responses, make USDC payments, verify on-chain, and retry API requests with payment tokens.
@@ -1322,7 +1320,7 @@ client.on('payment_verified', (paymentToken) => {
 });`}</CodeBlock>
             </div>
 
-            <div className="bg-black border border-cyan /25 rounded-lg p-4">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-4">
               <div className="text-cyan text-sm mb-2">Coming Soon</div>
               <div className="text-gray-400 text-sm space-y-1">
                 <div>• Python SDK for x402 payment automation</div>
@@ -1555,19 +1553,19 @@ client.on('payment_verified', (paymentToken) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
               <div className="text-gray-400 mb-2">Documentation Issues</div>
-              <div className="text-white">Contact <a href="mailto:support@kamiyo.ai" className="text-magenta hover:opacity-80">support@kamiyo.ai</a></div>
+              <div className="text-white">Contact <LinkButton href="mailto:support@kamiyo.ai">support@kamiyo.ai</LinkButton></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">x402 Integration Support</div>
-              <div className="text-white">Email <a href="mailto:integrations@kamiyo.ai" className="text-magenta hover:opacity-80">integrations@kamiyo.ai</a></div>
+              <div className="text-white">Email <LinkButton href="mailto:integrations@kamiyo.ai">integrations@kamiyo.ai</LinkButton></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">API Status</div>
-              <div className="text-white"><a href="https://status.kamiyo.ai" className="text-magenta hover:opacity-80">status.kamiyo.ai</a></div>
+              <div className="text-white"><LinkButton href="https://status.kamiyo.ai">status.kamiyo.ai</LinkButton></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">GitHub Repository</div>
-              <div className="text-white"><a href="https://github.com/kamiyo-ai" className="text-magenta hover:opacity-80">github.com/kamiyo-ai</a></div>
+              <div className="text-white"><LinkButton href="https://github.com/kamiyo-ai">github.com/kamiyo-ai</LinkButton></div>
             </div>
           </div>
         </div>
