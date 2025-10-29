@@ -353,7 +353,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               </p>
             </div>
 
-            <div className="bg-black border border-yellow-500 /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <h4 className="text-lg font-light mb-3">Subscription Tier Access</h4>
               <div className="grid md:grid-cols-3 gap-4 text-sm">
                 <div className="border border-gray-500 /25 rounded p-4">
@@ -520,8 +520,8 @@ python3.11 -m mcp.server --help`}</CodeBlock>
 }`}</CodeBlock>
               </div>
 
-              <div className="mt-4 bg-black border border-yellow-500 /25 rounded p-4">
-                <div className="text-yellow-500 text-sm mb-2">Important</div>
+              <div className="mt-4 bg-black border border-gray-500/25 rounded p-4">
+                <div className="text-white text-sm mb-2">Important</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• Replace <code className="text-cyan">/Users/yourname/kamiyo-mcp-server</code> with your actual installation path</div>
                   <div>• Replace <code className="text-cyan">YOUR_TOKEN_HERE</code> with your MCP access token from Step 2</div>
@@ -721,7 +721,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
             </div>
 
             {/* Troubleshooting */}
-            <div className="bg-black border border-yellow-500 /25 rounded-lg p-6 mt-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mt-8">
               <h3 className="text-lg font-light mb-4">Common Issues</h3>
               <div className="space-y-4 text-sm">
                 <details className="cursor-pointer">
@@ -960,8 +960,8 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
               </div>
             </div>
 
-            <div className="bg-black border border-yellow-500 /25 rounded-lg p-4">
-              <div className="text-yellow-500 text-sm mb-2">Important Notes</div>
+            <div className="bg-black border border-gray-500/25 rounded-lg p-4">
+              <div className="text-white text-sm mb-2">Important Notes</div>
               <div className="text-gray-400 text-sm space-y-1">
                 <div>• Payments must have sufficient confirmations before verification succeeds</div>
                 <div>• Each transaction hash can only be used once for payment</div>
@@ -1141,8 +1141,8 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
   "requests_remaining": 10
 }`}</CodeBlock>
               </div>
-              <div className="mt-4 bg-black border border-yellow-500 /25 rounded-lg p-4">
-                <div className="text-yellow-500 text-sm mb-2">Important</div>
+              <div className="mt-4 bg-black border border-gray-500/25 rounded-lg p-4">
+                <div className="text-white text-sm mb-2">Important</div>
                 <div className="text-gray-400 text-sm">
                   The payment token is only shown once. Store it securely. Tokens are hashed with SHA256 before database storage and cannot be retrieved later.
                 </div>
