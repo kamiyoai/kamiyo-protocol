@@ -101,8 +101,8 @@ export default function Home() {
                 {/* Two Column Layout */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                     {/* Left Column: Live Metrics */}
-                    <div className="flex items-center">
-                        <div className="w-full text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
+                    <div className="flex items-center h-full">
+                        <div className="w-full h-full flex flex-col justify-center text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
                             <div className="text-xs uppercase tracking-wider text-white mb-6">Live Security Intelligence</div>
                             <div className="grid grid-cols-2 gap-6 text-sm">
                                 <div className="flex flex-col items-center">
@@ -126,8 +126,8 @@ export default function Home() {
                     </div>
 
                     {/* Right Column: Code Example */}
-                    <div>
-                        <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
+                    <div className="h-full">
+                        <div className="h-full bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm flex flex-col justify-center">
                             <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
                             <div className="space-y-1">
                                 <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-white"> = </span><span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-white">add</span><span className="text-white">({'{'}</span></div>
