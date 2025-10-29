@@ -43,26 +43,26 @@ export default function TermsOfService() {
                     <nav className="mb-12 bg-black border border-gray-500 /25 rounded-lg p-6">
                         <h2 className="text-xl font-light mb-4">Table of Contents</h2>
                         <ol className="space-y-2 text-sm text-gray-400">
-                            <li><a href="#service-description" className="hover:text-cyan transition-colors">1. Service Description</a></li>
-                            <li><a href="#account-registration" className="hover:text-cyan transition-colors">2. Account Registration and Security</a></li>
-                            <li><a href="#subscription-terms" className="hover:text-cyan transition-colors">3. MCP Subscription Terms</a></li>
-                            <li><a href="#x402-terms" className="hover:text-cyan transition-colors">4. x402 API Terms</a></li>
-                            <li><a href="#payment-terms" className="hover:text-cyan transition-colors">5. Payment Terms</a></li>
-                            <li><a href="#acceptable-use" className="hover:text-cyan transition-colors">6. Acceptable Use Policy</a></li>
-                            <li><a href="#api-usage" className="hover:text-cyan transition-colors">7. API Usage and Rate Limits</a></li>
-                            <li><a href="#intellectual-property" className="hover:text-cyan transition-colors">8. Intellectual Property Rights</a></li>
-                            <li><a href="#data-accuracy" className="hover:text-cyan transition-colors">9. Data Accuracy and Service Limitations</a></li>
-                            <li><a href="#warranties-disclaimer" className="hover:text-cyan transition-colors">10. Warranties Disclaimer</a></li>
-                            <li><a href="#limitation-liability" className="hover:text-cyan transition-colors">11. Limitation of Liability</a></li>
-                            <li><a href="#indemnification" className="hover:text-cyan transition-colors">12. Indemnification</a></li>
-                            <li><a href="#termination" className="hover:text-cyan transition-colors">13. Termination and Suspension</a></li>
-                            <li><a href="#modifications" className="hover:text-cyan transition-colors">14. Modifications to Service and Terms</a></li>
-                            <li><a href="#privacy" className="hover:text-cyan transition-colors">15. Privacy and Data Protection</a></li>
-                            <li><a href="#third-party" className="hover:text-cyan transition-colors">16. Third-Party Services and Links</a></li>
-                            <li><a href="#governing-law" className="hover:text-cyan transition-colors">17. Governing Law and Jurisdiction</a></li>
-                            <li><a href="#dispute-resolution" className="hover:text-cyan transition-colors">18. Dispute Resolution and Arbitration</a></li>
-                            <li><a href="#general-provisions" className="hover:text-cyan transition-colors">19. General Provisions</a></li>
-                            <li><a href="#contact" className="hover:text-cyan transition-colors">20. Contact Information</a></li>
+                            <li><a href="#service-description" className="hover:text-magenta transition-colors">1. Service Description</a></li>
+                            <li><a href="#account-registration" className="hover:text-magenta transition-colors">2. Account Registration and Security</a></li>
+                            <li><a href="#subscription-terms" className="hover:text-magenta transition-colors">3. MCP Subscription Terms</a></li>
+                            <li><a href="#x402-terms" className="hover:text-magenta transition-colors">4. x402 API Terms</a></li>
+                            <li><a href="#payment-terms" className="hover:text-magenta transition-colors">5. Payment Terms</a></li>
+                            <li><a href="#acceptable-use" className="hover:text-magenta transition-colors">6. Acceptable Use Policy</a></li>
+                            <li><a href="#api-usage" className="hover:text-magenta transition-colors">7. API Usage and Rate Limits</a></li>
+                            <li><a href="#intellectual-property" className="hover:text-magenta transition-colors">8. Intellectual Property Rights</a></li>
+                            <li><a href="#data-accuracy" className="hover:text-magenta transition-colors">9. Data Accuracy and Service Limitations</a></li>
+                            <li><a href="#warranties-disclaimer" className="hover:text-magenta transition-colors">10. Warranties Disclaimer</a></li>
+                            <li><a href="#limitation-liability" className="hover:text-magenta transition-colors">11. Limitation of Liability</a></li>
+                            <li><a href="#indemnification" className="hover:text-magenta transition-colors">12. Indemnification</a></li>
+                            <li><a href="#termination" className="hover:text-magenta transition-colors">13. Termination and Suspension</a></li>
+                            <li><a href="#modifications" className="hover:text-magenta transition-colors">14. Modifications to Service and Terms</a></li>
+                            <li><a href="#privacy" className="hover:text-magenta transition-colors">15. Privacy and Data Protection</a></li>
+                            <li><a href="#third-party" className="hover:text-magenta transition-colors">16. Third-Party Services and Links</a></li>
+                            <li><a href="#governing-law" className="hover:text-magenta transition-colors">17. Governing Law and Jurisdiction</a></li>
+                            <li><a href="#dispute-resolution" className="hover:text-magenta transition-colors">18. Dispute Resolution and Arbitration</a></li>
+                            <li><a href="#general-provisions" className="hover:text-magenta transition-colors">19. General Provisions</a></li>
+                            <li><a href="#contact" className="hover:text-magenta transition-colors">20. Contact Information</a></li>
                         </ol>
                     </nav>
 
@@ -474,8 +474,8 @@ export default function TermsOfService() {
                             10. Warranties Disclaimer
                         </h2>
                         <div className="text-gray-300 space-y-4">
-                            <div className="bg-black border border-red-500 border-opacity-50 rounded-lg p-4">
-                                <p className="text-sm font-semibold text-red-400 mb-2">DISCLAIMER OF WARRANTIES</p>
+                            <div className="bg-black border border-magenta/50 rounded-lg p-4">
+                                <p className="text-sm font-semibold text-magenta mb-2">DISCLAIMER OF WARRANTIES</p>
                                 <p className="text-sm uppercase">
                                     THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR COURSE OF PERFORMANCE.
                                 </p>
@@ -502,8 +502,8 @@ export default function TermsOfService() {
                             11. Limitation of Liability
                         </h2>
                         <div className="text-gray-300 space-y-4">
-                            <div className="bg-black border border-red-500 border-opacity-50 rounded-lg p-4">
-                                <p className="text-sm font-semibold text-red-400 mb-2">LIMITATION OF LIABILITY</p>
+                            <div className="bg-black border border-magenta/50 rounded-lg p-4">
+                                <p className="text-sm font-semibold text-magenta mb-2">LIMITATION OF LIABILITY</p>
                                 <p className="text-sm uppercase mb-3">
                                     TO THE MAXIMUM EXTENT PERMITTED BY LAW, KAMIYO SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR USE, WHETHER IN AN ACTION IN CONTRACT, TORT (INCLUDING NEGLIGENCE), OR OTHERWISE, ARISING OUT OF OR IN CONNECTION WITH THE SERVICE OR THESE TERMS.
                                 </p>

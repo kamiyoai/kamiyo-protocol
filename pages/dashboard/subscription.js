@@ -258,7 +258,7 @@ export default function SubscriptionPage() {
                             href="https://billing.stripe.com/p/login/9B628q7kD3vG0w0fD79bO00"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-cyan hover:text-magenta transition-colors text-sm"
+                            className="text-magenta hover:text-magenta transition-colors text-sm"
                         >
                             Access Billing Portal →
                         </a>

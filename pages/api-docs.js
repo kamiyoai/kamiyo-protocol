@@ -257,7 +257,7 @@ export default function ApiDocs() {
 
               <h4 className="font-light mb-2">Quick Setup (5 minutes):</h4>
               <ol className="list-decimal list-inside space-y-2 text-gray-400 text-sm mb-6">
-                <li>Subscribe to KAMIYO MCP at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.io/pricing</a></li>
+                <li>Subscribe to KAMIYO MCP at <a href="/pricing" className="text-magenta hover:opacity-80">kamiyo.io/pricing</a></li>
                 <li>Receive your MCP access token via email</li>
                 <li>Install the KAMIYO MCP server (Python 3.11+)</li>
                 <li>Configure Claude Desktop with your token</li>
@@ -431,7 +431,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
             <div className="mb-8 border-l-2 border-cyan pl-6">
               <h3 className="text-xl font-light mb-3">Step 1: Subscribe to KAMIYO MCP</h3>
               <p className="text-gray-400 mb-4">
-                Choose your subscription tier at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.io/pricing</a>
+                Choose your subscription tier at <a href="/pricing" className="text-magenta hover:opacity-80">kamiyo.io/pricing</a>
               </p>
               <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="text-sm text-gray-400 space-y-2">
@@ -458,7 +458,7 @@ Valid Until: 2026-10-28
 
 Keep this token secure - it provides access to KAMIYO security intelligence.`}</CodeBlock>
               <p className="text-gray-400 mt-4 text-sm">
-                Or retrieve it from your dashboard: <a href="/dashboard/api-keys" className="text-cyan hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
+                Or retrieve it from your dashboard: <a href="/dashboard/api-keys" className="text-magenta hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
               </p>
             </div>
 
@@ -571,13 +571,13 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                 <div>
                   <div className="text-white mb-2">Invalid token error</div>
                   <div className="text-gray-400">
-                    Regenerate token at <a href="/dashboard/api-keys" className="text-cyan hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
+                    Regenerate token at <a href="/dashboard/api-keys" className="text-magenta hover:opacity-80">kamiyo.io/dashboard/api-keys</a>
                   </div>
                 </div>
                 <div>
                   <div className="text-white mb-2">Subscription inactive</div>
                   <div className="text-gray-400">
-                    Check billing status at <a href="/dashboard/billing" className="text-cyan hover:opacity-80">kamiyo.io/dashboard/billing</a>
+                    Check billing status at <a href="/dashboard/billing" className="text-magenta hover:opacity-80">kamiyo.io/dashboard/billing</a>
                   </div>
                 </div>
               </div>
@@ -590,17 +590,17 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                 <div>
                   <div className="text-white mb-2">Documentation</div>
                   <ul className="text-gray-400 space-y-1">
-                    <li>• <a href="https://github.com/kamiyo-ai/kamiyo-mcp-server" className="text-cyan hover:opacity-80">GitHub Repository</a></li>
-                    <li>• <a href="/docs/MCP_SETUP_GUIDE.md" className="text-cyan hover:opacity-80">Full Setup Guide (PDF)</a></li>
-                    <li>• <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('mcp'); }} className="text-cyan hover:opacity-80">MCP Integration Overview</a></li>
+                    <li>• <a href="https://github.com/kamiyo-ai/kamiyo-mcp-server" className="text-magenta hover:opacity-80">GitHub Repository</a></li>
+                    <li>• <a href="/docs/MCP_SETUP_GUIDE.md" className="text-magenta hover:opacity-80">Full Setup Guide (PDF)</a></li>
+                    <li>• <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('mcp'); }} className="text-magenta hover:opacity-80">MCP Integration Overview</a></li>
                   </ul>
                 </div>
                 <div>
                   <div className="text-white mb-2">Support</div>
                   <ul className="text-gray-400 space-y-1">
-                    <li>• Email: <a href="mailto:support@kamiyo.io" className="text-cyan hover:opacity-80">support@kamiyo.io</a></li>
-                    <li>• Discord: <a href="https://discord.gg/kamiyo" className="text-cyan hover:opacity-80">discord.gg/kamiyo</a></li>
-                    <li>• Status: <a href="https://status.kamiyo.io" className="text-cyan hover:opacity-80">status.kamiyo.io</a></li>
+                    <li>• Email: <a href="mailto:support@kamiyo.io" className="text-magenta hover:opacity-80">support@kamiyo.io</a></li>
+                    <li>• Discord: <a href="https://discord.gg/kamiyo" className="text-magenta hover:opacity-80">discord.gg/kamiyo</a></li>
+                    <li>• Status: <a href="https://status.kamiyo.io" className="text-magenta hover:opacity-80">status.kamiyo.io</a></li>
                   </ul>
                 </div>
               </div>
@@ -725,7 +725,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
               <h3 className="text-lg font-light mb-4">Common Issues</h3>
               <div className="space-y-4 text-sm">
                 <details className="cursor-pointer">
-                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                  <summary className="text-white hover:text-magenta transition-colors font-medium mb-2">
                     Payment verified but token not working
                   </summary>
                   <div className="mt-2 text-gray-400 pl-4 space-y-1">
@@ -737,7 +737,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </details>
 
                 <details className="cursor-pointer">
-                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                  <summary className="text-white hover:text-magenta transition-colors font-medium mb-2">
                     Insufficient confirmations error
                   </summary>
                   <div className="mt-2 text-gray-400 pl-4 space-y-1">
@@ -749,7 +749,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </details>
 
                 <details className="cursor-pointer">
-                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                  <summary className="text-white hover:text-magenta transition-colors font-medium mb-2">
                     Transaction already used error
                   </summary>
                   <div className="mt-2 text-gray-400 pl-4 space-y-1">
@@ -760,7 +760,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </details>
 
                 <details className="cursor-pointer">
-                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                  <summary className="text-white hover:text-magenta transition-colors font-medium mb-2">
                     Wrong payment amount sent
                   </summary>
                   <div className="mt-2 text-gray-400 pl-4 space-y-1">
@@ -771,13 +771,13 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </details>
 
                 <details className="cursor-pointer">
-                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                  <summary className="text-white hover:text-magenta transition-colors font-medium mb-2">
                     High risk score rejection
                   </summary>
                   <div className="mt-2 text-gray-400 pl-4 space-y-1">
                     <div>• Payment came from sanctioned or high-risk address</div>
                     <div>• Use a different wallet not associated with sanctioned entities</div>
-                    <div>• Contact <a href="mailto:support@kamiyo.ai" className="text-cyan hover:opacity-80">support@kamiyo.ai</a> if you believe this is an error</div>
+                    <div>• Contact <a href="mailto:support@kamiyo.ai" className="text-magenta hover:opacity-80">support@kamiyo.ai</a> if you believe this is an error</div>
                   </div>
                 </details>
               </div>
@@ -1555,19 +1555,19 @@ client.on('payment_verified', (paymentToken) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
               <div className="text-gray-400 mb-2">Documentation Issues</div>
-              <div className="text-white">Contact <a href="mailto:support@kamiyo.ai" className="text-cyan hover:opacity-80">support@kamiyo.ai</a></div>
+              <div className="text-white">Contact <a href="mailto:support@kamiyo.ai" className="text-magenta hover:opacity-80">support@kamiyo.ai</a></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">x402 Integration Support</div>
-              <div className="text-white">Email <a href="mailto:integrations@kamiyo.ai" className="text-cyan hover:opacity-80">integrations@kamiyo.ai</a></div>
+              <div className="text-white">Email <a href="mailto:integrations@kamiyo.ai" className="text-magenta hover:opacity-80">integrations@kamiyo.ai</a></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">API Status</div>
-              <div className="text-white"><a href="https://status.kamiyo.ai" className="text-cyan hover:opacity-80">status.kamiyo.ai</a></div>
+              <div className="text-white"><a href="https://status.kamiyo.ai" className="text-magenta hover:opacity-80">status.kamiyo.ai</a></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">GitHub Repository</div>
-              <div className="text-white"><a href="https://github.com/kamiyo-ai" className="text-cyan hover:opacity-80">github.com/kamiyo-ai</a></div>
+              <div className="text-white"><a href="https://github.com/kamiyo-ai" className="text-magenta hover:opacity-80">github.com/kamiyo-ai</a></div>
             </div>
           </div>
         </div>
