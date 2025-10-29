@@ -100,7 +100,32 @@ export default function Home() {
 
                 {/* Two Column Layout */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                    {/* Left Column: Code Example */}
+                    {/* Left Column: Live Metrics */}
+                    <div className="flex items-center">
+                        <div className="w-full text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
+                            <div className="text-xs uppercase tracking-wider text-cyan mb-6">Live Security Intelligence</div>
+                            <div className="grid grid-cols-2 gap-6 text-sm">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">$2.1B</span>
+                                    <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">20+</span>
+                                    <span className="text-gray-400 text-xs mt-1">Data Sources</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">&lt;200ms</span>
+                                    <span className="text-gray-400 text-xs mt-1">Response Time</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">99.9%</span>
+                                    <span className="text-gray-400 text-xs mt-1">API Uptime</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Code Example */}
                     <div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
                             <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
@@ -125,31 +150,6 @@ export default function Home() {
                             <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
                             <div className="bg-black border border-gray-500/20 rounded px-3 py-2 mt-2">
                                 <div className="text-white text-xs"><span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right Column: Live Metrics */}
-                    <div className="flex items-center">
-                        <div className="w-full text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
-                            <div className="text-xs uppercase tracking-wider text-cyan mb-6">Live Security Intelligence</div>
-                            <div className="grid grid-cols-2 gap-6 text-sm">
-                                <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">$2.1B</span>
-                                    <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">20+</span>
-                                    <span className="text-gray-400 text-xs mt-1">Data Sources</span>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">&lt;200ms</span>
-                                    <span className="text-gray-400 text-xs mt-1">Response Time</span>
-                                </div>
-                                <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">99.9%</span>
-                                    <span className="text-gray-400 text-xs mt-1">API Uptime</span>
-                                </div>
                             </div>
                         </div>
                     </div>
