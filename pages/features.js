@@ -124,7 +124,7 @@ export default function Features() {
                 />
             </Head>
 
-            <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
+            <section className="py-10 px-5 md:px-1 mx-auto max-w-[1400px]">
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;機能</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence for AI Agents</h1>
@@ -133,13 +133,13 @@ export default function Features() {
 
                 {/* Security Intelligence Features */}
                 <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                    <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY INTELLIGENCE</p>
                         <h2 className="text-2xl md:text-3xl font-light">What You Get</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">20+ Source Aggregation</h3>
                             <p className="text-gray-400 text-sm">
                                 CertiK, PeckShield, BlockSec, SlowMist, Chainalysis, and 15+ more security
@@ -147,7 +147,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Real-Time Detection</h3>
                             <p className="text-gray-400 text-sm">
                                 Exploits detected and indexed within minutes. Critical alerts pushed
@@ -155,7 +155,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Protocol Risk Scoring</h3>
                             <p className="text-gray-400 text-sm">
                                 AI-powered risk assessment based on exploit history, amount lost,
@@ -163,7 +163,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Historical Database</h3>
                             <p className="text-gray-400 text-sm">
                                 Query 2+ years of exploit history. Filter by chain, protocol, amount,
@@ -171,7 +171,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Source Quality Ranking</h3>
                             <p className="text-gray-400 text-sm">
                                 Proprietary scoring algorithm ranks sources on speed, accuracy,
@@ -179,7 +179,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Wallet Screening</h3>
                             <p className="text-gray-400 text-sm">
                                 Check if wallet addresses are involved in known exploits.
@@ -190,14 +190,14 @@ export default function Features() {
                 </div>
 
                 {/* MCP Integration Features */}
-                <div className="mb-20 border-t border-gray-500 border-opacity-25 pt-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                <div className="mb-20 border-t border-gray-500/25 pt-20">
+                    <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">AI AGENT INTEGRATION</p>
                         <h2 className="text-2xl md:text-3xl font-light">MCP Integration for AI Agents</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Claude Desktop Integration</h3>
                             <p className="text-gray-400 text-sm">
                                 Add KAMIYO to Claude Desktop with one click. Your AI agents can
@@ -205,7 +205,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Unlimited Tool Calls</h3>
                             <p className="text-gray-400 text-sm">
                                 MCP subscriptions include unlimited security queries. No per-query
@@ -213,7 +213,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Persistent Connections</h3>
                             <p className="text-gray-400 text-sm">
                                 WebSocket connections for real-time updates. AI agents stay connected
@@ -221,7 +221,7 @@ export default function Features() {
                             </p>
                         </div>
 
-                        <div className="border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="border border-gray-500/25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Team Collaboration</h3>
                             <p className="text-gray-400 text-sm">
                                 Share MCP workspace with team. Multiple AI agents can access
@@ -233,7 +233,7 @@ export default function Features() {
 
                 {/* Alternative: x402 API Access */}
                 <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                    <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">ALTERNATIVE ACCESS</p>
                         <h2 className="text-2xl md:text-3xl font-light">x402 API for Direct/Custom Integration</h2>
                     </div>
@@ -307,7 +307,7 @@ export default function Features() {
 
                 {/* Billing Options */}
                 <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                    <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">BILLING OPTIONS</p>
                         <h2 className="text-2xl md:text-3xl font-light">Choose Your Access Model</h2>
                     </div>
@@ -377,7 +377,7 @@ export default function Features() {
 
                 {/* Data Quality & Coverage */}
                 <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                    <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">DATA QUALITY</p>
                         <h2 className="text-2xl md:text-3xl font-light">Comprehensive & Reliable Coverage</h2>
                     </div>

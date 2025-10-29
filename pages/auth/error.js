@@ -20,7 +20,7 @@ export default function AuthError() {
                 <title>Authentication Error - KAMIYO</title>
             </Head>
             <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-                <div className="max-w-md w-full space-y-6 p-8 border border-red-500 border-opacity-25 rounded-lg">
+                <div className="max-w-md w-full space-y-6 p-8 border border-red-500 /25 rounded-lg">
                     <div className="text-center">
                         <h2 className="text-2xl font-light mb-2">Authentication Error</h2>
                         <p className="text-gray-400">{errorMessage}</p>
@@ -35,7 +35,7 @@ export default function AuthError() {
                         </button>
                         <button
                             onClick={() => router.push('/')}
-                            className="w-full px-6 py-3 bg-transparent border border-gray-500 border-opacity-25 hover:border-gray-400 rounded-lg transition"
+                            className="w-full px-6 py-3 bg-transparent border border-gray-500 /25 hover:border-gray-400 rounded-lg transition"
                         >
                             Back to Home
                         </button>

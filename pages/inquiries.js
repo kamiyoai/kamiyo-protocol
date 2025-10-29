@@ -87,7 +87,7 @@ export default function ContactPage() {
                             <input
                                 {...register("name", { required: "Name is required" })}
                                 placeholder="Your name"
-                                className="w-full bg-transparent border-b border-gray-500 border-opacity-25 outline-none text-xs font-light py-2"
+                                className="w-full bg-transparent border-b border-gray-500 /25 outline-none text-xs font-light py-2"
                             />
                             {errors.name && <p className="text-magenta text-xs">{errors.name.message}</p>}
                         </div>
@@ -101,7 +101,7 @@ export default function ContactPage() {
                                     pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Invalid email address" },
                                 })}
                                 placeholder="Your email"
-                                className="w-full bg-transparent border-t-0 border-l-0 border-r-0 border-b border-gray-500 border-opacity-25 outline-none font-light text-xs py-2"
+                                className="w-full bg-transparent border-t-0 border-l-0 border-r-0 border-b border-gray-500 /25 outline-none font-light text-xs py-2"
                             />
                             {errors.email && <p className="text-magenta text-xs">{errors.email.message}</p>}
                         </div>
@@ -111,7 +111,7 @@ export default function ContactPage() {
                             <input
                                 {...register("subject")}
                                 placeholder="Subject"
-                                className="w-full bg-transparent border-b border-gray-500 border-opacity-25 outline-none font-light text-xs  py-2"
+                                className="w-full bg-transparent border-b border-gray-500 /25 outline-none font-light text-xs  py-2"
                             />
                         </div>
 
@@ -120,7 +120,7 @@ export default function ContactPage() {
               <textarea
                   {...register("message", { required: "Message is required" })}
                   placeholder="Your message"
-                  className="w-full bg-transparent border rounded-xl border-gray-500 border-opacity-25 outline-none font-light text-xs p-3 resize-none"
+                  className="w-full bg-transparent border rounded-xl border-gray-500 /25 outline-none font-light text-xs p-3 resize-none"
                   rows="4"
               />
                             {errors.message && <p className="text-magenta text-xs">{errors.message.message}</p>}

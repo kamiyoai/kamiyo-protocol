@@ -22,7 +22,7 @@ export default function SecurityIntelligence() {
 
             <div className="text-white bg-black min-h-screen">
                 {/* Hero Section */}
-                <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
+                <section className="w-full border-b border-gray-500 /25 bg-black">
                     <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                         <div className="max-w-4xl mx-auto text-center">
                             <h1 className="text-4xl md:text-5xl lg:text-6xl font-light mb-6 leading-tight text-white">
@@ -35,15 +35,15 @@ export default function SecurityIntelligence() {
 
                             {/* Stats Bar */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                                <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                                     <div className="text-3xl font-light gradient-text mb-2">$2.1B</div>
                                     <div className="text-gray-500 text-sm">Stolen in H1 2025</div>
                                 </div>
-                                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                                <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                                     <div className="text-3xl font-light gradient-text mb-2">20+</div>
                                     <div className="text-gray-500 text-sm">Intelligence Sources</div>
                                 </div>
-                                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                                <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                                     <div className="text-3xl font-light gradient-text mb-2">$0.01</div>
                                     <div className="text-gray-500 text-sm">Per Query via x402</div>
                                 </div>
@@ -62,7 +62,7 @@ export default function SecurityIntelligence() {
                                 </button>
                             </div>
 
-                            <div className="max-w-4xl mx-auto mt-8 p-6 border border-gray-500 border-opacity-25 rounded-lg">
+                            <div className="max-w-4xl mx-auto mt-8 p-6 border border-gray-500 /25 rounded-lg">
                                 <p className="text-center text-gray-400">
                                     <strong className="text-white">Two ways to access:</strong> MCP subscription
                                     for AI agents ($19/mo unlimited) or x402 API for direct queries ($0.01 each)
@@ -80,7 +80,7 @@ export default function SecurityIntelligence() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <div className="text-2xl mb-4">🚨</div>
                             <h3 className="text-xl font-light mb-3">Real-Time Exploit Alerts</h3>
                             <p className="text-gray-500 text-sm mb-4">
@@ -90,7 +90,7 @@ export default function SecurityIntelligence() {
                             <div className="text-cyan text-sm">$0.01/query</div>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <div className="text-2xl mb-4">📊</div>
                             <h3 className="text-xl font-light mb-3">Protocol Risk Scores</h3>
                             <p className="text-gray-500 text-sm mb-4">
@@ -100,7 +100,7 @@ export default function SecurityIntelligence() {
                             <div className="text-cyan text-sm">$0.02/risk-score (coming soon)</div>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <div className="text-2xl mb-4">🔍</div>
                             <h3 className="text-xl font-light mb-3">Wallet Screening</h3>
                             <p className="text-gray-500 text-sm mb-4">
@@ -110,7 +110,7 @@ export default function SecurityIntelligence() {
                             <div className="text-cyan text-sm">$0.005/wallet-check (coming soon)</div>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <div className="text-2xl mb-4">🎯</div>
                             <h3 className="text-xl font-light mb-3">Source Quality Scoring</h3>
                             <p className="text-gray-500 text-sm mb-4">
@@ -120,7 +120,7 @@ export default function SecurityIntelligence() {
                             <div className="text-cyan text-sm">Included</div>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <div className="text-2xl mb-4">⚡</div>
                             <h3 className="text-xl font-light mb-3">Historical Exploit Database</h3>
                             <p className="text-gray-500 text-sm mb-4">
@@ -130,7 +130,7 @@ export default function SecurityIntelligence() {
                             <div className="text-cyan text-sm">$0.01/query</div>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <div className="text-2xl mb-4">🤖</div>
                             <h3 className="text-xl font-light mb-3">AI Agent Optimized</h3>
                             <p className="text-gray-500 text-sm mb-4">
@@ -143,7 +143,7 @@ export default function SecurityIntelligence() {
                 </section>
 
                 {/* Why x402 for Security Intelligence */}
-                <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]">
+                <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 /25 max-w-[1400px]">
                     <div className="max-w-4xl mx-auto">
                         <h2 className="text-3xl md:text-4xl font-light mb-8 text-center">Why x402 for Security Intelligence?</h2>
 
@@ -202,9 +202,9 @@ export default function SecurityIntelligence() {
                         </div>
 
                         {/* Code Example */}
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-4">Simple Integration</h3>
-                            <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4 text-xs font-mono text-gray-300 overflow-x-auto mb-4">
+                            <div className="bg-black border border-gray-500 /25 rounded p-4 text-xs font-mono text-gray-300 overflow-x-auto mb-4">
                                 <div className="text-gray-500">// Install SDK</div>
                                 <div className="text-cyan">npm install kamiyo-x402-sdk</div>
                                 <br/>
@@ -226,14 +226,14 @@ export default function SecurityIntelligence() {
                 </section>
 
                 {/* Use Cases */}
-                <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]">
+                <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 /25 max-w-[1400px]">
                     <div className="text-center mb-12">
                         <h2 className="text-3xl md:text-4xl font-light mb-4">Who Uses KAMIYO?</h2>
                         <p className="text-gray-400 text-lg">Security intelligence for the entire crypto ecosystem</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">AI Trading Agents</h3>
                             <p className="text-gray-500 text-sm mb-4">
                                 Check protocol safety before executing trades. Pause trading when exploits detected.
@@ -246,7 +246,7 @@ export default function SecurityIntelligence() {
                             </ul>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">DeFi Protocol Teams</h3>
                             <p className="text-gray-500 text-sm mb-4">
                                 Monitor competitor exploits. Learn from security incidents. Get alerted when similar
@@ -259,7 +259,7 @@ export default function SecurityIntelligence() {
                             </ul>
                         </div>
 
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                        <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                             <h3 className="text-xl font-light mb-3">Security Researchers</h3>
                             <p className="text-gray-500 text-sm mb-4">
                                 Access aggregated exploit data from 20+ sources. Historical analysis, pattern detection,
@@ -275,7 +275,7 @@ export default function SecurityIntelligence() {
                 </section>
 
                 {/* CTA Section */}
-                <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]">
+                <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 /25 max-w-[1400px]">
                     <div className="max-w-3xl mx-auto text-center">
                         <h2 className="text-3xl md:text-4xl font-light mb-6">Ready to Secure Your AI Agents?</h2>
                         <p className="text-gray-400 text-lg mb-8">

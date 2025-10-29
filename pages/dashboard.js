@@ -127,7 +127,7 @@ export default function DashboardPage() {
                 </p>
 
                 {/* Subscription Info Card */}
-                <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 mb-8">
+                <div className="bg-black border border-gray-500 /25 rounded-lg p-6 mb-8">
                     <h2 className="text-2xl font-light mb-4">Subscription Status</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
@@ -155,19 +155,19 @@ export default function DashboardPage() {
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
+                    <div className="bg-black border border-gray-500 /25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => router.push('/api-docs')}>
                         <h3 className="text-lg font-light mb-2">API Documentation</h3>
                         <p className="text-gray-400 text-sm mb-4">Learn how to integrate security intelligence via MCP or x402</p>
                         <span className="text-cyan text-sm">View Docs →</span>
                     </div>
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
+                    <div className="bg-black border border-gray-500 /25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => router.push('/dashboard/api-keys')}>
                         <h3 className="text-lg font-light mb-2">Manage API Keys</h3>
                         <p className="text-gray-400 text-sm mb-4">Create and manage your API keys for security intelligence</p>
                         <span className="text-cyan text-sm">Manage Keys →</span>
                     </div>
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
+                    <div className="bg-black border border-gray-500 /25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => window.open('https://discord.com/invite/6Qxps5XP', '_blank')}>
                         <h3 className="text-lg font-light mb-2">Join Community</h3>
                         <p className="text-gray-400 text-sm mb-4">Get support and connect with other developers</p>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
 
                 {/* Usage Analytics for Team+ */}
                 {hasUsageAnalytics && usage && (
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 mb-8">
+                    <div className="bg-black border border-gray-500 /25 rounded-lg p-6 mb-8">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-light">Usage Analytics</h2>
                             <button
@@ -189,19 +189,19 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                            <div className="border border-gray-500 /25 rounded p-4">
                                 <p className="text-gray-400 text-sm mb-1">Total API Calls (7d)</p>
                                 <p className="text-white text-2xl font-light">{usage.totalRequests?.toLocaleString() || '0'}</p>
                             </div>
-                            <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                            <div className="border border-gray-500 /25 rounded p-4">
                                 <p className="text-gray-400 text-sm mb-1">x402 Payments (7d)</p>
                                 <p className="text-white text-2xl font-light">{usage.totalPayments?.toLocaleString() || '0'}</p>
                             </div>
-                            <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                            <div className="border border-gray-500 /25 rounded p-4">
                                 <p className="text-gray-400 text-sm mb-1">USDC Received (7d)</p>
                                 <p className="text-white text-2xl font-light">${usage.totalUSDC?.toFixed(2) || '0.00'}</p>
                             </div>
-                            <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                            <div className="border border-gray-500 /25 rounded p-4">
                                 <p className="text-gray-400 text-sm mb-1">Daily Average</p>
                                 <p className="text-white text-2xl font-light">{usage.dailyAverage?.toLocaleString() || '0'}</p>
                             </div>
@@ -212,7 +212,7 @@ export default function DashboardPage() {
                                 <h3 className="text-lg font-light mb-3">Recent Activity</h3>
                                 <div className="space-y-2">
                                     {usage.recentActivity.slice(0, 5).map((activity, index) => (
-                                        <div key={index} className="flex justify-between items-center text-sm py-2 border-b border-gray-500 border-opacity-25">
+                                        <div key={index} className="flex justify-between items-center text-sm py-2 border-b border-gray-500 /25">
                                             <span className="text-gray-400">{activity.endpoint || 'API Call'}</span>
                                             <span className="text-white">{new Date(activity.timestamp).toLocaleString()}</span>
                                         </div>
@@ -225,7 +225,7 @@ export default function DashboardPage() {
 
                 {/* Getting Started for Free Tier */}
                 {!subscription.isSubscribed && (
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
                         <h2 className="text-2xl font-light mb-4">Getting Started with Security Intelligence</h2>
                         <div className="space-y-4">
                             <div className="flex items-start gap-4">

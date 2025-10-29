@@ -5,7 +5,7 @@ export default function ApiDocs() {
   const [activeTab, setActiveTab] = useState('overview');
 
   const CodeBlock = ({ children, language = 'bash' }) => (
-    <pre className="bg-black border border-gray-500 border-opacity-25 rounded p-4 overflow-x-auto">
+    <pre className="bg-black border border-gray-500/25 rounded p-4 overflow-x-auto">
       <code className="text-sm text-gray-300 font-mono">{children}</code>
     </pre>
   );
@@ -106,7 +106,7 @@ export default function ApiDocs() {
         />
       </Head>
 
-      <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
+      <section className="py-10 px-5 md:px-1 mx-auto max-w-[1400px]">
         <div className="border-dotted border-b border-cyan mb-12 pb-6">
           <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;API ドキュメント</p>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence API</h1>
@@ -116,7 +116,7 @@ export default function ApiDocs() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500 border-opacity-25 pb-4">
+        <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500/25 pb-4">
           {['overview', 'mcp', 'mcp-setup', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
             <button
               key={tab}
@@ -142,7 +142,7 @@ export default function ApiDocs() {
           <div>
             <h2 className="text-2xl font-light mb-6">Overview</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">Security Intelligence Platform</div>
               <p className="text-gray-400 text-sm mb-4">
                 KAMIYO provides real-time crypto exploit intelligence from 20+ security researchers. Access via MCP subscription (recommended for AI agents) or x402 API (pay-per-query).
@@ -163,17 +163,17 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Supported Blockchains</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-cyan text-sm mb-2">Base</div>
                   <div className="text-gray-400 text-xs mb-1">6 confirmations required</div>
                   <div className="text-gray-400 text-xs">Fast settlement (~30 seconds)</div>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-cyan text-sm mb-2">Ethereum</div>
                   <div className="text-gray-400 text-xs mb-1">12 confirmations required</div>
                   <div className="text-gray-400 text-xs">Secure settlement (~3 minutes)</div>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-cyan text-sm mb-2">Solana</div>
                   <div className="text-gray-400 text-xs mb-1">32 confirmations required</div>
                   <div className="text-gray-400 text-xs">Fast settlement (~13 seconds)</div>
@@ -183,7 +183,7 @@ export default function ApiDocs() {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Pricing</h3>
-              <div className="border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="border border-gray-500 /25 rounded p-4">
                 <div className="text-white mb-2">$0.01 USDC per API call</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• Minimum payment: $0.01 USDC</div>
@@ -196,7 +196,7 @@ export default function ApiDocs() {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Rate Limits</h3>
-              <div className="border border-gray-500 border-opacity-25 rounded overflow-hidden">
+              <div className="border border-gray-500 /25 rounded overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-500 bg-opacity-10">
                     <tr>
@@ -205,7 +205,7 @@ export default function ApiDocs() {
                       <th className="text-left p-3 text-gray-400 font-light">Notes</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-500 divide-opacity-25">
+                  <tbody className="divide-y divide-gray-500 /25">
                     <tr>
                       <td className="p-3 font-mono text-cyan">/x402/pricing</td>
                       <td className="p-3 text-white">30/minute</td>
@@ -248,7 +248,7 @@ export default function ApiDocs() {
           <div>
             <h2 className="text-2xl font-light mb-6">Option 1: MCP Integration (Recommended for AI Agents)</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <h3 className="text-xl font-light mb-4">Claude Desktop Integration</h3>
               <p className="text-gray-400 mb-4">
                 The easiest way to access KAMIYO security intelligence is via MCP subscription.
@@ -264,7 +264,7 @@ export default function ApiDocs() {
                 <li>Start querying security intelligence</li>
               </ol>
 
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4 mb-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4 mb-4">
                 <div className="text-white text-sm mb-2">Configuration Example (macOS):</div>
                 <CodeBlock language="json">{`{
   "mcpServers": {
@@ -327,7 +327,7 @@ monitor_wallet(
 health_check()`}</CodeBlock>
             </div>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <h4 className="text-lg font-light mb-3">Example: Claude Checking Protocol Safety</h4>
               <CodeBlock language="text">{`User: "Should I deploy my contract to Uniswap V3 on Arbitrum?"
 
@@ -353,10 +353,10 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               </p>
             </div>
 
-            <div className="bg-black border border-yellow-500 border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-yellow-500 /25 rounded-lg p-6 mb-8">
               <h4 className="text-lg font-light mb-3">Subscription Tier Access</h4>
               <div className="grid md:grid-cols-3 gap-4 text-sm">
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-cyan font-medium mb-2">Personal ($19/mo)</div>
                   <ul className="text-gray-400 space-y-1 text-xs">
                     <li>• 1 AI agent</li>
@@ -376,7 +376,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
                     <li>• Priority support</li>
                   </ul>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-cyan font-medium mb-2">Enterprise ($299/mo)</div>
                   <ul className="text-gray-400 space-y-1 text-xs">
                     <li>• Unlimited agents</li>
@@ -389,7 +389,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               </div>
             </div>
 
-            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+            <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
               <h4 className="font-light mb-3">MCP vs x402 API - Which to use?</h4>
               <div className="grid md:grid-cols-2 gap-6 text-sm">
                 <div>
@@ -420,7 +420,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">MCP Setup for Claude Desktop</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">Complete Integration in 5 Steps</div>
               <p className="text-gray-400 text-sm">
                 Follow this guide to integrate KAMIYO security intelligence into Claude Desktop via the Model Context Protocol.
@@ -433,7 +433,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               <p className="text-gray-400 mb-4">
                 Choose your subscription tier at <a href="/pricing" className="text-cyan hover:opacity-80">kamiyo.io/pricing</a>
               </p>
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="text-sm text-gray-400 space-y-2">
                   <div>• <strong>Personal:</strong> $19/month - 1 agent, unlimited queries</div>
                   <div>• <strong>Team:</strong> $99/month - 5 agents, wallet monitoring</div>
@@ -520,7 +520,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
 }`}</CodeBlock>
               </div>
 
-              <div className="mt-4 bg-black border border-yellow-500 border-opacity-25 rounded p-4">
+              <div className="mt-4 bg-black border border-yellow-500 /25 rounded p-4">
                 <div className="text-yellow-500 text-sm mb-2">Important</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• Replace <code className="text-cyan">/Users/yourname/kamiyo-mcp-server</code> with your actual installation path</div>
@@ -559,7 +559,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
             </div>
 
             {/* Troubleshooting */}
-            <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500 /25 rounded-lg p-6 mb-8">
               <h3 className="text-lg font-light mb-4">Troubleshooting</h3>
               <div className="space-y-4 text-sm">
                 <div>
@@ -584,7 +584,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
             </div>
 
             {/* Documentation Links */}
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6">
               <h3 className="text-lg font-light mb-4">Additional Resources</h3>
               <div className="grid md:grid-cols-2 gap-4 text-sm">
                 <div>
@@ -613,7 +613,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">Option 2: x402 API Quick Start (For Direct/Custom Access)</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">5-Minute Setup</div>
               <p className="text-gray-400 text-sm">
                 Get started with x402 payments in 5 minutes. No account signup, no API keys, just send USDC and start querying security intelligence at $0.01 per query.
@@ -711,12 +711,75 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 </p>
                 <CodeBlock>{`curl -H "x-payment-token: kmy_a1b2c3d4e5f6g7h8i9j0..." \\
   https://api.kamiyo.ai/v1/exploits?chain=ethereum`}</CodeBlock>
-                <div className="mt-4 bg-black border border-cyan border-opacity-25 rounded-lg p-4">
+                <div className="mt-4 bg-black border border-cyan /25 rounded-lg p-4">
                   <div className="text-cyan text-sm mb-2">Success!</div>
                   <div className="text-gray-400 text-sm">
                     Your payment token is valid for 24 hours and has 10 API calls remaining. Each call decrements the counter.
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Troubleshooting */}
+            <div className="bg-black border border-yellow-500 /25 rounded-lg p-6 mt-8">
+              <h3 className="text-lg font-light mb-4">Common Issues</h3>
+              <div className="space-y-4 text-sm">
+                <details className="cursor-pointer">
+                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                    Payment verified but token not working
+                  </summary>
+                  <div className="mt-2 text-gray-400 pl-4 space-y-1">
+                    <div>• Check token hasn't expired (24hr limit)</div>
+                    <div>• Verify <code className="text-cyan">requests_remaining {'>'} 0</code></div>
+                    <div>• Confirm you're using <code className="text-cyan">x-payment-token</code> header (not Authorization)</div>
+                    <div>• Check for typos in token - it should start with <code className="text-cyan">kmy_</code></div>
+                  </div>
+                </details>
+
+                <details className="cursor-pointer">
+                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                    Insufficient confirmations error
+                  </summary>
+                  <div className="mt-2 text-gray-400 pl-4 space-y-1">
+                    <div>• <strong>Base:</strong> Wait ~30 seconds (6 confirmations required)</div>
+                    <div>• <strong>Ethereum:</strong> Wait ~3 minutes (12 confirmations required)</div>
+                    <div>• <strong>Solana:</strong> Wait ~13 seconds (32 confirmations required)</div>
+                    <div>• Check transaction status on block explorer before retrying</div>
+                  </div>
+                </details>
+
+                <details className="cursor-pointer">
+                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                    Transaction already used error
+                  </summary>
+                  <div className="mt-2 text-gray-400 pl-4 space-y-1">
+                    <div>• Each transaction hash can only be used once</div>
+                    <div>• If you need more requests, make a new payment</div>
+                    <div>• Check if you already generated a token for this payment</div>
+                  </div>
+                </details>
+
+                <details className="cursor-pointer">
+                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                    Wrong payment amount sent
+                  </summary>
+                  <div className="mt-2 text-gray-400 pl-4 space-y-1">
+                    <div>• Minimum payment: $0.01 USDC</div>
+                    <div>• $1 USDC = 100 queries (not 10)</div>
+                    <div>• Cannot refund - make a new payment with correct amount</div>
+                  </div>
+                </details>
+
+                <details className="cursor-pointer">
+                  <summary className="text-white hover:text-cyan transition-colors font-medium mb-2">
+                    High risk score rejection
+                  </summary>
+                  <div className="mt-2 text-gray-400 pl-4 space-y-1">
+                    <div>• Payment came from sanctioned or high-risk address</div>
+                    <div>• Use a different wallet not associated with sanctioned entities</div>
+                    <div>• Contact <a href="mailto:support@kamiyo.ai" className="text-cyan hover:opacity-80">support@kamiyo.ai</a> if you believe this is an error</div>
+                  </div>
+                </details>
               </div>
             </div>
           </div>
@@ -733,7 +796,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
                 After verifying your on-chain USDC payment, you'll receive a payment token that grants API access.
               </p>
 
-              <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4 mb-4">
+              <div className="bg-black border border-cyan /25 rounded-lg p-4 mb-4">
                 <div className="text-cyan text-sm mb-2">Token Format</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• Prefix: <code className="text-cyan font-mono">kmy_</code></div>
@@ -756,25 +819,25 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Token Lifecycle</h3>
               <div className="space-y-4">
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">1. Creation</div>
                   <p className="text-gray-400 text-sm">
                     Tokens are generated after successful payment verification using <code className="text-cyan">/x402/generate-token</code>.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">2. Validation</div>
                   <p className="text-gray-400 text-sm">
                     Each API request validates the token, checks expiry, and verifies remaining requests.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">3. Consumption</div>
                   <p className="text-gray-400 text-sm">
                     Each API call decrements the request counter. When requests reach zero, the token becomes invalid.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">4. Expiration</div>
                   <p className="text-gray-400 text-sm">
                     Tokens expire 24 hours after creation, regardless of remaining requests.
@@ -802,7 +865,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">Complete Payment Flow</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">End-to-End Flow</div>
               <p className="text-gray-400 text-sm">
                 Understanding the complete x402 payment flow from discovery to API access.
@@ -810,7 +873,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
             </div>
 
             <div className="space-y-6 mb-8">
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">1</div>
                   <div>
@@ -830,7 +893,7 @@ X-Payment-Currency: USDC
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">2</div>
                   <div>
@@ -844,7 +907,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">3</div>
                   <div>
@@ -852,7 +915,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                     <p className="text-gray-400 text-sm mb-3">
                       Agent calls <code className="text-cyan">/x402/verify-payment</code> with transaction hash. Server verifies on-chain.
                     </p>
-                    <div className="bg-black border border-cyan border-opacity-25 rounded p-3 text-sm text-gray-400 mb-3">
+                    <div className="bg-black border border-cyan /25 rounded p-3 text-sm text-gray-400 mb-3">
                       <div className="text-white mb-2">Verification Checks:</div>
                       <div>✓ Transaction exists on blockchain</div>
                       <div>✓ Sufficient confirmations (6-32 depending on chain)</div>
@@ -865,7 +928,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">4</div>
                   <div>
@@ -882,7 +945,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 border-opacity-25 rounded p-4">
+              <div className="bg-black border border-gray-500 /25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">5</div>
                   <div>
@@ -897,7 +960,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
               </div>
             </div>
 
-            <div className="bg-black border border-yellow-500 border-opacity-25 rounded-lg p-4">
+            <div className="bg-black border border-yellow-500 /25 rounded-lg p-4">
               <div className="text-yellow-500 text-sm mb-2">Important Notes</div>
               <div className="text-gray-400 text-sm space-y-1">
                 <div>• Payments must have sufficient confirmations before verification succeeds</div>
@@ -1000,7 +1063,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
               <p className="text-gray-400 mb-4">Verify on-chain USDC payment and create payment record.</p>
               <div className="mb-4">
                 <div className="text-sm font-light text-gray-500 mb-2">Request Body</div>
-                <div className="border border-gray-500 border-opacity-25 rounded overflow-hidden">
+                <div className="border border-gray-500 /25 rounded overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-500 bg-opacity-10">
                       <tr>
@@ -1009,7 +1072,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                         <th className="text-left p-3 text-gray-400 font-light">Description</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-500 divide-opacity-25">
+                    <tbody className="divide-y divide-gray-500 /25">
                       <tr>
                         <td className="p-3 font-mono text-cyan">tx_hash</td>
                         <td className="p-3 text-gray-400">string</td>
@@ -1078,7 +1141,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
   "requests_remaining": 10
 }`}</CodeBlock>
               </div>
-              <div className="mt-4 bg-black border border-yellow-500 border-opacity-25 rounded-lg p-4">
+              <div className="mt-4 bg-black border border-yellow-500 /25 rounded-lg p-4">
                 <div className="text-yellow-500 text-sm mb-2">Important</div>
                 <div className="text-gray-400 text-sm">
                   The payment token is only shown once. Store it securely. Tokens are hashed with SHA256 before database storage and cannot be retrieved later.
@@ -1114,7 +1177,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
               <p className="text-gray-400 mb-4">Get payment analytics and statistics.</p>
               <div className="mb-4">
                 <div className="text-sm font-light text-gray-500 mb-2">Query Parameters</div>
-                <div className="border border-gray-500 border-opacity-25 rounded overflow-hidden">
+                <div className="border border-gray-500 /25 rounded overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-500 bg-opacity-10">
                       <tr>
@@ -1123,7 +1186,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                         <th className="text-left p-3 text-gray-400 font-light">Description</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-500 divide-opacity-25">
+                    <tbody className="divide-y divide-gray-500 /25">
                       <tr>
                         <td className="p-3 font-mono text-cyan">from_address</td>
                         <td className="p-3 text-gray-400">string</td>
@@ -1153,7 +1216,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
           <div>
             <h2 className="text-2xl font-light mb-6">JavaScript SDK</h2>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-cyan /25 rounded-lg p-6 mb-8">
               <div className="text-cyan text-sm mb-2">Automated x402 Payment Handling</div>
               <p className="text-gray-400 text-sm">
                 Use our JavaScript SDK to automatically handle HTTP 402 responses, make USDC payments, verify on-chain, and retry API requests with payment tokens.
@@ -1188,31 +1251,31 @@ console.log(\`Found \${exploits.length} exploits\`);`}</CodeBlock>
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">How It Works</h3>
               <div className="space-y-4">
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">1. Automatic 402 Detection</div>
                   <p className="text-gray-400 text-sm">
                     SDK intercepts HTTP 402 responses and extracts payment information.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">2. USDC Payment</div>
                   <p className="text-gray-400 text-sm">
                     Automatically sends USDC payment to the specified address on your preferred chain.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">3. Payment Verification</div>
                   <p className="text-gray-400 text-sm">
                     Waits for required confirmations and verifies payment on-chain.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">4. Token Management</div>
                   <p className="text-gray-400 text-sm">
                     Generates and caches payment token for subsequent requests.
                   </p>
                 </div>
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="text-white font-medium mb-2">5. Request Retry</div>
                   <p className="text-gray-400 text-sm">
                     Automatically retries original API request with payment token.
@@ -1259,7 +1322,7 @@ client.on('payment_verified', (paymentToken) => {
 });`}</CodeBlock>
             </div>
 
-            <div className="bg-black border border-cyan border-opacity-25 rounded-lg p-4">
+            <div className="bg-black border border-cyan /25 rounded-lg p-4">
               <div className="text-cyan text-sm mb-2">Coming Soon</div>
               <div className="text-gray-400 text-sm space-y-1">
                 <div>• Python SDK for x402 payment automation</div>
@@ -1289,7 +1352,7 @@ client.on('payment_verified', (paymentToken) => {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">HTTP Status Codes</h3>
-              <div className="border border-gray-500 border-opacity-25 rounded overflow-hidden">
+              <div className="border border-gray-500 /25 rounded overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-500 bg-opacity-10">
                     <tr>
@@ -1298,7 +1361,7 @@ client.on('payment_verified', (paymentToken) => {
                       <th className="text-left p-3 text-gray-400 font-light">Description</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-500 divide-opacity-25">
+                  <tbody className="divide-y divide-gray-500 /25">
                     <tr>
                       <td className="p-3 font-mono text-cyan">200</td>
                       <td className="p-3 text-white">OK</td>
@@ -1338,7 +1401,7 @@ client.on('payment_verified', (paymentToken) => {
               <h3 className="text-xl font-light mb-4">Common Error Codes</h3>
 
               <div className="space-y-6">
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">PAYMENT_REQUIRED</span>
                     <span className="text-gray-500 text-sm">(402)</span>
@@ -1354,7 +1417,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">INSUFFICIENT_CONFIRMATIONS</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1368,7 +1431,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">INVALID_PAYMENT_AMOUNT</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1382,7 +1445,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">PAYMENT_ALREADY_USED</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1396,7 +1459,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">PAYMENT_TOKEN_EXPIRED</span>
                     <span className="text-gray-500 text-sm">(401)</span>
@@ -1410,7 +1473,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">NO_REQUESTS_REMAINING</span>
                     <span className="text-gray-500 text-sm">(402)</span>
@@ -1423,7 +1486,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">HIGH_RISK_SCORE</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1437,7 +1500,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 border-opacity-25 rounded p-4">
+                <div className="border border-gray-500 /25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">RATE_LIMIT_EXCEEDED</span>
                     <span className="text-gray-500 text-sm">(429)</span>
@@ -1487,7 +1550,7 @@ client.on('payment_verified', (paymentToken) => {
         )}
 
         {/* Support Section */}
-        <div className="mt-12 bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+        <div className="mt-12 bg-black border border-gray-500 /25 rounded-lg p-6">
           <h3 className="text-xl font-light mb-4">Need Help?</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>

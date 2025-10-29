@@ -44,7 +44,7 @@ export default function SignIn() {
                 <title>Sign In - KAMIYO</title>
             </Head>
             <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-                <div className="max-w-md w-full space-y-8 p-8 border border-gray-500 border-opacity-25 rounded-lg">
+                <div className="max-w-md w-full space-y-8 p-8 border border-gray-500 /25 rounded-lg">
                     <div>
                         <h2 className="text-3xl font-light text-center mb-2">Sign in to KAMIYO</h2>
                         <p className="text-gray-400 text-center text-sm">
@@ -71,7 +71,7 @@ export default function SignIn() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="w-full px-4 py-2 bg-black border border-gray-500 border-opacity-25 rounded-lg focus:outline-none focus:border-cyan transition text-white"
+                                    className="w-full px-4 py-2 bg-black border border-gray-500 /25 rounded-lg focus:outline-none focus:border-cyan transition text-white"
                                     placeholder="your@email.com"
                                     disabled={loading}
                                 />
@@ -87,7 +87,7 @@ export default function SignIn() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="w-full px-4 py-2 bg-black border border-gray-500 border-opacity-25 rounded-lg focus:outline-none focus:border-cyan transition text-white"
+                                    className="w-full px-4 py-2 bg-black border border-gray-500 /25 rounded-lg focus:outline-none focus:border-cyan transition text-white"
                                     placeholder="Enter your password"
                                     disabled={loading}
                                 />
@@ -104,7 +104,7 @@ export default function SignIn() {
 
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-gray-500 border-opacity-25"></div>
+                                <div className="w-full border-t border-gray-500 /25"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
                                 <span className="px-2 bg-black text-gray-500">or</span>
