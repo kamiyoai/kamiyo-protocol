@@ -8,6 +8,16 @@ import SEO from "../components/SEO";
 import { mcpPlans } from "../config/pricingPlans";
 
 export default function Home() {
+    const [stats, setStats] = useState(null);
+
+    useEffect(() => {
+        // Fetch homepage stats on mount
+        fetch('/api/homepage-stats')
+            .then(res => res.json())
+            .then(data => setStats(data))
+            .catch(err => console.error('Failed to fetch stats:', err));
+    }, []);
+
     return (
         <>
             <SEO />
@@ -92,6 +102,46 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* Live Stats Section */}
+            <section className="w-full px-5 mx-auto pt-8 pb-8 border-b border-gray-500/25 max-w-[1400px]">
+                <div className="text-center py-4 bg-black rounded-lg border border-gray-500/25">
+                    <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-sm">
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">
+                                {stats ? stats.totalStolenH1.formatted : "$2.1B"}
+                            </span>
+                            <span className="text-gray-400 text-xs mt-1">
+                                {stats ? stats.totalStolenH1.label : "Stolen H1 2025"}
+                            </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">
+                                {stats ? stats.sources.formatted : "20+"}
+                            </span>
+                            <span className="text-gray-400 text-xs mt-1">
+                                {stats ? stats.sources.label : "Exploit Sources"}
+                            </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">
+                                {stats ? stats.responseTime.formatted : "<200ms"}
+                            </span>
+                            <span className="text-gray-400 text-xs mt-1">
+                                {stats ? stats.responseTime.label : "Response Time"}
+                            </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-2xl md:text-3xl font-light text-white">
+                                {stats ? stats.uptime.formatted : "99.9%"}
+                            </span>
+                            <span className="text-gray-400 text-xs mt-1">
+                                {stats ? stats.uptime.label : "Uptime"}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Real Security Intelligence in Action Section */}
             <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]">
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
@@ -136,6 +186,37 @@ export default function Home() {
                     <div className="text-center mb-6">
                         <div className="text-xl font-light text-white mb-2">Claude with KAMIYO MCP</div>
                         <div className="text-sm text-gray-400">Making security-aware decisions automatically</div>
+                    </div>
+
+                    {/* Claude Desktop Integration Code Example */}
+                    <div className="mb-8 max-w-3xl mx-auto">
+                        <div className="bg-black border border-cyan/20 rounded-lg p-6 font-mono text-sm">
+                            <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
+                            <div className="text-white mb-2">
+                                <span className="text-cyan">const</span> kamiyo = <span className="text-cyan">await</span> claude.mcp.<span className="text-cyan">add</span>({'{'}
+                            </div>
+                            <div className="text-white ml-4 mb-2">
+                                <span className="text-cyan">name</span>: <span className="text-gray-400">"kamiyo-security"</span>,
+                            </div>
+                            <div className="text-white ml-4 mb-2">
+                                <span className="text-cyan">token</span>: process.env.<span className="text-white">MCP_TOKEN</span>
+                            </div>
+                            <div className="text-white mb-4">{'}'});</div>
+
+                            <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
+                            <div className="text-white mb-2">
+                                <span className="text-cyan">await</span> claude.<span className="text-cyan">ask</span>(
+                            </div>
+                            <div className="text-white ml-4 mb-2">
+                                <span className="text-gray-400">"Is Uniswap V3 safe to deploy on?"</span>
+                            </div>
+                            <div className="text-white mb-4">);</div>
+
+                            <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
+                            <div className="text-gray-400 italic">
+                                "Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-6 mb-6">
