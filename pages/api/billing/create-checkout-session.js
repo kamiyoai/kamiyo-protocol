@@ -28,9 +28,9 @@ export default async function handler(req, res) {
 
         // Map tier names to Stripe price IDs
         const priceMap = {
-            personal: process.env.STRIPE_PRICE_PERSONAL,
-            team: process.env.STRIPE_PRICE_TEAM,
-            enterprise: process.env.STRIPE_PRICE_ENTERPRISE,
+            personal: process.env.STRIPE_PRICE_MCP_PERSONAL,
+            team: process.env.STRIPE_PRICE_MCP_TEAM,
+            enterprise: process.env.STRIPE_PRICE_MCP_ENTERPRISE,
         };
 
         const priceId = priceMap[tier];

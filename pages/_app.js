@@ -2,21 +2,13 @@ import Head from 'next/head';
 import { SessionProvider } from 'next-auth/react';
 import { MenuProvider } from '../context/MenuContext';
 import Layout from '../components/Layout';
-import { useEffect } from 'react';
-import { initCsrfProtection } from '../utils/csrf';
 import '../styles/globals.css';
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
-  // Initialize CSRF protection on app load (BLOCKER 1)
-  // Only initialize in browser, not during SSR
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      initCsrfProtection().catch(err => {
-        // Silently fail - token will be fetched on first API request
-        console.debug('[App] CSRF initialization deferred:', err.message);
-      });
-    }
-  }, []);
+  // CSRF protection disabled - not needed for Next.js API routes
+  // The billing flow uses Next.js API routes (/api/billing/*) which are server-side
+  // and don't require CSRF tokens from the frontend.
+  // If direct Python backend API calls are needed in the future, use csrfFetch() from utils/csrf.js
 
   return (
     <SessionProvider session={session}>
