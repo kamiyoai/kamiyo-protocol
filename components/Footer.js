@@ -11,10 +11,21 @@ const Footer = () => {
                 isMenuOpen ? "-translate-x-72" : "translate-x-0"
             }`}
         >
-            <div className="flex items-center justify-between w-full px-5 md:w-5/6 md:px-1 mx-auto py-5">
-                <p className="mb-0 text-[0.6rem] text-left text-gray-500 font-light">
-                    Copyright &copy; {new Date().getFullYear()} Kamiyo.ai
-                </p>
+            <div className="flex flex-col md:flex-row items-center justify-between w-full px-5 md:w-5/6 md:px-1 mx-auto py-5 gap-4">
+                <div className="flex flex-col items-center md:items-start gap-2">
+                    <p className="mb-0 text-[0.6rem] text-center md:text-left text-gray-500 font-light">
+                        Copyright &copy; {new Date().getFullYear()} Kamiyo.ai
+                    </p>
+                    <div className="flex items-center gap-3 text-[0.6rem]">
+                        <a href="/privacy" className="text-gray-500 hover:text-cyan transition-colors">
+                            Privacy Policy
+                        </a>
+                        <span className="text-gray-700">|</span>
+                        <a href="/terms" className="text-gray-500 hover:text-cyan transition-colors">
+                            Terms of Service
+                        </a>
+                    </div>
+                </div>
                 <div className="flex items-center gap-4">
                     <a
                         href="https://x.com/KAMIYO"
