@@ -33,12 +33,28 @@ export default async function handler(req, res) {
             enterprise: process.env.STRIPE_PRICE_MCP_ENTERPRISE,
         };
 
+        // Debug logging
+        console.log('[Billing Debug] Requested tier:', tier);
+        console.log('[Billing Debug] Customer email:', customerEmail);
+        console.log('[Billing Debug] Price Map:', {
+            personal: process.env.STRIPE_PRICE_MCP_PERSONAL ? 'SET' : 'MISSING',
+            team: process.env.STRIPE_PRICE_MCP_TEAM ? 'SET' : 'MISSING',
+            enterprise: process.env.STRIPE_PRICE_MCP_ENTERPRISE ? 'SET' : 'MISSING',
+        });
+
         const priceId = priceMap[tier];
 
         if (!priceId) {
-            console.error(`Invalid tier requested: ${tier}`);
+            console.error(`[Billing Error] No price ID for tier: ${tier}`);
+            console.error(`[Billing Error] Available env vars:`, Object.keys(process.env).filter(k => k.includes('STRIPE')));
             return res.status(400).json({
-                error: "Invalid tier. Valid tiers: personal, team, enterprise"
+                error: "Invalid tier. Valid tiers: personal, team, enterprise",
+                debug: {
+                    tier: tier,
+                    hasPersonalPrice: !!process.env.STRIPE_PRICE_MCP_PERSONAL,
+                    hasTeamPrice: !!process.env.STRIPE_PRICE_MCP_TEAM,
+                    hasEnterprisePrice: !!process.env.STRIPE_PRICE_MCP_ENTERPRISE,
+                }
             });
         }
 
