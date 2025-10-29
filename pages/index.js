@@ -50,7 +50,7 @@ export default function Home() {
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-col md:flex-row gap-6 items-start">
+                            <div className="flex flex-col md:flex-row gap-6 items-center">
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Subscribe to MCP"
@@ -63,7 +63,8 @@ export default function Home() {
                                     onClick={() => {
                                         window.location.href = '/api-docs';
                                     }}
-                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300 ml-4"
+                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300"
+                                    style={{ paddingLeft: '4rem' }}
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
@@ -159,15 +160,15 @@ export default function Home() {
                     <div>
                         <div className="text-white mb-2 text-sm font-medium">What Happened</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6">
-                            <div className="text-white text-lg mb-3">Curve Finance Reentrancy</div>
+                            <div className="text-white text-lg mb-3">Curve Finance <span className="text-magenta">Reentrancy</span></div>
                             <div className="text-gray-400 text-sm mb-4 space-y-1">
-                                <div><strong className="text-gray-300">Detected:</strong> 2024-07-30 14:23 UTC</div>
-                                <div><strong className="text-gray-300">Chain:</strong> Ethereum Mainnet</div>
-                                <div><strong className="text-gray-300">Lost:</strong> $61.7M USDC/USDT</div>
-                                <div><strong className="text-gray-300">Vector:</strong> Vyper compiler 0.2.15-0.3.0 reentrancy</div>
+                                <div><strong className="text-cyan">Detected:</strong> 2024-07-30 14:23 UTC</div>
+                                <div><strong className="text-cyan">Chain:</strong> Ethereum Mainnet</div>
+                                <div><strong className="text-magenta">Lost:</strong> $61.7M USDC/USDT</div>
+                                <div><strong className="text-cyan">Vector:</strong> Vyper compiler 0.2.15-0.3.0 reentrancy</div>
                             </div>
                             <div className="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-500/20">
-                                Source: CertiK, PeckShield, BlockSec (3 confirmations)
+                                <strong className="text-cyan">Source:</strong> CertiK, PeckShield, BlockSec (3 confirmations)
                             </div>
                         </div>
                     </div>
@@ -178,8 +179,8 @@ export default function Home() {
                             <div className="text-white">{'{'}</div>
                             <div className="ml-4"><span className="text-cyan">"id"</span><span className="text-white">: </span><span className="text-gray-400">"exploit_curve_2024_07_30"</span><span className="text-white">,</span></div>
                             <div className="ml-4"><span className="text-cyan">"protocol"</span><span className="text-white">: </span><span className="text-gray-400">"Curve Finance"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-cyan">"severity"</span><span className="text-white">: </span><span className="text-gray-400">"critical"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-cyan">"amount_usd"</span><span className="text-white">: </span><span className="text-white">61700000</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"severity"</span><span className="text-white">: </span><span className="text-magenta">"critical"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"amount_usd"</span><span className="text-white">: </span><span className="text-magenta">61700000</span><span className="text-white">,</span></div>
                             <div className="ml-4"><span className="text-cyan">"vulnerability_type"</span><span className="text-white">: </span><span className="text-gray-400">"reentrancy"</span><span className="text-white">,</span></div>
                             <div className="ml-4"><span className="text-cyan">"affected_versions"</span><span className="text-white">: </span><span className="text-white">[</span><span className="text-gray-400">"vyper_0.2.15-0.3.0"</span><span className="text-white">]</span></div>
                             <div className="text-white">{'}'}</div>
