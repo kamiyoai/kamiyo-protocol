@@ -184,62 +184,65 @@ export default function Home() {
                         <div className="text-sm text-gray-400">Making security-aware decisions automatically</div>
                     </div>
 
-                    {/* Claude Desktop Integration Code Example */}
-                    <div className="mb-8 max-w-3xl mx-auto">
-                        <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
-                            <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
-                            <div className="text-white mb-2">
-                                <span className="text-cyan">const</span> kamiyo = <span className="text-cyan">await</span> claude.mcp.<span className="text-cyan">add</span>({'{'}
-                            </div>
-                            <div className="text-white ml-4 mb-2">
-                                <span className="text-cyan">name</span>: <span className="text-gray-400">"kamiyo-security"</span>,
-                            </div>
-                            <div className="text-white ml-4 mb-2">
-                                <span className="text-cyan">token</span>: process.env.<span className="text-white">MCP_TOKEN</span>
-                            </div>
-                            <div className="text-white mb-4">{'}'});</div>
+                    {/* Two-column layout: Code example + Interaction */}
+                    <div className="grid md:grid-cols-2 gap-8">
+                        {/* Left column: Claude Desktop Integration Code Example */}
+                        <div>
+                            <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
+                                <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
+                                <div className="text-white mb-2">
+                                    <span className="text-cyan">const</span> kamiyo = <span className="text-cyan">await</span> claude.mcp.<span className="text-cyan">add</span>({'{'}
+                                </div>
+                                <div className="text-white ml-4 mb-2">
+                                    <span className="text-cyan">name</span>: <span className="text-gray-400">"kamiyo-security"</span>,
+                                </div>
+                                <div className="text-white ml-4 mb-2">
+                                    <span className="text-cyan">token</span>: process.env.<span className="text-white">MCP_TOKEN</span>
+                                </div>
+                                <div className="text-white mb-4">{'}'});</div>
 
-                            <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
-                            <div className="text-white mb-2">
-                                <span className="text-cyan">await</span> claude.<span className="text-cyan">ask</span>(
-                            </div>
-                            <div className="text-white ml-4 mb-2">
-                                <span className="text-gray-400">"Is Uniswap V3 safe to deploy on?"</span>
-                            </div>
-                            <div className="text-white mb-4">);</div>
+                                <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
+                                <div className="text-white mb-2">
+                                    <span className="text-cyan">await</span> claude.<span className="text-cyan">ask</span>(
+                                </div>
+                                <div className="text-white ml-4 mb-2">
+                                    <span className="text-gray-400">"Is Uniswap V3 safe to deploy on?"</span>
+                                </div>
+                                <div className="text-white mb-4">);</div>
 
-                            <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
-                            <div className="text-gray-400 italic">
-                                "Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."
+                                <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
+                                <div className="text-gray-400 italic">
+                                    "Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="grid md:grid-cols-2 gap-6 mb-6">
-                        <div className="bg-black border border-gray-500/20 rounded p-4">
-                            <div className="text-white text-sm mb-2">User asks Claude:</div>
-                            <div className="text-gray-300 text-sm italic">
-                                "Should I deploy my NFT marketplace to Polygon zkEVM?"
+                        {/* Right column: Interaction examples stacked vertically */}
+                        <div className="space-y-4">
+                            <div className="bg-black border border-gray-500/20 rounded p-4">
+                                <div className="text-white text-sm mb-2">User asks Claude:</div>
+                                <div className="text-gray-300 text-sm italic">
+                                    "Should I deploy my NFT marketplace to Polygon zkEVM?"
+                                </div>
                             </div>
-                        </div>
-                        <div className="bg-black border border-gray-500/20 rounded p-4">
-                            <div className="text-white text-sm mb-2">Claude checks KAMIYO:</div>
-                            <div className="text-gray-300 text-xs font-mono">
-                                <span className="text-cyan">search_crypto_exploits</span>(<br/>
-                                &nbsp;&nbsp;<span className="text-cyan">chain</span>=<span className="text-gray-400">"polygon-zkevm"</span>,<br/>
-                                &nbsp;&nbsp;<span className="text-cyan">since</span>=<span className="text-gray-400">"2024-01-01"</span><br/>
-                                )
+                            <div className="bg-black border border-gray-500/20 rounded p-4">
+                                <div className="text-white text-sm mb-2">Claude checks KAMIYO:</div>
+                                <div className="text-gray-300 text-xs font-mono">
+                                    <span className="text-cyan">search_crypto_exploits</span>(<br/>
+                                    &nbsp;&nbsp;<span className="text-cyan">chain</span>=<span className="text-gray-400">"polygon-zkevm"</span>,<br/>
+                                    &nbsp;&nbsp;<span className="text-cyan">since</span>=<span className="text-gray-400">"2024-01-01"</span><br/>
+                                    )
+                                </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-black border border-gray-500/20 rounded p-4">
-                        <div className="text-white text-sm mb-2">Claude's Response:</div>
-                        <div className="text-gray-300 text-sm">
-                            "Based on KAMIYO data, Polygon zkEVM has had <strong className="text-white">2 minor incidents</strong> in 2024,
-                            both patched within 48 hours. <strong className="text-white">Risk score: 0.23/1.0 (low-moderate)</strong>.
-                            The most recent incident was 87 days ago. I'd recommend proceeding with deployment,
-                            but implement rate limiting and start with a $50K TVL cap for the first 30 days."
+                            <div className="bg-black border border-gray-500/20 rounded p-4">
+                                <div className="text-white text-sm mb-2">Claude's Response:</div>
+                                <div className="text-gray-300 text-sm">
+                                    "Based on KAMIYO data, Polygon zkEVM has had <strong className="text-white">2 minor incidents</strong> in 2024,
+                                    both patched within 48 hours. <strong className="text-white">Risk score: 0.23/1.0 (low-moderate)</strong>.
+                                    The most recent incident was 87 days ago. I'd recommend proceeding with deployment,
+                                    but implement rate limiting and start with a $50K TVL cap for the first 30 days."
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
