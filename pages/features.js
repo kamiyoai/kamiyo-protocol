@@ -124,7 +124,7 @@ export default function Features() {
                 />
             </Head>
 
-            <section className="py-10 px-5 md:px-1 mx-auto max-w-[1400px]">
+            <section className="py-10 px-5 mx-auto max-w-[1400px]">
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;機能</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence for AI Agents</h1>
