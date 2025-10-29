@@ -50,7 +50,7 @@ export default function Home() {
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-col md:flex-row gap-6 items-center">
+                            <div className="flex flex-col md:flex-row gap-6 items-start">
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Subscribe to MCP"
@@ -63,7 +63,7 @@ export default function Home() {
                                     onClick={() => {
                                         window.location.href = '/api-docs';
                                     }}
-                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300 md:ml-12"
+                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300 ml-4"
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
@@ -97,54 +97,59 @@ export default function Home() {
                     Real Security Intelligence in Action
                 </h2>
 
-                {/* Live Metrics Bar */}
-                <div className="text-center mb-12 py-4 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
-                    <div className="text-xs uppercase tracking-wider text-cyan mb-3">Live Security Intelligence</div>
-                    <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-sm">
-                        <div className="flex flex-col items-center">
-                            <span className="text-2xl md:text-3xl font-light text-white">$2.1B</span>
-                            <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-2xl md:text-3xl font-light text-white">20+</span>
-                            <span className="text-gray-400 text-xs mt-1">Data Sources</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-2xl md:text-3xl font-light text-white">&lt;200ms</span>
-                            <span className="text-gray-400 text-xs mt-1">Response Time</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-2xl md:text-3xl font-light text-white">99.9%</span>
-                            <span className="text-gray-400 text-xs mt-1">API Uptime</span>
+                {/* Two Column Layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                    {/* Left Column: Code Example */}
+                    <div>
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
+                            <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
+                            <div className="space-y-1">
+                                <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-white"> = </span><span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-white">add</span><span className="text-white">({'{'}</span></div>
+                                <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">: </span><span className="text-gray-400">"kamiyo-security"</span><span className="text-white">,</span></div>
+                                <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">: </span><span className="text-white">process.env.</span><span className="text-white">MCP_TOKEN</span></div>
+                                <div><span className="text-white">{'}'});</span></div>
+                            </div>
+
+                            <div className="border-t border-gray-500/20 my-4"></div>
+
+                            <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
+                            <div className="space-y-1">
+                                <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-white">ask</span><span className="text-white">(</span></div>
+                                <div className="ml-4"><span className="text-gray-400">"Is Uniswap V3 safe to deploy on?"</span></div>
+                                <div><span className="text-white">);</span></div>
+                            </div>
+
+                            <div className="border-t border-gray-500/20 my-4"></div>
+
+                            <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
+                            <div className="bg-black border border-gray-500/20 rounded px-3 py-2 mt-2">
+                                <div className="text-white text-xs"><span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* MCP Integration Code Example */}
-                <div className="mb-12 max-w-3xl mx-auto">
-                    <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
-                        <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
-                        <div className="space-y-1">
-                            <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-white"> = </span><span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-white">add</span><span className="text-white">({'{'}</span></div>
-                            <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">: </span><span className="text-gray-400">"kamiyo-security"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">: </span><span className="text-white">process.env.</span><span className="text-white">MCP_TOKEN</span></div>
-                            <div><span className="text-white">{'}'});</span></div>
-                        </div>
-
-                        <div className="border-t border-gray-500/20 my-4"></div>
-
-                        <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
-                        <div className="space-y-1">
-                            <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-white">ask</span><span className="text-white">(</span></div>
-                            <div className="ml-4"><span className="text-gray-400">"Is Uniswap V3 safe to deploy on?"</span></div>
-                            <div><span className="text-white">);</span></div>
-                        </div>
-
-                        <div className="border-t border-gray-500/20 my-4"></div>
-
-                        <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
-                        <div className="bg-black border border-gray-500/20 rounded px-3 py-2 mt-2">
-                            <div className="text-white text-xs"><span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
+                    {/* Right Column: Live Metrics */}
+                    <div className="flex items-center">
+                        <div className="w-full text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
+                            <div className="text-xs uppercase tracking-wider text-cyan mb-6">Live Security Intelligence</div>
+                            <div className="grid grid-cols-2 gap-6 text-sm">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">$2.1B</span>
+                                    <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">20+</span>
+                                    <span className="text-gray-400 text-xs mt-1">Data Sources</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">&lt;200ms</span>
+                                    <span className="text-gray-400 text-xs mt-1">Response Time</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-3xl font-light text-white">99.9%</span>
+                                    <span className="text-gray-400 text-xs mt-1">API Uptime</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -171,12 +176,12 @@ export default function Home() {
                         <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
                             <div className="text-gray-500 mb-2">// Real API response (sanitized)</div>
                             <div className="text-white">{'{'}</div>
-                            <div className="ml-4"><span className="text-magenta">"id"</span><span className="text-white">: </span><span className="text-gray-400">"exploit_curve_2024_07_30"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"protocol"</span><span className="text-white">: </span><span className="text-gray-400">"Curve Finance"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"severity"</span><span className="text-white">: </span><span className="text-gray-400">"critical"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"amount_usd"</span><span className="text-white">: </span><span className="text-white">61700000</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"vulnerability_type"</span><span className="text-white">: </span><span className="text-gray-400">"reentrancy"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"affected_versions"</span><span className="text-white">: </span><span className="text-white">[</span><span className="text-gray-400">"vyper_0.2.15-0.3.0"</span><span className="text-white">]</span></div>
+                            <div className="ml-4"><span className="text-cyan">"id"</span><span className="text-white">: </span><span className="text-gray-400">"exploit_curve_2024_07_30"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"protocol"</span><span className="text-white">: </span><span className="text-gray-400">"Curve Finance"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"severity"</span><span className="text-white">: </span><span className="text-gray-400">"critical"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"amount_usd"</span><span className="text-white">: </span><span className="text-white">61700000</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"vulnerability_type"</span><span className="text-white">: </span><span className="text-gray-400">"reentrancy"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-cyan">"affected_versions"</span><span className="text-white">: </span><span className="text-white">[</span><span className="text-gray-400">"vyper_0.2.15-0.3.0"</span><span className="text-white">]</span></div>
                             <div className="text-white">{'}'}</div>
                         </div>
                     </div>
@@ -199,9 +204,9 @@ export default function Home() {
                         <div className="bg-black border border-gray-500/20 rounded p-4">
                             <div className="text-white text-sm mb-2">Claude checks KAMIYO:</div>
                             <div className="text-gray-300 text-xs font-mono">
-                                search_crypto_exploits(<br/>
-                                &nbsp;&nbsp;chain=<span className="text-gray-400">"polygon-zkevm"</span>,<br/>
-                                &nbsp;&nbsp;since=<span className="text-gray-400">"2024-01-01"</span><br/>
+                                <span className="text-cyan">search_crypto_exploits</span>(<br/>
+                                &nbsp;&nbsp;<span className="text-cyan">chain</span>=<span className="text-gray-400">"polygon-zkevm"</span>,<br/>
+                                &nbsp;&nbsp;<span className="text-cyan">since</span>=<span className="text-gray-400">"2024-01-01"</span><br/>
                                 )
                             </div>
                         </div>
@@ -312,28 +317,28 @@ export default function Home() {
 
                         {/* For AI Agents */}
                         <div className="bg-gradient-to-br from-cyan/10 to-magenta/10 border border-gray-500/20 rounded-lg p-6">
-                            <div className="text-white text-lg font-light mb-4">Built for AI Agents</div>
+                            <div className="text-cyan text-lg font-light mb-4">Built for AI Agents</div>
                             <div className="space-y-3 text-sm text-gray-300">
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Native MCP integration</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Agents pay autonomously (x402)</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Structured JSON responses</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Risk scoring built-in</span>
@@ -365,10 +370,10 @@ export default function Home() {
                             Make a request to see payment details and what you'll pay
                         </div>
                         <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono mb-3">
-                            <div className="text-gray-500">$ curl https://api.kamiyo.ai/v1/exploits</div>
+                            <div className="text-gray-500">$ <span className="text-cyan">curl</span> https://api.kamiyo.ai/v1/exploits</div>
                             <div className="text-white mt-2">HTTP/1.1 402 Payment Required</div>
-                            <div className="text-magenta mt-1">X-Payment-Amount: <span className="text-white">0.01 USDC</span></div>
-                            <div className="text-magenta">X-Payment-Chain: <span className="text-white">base</span></div>
+                            <div className="text-cyan mt-1">X-Payment-Amount: <span className="text-white">0.01 USDC</span></div>
+                            <div className="text-cyan">X-Payment-Chain: <span className="text-white">base</span></div>
                         </div>
                     </div>
 
@@ -386,8 +391,8 @@ export default function Home() {
                         </div>
                         <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono mb-2">
                             <div className="text-white">Transfer <span className="text-white">0.01 USDC</span></div>
-                            <div className="text-magenta mt-1">To: <span className="text-gray-400">0x742d...7b7b7</span></div>
-                            <div className="text-magenta">Chain: <span className="text-white">Base</span></div>
+                            <div className="text-cyan mt-1">To: <span className="text-gray-400">0x742d...7b7b7</span></div>
+                            <div className="text-cyan">Chain: <span className="text-white">Base</span></div>
                         </div>
                         <div className="text-xs text-gray-500">
                             Base: ~30s | Ethereum: ~3min | Solana: ~13s
@@ -407,9 +412,9 @@ export default function Home() {
                         </div>
                         <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono">
                             <div className="text-gray-500">// Automatic verification</div>
-                            <div className="text-magenta mt-1">X-Payment-Token: <span className="text-white">kmy_...</span></div>
-                            <div className="text-magenta">Requests: <span className="text-white">100</span></div>
-                            <div className="text-magenta">Expires: <span className="text-white">24h</span></div>
+                            <div className="text-cyan mt-1">X-Payment-Token: <span className="text-white">kmy_...</span></div>
+                            <div className="text-cyan">Requests: <span className="text-white">100</span></div>
+                            <div className="text-cyan">Expires: <span className="text-white">24h</span></div>
                         </div>
                     </div>
                 </div>
@@ -466,7 +471,7 @@ export default function Home() {
                             <div className="text-white mb-2 font-semibold">Option 1: MCP Integration</div>
                             <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
                                 <div className="text-gray-500">// Add to Claude Desktop</div>
-                                <div className="text-white">claude mcp add kamiyo</div>
+                                <div className="text-white">claude <span className="text-cyan">mcp</span> <span className="text-cyan">add</span> kamiyo</div>
                                 <br/>
                                 <div className="text-gray-500">// Unlimited queries</div>
                                 <div className="text-white">$19-299/mo</div>
@@ -476,7 +481,7 @@ export default function Home() {
                             <div className="text-white mb-2 font-semibold">Option 2: x402 API</div>
                             <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
                                 <div className="text-gray-500">// Install SDK</div>
-                                <div className="text-white">npm install kamiyo-x402-sdk</div>
+                                <div className="text-white"><span className="text-cyan">npm</span> <span className="text-cyan">install</span> kamiyo-x402-sdk</div>
                                 <br/>
                                 <div className="text-gray-500">// Pay per query</div>
                                 <div className="text-white">$0.01 per query</div>
