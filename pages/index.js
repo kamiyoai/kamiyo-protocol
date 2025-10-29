@@ -103,22 +103,22 @@ export default function Home() {
                     {/* Left Column: Live Metrics */}
                     <div className="flex items-center">
                         <div className="w-full text-center py-8 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
-                            <div className="text-xs uppercase tracking-wider text-cyan mb-6">Live Security Intelligence</div>
+                            <div className="text-xs uppercase tracking-wider text-white mb-6">Live Security Intelligence</div>
                             <div className="grid grid-cols-2 gap-6 text-sm">
                                 <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">$2.1B</span>
+                                    <span className="text-3xl font-light text-magenta">$2.1B</span>
                                     <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
                                 </div>
                                 <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">20+</span>
+                                    <span className="text-3xl font-light text-cyan">20+</span>
                                     <span className="text-gray-400 text-xs mt-1">Data Sources</span>
                                 </div>
                                 <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">&lt;200ms</span>
+                                    <span className="text-3xl font-light text-cyan">&lt;200ms</span>
                                     <span className="text-gray-400 text-xs mt-1">Response Time</span>
                                 </div>
                                 <div className="flex flex-col items-center">
-                                    <span className="text-3xl font-light text-white">99.9%</span>
+                                    <span className="text-3xl font-light text-cyan">99.9%</span>
                                     <span className="text-gray-400 text-xs mt-1">API Uptime</span>
                                 </div>
                             </div>
