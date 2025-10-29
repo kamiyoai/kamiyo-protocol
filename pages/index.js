@@ -147,7 +147,7 @@ export default function Home() {
                 {/* Example: Recent Exploit Alert */}
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     <div>
-                        <div className="text-white mb-2 text-sm font-medium">What Happened</div>
+                        <div className="text-white mb-2 text-sm font-medium text-center">What Happened</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6">
                             <div className="text-white text-lg mb-3">Curve Finance <span className="text-magenta">Reentrancy</span></div>
                             <div className="text-gray-400 text-sm mb-4 space-y-1">
@@ -162,7 +162,7 @@ export default function Home() {
                         </div>
                     </div>
                     <div>
-                        <div className="text-white mb-2 text-sm font-medium">Your AI Agent Gets This</div>
+                        <div className="text-white mb-2 text-sm font-medium text-center">Your AI Agent Gets This</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
                             <div className="text-gray-500 mb-2">// Real API response (sanitized)</div>
                             <div className="text-white">{'{'}</div>
