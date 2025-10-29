@@ -24,7 +24,7 @@ export default function Home() {
                         <article className="space-y-8">
                             {/* Heading */}
                             <header>
-                                <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;セキュリティ情報</p>
+                                <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;ブロックチェーン脆弱情報</p>
                                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4 leading-tight text-white">
                                     Give Your AI Agents a Security Brain
                                 </h2>
@@ -64,7 +64,7 @@ export default function Home() {
                                         window.location.href = '/api-docs';
                                     }}
                                     className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300"
-                                    style={{ paddingLeft: '4rem' }}
+                                    style={{ paddingLeft: '4rem', paddingTop: '13px' }}
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
