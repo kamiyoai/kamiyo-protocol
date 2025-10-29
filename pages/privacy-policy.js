@@ -7,7 +7,7 @@ export default function PrivacyPolicy() {
                 <title>Privacy Policy - KAMIYO</title>
             </Head>
 
-            <section className="py-10 px-5 md:px-1 md:w-5/6 mx-auto">
+            <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;プライバシーポリシー</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Privacy Policy</h1>

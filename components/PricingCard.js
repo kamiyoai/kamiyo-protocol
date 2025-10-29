@@ -57,7 +57,7 @@ export default function PricingCard({ plan, isHighlighted = false }) {
 
     return (
         <div
-            className={`relative bg-black ${isHighlighted ? 'border-2 border-transparent bg-gradient-to-br from-cyan via-cyan to-magenta bg-clip-padding' : 'border border-gray-500 border-opacity-25'} rounded-lg ${isHighlighted ? '-translate-y-1' : ''} hover:-translate-y-1 transition-all duration-300 flex flex-col`}
+            className={`relative bg-black ${isHighlighted ? 'border border-transparent bg-gradient-to-br from-cyan via-cyan to-magenta bg-clip-padding' : 'border border-gray-500 border-opacity-25'} rounded-lg ${isHighlighted ? '-translate-y-1' : ''} hover:-translate-y-1 transition-all duration-300 flex flex-col`}
             itemScope
             itemType="https://schema.org/Offer"
             style={isHighlighted ? {
