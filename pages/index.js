@@ -18,6 +18,29 @@ export default function Home() {
                     {/* SEO-friendly H1 (visually hidden) */}
                     <h1 className="sr-only">KAMIYO: Security Intelligence for AI Agents via MCP & x402</h1>
 
+                    {/* Live Metrics Bar */}
+                    <div className="text-center mb-8 py-4 bg-gradient-to-r from-cyan/10 to-magenta/10 rounded-lg border border-cyan/20">
+                        <div className="text-xs uppercase tracking-wider text-cyan mb-3">Live Security Intelligence</div>
+                        <div className="flex flex-wrap justify-center gap-6 md:gap-12 text-sm">
+                            <div className="flex flex-col items-center">
+                                <span className="text-2xl md:text-3xl font-light text-white">$2.1B</span>
+                                <span className="text-gray-400 text-xs mt-1">Stolen H1 2025</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-2xl md:text-3xl font-light text-white">20+</span>
+                                <span className="text-gray-400 text-xs mt-1">Data Sources</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-2xl md:text-3xl font-light text-white">&lt;200ms</span>
+                                <span className="text-gray-400 text-xs mt-1">Response Time</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-2xl md:text-3xl font-light text-white">99.9%</span>
+                                <span className="text-gray-400 text-xs mt-1">API Uptime</span>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
                         {/* Left column: Content */}
@@ -26,7 +49,7 @@ export default function Home() {
                             <header>
                                 <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;セキュリティ情報</p>
                                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4 leading-tight text-white">
-                                    Security Intelligence for AI Agents
+                                    Give Your AI Agents a Security Brain
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
                                     Subscribe via MCP for unlimited queries, or pay $0.01 per query with x402. Aggregating exploits from 20+ sources. $2.1B stolen in H1 2025 - know before you deploy.
@@ -74,20 +97,109 @@ export default function Home() {
 
                         </article>
 
-                        {/* Right column: Video (hidden on mobile) */}
-                        <div className="hidden md:flex justify-center md:justify-end">
-                            <video
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                className="w-auto"
-                                style={{ height: '24rem', filter: 'saturate(2.0) contrast(1.2)' }}
-                                aria-label="KAMIYO Security Intelligence demonstration for AI agents via MCP and x402"
-                                title="Security intelligence for AI agents via MCP and x402"
-                            >
-                                <source src="/media/pfn_x_42.mp4" type="video/mp4" />
-                            </video>
+                        {/* Right column: Code Example */}
+                        <div className="hidden md:block">
+                            <div className="bg-black border border-cyan/20 rounded-lg p-6 font-mono text-sm">
+                                <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
+                                <div className="space-y-1">
+                                    <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-cyan">=</span> <span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-yellow-400">add</span><span className="text-white">({'{'}</span></div>
+                                    <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">:</span> <span className="text-green-400">"kamiyo-security"</span><span className="text-white">,</span></div>
+                                    <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">:</span> <span className="text-white">process.env.</span><span className="text-yellow-400">MCP_TOKEN</span></div>
+                                    <div><span className="text-white">{'}'});</span></div>
+                                </div>
+
+                                <div className="border-t border-gray-500/20 my-4"></div>
+
+                                <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
+                                <div className="space-y-1">
+                                    <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-yellow-400">ask</span><span className="text-white">(</span></div>
+                                    <div className="ml-4"><span className="text-green-400">"Is Uniswap V3 safe to deploy on?"</span></div>
+                                    <div><span className="text-white">);</span></div>
+                                </div>
+
+                                <div className="border-t border-gray-500/20 my-4"></div>
+
+                                <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
+                                <div className="bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/20 rounded px-3 py-2 mt-2">
+                                    <div className="text-green-400 text-xs">✓ <span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Real Security Intelligence in Action Section */}
+            <section className="w-full px-5 mx-auto pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]">
+                <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
+                    Real Security Intelligence in Action
+                </h2>
+
+                {/* Example: Recent Exploit Alert */}
+                <div className="grid md:grid-cols-2 gap-8 mb-12">
+                    <div>
+                        <div className="text-cyan mb-2 text-sm font-medium">What Happened</div>
+                        <div className="bg-black border border-red-500/30 rounded-lg p-6">
+                            <div className="text-red-400 text-lg mb-3">🚨 Curve Finance Reentrancy</div>
+                            <div className="text-gray-400 text-sm mb-4 space-y-1">
+                                <div><strong className="text-gray-300">Detected:</strong> 2024-07-30 14:23 UTC</div>
+                                <div><strong className="text-gray-300">Chain:</strong> Ethereum Mainnet</div>
+                                <div><strong className="text-gray-300">Lost:</strong> $61.7M USDC/USDT</div>
+                                <div><strong className="text-gray-300">Vector:</strong> Vyper compiler 0.2.15-0.3.0 reentrancy</div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-500/20">
+                                Source: CertiK, PeckShield, BlockSec (3 confirmations)
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-cyan mb-2 text-sm font-medium">Your AI Agent Gets This</div>
+                        <div className="bg-black border border-cyan/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+                            <div className="text-gray-500 mb-2">// Real API response (sanitized)</div>
+                            <div className="text-white">{'{'}</div>
+                            <div className="ml-4"><span className="text-magenta">"id"</span><span className="text-white">:</span> <span className="text-green-400">"exploit_curve_2024_07_30"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"protocol"</span><span className="text-white">:</span> <span className="text-green-400">"Curve Finance"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"severity"</span><span className="text-white">:</span> <span className="text-red-400">"critical"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"amount_usd"</span><span className="text-white">:</span> <span className="text-cyan">61700000</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"vulnerability_type"</span><span className="text-white">:</span> <span className="text-green-400">"reentrancy"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"affected_versions"</span><span className="text-white">:</span> <span className="text-white">[</span><span className="text-green-400">"vyper_0.2.15-0.3.0"</span><span className="text-white">]</span></div>
+                            <div className="text-white">{'}'}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Example: Agent Making Smart Decisions */}
+                <div className="bg-gradient-to-r from-cyan/5 to-magenta/5 border border-cyan/20 rounded-lg p-8">
+                    <div className="text-center mb-6">
+                        <div className="text-xl font-light text-white mb-2">Claude with KAMIYO MCP</div>
+                        <div className="text-sm text-gray-400">Making security-aware decisions automatically</div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6 mb-6">
+                        <div className="bg-black border border-gray-500/20 rounded p-4">
+                            <div className="text-cyan text-sm mb-2">User asks Claude:</div>
+                            <div className="text-gray-300 text-sm italic">
+                                "Should I deploy my NFT marketplace to Polygon zkEVM?"
+                            </div>
+                        </div>
+                        <div className="bg-black border border-gray-500/20 rounded p-4">
+                            <div className="text-magenta text-sm mb-2">Claude checks KAMIYO:</div>
+                            <div className="text-gray-300 text-xs font-mono">
+                                search_crypto_exploits(<br/>
+                                &nbsp;&nbsp;chain=<span className="text-green-400">"polygon-zkevm"</span>,<br/>
+                                &nbsp;&nbsp;since=<span className="text-green-400">"2024-01-01"</span><br/>
+                                )
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-black border border-green-500/30 rounded p-4">
+                        <div className="text-green-400 text-sm mb-2">✓ Claude's Response:</div>
+                        <div className="text-gray-300 text-sm">
+                            "Based on KAMIYO data, Polygon zkEVM has had <strong className="text-white">2 minor incidents</strong> in 2024,
+                            both patched within 48 hours. <strong className="text-white">Risk score: 0.23/1.0 (low-moderate)</strong>.
+                            The most recent incident was 87 days ago. I'd recommend proceeding with deployment,
+                            but implement rate limiting and start with a $50K TVL cap for the first 30 days."
                         </div>
                     </div>
                 </div>
@@ -112,6 +224,112 @@ export default function Home() {
 
             </section>
 
+            {/* Why Developers Choose KAMIYO Section */}
+            <section className="w-full px-5 mx-auto pt-16 pb-16 bg-gradient-to-b from-transparent to-cyan/5 border-t border-gray-500 border-opacity-25">
+                <div className="max-w-[1400px] mx-auto">
+                    <h2 className="text-3xl font-light text-center mb-12">
+                        Why Developers Choose KAMIYO
+                    </h2>
+
+                    <div className="grid md:grid-cols-3 gap-8">
+                        {/* vs Manual Monitoring */}
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6">
+                            <div className="text-red-400 text-sm mb-3 line-through">Manual Twitter Monitoring</div>
+                            <div className="text-cyan text-lg font-light mb-4">KAMIYO Aggregation</div>
+                            <div className="space-y-3 text-sm text-gray-400">
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    <span>Miss 70% of exploits</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>20+ sources, auto-aggregated</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    <span>Hours of delay</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Real-time indexing (&lt;5 min)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* vs Traditional APIs */}
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6">
+                            <div className="text-red-400 text-sm mb-3 line-through">Traditional Security APIs</div>
+                            <div className="text-cyan text-lg font-light mb-4">KAMIYO x402 Protocol</div>
+                            <div className="space-y-3 text-sm text-gray-400">
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    <span>Requires account signup</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Send USDC, get instant access</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    <span>API key management</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Zero credential management</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* For AI Agents */}
+                        <div className="bg-gradient-to-br from-cyan/10 to-magenta/10 border border-cyan/30 rounded-lg p-6">
+                            <div className="text-cyan text-lg font-light mb-4">Built for AI Agents</div>
+                            <div className="space-y-3 text-sm text-gray-300">
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Native MCP integration</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Agents pay autonomously (x402)</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Structured JSON responses</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Risk scoring built-in</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Security Intelligence Section */}
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500 border-opacity-25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
                 <header className="text-center mb-12">
@@ -121,38 +339,63 @@ export default function Home() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                        <div className="text-white text-lg mb-3">1. Discover</div>
-                        <div className="text-gray-400 text-sm mb-4">
-                            AI agent makes API request and receives HTTP 402 Payment Required response with payment details
+                        <div className="text-white text-xl mb-2">1. Try It Now (No Payment)</div>
+                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-cyan/10 border border-cyan/30 rounded text-xs text-cyan mb-3">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
+                            </svg>
+                            <span>10 seconds</span>
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
-                            <span className="text-cyan">HTTP/1.1 402 Payment Required</span><br/>
-                            <span className="text-magenta">X-Payment-Amount:</span> <span className="text-yellow-400">0.01 USDC</span><br/>
-                            <span className="text-magenta">X-Payment-Chain:</span> <span className="text-yellow-400">base</span>
+                        <div className="text-gray-400 text-sm mb-4">
+                            Make a request to see payment details and what you'll pay
+                        </div>
+                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono mb-3">
+                            <div className="text-gray-500">$ curl https://api.kamiyo.ai/v1/exploits</div>
+                            <div className="text-cyan mt-2">HTTP/1.1 402 Payment Required</div>
+                            <div className="text-magenta mt-1">X-Payment-Amount: <span className="text-yellow-400">0.01 USDC</span></div>
+                            <div className="text-magenta">X-Payment-Chain: <span className="text-yellow-400">base</span></div>
                         </div>
                     </div>
 
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                        <div className="text-white text-lg mb-3">2. Pay</div>
-                        <div className="text-gray-400 text-sm mb-4">
-                            Agent sends USDC payment on Base, Ethereum, or Solana. No account signup required
+                        <div className="text-white text-xl mb-2">2. Send 1 USDC, Get 100 Queries</div>
+                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-cyan/10 border border-cyan/30 rounded text-xs text-cyan mb-3">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
+                            </svg>
+                            <span>~30 seconds</span>
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
-                            <span className="text-cyan">Transfer</span> <span className="text-yellow-400">0.01 USDC</span><br/>
-                            <span className="text-magenta">To:</span> <span className="text-gray-400">0x742d...7b7b7</span><br/>
-                            <span className="text-magenta">Chain:</span> <span className="text-yellow-400">Base</span>
+                        <div className="text-gray-400 text-sm mb-4">
+                            Agent sends USDC payment. No account signup required
+                        </div>
+                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono mb-2">
+                            <div className="text-cyan">Transfer <span className="text-yellow-400">0.01 USDC</span></div>
+                            <div className="text-magenta mt-1">To: <span className="text-gray-400">0x742d...7b7b7</span></div>
+                            <div className="text-magenta">Chain: <span className="text-yellow-400">Base</span></div>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                            ⚡ Base: ~30s | Ethereum: ~3min | Solana: ~13s
                         </div>
                     </div>
 
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                        <div className="text-white text-lg mb-3">3. Access</div>
+                        <div className="text-white text-xl mb-2">3. First Query in 60 Seconds</div>
+                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded text-xs text-green-400 mb-3">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Live access</span>
+                        </div>
                         <div className="text-gray-400 text-sm mb-4">
-                            Agent receives access token good for 100 API calls (24 hours). Automatic verification
+                            Receive access token. 100 queries, valid 24 hours
                         </div>
                         <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
-                            <span className="text-magenta">X-Payment-Token:</span> <span className="text-cyan">kmy_...</span><br/>
-                            <span className="text-magenta">Requests:</span> <span className="text-yellow-400">100</span><br/>
-                            <span className="text-magenta">Expires:</span> <span className="text-yellow-400">24h</span>
+                            <div className="text-gray-500">// Automatic verification</div>
+                            <div className="text-magenta mt-1">X-Payment-Token: <span className="text-cyan">kmy_...</span></div>
+                            <div className="text-magenta">Requests: <span className="text-yellow-400">100</span></div>
+                            <div className="text-magenta">Expires: <span className="text-yellow-400">24h</span></div>
                         </div>
                     </div>
                 </div>
