@@ -127,7 +127,7 @@ export default function Features() {
             <section className="py-10 px-5 mx-auto max-w-[1400px]">
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;機能</p>
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Security Intelligence for AI Agents</h1>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Security Intelligence for AI Agents</h1>
                     <p className="text-gray-400 mt-4 text-xl">Real-time crypto exploit data from 20+ sources. Access via MCP subscription or x402 API.</p>
                 </div>
 
