@@ -74,7 +74,7 @@ export default function Home() {
                                         window.location.href = '/api-docs';
                                     }}
                                     className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300"
-                                    style={{ paddingLeft: '4rem', paddingTop: '13px' }}
+                                    style={{ paddingLeft: '4rem', paddingTop: '10px' }}
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
