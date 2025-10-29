@@ -17,11 +17,11 @@ const Footer = () => {
                         Copyright &copy; {new Date().getFullYear()} Kamiyo.ai
                     </p>
                     <div className="flex items-center gap-3 text-[0.6rem]">
-                        <a href="/privacy-policy" className="text-gray-500 hover:text-cyan transition-colors">
+                        <a href="/privacy-policy" className="text-gray-500 hover:text-magenta transition-colors">
                             Privacy Policy
                         </a>
                         <span className="text-gray-700">|</span>
-                        <a href="/terms-of-service" className="text-gray-500 hover:text-cyan transition-colors">
+                        <a href="/terms-of-service" className="text-gray-500 hover:text-magenta transition-colors">
                             Terms of Service
                         </a>
                     </div>

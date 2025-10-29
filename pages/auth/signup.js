@@ -259,7 +259,7 @@ export default function SignUp() {
                         <div className="text-center">
                             <button
                                 onClick={() => router.push('/auth/signin')}
-                                className="text-gray-400 hover:text-cyan transition-colors text-sm"
+                                className="text-gray-400 hover:text-magenta transition-colors text-sm"
                             >
                                 Already have an account? <span className="text-cyan">Sign in</span>
                             </button>

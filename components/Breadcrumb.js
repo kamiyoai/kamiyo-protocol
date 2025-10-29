@@ -90,7 +90,7 @@ export default function Breadcrumb({ items = [] }) {
                 {!isCurrent && item.url ? (
                   <Link
                     href={item.url}
-                    className="text-gray-400 hover:text-cyan transition-colors duration-300 uppercase tracking-wider"
+                    className="text-gray-400 hover:text-magenta transition-colors duration-300 uppercase tracking-wider"
                     itemProp="item"
                     aria-label={`Navigate to ${item.name}`}
                   >
