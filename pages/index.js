@@ -63,8 +63,7 @@ export default function Home() {
                                     onClick={() => {
                                         window.location.href = '/api-docs';
                                     }}
-                                    className="text-xs hover:opacity-80 transition-opacity duration-300 md:mr-5"
-                                    style={{ color: '#ff44f5' }}
+                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300 md:mr-5"
                                     title="View API documentation for MCP and x402"
                                     aria-label="View API documentation"
                                 >
@@ -124,12 +123,12 @@ export default function Home() {
 
                 {/* MCP Integration Code Example */}
                 <div className="mb-12 max-w-3xl mx-auto">
-                    <div className="bg-black border border-cyan/20 rounded-lg p-6 font-mono text-sm">
+                    <div className="bg-black border border-gray-500/20 rounded-lg p-6 font-mono text-sm">
                         <div className="text-gray-500 text-xs mb-4">// Claude Desktop Integration (30 seconds)</div>
                         <div className="space-y-1">
-                            <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-cyan">=</span> <span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-yellow-400">add</span><span className="text-white">({'{'}</span></div>
-                            <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">:</span> <span className="text-green-400">"kamiyo-security"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">:</span> <span className="text-white">process.env.</span><span className="text-yellow-400">MCP_TOKEN</span></div>
+                            <div><span className="text-cyan">const</span> <span className="text-white">kamiyo</span> <span className="text-white"> = </span><span className="text-cyan">await</span> <span className="text-white">claude.mcp.</span><span className="text-white">add</span><span className="text-white">({'{'}</span></div>
+                            <div className="ml-4"><span className="text-magenta">name</span><span className="text-white">: </span><span className="text-gray-400">"kamiyo-security"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">token</span><span className="text-white">: </span><span className="text-white">process.env.</span><span className="text-white">MCP_TOKEN</span></div>
                             <div><span className="text-white">{'}'});</span></div>
                         </div>
 
@@ -137,16 +136,16 @@ export default function Home() {
 
                         <div className="text-gray-500 text-xs mb-2">// Now your agent knows about exploits</div>
                         <div className="space-y-1">
-                            <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-yellow-400">ask</span><span className="text-white">(</span></div>
-                            <div className="ml-4"><span className="text-green-400">"Is Uniswap V3 safe to deploy on?"</span></div>
+                            <div><span className="text-cyan">await</span> <span className="text-white">claude.</span><span className="text-white">ask</span><span className="text-white">(</span></div>
+                            <div className="ml-4"><span className="text-gray-400">"Is Uniswap V3 safe to deploy on?"</span></div>
                             <div><span className="text-white">);</span></div>
                         </div>
 
                         <div className="border-t border-gray-500/20 my-4"></div>
 
                         <div className="text-gray-500 text-xs mb-2">// Claude checks KAMIYO automatically</div>
-                        <div className="bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/20 rounded px-3 py-2 mt-2">
-                            <div className="text-green-400 text-xs">✓ <span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
+                        <div className="bg-black border border-gray-500/20 rounded px-3 py-2 mt-2">
+                            <div className="text-white text-xs"><span className="text-gray-300">"Based on KAMIYO: 2 incidents, last 145 days ago. Risk score: 0.32 (moderate). Safe to proceed with monitoring."</span></div>
                         </div>
                     </div>
                 </div>
@@ -154,9 +153,9 @@ export default function Home() {
                 {/* Example: Recent Exploit Alert */}
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     <div>
-                        <div className="text-cyan mb-2 text-sm font-medium">What Happened</div>
-                        <div className="bg-black border border-red-500/30 rounded-lg p-6">
-                            <div className="text-red-400 text-lg mb-3">🚨 Curve Finance Reentrancy</div>
+                        <div className="text-white mb-2 text-sm font-medium">What Happened</div>
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6">
+                            <div className="text-white text-lg mb-3">Curve Finance Reentrancy</div>
                             <div className="text-gray-400 text-sm mb-4 space-y-1">
                                 <div><strong className="text-gray-300">Detected:</strong> 2024-07-30 14:23 UTC</div>
                                 <div><strong className="text-gray-300">Chain:</strong> Ethereum Mainnet</div>
@@ -169,23 +168,23 @@ export default function Home() {
                         </div>
                     </div>
                     <div>
-                        <div className="text-cyan mb-2 text-sm font-medium">Your AI Agent Gets This</div>
-                        <div className="bg-black border border-cyan/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+                        <div className="text-white mb-2 text-sm font-medium">Your AI Agent Gets This</div>
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
                             <div className="text-gray-500 mb-2">// Real API response (sanitized)</div>
                             <div className="text-white">{'{'}</div>
-                            <div className="ml-4"><span className="text-magenta">"id"</span><span className="text-white">:</span> <span className="text-green-400">"exploit_curve_2024_07_30"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"protocol"</span><span className="text-white">:</span> <span className="text-green-400">"Curve Finance"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"severity"</span><span className="text-white">:</span> <span className="text-red-400">"critical"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"amount_usd"</span><span className="text-white">:</span> <span className="text-cyan">61700000</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"vulnerability_type"</span><span className="text-white">:</span> <span className="text-green-400">"reentrancy"</span><span className="text-white">,</span></div>
-                            <div className="ml-4"><span className="text-magenta">"affected_versions"</span><span className="text-white">:</span> <span className="text-white">[</span><span className="text-green-400">"vyper_0.2.15-0.3.0"</span><span className="text-white">]</span></div>
+                            <div className="ml-4"><span className="text-magenta">"id"</span><span className="text-white">: </span><span className="text-gray-400">"exploit_curve_2024_07_30"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"protocol"</span><span className="text-white">: </span><span className="text-gray-400">"Curve Finance"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"severity"</span><span className="text-white">: </span><span className="text-gray-400">"critical"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"amount_usd"</span><span className="text-white">: </span><span className="text-white">61700000</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"vulnerability_type"</span><span className="text-white">: </span><span className="text-gray-400">"reentrancy"</span><span className="text-white">,</span></div>
+                            <div className="ml-4"><span className="text-magenta">"affected_versions"</span><span className="text-white">: </span><span className="text-white">[</span><span className="text-gray-400">"vyper_0.2.15-0.3.0"</span><span className="text-white">]</span></div>
                             <div className="text-white">{'}'}</div>
                         </div>
                     </div>
                 </div>
 
                 {/* Example: Agent Making Smart Decisions */}
-                <div className="bg-gradient-to-r from-cyan/5 to-magenta/5 border border-cyan/20 rounded-lg p-8">
+                <div className="bg-gradient-to-r from-cyan/5 to-magenta/5 border border-gray-500/20 rounded-lg p-8">
                     <div className="text-center mb-6">
                         <div className="text-xl font-light text-white mb-2">Claude with KAMIYO MCP</div>
                         <div className="text-sm text-gray-400">Making security-aware decisions automatically</div>
@@ -193,24 +192,24 @@ export default function Home() {
 
                     <div className="grid md:grid-cols-2 gap-6 mb-6">
                         <div className="bg-black border border-gray-500/20 rounded p-4">
-                            <div className="text-cyan text-sm mb-2">User asks Claude:</div>
+                            <div className="text-white text-sm mb-2">User asks Claude:</div>
                             <div className="text-gray-300 text-sm italic">
                                 "Should I deploy my NFT marketplace to Polygon zkEVM?"
                             </div>
                         </div>
                         <div className="bg-black border border-gray-500/20 rounded p-4">
-                            <div className="text-magenta text-sm mb-2">Claude checks KAMIYO:</div>
+                            <div className="text-white text-sm mb-2">Claude checks KAMIYO:</div>
                             <div className="text-gray-300 text-xs font-mono">
                                 search_crypto_exploits(<br/>
-                                &nbsp;&nbsp;chain=<span className="text-green-400">"polygon-zkevm"</span>,<br/>
-                                &nbsp;&nbsp;since=<span className="text-green-400">"2024-01-01"</span><br/>
+                                &nbsp;&nbsp;chain=<span className="text-gray-400">"polygon-zkevm"</span>,<br/>
+                                &nbsp;&nbsp;since=<span className="text-gray-400">"2024-01-01"</span><br/>
                                 )
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-black border border-green-500/30 rounded p-4">
-                        <div className="text-green-400 text-sm mb-2">✓ Claude's Response:</div>
+                    <div className="bg-black border border-gray-500/20 rounded p-4">
+                        <div className="text-white text-sm mb-2">Claude's Response:</div>
                         <div className="text-gray-300 text-sm">
                             "Based on KAMIYO data, Polygon zkEVM has had <strong className="text-white">2 minor incidents</strong> in 2024,
                             both patched within 48 hours. <strong className="text-white">Risk score: 0.23/1.0 (low-moderate)</strong>.
@@ -250,29 +249,29 @@ export default function Home() {
                     <div className="grid md:grid-cols-3 gap-8">
                         {/* vs Manual Monitoring */}
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6">
-                            <div className="text-red-400 text-sm mb-3 line-through">Manual Twitter Monitoring</div>
-                            <div className="text-cyan text-lg font-light mb-4">KAMIYO Aggregation</div>
+                            <div className="text-gray-500 text-sm mb-3 line-through">Manual Twitter Monitoring</div>
+                            <div className="text-white text-lg font-light mb-4">KAMIYO Aggregation</div>
                             <div className="space-y-3 text-sm text-gray-400">
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                     <span>Miss 70% of exploits</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>20+ sources, auto-aggregated</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                     <span>Hours of delay</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Real-time indexing (&lt;5 min)</span>
@@ -282,29 +281,29 @@ export default function Home() {
 
                         {/* vs Traditional APIs */}
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6">
-                            <div className="text-red-400 text-sm mb-3 line-through">Traditional Security APIs</div>
-                            <div className="text-cyan text-lg font-light mb-4">KAMIYO x402 Protocol</div>
+                            <div className="text-gray-500 text-sm mb-3 line-through">Traditional Security APIs</div>
+                            <div className="text-white text-lg font-light mb-4">KAMIYO x402 Protocol</div>
                             <div className="space-y-3 text-sm text-gray-400">
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                     <span>Requires account signup</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Send USDC, get instant access</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                     <span>API key management</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Zero credential management</span>
@@ -313,29 +312,29 @@ export default function Home() {
                         </div>
 
                         {/* For AI Agents */}
-                        <div className="bg-gradient-to-br from-cyan/10 to-magenta/10 border border-cyan/30 rounded-lg p-6">
-                            <div className="text-cyan text-lg font-light mb-4">Built for AI Agents</div>
+                        <div className="bg-gradient-to-br from-cyan/10 to-magenta/10 border border-gray-500/20 rounded-lg p-6">
+                            <div className="text-white text-lg font-light mb-4">Built for AI Agents</div>
                             <div className="space-y-3 text-sm text-gray-300">
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Native MCP integration</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Agents pay autonomously (x402)</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Structured JSON responses</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-cyan flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span>Risk scoring built-in</span>
@@ -356,7 +355,7 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
                     <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
                         <div className="text-white text-xl mb-2">1. Try It Now (No Payment)</div>
-                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-cyan/10 border border-cyan/30 rounded text-xs text-cyan mb-3">
+                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-gray-500/10 border border-gray-500/30 rounded text-xs text-gray-400 mb-3">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <circle cx="12" cy="12" r="10"/>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
@@ -366,17 +365,17 @@ export default function Home() {
                         <div className="text-gray-400 text-sm mb-4">
                             Make a request to see payment details and what you'll pay
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono mb-3">
+                        <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono mb-3">
                             <div className="text-gray-500">$ curl https://api.kamiyo.ai/v1/exploits</div>
-                            <div className="text-cyan mt-2">HTTP/1.1 402 Payment Required</div>
-                            <div className="text-magenta mt-1">X-Payment-Amount: <span className="text-yellow-400">0.01 USDC</span></div>
-                            <div className="text-magenta">X-Payment-Chain: <span className="text-yellow-400">base</span></div>
+                            <div className="text-white mt-2">HTTP/1.1 402 Payment Required</div>
+                            <div className="text-magenta mt-1">X-Payment-Amount: <span className="text-white">0.01 USDC</span></div>
+                            <div className="text-magenta">X-Payment-Chain: <span className="text-white">base</span></div>
                         </div>
                     </div>
 
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <div className="bg-black border border-gray-500/20 rounded-lg p-6">
                         <div className="text-white text-xl mb-2">2. Send 1 USDC, Get 100 Queries</div>
-                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-cyan/10 border border-cyan/30 rounded text-xs text-cyan mb-3">
+                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-gray-500/10 border border-gray-500/30 rounded text-xs text-gray-400 mb-3">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <circle cx="12" cy="12" r="10"/>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
@@ -386,19 +385,19 @@ export default function Home() {
                         <div className="text-gray-400 text-sm mb-4">
                             Agent sends USDC payment. No account signup required
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono mb-2">
-                            <div className="text-cyan">Transfer <span className="text-yellow-400">0.01 USDC</span></div>
+                        <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono mb-2">
+                            <div className="text-white">Transfer <span className="text-white">0.01 USDC</span></div>
                             <div className="text-magenta mt-1">To: <span className="text-gray-400">0x742d...7b7b7</span></div>
-                            <div className="text-magenta">Chain: <span className="text-yellow-400">Base</span></div>
+                            <div className="text-magenta">Chain: <span className="text-white">Base</span></div>
                         </div>
                         <div className="text-xs text-gray-500">
-                            ⚡ Base: ~30s | Ethereum: ~3min | Solana: ~13s
+                            Base: ~30s | Ethereum: ~3min | Solana: ~13s
                         </div>
                     </div>
 
-                    <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
+                    <div className="bg-black border border-gray-500/20 rounded-lg p-6">
                         <div className="text-white text-xl mb-2">3. First Query in 60 Seconds</div>
-                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded text-xs text-green-400 mb-3">
+                        <div className="inline-flex items-center gap-2 px-2 py-1 bg-cyan/10 border border-cyan/30 rounded text-xs text-cyan mb-3">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
@@ -407,11 +406,11 @@ export default function Home() {
                         <div className="text-gray-400 text-sm mb-4">
                             Receive access token. 100 queries, valid 24 hours
                         </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono">
+                        <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono">
                             <div className="text-gray-500">// Automatic verification</div>
-                            <div className="text-magenta mt-1">X-Payment-Token: <span className="text-cyan">kmy_...</span></div>
-                            <div className="text-magenta">Requests: <span className="text-yellow-400">100</span></div>
-                            <div className="text-magenta">Expires: <span className="text-yellow-400">24h</span></div>
+                            <div className="text-magenta mt-1">X-Payment-Token: <span className="text-white">kmy_...</span></div>
+                            <div className="text-magenta">Requests: <span className="text-white">100</span></div>
+                            <div className="text-magenta">Expires: <span className="text-white">24h</span></div>
                         </div>
                     </div>
                 </div>
@@ -420,7 +419,7 @@ export default function Home() {
                     <h3 className="text-2xl font-light mb-6">Why Security Intelligence via MCP & x402?</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
                         <div className="flex gap-3">
-                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-white flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
@@ -429,7 +428,7 @@ export default function Home() {
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-white flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
@@ -438,7 +437,7 @@ export default function Home() {
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-white flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
@@ -447,7 +446,7 @@ export default function Home() {
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <svg className="w-6 h-6 text-cyan flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-white flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
@@ -465,30 +464,30 @@ export default function Home() {
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
-                            <div className="text-cyan mb-2 font-semibold">Option 1: MCP Integration</div>
-                            <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
+                            <div className="text-white mb-2 font-semibold">Option 1: MCP Integration</div>
+                            <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
                                 <div className="text-gray-500">// Add to Claude Desktop</div>
-                                <div className="text-cyan">claude mcp add kamiyo</div>
+                                <div className="text-white">claude mcp add kamiyo</div>
                                 <br/>
                                 <div className="text-gray-500">// Unlimited queries</div>
-                                <div className="text-yellow-400">$19-299/mo</div>
+                                <div className="text-white">$19-299/mo</div>
                             </div>
                         </div>
                         <div>
-                            <div className="text-cyan mb-2 font-semibold">Option 2: x402 API</div>
-                            <div className="bg-black border border-gray-500 border-opacity-25 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
+                            <div className="text-white mb-2 font-semibold">Option 2: x402 API</div>
+                            <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
                                 <div className="text-gray-500">// Install SDK</div>
-                                <div className="text-cyan">npm install kamiyo-x402-sdk</div>
+                                <div className="text-white">npm install kamiyo-x402-sdk</div>
                                 <br/>
                                 <div className="text-gray-500">// Pay per query</div>
-                                <div className="text-yellow-400">$0.01 per query</div>
+                                <div className="text-white">$0.01 per query</div>
                             </div>
                         </div>
                     </div>
                     <div className="text-center mt-6">
                         <a
                             href="/api-docs"
-                            className="text-cyan hover:text-magenta transition-colors"
+                            className="text-magenta hover:opacity-80 transition-opacity"
                             title="View complete API documentation for MCP and x402"
                             aria-label="Navigate to KAMIYO API documentation"
                         >
