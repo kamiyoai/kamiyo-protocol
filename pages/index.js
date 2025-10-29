@@ -24,6 +24,7 @@ export default function Home() {
                         <article className="space-y-8">
                             {/* Heading */}
                             <header>
+                                <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;セキュリティ情報</p>
                                 <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4 leading-tight text-white">
                                     Security Intelligence for AI Agents
                                 </h2>
