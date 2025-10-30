@@ -136,7 +136,7 @@ export default function Features() {
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY INTELLIGENCE</p>
-                        <h2 className="text-2xl md:text-3xl font-light">What You Get</h2>
+                        <h2 className="text-3xl md:text-4xl font-light">What You Get</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -194,7 +194,7 @@ export default function Features() {
                 <div className="mb-20 border-t border-gray-500/25 pt-20">
                     <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">AI AGENT INTEGRATION</p>
-                        <h2 className="text-2xl md:text-3xl font-light">MCP Integration for AI Agents</h2>
+                        <h2 className="text-3xl md:text-4xl font-light">MCP Integration for AI Agents</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -236,7 +236,7 @@ export default function Features() {
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">ALTERNATIVE ACCESS</p>
-                        <h2 className="text-2xl md:text-3xl font-light">x402 API for Direct/Custom Integration</h2>
+                        <h2 className="text-3xl md:text-4xl font-light">x402 API for Direct/Custom Integration</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
@@ -310,7 +310,7 @@ export default function Features() {
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">BILLING OPTIONS</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Choose Your Access Model</h2>
+                        <h2 className="text-3xl md:text-4xl font-light">Choose Your Access Model</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
@@ -380,7 +380,7 @@ export default function Features() {
                 <div className="mb-20">
                     <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
                         <p className="mb-2 tracking-widest font-light text-xs text-gray-500">DATA QUALITY</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Comprehensive & Reliable Coverage</h2>
+                        <h2 className="text-3xl md:text-4xl font-light">Comprehensive & Reliable Coverage</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
