@@ -79,6 +79,7 @@ export function SecondaryButton({
 
 /**
  * Link Button (Tertiary) - Just magenta text with hover effect, no background or border
+ * Used for inline/body links at 14px
  */
 export function LinkButton({
   children,
@@ -88,7 +89,7 @@ export function LinkButton({
   className = "",
   ...props
 }) {
-  const baseClasses = "text-magenta hover:opacity-80 transition-opacity duration-300 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseClasses = "text-sm text-magenta hover:opacity-80 transition-opacity duration-300 disabled:opacity-50 disabled:cursor-not-allowed";
   const classes = `${baseClasses} ${className}`;
 
   if (href) {

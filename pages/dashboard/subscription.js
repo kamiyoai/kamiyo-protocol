@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import { ScrambleButton } from "../../components/ScrambleButton";
+import { LinkButton } from "../../components/Button";
 
 const tiers = [
     {
@@ -254,14 +255,13 @@ export default function SubscriptionPage() {
                         <p className="text-gray-400 mb-4">
                             Need to update payment method or view invoices?
                         </p>
-                        <a
+                        <LinkButton
                             href="https://billing.stripe.com/p/login/9B628q7kD3vG0w0fD79bO00"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-magenta hover:text-magenta transition-colors text-sm"
                         >
                             Access Billing Portal →
-                        </a>
+                        </LinkButton>
                     </div>
                 )}
             </div>
