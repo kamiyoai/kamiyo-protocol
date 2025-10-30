@@ -250,7 +250,7 @@ export default function Home() {
             {/* Pricing Section */}
             <section id="pricing" className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="pricing-heading">
                 <header className="text-center mb-12">
-                    <h2 id="pricing-heading" className="text-2xl md:text-3xl font-light mb-4">Pricing</h2>
+                    <h2 id="pricing-heading" className="text-3xl md:text-4xl font-light mb-4">Pricing</h2>
                     <p className="text-gray-400 text-sm md:text-lg">MCP subscriptions for unlimited AI agent access, or x402 API for pay-per-query</p>
                 </header>
 
