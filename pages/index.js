@@ -36,7 +36,7 @@ export default function Home() {
                             {/* Heading */}
                             <header>
                                 <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;ブロックチェーン脆弱情報</p>
-                                <h2 className="text-3xl md:text-5xl lg:text-7xl font-light mb-4 leading-tight text-white">
+                                <h2 className="text-3xl md:text-5xl lg:text-[4rem] font-light mb-4 leading-tight text-white">
                                     Give Your AI Agents a Security Brain
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
