@@ -74,7 +74,7 @@ export default function FAQ() {
             </Head>
             <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
                 <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Frequently Asked Questions</h2>
+                    <h2 className="text-3xl md:text-4xl font-light mb-4">Frequently Asked Questions</h2>
                     <p className="text-gray-400 text-sm md:text-lg">Everything you need to know about KAMIYO Security Intelligence</p>
                 </div>
 
