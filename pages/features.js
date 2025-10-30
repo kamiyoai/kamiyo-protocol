@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import { LinkButton } from "../components/Button";
 
 export default function Features() {
     // JSON-LD Structured Data for Features page
@@ -300,7 +301,7 @@ export default function Features() {
                                     <span>Payment tokens valid for 100 queries or 24 hours</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-500">Full API docs: <a href="/api-docs" className="text-magenta hover:text-magenta">kamiyo.ai/api-docs</a></p>
+                            <p className="text-sm text-gray-500">Full API docs: <LinkButton href="/api-docs">kamiyo.ai/api-docs</LinkButton></p>
                         </div>
                     </div>
                 </div>

@@ -283,19 +283,19 @@ export default function ApiDocs() {
 }`}</CodeBlock>
               </div>
 
-              <div className="flex gap-4 mb-6">
+              <div className="flex gap-4 mb-6 items-center">
                 <PrimaryButton
                   onClick={(e) => { e.preventDefault(); setActiveTab('mcp-setup'); }}
                 >
                   Full Setup Guide
                 </PrimaryButton>
-                <SecondaryButton
+                <LinkButton
                   href="https://github.com/kamiyo-ai/kamiyo-mcp-server"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   Download MCP Server
-                </SecondaryButton>
+                </LinkButton>
               </div>
 
               <h4 className="font-light mb-2">Available MCP Tools:</h4>

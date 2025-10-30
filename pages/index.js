@@ -5,6 +5,7 @@ import PayButton from "../components/PayButton";
 import PricingCard from "../components/PricingCard";
 import FAQ from "../components/FAQ";
 import SEO from "../components/SEO";
+import { LinkButton } from "../components/Button";
 import { mcpPlans } from "../config/pricingPlans";
 
 export default function Home() {
@@ -69,17 +70,15 @@ export default function Home() {
                                         }}
                                     />
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        window.location.href = '/api-docs';
-                                    }}
-                                    className="text-xs text-magenta hover:opacity-80 transition-opacity duration-300"
-                                    style={{ paddingLeft: '4rem', paddingTop: '10px' }}
-                                    title="View API documentation for MCP and x402"
-                                    aria-label="View API documentation"
-                                >
-                                    View Documentation →
-                                </button>
+                                <div style={{ paddingLeft: '4rem', paddingTop: '10px' }}>
+                                    <LinkButton
+                                        href="/api-docs"
+                                        title="View API documentation for MCP and x402"
+                                        aria-label="View API documentation"
+                                    >
+                                        View Documentation →
+                                    </LinkButton>
+                                </div>
                             </div>
 
                         </article>
@@ -407,14 +406,13 @@ export default function Home() {
                         </div>
                     </div>
                     <div className="text-center mt-6">
-                        <a
+                        <LinkButton
                             href="/api-docs"
-                            className="text-magenta hover:opacity-80 transition-opacity"
                             title="View complete API documentation for MCP and x402"
                             aria-label="Navigate to KAMIYO API documentation"
                         >
                             View API Documentation →
-                        </a>
+                        </LinkButton>
                     </div>
                 </article>
             </section>
