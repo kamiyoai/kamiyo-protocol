@@ -104,7 +104,7 @@ export default function PricingPage() {
             </div>
 
             <section className="w-full pt-8 mb-16" aria-labelledby="mcp-subscriptions-heading">
-                <h2 id="mcp-subscriptions-heading" className="text-2xl md:text-3xl font-light text-center mb-4">MCP Subscriptions</h2>
+                <h2 id="mcp-subscriptions-heading" className="text-3xl md:text-4xl font-light text-center mb-4">MCP Subscriptions</h2>
                 <p className="text-gray-400 text-sm text-center mb-8">
                     Unlimited security intelligence for your AI agents
                 </p>
@@ -122,7 +122,7 @@ export default function PricingPage() {
             {/* x402 API Section */}
             <div className="border-t border-gray-500/25 pt-16 w-full">
                 <section className="mb-8" aria-labelledby="x402-heading">
-                    <h2 id="x402-heading" className="text-2xl md:text-3xl font-light text-center mb-4">x402 API</h2>
+                    <h2 id="x402-heading" className="text-3xl md:text-4xl font-light text-center mb-4">x402 API</h2>
                     <p className="text-gray-400 text-sm text-center mb-8">
                         Pay per query, no subscription needed
                     </p>
