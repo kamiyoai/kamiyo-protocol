@@ -184,7 +184,7 @@ export default function SubscriptionPage() {
                         return (
                             <div
                                 key={tier.name}
-                                className={`relative bg-black border border-gray-500 /25 rounded-lg p-6 flex flex-col transition-all duration-300 ${
+                                className={`relative bg-black border border-gray-500/25 rounded-lg p-6 flex flex-col transition-all duration-300 ${
                                     isCurrent
                                         ? 'card card-highlighted -translate-y-1'
                                         : ''
