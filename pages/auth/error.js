@@ -35,7 +35,7 @@ export default function AuthError() {
                         </button>
                         <button
                             onClick={() => router.push('/')}
-                            className="w-full px-6 py-3 bg-transparent border border-gray-500 /25 hover:border-gray-400 rounded-lg transition"
+                            className="w-full px-6 py-3 bg-transparent border border-gray-500/25 hover:border-gray-400 rounded-lg transition"
                         >
                             Back to Home
                         </button>

@@ -164,17 +164,17 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Supported Blockchains</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-cyan text-sm mb-2">Base</div>
                   <div className="text-gray-400 text-xs mb-1">6 confirmations required</div>
                   <div className="text-gray-400 text-xs">Fast settlement (~30 seconds)</div>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-cyan text-sm mb-2">Ethereum</div>
                   <div className="text-gray-400 text-xs mb-1">12 confirmations required</div>
                   <div className="text-gray-400 text-xs">Secure settlement (~3 minutes)</div>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-cyan text-sm mb-2">Solana</div>
                   <div className="text-gray-400 text-xs mb-1">32 confirmations required</div>
                   <div className="text-gray-400 text-xs">Fast settlement (~13 seconds)</div>
@@ -184,7 +184,7 @@ export default function ApiDocs() {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Pricing</h3>
-              <div className="border border-gray-500 /25 rounded p-4">
+              <div className="border border-gray-500/25 rounded p-4">
                 <div className="text-white mb-2">$0.01 USDC per API call</div>
                 <div className="text-gray-400 text-sm space-y-1">
                   <div>• Minimum payment: $0.01 USDC</div>
@@ -197,7 +197,7 @@ export default function ApiDocs() {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Rate Limits</h3>
-              <div className="border border-gray-500 /25 rounded overflow-hidden">
+              <div className="border border-gray-500/25 rounded overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-500 bg-opacity-10">
                     <tr>
@@ -265,7 +265,7 @@ export default function ApiDocs() {
                 <li>Start querying security intelligence</li>
               </ol>
 
-              <div className="bg-black border border-gray-500 /25 rounded p-4 mb-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4 mb-4">
                 <div className="text-white text-sm mb-2">Configuration Example (macOS):</div>
                 <CodeBlock language="json">{`{
   "mcpServers": {
@@ -354,7 +354,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
             <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <h4 className="text-lg font-light mb-3">Subscription Tier Access</h4>
               <div className="grid md:grid-cols-3 gap-4 text-sm">
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-cyan font-medium mb-2">Personal ($19/mo)</div>
                   <ul className="text-gray-400 space-y-1 text-xs">
                     <li>• 1 AI agent</li>
@@ -374,7 +374,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
                     <li>• Priority support</li>
                   </ul>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-cyan font-medium mb-2">Enterprise ($299/mo)</div>
                   <ul className="text-gray-400 space-y-1 text-xs">
                     <li>• Unlimited agents</li>
@@ -387,7 +387,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               </div>
             </div>
 
-            <div className="bg-black border border-gray-500 /25 rounded-lg p-6">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6">
               <h4 className="font-light mb-3">MCP vs x402 API - Which to use?</h4>
               <div className="grid md:grid-cols-2 gap-6 text-sm">
                 <div>
@@ -431,7 +431,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
               <p className="text-gray-400 mb-4">
                 Choose your subscription tier at <LinkButton href="/pricing">kamiyo.io/pricing</LinkButton>
               </p>
-              <div className="bg-black border border-gray-500 /25 rounded p-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="text-sm text-gray-400 space-y-2">
                   <div>• <strong>Personal:</strong> $19/month - 1 agent, unlimited queries</div>
                   <div>• <strong>Team:</strong> $99/month - 5 agents, wallet monitoring</div>
@@ -557,7 +557,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
             </div>
 
             {/* Troubleshooting */}
-            <div className="bg-black border border-gray-500 /25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
               <h3 className="text-lg font-light mb-4">Troubleshooting</h3>
               <div className="space-y-4 text-sm">
                 <div>
@@ -817,25 +817,25 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Token Lifecycle</h3>
               <div className="space-y-4">
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">1. Creation</div>
                   <p className="text-gray-400 text-sm">
                     Tokens are generated after successful payment verification using <code className="text-cyan">/x402/generate-token</code>.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">2. Validation</div>
                   <p className="text-gray-400 text-sm">
                     Each API request validates the token, checks expiry, and verifies remaining requests.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">3. Consumption</div>
                   <p className="text-gray-400 text-sm">
                     Each API call decrements the request counter. When requests reach zero, the token becomes invalid.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">4. Expiration</div>
                   <p className="text-gray-400 text-sm">
                     Tokens expire 24 hours after creation, regardless of remaining requests.
@@ -871,7 +871,7 @@ console.log("Payment sent:", tx.hash);`}</CodeBlock>
             </div>
 
             <div className="space-y-6 mb-8">
-              <div className="bg-black border border-gray-500 /25 rounded p-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">1</div>
                   <div>
@@ -891,7 +891,7 @@ X-Payment-Currency: USDC
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 /25 rounded p-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">2</div>
                   <div>
@@ -905,7 +905,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 /25 rounded p-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">3</div>
                   <div>
@@ -926,7 +926,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 /25 rounded p-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">4</div>
                   <div>
@@ -943,7 +943,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
                 </div>
               </div>
 
-              <div className="bg-black border border-gray-500 /25 rounded p-4">
+              <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="flex items-start gap-3">
                   <div className="text-cyan font-mono text-sm mt-1">5</div>
                   <div>
@@ -1061,7 +1061,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
               <p className="text-gray-400 mb-4">Verify on-chain USDC payment and create payment record.</p>
               <div className="mb-4">
                 <div className="text-sm font-light text-gray-500 mb-2">Request Body</div>
-                <div className="border border-gray-500 /25 rounded overflow-hidden">
+                <div className="border border-gray-500/25 rounded overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-500 bg-opacity-10">
                       <tr>
@@ -1175,7 +1175,7 @@ const txHash = tx.hash; // Save for verification`}</CodeBlock>
               <p className="text-gray-400 mb-4">Get payment analytics and statistics.</p>
               <div className="mb-4">
                 <div className="text-sm font-light text-gray-500 mb-2">Query Parameters</div>
-                <div className="border border-gray-500 /25 rounded overflow-hidden">
+                <div className="border border-gray-500/25 rounded overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-500 bg-opacity-10">
                       <tr>
@@ -1249,31 +1249,31 @@ console.log(\`Found \${exploits.length} exploits\`);`}</CodeBlock>
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">How It Works</h3>
               <div className="space-y-4">
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">1. Automatic 402 Detection</div>
                   <p className="text-gray-400 text-sm">
                     SDK intercepts HTTP 402 responses and extracts payment information.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">2. USDC Payment</div>
                   <p className="text-gray-400 text-sm">
                     Automatically sends USDC payment to the specified address on your preferred chain.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">3. Payment Verification</div>
                   <p className="text-gray-400 text-sm">
                     Waits for required confirmations and verifies payment on-chain.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">4. Token Management</div>
                   <p className="text-gray-400 text-sm">
                     Generates and caches payment token for subsequent requests.
                   </p>
                 </div>
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="text-white font-medium mb-2">5. Request Retry</div>
                   <p className="text-gray-400 text-sm">
                     Automatically retries original API request with payment token.
@@ -1350,7 +1350,7 @@ client.on('payment_verified', (paymentToken) => {
 
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">HTTP Status Codes</h3>
-              <div className="border border-gray-500 /25 rounded overflow-hidden">
+              <div className="border border-gray-500/25 rounded overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-500 bg-opacity-10">
                     <tr>
@@ -1399,7 +1399,7 @@ client.on('payment_verified', (paymentToken) => {
               <h3 className="text-xl font-light mb-4">Common Error Codes</h3>
 
               <div className="space-y-6">
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">PAYMENT_REQUIRED</span>
                     <span className="text-gray-500 text-sm">(402)</span>
@@ -1415,7 +1415,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">INSUFFICIENT_CONFIRMATIONS</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1429,7 +1429,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">INVALID_PAYMENT_AMOUNT</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1443,7 +1443,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">PAYMENT_ALREADY_USED</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1457,7 +1457,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">PAYMENT_TOKEN_EXPIRED</span>
                     <span className="text-gray-500 text-sm">(401)</span>
@@ -1471,7 +1471,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">NO_REQUESTS_REMAINING</span>
                     <span className="text-gray-500 text-sm">(402)</span>
@@ -1484,7 +1484,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">HIGH_RISK_SCORE</span>
                     <span className="text-gray-500 text-sm">(400)</span>
@@ -1498,7 +1498,7 @@ client.on('payment_verified', (paymentToken) => {
 }`}</CodeBlock>
                 </div>
 
-                <div className="border border-gray-500 /25 rounded p-4">
+                <div className="border border-gray-500/25 rounded p-4">
                   <div className="flex items-start gap-2 mb-2">
                     <span className="text-cyan font-mono text-sm">RATE_LIMIT_EXCEEDED</span>
                     <span className="text-gray-500 text-sm">(429)</span>
@@ -1548,7 +1548,7 @@ client.on('payment_verified', (paymentToken) => {
         )}
 
         {/* Support Section */}
-        <div className="mt-12 bg-black border border-gray-500 /25 rounded-lg p-6">
+        <div className="mt-12 bg-black border border-gray-500/25 rounded-lg p-6">
           <h3 className="text-xl font-light mb-4">Need Help?</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
