@@ -269,7 +269,7 @@ export default function Home() {
             {/* Security Intelligence Section */}
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="ai-agents-heading">
                 <header className="text-center mb-12">
-                    <h2 id="ai-agents-heading" className="text-3xl md:text-4xl lg:text-5xl font-light mb-4">Built for AI Agents</h2>
+                    <h2 id="ai-agents-heading" className="text-3xl md:text-4xl font-light mb-4">Built for AI Agents</h2>
                     <p className="text-gray-400 text-sm md:text-lg">Option 1: Add to Claude Desktop (MCP) | Option 2: Pay per query (x402)</p>
                 </header>
 
