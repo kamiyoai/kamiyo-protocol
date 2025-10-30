@@ -70,7 +70,7 @@ export default function Home() {
                                         }}
                                     />
                                 </div>
-                                <div style={{ paddingLeft: '4rem', paddingTop: '10px' }}>
+                                <div className="pt-1 md:pl-16">
                                     <LinkButton
                                         href="/api-docs"
                                         title="View API documentation for MCP and x402"
