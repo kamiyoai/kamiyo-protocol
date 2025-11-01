@@ -50,23 +50,21 @@ export default function Header({ children }) {
                 <div className="w-full px-5 mx-auto py-3 flex items-center justify-between" style={{ maxWidth: '1400px' }}>
                     <div className="flex-shrink-0 overflow-hidden">
                         <Link href="/" className="flex items-center">
-                            {/* Mobile logo - translateX(-28px) */}
+                            {/* Mobile logo */}
                             <img
                                 src="/media/kamiyo-ai_logomark.svg"
                                 alt="Kamiyo.ai"
                                 width="240"
                                 height="64"
                                 className="md:hidden object-contain h-10 sm:h-12 w-auto"
-                                style={{ transform: 'translateX(-28px)' }}
                             />
-                            {/* Desktop logo - translateX(-40px) */}
+                            {/* Desktop logo */}
                             <img
                                 src="/media/kamiyo-ai_logomark.svg"
                                 alt="Kamiyo.ai"
                                 width="240"
                                 height="64"
                                 className="hidden md:block object-contain h-14 w-auto"
-                                style={{ transform: 'translateX(-40px)' }}
                             />
                         </Link>
                     </div>
