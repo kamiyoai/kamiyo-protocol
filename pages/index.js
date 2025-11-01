@@ -40,7 +40,7 @@ export default function Home() {
                                     Give Your AI Agents a Security Brain
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    Subscribe via MCP for unlimited queries, or pay $0.01 per query with x402. Aggregating exploits from 20+ sources. $2.1B stolen in H1 2025 - know before you deploy.
+                                    Subscribe via MCP for unlimited queries, or pay $0.01 per query with x402. Aggregating exploits from 20+ sources. Billions lost to exploits - know before you deploy.
                                 </p>
                             </header>
 
