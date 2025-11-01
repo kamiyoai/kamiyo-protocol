@@ -52,7 +52,7 @@ export default function Header({ children }) {
                         <Link href="/" className="flex items-center">
                             {/* Mobile logo */}
                             <img
-                                src="/media/kamiyo-ai_logomark.svg"
+                                src="/media/kamiyo-ai_logomark.png"
                                 alt="Kamiyo.ai"
                                 width="240"
                                 height="64"
@@ -60,7 +60,7 @@ export default function Header({ children }) {
                             />
                             {/* Desktop logo */}
                             <img
-                                src="/media/kamiyo-ai_logomark.svg"
+                                src="/media/kamiyo-ai_logomark.png"
                                 alt="Kamiyo.ai"
                                 width="240"
                                 height="64"
@@ -168,7 +168,7 @@ export default function Header({ children }) {
                                     onClick={closeMenu}
                                 >
                                     <img
-                                        src="/media/kamiyo-ai_logomark.svg"
+                                        src="/media/kamiyo-ai_logomark.png"
                                         alt="Kamiyo.ai"
                                         width="240"
                                         height="64"
