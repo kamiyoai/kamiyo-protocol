@@ -51,20 +51,20 @@ export default function Header({ children }) {
                     <div className="flex-shrink-0 overflow-hidden">
                         <Link href="/" className="flex items-center">
                             {/* Mobile logo - translateX(-28px) */}
-                            <Image
+                            <img
                                 src="/media/kamiyo-ai_logomark.svg"
                                 alt="Kamiyo.ai"
-                                width={240}
-                                height={64}
+                                width="240"
+                                height="64"
                                 className="md:hidden object-contain h-10 sm:h-12 w-auto"
                                 style={{ transform: 'translateX(-28px)' }}
                             />
                             {/* Desktop logo - translateX(-40px) */}
-                            <Image
+                            <img
                                 src="/media/kamiyo-ai_logomark.svg"
                                 alt="Kamiyo.ai"
-                                width={240}
-                                height={64}
+                                width="240"
+                                height="64"
                                 className="hidden md:block object-contain h-14 w-auto"
                                 style={{ transform: 'translateX(-40px)' }}
                             />
@@ -169,11 +169,11 @@ export default function Header({ children }) {
                                     className="flex items-center mb-8 justify-center"
                                     onClick={closeMenu}
                                 >
-                                    <Image
+                                    <img
                                         src="/media/kamiyo-ai_logomark.svg"
                                         alt="Kamiyo.ai"
-                                        width={240}
-                                        height={64}
+                                        width="240"
+                                        height="64"
                                         className="object-contain w-48 h-auto"
                                     />
                                 </Link>
