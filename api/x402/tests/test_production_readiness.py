@@ -31,7 +31,7 @@ class TestConfigurationLoading:
         assert config.endpoint_prices is not None
         assert isinstance(config.endpoint_prices, dict)
 
-        print(f"✅ Config loaded: {len(config.endpoint_prices)} endpoints configured")
+        print(f"[OK] Config loaded: {len(config.endpoint_prices)} endpoints configured")
 
     def test_endpoint_prices_configured(self):
         """Test endpoint prices are properly configured"""
@@ -41,7 +41,7 @@ class TestConfigurationLoading:
         assert '/exploits' in config.endpoint_prices
         assert config.endpoint_prices['/exploits'] > 0
 
-        print(f"✅ Endpoint /exploits priced at ${config.endpoint_prices['/exploits']}")
+        print(f"[OK] Endpoint /exploits priced at ${config.endpoint_prices['/exploits']}")
 
 
 class TestPayAIFacilitatorInitialization:
@@ -56,7 +56,7 @@ class TestPayAIFacilitatorInitialization:
         assert facilitator.facilitator_url == PayAIFacilitator.FACILITATOR_URL
         assert facilitator.client is not None
 
-        print(f"✅ PayAI facilitator initialized: {facilitator.facilitator_url}")
+        print(f"[OK] PayAI facilitator initialized: {facilitator.facilitator_url}")
 
     def test_supported_networks(self):
         """Test facilitator knows supported networks"""
@@ -66,7 +66,7 @@ class TestPayAIFacilitatorInitialization:
         assert 'base' in facilitator.SUPPORTED_NETWORKS
         assert 'polygon' in facilitator.SUPPORTED_NETWORKS
 
-        print(f"✅ Supports {len(facilitator.SUPPORTED_NETWORKS)} networks")
+        print(f"[OK] Supports {len(facilitator.SUPPORTED_NETWORKS)} networks")
 
 
 class TestUnifiedGatewayInitialization:
@@ -87,7 +87,7 @@ class TestUnifiedGatewayInitialization:
         assert gateway.analytics is not None
         assert gateway.payment_tracker is mock_tracker
 
-        print("✅ Gateway initialized with PayAI + analytics")
+        print("[OK] Gateway initialized with PayAI + analytics")
 
     def test_gateway_has_correct_priority(self):
         """Test gateway prioritizes PayAI first"""
@@ -100,7 +100,7 @@ class TestUnifiedGatewayInitialization:
         assert gateway.facilitator_priority[0] == 'payai'
         assert gateway.facilitator_priority[1] == 'kamiyo_native'
 
-        print("✅ Gateway priority: PayAI → Native")
+        print("[OK] Gateway priority: PayAI → Native")
 
 
 class Test402ResponseGeneration:
@@ -138,7 +138,7 @@ class Test402ResponseGeneration:
         assert payai_option['priority'] == 1
         assert payai_option['recommended'] is True
 
-        print("✅ 402 response includes PayAI + native options")
+        print("[OK] 402 response includes PayAI + native options")
 
     def test_402_response_includes_x402_standard(self):
         """Test 402 response follows x402 specification"""
@@ -175,7 +175,7 @@ class Test402ResponseGeneration:
         assert 'maxAmountRequired' in accept
         assert 'payTo' in accept
 
-        print("✅ 402 response follows x402 specification")
+        print("[OK] 402 response follows x402 specification")
 
 
 class TestAnalyticsTracking:
@@ -197,7 +197,7 @@ class TestAnalyticsTracking:
 
         assert len(analytics.metrics_cache['payai']) == 1
 
-        print("✅ Analytics recorded payment attempt")
+        print("[OK] Analytics recorded payment attempt")
 
     @pytest.mark.asyncio
     async def test_analytics_calculates_metrics(self):
@@ -221,7 +221,7 @@ class TestAnalyticsTracking:
         assert metrics['payai'].success_rate == 0.9  # 90%
         assert metrics['payai'].avg_latency_ms > 0
 
-        print(f"✅ Analytics calculated: {metrics['payai'].success_rate:.1%} success rate")
+        print(f"[OK] Analytics calculated: {metrics['payai'].success_rate:.1%} success rate")
 
 
 class TestErrorHandlingAndFallbacks:
@@ -261,7 +261,7 @@ class TestErrorHandlingAndFallbacks:
             assert result['is_valid'] is True
             assert result['payment_type'] == 'onchain'
 
-        print("✅ PayAI error triggers fallback to native")
+        print("[OK] PayAI error triggers fallback to native")
 
     @pytest.mark.asyncio
     async def test_handles_missing_endpoint_price(self):
@@ -282,7 +282,7 @@ class TestErrorHandlingAndFallbacks:
         # Should return some error (either "not configured" or "no valid payment")
         assert result.get('error') is not None
 
-        print("✅ Handles unconfigured endpoints gracefully")
+        print("[OK] Handles unconfigured endpoints gracefully")
 
 
 class TestDatabaseIntegration:
@@ -299,7 +299,7 @@ class TestDatabaseIntegration:
 
         assert mock_tracker is not None
 
-        print("✅ Payment tracker can be mocked")
+        print("[OK] Payment tracker can be mocked")
 
 
 def run_production_readiness_tests():

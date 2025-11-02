@@ -99,7 +99,7 @@ class UnifiedPaymentGateway:
             )
 
             if result['is_valid']:
-                logger.info(f"✅ PayAI payment verified: {result.get('payer')}")
+                logger.info(f"[OK] PayAI payment verified: {result.get('payer')}")
                 return result
 
         # 2. Check for KAMIYO native on-chain payment
@@ -121,7 +121,7 @@ class UnifiedPaymentGateway:
             )
 
             if result['is_valid']:
-                logger.info(f"✅ KAMIYO native payment verified: {result.get('from_address')}")
+                logger.info(f"[OK] KAMIYO native payment verified: {result.get('from_address')}")
                 return result
 
         # 3. Check for legacy KAMIYO token
@@ -129,7 +129,7 @@ class UnifiedPaymentGateway:
         if payment_token:
             result = await self._verify_native_token(payment_token)
             if result['is_valid']:
-                logger.info(f"✅ KAMIYO token verified: {result.get('payment_id')}")
+                logger.info(f"[OK] KAMIYO token verified: {result.get('payment_id')}")
                 return result
 
         # No valid payment found

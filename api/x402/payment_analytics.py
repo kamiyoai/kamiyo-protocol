@@ -81,7 +81,7 @@ class PaymentAnalytics:
         self.metrics_cache[facilitator].append(record)
 
         # Log metrics
-        status = "✅" if success else "❌"
+        status = "[OK]" if success else "[FAIL]"
         logger.info(
             f"{status} Payment via {facilitator}: "
             f"{endpoint} | {latency_ms}ms | "
@@ -257,19 +257,19 @@ class PaymentAnalytics:
 
         # Add recommendations based on metrics
         if metrics['payai'].success_rate > 0.95:
-            report += "- ✅ PayAI performing well (>95% success)\n"
+            report += "- [OK] PayAI performing well (>95% success)\n"
         elif metrics['payai'].success_rate > 0:
-            report += "- ⚠️  PayAI success rate below target (<95%)\n"
+            report += "- [WARNING]  PayAI success rate below target (<95%)\n"
 
         if metrics['payai'].avg_latency_ms < 2000:
-            report += "- ✅ PayAI latency under target (<2s)\n"
+            report += "- [OK] PayAI latency under target (<2s)\n"
         elif metrics['payai'].avg_latency_ms > 0:
-            report += "- ⚠️  PayAI latency above target (>2s)\n"
+            report += "- [WARNING] PayAI latency above target (>2s)\n"
 
         if split['payai'] > 30:
-            report += "- ✅ PayAI adoption healthy (>30%)\n"
+            report += "- [OK] PayAI adoption healthy (>30%)\n"
         elif split['payai'] > 0:
-            report += "- 📈 PayAI adoption growing\n"
+            report += "- [INFO] PayAI adoption growing\n"
 
         return report
 

@@ -104,35 +104,35 @@ class PaymentVerifier:
                     self.web3_instances[chain_name] = Web3(Web3.HTTPProvider(config.rpc_url))
                     is_connected = self.web3_instances[chain_name].is_connected()
                     if is_connected:
-                        logger.info(f"✅ Connected to {chain_name} at {config.rpc_url}")
+                        logger.info(f"[OK] Connected to {chain_name} at {config.rpc_url}")
                     else:
-                        logger.warning(f"⚠️  Failed to connect to {chain_name} at {config.rpc_url}")
+                        logger.warning(f"[WARNING]  Failed to connect to {chain_name} at {config.rpc_url}")
                 except Exception as e:
-                    logger.error(f"❌ Error connecting to {chain_name}: {e}")
+                    logger.error(f"[FAIL] Error connecting to {chain_name}: {e}")
 
         # Initialize Solana client
         try:
             solana_config = self.chains.get('solana')
             if solana_config:
                 self.solana_client = AsyncClient(solana_config.rpc_url)
-                logger.info(f"✅ Initialized Solana client at {solana_config.rpc_url}")
+                logger.info(f"[OK] Initialized Solana client at {solana_config.rpc_url}")
         except Exception as e:
-            logger.error(f"❌ Error initializing Solana client: {e}")
-    
+            logger.error(f"[FAIL] Error initializing Solana client: {e}")
+
     async def verify_payment(
-        self, 
-        tx_hash: str, 
-        chain: str, 
+        self,
+        tx_hash: str,
+        chain: str,
         expected_amount: Optional[Decimal] = None
     ) -> PaymentVerification:
         """
         Verify USDC payment on specified chain
-        
+
         Args:
             tx_hash: Transaction hash to verify
             chain: Blockchain network ('base', 'ethereum', 'solana')
             expected_amount: Expected payment amount in USDC
-            
+
         Returns:
             PaymentVerification with verification results
         """
@@ -149,16 +149,16 @@ class PaymentVerifier:
                 risk_score=1.0,
                 error_message=f"Unsupported chain: {chain}"
             )
-        
+
         config = self.chains[chain]
-        
+
         # Special handling for Solana (would need Solana-specific implementation)
         if chain == 'solana':
             return await self._verify_solana_payment(tx_hash, config, expected_amount)
-        
+
         # Ethereum-compatible chains (Base, Ethereum)
         return await self._verify_evm_payment(tx_hash, chain, config, expected_amount)
-    
+
     async def _verify_evm_payment(
         self,
         tx_hash: str,
@@ -325,7 +325,7 @@ class PaymentVerifier:
             risk_score = await self._calculate_risk_score(tx_hash, chain, from_address)
 
             # Payment is valid!
-            logger.info(f"✅ Verified {chain} payment: {amount_usdc} USDC from {from_address}")
+            logger.info(f"[OK] Verified {chain} payment: {amount_usdc} USDC from {from_address}")
 
             return PaymentVerification(
                 is_valid=True,
@@ -353,7 +353,7 @@ class PaymentVerifier:
                 error_message="Transaction not found on chain"
             )
         except Exception as e:
-            logger.error(f"❌ Error verifying payment on {chain}: {e}")
+            logger.error(f"[FAIL] Error verifying payment on {chain}: {e}")
             return PaymentVerification(
                 is_valid=False,
                 tx_hash=tx_hash,
@@ -366,7 +366,7 @@ class PaymentVerifier:
                 risk_score=1.0,
                 error_message=f"Error verifying payment: {str(e)}"
             )
-    
+
     async def _verify_solana_payment(
         self,
         tx_hash: str,
@@ -543,7 +543,7 @@ class PaymentVerifier:
             risk_score = await self._calculate_risk_score(tx_hash, 'solana', from_address)
 
             # Payment is valid!
-            logger.info(f"✅ Verified Solana payment: {amount_usdc} USDC from {from_address}")
+            logger.info(f"[OK] Verified Solana payment: {amount_usdc} USDC from {from_address}")
 
             return PaymentVerification(
                 is_valid=True,
@@ -558,7 +558,7 @@ class PaymentVerifier:
             )
 
         except Exception as e:
-            logger.error(f"❌ Error verifying Solana payment: {e}")
+            logger.error(f"[FAIL] Error verifying Solana payment: {e}")
             return PaymentVerification(
                 is_valid=False,
                 tx_hash=tx_hash,
@@ -571,16 +571,16 @@ class PaymentVerifier:
                 risk_score=1.0,
                 error_message=f"Error verifying Solana payment: {str(e)}"
             )
-    
+
     async def _calculate_risk_score(
-        self, 
-        tx_hash: str, 
-        chain: str, 
+        self,
+        tx_hash: str,
+        chain: str,
         from_address: str
     ) -> float:
         """
         Calculate risk score for payment
-        
+
         Factors:
         - Transaction age
         - Sender reputation
@@ -588,18 +588,18 @@ class PaymentVerifier:
         - Exploit correlation
         """
         base_score = 0.1  # Start with low risk
-        
+
         # TODO: Implement actual risk scoring
         # - Check if sender address is associated with recent exploits
         # - Analyze payment patterns
         # - Check transaction velocity
-        
+
         return min(base_score, 1.0)  # Ensure score is between 0-1
-    
+
     def get_supported_chains(self) -> List[str]:
         """Get list of supported blockchain networks"""
         return list(self.chains.keys())
-    
+
     def get_payment_address(self, chain: str) -> str:
         """Get payment address for specified chain from configuration"""
         if chain == 'base':
