@@ -15,6 +15,7 @@ from starlette.responses import Response
 from .payment_verifier import payment_verifier, PaymentVerification
 from .payment_tracker import PaymentTracker
 from .config import get_x402_config
+from .payment_gateway import UnifiedPaymentGateway
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,12 @@ class X402Middleware(BaseHTTPMiddleware):
     4. Tracks payment usage for rate limiting
     """
     
-    def __init__(self, app, payment_tracker: PaymentTracker):
+    def __init__(
+        self,
+        app,
+        payment_tracker: PaymentTracker,
+        use_unified_gateway: bool = True
+    ):
         super().__init__(app)
         self.payment_tracker = payment_tracker
         self.config = get_x402_config()
@@ -40,7 +46,18 @@ class X402Middleware(BaseHTTPMiddleware):
             for endpoint, price in self.config.endpoint_prices.items()
         }
 
-        logger.info(f"x402 Middleware initialized with {len(self.require_payment_paths)} paid endpoints")
+        # Initialize unified payment gateway (supports PayAI + native)
+        self.use_unified_gateway = use_unified_gateway
+        if use_unified_gateway:
+            self.payment_gateway = UnifiedPaymentGateway(
+                payment_tracker=payment_tracker,
+                middleware=self
+            )
+            logger.info("x402 Middleware initialized with UnifiedPaymentGateway (PayAI + native)")
+        else:
+            self.payment_gateway = None
+            logger.info("x402 Middleware initialized with native-only verification")
+
         logger.info(f"Paid endpoints: {list(self.require_payment_paths.keys())}")
     
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -62,7 +79,11 @@ class X402Middleware(BaseHTTPMiddleware):
 
             # Check for valid payment authorization
             try:
-                payment_auth = await self._get_payment_authorization(request)
+                # Use unified gateway if enabled, otherwise fall back to legacy
+                if self.payment_gateway:
+                    payment_auth = await self.payment_gateway.verify_payment(request)
+                else:
+                    payment_auth = await self._get_payment_authorization(request)
             except Exception as e:
                 logger.error(f"Error during payment authorization: {e}")
                 # On authorization error, return 402 (fail closed for security)
@@ -213,34 +234,44 @@ class X402Middleware(BaseHTTPMiddleware):
     
     def _create_402_response(self, request: Request, payment_config: Dict[str, Any]) -> JSONResponse:
         """Create HTTP 402 Payment Required response"""
-        
-        payment_details = {
-            "payment_required": True,
-            "endpoint": payment_config['endpoint'],
-            "method": payment_config['method'],
-            "amount_usdc": payment_config['price'],
-            "description": f"Access to {payment_config['endpoint']} requires payment",
-            "payment_methods": [
-                {
-                    "type": "onchain",
-                    "description": "Send USDC payment on supported chains",
-                    "supported_chains": payment_verifier.get_supported_chains(),
-                    "payment_addresses": {
-                        chain: payment_verifier.get_payment_address(chain)
-                        for chain in payment_verifier.get_supported_chains()
+
+        # Use unified gateway for multi-facilitator 402 response
+        if self.payment_gateway:
+            from decimal import Decimal
+            payment_details = self.payment_gateway.create_402_response(
+                request=request,
+                endpoint=payment_config['endpoint'],
+                price_usdc=Decimal(str(payment_config['price']))
+            )
+        else:
+            # Legacy native-only 402 response
+            payment_details = {
+                "payment_required": True,
+                "endpoint": payment_config['endpoint'],
+                "method": payment_config['method'],
+                "amount_usdc": payment_config['price'],
+                "description": f"Access to {payment_config['endpoint']} requires payment",
+                "payment_methods": [
+                    {
+                        "type": "onchain",
+                        "description": "Send USDC payment on supported chains",
+                        "supported_chains": payment_verifier.get_supported_chains(),
+                        "payment_addresses": {
+                            chain: payment_verifier.get_payment_address(chain)
+                            for chain in payment_verifier.get_supported_chains()
+                        },
+                        "instructions": "Include x-payment-tx and x-payment-chain headers after payment"
                     },
-                    "instructions": "Include x-payment-tx and x-payment-chain headers after payment"
-                },
-                {
-                    "type": "token",
-                    "description": "Use existing payment token",
-                    "instructions": "Include x-payment-token header with valid token"
-                }
-            ],
-            "api_documentation": "https://kamiyo.ai/docs/x402-payments",
-            "support": "support@kamiyo.ai"
-        }
-        
+                    {
+                        "type": "token",
+                        "description": "Use existing payment token",
+                        "instructions": "Include x-payment-token header with valid token"
+                    }
+                ],
+                "api_documentation": "https://kamiyo.ai/docs/x402-payments",
+                "support": "support@kamiyo.ai"
+            }
+
         return JSONResponse(
             status_code=402,
             content=payment_details,

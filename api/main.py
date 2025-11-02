@@ -147,8 +147,8 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-CSRF-Token"],  # Added CSRF header
-    expose_headers=["X-CSRF-Token"],  # Allow frontend to read CSRF token from response
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-CSRF-Token", "X-PAYMENT", "x-payment-tx", "x-payment-chain", "x-payment-token"],  # Added x402 payment headers
+    expose_headers=["X-CSRF-Token", "X-PAYMENT-RESPONSE"],  # Allow frontend to read CSRF token and payment responses
     max_age=3600,
 )
 
@@ -191,12 +191,13 @@ app.add_middleware(
 )
 logger.info(f"Rate limiting middleware enabled (Redis: {use_redis_rate_limit})")
 
-# x402 Payment Middleware
+# x402 Payment Middleware (with PayAI + native support)
 app.add_middleware(
     X402Middleware,
-    payment_tracker=payment_tracker
+    payment_tracker=payment_tracker,
+    use_unified_gateway=True  # Enable PayAI Network + KAMIYO native
 )
-logger.info("x402 Payment middleware enabled")
+logger.info("x402 Payment middleware enabled (PayAI + native)")
 
 # Cache middleware
 if cache_config.middleware_enabled:
