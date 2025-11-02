@@ -313,7 +313,7 @@ async def check_wallet_interactions(
             "message": "Wallet monitoring is a Team+ premium feature",
             "required_tier": "team",
             "current_tier": user_tier or "personal",
-            "upgrade_url": "https://kamiyo.io/pricing",
+            "upgrade_url": "https://kamiyo.ai/pricing",
             "feature_benefits": [
                 "Monitor wallet interactions with exploited protocols",
                 "Get risk scores and recommendations",

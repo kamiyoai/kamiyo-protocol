@@ -15,7 +15,7 @@ def test_user():
     """Create a test user"""
     return {
         'id': 'test_user_123',
-        'email': 'test@kamiyo.io',
+        'email': 'test@kamiyo.ai',
         'stripe_customer_id': 'cus_test123'
     }
 

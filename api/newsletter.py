@@ -29,7 +29,7 @@ MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY', '')
 MAILCHIMP_LIST_ID = os.getenv('MAILCHIMP_LIST_ID', '')
 MAILCHIMP_SERVER = os.getenv('MAILCHIMP_SERVER', 'us1')
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'data/kamiyo.db')
-SITE_URL = os.getenv('SITE_URL', 'https://kamiyo.io')
+SITE_URL = os.getenv('SITE_URL', 'https://kamiyo.ai')
 
 router = APIRouter(prefix="/api/newsletter", tags=["newsletter"])
 
@@ -193,7 +193,7 @@ async def send_via_sendgrid(to_email: str, subject: str, html_content: str):
     }
     data = {
         'personalizations': [{'to': [{'email': to_email}]}],
-        'from': {'email': 'noreply@kamiyo.io', 'name': 'Kamiyo'},
+        'from': {'email': 'noreply@kamiyo.ai', 'name': 'Kamiyo'},
         'subject': subject,
         'content': [{'type': 'text/html', 'value': html_content}]
     }

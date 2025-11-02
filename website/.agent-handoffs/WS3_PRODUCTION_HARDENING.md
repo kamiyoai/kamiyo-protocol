@@ -361,7 +361,7 @@ cors: {
 ```javascript
 cors: {
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://kamiyo.io', 'https://www.kamiyo.io']
+    ? ['https://kamiyo.ai', 'https://www.kamiyo.ai']
     : ['http://localhost:3000', 'http://localhost:3001'],
   methods: ["GET", "POST"],
   credentials: true
@@ -471,9 +471,9 @@ const io = new Server(httpServer, {
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [
       process.env.NEXT_PUBLIC_URL,
-      'https://kamiyo.io',
-      'https://www.kamiyo.io',
-      'https://api.kamiyo.io'
+      'https://kamiyo.ai',
+      'https://www.kamiyo.ai',
+      'https://api.kamiyo.ai'
     ]
   : [
       'http://localhost:3000',
@@ -497,7 +497,7 @@ const io = new Server(httpServer, {
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      const allowedDomains = ['kamiyo.io', 'localhost'];
+      const allowedDomains = ['kamiyo.ai', 'localhost'];
       const isAllowed = allowedDomains.some(domain =>
         origin?.includes(domain)
       );
@@ -513,7 +513,7 @@ const io = new Server(httpServer, {
 
 ```bash
 # Test valid origin
-curl -H "Origin: https://kamiyo.io" http://localhost:3001/api/exploits
+curl -H "Origin: https://kamiyo.ai" http://localhost:3001/api/exploits
 
 # Test invalid origin (should be rejected)
 curl -H "Origin: https://evil.com" http://localhost:3001/api/exploits

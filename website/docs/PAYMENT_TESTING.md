@@ -128,7 +128,7 @@ Always follow Arrange-Act-Assert pattern:
 async def test_create_customer_success(self, stripe_client):
     # Arrange
     user_id = 1
-    email = "test@kamiyo.io"
+    email = "test@kamiyo.ai"
     
     # Act
     result = await stripe_client.create_customer(user_id, email)
@@ -148,7 +148,7 @@ def test_customer():
     return {
         'id': 1,
         'stripe_customer_id': 'cus_test123',
-        'email': 'test@kamiyo.io'
+        'email': 'test@kamiyo.ai'
     }
 
 def test_something(test_customer):

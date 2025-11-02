@@ -2,7 +2,7 @@
 
 Complete API documentation for the Kamiyo Exploit Intelligence Platform.
 
-**Base URL:** `https://api.kamiyo.io/v1`
+**Base URL:** `https://api.kamiyo.ai/v1`
 **Version:** 1.0
 **Last Updated:** October 2025
 
@@ -22,7 +22,7 @@ X-API-Key: your_api_key_here
 
 ```bash
 curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.kamiyo.io/v1/exploits
+  https://api.kamiyo.ai/v1/exploits
 ```
 
 ### Error Responses
@@ -100,7 +100,7 @@ Retrieve a paginated list of exploits.
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  "https://api.kamiyo.io/v1/exploits?chain=ethereum&severity=critical&limit=50"
+  "https://api.kamiyo.ai/v1/exploits?chain=ethereum&severity=critical&limit=50"
 ```
 
 **Success Response (200 OK):**
@@ -168,7 +168,7 @@ Retrieve detailed information about a specific exploit.
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  https://api.kamiyo.io/v1/exploits/exp_1a2b3c4d
+  https://api.kamiyo.ai/v1/exploits/exp_1a2b3c4d
 ```
 
 **Success Response (200 OK):**
@@ -236,7 +236,7 @@ Full-text search across exploit data.
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  "https://api.kamiyo.io/v1/exploits/search?q=flash+loan+uniswap"
+  "https://api.kamiyo.ai/v1/exploits/search?q=flash+loan+uniswap"
 ```
 
 ---
@@ -253,7 +253,7 @@ Retrieve platform-wide statistics.
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  https://api.kamiyo.io/v1/stats
+  https://api.kamiyo.ai/v1/stats
 ```
 
 **Success Response (200 OK):**
@@ -315,7 +315,7 @@ Retrieve your current API usage statistics.
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  https://api.kamiyo.io/v1/usage
+  https://api.kamiyo.ai/v1/usage
 ```
 
 **Success Response (200 OK):**
@@ -391,7 +391,7 @@ Connect to receive real-time exploit updates.
 **Connection:**
 
 ```javascript
-const ws = new WebSocket('wss://api.kamiyo.io/v1/stream?api_key=YOUR_KEY');
+const ws = new WebSocket('wss://api.kamiyo.ai/v1/stream?api_key=YOUR_KEY');
 
 ws.onopen = () => {
   console.log('Connected');
@@ -449,7 +449,7 @@ ws.onmessage = (event) => {
 import requests
 
 API_KEY = "your_api_key_here"
-BASE_URL = "https://api.kamiyo.io/v1"
+BASE_URL = "https://api.kamiyo.ai/v1"
 
 headers = {"X-API-Key": API_KEY}
 
@@ -467,7 +467,7 @@ for exploit in exploits['exploits']:
 const axios = require('axios');
 
 const API_KEY = 'your_api_key_here';
-const BASE_URL = 'https://api.kamiyo.io/v1';
+const BASE_URL = 'https://api.kamiyo.ai/v1';
 
 const headers = { 'X-API-Key': API_KEY };
 
@@ -494,7 +494,7 @@ import (
 
 const (
     APIKey  = "your_api_key_here"
-    BaseURL = "https://api.kamiyo.io/v1"
+    BaseURL = "https://api.kamiyo.ai/v1"
 )
 
 func main() {
@@ -535,5 +535,5 @@ Official SDKs available:
 
 ---
 
-**Support:** api-support@kamiyo.io
-**Documentation:** https://kamiyo.io/docs
+**Support:** api-support@kamiyo.ai
+**Documentation:** https://kamiyo.ai/docs

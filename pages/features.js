@@ -8,7 +8,7 @@ export default function Features() {
         "@type": "ItemList",
         "name": "KAMIYO Security Intelligence Platform Features",
         "description": "Complete list of features for KAMIYO's crypto exploit intelligence and security monitoring platform",
-        "url": "https://kamiyo.io/features",
+        "url": "https://kamiyo.ai/features",
         "itemListElement": [
             {
                 "@type": "ListItem",
@@ -59,7 +59,7 @@ export default function Features() {
         "@context": "https://schema.org",
         "@type": "WebPage",
         "name": "Security Intelligence Features for AI Agents",
-        "url": "https://kamiyo.io/features",
+        "url": "https://kamiyo.ai/features",
         "description": "KAMIYO security intelligence features: 20+ source aggregation, MCP integration for AI agents, protocol risk scoring, real-time exploit detection, and historical database",
         "breadcrumb": {
             "@type": "BreadcrumbList",
@@ -68,13 +68,13 @@ export default function Features() {
                     "@type": "ListItem",
                     "position": 1,
                     "name": "Home",
-                    "item": "https://kamiyo.io"
+                    "item": "https://kamiyo.ai"
                 },
                 {
                     "@type": "ListItem",
                     "position": 2,
                     "name": "Features",
-                    "item": "https://kamiyo.io/features"
+                    "item": "https://kamiyo.ai/features"
                 }
             ]
         }
@@ -89,7 +89,7 @@ export default function Features() {
                 <meta name="keywords" content="crypto security intelligence, AI agent security tools, MCP integration, protocol risk assessment, exploit detection, security monitoring, crypto intelligence API, blockchain security features, wallet screening, exploit database, AI security agents" />
 
                 {/* Canonical URL */}
-                <link rel="canonical" href="https://kamiyo.io/features" />
+                <link rel="canonical" href="https://kamiyo.ai/features" />
 
                 {/* Robots Meta */}
                 <meta name="robots" content="index, follow" />
@@ -98,19 +98,19 @@ export default function Features() {
 
                 {/* Open Graph / Facebook */}
                 <meta property="og:type" content="website" />
-                <meta property="og:url" content="https://kamiyo.io/features" />
+                <meta property="og:url" content="https://kamiyo.ai/features" />
                 <meta property="og:title" content="Security Intelligence Features | AI Agent Integration" />
                 <meta property="og:description" content="KAMIYO security intelligence features: 20+ source aggregation, MCP integration for AI agents, protocol risk scoring, and real-time exploit detection." />
-                <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:site_name" content="KAMIYO" />
                 <meta property="og:locale" content="en_US" />
 
                 {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:url" content="https://kamiyo.io/features" />
+                <meta name="twitter:url" content="https://kamiyo.ai/features" />
                 <meta name="twitter:title" content="Security Intelligence Features | AI Agent Integration" />
                 <meta name="twitter:description" content="20+ source aggregation, MCP integration for AI agents, protocol risk scoring, and real-time exploit detection." />
-                <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
                 <meta name="twitter:creator" content="@KAMIYO" />
 

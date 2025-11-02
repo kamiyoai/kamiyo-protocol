@@ -158,7 +158,7 @@ class SubscriptionRequired:
                     f"This feature requires {self.min_tier} tier or higher. "
                     f"Your current tier: {user_tier}. "
                     f"Available tiers: {', '.join(available_tiers)}. "
-                    f"Upgrade at https://kamiyo.io/pricing"
+                    f"Upgrade at https://kamiyo.ai/pricing"
                 )
 
             # Inject subscription_tier into kwargs

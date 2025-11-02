@@ -258,7 +258,7 @@ Use the manual workflow dispatch:
 
 ```bash
 # API health
-curl https://api.kamiyo.io/health
+curl https://api.kamiyo.ai/health
 
 # Expected response:
 {

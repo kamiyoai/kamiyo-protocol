@@ -279,7 +279,7 @@ monitor_wallet(
 {
   "error": "premium_feature_required",
   "required_tier": "team",
-  "upgrade_url": "https://kamiyo.io/pricing",
+  "upgrade_url": "https://kamiyo.ai/pricing",
   "feature_benefits": [...]
 }
 ```
@@ -489,7 +489,7 @@ print(f"Current risk: {result['risk_assessment']['risk_level']}")
 {
   "error": "premium_feature_required",
   "required_tier": "team",
-  "upgrade_url": "https://kamiyo.io/pricing"
+  "upgrade_url": "https://kamiyo.ai/pricing"
 }
 ```
 

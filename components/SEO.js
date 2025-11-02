@@ -59,7 +59,7 @@ export default function SEO({
     "protocol vulnerability tracking"
   ],
   canonical = "https://kamiyo.ai",
-  ogImage = "https://kamiyo.io/media/KAMIYO_OpenGraphImage.png",
+  ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
   ogType = "website",
   schemaData = null,
   noindex = false,

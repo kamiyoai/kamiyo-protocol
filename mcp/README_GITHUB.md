@@ -25,7 +25,7 @@ Integrate KAMIYO security intelligence into Claude Desktop via the Model Context
 
 ### 1. Subscribe
 
-Visit [kamiyo.io/pricing](https://kamiyo.io/pricing) and choose your tier:
+Visit [kamiyo.ai/pricing](https://kamiyo.ai/pricing) and choose your tier:
 
 - **Personal** ($19/mo): 1 agent, unlimited queries, real-time data
 - **Team** ($99/mo): 5 agents, wallet monitoring, priority support
@@ -41,7 +41,7 @@ Subject: Your KAMIYO MCP Access Token
 Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-Or retrieve from: [kamiyo.io/dashboard/api-keys](https://kamiyo.io/dashboard/api-keys)
+Or retrieve from: [kamiyo.ai/dashboard/api-keys](https://kamiyo.ai/dashboard/api-keys)
 
 ### 3. Install the Server
 
@@ -77,7 +77,7 @@ Add this configuration:
       "cwd": "/absolute/path/to/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_TOKEN_HERE",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -301,7 +301,7 @@ python3.11 -m mcp.server --help
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MCP_JWT_SECRET` | **Yes** | - | Your MCP access token |
-| `KAMIYO_API_URL` | No | `https://api.kamiyo.io` | API endpoint |
+| `KAMIYO_API_URL` | No | `https://api.kamiyo.ai` | API endpoint |
 | `ENVIRONMENT` | No | `production` | Environment mode |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
 | `STRIPE_SECRET_KEY` | No | - | For subscription validation |
@@ -367,7 +367,7 @@ where python
    - Token should start with `eyJ`
 
 2. **Regenerate token:**
-   - Visit [kamiyo.io/dashboard/api-keys](https://kamiyo.io/dashboard/api-keys)
+   - Visit [kamiyo.ai/dashboard/api-keys](https://kamiyo.ai/dashboard/api-keys)
    - Click "Regenerate MCP Token"
    - Update config with new token
    - Restart Claude Desktop
@@ -377,7 +377,7 @@ where python
 **Solutions:**
 
 1. **Check subscription status:**
-   - Visit [kamiyo.io/dashboard/billing](https://kamiyo.io/dashboard/billing)
+   - Visit [kamiyo.ai/dashboard/billing](https://kamiyo.ai/dashboard/billing)
    - Ensure payment is current
    - Verify subscription is active
 
@@ -417,7 +417,7 @@ pip3.11 install -r requirements.txt
 ## Documentation
 
 - **Full Setup Guide:** [docs/MCP_SETUP_GUIDE.md](docs/MCP_SETUP_GUIDE.md)
-- **API Documentation:** [kamiyo.io/api-docs](https://kamiyo.io/api-docs)
+- **API Documentation:** [kamiyo.ai/api-docs](https://kamiyo.ai/api-docs)
 - **Tool Usage Guide:** [mcp/TOOL_USAGE_GUIDE.md](mcp/TOOL_USAGE_GUIDE.md)
 - **Quick Start:** [mcp/QUICK_START_CLAUDE_DESKTOP.md](mcp/QUICK_START_CLAUDE_DESKTOP.md)
 
@@ -432,13 +432,13 @@ pip3.11 install -r requirements.txt
 
 ### Email Support
 
-- **Personal Tier:** support@kamiyo.io (48h response time)
-- **Team Tier:** priority@kamiyo.io (24h response time)
-- **Enterprise Tier:** dedicated@kamiyo.io (4h response time, SLA)
+- **Personal Tier:** support@kamiyo.ai (48h response time)
+- **Team Tier:** priority@kamiyo.ai (24h response time)
+- **Enterprise Tier:** dedicated@kamiyo.ai (4h response time, SLA)
 
 ### Status
 
-Check service status at: [status.kamiyo.io](https://status.kamiyo.io)
+Check service status at: [status.kamiyo.ai](https://status.kamiyo.ai)
 
 ---
 
@@ -450,7 +450,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## Security
 
-Found a security vulnerability? Please email security@kamiyo.io instead of opening a public issue.
+Found a security vulnerability? Please email security@kamiyo.ai instead of opening a public issue.
 
 ---
 
@@ -462,11 +462,11 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ## Links
 
-- **Website:** [kamiyo.io](https://kamiyo.io)
-- **Pricing:** [kamiyo.io/pricing](https://kamiyo.io/pricing)
-- **API Docs:** [kamiyo.io/api-docs](https://kamiyo.io/api-docs)
-- **Dashboard:** [kamiyo.io/dashboard](https://kamiyo.io/dashboard)
-- **Status:** [status.kamiyo.io](https://status.kamiyo.io)
+- **Website:** [kamiyo.ai](https://kamiyo.ai)
+- **Pricing:** [kamiyo.ai/pricing](https://kamiyo.ai/pricing)
+- **API Docs:** [kamiyo.ai/api-docs](https://kamiyo.ai/api-docs)
+- **Dashboard:** [kamiyo.ai/dashboard](https://kamiyo.ai/dashboard)
+- **Status:** [status.kamiyo.ai](https://status.kamiyo.ai)
 
 ---
 

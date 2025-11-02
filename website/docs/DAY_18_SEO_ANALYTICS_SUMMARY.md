@@ -450,14 +450,14 @@ MAILCHIMP_SERVER=us1
 
 ### Site Configuration
 ```bash
-SITE_URL=https://kamiyo.io
+SITE_URL=https://kamiyo.ai
 DATABASE_PATH=data/kamiyo.db
 METRICS_RETENTION_DAYS=30
 ```
 
 ### Google Search Console
 ```bash
-GOOGLE_SEARCH_CONSOLE_PROPERTY=https://kamiyo.io
+GOOGLE_SEARCH_CONSOLE_PROPERTY=https://kamiyo.ai
 GOOGLE_API_KEY=xxxxx
 ```
 

@@ -29,7 +29,7 @@ import requests
 from urllib.parse import urljoin
 
 # Configuration
-BASE_URL = os.getenv('SITE_URL', 'https://kamiyo.io')
+BASE_URL = os.getenv('SITE_URL', 'https://kamiyo.ai')
 SITEMAP_DIR = os.getenv('SITEMAP_DIR', 'frontend/public')
 DATABASE_PATH = os.getenv('DATABASE_PATH', 'data/kamiyo.db')
 

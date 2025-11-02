@@ -193,8 +193,8 @@ class CustomerPortalManager:
             },
             'business_profile': {
                 'headline': 'Manage Your Kamiyo Subscription',
-                'privacy_policy_url': os.getenv('PRIVACY_POLICY_URL', 'https://kamiyo.io/privacy'),
-                'terms_of_service_url': os.getenv('TERMS_URL', 'https://kamiyo.io/terms')
+                'privacy_policy_url': os.getenv('PRIVACY_POLICY_URL', 'https://kamiyo.ai/privacy'),
+                'terms_of_service_url': os.getenv('TERMS_URL', 'https://kamiyo.ai/terms')
             }
         }
 
@@ -256,7 +256,7 @@ if __name__ == '__main__':
         print("\n✅ Customer Portal Manager ready")
         print("\nTo test portal session creation:")
         print("  customer_id = 'cus_...'  # Your Stripe customer ID")
-        print("  return_url = 'https://app.kamiyo.io/billing'")
+        print("  return_url = 'https://app.kamiyo.ai/billing'")
         print("  session = create_portal_session(customer_id, return_url)")
         print("  print(session['url'])")
 

@@ -409,8 +409,8 @@ This tests:
 Create `.env.production`:
 
 ```env
-VITE_API_URL=https://api.kamiyo.io
-VITE_WS_URL=wss://api.kamiyo.io/ws
+VITE_API_URL=https://api.kamiyo.ai
+VITE_WS_URL=wss://api.kamiyo.ai/ws
 VITE_STRIPE_PUBLIC_KEY=pk_live_...
 ```
 

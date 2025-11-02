@@ -70,7 +70,7 @@ test_redis() {
 create_test_customer() {
     echo -e "${YELLOW}Creating test customer...${NC}"
     
-    CUSTOMER_EMAIL="test-$(date +%s)@kamiyo.io"
+    CUSTOMER_EMAIL="test-$(date +%s)@kamiyo.ai"
     
     curl -X POST "$API_URL/api/v1/payments/customers" \
         -H "Content-Type: application/json" \
@@ -218,7 +218,7 @@ cleanup_test_data() {
     echo -e "${YELLOW}Cleaning up test data...${NC}"
     
     # Clean database
-    psql $DATABASE_URL -c "DELETE FROM customers WHERE email LIKE 'test-%@kamiyo.io';"
+    psql $DATABASE_URL -c "DELETE FROM customers WHERE email LIKE 'test-%@kamiyo.ai';"
     
     # Clean Redis
     redis-cli FLUSHDB

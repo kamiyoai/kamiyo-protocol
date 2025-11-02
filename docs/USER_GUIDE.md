@@ -38,7 +38,7 @@ Kamiyo is an exploit intelligence aggregator that collects, organizes, and prese
 
 ### Creating Your Account
 
-1. **Visit** [kamiyo.io/signup](https://kamiyo.io/signup)
+1. **Visit** [kamiyo.ai/signup](https://kamiyo.ai/signup)
 2. **Enter** your email, username, and password
 3. **Verify** your email (check spam folder)
 4. **Complete** your profile setup
@@ -221,7 +221,7 @@ Include your API key in the `X-API-Key` header:
 
 ```bash
 curl -H "X-API-Key: your_api_key_here" \
-  https://api.kamiyo.io/v1/exploits
+  https://api.kamiyo.ai/v1/exploits
 ```
 
 #### List All Exploits
@@ -243,7 +243,7 @@ GET /api/v1/exploits
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  "https://api.kamiyo.io/v1/exploits?chain=ethereum&severity=critical&limit=50"
+  "https://api.kamiyo.ai/v1/exploits?chain=ethereum&severity=critical&limit=50"
 ```
 
 **Response:**
@@ -282,7 +282,7 @@ GET /api/v1/exploits/{exploit_id}
 
 ```bash
 curl -H "X-API-Key: YOUR_KEY" \
-  https://api.kamiyo.io/v1/exploits/exploit_123
+  https://api.kamiyo.ai/v1/exploits/exploit_123
 ```
 
 #### Search Exploits
@@ -373,7 +373,7 @@ View trends and statistics:
 Live exploit updates via WebSocket:
 
 ```javascript
-const ws = new WebSocket('wss://api.kamiyo.io/v1/stream');
+const ws = new WebSocket('wss://api.kamiyo.ai/v1/stream');
 
 ws.onmessage = (event) => {
   const exploit = JSON.parse(event.data);
@@ -428,7 +428,7 @@ Severity: Critical
 Description: Flash loan attack...
 Transaction: 0xabc123...
 
-View Details: https://kamiyo.io/exploits/123
+View Details: https://kamiyo.ai/exploits/123
 ```
 
 #### Telegram Notifications
@@ -527,7 +527,7 @@ Every exploit is verified:
 
 **Solution:**
 1. Check spam/junk folder
-2. Add noreply@kamiyo.io to contacts
+2. Add noreply@kamiyo.ai to contacts
 3. Verify email in account settings
 
 ---
@@ -630,7 +630,7 @@ A: No. Kamiyo is a hosted service only.
 
 ### Contact Us
 
-- **Email:** support@kamiyo.io
+- **Email:** support@kamiyo.ai
 - **Discord:** [discord.gg/kamiyo](https://discord.gg/kamiyo)
 - **Twitter:** [@KamiyoHQ](https://twitter.com/KamiyoHQ)
 
@@ -642,9 +642,9 @@ A: No. Kamiyo is a hosted service only.
 
 ### Documentation
 
-- **API Reference:** [kamiyo.io/docs/api](https://kamiyo.io/docs/api)
-- **Developer Guide:** [kamiyo.io/docs/developers](https://kamiyo.io/docs/developers)
-- **Blog:** [kamiyo.io/blog](https://kamiyo.io/blog)
+- **API Reference:** [kamiyo.ai/docs/api](https://kamiyo.ai/docs/api)
+- **Developer Guide:** [kamiyo.ai/docs/developers](https://kamiyo.ai/docs/developers)
+- **Blog:** [kamiyo.ai/blog](https://kamiyo.ai/blog)
 
 ---
 

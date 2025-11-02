@@ -43,7 +43,7 @@ page_rules:
   - name: static_assets
     priority: 1
     status: active
-    url_pattern: "*.kamiyo.io/static/*"
+    url_pattern: "*.kamiyo.ai/static/*"
     actions:
       cache_level: cache_everything
       edge_cache_ttl: 31536000  # 1 year
@@ -62,7 +62,7 @@ page_rules:
   - name: api_docs
     priority: 2
     status: active
-    url_pattern: "*.kamiyo.io/docs*"
+    url_pattern: "*.kamiyo.ai/docs*"
     actions:
       cache_level: cache_everything
       edge_cache_ttl: 86400  # 1 day
@@ -78,7 +78,7 @@ page_rules:
   - name: api_get_exploits
     priority: 3
     status: active
-    url_pattern: "*.kamiyo.io/api/exploits*"
+    url_pattern: "*.kamiyo.ai/api/exploits*"
     actions:
       cache_level: cache_everything
       edge_cache_ttl: 300  # 5 minutes
@@ -94,7 +94,7 @@ page_rules:
   - name: api_stats
     priority: 4
     status: active
-    url_pattern: "*.kamiyo.io/api/stats*"
+    url_pattern: "*.kamiyo.ai/api/stats*"
     actions:
       cache_level: cache_everything
       edge_cache_ttl: 120  # 2 minutes
@@ -107,7 +107,7 @@ page_rules:
   - name: api_health
     priority: 5
     status: active
-    url_pattern: "*.kamiyo.io/api/health*"
+    url_pattern: "*.kamiyo.ai/api/health*"
     actions:
       cache_level: cache_everything
       edge_cache_ttl: 30  # 30 seconds
@@ -119,7 +119,7 @@ page_rules:
   - name: webhooks
     priority: 6
     status: active
-    url_pattern: "*.kamiyo.io/api/webhooks/*"
+    url_pattern: "*.kamiyo.ai/api/webhooks/*"
     actions:
       cache_level: bypass
     description: "Bypass cache for webhooks (real-time)"
@@ -129,7 +129,7 @@ page_rules:
   - name: auth
     priority: 7
     status: active
-    url_pattern: "*.kamiyo.io/api/auth/*"
+    url_pattern: "*.kamiyo.ai/api/auth/*"
     actions:
       cache_level: bypass
     description: "Bypass cache for authentication"
@@ -139,7 +139,7 @@ page_rules:
   - name: user_dashboard
     priority: 8
     status: active
-    url_pattern: "*.kamiyo.io/api/user/*"
+    url_pattern: "*.kamiyo.ai/api/user/*"
     actions:
       cache_level: bypass
     description: "Bypass cache for user-specific data"
@@ -149,7 +149,7 @@ page_rules:
   - name: payments
     priority: 9
     status: active
-    url_pattern: "*.kamiyo.io/api/payments/*"
+    url_pattern: "*.kamiyo.ai/api/payments/*"
     actions:
       cache_level: bypass
     description: "Bypass cache for payment processing"
@@ -159,7 +159,7 @@ page_rules:
   - name: api_default
     priority: 10
     status: active
-    url_pattern: "*.kamiyo.io/api/*"
+    url_pattern: "*.kamiyo.ai/api/*"
     actions:
       cache_level: cache_everything
       edge_cache_ttl: 60  # 1 minute

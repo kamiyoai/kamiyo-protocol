@@ -7,8 +7,8 @@ export default function About() {
         "@type": "Organization",
         "name": "KAMIYO",
         "legalName": "KAMIYO Security Intelligence",
-        "url": "https://kamiyo.io",
-        "logo": "https://kamiyo.io/favicon.png",
+        "url": "https://kamiyo.ai",
+        "logo": "https://kamiyo.ai/favicon.png",
         "description": "Real-time cryptocurrency exploit intelligence platform for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources.",
         "foundingDate": "2024",
         "sameAs": [
@@ -18,8 +18,8 @@ export default function About() {
         "contactPoint": {
             "@type": "ContactPoint",
             "contactType": "Customer Support",
-            "email": "support@kamiyo.io",
-            "url": "https://kamiyo.io"
+            "email": "support@kamiyo.ai",
+            "url": "https://kamiyo.ai"
         }
     };
 
@@ -27,10 +27,10 @@ export default function About() {
         "@context": "https://schema.org",
         "@type": "AboutPage",
         "name": "About KAMIYO Security Intelligence",
-        "url": "https://kamiyo.io/about",
+        "url": "https://kamiyo.ai/about",
         "description": "Learn about KAMIYO's real-time cryptocurrency exploit intelligence platform, MCP subscription model, x402 API access, and our mission to protect AI agents with security intelligence from 20+ sources",
         "mainEntity": {
-            "@id": "https://kamiyo.io/#organization"
+            "@id": "https://kamiyo.ai/#organization"
         }
     };
 
@@ -43,7 +43,7 @@ export default function About() {
                 <meta name="keywords" content="security intelligence, crypto exploits, AI agent security, MCP protocol, x402 API, exploit intelligence, DeFi security, blockchain security, CertiK, PeckShield, BlockSec, SlowMist, real-time security data" />
 
                 {/* Canonical URL */}
-                <link rel="canonical" href="https://kamiyo.io/about" />
+                <link rel="canonical" href="https://kamiyo.ai/about" />
 
                 {/* Robots Meta */}
                 <meta name="robots" content="index, follow" />
@@ -52,19 +52,19 @@ export default function About() {
 
                 {/* Open Graph / Facebook */}
                 <meta property="og:type" content="website" />
-                <meta property="og:url" content="https://kamiyo.io/about" />
+                <meta property="og:url" content="https://kamiyo.ai/about" />
                 <meta property="og:title" content="About KAMIYO | Security Intelligence for AI Agents" />
                 <meta property="og:description" content="Real-time cryptocurrency exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources." />
-                <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:site_name" content="KAMIYO" />
                 <meta property="og:locale" content="en_US" />
 
                 {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:url" content="https://kamiyo.io/about" />
+                <meta name="twitter:url" content="https://kamiyo.ai/about" />
                 <meta name="twitter:title" content="About KAMIYO | Security Intelligence for AI Agents" />
                 <meta name="twitter:description" content="Real-time cryptocurrency exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources." />
-                <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
                 <meta name="twitter:creator" content="@KAMIYO" />
 

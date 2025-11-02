@@ -42,7 +42,7 @@ You should see Python 3.11.x or higher.
 
 ### Step 1.1: Visit Pricing Page
 
-Go to [https://kamiyo.io/pricing](https://kamiyo.io/pricing)
+Go to [https://kamiyo.ai/pricing](https://kamiyo.ai/pricing)
 
 ### Step 1.2: Choose Your Plan
 
@@ -87,7 +87,7 @@ Keep this token secure - it provides access to KAMIYO security intelligence.
 
 ### Method 2: Dashboard (Manual)
 
-1. Log in to [https://kamiyo.io/dashboard](https://kamiyo.io/dashboard)
+1. Log in to [https://kamiyo.ai/dashboard](https://kamiyo.ai/dashboard)
 2. Navigate to **"API Keys"** tab
 3. Find **"MCP Access Token"** section
 4. Click **"Reveal Token"** to view your token
@@ -229,7 +229,7 @@ If the file is **empty or doesn't exist**, create it with:
       "cwd": "/absolute/path/to/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_JWT_SECRET_FROM_EMAIL",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -255,7 +255,7 @@ If the file **already has other MCP servers**, add KAMIYO to the existing `mcpSe
       "cwd": "/absolute/path/to/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_JWT_SECRET_FROM_EMAIL",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -288,7 +288,7 @@ You can add these optional settings:
       "cwd": "/absolute/path/to/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_JWT_SECRET",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production",
         "LOG_LEVEL": "INFO",
         "STRIPE_SECRET_KEY": "sk_live_...",
@@ -304,7 +304,7 @@ You can add these optional settings:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `MCP_JWT_SECRET` | **Yes** | Your MCP access token |
-| `KAMIYO_API_URL` | No | API endpoint (default: https://api.kamiyo.io) |
+| `KAMIYO_API_URL` | No | API endpoint (default: https://api.kamiyo.ai) |
 | `ENVIRONMENT` | No | Environment mode (default: production) |
 | `LOG_LEVEL` | No | Logging level (default: INFO) |
 | `STRIPE_SECRET_KEY` | No | For subscription validation |
@@ -438,7 +438,7 @@ Check that your `MCP_JWT_SECRET` is correct:
 
 **Solution 2: Regenerate Token**
 
-1. Go to [https://kamiyo.io/dashboard/api-keys](https://kamiyo.io/dashboard/api-keys)
+1. Go to [https://kamiyo.ai/dashboard/api-keys](https://kamiyo.ai/dashboard/api-keys)
 2. Click **"Regenerate MCP Token"**
 3. Copy the new token
 4. Update `MCP_JWT_SECRET` in your config
@@ -448,7 +448,7 @@ Check that your `MCP_JWT_SECRET` is correct:
 
 **Solution: Verify Subscription Status**
 
-1. Check your Stripe subscription at [https://kamiyo.io/dashboard/billing](https://kamiyo.io/dashboard/billing)
+1. Check your Stripe subscription at [https://kamiyo.ai/dashboard/billing](https://kamiyo.ai/dashboard/billing)
 2. Ensure payment is up to date
 3. If subscription is canceled, renew it
 4. Wait 1-2 minutes for webhook to process
@@ -475,12 +475,12 @@ python3.11 -c "from database import get_db; db = get_db(); print('Database OK')"
 
 ```bash
 # Test API endpoint
-curl https://api.kamiyo.io/health
+curl https://api.kamiyo.ai/health
 
 # Expected response: {"status":"healthy"}
 ```
 
-If API is down, check [https://status.kamiyo.io](https://status.kamiyo.io)
+If API is down, check [https://status.kamiyo.ai](https://status.kamiyo.ai)
 
 ### Problem: Python ModuleNotFoundError
 
@@ -517,9 +517,9 @@ If you're still experiencing issues:
    - GitHub Issues: [https://github.com/kamiyo-ai/kamiyo-mcp-server/issues](https://github.com/kamiyo-ai/kamiyo-mcp-server/issues)
 
 3. **Email Support:**
-   - Personal tier: support@kamiyo.io (48h response)
-   - Team tier: priority@kamiyo.io (24h response)
-   - Enterprise tier: dedicated@kamiyo.io (4h response, SLA)
+   - Personal tier: support@kamiyo.ai (48h response)
+   - Team tier: priority@kamiyo.ai (24h response)
+   - Enterprise tier: dedicated@kamiyo.ai (4h response, SLA)
 
 ---
 
@@ -705,14 +705,14 @@ Now that you have KAMIYO integrated with Claude Desktop:
 
 ## Additional Resources
 
-- **API Documentation:** [https://kamiyo.io/api-docs](https://kamiyo.io/api-docs)
+- **API Documentation:** [https://kamiyo.ai/api-docs](https://kamiyo.ai/api-docs)
 - **MCP Quick Start:** `/mcp/QUICK_START.md` in the repository
 - **Tool Usage Guide:** `/mcp/TOOL_USAGE_GUIDE.md`
 - **GitHub Repository:** [https://github.com/kamiyo-ai/kamiyo-mcp-server](https://github.com/kamiyo-ai/kamiyo-mcp-server)
-- **Status Page:** [https://status.kamiyo.io](https://status.kamiyo.io)
+- **Status Page:** [https://status.kamiyo.ai](https://status.kamiyo.ai)
 
 ---
 
 **Version:** 1.0.0
 **Last Updated:** 2025-10-28
-**Support:** support@kamiyo.io
+**Support:** support@kamiyo.ai

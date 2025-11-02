@@ -9,7 +9,7 @@ export default function TermsOfService() {
             <SEO
                 title="Terms of Service | KAMIYO Security Intelligence"
                 description="KAMIYO Terms of Service covering acceptable use, payment terms, API usage limits, liability, and your rights. Read before using our MCP or x402 services."
-                canonical="https://kamiyo.io/terms"
+                canonical="https://kamiyo.ai/terms"
                 noindex={false}
             />
             <div className="min-h-screen bg-black text-white">
@@ -26,7 +26,7 @@ export default function TermsOfService() {
                     {/* Introduction */}
                     <section className="mb-12">
                         <p className="text-gray-300 leading-relaxed mb-4">
-                            These Terms of Service ("Terms", "Agreement") govern your access to and use of the KAMIYO Security Intelligence platform ("Service") operated by Kamiyo.ai ("KAMIYO", "we", "us", or "our"). The Service includes our MCP (Model Context Protocol) subscriptions, x402 API, and all related services, tools, and features accessible at kamiyo.io.
+                            These Terms of Service ("Terms", "Agreement") govern your access to and use of the KAMIYO Security Intelligence platform ("Service") operated by Kamiyo.ai ("KAMIYO", "we", "us", or "our"). The Service includes our MCP (Model Context Protocol) subscriptions, x402 API, and all related services, tools, and features accessible at kamiyo.ai.
                         </p>
                         <p className="text-gray-300 leading-relaxed mb-4">
                             By accessing or using the Service, you agree to be bound by these Terms. If you disagree with any part of these Terms, you may not access or use the Service.
@@ -818,7 +818,7 @@ export default function TermsOfService() {
                                         <a href="mailto:abuse@kamiyo.ai" className="text-cyan hover:underline">abuse@kamiyo.ai</a>
                                     </span>
                                     <span className="block"><strong className="text-white">Website:</strong>{" "}
-                                        <a href="https://kamiyo.io" className="text-cyan hover:underline">https://kamiyo.io</a>
+                                        <a href="https://kamiyo.ai" className="text-cyan hover:underline">https://kamiyo.ai</a>
                                     </span>
                                     <span className="block"><strong className="text-white">Discord:</strong>{" "}
                                         <a href="https://discord.gg/DCNRrFuG" className="text-cyan hover:underline" target="_blank" rel="noopener noreferrer">https://discord.gg/DCNRrFuG</a>

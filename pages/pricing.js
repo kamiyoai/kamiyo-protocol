@@ -15,7 +15,7 @@ export default function PricingPage() {
         "@type": "Product",
         "name": "KAMIYO Security Intelligence for AI Agents",
         "description": "Security intelligence via MCP subscriptions or x402 API. Real-time exploit data from 20+ sources for AI agents. Claude Desktop integration available.",
-        "url": "https://kamiyo.io/pricing",
+        "url": "https://kamiyo.ai/pricing",
         "brand": {
             "@type": "Brand",
             "name": "KAMIYO"
@@ -74,14 +74,14 @@ export default function PricingPage() {
 
                 {/* Open Graph / Facebook */}
                 <meta property="og:type" content="website" />
-                <meta property="og:url" content="https://kamiyo.io/pricing" />
+                <meta property="og:url" content="https://kamiyo.ai/pricing" />
                 <meta property="og:title" content="Security Intelligence Pricing | MCP & x402 for AI Agents" />
                 <meta property="og:description" content="MCP subscriptions for unlimited security queries or x402 API at $0.01 per query. Real-time exploit data for AI agents." />
                 <meta property="og:site_name" content="KAMIYO" />
 
                 {/* Twitter */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:url" content="https://kamiyo.io/pricing" />
+                <meta name="twitter:url" content="https://kamiyo.ai/pricing" />
                 <meta name="twitter:title" content="Security Intelligence Pricing | MCP & x402 for AI Agents" />
                 <meta name="twitter:description" content="Choose MCP for unlimited queries or x402 for pay-per-use. Security intelligence from 20+ exploit sources." />
 
@@ -90,7 +90,7 @@ export default function PricingPage() {
                 <meta name="language" content="English" />
                 <meta name="revisit-after" content="7 days" />
                 <meta name="author" content="KAMIYO" />
-                <link rel="canonical" href="https://kamiyo.io/pricing" />
+                <link rel="canonical" href="https://kamiyo.ai/pricing" />
 
                 {/* JSON-LD Structured Data */}
                 <script
