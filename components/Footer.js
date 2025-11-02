@@ -28,7 +28,7 @@ const Footer = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <a
-                        href="https://x.com/KAMIYO"
+                        href="https://x.com/KamiyoAI"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-light text-gray-500 text-[0.6rem] flex items-center gap-2"
@@ -39,7 +39,7 @@ const Footer = () => {
                         X/Twitter
                     </a>
                     <a
-                        href="https://discord.gg/DCNRrFuG"
+                        href="https://discord.gg/6yX8kd2UpC"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-light text-gray-500 text-[0.6rem] flex items-center gap-2"
