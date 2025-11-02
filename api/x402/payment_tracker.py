@@ -31,7 +31,7 @@ class PaymentTracker:
         self.config = get_x402_config()
         self.token_expiry_hours = self.config.token_expiry_hours
         self.requests_per_dollar = int(self.config.requests_per_dollar)
-    
+
     def _get_db(self) -> X402Database:
         """Get database instance"""
         if not self.db_session:
@@ -83,7 +83,7 @@ class PaymentTracker:
         logger.info(f"Created payment record: {payment.id} for {amount_usdc} USDC")
 
         return self._payment_to_dict(payment)
-    
+
     async def generate_payment_token(self, payment_id: int) -> str:
         """Generate a payment access token for a verified payment"""
 
@@ -111,7 +111,7 @@ class PaymentTracker:
         logger.info(f"Generated payment token for payment {payment_id}")
 
         return raw_token
-    
+
     async def get_payment_by_token(self, token: str) -> Optional[Dict[str, any]]:
         """Get payment record by token"""
 
@@ -126,7 +126,7 @@ class PaymentTracker:
             return None
 
         return self._payment_to_dict(payment)
-    
+
     async def record_usage(
         self,
         payment_id: int,
@@ -159,7 +159,7 @@ class PaymentTracker:
         )
 
         logger.info(f"Recorded usage for payment {payment_id}: {endpoint}")
-    
+
     async def get_payment_stats(self, from_address: str = None, chain: str = None) -> Dict[str, any]:
         """Get payment statistics"""
 
@@ -170,7 +170,7 @@ class PaymentTracker:
             chain=chain,
             hours=24
         )
-    
+
     async def cleanup_expired_payments(self) -> int:
         """Clean up expired payments and tokens"""
 
@@ -182,7 +182,7 @@ class PaymentTracker:
             logger.info(f"Cleaned up {expired_count} expired payments")
 
         return expired_count
-    
+
     def _hash_token(self, token: str) -> str:
         """Hash token for secure storage"""
         return hashlib.sha256(token.encode()).hexdigest()

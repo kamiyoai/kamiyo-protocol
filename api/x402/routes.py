@@ -79,7 +79,7 @@ async def get_supported_chains(request: Request):
 async def verify_payment(request: Request, payment_request: PaymentVerificationRequest):
     """
     Verify on-chain payment and create payment record
-    
+
     This endpoint:
     1. Verifies the payment transaction on the specified chain
     2. Creates a payment record if verification succeeds
@@ -92,7 +92,7 @@ async def verify_payment(request: Request, payment_request: PaymentVerificationR
             payment_request.chain,
             payment_request.expected_amount
         )
-        
+
         # Convert to response model
         response_data = {
             "is_valid": verification.is_valid,
@@ -106,7 +106,7 @@ async def verify_payment(request: Request, payment_request: PaymentVerificationR
             "risk_score": verification.risk_score,
             "error_message": verification.error_message
         }
-        
+
         # If payment is valid, create payment record
         if verification.is_valid:
             payment_record = await payment_tracker.create_payment_record(
@@ -117,9 +117,9 @@ async def verify_payment(request: Request, payment_request: PaymentVerificationR
                 risk_score=verification.risk_score
             )
             response_data["payment_id"] = payment_record["id"]
-        
+
         return PaymentVerificationResponse(**response_data)
-        
+
     except Exception as e:
         logger.error(f"Error verifying payment: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -129,27 +129,27 @@ async def verify_payment(request: Request, payment_request: PaymentVerificationR
 async def generate_payment_token(request: Request, payment_id: int):
     """
     Generate payment access token for verified payment
-    
+
     This token can be used in the x-payment-token header
     to access paid API endpoints without repeating on-chain verification.
     """
     try:
         # Generate payment token
         payment_token = await payment_tracker.generate_payment_token(payment_id)
-        
+
         # Get payment record for expiry info
         payment_record = await payment_tracker.get_payment_by_token(payment_token)
-        
+
         if not payment_record:
             raise HTTPException(status_code=404, detail="Payment not found")
-        
+
         return PaymentTokenResponse(
             payment_token=payment_token,
             payment_id=payment_id,
             expires_at=payment_record["expires_at"].isoformat(),
             requests_remaining=payment_record["requests_remaining"]
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -163,10 +163,10 @@ async def get_payment_status(request: Request, payment_id: int):
     try:
         # Find payment record
         payment = payment_tracker.payments.get(payment_id)
-        
+
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
-        
+
         return {
             "payment_id": payment.id,
             "tx_hash": payment.tx_hash,
@@ -179,7 +179,7 @@ async def get_payment_status(request: Request, payment_id: int):
             "expires_at": payment.expires_at.isoformat(),
             "requests_remaining": payment.requests_remaining
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -196,7 +196,7 @@ async def get_payment_stats(
     try:
         stats = await payment_tracker.get_payment_stats(from_address)
         return PaymentStatsResponse(**stats)
-        
+
     except Exception as e:
         logger.error(f"Error getting payment stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
