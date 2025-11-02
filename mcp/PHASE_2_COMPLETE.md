@@ -217,7 +217,7 @@ Phase 2 of the KAMIYO MCP Development Plan has been successfully completed. All 
   "message": "Wallet monitoring is a Team+ premium feature",
   "required_tier": "team",
   "current_tier": "personal",
-  "upgrade_url": "https://kamiyo.io/pricing",
+  "upgrade_url": "https://kamiyo.ai/pricing",
   "feature_benefits": [
     "Monitor wallet interactions with exploited protocols",
     "Get risk scores and recommendations",
@@ -391,7 +391,7 @@ if not user_tier or user_tier not in ["team", "enterprise"]:
     return {
         "error": "premium_feature_required",
         "required_tier": "team",
-        "upgrade_url": "https://kamiyo.io/pricing"
+        "upgrade_url": "https://kamiyo.ai/pricing"
     }
 ```
 

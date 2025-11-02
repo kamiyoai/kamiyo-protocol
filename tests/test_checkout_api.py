@@ -41,8 +41,8 @@ class TestCheckoutSessionCreation:
             json={
                 "tier": "personal",
                 "user_email": "test@example.com",
-                "success_url": "https://kamiyo.io/dashboard/success?session_id={CHECKOUT_SESSION_ID}",
-                "cancel_url": "https://kamiyo.io/pricing"
+                "success_url": "https://kamiyo.ai/dashboard/success?session_id={CHECKOUT_SESSION_ID}",
+                "cancel_url": "https://kamiyo.ai/pricing"
             }
         )
 
@@ -78,8 +78,8 @@ class TestCheckoutSessionCreation:
             "/api/billing/create-checkout-session",
             json={
                 "tier": "team",
-                "success_url": "https://kamiyo.io/success",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "success_url": "https://kamiyo.ai/success",
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
 
@@ -99,8 +99,8 @@ class TestCheckoutSessionCreation:
             "/api/billing/create-checkout-session",
             json={
                 "tier": "invalid_tier",
-                "success_url": "https://kamiyo.io/success",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "success_url": "https://kamiyo.ai/success",
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
 
@@ -129,7 +129,7 @@ class TestCheckoutSessionCreation:
             json={
                 "tier": "personal",
                 "success_url": "not-a-valid-url",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
 
@@ -150,8 +150,8 @@ class TestCheckoutSessionCreation:
             "/api/billing/create-checkout-session",
             json={
                 "tier": "personal",
-                "success_url": "https://kamiyo.io/success",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "success_url": "https://kamiyo.ai/success",
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
 
@@ -173,8 +173,8 @@ class TestCheckoutSessionCreation:
             "/api/billing/create-checkout-session",
             json={
                 "tier": "personal",
-                "success_url": "https://kamiyo.io/success",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "success_url": "https://kamiyo.ai/success",
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
 
@@ -268,7 +268,7 @@ class TestPortalSession:
         response = client.post(
             "/api/billing/create-portal-session",
             json={
-                "return_url": "https://kamiyo.io/dashboard"
+                "return_url": "https://kamiyo.ai/dashboard"
             }
         )
 
@@ -343,8 +343,8 @@ class TestCheckoutIntegration:
             json={
                 "tier": "personal",
                 "user_email": "test@example.com",
-                "success_url": "https://kamiyo.io/success?session_id={CHECKOUT_SESSION_ID}",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "success_url": "https://kamiyo.ai/success?session_id={CHECKOUT_SESSION_ID}",
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
 
@@ -397,8 +397,8 @@ def run_manual_tests():
             json={
                 "tier": "personal",
                 "user_email": "manual@test.com",
-                "success_url": "https://kamiyo.io/success",
-                "cancel_url": "https://kamiyo.io/cancel"
+                "success_url": "https://kamiyo.ai/success",
+                "cancel_url": "https://kamiyo.ai/cancel"
             }
         )
         print(f"  Status: {response.status_code}")
@@ -419,8 +419,8 @@ def run_manual_tests():
         "/api/billing/create-checkout-session",
         json={
             "tier": "invalid",
-            "success_url": "https://kamiyo.io/success",
-            "cancel_url": "https://kamiyo.io/cancel"
+            "success_url": "https://kamiyo.ai/success",
+            "cancel_url": "https://kamiyo.ai/cancel"
         }
     )
     print(f"  Status: {response.status_code}")

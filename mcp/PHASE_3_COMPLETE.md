@@ -36,7 +36,7 @@ All Phase 3 deliverables have been completed and are ready for production deploy
       "cwd": "/absolute/path/to/kamiyo",
       "env": {
         "MCP_JWT_SECRET": "YOUR_JWT_SECRET_HERE",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -166,7 +166,7 @@ All Phase 3 deliverables have been completed and are ready for production deploy
 
 **Required Variables:**
 - `MCP_JWT_SECRET`: User's JWT token (from subscription)
-- `KAMIYO_API_URL`: API endpoint (default: https://api.kamiyo.io)
+- `KAMIYO_API_URL`: API endpoint (default: https://api.kamiyo.ai)
 - `ENVIRONMENT`: Environment mode (production/development)
 
 **Optional Variables:**
@@ -207,7 +207,7 @@ All Phase 3 deliverables have been completed and are ready for production deploy
 
 ### Step 1: Subscribe (2 minutes)
 
-1. Visit https://kamiyo.io/pricing
+1. Visit https://kamiyo.ai/pricing
 2. Choose subscription tier:
    - Personal: $19/month (1 agent, unlimited queries)
    - Team: $99/month (5 agents, wallet monitoring)
@@ -222,7 +222,7 @@ All Phase 3 deliverables have been completed and are ready for production deploy
 - Copy token (starts with `eyJ...`)
 
 **Option B: Dashboard (Manual)**
-- Login to https://kamiyo.io/dashboard
+- Login to https://kamiyo.ai/dashboard
 - Navigate to "API Keys" tab
 - Click "Reveal Token"
 - Copy token
@@ -527,7 +527,7 @@ With Phase 3 complete, the following tasks remain for full production readiness:
 - stdio transport for Claude Desktop integration
 
 **Key Setup Steps:**
-1. Subscribe at kamiyo.io/pricing (2 min)
+1. Subscribe at kamiyo.ai/pricing (2 min)
 2. Get MCP token via email/dashboard (1 min)
 3. Install MCP server (2 min)
 4. Configure Claude Desktop (1 min)

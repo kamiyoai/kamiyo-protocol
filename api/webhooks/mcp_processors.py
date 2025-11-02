@@ -143,7 +143,7 @@ async def handle_mcp_subscription_created(event: Dict[str, Any]) -> None:
         #      }
         #    }
         #
-        # Documentation: https://kamiyo.io/docs/mcp
+        # Documentation: https://kamiyo.ai/docs/mcp
         # """
 
         logger.info(f"TODO: Send MCP setup email to {email}")

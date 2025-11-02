@@ -17,21 +17,21 @@ export default function ApiDocs() {
     "@type": "TechArticle",
     "headline": "KAMIYO Security Intelligence API Documentation",
     "description": "Complete API documentation for KAMIYO security intelligence platform: MCP integration for AI agents, x402 payment protocol, and crypto exploit data access",
-    "url": "https://kamiyo.io/api-docs",
+    "url": "https://kamiyo.ai/api-docs",
     "datePublished": "2024-01-01",
     "dateModified": "2025-10-28",
     "author": {
       "@type": "Organization",
       "name": "KAMIYO",
-      "url": "https://kamiyo.io"
+      "url": "https://kamiyo.ai"
     },
     "publisher": {
       "@type": "Organization",
       "name": "KAMIYO",
-      "url": "https://kamiyo.io",
+      "url": "https://kamiyo.ai",
       "logo": {
         "@type": "ImageObject",
-        "url": "https://kamiyo.io/favicon.png"
+        "url": "https://kamiyo.ai/favicon.png"
       }
     },
     "keywords": [
@@ -53,7 +53,7 @@ export default function ApiDocs() {
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Web, Node.js, Browser",
     "description": "Security intelligence API for AI agents with MCP integration and x402 payment protocol. Access real-time crypto exploit data from 20+ sources.",
-    "url": "https://kamiyo.io/api-docs",
+    "url": "https://kamiyo.ai/api-docs",
     "offers": {
       "@type": "Offer",
       "price": "0.01",
@@ -71,7 +71,7 @@ export default function ApiDocs() {
         <meta name="keywords" content="security intelligence API, MCP integration documentation, AI agent API, crypto exploit API, x402 API, blockchain security API, exploit detection API, security monitoring API, AI security tools, protocol risk API" />
 
         {/* Canonical URL */}
-        <link rel="canonical" href="https://kamiyo.io/api-docs" />
+        <link rel="canonical" href="https://kamiyo.ai/api-docs" />
 
         {/* Robots Meta */}
         <meta name="robots" content="index, follow" />
@@ -80,19 +80,19 @@ export default function ApiDocs() {
 
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="article" />
-        <meta property="og:url" content="https://kamiyo.io/api-docs" />
+        <meta property="og:url" content="https://kamiyo.ai/api-docs" />
         <meta property="og:title" content="Security Intelligence API Documentation | MCP & x402" />
         <meta property="og:description" content="Complete KAMIYO API documentation: MCP integration for AI agents and x402 payment protocol for crypto exploit intelligence." />
-        <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+        <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
         <meta property="og:site_name" content="KAMIYO" />
         <meta property="og:locale" content="en_US" />
 
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:url" content="https://kamiyo.io/api-docs" />
+        <meta name="twitter:url" content="https://kamiyo.ai/api-docs" />
         <meta name="twitter:title" content="Security Intelligence API Documentation | MCP & x402" />
         <meta name="twitter:description" content="MCP integration for AI agents and x402 payment protocol for crypto exploit intelligence." />
-        <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+        <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
         <meta name="twitter:site" content="@KAMIYO" />
         <meta name="twitter:creator" content="@KAMIYO" />
 
@@ -258,7 +258,7 @@ export default function ApiDocs() {
 
               <h4 className="font-light mb-2">Quick Setup (5 minutes):</h4>
               <ol className="list-decimal list-inside space-y-2 text-gray-400 text-sm mb-6">
-                <li>Subscribe to KAMIYO MCP at <LinkButton href="/pricing">kamiyo.io/pricing</LinkButton></li>
+                <li>Subscribe to KAMIYO MCP at <LinkButton href="/pricing">kamiyo.ai/pricing</LinkButton></li>
                 <li>Receive your MCP access token via email</li>
                 <li>Install the KAMIYO MCP server (Python 3.11+)</li>
                 <li>Configure Claude Desktop with your token</li>
@@ -275,7 +275,7 @@ export default function ApiDocs() {
       "cwd": "/Users/yourname/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "eyJhbGciOiJIUzI1NiIs...",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -429,7 +429,7 @@ TVL, monitor closely for first 30 days.`}</CodeBlock>
             <div className="mb-8 border-l-2 border-gray-500/25 pl-6">
               <h3 className="text-xl font-light mb-3">Step 1: Subscribe to KAMIYO MCP</h3>
               <p className="text-gray-400 mb-4">
-                Choose your subscription tier at <LinkButton href="/pricing">kamiyo.io/pricing</LinkButton>
+                Choose your subscription tier at <LinkButton href="/pricing">kamiyo.ai/pricing</LinkButton>
               </p>
               <div className="bg-black border border-gray-500/25 rounded p-4">
                 <div className="text-sm text-gray-400 space-y-2">
@@ -456,7 +456,7 @@ Valid Until: 2026-10-28
 
 Keep this token secure - it provides access to KAMIYO security intelligence.`}</CodeBlock>
               <p className="text-gray-400 mt-4 text-sm">
-                Or retrieve it from your dashboard: <LinkButton href="/dashboard/api-keys">kamiyo.io/dashboard/api-keys</LinkButton>
+                Or retrieve it from your dashboard: <LinkButton href="/dashboard/api-keys">kamiyo.ai/dashboard/api-keys</LinkButton>
               </p>
             </div>
 
@@ -510,7 +510,7 @@ python3.11 -m mcp.server --help`}</CodeBlock>
       "cwd": "/Users/yourname/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_TOKEN_HERE",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -569,13 +569,13 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                 <div>
                   <div className="text-white mb-2">Invalid token error</div>
                   <div className="text-gray-400">
-                    Regenerate token at <LinkButton href="/dashboard/api-keys">kamiyo.io/dashboard/api-keys</LinkButton>
+                    Regenerate token at <LinkButton href="/dashboard/api-keys">kamiyo.ai/dashboard/api-keys</LinkButton>
                   </div>
                 </div>
                 <div>
                   <div className="text-white mb-2">Subscription inactive</div>
                   <div className="text-gray-400">
-                    Check billing status at <LinkButton href="/dashboard/billing">kamiyo.io/dashboard/billing</LinkButton>
+                    Check billing status at <LinkButton href="/dashboard/billing">kamiyo.ai/dashboard/billing</LinkButton>
                   </div>
                 </div>
               </div>
@@ -596,9 +596,9 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                 <div>
                   <div className="text-white mb-2">Support</div>
                   <ul className="text-gray-400 space-y-1">
-                    <li>• Email: <LinkButton href="mailto:support@kamiyo.io">support@kamiyo.io</LinkButton></li>
+                    <li>• Email: <LinkButton href="mailto:support@kamiyo.ai">support@kamiyo.ai</LinkButton></li>
                     <li>• Discord: <LinkButton href="https://discord.gg/kamiyo">discord.gg/kamiyo</LinkButton></li>
-                    <li>• Status: <LinkButton href="https://status.kamiyo.io">status.kamiyo.io</LinkButton></li>
+                    <li>• Status: <LinkButton href="https://status.kamiyo.ai">status.kamiyo.ai</LinkButton></li>
                   </ul>
                 </div>
               </div>

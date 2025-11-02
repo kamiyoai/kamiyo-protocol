@@ -81,7 +81,7 @@ def load_mcp_config() -> MCPConfig:
     # API Integration
     kamiyo_api_url = os.getenv(
         "KAMIYO_API_URL",
-        "http://localhost:8000" if environment == "development" else "https://api.kamiyo.io"
+        "http://localhost:8000" if environment == "development" else "https://api.kamiyo.ai"
     )
     kamiyo_api_timeout = int(os.getenv("KAMIYO_API_TIMEOUT", "30"))
 

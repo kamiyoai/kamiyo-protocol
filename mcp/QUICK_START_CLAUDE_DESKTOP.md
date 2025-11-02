@@ -10,7 +10,7 @@ Get KAMIYO security intelligence running in Claude Desktop in 5 minutes.
 
 ## 1. Get Your MCP Token (1 minute)
 
-After subscribing at [kamiyo.io/pricing](https://kamiyo.io/pricing), check your email for:
+After subscribing at [kamiyo.ai/pricing](https://kamiyo.ai/pricing), check your email for:
 
 ```
 Subject: Your KAMIYO MCP Access Token
@@ -19,7 +19,7 @@ Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 Tier: [Your subscription tier]
 ```
 
-Or get it from: [kamiyo.io/dashboard/api-keys](https://kamiyo.io/dashboard/api-keys)
+Or get it from: [kamiyo.ai/dashboard/api-keys](https://kamiyo.ai/dashboard/api-keys)
 
 ## 2. Install MCP Server (2 minutes)
 
@@ -51,7 +51,7 @@ Edit: `~/Library/Application Support/Claude/claude_desktop_config.json`
       "cwd": "/Users/yourname/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_TOKEN_HERE",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -72,7 +72,7 @@ Edit: `%APPDATA%\Claude\claude_desktop_config.json`
       "cwd": "C:\\Users\\YourName\\kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_TOKEN_HERE",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -93,7 +93,7 @@ Edit: `~/.config/Claude/claude_desktop_config.json`
       "cwd": "/home/yourname/kamiyo-mcp-server",
       "env": {
         "MCP_JWT_SECRET": "YOUR_TOKEN_HERE",
-        "KAMIYO_API_URL": "https://api.kamiyo.io",
+        "KAMIYO_API_URL": "https://api.kamiyo.ai",
         "ENVIRONMENT": "production"
       }
     }
@@ -168,13 +168,13 @@ Monitor my wallet for interactions with risky protocols
 
 ### "Invalid token"
 
-1. Regenerate at [kamiyo.io/dashboard/api-keys](https://kamiyo.io/dashboard/api-keys)
+1. Regenerate at [kamiyo.ai/dashboard/api-keys](https://kamiyo.ai/dashboard/api-keys)
 2. Update `MCP_JWT_SECRET` in config
 3. Restart Claude Desktop
 
 ### "Subscription inactive"
 
-1. Check billing at [kamiyo.io/dashboard/billing](https://kamiyo.io/dashboard/billing)
+1. Check billing at [kamiyo.ai/dashboard/billing](https://kamiyo.ai/dashboard/billing)
 2. Ensure payment is current
 3. Wait 2 minutes for webhook processing
 
@@ -196,12 +196,12 @@ Monitor my wallet for interactions with risky protocols
 ## Full Documentation
 
 - **Setup Guide:** `/docs/MCP_SETUP_GUIDE.md`
-- **API Docs:** [kamiyo.io/api-docs](https://kamiyo.io/api-docs)
+- **API Docs:** [kamiyo.ai/api-docs](https://kamiyo.ai/api-docs)
 - **Tool Usage:** `/mcp/TOOL_USAGE_GUIDE.md`
 
 ## Support
 
-- Email: support@kamiyo.io
+- Email: support@kamiyo.ai
 - Discord: [discord.gg/kamiyo](https://discord.gg/kamiyo)
 - GitHub: [github.com/kamiyo-ai/kamiyo-mcp-server](https://github.com/kamiyo-ai/kamiyo-mcp-server)
 

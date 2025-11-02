@@ -110,10 +110,10 @@ If we exceed, upgrade to **Basic tier** ($100/month):
    ```
    KAMIYO is a decentralized payment and alignment platform for AI agents on Solana. This app verifies Twitter engagement for our community airdrop campaign.
    ```
-4. **Website URL:** `https://kamiyo.io` (or current website)
-5. **Callback URL:** `https://api.kamiyo.io/auth/twitter/callback` (for OAuth)
-6. **Terms of Service URL:** `https://kamiyo.io/terms`
-7. **Privacy Policy URL:** `https://kamiyo.io/privacy`
+4. **Website URL:** `https://kamiyo.ai` (or current website)
+5. **Callback URL:** `https://api.kamiyo.ai/auth/twitter/callback` (for OAuth)
+6. **Terms of Service URL:** `https://kamiyo.ai/terms`
+7. **Privacy Policy URL:** `https://kamiyo.ai/privacy`
 
 ### Step 5: Generate API Keys
 
@@ -140,8 +140,8 @@ TWITTER_CLIENT_SECRET=your_client_secret_here (for OAuth 2.0)
 2. Click "Set up"
 3. **App permissions:** Read
 4. **Type of App:** Web App
-5. **Callback URI:** `https://api.kamiyo.io/auth/twitter/callback`
-6. **Website URL:** `https://kamiyo.io`
+5. **Callback URI:** `https://api.kamiyo.ai/auth/twitter/callback`
+6. **Website URL:** `https://kamiyo.ai`
 7. Save
 
 ### Step 7: Test API Access

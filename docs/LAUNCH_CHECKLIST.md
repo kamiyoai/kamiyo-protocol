@@ -17,8 +17,8 @@ Comprehensive pre-launch, launch day, and post-launch checklist for Kamiyo platf
   - [ ] CDN configured (Cloudflare)
 
 - [ ] **Domain & DNS configured**
-  - [ ] kamiyo.io domain registered
-  - [ ] api.kamiyo.io subdomain configured
+  - [ ] kamiyo.ai domain registered
+  - [ ] api.kamiyo.ai subdomain configured
   - [ ] DNS records propagated (A, CNAME, TXT)
   - [ ] DNSSEC enabled
 
@@ -207,7 +207,7 @@ Comprehensive pre-launch, launch day, and post-launch checklist for Kamiyo platf
 ### Customer Support (8 items)
 
 - [ ] **Support channels**
-  - [ ] Support email set up (support@kamiyo.io)
+  - [ ] Support email set up (support@kamiyo.ai)
   - [ ] Discord server created
   - [ ] Twitter account active
   - [ ] Help center/FAQ published
@@ -380,7 +380,7 @@ If critical issues occur:
 ```
 🚨 We're aware of an issue affecting [service].
 Our team is investigating and will provide updates.
-Status: https://status.kamiyo.io
+Status: https://status.kamiyo.ai
 ```
 
 **Resolution notification:**
@@ -419,7 +419,7 @@ We apologize for the inconvenience.
 
 - **Technical Lead:** [contact]
 - **DevOps:** [contact]
-- **Customer Support:** support@kamiyo.io
+- **Customer Support:** support@kamiyo.ai
 - **Marketing:** [contact]
 
 ### Service Providers

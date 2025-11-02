@@ -92,7 +92,7 @@ export default function PricingCard({ plan, isHighlighted = false }) {
             </ul>
 
             <meta itemProp="availability" content="https://schema.org/InStock" />
-            <meta itemProp="url" content={`https://kamiyo.io/pricing#${tier}`} />
+            <meta itemProp="url" content={`https://kamiyo.ai/pricing#${tier}`} />
 
             <div className="flex justify-center mt-auto pt-6">
                 <PayButton

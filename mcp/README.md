@@ -106,7 +106,7 @@ export KAMIYO_API_URL="http://localhost:8000"
 # Production (example)
 export ENVIRONMENT="production"
 export MCP_JWT_SECRET="<generate-secure-secret>"
-export KAMIYO_API_URL="https://api.kamiyo.io"
+export KAMIYO_API_URL="https://api.kamiyo.ai"
 export STRIPE_SECRET_KEY="sk_live_..."
 export DATABASE_URL="postgresql://..."
 ```
@@ -224,7 +224,7 @@ python3.11 -m mcp.server --token <your-jwt-token>
         "YOUR_MCP_TOKEN_HERE"
       ],
       "env": {
-        "KAMIYO_API_URL": "https://api.kamiyo.io"
+        "KAMIYO_API_URL": "https://api.kamiyo.ai"
       }
     }
   }
@@ -442,7 +442,7 @@ result = await monitor_wallet(
 {
   "error": "premium_feature_required",
   "required_tier": "team",
-  "upgrade_url": "https://kamiyo.io/pricing",
+  "upgrade_url": "https://kamiyo.ai/pricing",
   "feature_benefits": [
     "Monitor wallet interactions",
     "Get risk scores and recommendations",

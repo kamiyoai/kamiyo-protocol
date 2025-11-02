@@ -409,7 +409,7 @@ A: We don't offer refunds for partial months. If you cancel, your subscription r
 
 **Q: Do you offer annual billing?**
 
-A: Annual billing is available for Pro and Enterprise plans. Contact sales@kamiyo.io for pricing.
+A: Annual billing is available for Pro and Enterprise plans. Contact sales@kamiyo.ai for pricing.
 
 **Q: Can I pause my subscription?**
 
@@ -441,11 +441,11 @@ A: The Free tier is available indefinitely, so you can evaluate the platform bef
 
 **Q: How do I integrate Kamiyo into my application?**
 
-A: See our [API Documentation](https://docs.kamiyo.io) for integration guides.
+A: See our [API Documentation](https://docs.kamiyo.ai) for integration guides.
 
 **Q: Do you have a status page?**
 
-A: Yes, check [status.kamiyo.io](https://status.kamiyo.io) for real-time system status.
+A: Yes, check [status.kamiyo.ai](https://status.kamiyo.ai) for real-time system status.
 
 **Q: What's your uptime guarantee?**
 
@@ -462,16 +462,16 @@ A: All plans include CSV and JSON export. Navigate to the data you want to expor
 ### Getting Help
 
 **Free Tier:**
-- Community forum: [community.kamiyo.io](https://community.kamiyo.io)
-- Documentation: [docs.kamiyo.io](https://docs.kamiyo.io)
+- Community forum: [community.kamiyo.ai](https://community.kamiyo.ai)
+- Documentation: [docs.kamiyo.ai](https://docs.kamiyo.ai)
 
 **Basic Tier:**
-- Email support: support@kamiyo.io
+- Email support: support@kamiyo.ai
 - Response time: Within 48 hours
 - All Free tier resources
 
 **Pro Tier:**
-- Priority email support: support@kamiyo.io
+- Priority email support: support@kamiyo.ai
 - Response time: Within 24 hours
 - Live chat (business hours)
 - All Basic tier resources
@@ -486,33 +486,33 @@ A: All plans include CSV and JSON export. Navigate to the data you want to expor
 ### Contact Information
 
 **General Support:**
-- Email: support@kamiyo.io
-- Web: https://kamiyo.io/support
+- Email: support@kamiyo.ai
+- Web: https://kamiyo.ai/support
 
 **Sales & Upgrades:**
-- Email: sales@kamiyo.io
+- Email: sales@kamiyo.ai
 - Phone: +1 (555) 123-4567
 
 **Billing Questions:**
-- Email: billing@kamiyo.io
+- Email: billing@kamiyo.ai
 
 **Security Issues:**
-- Email: security@kamiyo.io
-- PGP Key: Available at https://kamiyo.io/pgp
+- Email: security@kamiyo.ai
+- PGP Key: Available at https://kamiyo.ai/pgp
 
 ---
 
 ## Additional Resources
 
-- [API Documentation](https://docs.kamiyo.io)
-- [Integration Guides](https://docs.kamiyo.io/integrations)
-- [Status Page](https://status.kamiyo.io)
-- [Privacy Policy](https://kamiyo.io/privacy)
-- [Terms of Service](https://kamiyo.io/terms)
-- [Security](https://kamiyo.io/security)
+- [API Documentation](https://docs.kamiyo.ai)
+- [Integration Guides](https://docs.kamiyo.ai/integrations)
+- [Status Page](https://status.kamiyo.ai)
+- [Privacy Policy](https://kamiyo.ai/privacy)
+- [Terms of Service](https://kamiyo.ai/terms)
+- [Security](https://kamiyo.ai/security)
 
 ---
 
 **Last Updated:** January 2024
 
-**Questions?** Contact us at support@kamiyo.io
+**Questions?** Contact us at support@kamiyo.ai

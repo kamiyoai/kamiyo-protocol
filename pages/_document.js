@@ -14,12 +14,12 @@ export default function Document() {
         "@graph": [
             {
                 "@type": "Organization",
-                "@id": "https://kamiyo.io/#organization",
+                "@id": "https://kamiyo.ai/#organization",
                 "name": "KAMIYO",
                 "legalName": "KAMIYO Security Intelligence",
                 "description": "KAMIYO provides real-time cryptocurrency exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API. Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec, and SlowMist.",
-                "url": "https://kamiyo.io",
-                "logo": "https://kamiyo.io/favicon.png",
+                "url": "https://kamiyo.ai",
+                "logo": "https://kamiyo.ai/favicon.png",
                 "foundingDate": "2024",
                 "sameAs": [
                     "https://twitter.com/KAMIYO",
@@ -28,8 +28,8 @@ export default function Document() {
                 "contactPoint": {
                     "@type": "ContactPoint",
                     "contactType": "Customer Support",
-                    "email": "support@kamiyo.io",
-                    "url": "https://kamiyo.io"
+                    "email": "support@kamiyo.ai",
+                    "url": "https://kamiyo.ai"
                 },
                 "offers": {
                     "@type": "Offer",
@@ -38,18 +38,18 @@ export default function Document() {
             },
             {
                 "@type": "WebSite",
-                "@id": "https://kamiyo.io/#website",
+                "@id": "https://kamiyo.ai/#website",
                 "name": "KAMIYO",
-                "url": "https://kamiyo.io",
+                "url": "https://kamiyo.ai",
                 "description": "Security intelligence platform for AI agents delivering real-time crypto exploit data via MCP and x402",
                 "publisher": {
-                    "@id": "https://kamiyo.io/#organization"
+                    "@id": "https://kamiyo.ai/#organization"
                 },
                 "potentialAction": {
                     "@type": "SearchAction",
                     "target": {
                         "@type": "EntryPoint",
-                        "urlTemplate": "https://kamiyo.io/api-docs?q={search_term_string}"
+                        "urlTemplate": "https://kamiyo.ai/api-docs?q={search_term_string}"
                     },
                     "query-input": "required name=search_term_string"
                 },
@@ -57,7 +57,7 @@ export default function Document() {
             },
             {
                 "@type": "ItemList",
-                "@id": "https://kamiyo.io/#sitenavigatation",
+                "@id": "https://kamiyo.ai/#sitenavigatation",
                 "name": "KAMIYO Site Navigation",
                 "description": "Main navigation elements for KAMIYO Security Intelligence platform",
                 "itemListElement": [
@@ -66,28 +66,28 @@ export default function Document() {
                         "position": 1,
                         "name": "Features",
                         "description": "Explore security intelligence features: 20+ source aggregation, MCP integration, protocol risk scoring",
-                        "url": "https://kamiyo.io/features"
+                        "url": "https://kamiyo.ai/features"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 2,
                         "name": "Pricing",
                         "description": "View pricing for MCP subscriptions and x402 API access to security intelligence",
-                        "url": "https://kamiyo.io/pricing"
+                        "url": "https://kamiyo.ai/pricing"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 3,
                         "name": "API Documentation",
                         "description": "Complete API documentation for MCP integration and x402 security intelligence access",
-                        "url": "https://kamiyo.io/api-docs"
+                        "url": "https://kamiyo.ai/api-docs"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 4,
                         "name": "Fork Analysis",
                         "description": "Analyze blockchain forks for payment verification",
-                        "url": "https://kamiyo.io/fork-analysis"
+                        "url": "https://kamiyo.ai/fork-analysis"
                     }
                 ]
             }
@@ -101,7 +101,7 @@ export default function Document() {
                 <link rel="icon" type="image/png" href="/favicon.png" />
 
                 {/* Canonical URL */}
-                <link rel="canonical" href="https://kamiyo.io" />
+                <link rel="canonical" href="https://kamiyo.ai" />
 
                 {/* Content Security Policy */}
                 <meta httpEquiv="Content-Security-Policy" content={csp} />
@@ -120,8 +120,8 @@ export default function Document() {
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
                 <meta property="og:title" content="KAMIYO - Security Intelligence for AI Agents | MCP & x402" />
                 <meta property="og:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API ($0.01/query). Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec." />
-                <meta property="og:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
-                <meta property="og:url" content="https://kamiyo.io" />
+                <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+                <meta property="og:url" content="https://kamiyo.ai" />
                 <meta property="og:type" content="website" />
                 <meta property="og:site_name" content="KAMIYO" />
                 <meta property="og:locale" content="en_US" />
@@ -130,7 +130,7 @@ export default function Document() {
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:title" content="KAMIYO - Security Intelligence for AI Agents | MCP & x402" />
                 <meta name="twitter:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
-                <meta name="twitter:image" content="https://kamiyo.io/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
                 <meta name="twitter:creator" content="@KAMIYO" />
 
