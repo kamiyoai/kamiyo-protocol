@@ -9,7 +9,7 @@ on:
       target_url:
         description: 'Target URL for load test'
         required: true
-        default: 'https://staging.kamiyo.io'
+        default: 'https://staging.kamiyo.ai'
       users:
         description: 'Number of concurrent users'
         required: true
@@ -43,7 +43,7 @@ jobs:
 
       - name: Run load test
         env:
-          TARGET_URL: ${{ github.event.inputs.target_url || 'https://staging.kamiyo.io' }}
+          TARGET_URL: ${{ github.event.inputs.target_url || 'https://staging.kamiyo.ai' }}
           USERS: ${{ github.event.inputs.users || '1000' }}
           DURATION: ${{ github.event.inputs.duration || '300' }}
         run: |
@@ -101,7 +101,7 @@ jobs:
         run: |
           cd tests/load
           locust -f locustfile.py \
-            --host=https://staging.kamiyo.io \
+            --host=https://staging.kamiyo.ai \
             --users=5000 \
             --spawn-rate=50 \
             --run-time=600s \
@@ -135,7 +135,7 @@ jobs:
         run: |
           cd tests/load
           locust -f locustfile.py \
-            --host=https://staging.kamiyo.io \
+            --host=https://staging.kamiyo.ai \
             --users=1000 \
             --spawn-rate=10 \
             --run-time=3600s \

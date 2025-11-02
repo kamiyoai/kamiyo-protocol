@@ -94,7 +94,7 @@ jobs:
     needs: build-and-push
     environment:
       name: ${{ github.event.inputs.environment || 'production' }}
-      url: https://kamiyo.io
+      url: https://kamiyo.ai
 
     steps:
       - name: Checkout code
@@ -191,13 +191,13 @@ jobs:
             echo "Running smoke tests..."
 
             # Test API health
-            curl -f https://api.kamiyo.io/health || exit 1
+            curl -f https://api.kamiyo.ai/health || exit 1
 
             # Test API endpoints
-            curl -f https://api.kamiyo.io/api/v1/exploits?limit=1 || exit 1
+            curl -f https://api.kamiyo.ai/api/v1/exploits?limit=1 || exit 1
 
             # Test dashboard
-            curl -f https://kamiyo.io/ || exit 1
+            curl -f https://kamiyo.ai/ || exit 1
 
             echo "All smoke tests passed!"
           ENDSSH
