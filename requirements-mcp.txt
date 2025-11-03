@@ -1,8 +1,8 @@
 # KAMIYO MCP Server Requirements
 # MCP (Model Context Protocol) dependencies for AI agent integration
 
-# MCP SDK - FastMCP provides Python implementation of MCP
-fastmcp>=0.2.0
+# MCP SDK - Official Anthropic implementation
+mcp @ git+https://github.com/modelcontextprotocol/python-sdk.git
 
 # Core dependencies
 pydantic>=2.5.0         # Data validation and settings management
