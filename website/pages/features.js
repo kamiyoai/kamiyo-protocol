@@ -164,7 +164,7 @@ export default function Features() {
 
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4">Chain Coverage</h3>
-                            <p className="mb-4">KAMIYO tracks exploits across 54 blockchain networks including:</p>
+                            <p className="mb-4">KAMIYO tracks exploits across 55+ blockchain networks including:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -176,7 +176,7 @@ export default function Features() {
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Alternative Layer 1s (Solana, BSC, Avalanche, Polygon)</span>
+                                    <span>Alternative Layer 1s (Solana, Hyperliquid, BSC, Avalanche, Polygon)</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

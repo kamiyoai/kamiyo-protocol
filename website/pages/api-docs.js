@@ -245,7 +245,7 @@ export default function ApiDocs() {
                       <tr>
                         <td className="p-3 font-mono text-cyan">chain</td>
                         <td className="p-3 text-gray-400">string</td>
-                        <td className="p-3 text-gray-400">Filter by blockchain (ethereum, bsc, polygon, etc.)</td>
+                        <td className="p-3 text-gray-400">Filter by blockchain (ethereum, hyperliquid, bsc, polygon, etc.)</td>
                       </tr>
                       <tr>
                         <td className="p-3 font-mono text-cyan">start_date</td>

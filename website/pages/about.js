@@ -34,7 +34,7 @@ export default function About() {
                                 <p><strong>No Security Analysis:</strong> KAMIYO doesn't claim to find vulnerabilities, score risks, or provide security audits. We aggregate external reports and present them clearly.</p>
                             </li>
                             <li>
-                                <p><strong>Comprehensive Coverage:</strong> Track exploits across 55+ blockchain networks including Ethereum, Solana, BSC, Arbitrum, and more from a single dashboard.</p>
+                                <p><strong>Comprehensive Coverage:</strong> Track exploits across 55+ blockchain networks including Ethereum, Hyperliquid, Solana, BSC, Arbitrum, and more from a single dashboard.</p>
                             </li>
                             <li>
                                 <p><strong>Historical Context:</strong> Access a searchable database of past exploits to identify patterns, understand attack vectors, and learn from the history of blockchain security incidents.</p>

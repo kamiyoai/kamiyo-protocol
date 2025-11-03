@@ -48,7 +48,7 @@ async function handler(req, res) {
           exploitCount: 24,
           totalLoss: 45000000,
           avgSimilarity: 0.89,
-          chains: ['Ethereum', 'BSC', 'Arbitrum'],
+          chains: ['Ethereum', 'Hyperliquid', 'BSC', 'Arbitrum'],
           timeRange: '90 days',
           commonCharacteristics: [
             'External call before state update',

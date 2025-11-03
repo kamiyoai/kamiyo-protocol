@@ -50,7 +50,7 @@ async function handler(req, res) {
           severity: 'high',
           title: 'Spike in Reentrancy Attacks',
           description: '300% increase in reentrancy-based exploits detected in the last 48 hours',
-          affectedChains: ['Ethereum', 'Arbitrum'],
+          affectedChains: ['Ethereum', 'Hyperliquid', 'Arbitrum'],
           detectedAt: '2024-03-20T14:30:00Z',
           metrics: { baseline: 3, current: 12, deviation: 3.2 }
         },

@@ -360,6 +360,7 @@ export default function ForkAnalysis() {
             >
               <option value="all">All Chains</option>
               <option value="ethereum">Ethereum</option>
+              <option value="hyperliquid">Hyperliquid</option>
               <option value="bsc">BSC</option>
               <option value="polygon">Polygon</option>
               <option value="arbitrum">Arbitrum</option>
