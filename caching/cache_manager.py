@@ -13,6 +13,7 @@ import time
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import redis.asyncio as aioredis
 from redis.exceptions import RedisError
@@ -20,6 +21,19 @@ from redis.exceptions import RedisError
 from monitoring.prometheus_metrics import cache_operations_total
 
 logger = logging.getLogger(__name__)
+
+
+class CustomJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for Decimal and datetime types"""
+
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, (datetime,)):
+            return obj.isoformat()
+        elif isinstance(obj, timedelta):
+            return obj.total_seconds()
+        return super().default(obj)
 
 
 class CacheStats:
@@ -189,7 +203,7 @@ class CacheManager:
         self.key_patterns: Set[str] = set()
 
     async def connect(self):
-        """Connect to Redis"""
+        """Connect to Redis with graceful degradation"""
         if self._redis is not None:
             return
 
@@ -211,9 +225,9 @@ class CacheManager:
             await self._redis.ping()
             logger.info(f"Connected to Redis: {self.redis_url}")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.warning(f"Redis unavailable, running without L2 cache: {e}")
             self._redis = None
-            raise
+            # Don't raise - gracefully degrade to L1 only
         finally:
             self._connecting = False
 
@@ -231,7 +245,7 @@ class CacheManager:
     def _serialize(self, value: Any) -> bytes:
         """Serialize value for storage"""
         if self.serializer == "json":
-            return json.dumps(value).encode('utf-8')
+            return json.dumps(value, cls=CustomJSONEncoder).encode('utf-8')
         else:
             return pickle.dumps(value)
 
@@ -273,6 +287,17 @@ class CacheManager:
             # Try Redis (L2)
             if self._redis is None:
                 await self.connect()
+
+            # If still no Redis connection, return default
+            if self._redis is None:
+                duration = time.time() - start_time
+                self.stats.miss(duration)
+                self._update_key_stats(key, hit=False, duration=duration)
+                cache_operations_total.labels(
+                    operation='get',
+                    result='miss'
+                ).inc()
+                return default
 
             data = await self._redis.get(full_key)
 
@@ -343,6 +368,17 @@ class CacheManager:
             if self._redis is None:
                 await self.connect()
 
+            # If Redis unavailable, still return success (L1 cache is set)
+            if self._redis is None:
+                duration = time.time() - start_time
+                self.stats.set(duration)
+                cache_operations_total.labels(
+                    operation='set',
+                    result='l1_only'
+                ).inc()
+                self.key_patterns.add(key.split(':')[0])
+                return True
+
             data = self._serialize(value)
 
             if nx:
@@ -393,6 +429,15 @@ class CacheManager:
             # Delete from Redis
             if self._redis is None:
                 await self.connect()
+
+            # If Redis unavailable, still return success (L1 deleted)
+            if self._redis is None:
+                self.stats.delete()
+                cache_operations_total.labels(
+                    operation='delete',
+                    result='l1_only'
+                ).inc()
+                return True
 
             result = await self._redis.delete(full_key)
             self.stats.delete()
