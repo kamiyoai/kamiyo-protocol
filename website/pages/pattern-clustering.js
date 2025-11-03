@@ -74,7 +74,7 @@ export default function PatternClustering() {
           exploitCount: 24,
           totalLoss: 45000000,
           avgSimilarity: 0.89,
-          chains: ['Ethereum', 'BSC', 'Polygon'],
+          chains: ['Ethereum', 'Hyperliquid', 'BSC', 'Polygon'],
           recentExploits: [
             { name: 'Uniswap Fork Attack', date: '2024-03-15', loss: 8000000 },
             { name: 'DEX Exploit', date: '2024-03-10', loss: 5200000 },
