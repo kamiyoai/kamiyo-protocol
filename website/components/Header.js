@@ -50,7 +50,7 @@ export default function Header({ children }) {
                     <div>
                         <Link href="/" className="flex items-center">
                             <Image
-                                src="/media/kamiyo-ai_logomark.svg"
+                                src="/media/KAMIYO_logomark.png"
                                 alt="Kamiyo.ai"
                                 width={240}
                                 height={64}
@@ -157,7 +157,7 @@ export default function Header({ children }) {
                                     onClick={closeMenu}
                                 >
                                     <Image
-                                        src="/media/kamiyo-ai_logomark.svg"
+                                        src="/media/KAMIYO_logomark.png"
                                         alt="Kamiyo.ai"
                                         width={240}
                                         height={64}
@@ -235,7 +235,7 @@ export default function Header({ children }) {
 
                                     <nav className="flex flex-col items-center space-y-4 pt-6 border-t border-gray-500 border-opacity-25">
                                         <a
-                                            href="https://x.com/KAMIYO"
+                                            href="https://x.com/KamiyoAI"
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={closeMenu}
@@ -244,7 +244,7 @@ export default function Header({ children }) {
                                             X
                                         </a>
                                         <a
-                                            href="https://discord.com/invite/6Qxps5XP"
+                                            href="https://discord.gg/6yX8kd2UpC"
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={closeMenu}
