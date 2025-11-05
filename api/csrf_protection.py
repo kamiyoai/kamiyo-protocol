@@ -199,6 +199,7 @@ def is_endpoint_exempt(path: str, method: str) -> bool:
 
     # Check exact matches
     if path in exempt_paths:
+        logger.debug(f"CSRF exempt endpoint: {path} ({method})")
         return True
 
     # Check prefix matches
@@ -209,8 +210,10 @@ def is_endpoint_exempt(path: str, method: str) -> bool:
 
     for prefix in exempt_prefixes:
         if path.startswith(prefix):
+            logger.debug(f"CSRF exempt endpoint (prefix match): {path} ({method})")
             return True
 
+    logger.debug(f"CSRF protected endpoint: {path} ({method})")
     return False
 
 
