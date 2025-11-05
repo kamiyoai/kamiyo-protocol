@@ -53,6 +53,8 @@ services:
         sync: false
       - key: CSRF_SECRET_KEY
         sync: false
+      - key: CACHE_WARMING_STARTUP
+        value: false
     healthCheckPath: /health
 
   # Next.js Frontend
