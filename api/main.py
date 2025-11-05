@@ -284,7 +284,7 @@ async def root():
     }
 
 
-@app.get("/.well-known/x402-schema.json", tags=["x402"])
+@app.api_route("/.well-known/x402-schema.json", methods=["GET", "POST"], tags=["x402"])
 async def x402_schema():
     """
     x402 Payment Schema Endpoint
