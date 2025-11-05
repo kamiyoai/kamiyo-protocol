@@ -64,7 +64,7 @@ from api.x402.middleware import X402Middleware
 from api.x402.routes import payment_tracker
 
 # Hyperliquid Security Intelligence
-from api.hyperliquid import router as hyperliquid_router
+# from api.hyperliquid import router as hyperliquid_router  # TODO: Enable when ready
 
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
@@ -254,7 +254,7 @@ app.include_router(analysis_router, tags=["Deep Analysis"])
 app.include_router(x402_routes.router, tags=["x402 Payments"])
 
 # Hyperliquid Security Intelligence Router
-app.include_router(hyperliquid_router, tags=["Hyperliquid Security"])
+# app.include_router(hyperliquid_router, tags=["Hyperliquid Security"])  # TODO: Enable when ready
 
 # WebSocket endpoint
 @app.websocket("/ws")
