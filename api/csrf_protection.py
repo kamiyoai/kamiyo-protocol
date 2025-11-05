@@ -193,6 +193,7 @@ def is_endpoint_exempt(path: str, method: str) -> bool:
         "/docs",  # API docs
         "/redoc",  # API docs
         "/openapi.json",  # OpenAPI schema
+        "/.well-known/x402-schema.json",  # x402 payment schema (public endpoint)
     ]
 
     # Check exact matches
