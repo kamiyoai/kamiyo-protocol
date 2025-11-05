@@ -284,89 +284,139 @@ async def root():
     }
 
 
-@app.get("/.well-known/x402-schema.json", tags=["x402"], status_code=402)
+@app.get("/.well-known/x402-schema.json", tags=["x402"])
 async def x402_schema():
     """
     x402 Payment Schema Endpoint
 
     Returns payment information for x402-enabled endpoints.
-    This endpoint always returns 402 to indicate payment is required.
+    Compliant with x402scan validation schema.
     """
     from api.x402.config import get_x402_config
 
     config = get_x402_config()
 
-    return JSONResponse(
-        status_code=402,
-        content={
-            "name": "Kamiyo Exploit Intelligence API",
-            "description": "Real-time cryptocurrency exploit intelligence with 20+ aggregated sources",
-            "version": "1.0.0",
-            "payment": {
-                "required": True,
-                "networks": [
-                    {
-                        "name": "Base",
-                        "chain_id": 8453,
-                        "address": config.base_payment_address,
-                        "token": "USDC",
-                        "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    # x402scan expects this specific schema format
+    response_data = {
+        "x402Version": 1,
+        "accepts": [
+            {
+                "scheme": "exact",
+                "network": "base",
+                "maxAmountRequired": str(int(config.endpoint_prices.get("/exploits", 0.01) * 1_000_000)),  # Convert to USDC smallest unit (6 decimals)
+                "resource": "/exploits",
+                "description": "Get real-time cryptocurrency exploit data with 20+ aggregated sources",
+                "mimeType": "application/json",
+                "payTo": config.base_payment_address,
+                "maxTimeoutSeconds": 300,
+                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",  # USDC on Base
+                "outputSchema": {
+                    "input": {
+                        "type": "http",
+                        "method": "GET",
+                        "queryParams": {
+                            "page": {
+                                "type": "integer",
+                                "required": False,
+                                "description": "Page number (default: 1)"
+                            },
+                            "page_size": {
+                                "type": "integer",
+                                "required": False,
+                                "description": "Items per page (default: 100, max: 500)"
+                            },
+                            "chain": {
+                                "type": "string",
+                                "required": False,
+                                "description": "Filter by blockchain (e.g., Ethereum, BSC)"
+                            },
+                            "min_amount": {
+                                "type": "number",
+                                "required": False,
+                                "description": "Minimum loss amount in USD"
+                            }
+                        }
                     },
-                    {
-                        "name": "Ethereum",
-                        "chain_id": 1,
-                        "address": config.ethereum_payment_address,
-                        "token": "USDC",
-                        "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-                    },
-                    {
-                        "name": "Solana",
-                        "address": config.solana_payment_address,
-                        "token": "USDC",
-                        "token_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tx_hash": {"type": "string"},
+                                        "chain": {"type": "string"},
+                                        "protocol": {"type": "string"},
+                                        "amount_usd": {"type": "number"},
+                                        "timestamp": {"type": "string"},
+                                        "category": {"type": "string"},
+                                        "description": {"type": "string"}
+                                    }
+                                }
+                            },
+                            "total": {"type": "integer"},
+                            "page": {"type": "integer"},
+                            "has_more": {"type": "boolean"}
+                        }
                     }
-                ],
-                "pricing": {
-                    "base_price_per_call": config.price_per_call,
-                    "min_payment_usd": config.min_payment_usd,
-                    "requests_per_dollar": config.requests_per_dollar,
-                    "token_expiry_hours": config.token_expiry_hours,
-                    "endpoints": config.endpoint_prices
+                },
+                "extra": {
+                    "provider": "Kamiyo",
+                    "version": "1.0.0",
+                    "sources_count": 20,
+                    "documentation": "https://api.kamiyo.ai/docs"
                 }
             },
-            "endpoints": [
-                {
-                    "path": "/exploits",
-                    "method": "GET",
-                    "description": "Get real-time exploit data",
-                    "price_usd": config.endpoint_prices.get("/exploits", config.price_per_call),
-                    "requires_payment": True
+            {
+                "scheme": "exact",
+                "network": "base",
+                "maxAmountRequired": str(int(config.endpoint_prices.get("/exploits/latest-alert", 0.01) * 1_000_000)),
+                "resource": "/exploits/latest-alert",
+                "description": "Get latest exploit alert with AI-powered risk assessment",
+                "mimeType": "application/json",
+                "payTo": config.base_payment_address,
+                "maxTimeoutSeconds": 300,
+                "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "outputSchema": {
+                    "input": {
+                        "type": "http",
+                        "method": "GET",
+                        "queryParams": {
+                            "hours": {
+                                "type": "integer",
+                                "required": False,
+                                "description": "Time window in hours (1-24, default: 1)"
+                            }
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "alert_status": {
+                                "type": "string",
+                                "enum": ["critical", "high", "medium", "low", "none"]
+                            },
+                            "exploit": {"type": "object"},
+                            "risk_score": {"type": "number"},
+                            "affected_protocols": {"type": "array"},
+                            "recommended_action": {"type": "string"}
+                        }
+                    }
                 },
-                {
-                    "path": "/exploits/latest-alert",
-                    "method": "GET",
-                    "description": "Get latest exploit alert with risk assessment",
-                    "price_usd": config.endpoint_prices.get("/exploits/latest-alert", config.price_per_call),
-                    "requires_payment": True
-                },
-                {
-                    "path": "/stats",
-                    "method": "GET",
-                    "description": "Get exploit statistics",
-                    "price_usd": 0.0,
-                    "requires_payment": False
-                },
-                {
-                    "path": "/health",
-                    "method": "GET",
-                    "description": "Health check endpoint",
-                    "price_usd": 0.0,
-                    "requires_payment": False
+                "extra": {
+                    "provider": "Kamiyo",
+                    "version": "1.0.0",
+                    "ai_powered": True,
+                    "documentation": "https://api.kamiyo.ai/docs"
                 }
-            ],
-            "verification_endpoint": "/x402/verify-payment",
-            "documentation": "https://api.kamiyo.ai/docs"
-        }
+            }
+        ]
+    }
+
+    return JSONResponse(
+        status_code=402,
+        content=response_data
     )
 
 
