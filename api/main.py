@@ -279,12 +279,12 @@ async def root():
             "community": "/community",
             "sources": "/sources/rankings",
             "csrf_token": "/api/csrf-token",
-            "x402_schema": "/.well-known/x402-schema.json"
+            "x402_schema": "/.well-known/x402"
         }
     }
 
 
-@app.api_route("/.well-known/x402-schema.json", methods=["GET", "POST"], tags=["x402"])
+@app.api_route("/.well-known/x402", methods=["GET", "POST"], tags=["x402"])
 async def x402_schema():
     """
     x402 Payment Schema Endpoint
