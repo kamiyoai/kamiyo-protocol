@@ -117,7 +117,9 @@ class PaymentVerifier:
                 self.solana_client = AsyncClient(solana_config.rpc_url)
                 logger.info(f"[OK] Initialized Solana client at {solana_config.rpc_url}")
         except Exception as e:
-            logger.error(f"[FAIL] Error initializing Solana client: {e}")
+            logger.warning(f"[SKIP] Solana client initialization skipped (httpx compatibility): {e}")
+            logger.info("[INFO] Solana payments will not be available, using EVM chains only")
+            self.solana_client = None
 
     async def verify_payment(
         self,
