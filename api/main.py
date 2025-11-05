@@ -1242,7 +1242,9 @@ async def startup_event():
         version_monitor = get_version_monitor()
         version_health = version_monitor.check_version_health()
 
-        if version_health['status'] == 'critical':
+        if version_health['status'] == 'error':
+            logger.error(f"[STRIPE VERSION] {version_health.get('message', 'Unknown error')}")
+        elif version_health['status'] == 'critical':
             logger.critical(
                 f"[STRIPE VERSION] CRITICAL: API version {version_health['version']} "
                 f"is {version_health['age_days']} days old. Upgrade required immediately."
