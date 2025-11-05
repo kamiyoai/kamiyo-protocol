@@ -1126,8 +1126,12 @@ async def csrf_protection_middleware(request: Request, call_next):
     """
     from api.csrf_protection import is_endpoint_exempt
 
+    # Log request details for debugging
+    logger.info(f"CSRF middleware: {request.method} {request.url.path}")
+
     # Skip CSRF for exempt endpoints
     if is_endpoint_exempt(request.url.path, request.method):
+        logger.info(f"CSRF exempt: {request.url.path}")
         return await call_next(request)
 
     # For state-changing requests, validate CSRF token
