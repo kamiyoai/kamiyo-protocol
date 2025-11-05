@@ -683,7 +683,17 @@ def get_cache_manager() -> CacheManager:
     """Get global cache manager instance"""
     global _cache_manager
     if _cache_manager is None:
-        _cache_manager = CacheManager()
+        import os
+        from config.cache_config import get_cache_config
+        cache_config = get_cache_config()
+        _cache_manager = CacheManager(
+            redis_url=cache_config.redis_url,
+            namespace=cache_config.namespace,
+            enable_l1=cache_config.l1_enabled,
+            l1_max_size=cache_config.l1_max_size,
+            l1_ttl=cache_config.l1_ttl,
+            serializer=cache_config.serializer
+        )
     return _cache_manager
 
 

@@ -63,6 +63,9 @@ from api.x402 import routes as x402_routes
 from api.x402.middleware import X402Middleware
 from api.x402.routes import payment_tracker
 
+# Hyperliquid Security Intelligence
+from api.hyperliquid import router as hyperliquid_router
+
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
 from caching.cache_manager import get_cache_manager
@@ -114,7 +117,7 @@ app.add_exception_handler(CsrfProtectError, csrf_protect_exception_handler)
 
 # CORS middleware
 # Configure CORS based on environment with HTTPS enforcement
-def validate_origins(origins: list, is_production: bool) -> list:
+def validate_origins(origins: List[str], is_production: bool) -> List[str]:
     """Validate that production origins use HTTPS"""
     validated = []
     for origin in origins:
@@ -249,6 +252,9 @@ app.include_router(analysis_router, tags=["Deep Analysis"])
 
 # x402 Payment Router
 app.include_router(x402_routes.router, tags=["x402 Payments"])
+
+# Hyperliquid Security Intelligence Router
+app.include_router(hyperliquid_router, tags=["Hyperliquid Security"])
 
 # WebSocket endpoint
 @app.websocket("/ws")
