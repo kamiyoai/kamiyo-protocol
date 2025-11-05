@@ -278,6 +278,7 @@ class StripeVersionMonitor:
         """
         return {
             'version': self.current_version,
+            'age_days': 0,  # Default to 0 on error to prevent KeyError
             'status': 'error',
             'message': f"Version health check failed: {error}",
             'checked_at': datetime.utcnow().isoformat()
