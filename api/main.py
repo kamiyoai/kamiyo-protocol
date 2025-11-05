@@ -317,22 +317,22 @@ async def x402_schema():
                         "queryParams": {
                             "page": {
                                 "type": "integer",
-                                "required": false,
+                                "required": False,
                                 "description": "Page number (default: 1)"
                             },
                             "page_size": {
                                 "type": "integer",
-                                "required": false,
+                                "required": False,
                                 "description": "Items per page (default: 100, max: 500)"
                             },
                             "chain": {
                                 "type": "string",
-                                "required": false,
+                                "required": False,
                                 "description": "Filter by blockchain (e.g., Ethereum, BSC)"
                             },
                             "min_amount": {
                                 "type": "number",
-                                "required": false,
+                                "required": False,
                                 "description": "Minimum loss amount in USD"
                             }
                         }
@@ -380,7 +380,7 @@ async def x402_schema():
                         "queryParams": {
                             "hours": {
                                 "type": "integer",
-                                "required": false,
+                                "required": False,
                                 "description": "Time window in hours (1-24, default: 1)"
                             }
                         }
