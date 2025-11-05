@@ -278,9 +278,96 @@ async def root():
             "chains": "/chains",
             "community": "/community",
             "sources": "/sources/rankings",
-            "csrf_token": "/api/csrf-token"
+            "csrf_token": "/api/csrf-token",
+            "x402_schema": "/.well-known/x402-schema.json"
         }
     }
+
+
+@app.get("/.well-known/x402-schema.json", tags=["x402"], status_code=402)
+async def x402_schema():
+    """
+    x402 Payment Schema Endpoint
+
+    Returns payment information for x402-enabled endpoints.
+    This endpoint always returns 402 to indicate payment is required.
+    """
+    from api.x402.config import get_x402_config
+
+    config = get_x402_config()
+
+    return JSONResponse(
+        status_code=402,
+        content={
+            "name": "Kamiyo Exploit Intelligence API",
+            "description": "Real-time cryptocurrency exploit intelligence with 20+ aggregated sources",
+            "version": "1.0.0",
+            "payment": {
+                "required": True,
+                "networks": [
+                    {
+                        "name": "Base",
+                        "chain_id": 8453,
+                        "address": config.base_payment_address,
+                        "token": "USDC",
+                        "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+                    },
+                    {
+                        "name": "Ethereum",
+                        "chain_id": 1,
+                        "address": config.ethereum_payment_address,
+                        "token": "USDC",
+                        "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    },
+                    {
+                        "name": "Solana",
+                        "address": config.solana_payment_address,
+                        "token": "USDC",
+                        "token_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                    }
+                ],
+                "pricing": {
+                    "base_price_per_call": config.price_per_call,
+                    "min_payment_usd": config.min_payment_usd,
+                    "requests_per_dollar": config.requests_per_dollar,
+                    "token_expiry_hours": config.token_expiry_hours,
+                    "endpoints": config.endpoint_prices
+                }
+            },
+            "endpoints": [
+                {
+                    "path": "/exploits",
+                    "method": "GET",
+                    "description": "Get real-time exploit data",
+                    "price_usd": config.endpoint_prices.get("/exploits", config.price_per_call),
+                    "requires_payment": True
+                },
+                {
+                    "path": "/exploits/latest-alert",
+                    "method": "GET",
+                    "description": "Get latest exploit alert with risk assessment",
+                    "price_usd": config.endpoint_prices.get("/exploits/latest-alert", config.price_per_call),
+                    "requires_payment": True
+                },
+                {
+                    "path": "/stats",
+                    "method": "GET",
+                    "description": "Get exploit statistics",
+                    "price_usd": 0.0,
+                    "requires_payment": False
+                },
+                {
+                    "path": "/health",
+                    "method": "GET",
+                    "description": "Health check endpoint",
+                    "price_usd": 0.0,
+                    "requires_payment": False
+                }
+            ],
+            "verification_endpoint": "/x402/verify-payment",
+            "documentation": "https://api.kamiyo.ai/docs"
+        }
+    )
 
 
 @app.get("/api/csrf-token", tags=["Security"])
