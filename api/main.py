@@ -317,47 +317,42 @@ async def x402_schema():
                         "queryParams": {
                             "page": {
                                 "type": "integer",
-                                "required": False,
+                                "required": false,
                                 "description": "Page number (default: 1)"
                             },
                             "page_size": {
                                 "type": "integer",
-                                "required": False,
+                                "required": false,
                                 "description": "Items per page (default: 100, max: 500)"
                             },
                             "chain": {
                                 "type": "string",
-                                "required": False,
+                                "required": false,
                                 "description": "Filter by blockchain (e.g., Ethereum, BSC)"
                             },
                             "min_amount": {
                                 "type": "number",
-                                "required": False,
+                                "required": false,
                                 "description": "Minimum loss amount in USD"
                             }
                         }
                     },
                     "output": {
-                        "type": "object",
-                        "properties": {
-                            "data": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "tx_hash": {"type": "string"},
-                                        "chain": {"type": "string"},
-                                        "protocol": {"type": "string"},
-                                        "amount_usd": {"type": "number"},
-                                        "timestamp": {"type": "string"},
-                                        "category": {"type": "string"},
-                                        "description": {"type": "string"}
-                                    }
-                                }
-                            },
-                            "total": {"type": "integer"},
-                            "page": {"type": "integer"},
-                            "has_more": {"type": "boolean"}
+                        "data": {
+                            "type": "array",
+                            "description": "List of exploit records"
+                        },
+                        "total": {
+                            "type": "integer",
+                            "description": "Total number of exploits"
+                        },
+                        "page": {
+                            "type": "integer",
+                            "description": "Current page number"
+                        },
+                        "has_more": {
+                            "type": "boolean",
+                            "description": "Whether more pages exist"
                         }
                     }
                 },
@@ -385,22 +380,32 @@ async def x402_schema():
                         "queryParams": {
                             "hours": {
                                 "type": "integer",
-                                "required": False,
+                                "required": false,
                                 "description": "Time window in hours (1-24, default: 1)"
                             }
                         }
                     },
                     "output": {
-                        "type": "object",
-                        "properties": {
-                            "alert_status": {
-                                "type": "string",
-                                "enum": ["critical", "high", "medium", "low", "none"]
-                            },
-                            "exploit": {"type": "object"},
-                            "risk_score": {"type": "number"},
-                            "affected_protocols": {"type": "array"},
-                            "recommended_action": {"type": "string"}
+                        "alert_status": {
+                            "type": "string",
+                            "enum": ["critical", "high", "medium", "low", "none"],
+                            "description": "Current alert status"
+                        },
+                        "exploit": {
+                            "type": "object",
+                            "description": "Latest exploit details"
+                        },
+                        "risk_score": {
+                            "type": "number",
+                            "description": "Risk assessment score (0-100)"
+                        },
+                        "affected_protocols": {
+                            "type": "array",
+                            "description": "List of affected protocols"
+                        },
+                        "recommended_action": {
+                            "type": "string",
+                            "description": "AI-generated recommended action"
                         }
                     }
                 },
