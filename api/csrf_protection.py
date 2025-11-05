@@ -184,6 +184,7 @@ def is_endpoint_exempt(path: str, method: str) -> bool:
         return True
 
     # Exempt paths (these have their own security mechanisms)
+    # x402 endpoint must be exempt for POST requests to pass x402scan validation
     exempt_paths = [
         "/api/v1/webhooks/stripe",  # Stripe webhook (signature verified)
         "/api/csrf-token",  # CSRF token generation endpoint
