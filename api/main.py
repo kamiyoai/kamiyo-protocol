@@ -168,8 +168,9 @@ async def add_security_headers(request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
-    # x402 discovery header for payment protocol integration
+    # x402 discovery headers for payment protocol integration
     response.headers["X-x402"] = "/.well-known/x402"
+    response.headers["Link"] = '</.well-known/x402>; rel="payment"'
 
     # Content-Security-Policy (CSP) - Additional XSS protection layer
     response.headers["Content-Security-Policy"] = (
