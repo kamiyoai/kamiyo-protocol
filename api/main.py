@@ -481,7 +481,7 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
         )
 
 
-@app.get("/exploits", response_model=ExploitsListResponse, tags=["Exploits"])
+@app.api_route("/exploits", methods=["GET", "HEAD", "OPTIONS"], response_model=ExploitsListResponse, tags=["Exploits"])
 async def get_exploits(
     request: Request,
     page: int = Query(1, ge=1, le=10000, description="Page number (max 10,000)"),
@@ -617,7 +617,7 @@ async def get_exploit(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/exploits/latest-alert", tags=["Exploits"])
+@app.api_route("/exploits/latest-alert", methods=["GET", "HEAD", "OPTIONS"], tags=["Exploits"])
 async def get_latest_exploit_alert(
     request: Request,
     hours: int = Query(1, ge=1, le=24, description="Time window in hours"),
