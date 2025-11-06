@@ -41,8 +41,9 @@ class X402Middleware(BaseHTTPMiddleware):
         self.config = get_x402_config()
 
         # Convert endpoint prices from config to middleware format
+        # Support GET and HEAD for x402scan discovery
         self.require_payment_paths = {
-            endpoint: {'methods': ['GET'], 'price': price}
+            endpoint: {'methods': ['GET', 'HEAD'], 'price': price}
             for endpoint, price in self.config.endpoint_prices.items()
         }
 
@@ -117,6 +118,10 @@ class X402Middleware(BaseHTTPMiddleware):
         # Skip for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
             return True
+
+        # Skip for HEAD requests (x402scan discovery) but still return 402
+        # HEAD requests should receive 402 to indicate payment required
+        # This is handled by _get_payment_config which checks methods
 
         # Skip for health/readiness endpoints
         if request.url.path in ['/ready', '/health']:
