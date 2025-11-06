@@ -168,10 +168,6 @@ async def add_security_headers(request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
-    # x402 discovery headers for payment protocol integration
-    response.headers["X-x402"] = "/.well-known/x402"
-    response.headers["Link"] = '</.well-known/x402>; rel="payment"'
-
     # Content-Security-Policy (CSP) - Additional XSS protection layer
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
@@ -269,8 +265,8 @@ async def websocket_route(websocket: WebSocket, token: Optional[str] = Query(Non
 
 @app.get("/", tags=["Root"])
 async def root():
-    """API root endpoint"""
-    return {
+    """API root endpoint with x402 discovery"""
+    response_data = {
         "name": "Kamiyo Exploit Intelligence API",
         "version": "1.0.0",
         "description": "Aggregating crypto exploits from 20+ sources",
@@ -286,6 +282,11 @@ async def root():
             "x402_schema": "/.well-known/x402"
         }
     }
+
+    # Add x402 discovery header
+    response = JSONResponse(content=response_data)
+    response.headers["X-x402"] = "/.well-known/x402"
+    return response
 
 
 @app.api_route("/.well-known/x402", methods=["GET", "POST"], tags=["x402"])
