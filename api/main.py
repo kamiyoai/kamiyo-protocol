@@ -156,6 +156,7 @@ app.add_middleware(
 )
 
 # Security headers middleware (P0-1)
+# Force redeploy to fix 502 errors
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     """Add security headers to all responses"""
