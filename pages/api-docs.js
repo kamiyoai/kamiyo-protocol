@@ -118,7 +118,7 @@ export default function ApiDocs() {
 
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500/25 pb-4">
-          {['overview', 'mcp', 'mcp-setup', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
+          {['overview', 'mcp', 'mcp-setup', 'x402scan', 'quickstart', 'authentication', 'payment-flow', 'endpoints', 'sdk', 'errors'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -130,6 +130,7 @@ export default function ApiDocs() {
             >
               {tab === 'mcp' ? 'MCP Integration' :
                tab === 'mcp-setup' ? 'MCP Setup' :
+               tab === 'x402scan' ? 'x402scan Discovery' :
                tab === 'quickstart' ? 'x402 Quick Start' :
                tab === 'payment-flow' ? 'Payment Flow' :
                tab === 'sdk' ? 'JavaScript SDK' :
@@ -599,6 +600,226 @@ python3.11 -m mcp.server --help`}</CodeBlock>
                     <li>• Email: <LinkButton href="mailto:support@kamiyo.ai">support@kamiyo.ai</LinkButton></li>
                     <li>• Discord: <LinkButton href="https://discord.gg/kamiyo">discord.gg/kamiyo</LinkButton></li>
                     <li>• Status: <LinkButton href="https://status.kamiyo.ai">status.kamiyo.ai</LinkButton></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* x402scan Integration */}
+        {activeTab === 'x402scan' && (
+          <div>
+            <h2 className="text-2xl font-light mb-6">x402scan Ecosystem Integration</h2>
+
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
+              <div className="text-cyan text-sm mb-2">Discover KAMIYO on x402scan</div>
+              <p className="text-gray-400 text-sm">
+                KAMIYO is listed on x402scan, the official x402 protocol ecosystem explorer. AI agents and users can discover our endpoints, see live transaction data, and access security intelligence directly through the x402scan platform.
+              </p>
+            </div>
+
+            {/* Registration Status */}
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">Listed Resources</h3>
+              <div className="space-y-4">
+                <div className="border border-gray-500/25 rounded p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="text-white font-medium">GET /exploits</div>
+                    <div className="text-cyan text-sm">$0.01 USDC</div>
+                  </div>
+                  <p className="text-gray-400 text-sm mb-2">
+                    Real-time cryptocurrency exploit data with 20+ aggregated sources
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    Query params: page, page_size, chain, min_amount, protocol
+                  </div>
+                </div>
+
+                <div className="border border-gray-500/25 rounded p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="text-white font-medium">GET /exploits/latest-alert</div>
+                    <div className="text-cyan text-sm">$0.01 USDC</div>
+                  </div>
+                  <p className="text-gray-400 text-sm mb-2">
+                    Latest exploit alert with AI-powered risk assessment
+                  </p>
+                  <div className="text-xs text-gray-500">
+                    Query params: hours (1-24)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* How to Access */}
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">Access KAMIYO via x402scan</h3>
+              <div className="space-y-4">
+                <div className="border-l-2 border-gray-500/25 pl-6">
+                  <div className="text-white font-medium mb-2">1. Visit x402scan</div>
+                  <p className="text-gray-400 text-sm mb-2">
+                    Go to <LinkButton href="https://www.x402scan.com" target="_blank">x402scan.com</LinkButton> and search for "KAMIYO" or "api.kamiyo.ai"
+                  </p>
+                </div>
+
+                <div className="border-l-2 border-gray-500/25 pl-6">
+                  <div className="text-white font-medium mb-2">2. Explore Resources</div>
+                  <p className="text-gray-400 text-sm mb-2">
+                    View our listed endpoints, pricing, and real-time transaction statistics
+                  </p>
+                </div>
+
+                <div className="border-l-2 border-gray-500/25 pl-6">
+                  <div className="text-white font-medium mb-2">3. Try in x402scan App</div>
+                  <p className="text-gray-400 text-sm mb-2">
+                    Use the built-in wallet to pay and query directly from x402scan interface
+                  </p>
+                </div>
+
+                <div className="border-l-2 border-gray-500/25 pl-6">
+                  <div className="text-white font-medium mb-2">4. Deploy AI Agents</div>
+                  <p className="text-gray-400 text-sm mb-2">
+                    Create automated agents that query KAMIYO endpoints for security monitoring
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Agent Use Cases */}
+            <div className="mb-8">
+              <h3 className="text-xl font-light mb-4">AI Agent Examples for x402scan Users</h3>
+              <div className="space-y-4">
+                <div className="bg-black border border-gray-500/25 rounded p-4">
+                  <div className="text-white font-medium mb-2">Security Monitoring Agent</div>
+                  <p className="text-gray-400 text-sm mb-3">
+                    Continuously monitors for new exploits and sends alerts when critical vulnerabilities are detected
+                  </p>
+                  <CodeBlock language="javascript">{`// Pseudo-code for security monitoring agent
+setInterval(async () => {
+  const response = await x402Client.get(
+    'https://api.kamiyo.ai/exploits/latest-alert',
+    { params: { hours: 1 } }
+  );
+
+  if (response.alert_status === 'critical') {
+    sendAlert(response.exploit);
+  }
+}, 3600000); // Check hourly`}</CodeBlock>
+                </div>
+
+                <div className="bg-black border border-gray-500/25 rounded p-4">
+                  <div className="text-white font-medium mb-2">DeFi Portfolio Guardian</div>
+                  <p className="text-gray-400 text-sm mb-3">
+                    Checks protocols in your portfolio for exploit history before interactions
+                  </p>
+                  <CodeBlock language="javascript">{`// Check if protocol is safe before transaction
+async function checkProtocolSafety(protocol, chain) {
+  const exploits = await x402Client.get(
+    'https://api.kamiyo.ai/exploits',
+    { params: { protocol, chain, limit: 10 } }
+  );
+
+  const recentExploits = exploits.filter(e =>
+    Date.now() - new Date(e.timestamp) < 90 * 24 * 3600000
+  );
+
+  if (recentExploits.length > 0) {
+    return { safe: false, reason: 'Recent exploits detected' };
+  }
+
+  return { safe: true };
+}`}</CodeBlock>
+                </div>
+
+                <div className="bg-black border border-gray-500/25 rounded p-4">
+                  <div className="text-white font-medium mb-2">Protocol Risk Analyzer</div>
+                  <p className="text-gray-400 text-sm mb-3">
+                    Analyzes exploit trends across chains to identify risky protocols
+                  </p>
+                  <CodeBlock language="javascript">{`// Analyze protocol risk across multiple chains
+async function analyzeProtocolRisk(protocolName) {
+  const chains = ['ethereum', 'bsc', 'polygon', 'arbitrum'];
+  const results = await Promise.all(
+    chains.map(chain =>
+      x402Client.get('https://api.kamiyo.ai/exploits', {
+        params: { protocol: protocolName, chain, limit: 100 }
+      })
+    )
+  );
+
+  const totalExploits = results.reduce((sum, r) => sum + r.total, 0);
+  const totalLoss = results.reduce((sum, r) =>
+    sum + r.data.reduce((s, e) => s + e.amount_usd, 0), 0
+  );
+
+  return {
+    protocol: protocolName,
+    totalExploits,
+    totalLoss,
+    riskScore: calculateRiskScore(totalExploits, totalLoss)
+  };
+}`}</CodeBlock>
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Integration */}
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
+              <h3 className="text-lg font-light mb-4">x402 Discovery Schema</h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Our endpoints are registered with x402scan via the <code className="text-cyan">/.well-known/x402</code> discovery endpoint:
+              </p>
+              <CodeBlock>{`curl https://api.kamiyo.ai/.well-known/x402`}</CodeBlock>
+              <div className="mt-4">
+                <div className="text-sm font-light text-gray-500 mb-2">Response (x402 schema):</div>
+                <CodeBlock language="json">{`{
+  "x402Version": 1,
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "base",
+      "maxAmountRequired": "10000",
+      "resource": "https://api.kamiyo.ai/exploits",
+      "description": "Get real-time cryptocurrency exploit data with 20+ aggregated sources",
+      "mimeType": "application/json",
+      "payTo": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+      "maxTimeoutSeconds": 300,
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "outputSchema": {
+        "input": {
+          "type": "http",
+          "method": "GET",
+          "queryParams": {
+            "page": { "type": "integer", "required": false },
+            "chain": { "type": "string", "required": false },
+            "min_amount": { "type": "number", "required": false }
+          }
+        }
+      }
+    }
+  ]
+}`}</CodeBlock>
+              </div>
+            </div>
+
+            {/* Community & Support */}
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+              <h3 className="text-lg font-light mb-4">Resources</h3>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-white mb-2">x402scan Platform</div>
+                  <ul className="text-gray-400 space-y-1">
+                    <li>• <LinkButton href="https://www.x402scan.com" target="_blank">Explore KAMIYO on x402scan</LinkButton></li>
+                    <li>• <LinkButton href="https://www.x402scan.com/developer" target="_blank">x402scan Developer Hub</LinkButton></li>
+                    <li>• <LinkButton href="https://www.x402.org/spec" target="_blank">x402 Protocol Specification</LinkButton></li>
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-white mb-2">KAMIYO Integration</div>
+                  <ul className="text-gray-400 space-y-1">
+                    <li>• <LinkButton onClick={(e) => { e.preventDefault(); setActiveTab('quickstart'); }}>x402 Quick Start Guide</LinkButton></li>
+                    <li>• <LinkButton href="https://github.com/kamiyo-ai/kamiyo" target="_blank">GitHub Repository</LinkButton></li>
+                    <li>• <LinkButton href="mailto:integrations@kamiyo.ai">Integration Support</LinkButton></li>
                   </ul>
                 </div>
               </div>
