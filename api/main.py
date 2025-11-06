@@ -291,7 +291,7 @@ async def root():
 
 
 @app.api_route("/.well-known/x402", methods=["GET", "POST"], tags=["x402"])
-async def x402_schema():
+async def x402_schema(request: Request):
     """
     x402 Payment Schema Endpoint
 
@@ -303,6 +303,9 @@ async def x402_schema():
     config = get_x402_config()
 
     # x402scan expects this specific schema format
+    # Get the base URL from request
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
+
     response_data = {
         "x402Version": 1,
         "accepts": [
@@ -310,7 +313,7 @@ async def x402_schema():
                 "scheme": "exact",
                 "network": "base",
                 "maxAmountRequired": str(int(config.endpoint_prices.get("/exploits", 0.01) * 1_000_000)),  # Convert to USDC smallest unit (6 decimals)
-                "resource": "/exploits",
+                "resource": f"{base_url}/exploits",
                 "description": "Get real-time cryptocurrency exploit data with 20+ aggregated sources",
                 "mimeType": "application/json",
                 "payTo": config.base_payment_address,
@@ -373,7 +376,7 @@ async def x402_schema():
                 "scheme": "exact",
                 "network": "base",
                 "maxAmountRequired": str(int(config.endpoint_prices.get("/exploits/latest-alert", 0.01) * 1_000_000)),
-                "resource": "/exploits/latest-alert",
+                "resource": f"{base_url}/exploits/latest-alert",
                 "description": "Get latest exploit alert with AI-powered risk assessment",
                 "mimeType": "application/json",
                 "payTo": config.base_payment_address,
