@@ -291,20 +291,16 @@ async def root():
 
 
 @app.api_route("/.well-known/x402", methods=["GET", "POST"], tags=["x402"])
-async def x402_schema(request: Request):
+async def x402_schema():
     """
     x402 Payment Schema Endpoint
 
     Returns payment information for x402-enabled endpoints.
     Compliant with x402scan validation schema.
     """
-    logger.info(f"x402 endpoint hit: {request.method} from {request.client.host if request.client else 'unknown'}")
-
     from api.x402.config import get_x402_config
 
     config = get_x402_config()
-
-    logger.info(f"x402 config loaded - base_payment_address: {config.base_payment_address}")
 
     # x402scan expects this specific schema format
     response_data = {
