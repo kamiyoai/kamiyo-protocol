@@ -41,7 +41,7 @@ class MerkleTree:
             self.leaves.append({
                 'address': alloc['address'],
                 'amount': amount_lamports,
-                'amountKamiyo': alloc['amount'],
+                'amountKAMIYO': alloc['amount'],
                 'hash': leaf_hash
             })
 
@@ -140,7 +140,7 @@ class MerkleTree:
             proofs.append({
                 'address': leaf['address'],
                 'amount': str(leaf['amount']),
-                'amountKamiyo': leaf['amountKamiyo'],
+                'amountKAMIYO': leaf['amountKAMIYO'],
                 'proof': proof
             })
         return proofs
@@ -226,7 +226,7 @@ def main():
         'merkleRoot': root,
         'totalAllocations': len(allocations),
         'totalTokens': str(int(total_tokens * 1_000_000_000)),
-        'totalTokensKamiyo': total_tokens,
+        'totalTokensKAMIYO': total_tokens,
         'treeHeight': tree.get_height(),
         'leaves': tree.leaves,
         'proofs': proofs,

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Cache Configuration for Kamiyo
+Cache Configuration for KAMIYO
 Centralized cache settings and TTL definitions
 """
 

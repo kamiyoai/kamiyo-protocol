@@ -27,8 +27,14 @@ else:
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,  # Verify connections before using
-        pool_size=10,
-        max_overflow=20
+        pool_size=5,  # Reduced from 10 to prevent exhaustion
+        max_overflow=10,  # Reduced from 20
+        pool_timeout=30,  # Connection timeout
+        pool_recycle=3600,  # Recycle connections after 1 hour
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c statement_timeout=30000"  # 30s query timeout
+        }
     )
 
 # Create SessionLocal class

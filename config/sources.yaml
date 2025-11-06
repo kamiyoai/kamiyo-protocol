@@ -1,4 +1,4 @@
-# Kamiyo Exploit Aggregator Sources Configuration
+# KAMIYO Exploit Aggregator Sources Configuration
 
 sources:
   # Primary Sources
@@ -50,4 +50,4 @@ settings:
   concurrent_fetches: 5
   request_timeout: 30
   retry_attempts: 3
-  user_agent: "Kamiyo Exploit Aggregator/1.0"
+  user_agent: "KAMIYO Exploit Aggregator/1.0"

@@ -600,12 +600,12 @@ Jan 1, 2027 (Month 12)
 ```typescript
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { KamiyoVesting } from "../target/types/kamiyo_vesting";
+import { KAMIYOVesting } from "../target/types/kamiyo_vesting";
 
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 
-const program = anchor.workspace.KamiyoVesting as Program<KamiyoVesting>;
+const program = anchor.workspace.KAMIYOVesting as Program<KAMIYOVesting>;
 ```
 
 ### Creating a Vesting Schedule

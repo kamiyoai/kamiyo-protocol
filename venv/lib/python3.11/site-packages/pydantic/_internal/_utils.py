@@ -7,24 +7,30 @@ from __future__ import annotations as _annotations
 
 import dataclasses
 import keyword
-import typing
+import sys
+import warnings
 import weakref
 from collections import OrderedDict, defaultdict, deque
+from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Set as AbstractSet
 from copy import deepcopy
 from functools import cached_property
 from inspect import Parameter
 from itertools import zip_longest
 from types import BuiltinFunctionType, CodeType, FunctionType, GeneratorType, LambdaType, ModuleType
-from typing import Any, Callable, Mapping, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, overload
 
-from typing_extensions import TypeAlias, TypeGuard
+from typing_extensions import TypeAlias, TypeGuard, deprecated
+
+from pydantic import PydanticDeprecatedSince211
 
 from . import _repr, _typing_extra
 from ._import_utils import import_cached_base_model
 
-if typing.TYPE_CHECKING:
-    MappingIntStrAny: TypeAlias = 'typing.Mapping[int, Any] | typing.Mapping[str, Any]'
-    AbstractSetIntStr: TypeAlias = 'typing.AbstractSet[int] | typing.AbstractSet[str]'
+if TYPE_CHECKING:
+    # TODO remove type error comments when we drop support for Python 3.9
+    MappingIntStrAny: TypeAlias = Mapping[int, Any] | Mapping[str, Any]  # pyright: ignore[reportGeneralTypeIssues]
+    AbstractSetIntStr: TypeAlias = AbstractSet[int] | AbstractSet[str]  # pyright: ignore[reportGeneralTypeIssues]
     from ..main import BaseModel
 
 
@@ -144,7 +150,7 @@ T = TypeVar('T')
 def unique_list(
     input_list: list[T] | tuple[T, ...],
     *,
-    name_factory: typing.Callable[[T], str] = str,
+    name_factory: Callable[[T], str] = str,
 ) -> list[T]:
     """Make a list unique while maintaining order.
     We update the list if another one with the same name is set
@@ -209,7 +215,7 @@ class ValueItems(_repr.Representation):
         normalized_items: dict[int | str, Any] = {}
         all_items = None
         for i, v in items.items():
-            if not (isinstance(v, typing.Mapping) or isinstance(v, typing.AbstractSet) or self.is_true(v)):
+            if not (isinstance(v, Mapping) or isinstance(v, AbstractSet) or self.is_true(v)):
                 raise TypeError(f'Unexpected type of exclude value for index "{i}" {v.__class__}')
             if i == '__all__':
                 all_items = self._coerce_value(v)
@@ -274,9 +280,9 @@ class ValueItems(_repr.Representation):
 
     @staticmethod
     def _coerce_items(items: AbstractSetIntStr | MappingIntStrAny) -> MappingIntStrAny:
-        if isinstance(items, typing.Mapping):
+        if isinstance(items, Mapping):
             pass
-        elif isinstance(items, typing.AbstractSet):
+        elif isinstance(items, AbstractSet):
             items = dict.fromkeys(items, ...)  # type: ignore
         else:
             class_name = getattr(items, '__class__', '???')
@@ -297,7 +303,7 @@ class ValueItems(_repr.Representation):
         return [(None, self._items)]
 
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
 
     def LazyClassAttribute(name: str, get_value: Callable[[], T]) -> T: ...
 
@@ -348,7 +354,7 @@ def smart_deepcopy(obj: Obj) -> Obj:
 _SENTINEL = object()
 
 
-def all_identical(left: typing.Iterable[Any], right: typing.Iterable[Any]) -> bool:
+def all_identical(left: Iterable[Any], right: Iterable[Any]) -> bool:
     """Check that the items of `left` are the same objects as those in `right`.
 
     >>> a, b = object(), object()
@@ -361,6 +367,11 @@ def all_identical(left: typing.Iterable[Any], right: typing.Iterable[Any]) -> bo
         if left_item is not right_item:
             return False
     return True
+
+
+def get_first_not_none(a: Any, b: Any) -> Any:
+    """Return the first argument if it is not `None`, otherwise return the second argument."""
+    return a if a is not None else b
 
 
 @dataclasses.dataclass(frozen=True)
@@ -383,7 +394,50 @@ class SafeGetItemProxy:
     # https://github.com/python/mypy/issues/13713
     # https://github.com/python/typeshed/pull/8785
     # Since this is typing-only, hide it in a typing.TYPE_CHECKING block
-    if typing.TYPE_CHECKING:
+    if TYPE_CHECKING:
 
         def __contains__(self, key: str, /) -> bool:
             return self.wrapped.__contains__(key)
+
+
+_ModelT = TypeVar('_ModelT', bound='BaseModel')
+_RT = TypeVar('_RT')
+
+
+class deprecated_instance_property(Generic[_ModelT, _RT]):
+    """A decorator exposing the decorated class method as a property, with a warning on instance access.
+
+    This decorator takes a class method defined on the `BaseModel` class and transforms it into
+    an attribute. The attribute can be accessed on both the class and instances of the class. If accessed
+    via an instance, a deprecation warning is emitted stating that instance access will be removed in V3.
+    """
+
+    def __init__(self, fget: Callable[[type[_ModelT]], _RT], /) -> None:
+        # Note: fget should be a classmethod:
+        self.fget = fget
+
+    @overload
+    def __get__(self, instance: None, objtype: type[_ModelT]) -> _RT: ...
+    @overload
+    @deprecated(
+        'Accessing this attribute on the instance is deprecated, and will be removed in Pydantic V3. '
+        'Instead, you should access this attribute from the model class.',
+        category=None,
+    )
+    def __get__(self, instance: _ModelT, objtype: type[_ModelT]) -> _RT: ...
+    def __get__(self, instance: _ModelT | None, objtype: type[_ModelT]) -> _RT:
+        if instance is not None:
+            # fmt: off
+            attr_name = (
+                self.fget.__name__
+                if sys.version_info >= (3, 10)
+                else self.fget.__func__.__name__  # pyright: ignore[reportFunctionMemberAccess]
+            )
+            # fmt: on
+            warnings.warn(
+                f'Accessing the {attr_name!r} attribute on the instance is deprecated. '
+                'Instead, you should access this attribute from the model class.',
+                category=PydanticDeprecatedSince211,
+                stacklevel=2,
+            )
+        return self.fget.__get__(instance, objtype)()

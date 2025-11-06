@@ -34,6 +34,8 @@ from aggregators.blocksec import BlockSecAggregator
 from aggregators.beosin import BeosinAggregator
 from aggregators.twitter import TwitterAggregator
 from aggregators.forta import FortaAggregator
+from aggregators.hyperliquid_hlp import HyperliquidHLPAggregator
+from aggregators.hyperliquid_oracle import HyperliquidOracleAggregator
 from aggregators.confidence_scorer import ConfidenceScorer
 from database import get_db
 
@@ -69,6 +71,8 @@ class AggregationOrchestrator:
             BeosinAggregator(),
             TwitterAggregator(),  # 18th source - monitors security researchers
             FortaAggregator(),  # 19th source - real-time blockchain monitoring
+            HyperliquidHLPAggregator(),  # 20th source - Hyperliquid HLP vault monitoring
+            HyperliquidOracleAggregator(),  # 21st source - Hyperliquid oracle deviation detection
         ]
 
         logger.info(f"Orchestrator initialized with {len(self.aggregators)} aggregators")

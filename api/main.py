@@ -1153,14 +1153,14 @@ async def csrf_protection_middleware(request: Request, call_next):
     - Health checks
     - CSRF token generation endpoint
     """
-    from api.csrf_protection import is_endpoint_exempt
+    # Fast path: skip safe methods early
+    if request.method in ["GET", "HEAD", "OPTIONS"]:
+        return await call_next(request)
 
-    # Log request details for debugging
-    logger.info(f"CSRF middleware: {request.method} {request.url.path}")
+    from api.csrf_protection import is_endpoint_exempt
 
     # Skip CSRF for exempt endpoints
     if is_endpoint_exempt(request.url.path, request.method):
-        logger.info(f"CSRF exempt: {request.url.path}")
         return await call_next(request)
 
     # For state-changing requests, validate CSRF token
@@ -1295,20 +1295,9 @@ async def startup_event():
     except Exception as e:
         logger.error(f"[STRIPE VERSION] Failed to check version health: {e}")
 
-    # Log database stats with error handling
-    try:
-        total_exploits = db.get_total_exploits()
-        logger.info(f"Database exploits: {total_exploits}")
-    except Exception as e:
-        logger.error(f"Failed to get database exploits count: {e}")
-        # Don't fail startup, continue without this stat
-
-    try:
-        chains = db.get_chains()
-        logger.info(f"Tracked chains: {len(chains)}")
-    except Exception as e:
-        logger.error(f"Failed to get chains: {e}")
-        # Don't fail startup, continue without this stat
+    # Skip database stats during startup to prevent resource exhaustion
+    # Stats are available via /api/status endpoint
+    logger.info("Skipping database stats during startup (available via /api/status)")
 
     # Only run background tasks in main worker process
     # With multiple workers, use file lock to ensure only one worker runs background tasks
@@ -1316,61 +1305,66 @@ async def startup_event():
     import fcntl
     import tempfile
 
+    is_main_worker = False
+    lock_file = None
     lock_file_path = os.path.join(tempfile.gettempdir(), 'kamiyo_worker_lock')
+
     try:
         lock_file = open(lock_file_path, 'w')
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         is_main_worker = True
         logger.info("Acquired main worker lock - will run background tasks")
-    except (IOError, OSError):
+    except (IOError, OSError) as e:
         is_main_worker = False
-        logger.info("Another worker has the lock - skipping background tasks")
+        logger.info(f"Another worker has the lock - skipping background tasks: {e}")
+        if lock_file:
+            try:
+                lock_file.close()
+            except:
+                pass
+    except Exception as e:
+        is_main_worker = False
+        logger.error(f"Failed to acquire worker lock: {e}")
+        if lock_file:
+            try:
+                lock_file.close()
+            except:
+                pass
 
     if is_main_worker:
-        # Start WebSocket heartbeat
-        ws_manager = get_websocket_manager()
-        await ws_manager.start_heartbeat_task()
-        logger.info("WebSocket manager started")
+        try:
+            # Start WebSocket heartbeat
+            ws_manager = get_websocket_manager()
+            await ws_manager.start_heartbeat_task()
+            logger.info("WebSocket manager started")
+        except Exception as e:
+            logger.error(f"Failed to start WebSocket manager: {e}")
 
-        # Start scheduled task runner
-        task_runner = get_task_runner()
-        await task_runner.start()
-        logger.info("Scheduled task runner started")
+        try:
+            # Start scheduled task runner
+            task_runner = get_task_runner()
+            await task_runner.start()
+            logger.info("Scheduled task runner started")
+        except Exception as e:
+            logger.error(f"Failed to start task runner: {e}")
     else:
         logger.info("Background tasks skipped (not main worker)")
 
-    # Initialize cache
+    # Initialize cache connection (lightweight, all workers)
     if cache_config.l2_enabled:
         try:
             cache_manager = get_cache_manager()
             await cache_manager.connect()
             logger.info("Cache manager connected")
         except Exception as e:
-            logger.error(f"Failed to connect cache manager: {e}")
+            logger.error(f"Failed to connect cache manager (non-fatal): {e}")
+            # Continue without cache
 
-    # Start cache warming (only in main worker)
-    if is_main_worker and cache_config.warming_enabled and cache_config.warming_on_startup:
-        try:
-            warmer = get_warmer()
-
-            # Warm critical data
-            await warmer.warm_statistics(db)
-            await warmer.warm_chains(db)
-            await warmer.warm_health(db)
-            await warmer.warm_exploits_list(
-                db,
-                page_sizes=[100, 50],
-                chains=db.get_chains()[:5]  # Top 5 chains
-            )
-
-            # Start scheduled warming
-            if cache_config.warming_scheduled:
-                await warmer.start_scheduled_warming()
-
-            logger.info("Cache warming completed")
-            logger.info(f"Warming stats: {warmer.get_stats()}")
-        except Exception as e:
-            logger.error(f"Cache warming failed: {e}")
+    # Cache warming disabled on startup to prevent crashes
+    # Warming happens via scheduled task runner instead
+    if is_main_worker and cache_config.warming_on_startup:
+        logger.info("Cache warming on startup is disabled (CACHE_WARMING_STARTUP=false)")
+        logger.info("Cache warming will occur via scheduled tasks")
 
 
 @app.on_event("shutdown")

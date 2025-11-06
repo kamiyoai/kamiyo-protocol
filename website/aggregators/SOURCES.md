@@ -1,6 +1,6 @@
 # Aggregator Data Sources
 
-This document lists all 14 exploit intelligence sources aggregated by the Kamiyo platform.
+This document lists all 14 exploit intelligence sources aggregated by the KAMIYO platform.
 
 ## Active Sources (14 Total)
 

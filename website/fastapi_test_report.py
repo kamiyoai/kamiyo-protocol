@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI Backend Testing - Kamiyo Platform
+FastAPI Backend Testing - KAMIYO Platform
 Tests the running FastAPI server at localhost:8000
 """
 

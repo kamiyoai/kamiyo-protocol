@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Detailed Performance Analysis for Kamiyo Platform
+Detailed Performance Analysis for KAMIYO Platform
 Analyzes specific bottlenecks, connection pooling, caching, and edge cases
 """
 

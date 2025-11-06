@@ -785,13 +785,13 @@ anchor run initialize-pool --provider.cluster devnet
 ```typescript
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { KamiyoStaking } from "../target/types/kamiyo_staking";
+import { KAMIYOStaking } from "../target/types/kamiyo_staking";
 
 async function initializePool() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.KamiyoStaking as Program<KamiyoStaking>;
+  const program = anchor.workspace.KAMIYOStaking as Program<KAMIYOStaking>;
   const kamiyoMint = new PublicKey("YOUR_KAMIYO_MINT");
 
   // Derive PDAs

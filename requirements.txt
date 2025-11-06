@@ -1,4 +1,4 @@
-# Kamiyo - Exploit Intelligence Aggregator
+# KAMIYO - Exploit Intelligence Aggregator
 # Requirements
 
 # Core dependencies

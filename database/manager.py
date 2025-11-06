@@ -1,5 +1,5 @@
 """
-Kamiyo Database Manager
+KAMIYO Database Manager
 Handles all database operations with connection pooling and error handling
 """
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    """Manages database connections and operations for Kamiyo"""
+    """Manages database connections and operations for KAMIYO"""
 
     def __init__(self, db_path: str = "data/kamiyo.db"):
         """Initialize database manager"""
@@ -453,6 +453,7 @@ class DatabaseManager:
 
         def run_webhook_delivery():
             """Run webhook delivery in background thread"""
+            loop = None
             try:
                 from api.user_webhooks.delivery import WebhookDeliveryService
 
@@ -466,13 +467,18 @@ class DatabaseManager:
                 # Send to webhooks
                 loop.run_until_complete(service.send_exploit_to_webhooks(exploit_id))
 
-                loop.close()
-
             except Exception as e:
                 logger.error(f"Webhook delivery thread error: {e}")
+            finally:
+                # Always close the loop to prevent resource leaks
+                if loop and not loop.is_closed():
+                    try:
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"Error closing event loop: {e}")
 
-        # Start background thread
-        thread = threading.Thread(target=run_webhook_delivery, daemon=True)
+        # Start background thread with timeout
+        thread = threading.Thread(target=run_webhook_delivery, daemon=True, name=f"webhook-{exploit_id}")
         thread.start()
 
     # ==================== DEDUPLICATION OPERATIONS ====================

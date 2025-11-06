@@ -23,7 +23,7 @@ class BaseAggregator(ABC):
         self.logger = logging.getLogger(f"aggregator.{name}")
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Kamiyo Exploit Aggregator/1.0'
+            'User-Agent': 'KAMIYO Exploit Aggregator/1.0'
         })
 
     @abstractmethod

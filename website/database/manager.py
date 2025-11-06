@@ -1,5 +1,5 @@
 """
-Kamiyo Database Manager
+KAMIYO Database Manager
 Handles all database operations with connection pooling and error handling
 """
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
-    """Manages database connections and operations for Kamiyo"""
+    """Manages database connections and operations for KAMIYO"""
 
     def __init__(self, db_path: str = "data/kamiyo.db"):
         """Initialize database manager"""

@@ -1,5 +1,5 @@
 """
-Kamiyo Database Module
+KAMIYO Database Module
 Provides database management for exploit aggregation
 """
 

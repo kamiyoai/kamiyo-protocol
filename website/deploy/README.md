@@ -1,6 +1,6 @@
-# Kamiyo Social Media Module - Deployment Guide
+# KAMIYO Social Media Module - Deployment Guide
 
-Production deployment infrastructure for the Kamiyo social media posting module.
+Production deployment infrastructure for the KAMIYO social media posting module.
 
 ## Table of Contents
 
@@ -223,7 +223,7 @@ sudo systemctl stop kamiyo-social
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `KAMIYO_API_URL` | Kamiyo API base URL | `https://api.kamiyo.ai` |
+| `KAMIYO_API_URL` | KAMIYO API base URL | `https://api.kamiyo.ai` |
 | `KAMIYO_API_KEY` | API authentication key | `your-api-key` |
 
 ### Platform Configuration
@@ -417,7 +417,7 @@ Adjust resource limits in:
 
 ### Connection Issues
 
-1. Check Kamiyo API connectivity:
+1. Check KAMIYO API connectivity:
    ```bash
    curl -H "Authorization: Bearer YOUR_API_KEY" https://api.kamiyo.ai/exploits
    ```
@@ -469,4 +469,4 @@ For issues or questions:
 
 ## License
 
-Copyright (c) 2024 Kamiyo. All rights reserved.
+Copyright (c) 2024 KAMIYO. All rights reserved.

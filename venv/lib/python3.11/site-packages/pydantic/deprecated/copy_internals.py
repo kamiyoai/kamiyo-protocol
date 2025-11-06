@@ -3,7 +3,7 @@ from __future__ import annotations as _annotations
 import typing
 from copy import deepcopy
 from enum import Enum
-from typing import Any, Tuple
+from typing import Any
 
 import typing_extensions
 
@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
     from .._internal._utils import AbstractSetIntStr, MappingIntStrAny
 
     AnyClassMethod = classmethod[Any, Any, Any]
-    TupleGenerator = typing.Generator[Tuple[str, Any], None, None]
+    TupleGenerator = typing.Generator[tuple[str, Any], None, None]
     Model = typing.TypeVar('Model', bound='BaseModel')
     # should be `set[int] | set[str] | dict[int, IncEx] | dict[str, IncEx] | None`, but mypy can't cope
     IncEx: typing_extensions.TypeAlias = 'set[int] | set[str] | dict[int, Any] | dict[str, Any] | None'
@@ -44,7 +44,7 @@ def _iter(
         )
 
     if include is not None:
-        include = _utils.ValueItems.merge({k: True for k in self.__pydantic_fields__}, include, intersect=True)
+        include = _utils.ValueItems.merge(dict.fromkeys(self.__pydantic_fields__, True), include, intersect=True)
 
     allowed_keys = _calculate_keys(self, include=include, exclude=exclude, exclude_unset=exclude_unset)  # type: ignore
     if allowed_keys is None and not (to_dict or by_alias or exclude_unset or exclude_defaults or exclude_none):
@@ -200,7 +200,7 @@ def _calculate_keys(
     include: MappingIntStrAny | None,
     exclude: MappingIntStrAny | None,
     exclude_unset: bool,
-    update: typing.Dict[str, Any] | None = None,  # noqa UP006
+    update: dict[str, Any] | None = None,  # noqa UP006
 ) -> typing.AbstractSet[str] | None:
     if include is None and exclude is None and exclude_unset is False:
         return None

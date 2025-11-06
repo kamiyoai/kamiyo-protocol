@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Kamiyo Circuit Breaker Pattern
+KAMIYO Circuit Breaker Pattern
 Prevents cascading failures in aggregator execution
 
 Circuit States:
