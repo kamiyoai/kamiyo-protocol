@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Kamiyo Parallel Aggregator Executor
+KAMIYO Parallel Aggregator Executor
 Executes multiple aggregators concurrently for maximum speed
 
 Features:

@@ -475,7 +475,7 @@ The airdrop allocation is determined by the points system (Phase 4: Align-to-Ear
 
 | Activity | Points | Frequency | Verification |
 |----------|--------|-----------|--------------|
-| Twitter follow @KamiyoHQ | 50 | 1x | OAuth API |
+| Twitter follow @KAMIYOHQ | 50 | 1x | OAuth API |
 | Discord join | 50 | 1x | Bot verification |
 | Retweet announcement | 25 | 1x | API check |
 | Quality reply | 10 | 5/day max | Manual review |
@@ -973,7 +973,7 @@ function AirdropClaimButton() {
         })
         .rpc();
 
-      alert(`Claimed ${proofData.amountKamiyo} KAMIYO! TX: ${tx}`);
+      alert(`Claimed ${proofData.amountKAMIYO} KAMIYO! TX: ${tx}`);
     } catch (err) {
       console.error("Claim failed:", err);
       alert(`Claim failed: ${err.message}`);
@@ -1016,7 +1016,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     eligible: true,
     address: userProof.address,
     amount: userProof.amount,
-    amountKamiyo: userProof.amountKamiyo,
+    amountKAMIYO: userProof.amountKAMIYO,
     proof: userProof.proof
   });
 }

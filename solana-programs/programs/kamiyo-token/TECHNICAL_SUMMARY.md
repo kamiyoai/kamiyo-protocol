@@ -472,9 +472,9 @@ All calculations use **checked arithmetic** to prevent overflows:
 // Safe fee calculation (prevents overflow)
 let fee = amount
     .checked_mul(TRANSFER_FEE_BASIS_POINTS as u64)
-    .ok_or(KamiyoTokenError::ArithmeticOverflow)?
+    .ok_or(KAMIYOTokenError::ArithmeticOverflow)?
     .checked_div(BASIS_POINTS_DENOMINATOR as u64)
-    .ok_or(KamiyoTokenError::ArithmeticOverflow)?;
+    .ok_or(KAMIYOTokenError::ArithmeticOverflow)?;
 
 // Cap at maximum fee
 let fee = std::cmp::min(fee, MAXIMUM_FEE);
@@ -500,7 +500,7 @@ pub token_program: Program<'info, Token2022>,
 ```rust
 #[account(
     mut,
-    constraint = mint.key() == token_metadata.mint @ KamiyoTokenError::InvalidMintAccount,
+    constraint = mint.key() == token_metadata.mint @ KAMIYOTokenError::InvalidMintAccount,
 )]
 pub mint: Box<InterfaceAccount<'info, Mint>>,
 ```
@@ -872,7 +872,7 @@ Create a script to initialize the mint:
 ```typescript
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { KamiyoToken } from "../target/types/kamiyo_token";
+import { KAMIYOToken } from "../target/types/kamiyo_token";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, SystemProgram } from "@solana/web3.js";
 
@@ -880,7 +880,7 @@ async function initializeMint() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.KamiyoToken as Program<KamiyoToken>;
+  const program = anchor.workspace.KAMIYOToken as Program<KAMIYOToken>;
 
   // Generate mint keypair
   const mint = Keypair.generate();

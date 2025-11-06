@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Kamiyo Aggregators Module
+KAMIYO Aggregators Module
 Contains all exploit data aggregators
 """
 

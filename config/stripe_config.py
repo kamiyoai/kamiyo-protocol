@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Stripe Configuration for Kamiyo
+Stripe Configuration for KAMIYO
 Manages Stripe API keys, pricing plans, and webhook configuration
 """
 

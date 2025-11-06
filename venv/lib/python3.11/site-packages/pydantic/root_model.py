@@ -2,20 +2,17 @@
 
 from __future__ import annotations as _annotations
 
-import typing
 from copy import copy, deepcopy
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 from pydantic_core import PydanticUndefined
+from typing_extensions import Self, dataclass_transform
 
 from . import PydanticUserError
 from ._internal import _model_construction, _repr
 from .main import BaseModel, _object_setattr
 
-if typing.TYPE_CHECKING:
-    from typing import Any
-
-    from typing_extensions import Literal, Self, dataclass_transform
-
+if TYPE_CHECKING:
     from .fields import Field as PydanticModelField
     from .fields import PrivateAttr as PydanticModelPrivateAttr
 
@@ -29,11 +26,12 @@ else:
 
 __all__ = ('RootModel',)
 
-RootModelRootType = typing.TypeVar('RootModelRootType')
+RootModelRootType = TypeVar('RootModelRootType')
 
 
-class RootModel(BaseModel, typing.Generic[RootModelRootType], metaclass=_RootModelMetaclass):
-    """Usage docs: https://docs.pydantic.dev/2.10/concepts/models/#rootmodel-and-custom-root-types
+class RootModel(BaseModel, Generic[RootModelRootType], metaclass=_RootModelMetaclass):
+    """!!! abstract "Usage Documentation"
+        [`RootModel` and Custom Root Types](../concepts/models.md#rootmodel-and-custom-root-types)
 
     A Pydantic `BaseModel` for the root object of the model.
 
@@ -115,7 +113,7 @@ class RootModel(BaseModel, typing.Generic[RootModelRootType], metaclass=_RootMod
         _object_setattr(m, '__pydantic_fields_set__', copy(self.__pydantic_fields_set__))
         return m
 
-    if typing.TYPE_CHECKING:
+    if TYPE_CHECKING:
 
         def model_dump(  # type: ignore
             self,
@@ -124,10 +122,11 @@ class RootModel(BaseModel, typing.Generic[RootModelRootType], metaclass=_RootMod
             include: Any = None,
             exclude: Any = None,
             context: dict[str, Any] | None = None,
-            by_alias: bool = False,
+            by_alias: bool | None = None,
             exclude_unset: bool = False,
             exclude_defaults: bool = False,
             exclude_none: bool = False,
+            exclude_computed_fields: bool = False,
             round_trip: bool = False,
             warnings: bool | Literal['none', 'warn', 'error'] = True,
             serialize_as_any: bool = False,

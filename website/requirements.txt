@@ -1,4 +1,4 @@
-# Kamiyo - Exploit Intelligence Aggregator
+# KAMIYO - Exploit Intelligence Aggregator
 # Requirements
 
 # Core dependencies
@@ -70,7 +70,7 @@ discord.py==2.3.2  # Discord bot library with slash command support
 # Social Media Posting (Day 31)
 praw==7.7.1  # Reddit API wrapper
 # tweepy already listed above (line 52)
-websockets==12.0  # WebSocket client for real-time Kamiyo updates
+websockets==12.0  # WebSocket client for real-time KAMIYO updates
 
 # AI Enhancement for Deep Dive Analysis
 anthropic>=0.34.0  # Claude AI for enhanced thread generation

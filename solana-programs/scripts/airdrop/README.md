@@ -76,14 +76,14 @@ The output JSON contains:
   "merkleRoot": "a1b2c3d4...",
   "totalAllocations": 1000,
   "totalTokens": "100000000000000000",
-  "totalTokensKamiyo": 100000000,
+  "totalTokensKAMIYO": 100000000,
   "treeHeight": 10,
   "leaves": [...],
   "proofs": [
     {
       "address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
       "amount": "10000000000000",
-      "amountKamiyo": 10000,
+      "amountKAMIYO": 10000,
       "proof": [
         "hash1...",
         "hash2...",
@@ -99,7 +99,7 @@ The output JSON contains:
 - `merkleRoot`: 32-byte hex string to store on-chain
 - `totalAllocations`: Number of eligible wallets
 - `totalTokens`: Total allocation in lamports (string for precision)
-- `totalTokensKamiyo`: Total allocation in KAMIYO (human-readable)
+- `totalTokensKAMIYO`: Total allocation in KAMIYO (human-readable)
 - `treeHeight`: Number of levels in the tree
 - `leaves`: All leaf nodes with hashes
 - `proofs`: Merkle proofs for each wallet to claim

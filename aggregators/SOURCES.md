@@ -1,8 +1,8 @@
 # Aggregator Data Sources
 
-This document lists all 14 exploit intelligence sources aggregated by the Kamiyo platform.
+This document lists all 21 exploit intelligence sources aggregated by the KAMIYO platform.
 
-## Active Sources (14 Total)
+## Active Sources (21 Total)
 
 ### 1. DeFiLlama Hacks
 - **File:** `defillama.py`
@@ -230,6 +230,50 @@ The following sources work better with API keys (but can function without them):
    - Variables: `INFURA_API_KEY`, `ETHERSCAN_API_KEY`, etc.
    - Benefit: Required for RPC access
 
+### 20. Hyperliquid HLP Vault Monitor
+- **File:** `hyperliquid_hlp.py`
+- **Type:** Real-time API Monitoring
+- **URL:** https://api.hyperliquid.xyz/info
+- **Coverage:** Hyperliquid HLP vault exploitation detection
+- **Data Quality:** High - statistical anomaly detection with 3-sigma thresholds
+- **Update Frequency:** Real-time (on aggregation cycle)
+- **Authentication:** None required
+- **Rate Limit:** None specified
+- **Detection Capabilities:**
+  - Large losses (>$1M in 24h = HIGH, >$2M = CRITICAL)
+  - Abnormal drawdowns (>10% = CRITICAL)
+  - Statistical anomalies (3-sigma deviations)
+  - Historical baseline analysis (30+ days)
+- **Detection Latency:** <5 minutes from incident
+- **Historical Validation:** ✅ Confirmed detection of March 2025 $4M incident
+
+### 21. Hyperliquid Oracle Deviation Monitor
+- **File:** `hyperliquid_oracle.py`
+- **Type:** Multi-source Price Comparison
+- **URLs:**
+  - Hyperliquid: https://api.hyperliquid.xyz/info
+  - Binance: https://api.binance.com/api/v3
+  - Coinbase: https://api.coinbase.com/v2
+- **Coverage:** Oracle manipulation detection for Hyperliquid DEX
+- **Data Quality:** High - multi-source price verification
+- **Update Frequency:** Real-time (on aggregation cycle)
+- **Authentication:** None required
+- **Rate Limits:** Binance (1200 weight/min), Coinbase (10 req/sec)
+- **Detection Capabilities:**
+  - Price deviations >0.5% (WARNING) or >1.0% (CRITICAL)
+  - Sustained deviations (>30 seconds)
+  - Risk scoring (0-100)
+- **Monitored Assets:** BTC, ETH, SOL, MATIC, AVAX, OP, ARB
+- **Detection Latency:** <1 minute from price divergence
+
+---
+
+**📚 Extended Documentation:** See `docs/HYPERLIQUID_INTEGRATION.md` for full integration details, API endpoints, and operational considerations.
+
+**🔗 Open Source Extension:** https://github.com/mizuki-tamaki/kamiyo-hyperliquid
+
+---
+
 ## Deduplication Strategy
 
 Exploits are deduplicated across sources using:
@@ -311,4 +355,4 @@ We respect `robots.txt` and use reasonable delays between requests.
 
 ## Last Updated
 
-This document was last updated: 2025-10-08 (Days 22-24 completion)
+This document was last updated: 2025-11-03 (Hyperliquid integration - Sources #20 and #21 added)

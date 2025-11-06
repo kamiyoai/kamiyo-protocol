@@ -7,7 +7,7 @@ metadata:
     app: kamiyo-social
     component: social-media
 data:
-  # Kamiyo API Configuration
+  # KAMIYO API Configuration
   KAMIYO_API_URL: "https://api.kamiyo.ai"
   KAMIYO_WEBSOCKET_URL: "wss://api.kamiyo.ai/ws"
 

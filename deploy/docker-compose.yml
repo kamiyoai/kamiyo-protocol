@@ -11,7 +11,7 @@ services:
 
     # Environment variables - use .env file or override
     environment:
-      # Kamiyo API Configuration
+      # KAMIYO API Configuration
       KAMIYO_API_URL: ${KAMIYO_API_URL:-https://api.kamiyo.ai}
       KAMIYO_API_KEY: ${KAMIYO_API_KEY}
       KAMIYO_WEBSOCKET_URL: ${KAMIYO_WEBSOCKET_URL:-wss://api.kamiyo.ai/ws}

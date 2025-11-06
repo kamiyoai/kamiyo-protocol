@@ -289,4 +289,4 @@ For issues or questions:
 
 ## License
 
-Copyright (c) 2024 Kamiyo. All rights reserved.
+Copyright (c) 2024 KAMIYO. All rights reserved.

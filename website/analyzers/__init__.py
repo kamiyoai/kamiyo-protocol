@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Kamiyo Analyzers Module
+KAMIYO Analyzers Module
 
 Historical analysis of CONFIRMED exploits only.
 
