@@ -1295,15 +1295,34 @@ async def startup_event():
         logger.error(f"Failed to get chains: {e}")
         # Don't fail startup, continue without this stat
 
-    # Start WebSocket heartbeat
-    ws_manager = get_websocket_manager()
-    await ws_manager.start_heartbeat_task()
-    logger.info("WebSocket manager started")
+    # Only run background tasks in main worker process
+    # With multiple workers, use file lock to ensure only one worker runs background tasks
+    # This prevents database connection exhaustion and race conditions
+    import fcntl
+    import tempfile
 
-    # Start scheduled task runner
-    task_runner = get_task_runner()
-    await task_runner.start()
-    logger.info("Scheduled task runner started")
+    lock_file_path = os.path.join(tempfile.gettempdir(), 'kamiyo_worker_lock')
+    try:
+        lock_file = open(lock_file_path, 'w')
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        is_main_worker = True
+        logger.info("Acquired main worker lock - will run background tasks")
+    except (IOError, OSError):
+        is_main_worker = False
+        logger.info("Another worker has the lock - skipping background tasks")
+
+    if is_main_worker:
+        # Start WebSocket heartbeat
+        ws_manager = get_websocket_manager()
+        await ws_manager.start_heartbeat_task()
+        logger.info("WebSocket manager started")
+
+        # Start scheduled task runner
+        task_runner = get_task_runner()
+        await task_runner.start()
+        logger.info("Scheduled task runner started")
+    else:
+        logger.info("Background tasks skipped (not main worker)")
 
     # Initialize cache
     if cache_config.l2_enabled:
@@ -1314,8 +1333,8 @@ async def startup_event():
         except Exception as e:
             logger.error(f"Failed to connect cache manager: {e}")
 
-    # Start cache warming
-    if cache_config.warming_enabled and cache_config.warming_on_startup:
+    # Start cache warming (only in main worker)
+    if is_main_worker and cache_config.warming_enabled and cache_config.warming_on_startup:
         try:
             warmer = get_warmer()
 
