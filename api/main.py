@@ -888,13 +888,29 @@ async def get_chains():
         raise HTTPException(status_code=500, detail="Failed to fetch chains")
 
 
-@app.get("/health", response_model=HealthResponse, tags=["Health"])
+@app.get("/health", tags=["Health"])
 async def health_check():
     """
-    Get health status of aggregation sources and database
+    Lightweight health check for load balancers and monitoring.
+
+    Returns minimal status without database queries to prevent resource exhaustion.
+    Use /api/status for detailed metrics.
+    """
+    from datetime import datetime
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": app.version
+    }
+
+
+@app.get("/api/status", response_model=HealthResponse, tags=["Health"])
+async def detailed_status():
+    """
+    Detailed status endpoint with database statistics and system metrics.
 
     Returns source health, database statistics, and system status with detailed monitoring metrics.
-    Production-ready health check for monitoring and alerting.
+    Use sparingly - queries database and system resources.
     """
     try:
         from datetime import datetime
@@ -907,7 +923,6 @@ async def health_check():
             sources = db.get_source_health()
         except Exception as source_error:
             logger.warning(f"Failed to get source health (non-fatal): {source_error}")
-            # Continue with empty sources list
 
         total_exploits = db.get_total_exploits()
         chains = db.get_chains()
@@ -942,7 +957,7 @@ async def health_check():
         return HealthResponse(**health_data)
 
     except Exception as e:
-        logger.error(f"Error fetching health: {e}")
+        logger.error(f"Error fetching status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
