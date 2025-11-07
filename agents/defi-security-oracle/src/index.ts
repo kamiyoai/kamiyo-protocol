@@ -191,7 +191,7 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-app.get('/.well-known/x402', (req: Request, res: Response) => {
+app.all('/.well-known/x402', (req: Request, res: Response) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   res.status(402).json({
     x402Version: 1,
