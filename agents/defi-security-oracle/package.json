@@ -1,5 +1,5 @@
 {
-  "name": "kamiyo-approval-risk-auditor",
+  "name": "kamiyo-risk-auditor",
   "version": "3.0.0",
   "description": "Token approval auditing and DeFi security intelligence with x402 payments",
   "type": "module",
