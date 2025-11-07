@@ -330,17 +330,27 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
   });
 });
 
-app.get(
+app.all(
   '/approval-audit',
   x402Middleware({ price: PRICE_PER_REQUEST_SOL, resource: '/approval-audit' }),
-  (req: Request, res: Response) => approvalsHandler.handleApprovalAudit(req, res)
+  (req: Request, res: Response) => {
+    if (req.method === 'HEAD' || req.method === 'OPTIONS') {
+      res.status(402).end();
+      return;
+    }
+    approvalsHandler.handleApprovalAudit(req, res);
+  }
 );
 
-app.get(
+app.all(
   '/exploits',
   validateRequest({ query: exploitsQuerySchema }),
   x402Middleware({ price: PRICE_PER_REQUEST_SOL, resource: '/exploits' }),
   async (req: Request, res: Response) => {
+    if (req.method === 'HEAD' || req.method === 'OPTIONS') {
+      res.status(402).end();
+      return;
+    }
     try {
       const startTime = Date.now();
       const { protocol, chain, limit } = req.query as {
@@ -372,7 +382,7 @@ app.get(
   }
 );
 
-app.get(
+app.all(
   '/risk-score/:protocol',
   validateRequest({
     params: riskScoreParamsSchema,
@@ -380,6 +390,10 @@ app.get(
   }),
   x402Middleware({ price: PRICE_PER_REQUEST_SOL, resource: '/risk-score' }),
   async (req: Request, res: Response) => {
+    if (req.method === 'HEAD' || req.method === 'OPTIONS') {
+      res.status(402).end();
+      return;
+    }
     try {
       const startTime = Date.now();
       const { protocol } = req.params;
