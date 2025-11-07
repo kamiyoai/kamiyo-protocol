@@ -4,19 +4,19 @@ import { DataService } from './services/data-service.js';
 import { ApprovalsRouteHandler } from './routes/approvals.js';
 import { logger } from './utils/logger.js';
 
-// Import from dist for existing functionality
-import { x402Middleware } from '../dist/src/x402/middleware.js';
+// Import from src
+import { x402Middleware } from './x402/middleware.js';
 import {
   validateRequest,
   rateLimitMiddleware,
   securityHeadersMiddleware,
   requestIdMiddleware,
-} from '../dist/src/validation/middleware.js';
+} from './validation/middleware.js';
 import {
   exploitsQuerySchema,
   riskScoreParamsSchema,
   riskScoreQuerySchema,
-} from '../dist/src/validation/schemas.js';
+} from './validation/schemas.js';
 
 const app = express();
 
@@ -145,7 +145,7 @@ function calculateRiskScore(
 
 app.get('/', (req: Request, res: Response) => {
   res.json({
-    name: 'KAMIYO Approval Risk Auditor',
+    name: 'KAMIYO Risk Auditor',
     description:
       'Token approval auditing and DeFi security intelligence with x402 payments',
     version: '3.0.0',
@@ -188,6 +188,145 @@ app.get('/', (req: Request, res: Response) => {
     documentation:
       'https://github.com/kamiyo-ai/security-oracle',
     powered_by: 'KAMIYO Security Intelligence',
+  });
+});
+
+app.get('/.well-known/x402', (req: Request, res: Response) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.status(402).json({
+    x402Version: 1,
+    accepts: [
+      {
+        scheme: 'exact',
+        network: 'solana',
+        maxAmountRequired: String(PRICE_PER_REQUEST_SOL * 1_000_000_000),
+        resource: `${baseUrl}/approval-audit`,
+        description: 'Audit wallet token approvals and identify malicious or risky approvals',
+        mimeType: 'application/json',
+        payTo: PAYMENT_WALLET,
+        maxTimeoutSeconds: 300,
+        asset: 'SOL',
+        outputSchema: {
+          input: {
+            type: 'http',
+            method: 'GET',
+            queryParams: {
+              wallet: {
+                type: 'string',
+                required: true,
+                description: 'Wallet address to audit',
+              },
+              chains: {
+                type: 'string',
+                required: false,
+                description: 'Comma-separated chain IDs (e.g., 1,137,56)',
+              },
+            },
+          },
+          output: {
+            success: { type: 'boolean', description: 'Request status' },
+            wallet: { type: 'string', description: 'Audited wallet address' },
+            approvals: { type: 'array', description: 'List of token approvals' },
+            risk_summary: { type: 'object', description: 'Risk analysis summary' },
+            timestamp: { type: 'string', description: 'Response timestamp' },
+          },
+        },
+        extra: {
+          provider: 'KAMIYO',
+          version: '3.0.0',
+          documentation: 'https://github.com/kamiyo-ai/risk-auditor',
+        },
+      },
+      {
+        scheme: 'exact',
+        network: 'solana',
+        maxAmountRequired: String(PRICE_PER_REQUEST_SOL * 1_000_000_000),
+        resource: `${baseUrl}/exploits`,
+        description: 'Real-time DeFi exploit intelligence from 20+ sources',
+        mimeType: 'application/json',
+        payTo: PAYMENT_WALLET,
+        maxTimeoutSeconds: 300,
+        asset: 'SOL',
+        outputSchema: {
+          input: {
+            type: 'http',
+            method: 'GET',
+            queryParams: {
+              protocol: {
+                type: 'string',
+                required: false,
+                description: 'Filter by protocol name',
+              },
+              chain: {
+                type: 'string',
+                required: false,
+                description: 'Filter by blockchain',
+              },
+              limit: {
+                type: 'integer',
+                required: false,
+                description: 'Maximum results (default: 50)',
+              },
+            },
+          },
+          output: {
+            success: { type: 'boolean', description: 'Request status' },
+            count: { type: 'integer', description: 'Number of exploits returned' },
+            exploits: { type: 'array', description: 'List of exploit records' },
+            timestamp: { type: 'string', description: 'Response timestamp' },
+          },
+        },
+        extra: {
+          provider: 'KAMIYO',
+          version: '3.0.0',
+          sources_count: 20,
+          documentation: 'https://github.com/kamiyo-ai/risk-auditor',
+        },
+      },
+      {
+        scheme: 'exact',
+        network: 'solana',
+        maxAmountRequired: String(PRICE_PER_REQUEST_SOL * 1_000_000_000),
+        resource: `${baseUrl}/risk-score/{protocol}`,
+        description: 'Calculate risk score for DeFi protocols based on exploit history',
+        mimeType: 'application/json',
+        payTo: PAYMENT_WALLET,
+        maxTimeoutSeconds: 300,
+        asset: 'SOL',
+        outputSchema: {
+          input: {
+            type: 'http',
+            method: 'GET',
+            pathParams: {
+              protocol: {
+                type: 'string',
+                required: true,
+                description: 'Protocol name',
+              },
+            },
+            queryParams: {
+              chain: {
+                type: 'string',
+                required: false,
+                description: 'Filter by blockchain',
+              },
+            },
+          },
+          output: {
+            success: { type: 'boolean', description: 'Request status' },
+            risk_score: { type: 'object', description: 'Risk assessment' },
+            data_points: { type: 'integer', description: 'Exploits analyzed' },
+            timestamp: { type: 'string', description: 'Response timestamp' },
+          },
+        },
+        extra: {
+          provider: 'KAMIYO',
+          version: '3.0.0',
+          algorithm: 'Weighted: frequency(40%) + loss(30%) + recency(30%)',
+          documentation: 'https://github.com/kamiyo-ai/risk-auditor',
+        },
+      },
+    ],
   });
 });
 
@@ -304,7 +443,7 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 app.listen(PORT, () => {
-  logger.info('KAMIYO Approval Risk Auditor started', {
+  logger.info('KAMIYO Risk Auditor started', {
     version: '3.0.0',
     port: PORT,
     x402_enabled: true,
@@ -321,14 +460,14 @@ app.listen(PORT, () => {
     },
   });
 
-  console.log(`KAMIYO Approval Risk Auditor v3.0.0`);
+  console.log(`KAMIYO Risk Auditor v3.0.0`);
   console.log(`Running on port ${PORT}`);
   console.log(`x402 Protocol: ENABLED`);
   console.log(`Payment wallet: ${PAYMENT_WALLET}`);
   console.log(`Price: ${PRICE_PER_REQUEST_SOL} SOL per request`);
   console.log(`Network: solana-mainnet`);
   console.log(
-    `Features: ✓ Approval Auditing ✓ Exploit Intelligence ✓ Risk Scoring`
+    `Features: Approval Auditing | Exploit Intelligence | Risk Scoring`
   );
 });
 
