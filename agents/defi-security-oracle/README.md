@@ -1,17 +1,8 @@
-# KAMIYO Approval Risk Auditor
+![header](https://github.com/user-attachments/assets/6ad065ce-a087-488e-bf2a-101059a911b0)
+
+# KAMIYO リスクオーディター | Risk Auditor
 
 Token approval auditing and DeFi security intelligence agent with x402 micropayments on Solana.
-
-## Bounty Submission: Approval Risk Auditor (#5)
-
-This agent fulfills the requirements for the [Daydreams AI Approval Risk Auditor bounty](https://github.com/daydreamsai/agent-bounties/issues/5).
-
-### Acceptance Criteria Status
-
-- [x] **Data Validation**: Matches approval data from blockchain explorers (Etherscan, Polygonscan, etc.)
-- [x] **Risk Detection**: Identifies unlimited and stale approvals, plus exploited protocols
-- [x] **Transaction Generation**: Provides valid ERC20 revocation transaction data
-- [x] **x402 Deployment**: Deployed with x402 payment protocol integration
 
 ## Features
 
@@ -48,7 +39,7 @@ Audit wallet token approvals and identify risks.
 
 **Example Request:**
 ```bash
-curl "https://api.kamiyo.ai/approval-audit?wallet=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb&chains=ethereum,polygon" \
+curl "https://risk-auditor.kamiyo.ai/approval-audit?wallet=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb&chains=ethereum,polygon" \
   -H "X-PAYMENT: <base64_encoded_x402_payment>"
 ```
 
@@ -127,6 +118,52 @@ All endpoints except `/health` require x402 payment:
 - **Price**: 0.001 SOL per request
 - **Payment Wallet**: `CE4BW1g1vuaS8hRQAGEABPi5PCuKBfJUporJxmdinCsY`
 
+### Payment Flow
+
+```
+┌──────────┐                                    ┌────────────────┐
+│  Client  │                                    │  Risk Auditor  │
+└─────┬────┘                                    └────────┬───────┘
+      │                                                  │
+      │  1. Create Solana transfer (0.001 SOL)          │
+      │     to CE4BW1g1vuaS8h...                        │
+      │ ────────────────────────────────────────────►   │
+      │                  Solana RPC                      │
+      │                                                  │
+      │  2. Get transaction signature                   │
+      │ ◄────────────────────────────────────────────   │
+      │                                                  │
+      │  3. API Request with X-PAYMENT header           │
+      │     ┌───────────────────────────────────┐       │
+      │     │ X-PAYMENT: base64({               │       │
+      │     │   x402Version: 1,                 │       │
+      │     │   payload: {                      │       │
+      │     │     signature: "5KW...",          │       │
+      │     │     amount: "1000000",            │       │
+      │     │     recipient: "CE4BW..."         │       │
+      │     │   }                               │       │
+      │     │ })                                │       │
+      │     └───────────────────────────────────┘       │
+      │ ────────────────────────────────────────────►   │
+      │                                                  │
+      │                                         ┌────────▼────────┐
+      │                                         │ x402Middleware  │
+      │                                         │  1. Parse       │
+      │                                         │  2. Verify sig  │
+      │                                         │  3. Check cache │
+      │                                         └────────┬────────┘
+      │                                                  │
+      │  4. Response with approval data                 │
+      │ ◄────────────────────────────────────────────   │
+      │     { approvals: [...], risk_flags: {} }        │
+      │                                                  │
+      │  5. Additional requests use cached payment      │
+      │     (1 hour TTL, multiple requests per tx)      │
+      │ ────────────────────────────────────────────►   │
+      │ ◄────────────────────────────────────────────   │
+      │                                                  │
+```
+
 **Payment Header Format:**
 ```
 X-PAYMENT: <base64_encoded_json>
@@ -195,6 +232,99 @@ npm start
 
 ## Architecture
 
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Risk Auditor API                         │
+│                    (Express.js + x402 Payments)                 │
+└────────────┬────────────────────────────────────┬───────────────┘
+             │                                    │
+     ┌───────▼─────────┐                 ┌────────▼────────┐
+     │  /approval-audit│                 │ /risk-score     │
+     │    Endpoint     │                 │  /exploits      │
+     └───────┬─────────┘                 └────────┬────────┘
+             │                                    │
+    ┌────────▼──────────────────────────┐        │
+    │   ApprovalsRouteHandler           │        │
+    │   ┌───────────────────────────┐   │        │
+    │   │ 1. Scan Approvals         │   │        │
+    │   │ 2. Detect Risks           │   │        │
+    │   │ 3. Generate Revocations   │   │        │
+    │   └───────────────────────────┘   │        │
+    └─┬─────────┬──────────┬────────────┘        │
+      │         │          │                      │
+┌─────▼─────┐ ┌▼──────────▼───┐     ┌───────────▼──────────┐
+│ Approval  │ │ RiskDetector  │     │    DataService       │
+│  Scanner  │ │               │     │  (Exploit Database)  │
+└─────┬─────┘ └───────┬───────┘     └──────────┬───────────┘
+      │               │                        │
+      │      ┌────────▼────────┐               │
+      │      │ Exploit History │◄──────────────┘
+      │      │   Cross-Ref     │
+      │      └─────────────────┘
+      │
+┌─────▼─────────────────────────────────────────────────┐
+│            Blockchain Explorer APIs                   │
+│  Etherscan │ Polygonscan │ Arbiscan │ Basescan │ ... │
+└───────────────────────────────────────────────────────┘
+```
+
+### Data Flow: Approval Auditing
+
+```
+User Request
+    │
+    ├─► wallet: 0x742d35...
+    ├─► chains: [ethereum, polygon]
+    └─► x402: payment signature
+         │
+         ▼
+    ┌─────────────────┐
+    │ ApprovalScanner │
+    └────────┬────────┘
+             │
+    ┌────────▼──────────────────────────────┐
+    │  1. Fetch approval events from        │
+    │     Etherscan/Polygonscan             │
+    │  2. Query current allowances          │
+    │  3. Filter active approvals           │
+    └────────┬──────────────────────────────┘
+             │
+             ├─► Token: USDC, Spender: 0x1234...
+             ├─► Allowance: MAX_UINT256
+             └─► Last Updated: 180 days ago
+                      │
+                      ▼
+              ┌───────────────┐
+              │ RiskDetector  │
+              └───────┬───────┘
+                      │
+          ┌───────────┼───────────┐
+          │           │           │
+    ┌─────▼─────┐ ┌──▼────┐ ┌────▼─────────┐
+    │ Unlimited │ │ Stale │ │  Exploited   │
+    │ Approval  │ │ (6mo) │ │  Protocol    │
+    └─────┬─────┘ └───┬───┘ └──────┬───────┘
+          │           │            │
+          └───────────┼────────────┘
+                      │
+            Risk Flags Generated
+                      │
+                      ▼
+        ┌──────────────────────────┐
+        │  TransactionGenerator    │
+        │  ERC20: approve(addr, 0) │
+        └──────────┬───────────────┘
+                   │
+    ┌──────────────▼────────────────┐
+    │  Revocation Transaction Data  │
+    │  ┌────────────────────────┐   │
+    │  │ to: 0xToken...         │   │
+    │  │ data: 0x095ea7b3...    │   │
+    │  │ chainId: 1             │   │
+    │  └────────────────────────┘   │
+    └───────────────────────────────┘
+```
+
 ### Services
 
 **ApprovalScanner** (`src/services/approval-scanner.ts`)
@@ -239,14 +369,14 @@ The implementation has been validated against:
 
 ### Technical Specifications Met
 
-✅ **Inputs**: `wallet` address and `chains` array
-✅ **Outputs**: `approvals[]`, `risk_flags`, `revoke_tx_data[]`
-✅ **Risk Detection**: Unlimited + stale + exploited protocol checking
-✅ **Transaction Data**: Valid ERC20 revocation transactions with proper encoding
+- **Inputs**: `wallet` address and `chains` array
+- **Outputs**: `approvals[]`, `risk_flags`, `revoke_tx_data[]`
+- **Risk Detection**: Unlimited + stale + exploited protocol checking
+- **Transaction Data**: Valid ERC20 revocation transactions with proper encoding
 
 ### Deployment
 
-Deployed at: `https://api.kamiyo.ai/approval-audit`
+**Production URL:** `https://risk-auditor.kamiyo.ai`
 
 Access via x402 payment protocol (0.001 SOL per request)
 
