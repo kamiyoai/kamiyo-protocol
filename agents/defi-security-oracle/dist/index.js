@@ -171,7 +171,7 @@ app.get('/risk-score/:protocol', validateRequest({ params: riskScoreParamsSchema
 });
 app.get('/.well-known/x402', (req, res) => {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.json({
+    res.status(402).json({
         x402Version: 1,
         accepts: [
             {
