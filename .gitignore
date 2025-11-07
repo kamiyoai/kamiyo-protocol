@@ -184,3 +184,6 @@ dist
 node_modules
 node_modules
 LAUNCH_CONFIGURATION.md
+
+# Business model and internal strategy documents
+marketing/oracle-business-model.md
