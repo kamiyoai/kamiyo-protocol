@@ -2,114 +2,70 @@ import Head from 'next/head';
 
 export default function About() {
     return (
-        <div className="min-h-screen">
+        <div className="min-h-screen bg-black text-white">
             <Head>
-                <title>About KAMIYO - Blockchain Exploit Intelligence</title>
+                <title>About KAMIYO - x402 Infrastructure</title>
             </Head>
 
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;About</p>
+                <div className="border-b border-gray-500 border-opacity-25 mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-blue-400 mb-8">About</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">What is KAMIYO</h1>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-20">
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4">Real-time Exploit Intelligence</h4>
-                        <p>We operate as a blockchain exploit intelligence aggregator, collecting and analyzing data from trusted sources to deliver real-time insights into on-chain security incidents.</p>
+                        <h4 className="text-xl md:text-2xl mb-4 font-light">Payment Verification Infrastructure</h4>
+                        <p className="mb-4 text-gray-400">x402 Infrastructure is a production-ready API for verifying on-chain USDC payments across multiple blockchains. Developers use our service to confirm that payments have been made before granting access to APIs, data, or services.</p>
 
-                        <p>In the rapidly evolving blockchain security landscape, timely access to verified exploit information is essential. Our platform consolidates data from 18 aggregators (56 established sources)—including security firms, blockchain explorers, and verified security researchers—into a centralized intelligence feed.</p>
+                        <p className="mb-4 text-gray-400">Add pay-per-use pricing to any API in 10 minutes. When a user makes a USDC payment on-chain, submit the transaction hash to our API for instant verification. We handle all blockchain complexity - you get a simple yes/no answer with payment details.</p>
 
-                        <p>By prioritizing speed and data accuracy, we enable security teams, DeFi protocols, and institutional investors to respond to threats more efficiently than manual monitoring allows.</p>
+                        <p className="mb-4 text-gray-400">Verify payments across Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and more with a single API endpoint. Production-grade infrastructure with 99.9% uptime SLA and sub-500ms response times.</p>
 
-                        <h4 className="pt-6 text-xl md:text-2xl mb-4">Core Principles</h4>
-                        <ol start="1" data-spread="true">
+                        <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Core Capabilities</h4>
+                        <ol className="space-y-3 text-gray-400">
                             <li>
-                                <p><strong>Verified Sources Only:</strong> Every exploit must have a transaction hash on-chain and be confirmed by reputable security sources like Rekt News, BlockSec, PeckShield, or Etherscan.</p>
+                                <p><strong className="text-white">Transaction Verification:</strong> Confirm USDC payments happened on-chain with the correct amount and recipient.</p>
                             </li>
                             <li>
-                                <p><strong>Speed Over Speculation:</strong> Our value is in being fast to aggregate confirmed information, not in predicting or discovering vulnerabilities. We organize what's already been verified.</p>
+                                <p><strong className="text-white">Multi-Chain Support:</strong> Single API works across 8+ blockchains - no need to integrate with each network separately.</p>
                             </li>
                             <li>
-                                <p><strong>No Security Analysis:</strong> KAMIYO doesn't claim to find vulnerabilities, score risks, or provide security audits. We aggregate external reports and present them clearly.</p>
+                                <p><strong className="text-white">Developer SDKs:</strong> Python and JavaScript clients with TypeScript support for rapid integration.</p>
                             </li>
                             <li>
-                                <p><strong>Comprehensive Coverage:</strong> Track exploits across 55+ blockchain networks including Ethereum, Hyperliquid, Solana, BSC, Arbitrum, and more from a single dashboard.</p>
+                                <p><strong className="text-white">Risk Scoring:</strong> Transaction analysis and fraud detection to protect against payment manipulation (Pro+ tiers).</p>
                             </li>
                             <li>
-                                <p><strong>Historical Context:</strong> Access a searchable database of past exploits to identify patterns, understand attack vectors, and learn from the history of blockchain security incidents.</p>
+                                <p><strong className="text-white">Usage-Based Pricing:</strong> Free tier with 1,000 verifications/month. Scale up to unlimited with transparent pricing.</p>
                             </li>
                             <li>
-                                <p><strong>Developer-Friendly API:</strong> Integrate real-time exploit intelligence into your applications, monitoring tools, or internal security systems via our REST API and WebSocket feeds.</p>
-                            </li>
-                            <li>
-                                <p><strong>Community-Driven:</strong> Built for security researchers, DeFi protocols, blockchain developers, and crypto investors who need reliable, fast intelligence without the noise.</p>
+                                <p><strong className="text-white">ERC-8004 Ready:</strong> Support for AI agent payment verification enabling autonomous service payments.</p>
                             </li>
                         </ol>
-
                     </div>
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4">How Our Platform Works</h4>
-                        <ul data-spread="true">
+                        <h4 className="text-xl md:text-2xl mb-4 font-light">How It Works</h4>
+                        <ul className="space-y-4 text-gray-400">
                             <li>
-                                <p><strong>Multi-Source Data Collection:</strong><br/>Our systems continuously monitor 18 aggregators (56 sources) including Rekt News, BlockSec, PeckShield, Certik, Immunefi, Trail of Bits, and established security researchers across social platforms.</p>
+                                <p><strong className="text-white">User Makes Payment:</strong><br/>Your customer sends USDC to your wallet address on any supported blockchain. They receive a transaction hash from their wallet.</p>
                             </li>
                             <li>
-                                <p><strong>On-Chain Data Verification:</strong><br/>We validate every reported incident against transaction data from blockchain explorers like Etherscan, ensuring all intelligence includes verifiable on-chain evidence.</p>
+                                <p><strong className="text-white">Submit for Verification:</strong><br/>Your API receives the transaction hash from the user. You call x402 Infrastructure to verify the payment actually happened.</p>
                             </li>
                             <li>
-                                <p><strong>Automated Data Processing:</strong><br/>When multiple sources report the same incident, our deduplication system automatically consolidates and enriches the data, creating a single comprehensive record from all available sources.</p>
+                                <p><strong className="text-white">Instant Confirmation:</strong><br/>We query the blockchain, confirm the payment amount and recipient, check confirmations, and return verification results in under 500ms.</p>
                             </li>
                             <li>
-                                <p><strong>Multi-Channel Alert Delivery:</strong><br/>Clients receive instant notifications through their preferred channels—Discord, Telegram, Slack, or email—when new exploits match their configured monitoring criteria.</p>
+                                <p><strong className="text-white">Grant Access:</strong><br/>If verification succeeds, you grant access to your API/data. If it fails, you reject the request. Simple pay-per-use model.</p>
                             </li>
                         </ul>
-                        <h4 className="pt-6 text-xl md:text-2xl mb-4">Our Mission</h4>
-                        <p>We exist to provide the blockchain ecosystem with accessible, timely, and reliable security intelligence. While the crypto industry loses billions annually to exploits and vulnerabilities, we help organizations respond faster by delivering verified information the moment incidents occur.</p>
-                        <p>Our platform transforms fragmented security reports into organized, searchable intelligence that security teams can integrate directly into their operational workflows and response procedures.</p>
+                        <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Our Mission</h4>
+                        <p className="mb-4 text-gray-400">We built x402 Infrastructure to solve a specific problem: verifying crypto micropayments is complex and error-prone. Each blockchain has different RPC endpoints, transaction formats, and confirmation requirements.</p>
+                        <p className="text-gray-400">Our service handles all blockchain complexity so developers can add crypto payments to their APIs without managing nodes, parsing transactions, or learning blockchain protocols. One API call, any supported chain, instant verification.</p>
                     </div>
                 </div>
 
-            </section>
-            <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="mb-8 font-light text-sm uppercase tracking-widest text-cyan">— &nbsp;Data Sources</p>
-                    <h3 className="text-3xl md:text-4xl lg:text-5xl font-light">Trusted Intelligence</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-                    <div>
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">SECURITY FIRMS</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Professional Auditors</h4>
-                        <p>We collect incident reports from established blockchain security firms including PeckShield, BlockSec, Certik, Quantstamp, Trail of Bits, OpenZeppelin, and Consensys Diligence.</p>
-
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">BUG BOUNTIES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Verified Discoveries</h4>
-                        <p>Our platform tracks confirmed vulnerabilities and exploits disclosed through major bug bounty programs like Immunefi and HackerOne, where security researchers responsibly report discovered issues.</p>
-
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">BLOCKCHAIN DATA</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">On-Chain Verification</h4>
-                        <p>We verify all reported incidents against transaction data from blockchain explorers including Etherscan, BscScan, Solscan, and Arbiscan, ensuring every entry includes provable on-chain evidence.</p>
-
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">COMMUNITY SOURCES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Security Research Community</h4>
-                        <p>We monitor verified security researchers and incident reporters across social platforms, capturing early detection signals and community-verified information about emerging security events.</p>
-                    </div>
-                    <div>
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">INCIDENT DATABASES</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Historical Records</h4>
-                        <p>We maintain comprehensive exploit archives sourced from Rekt News, SlowMist Hacked, and Chainalysis, enabling historical trend analysis and pattern recognition across the blockchain security landscape.</p>
-
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">PROTOCOL MONITORING</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Direct Protocol Sources</h4>
-                        <p>Our systems monitor security advisories, GitHub security alerts, and official communications directly from blockchain protocols and DeFi projects, capturing first-party incident disclosures.</p>
-
-                        <p className="mb-2 mt-12 tracking-widest font-light text-xs text-gray-500">DATA QUALITY</p>
-                        <h4 className="pt-0 text-xl md:text-2xl mb-4">Quality Standards</h4>
-                        <p>We maintain rigorous data quality standards. All reported exploits must be confirmed by multiple reputable sources and include verifiable on-chain transaction evidence. Our system prioritizes accuracy by filtering unverified reports and speculation.</p>
-                        <p>Our aggregation infrastructure cross-references multiple sources, enriches records with contextual data, and delivers a unified, comprehensive view of each security incident.</p>
-                    </div>
-                </div>
             </section>
 
         </div>
