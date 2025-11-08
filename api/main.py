@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Kamiyo REST API
-FastAPI application for exploit intelligence aggregation
+KAMIYO x402 Infrastructure API
+FastAPI application for multi-chain USDC payment verification
 """
 
 import sys
