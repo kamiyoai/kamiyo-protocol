@@ -8,17 +8,18 @@ export default function Features() {
                 <meta name="description" content="Explore KAMIYO's x402 Infrastructure for multi-chain payment verification. Production-ready API for verifying USDC payments across Solana, Base, Ethereum and more." />
             </Head>
 
-            <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
-                <div className="border-b border-gray-500 border-opacity-25 mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-blue-400 mb-8">Features</p>
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Complete Feature Overview</h1>
+            <section className="py-10 px-5 mx-auto max-w-[1400px]">
+                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;機能</p>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">x402 Infrastructure Features</h1>
+                    <p className="text-gray-400 mt-4 text-xl">Multi-chain USDC payment verification for your APIs</p>
                 </div>
 
                 {/* x402 Infrastructure Features */}
                 <div className="mb-20 pb-20">
-                    <div className="border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-blue-400">x402 INFRASTRUCTURE</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Multi-Chain Payment Verification</h2>
+                    <div className="border-dotted border-b border-gray-500/25 mb-8 pb-4">
+                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">X402 INFRASTRUCTURE</p>
+                        <h2 className="text-3xl md:text-4xl font-light">Multi-Chain Payment Verification</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-12">
