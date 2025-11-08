@@ -4,46 +4,46 @@ import Head from 'next/head';
 import PayButton from './PayButton';
 
 const faqs = [
-  // SECURITY INTELLIGENCE (4 questions)
+  // x402 BASICS (3 questions)
   {
-    question: "How quickly do you detect crypto exploits?",
-    answer: "KAMIYO aggregates from 20+ security researchers including CertiK, PeckShield, BlockSec, and SlowMist. Most exploits are detected and indexed within 5-15 minutes of the first public report. Critical exploits (>$1M) trigger immediate alerts to MCP subscribers."
+    question: "What is x402 Infrastructure?",
+    answer: "x402 Infrastructure is a production-ready API for verifying USDC payments across multiple blockchains. When a user sends you USDC on any supported chain, you submit the transaction hash to our API and we instantly verify the payment happened with the correct amount and recipient. No need to manage RPC endpoints, parse transactions, or understand blockchain protocols."
   },
   {
-    question: "What sources do you aggregate exploit data from?",
-    answer: "We monitor 20+ leading security sources: CertiK, PeckShield, BlockSec, SlowMist, Chainalysis, Immunefi, Rekt News, DefiLlama, and 12+ others. Each source is scored on speed, accuracy, and exclusivity. Our proprietary algorithm ranks sources so you know which reports to trust most."
+    question: "Which blockchains are supported?",
+    answer: "x402 Infrastructure supports 8+ blockchain networks: Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and more. All networks use USDC for payments. One API call works across all chains - no need to integrate with each network separately."
   },
   {
-    question: "What blockchains and protocols do you cover?",
-    answer: "KAMIYO tracks exploits across 15+ chains including Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Solana, Avalanche, and more. We monitor all major DeFi protocols (Uniswap, Aave, Compound, Curve, etc.) plus thousands of smaller projects. Historical database covers 2+ years of incidents tracking $2.1B+ in losses."
-  },
-  {
-    question: "How accurate is your exploit data?",
-    answer: "All exploit reports are cross-referenced across multiple sources before indexing. We track source accuracy rates and flag unconfirmed reports. For critical exploits (>$10M), we require confirmation from at least 2 trusted sources. Our source quality scoring algorithm gives you transparency into data reliability."
+    question: "How fast is payment verification?",
+    answer: "Average verification response time is under 500ms. We query the blockchain, confirm the transaction exists with correct amount and recipient, check confirmation count, and return results. Production infrastructure runs with 99.9% uptime SLA."
   },
 
-  // MCP INTEGRATION (3 questions)
+  // INTEGRATION (3 questions)
   {
-    question: "How do I add KAMIYO to Claude Desktop?",
-    answer: "Subscribe to a KAMIYO MCP plan at kamiyo.ai/pricing. After payment, you'll receive your MCP subscription key. Open Claude Desktop → Settings → MCP Servers → Add Server, and paste your key. Claude can now call KAMIYO security tools like check_latest_exploits() and assess_protocol_risk() during conversations."
+    question: "How do I integrate x402 into my API?",
+    answer: "Integration takes about 10 minutes. Step 1: Sign up at kamiyo.ai/x402 and get your API key. Step 2: Install our Python SDK (pip install x402) or JavaScript SDK (npm install @x402/sdk). Step 3: When a user claims they paid, call client.verify_payment() with the transaction hash and chain. Step 4: Grant or deny access based on verification result."
   },
   {
-    question: "What's included in MCP subscriptions?",
-    answer: "MCP subscriptions include unlimited security intelligence queries via Claude Desktop or any MCP-compatible AI agent. Personal ($19/mo): 1 AI agent. Team ($99/mo): 5 concurrent agents, team workspace, webhook notifications. Enterprise ($299/mo): Unlimited agents, custom tools, SLA guarantees, dedicated support."
+    question: "Do I need blockchain expertise?",
+    answer: "No blockchain knowledge required. We handle all complexity: RPC endpoints, transaction parsing, confirmation requirements, gas fees, and network differences. You just call our API with a transaction hash and get back a simple verified true/false response with payment details."
   },
   {
-    question: "Which MCP tools are available?",
-    answer: "KAMIYO MCP server provides: check_latest_exploits() for recent incidents, assess_protocol_risk() for historical analysis, check_wallet_involvement() for address screening, query_exploit_history() for filtered searches, and get_source_rankings() for source credibility. Enterprise plans can request custom tool development."
+    question: "What about fraud and payment manipulation?",
+    answer: "Pro and Enterprise tiers include transaction risk scoring to detect suspicious patterns. We analyze transaction history, confirmation depth, and on-chain behavior. Free and Starter tiers get basic verification (amount, recipient, confirmations). All tiers check that payments actually happened on-chain before returning success."
   },
 
-  // x402 API (2 questions)
+  // PRICING & PLANS (3 questions)
   {
-    question: "Can I use the API without a subscription?",
-    answer: "Yes! The x402 API is pay-per-query at $0.01 per exploit query. No account required - just send your query to kamiyo.ai/exploits/latest-alert, receive 402 payment instructions, pay $0.01 USDC on Base/Ethereum/Solana, and get your data. Payment tokens are valid for 24 hours for subsequent queries."
+    question: "How much does x402 Infrastructure cost?",
+    answer: "Free tier includes 1,000 verifications per month on 2 chains (Solana & Base). Paid plans: Starter $99/mo for 50K verifications on 3 chains, Pro $299/mo for 500K verifications on 6 chains, Enterprise $999/mo for unlimited verifications on all chains. All plans include Python & JavaScript SDKs, API access, and production infrastructure."
   },
   {
-    question: "MCP subscription vs x402 API - which should I use?",
-    answer: "Use MCP subscription if you're running AI agents (Claude, AutoGPT, etc.) that need unlimited security queries integrated into their decision-making. Use x402 API if you're building custom integrations, making sporadic queries, or prefer pay-per-use pricing. Both provide the same real-time exploit intelligence from 20+ sources."
+    question: "What happens if I exceed my verification limit?",
+    answer: "If you hit your monthly verification limit, additional requests will return a rate limit error. You can upgrade your plan anytime from the dashboard. Unused verifications do not roll over to the next month. Enterprise plans have no verification limits."
+  },
+  {
+    question: "Can AI agents use x402 for payments?",
+    answer: "Yes. x402 Infrastructure supports the ERC-8004 standard for AI agent payments. Autonomous agents can verify their own USDC payments before accessing services. This enables true machine-to-machine payments without human intervention."
   }
 ];
 
@@ -75,7 +75,7 @@ export default function FAQ() {
             <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
                 <div className="text-center mb-12">
                     <h2 className="text-3xl md:text-4xl font-light mb-4">Frequently Asked Questions</h2>
-                    <p className="text-gray-400 text-sm md:text-lg">Everything you need to know about KAMIYO Security Intelligence</p>
+                    <p className="text-gray-400 text-sm md:text-lg">Everything you need to know about x402 Infrastructure</p>
                 </div>
 
                 <div className="max-w-3xl mx-auto space-y-4 mb-12">
