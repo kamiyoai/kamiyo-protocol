@@ -1,4 +1,5 @@
 // components/dashboard/UsageCharts.js
+'use client';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const COLORS = ['#00f0ff', '#ff44f5', '#00d4ff', '#ff6b9d', '#33f3ff', '#ff88aa'];
