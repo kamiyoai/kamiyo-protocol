@@ -34,29 +34,29 @@ import PropTypes from 'prop-types';
  * />
  */
 export default function SEO({
-  title = "Security Intelligence for AI Agents | KAMIYO | MCP & x402",
-  description = "Real-time crypto exploit intelligence for AI agents. Access via MCP subscription (Claude Desktop) or x402 API. Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec. $0.01 per query or unlimited with MCP.",
+  title = "x402 Infrastructure - Multi-Chain USDC Payment Verification API | KAMIYO",
+  description = "Production-ready API for verifying USDC payments across Solana, Base, Ethereum, Polygon, and more. Add crypto micropayments to any API in 10 minutes. 99.9% uptime SLA, sub-500ms response times. Start with 1,000 free verifications per month.",
   keywords = [
-    "crypto exploit intelligence",
-    "AI agent security",
-    "MCP server security",
-    "Claude Desktop security",
-    "real-time exploit detection",
-    "DeFi security intelligence",
-    "blockchain exploit database",
-    "protocol risk assessment",
-    "security intelligence API",
-    "x402 security data",
-    "CertiK API alternative",
-    "crypto threat intelligence",
-    "smart contract exploits",
-    "DeFi hack database",
-    "on-chain security monitoring",
-    "AI security agent",
-    "crypto security MCP",
-    "exploit aggregation",
-    "blockchain security alerts",
-    "protocol vulnerability tracking"
+    "USDC payment verification",
+    "crypto payment API",
+    "blockchain payment verification",
+    "multi-chain payment API",
+    "Solana payment verification",
+    "Base payment verification",
+    "Ethereum payment verification",
+    "crypto micropayments",
+    "API monetization",
+    "pay per use API",
+    "blockchain transaction verification",
+    "USDC API",
+    "crypto payment infrastructure",
+    "payment verification service",
+    "AI agent payments",
+    "ERC-8004 payments",
+    "autonomous payments",
+    "crypto payment gateway alternative",
+    "blockchain payment confirmation",
+    "transaction verification API"
   ],
   canonical = "https://kamiyo.ai",
   ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
@@ -68,54 +68,54 @@ export default function SEO({
   const defaultSchema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "KAMIYO Security Intelligence",
-    "applicationCategory": "SecurityApplication",
-    "operatingSystem": "Web, MCP",
-    "description": "Real-time cryptocurrency exploit intelligence for AI agents via MCP subscriptions or x402 API",
+    "name": "x402 Infrastructure",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web",
+    "description": "Production-ready API for verifying on-chain USDC payments across multiple blockchains. Simple payment verification for developers.",
     "url": "https://kamiyo.ai",
     "offers": [
       {
         "@type": "Offer",
-        "name": "MCP Personal",
-        "price": "19",
+        "name": "Free Tier",
+        "price": "0",
         "priceCurrency": "USD",
-        "description": "Unlimited security intelligence queries for Claude Desktop and AI agents"
+        "description": "1,000 payment verifications per month, 2 blockchain networks"
       },
       {
         "@type": "Offer",
-        "name": "MCP Team",
+        "name": "Starter",
         "price": "99",
         "priceCurrency": "USD",
-        "description": "5 concurrent AI agents, team workspace, webhook notifications"
+        "description": "50,000 verifications per month, 3 chains, email support"
       },
       {
         "@type": "Offer",
-        "name": "MCP Enterprise",
+        "name": "Pro",
         "price": "299",
         "priceCurrency": "USD",
-        "description": "Unlimited AI agents, custom tools, SLA guarantees, dedicated support"
+        "description": "500,000 verifications per month, 6 chains, priority support, risk scoring"
       },
       {
         "@type": "Offer",
-        "name": "x402 API",
-        "price": "0.01",
+        "name": "Enterprise",
+        "price": "999",
         "priceCurrency": "USD",
-        "description": "Pay-per-query exploit intelligence, no subscription required"
+        "description": "Unlimited verifications, all chains, dedicated support, custom SLA"
       }
     ],
     "featureList": [
-      "20+ security source aggregation",
-      "Real-time exploit detection",
-      "MCP server for Claude Desktop",
-      "Protocol risk assessment",
-      "Wallet address screening",
-      "Historical exploit database",
-      "Source quality scoring",
-      "x402 pay-per-query API",
-      "Multi-chain coverage (15+ blockchains)",
-      "AI agent integration",
-      "WebSocket streaming",
-      "Unlimited MCP queries"
+      "Multi-chain USDC payment verification",
+      "Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism",
+      "99.9% uptime SLA",
+      "Sub-500ms average response time",
+      "Python and JavaScript SDKs",
+      "TypeScript support",
+      "Transaction risk scoring",
+      "ERC-8004 AI agent payment support",
+      "Real-time payment confirmation",
+      "Usage analytics dashboard",
+      "Fraud detection",
+      "Multi-tenant API key management"
     ]
   };
 

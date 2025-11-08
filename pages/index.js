@@ -5,6 +5,7 @@ import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
 import X402PricingTiers from "../components/X402PricingTiers";
+import SEO from "../components/SEO";
 
 export default function Home() {
     const [stats, setStats] = useState({
@@ -48,6 +49,7 @@ export default function Home() {
 
     return (
         <div className="text-white bg-black min-h-screen">
+            <SEO />
             {/* Hero Section - x402 Infrastructure */}
             <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
                 <div className="w-full px-5 mx-auto py-20" style={{ maxWidth: '1400px' }}>
