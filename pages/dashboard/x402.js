@@ -8,6 +8,13 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import {
+  VerificationsTrendChart,
+  VerificationsByChainChart,
+  SuccessRateChart,
+  ResponseTimeChart,
+  generateMockData
+} from '../../components/dashboard/UsageCharts';
 
 export default function X402Dashboard() {
   const { data: session, status } = useSession();
@@ -16,6 +23,7 @@ export default function X402Dashboard() {
   const [apiKeys, setApiKeys] = useState([]);
   const [usage, setUsage] = useState(null);
   const [chains, setChains] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -61,6 +69,11 @@ export default function X402Dashboard() {
         const chainsData = await chainsRes.json();
         setChains(chainsData);
       }
+
+      // Load analytics data (use mock data for now)
+      // TODO: Implement real analytics API endpoint
+      const mockAnalytics = generateMockData();
+      setAnalytics(mockAnalytics);
 
       setLoading(false);
 
@@ -131,10 +144,10 @@ export default function X402Dashboard() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan mx-auto"></div>
+          <p className="mt-4 text-gray-400">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -150,12 +163,13 @@ export default function X402Dashboard() {
         <title>x402 Dashboard - KAMIYO</title>
       </Head>
 
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-black text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">x402 Infrastructure Dashboard</h1>
-            <p className="mt-2 text-gray-600">Manage your payment verification API</p>
+          <div className="mb-8 border-dotted border-b border-cyan pb-6">
+            <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4">—  DASHBOARD</p>
+            <h1 className="text-3xl font-light text-white">x402 Infrastructure</h1>
+            <p className="mt-2 text-gray-400">Payment verification API management</p>
           </div>
 
           {/* Checkout success/cancel message */}
@@ -212,22 +226,40 @@ export default function X402Dashboard() {
             </div>
           )}
 
+          {/* Analytics Charts */}
+          {analytics && (
+            <div className="mb-12">
+              <h2 className="text-2xl font-light mb-6 text-white">Usage Analytics</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <VerificationsTrendChart data={analytics.trendData} />
+                <VerificationsByChainChart data={analytics.chainData} />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SuccessRateChart
+                  successRate={analytics.successRate}
+                  total={analytics.totalVerifications}
+                />
+                <ResponseTimeChart data={analytics.responseTimeData} />
+              </div>
+            </div>
+          )}
+
           {/* Enabled Chains */}
           {chains && (
-            <div className="bg-white rounded-lg shadow p-6 mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Enabled Chains</h2>
+            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
+              <h2 className="text-lg font-light text-white mb-4">Enabled Chains</h2>
               <div className="flex flex-wrap gap-2">
                 {chains.enabled_chains.map(chain => (
                   <span
                     key={chain}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border border-cyan text-cyan"
                   >
                     {chain.charAt(0).toUpperCase() + chain.slice(1)}
                   </span>
                 ))}
               </div>
               {chains.payai_enabled && (
-                <p className="mt-4 text-sm text-gray-600">
+                <p className="mt-4 text-sm text-gray-400">
                   ✓ PayAI network integration enabled
                 </p>
               )}
