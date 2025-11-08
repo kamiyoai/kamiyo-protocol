@@ -197,8 +197,8 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
     x402Version: 1,
     accepts: [
       {
-        scheme: 'exact',
-        network: 'solana',
+        scheme: 'exact' as const,
+        network: 'base' as const,
         maxAmountRequired: String(PRICE_PER_REQUEST_SOL * 1_000_000_000),
         resource: `${baseUrl}/approval-audit`,
         description: 'Audit wallet token approvals and identify malicious or risky approvals',
@@ -208,8 +208,8 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
         asset: 'SOL',
         outputSchema: {
           input: {
-            type: 'http',
-            method: 'GET',
+            type: 'http' as const,
+            method: 'GET' as const,
             queryParams: {
               wallet: {
                 type: 'string',
@@ -219,7 +219,7 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
               chains: {
                 type: 'string',
                 required: false,
-                description: 'Comma-separated chain IDs (e.g., 1,137,56)',
+                description: 'Comma-separated chain names (ethereum,polygon,base)',
               },
             },
           },
@@ -238,8 +238,8 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
         },
       },
       {
-        scheme: 'exact',
-        network: 'solana',
+        scheme: 'exact' as const,
+        network: 'base' as const,
         maxAmountRequired: String(PRICE_PER_REQUEST_SOL * 1_000_000_000),
         resource: `${baseUrl}/exploits`,
         description: 'Real-time DeFi exploit intelligence from 20+ sources',
@@ -249,8 +249,8 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
         asset: 'SOL',
         outputSchema: {
           input: {
-            type: 'http',
-            method: 'GET',
+            type: 'http' as const,
+            method: 'GET' as const,
             queryParams: {
               protocol: {
                 type: 'string',
@@ -284,10 +284,10 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
         },
       },
       {
-        scheme: 'exact',
-        network: 'solana',
+        scheme: 'exact' as const,
+        network: 'base' as const,
         maxAmountRequired: String(PRICE_PER_REQUEST_SOL * 1_000_000_000),
-        resource: `${baseUrl}/risk-score/{protocol}`,
+        resource: `${baseUrl}/risk-score`,
         description: 'Calculate risk score for DeFi protocols based on exploit history',
         mimeType: 'application/json',
         payTo: PAYMENT_WALLET,
@@ -295,16 +295,14 @@ app.all('/.well-known/x402', (req: Request, res: Response) => {
         asset: 'SOL',
         outputSchema: {
           input: {
-            type: 'http',
-            method: 'GET',
-            pathParams: {
+            type: 'http' as const,
+            method: 'GET' as const,
+            queryParams: {
               protocol: {
                 type: 'string',
                 required: true,
-                description: 'Protocol name',
+                description: 'Protocol name to analyze',
               },
-            },
-            queryParams: {
               chain: {
                 type: 'string',
                 required: false,
