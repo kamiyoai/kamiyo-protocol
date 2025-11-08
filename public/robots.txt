@@ -1,6 +1,6 @@
 # ============================================================================
-# KAMIYO x402 Payment Facilitator - Robots.txt
-# Advanced SEO Configuration for Maximum Crawl Efficiency
+# KAMIYO x402 Infrastructure - Robots.txt
+# SEO Configuration
 # https://kamiyo.ai
 # ============================================================================
 
@@ -314,5 +314,5 @@ Sitemap: https://kamiyo.ai/sitemap.xml
 
 # ============================================================================
 # END OF ROBOTS.TXT
-# Last Updated: 2025-10-28
+# Last Updated: 2025-11-08
 # ============================================================================

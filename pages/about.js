@@ -1,11 +1,13 @@
-import Head from 'next/head';
+import SEO from '../components/SEO';
 
 export default function About() {
     return (
         <div className="min-h-screen bg-black text-white">
-            <Head>
-                <title>About KAMIYO - x402 Infrastructure</title>
-            </Head>
+            <SEO
+                title="About x402 Infrastructure - Multi-Chain USDC Payment Verification | KAMIYO"
+                description="x402 is an API for verifying USDC payments across blockchains. When a user sends USDC, submit the transaction hash to our API. We check the blockchain and return whether the payment is valid. Works on Solana, Base, Ethereum, Polygon, Arbitrum, Optimism and more."
+                canonical="https://kamiyo.ai/about"
+            />
 
             <section className="py-10 px-5 mx-auto max-w-[1400px]">
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">

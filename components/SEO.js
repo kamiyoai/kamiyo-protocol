@@ -35,7 +35,7 @@ import PropTypes from 'prop-types';
  */
 export default function SEO({
   title = "x402 Infrastructure - Multi-Chain USDC Payment Verification API | KAMIYO",
-  description = "Production-ready API for verifying USDC payments across Solana, Base, Ethereum, Polygon, and more. Add crypto micropayments to any API in 10 minutes. 99.9% uptime SLA, sub-500ms response times. Start with 1,000 free verifications per month.",
+  description = "Verify USDC payments across Solana, Base, Ethereum, Polygon and more. Simple API for payment verification. 99.9% uptime, responses under 500ms. Start with 1,000 free verifications per month.",
   keywords = [
     "USDC payment verification",
     "crypto payment API",
@@ -71,7 +71,7 @@ export default function SEO({
     "name": "x402 Infrastructure",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Web",
-    "description": "Production-ready API for verifying on-chain USDC payments across multiple blockchains. Simple payment verification for developers.",
+    "description": "API for verifying USDC payments across multiple blockchains. Simple payment verification for developers.",
     "url": "https://kamiyo.ai",
     "offers": [
       {
@@ -106,8 +106,8 @@ export default function SEO({
     "featureList": [
       "Multi-chain USDC payment verification",
       "Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism",
-      "99.9% uptime SLA",
-      "Sub-500ms average response time",
+      "99.9% uptime",
+      "Responses under 500ms",
       "Python and JavaScript SDKs",
       "TypeScript support",
       "Transaction risk scoring",
@@ -115,7 +115,7 @@ export default function SEO({
       "Real-time payment confirmation",
       "Usage analytics dashboard",
       "Fraud detection",
-      "Multi-tenant API key management"
+      "API key management"
     ]
   };
 

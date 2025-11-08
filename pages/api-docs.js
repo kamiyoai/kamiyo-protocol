@@ -1,4 +1,4 @@
-import Head from 'next/head';
+import SEO from '../components/SEO';
 import { useState } from 'react';
 
 export default function ApiDocs() {
@@ -12,17 +12,18 @@ export default function ApiDocs() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <Head>
-        <title>API Documentation - x402 Infrastructure | KAMIYO</title>
-        <meta name="description" content="Complete x402 Infrastructure API documentation for multi-chain USDC payment verification. Production-ready payment verification API." />
-      </Head>
+      <SEO
+        title="API Documentation - x402 Multi-Chain Payment Verification | KAMIYO"
+        description="Complete x402 API documentation for verifying USDC payments across Solana, Base, Ethereum and more. Python SDK, JavaScript SDK, and REST API. Simple payment verification in 10 minutes."
+        canonical="https://kamiyo.ai/api-docs"
+      />
 
       <section className="py-10 px-5 mx-auto max-w-[1400px]">
         <div className="border-dotted border-b border-cyan mb-12 pb-6">
           <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;API ドキュメント</p>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">x402 Infrastructure API</h1>
           <p className="text-gray-400 mt-4">
-            Multi-chain USDC payment verification for your APIs. Production-ready infrastructure with 99.9% uptime SLA.
+            Multi-chain USDC payment verification for your APIs. 99.9% uptime.
           </p>
         </div>
 

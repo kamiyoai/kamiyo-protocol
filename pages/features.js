@@ -1,12 +1,13 @@
-import Head from 'next/head';
+import SEO from '../components/SEO';
 
 export default function Features() {
     return (
         <div className="min-h-screen bg-black text-white">
-            <Head>
-                <title>Features - KAMIYO x402 Infrastructure</title>
-                <meta name="description" content="x402 features: multi-chain payment verification for Solana, Base, Ethereum and more." />
-            </Head>
+            <SEO
+                title="Features - x402 Multi-Chain USDC Payment Verification | KAMIYO"
+                description="Verify USDC payments across 8+ blockchain networks with a single API call. Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and more. 99.9% uptime, responses under 500ms. Simple integration with Python and JavaScript SDKs."
+                canonical="https://kamiyo.ai/features"
+            />
 
             <section className="py-10 px-5 mx-auto max-w-[1400px]">
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
