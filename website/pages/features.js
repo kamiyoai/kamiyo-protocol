@@ -2,300 +2,120 @@ import Head from 'next/head';
 
 export default function Features() {
     return (
-        <div className="min-h-screen">
+        <div className="min-h-screen bg-black text-white">
             <Head>
-                <title>Features - KAMIYO Blockchain Exploit Intelligence</title>
-                <meta name="description" content="Explore KAMIYO's comprehensive feature set: real-time alerts, API access, webhook integrations, fork detection, pattern clustering, and more." />
+                <title>Features - KAMIYO x402 Infrastructure</title>
+                <meta name="description" content="Explore KAMIYO's x402 Infrastructure for multi-chain payment verification. Production-ready API for verifying USDC payments across Solana, Base, Ethereum and more." />
             </Head>
 
             <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;Features</p>
+                <div className="border-b border-gray-500 border-opacity-25 mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-blue-400 mb-8">Features</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">Complete Feature Overview</h1>
                 </div>
 
-                {/* Alert & Notification Features */}
-                <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">ALERTING</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Real-time Notifications</h2>
+                {/* x402 Infrastructure Features */}
+                <div className="mb-20 pb-20">
+                    <div className="border-b border-gray-500 border-opacity-25 mb-8 pb-4">
+                        <p className="mb-2 tracking-widest font-light text-xs text-blue-400">x402 INFRASTRUCTURE</p>
+                        <h2 className="text-2xl md:text-3xl font-light">Multi-Chain Payment Verification</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-12">
+                        <div>
+                            <h3 className="text-xl md:text-2xl mb-4 font-light">Universal USDC Verification</h3>
+                            <p className="mb-4 text-gray-400">Verify USDC payments across 8+ blockchain networks with a single API call. Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and more.</p>
+                            <p className="mb-4 text-gray-400">Production-ready infrastructure with 99.9% uptime SLA and sub-500ms average response times.</p>
+                            <p className="text-sm text-gray-400">Available: All tiers from Free onwards</p>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xl md:text-2xl mb-4 font-light">Simple Integration</h3>
+                            <p className="mb-4 text-gray-400">Add crypto micropayments to any API in 10 minutes with our Python and JavaScript SDKs.</p>
+                            <ul className="space-y-2 mb-4 text-sm">
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span className="text-gray-400"><strong className="text-white">Python SDK:</strong> pip install x402</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span className="text-gray-400"><strong className="text-white">JavaScript SDK:</strong> npm install @x402/sdk</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span className="text-gray-400"><strong className="text-white">REST API:</strong> Direct HTTP integration</span>
+                                </li>
+                            </ul>
+                            <p className="text-sm text-gray-400">Both SDKs include TypeScript definitions and comprehensive documentation</p>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Real-time Alerts</h3>
-                            <p className="mb-4">Receive instant notifications when new exploits are detected across the blockchain ecosystem. KAMIYO monitors 18 aggregators (56 sources) continuously and delivers alerts within minutes from initial detection.</p>
-                            <p className="mb-4">Free tier receives 24-hour delayed data. Pro, Team, and Enterprise tiers get real-time alerts with unlimited frequency.</p>
-                            <p className="text-sm text-gray-500">Available: Free (24h delay), Pro/Team/Enterprise (real-time)</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Multi-Channel Delivery</h3>
-                            <p className="mb-4">Choose how you want to receive exploit intelligence:</p>
+                            <h3 className="text-xl md:text-2xl mb-4 font-light">Flexible Pricing Tiers</h3>
+                            <p className="mb-4 text-gray-400">Start with 1,000 free verifications per month. Scale up as your usage grows:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Email notifications:</strong> Clean, formatted alerts delivered to your inbox (Free tier)</span>
+                                    <span className="text-gray-400"><strong className="text-white">Free:</strong> 1,000 verifications/mo, 2 chains</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Discord integration:</strong> Direct notifications to your Discord server (Pro+)</span>
+                                    <span className="text-gray-400"><strong className="text-white">Starter ($99/mo):</strong> 50,000 verifications/mo, 3 chains</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Telegram bots:</strong> Instant mobile and desktop alerts (Pro+)</span>
+                                    <span className="text-gray-400"><strong className="text-white">Pro ($299/mo):</strong> 500,000 verifications/mo, 6 chains</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Slack integration:</strong> Team-wide notifications in your workspace (Team+)</span>
+                                    <span className="text-gray-400"><strong className="text-white">Enterprise ($999/mo):</strong> Unlimited verifications, all chains</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-500">Email: Free tier | Discord/Telegram: Pro+ | Slack: Team+</p>
                         </div>
-                    </div>
-                </div>
 
-                {/* API & Integration Features */}
-                <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">DEVELOPER TOOLS</p>
-                        <h2 className="text-2xl md:text-3xl font-light">API & Integrations</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
                         <div>
-                            <h3 className="text-xl md:text-2xl mb-4">REST API Access</h3>
-                            <p className="mb-4">Integrate KAMIYO's exploit intelligence directly into your applications, monitoring tools, or security workflows with our comprehensive REST API.</p>
-                            <p className="mb-4">Query historical exploits, filter by chain/protocol/type, and retrieve detailed incident data programmatically.</p>
+                            <h3 className="text-xl md:text-2xl mb-4 font-light">Advanced Features</h3>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Pro:</strong> 50,000 requests/day, 35/min</span>
+                                    <span className="text-gray-400"><strong className="text-white">Risk Scoring:</strong> Fraud detection and transaction analysis (Pro+)</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Team:</strong> 100,000 requests/day, 70/min</span>
+                                    <span className="text-gray-400"><strong className="text-white">Usage Analytics:</strong> Dashboard with real-time usage tracking</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span><strong>Enterprise:</strong> Unlimited requests</span>
+                                    <span className="text-gray-400"><strong className="text-white">ERC-8004 Support:</strong> AI agent payment standard compliance</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span className="text-gray-400"><strong className="text-white">Custom Integration:</strong> Dedicated support for Enterprise customers</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-500">Available: Pro ($89/mo), Team ($199/mo), Enterprise ($499/mo)</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">WebSocket Feed</h3>
-                            <p className="mb-4">Subscribe to real-time exploit data streams via WebSocket connections. Perfect for building live dashboards, monitoring systems, or automated response systems that need instant exploit awareness.</p>
-                            <p className="mb-4">WebSocket connections provide lower latency than polling the REST API and ensure you never miss a critical security event.</p>
-                            <p className="text-sm text-gray-500">Available: Pro/Team/Enterprise</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Webhook Endpoints</h3>
-                            <p className="mb-4">Configure custom webhook endpoints to receive POST requests when new exploits match your filters. Webhooks enable seamless integration with your existing infrastructure without requiring continuous polling.</p>
-                            <p className="mb-4">Pro tier includes 2 webhook endpoints, Team tier provides 5 endpoints, and Enterprise tier offers 50 webhook endpoints with custom retry policies and delivery guarantees.</p>
-                            <p className="text-sm text-gray-500">Available: Pro (2 endpoints), Team (5 endpoints), Enterprise (50 endpoints)</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Feature Extraction API</h3>
-                            <p className="mb-4">Access our exploit feature extraction system to analyze confirmed historical exploits. Extract technical features including bytecode patterns, function signatures, contract structures, and attack vectors.</p>
-                            <p className="mb-4">Useful for security research, academic analysis, and building custom anomaly detection models based on historical exploit patterns.</p>
-                            <p className="text-sm text-gray-500">Available: Pro+</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Dashboard & Data Features */}
-                <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">DATA ACCESS</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Dashboard & Historical Data</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Public Dashboard</h3>
-                            <p className="mb-4">Access the KAMIYO public dashboard to browse recent exploits, view statistics, and search historical incidents. Available on all tiers including Free.</p>
-                            <p className="mb-4">The dashboard provides filtering by chain, protocol, exploit type, and time range. See real-time statistics on total exploits tracked, total value lost, and active monitoring sources.</p>
-                            <p className="text-sm text-gray-500">Available: All tiers</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Historical Data Access</h3>
-                            <p className="mb-4">Query historical exploit data to understand patterns, research past incidents, and build your own analysis workflows:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Free:</strong> 7 days</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Pro:</strong> 90 days</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Team:</strong> 1 year</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span><strong>Enterprise:</strong> 2+ years</span>
-                                </li>
-                            </ul>
-                            <p className="text-sm text-gray-500">Free: 7d | Pro: 90d | Team: 1y | Enterprise: 2+y</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Chain Coverage</h3>
-                            <p className="mb-4">KAMIYO tracks exploits across 55+ blockchain networks including:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Ethereum mainnet and Layer 2s (Arbitrum, Optimism, Base, zkSync)</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Alternative Layer 1s (Solana, Hyperliquid, BSC, Avalanche, Polygon)</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Cosmos ecosystem chains</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Emerging networks and testnets</span>
-                                </li>
-                            </ul>
-                            <p className="mb-4">All data is verified with on-chain transaction hashes from blockchain explorers.</p>
-                            <p className="text-sm text-gray-500">Available: All tiers</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Advanced Analysis Features */}
-                <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">ADVANCED FEATURES</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Pattern Recognition & Analysis</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Fork Detection Analysis</h3>
-                            <p className="mb-4">Identify when exploited contracts are forks or copies of other vulnerable contracts. Our bytecode analysis system detects structural similarities between contracts to map exploit family trees.</p>
-                            <p className="mb-4">Understanding fork relationships helps security researchers identify systemic vulnerabilities that affect multiple protocols and predict where similar attacks might occur.</p>
-                            <p className="mb-4">The fork detection system uses advanced bytecode comparison algorithms to identify clones, forks, and derivative contracts even when source code isn't available.</p>
-                            <p className="text-sm text-gray-500">Available: Team+</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Pattern Clustering</h3>
-                            <p className="mb-4">Group historical exploits by similarity using machine learning clustering algorithms. Pattern clustering identifies common attack vectors, similar bytecode patterns, and shared exploit characteristics.</p>
-                            <p className="mb-4">Useful for identifying exploit trends, understanding attacker methodologies, and researching systemic vulnerabilities across the DeFi ecosystem.</p>
-                            <p className="text-sm text-gray-500">Available: Team+</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Fork Graph Visualization</h3>
-                            <p className="mb-4">Interactive graph visualizations showing relationships between forked contracts and exploit families. See how vulnerabilities spread through the ecosystem when developers fork vulnerable code.</p>
-                            <p className="mb-4">The fork graph helps identify:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Common ancestor contracts that spawned multiple exploited forks</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Protocols at risk from forking known-vulnerable code</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Clusters of related exploits sharing similar code structures</span>
-                                </li>
-                            </ul>
-                            <p className="text-sm text-gray-500">Available: Enterprise</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Team & Enterprise Features */}
-                <div className="mb-20">
-                    <div className="border-dotted border-b border-gray-500 border-opacity-25 mb-8 pb-4">
-                        <p className="mb-2 tracking-widest font-light text-xs text-gray-500">COLLABORATION</p>
-                        <h2 className="text-2xl md:text-3xl font-light">Team & Enterprise Tools</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16">
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Protocol Watchlists</h3>
-                            <p className="mb-4">Create custom watchlists for specific protocols, contracts, or addresses you want to monitor closely. Receive priority alerts when any activity is detected related to your watchlist items.</p>
-                            <p className="mb-4">Perfect for DeFi protocols monitoring their own security posture and competitors, or for investors tracking their portfolio holdings.</p>
-                            <p className="text-sm text-gray-500">Available: Enterprise</p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-xl md:text-2xl mb-4">Priority Support</h3>
-                            <p className="mb-4">Team tier includes priority email support with guaranteed response times. Get help with API integrations, webhook configurations, and custom alert setups.</p>
-                            <p className="text-sm text-gray-500">Available: Team+</p>
-
-                            <h3 className="text-xl md:text-2xl mb-4 mt-8">Dedicated Support</h3>
-                            <p className="mb-4">Enterprise customers receive dedicated support including:</p>
-                            <ul className="space-y-2 mb-4 text-sm">
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Direct Slack/Discord channel with engineering team</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Custom integration assistance</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Quarterly business reviews</span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Feature prioritization for custom needs</span>
-                                </li>
-                            </ul>
-                            <p className="text-sm text-gray-500">Available: Enterprise</p>
                         </div>
                     </div>
                 </div>

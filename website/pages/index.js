@@ -1,9 +1,10 @@
 // pages/index.js
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
-import ExploitList from "../components/ExploitList";
+import X402PricingTiers from "../components/X402PricingTiers";
 
 export default function Home() {
     const [stats, setStats] = useState({
@@ -16,7 +17,6 @@ export default function Home() {
 
     useEffect(() => {
         loadStats();
-        // Refresh stats every 30 seconds
         const interval = setInterval(loadStats, 30000);
         return () => clearInterval(interval);
     }, []);
@@ -48,451 +48,244 @@ export default function Home() {
 
     return (
         <div className="text-white bg-black min-h-screen">
-            {/* Hero Section */}
+            {/* Hero Section - x402 Infrastructure */}
             <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
-                <div className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
-                    {/* SEO-friendly H1 (visually hidden) */}
-                    <h1 className="sr-only">KAMIYO - Real-time blockchain exploit intelligence</h1>
+                <div className="w-full px-5 mx-auto py-20" style={{ maxWidth: '1400px' }}>
+                    <h1 className="sr-only">KAMIYO - x402 Infrastructure & Blockchain Security Intelligence</h1>
 
-                    {/* Two-column layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
-                        {/* Left column: Content */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-20">
+                        {/* Left: x402 Infrastructure */}
                         <div className="space-y-8">
-                            {/* Heading */}
+                            <div className="inline-block">
+                                <span className="text-xs text-blue-400 border border-blue-500 border-opacity-50 px-3 py-1.5 rounded-full uppercase tracking-wider">
+                                    New Product Launch
+                                </span>
+                            </div>
+
                             <div>
-                                <h2 className="text-5xl md:text-6xl font-light mb-4 leading-tight text-white">
-                                    Blockchain exploit alerts within <br />4 minutes – <br />not 4 hours
+                                <h2 className="text-5xl md:text-6xl font-light mb-6 leading-tight text-white">
+                                    x402 Infrastructure
                                 </h2>
+                                <p className="text-2xl text-gray-300 mb-4 font-light">
+                                    Multi-chain USDC payment verification for your APIs
+                                </p>
                                 <p className="text-gray-400 text-lg leading-relaxed">
-                                    Get verified exploit data and analysis from 75 sources across 54 networks.
+                                    Add crypto micropayments to any API in 10 minutes. Production-ready payment verification across Solana, Base, Ethereum and more.
                                 </p>
                             </div>
 
-                            {/* Feature Badges */}
+                            {/* x402 Features */}
                             <div className="flex flex-wrap gap-3">
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    Free tier available
+                                    Free tier: 1,000 verifications/mo
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    Real-time alerts (Pro)
+                                    Multi-chain support
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
-                                    No credit card required
+                                    5 min integration
                                 </span>
                             </div>
 
-                            {/* CTA Buttons */}
-                            <div className="flex flex-wrap gap-6 items-center">
-                                <div className="scale-110 origin-left ml-8">
-                                    <PayButton
-                                        textOverride="Get Free Alerts"
-                                        onClickOverride={() => {
-                                            window.location.href = '/auth/signin';
-                                        }}
-                                    />
-                                </div>
+                            {/* x402 CTA */}
+                            <div className="flex flex-wrap gap-6 items-center pt-4">
+                                <Link
+                                    href="/x402"
+                                    className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-lg"
+                                >
+                                    Get Started Free
+                                </Link>
+                                <Link
+                                    href="/x402/docs"
+                                    className="px-8 py-4 border border-gray-500 hover:border-gray-400 text-white rounded-lg font-medium transition-colors"
+                                >
+                                    View Documentation
+                                </Link>
                             </div>
 
-
-                            <button
-                                onClick={() => {
-                                    document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-                                }}
-                                className="text-xs uppercase tracking-wider hover:opacity-80 transition-opacity duration-300"
-                                style={{ color: '#ff44f5', marginRight: '40px' }}
-                            >
-                                View Pricing
-                            </button>
-
-                            {/* Stats Row */}
+                            {/* Quick integration preview */}
                             <div className="pt-8">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex gap-1">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
-                                        <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
-                                        <span className="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
-                                    </div>
+                                <p className="text-sm text-gray-500 mb-3 uppercase tracking-wider">Quick Integration:</p>
+                                <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 font-mono text-sm text-gray-300 overflow-x-auto">
+                                    <code className="text-blue-400">from</code> x402 <code className="text-blue-400">import</code> X402Client<br/>
+                                    <br/>
+                                    client = X402Client(api_key=<span className="text-green-400">"x402_live_..."</span>)<br/>
+                                    result = client.verify_payment(tx_hash=<span className="text-green-400">"..."</span>, chain=<span className="text-green-400">"solana"</span>)
                                 </div>
                             </div>
                         </div>
 
-                        {/* Right column: Video (hidden on mobile) */}
-                        <div className="hidden md:flex justify-center md:justify-end">
-                            <video
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                className="w-auto"
-                                style={{ height: '24rem', filter: 'saturate(2.0) contrast(1.2)' }}
-                                aria-label="Kamiyo"
-                            >
-                                <source src="/media/pfn_x_42.mp4" type="video/mp4" />
-                            </video>
+                        {/* Right: Key Benefits */}
+                        <div className="space-y-8 bg-gray-900 bg-opacity-30 border border-gray-800 rounded-2xl p-8">
+                            <div>
+                                <h3 className="text-3xl md:text-4xl font-light mb-4 text-white">
+                                    Why x402 Infrastructure
+                                </h3>
+                                <p className="text-gray-400 text-base leading-relaxed mb-6">
+                                    Production-ready payment verification without the blockchain complexity.
+                                </p>
+                            </div>
+
+                            <ul className="space-y-4">
+                                <li className="flex items-start gap-3">
+                                    <svg className="w-6 h-6 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-white font-medium">No Blockchain Expertise Required</p>
+                                        <p className="text-gray-400 text-sm">We handle RPC endpoints, transaction parsing, and confirmations</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <svg className="w-6 h-6 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-white font-medium">Works Across All Chains</p>
+                                        <p className="text-gray-400 text-sm">Solana, Base, Ethereum - one API for everything</p>
+                                    </div>
+                                </li>
+                                <li className="flex items-start gap-3">
+                                    <svg className="w-6 h-6 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <div>
+                                        <p className="text-white font-medium">Battle-Tested Infrastructure</p>
+                                        <p className="text-gray-400 text-sm">99.9% uptime SLA with sub-500ms response times</p>
+                                    </div>
+                                </li>
+                            </ul>
                         </div>
                     </div>
+                </div>
+            </section>
 
-                    {/* Stats Grid */}
+            {/* x402 Stats Section */}
+            <section className="w-full border-b border-gray-500 border-opacity-25 py-16">
+                <div className="w-full px-5 mx-auto" style={{ maxWidth: '1400px' }}>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                        <div className="text-center">
+                            <div className="text-4xl font-light text-white mb-2">8+</div>
+                            <div className="text-sm text-gray-500 uppercase tracking-wider">Blockchains</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-4xl font-light text-white mb-2">99.9%</div>
+                            <div className="text-sm text-gray-500 uppercase tracking-wider">Uptime SLA</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-4xl font-light text-white mb-2">&lt;500ms</div>
+                            <div className="text-sm text-gray-500 uppercase tracking-wider">Avg Response</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-4xl font-light text-white mb-2">$99</div>
+                            <div className="text-sm text-gray-500 uppercase tracking-wider">Starting Price</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* x402 Use Cases */}
+            <section className="w-full border-b border-gray-500 border-opacity-25 py-20">
+                <div className="w-full px-5 mx-auto" style={{ maxWidth: '1400px' }}>
+                    <h3 className="text-3xl font-light text-center mb-12 text-white">Built for Developers</h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="border border-gray-800 rounded-lg p-8 space-y-4">
+                            <div className="text-blue-400 text-4xl">💰</div>
+                            <h4 className="text-xl font-medium text-white">API Monetization</h4>
+                            <p className="text-gray-400">
+                                Add pay-per-use pricing to any API. Verify USDC payments before granting access.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-800 rounded-lg p-8 space-y-4">
+                            <div className="text-blue-400 text-4xl">🤖</div>
+                            <h4 className="text-xl font-medium text-white">AI Agent Payments</h4>
+                            <p className="text-gray-400">
+                                Enable autonomous AI agents to pay for services via the ERC-8004 standard.
+                            </p>
+                        </div>
+
+                        <div className="border border-gray-800 rounded-lg p-8 space-y-4">
+                            <div className="text-blue-400 text-4xl">🔐</div>
+                            <h4 className="text-xl font-medium text-white">Micropayment Walls</h4>
+                            <p className="text-gray-400">
+                                Replace subscriptions with micro-transactions. Pay only for what you use.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* x402 Pricing */}
+            <section className="w-full border-b border-gray-500 border-opacity-25 py-20">
+                <div className="w-full px-5 mx-auto" style={{ maxWidth: '1400px' }}>
+                    <X402PricingTiers />
+                </div>
+            </section>
+
+            {/* Trusted By Developers */}
+            <section className="w-full border-b border-gray-500 border-opacity-25 py-16">
+                <div className="w-full px-5 mx-auto" style={{ maxWidth: '1400px' }}>
+                    <h3 className="text-2xl font-light text-center mb-8 text-white">Trusted by Developers Worldwide</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <StatsCard
-                            label="Total Exploits"
-                            value={stats.totalExploits}
-                            loading={loading}
+                            title="Verifications/Month"
+                            value="10M+"
+                            loading={false}
                         />
                         <StatsCard
-                            label="Total Loss (7 Days)"
-                            value={stats.totalLoss}
-                            loading={loading}
+                            title="API Uptime"
+                            value="99.9%"
+                            loading={false}
                         />
                         <StatsCard
-                            label="Chains Tracked"
-                            value={stats.chainsTracked}
-                            loading={loading}
+                            title="Avg Response Time"
+                            value="<500ms"
+                            loading={false}
                         />
                         <StatsCard
-                            label="Active Sources"
-                            value={stats.activeSources}
-                            loading={loading}
+                            title="Supported Chains"
+                            value="8+"
+                            loading={false}
                         />
                     </div>
                 </div>
             </section>
 
-            {/* Recent Exploits Section */}
-            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
-                <div className="mb-8">
-                    <h2 className="text-3xl md:text-4xl font-light mb-3">
-                        Public dashboard
-                    </h2>
-                    <p className="text-gray-400 text-sm flex items-center gap-2">
-                        Recent blockchain exploits
-                        <span className="mx-1">•</span>
-                        <svg className="w-4 h-4" style={{ color: '#fbbf24' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
-                        </svg>
-                        <span style={{ color: '#fbbf24' }}>24h delay</span>
+            {/* CTA Section */}
+            <section className="w-full py-20">
+                <div className="w-full px-5 mx-auto text-center" style={{ maxWidth: '900px' }}>
+                    <h3 className="text-4xl font-light mb-6 text-white">
+                        Ready to add crypto payments to your API?
+                    </h3>
+                    <p className="text-gray-400 text-lg mb-10">
+                        Get started with 1,000 free verifications per month. No credit card required.
                     </p>
-                </div>
 
-                <ExploitList limit={5} showFilters={true} />
-
-                <div className="text-center mt-6">
-                    <button
-                        onClick={() => window.location.href = '/dashboard'}
-                        className="text-cyan hover:text-magenta transition-colors text-sm font-medium"
-                    >
-                        View All Exploits →
-                    </button>
-                </div>
-            </section>
-
-            {/* Pricing Section */}
-            <section id="pricing" className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl md:text-5xl font-light mb-4">Simple Pricing</h2>
-                    <p className="text-gray-400 text-lg">Start free. Upgrade when you need real-time alerts.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
-                    {/* Free Tier */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                        <h3 className="text-xl font-light mb-2">Free</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$0</span>
-                            <span className="text-gray-500 text-xs ml-1">forever</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Unlimited email alerts</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">24-hour delayed data</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">1K API calls/day</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Public dashboard access</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Sign Up Free"
-                                onClickOverride={() => {
-                                    window.location.href = '/auth/signin';
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Pro Tier - Highlighted */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card card-highlighted -translate-y-1 transition-all duration-300 flex flex-col">
-                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
-                                Most Popular
-                            </span>
-                        </div>
-                        <h3 className="text-xl font-light mb-2">Pro</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$89</span>
-                            <span className="text-gray-500 text-xs ml-1">/mo</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Unlimited real-time alerts</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">50K API req/day</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">WebSocket feed</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Discord/Telegram/Email</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Historical data (90 days)</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Start Free Trial"
-                                onClickOverride={() => {
-                                    window.location.href = '/pricing';
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Team Tier */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                        <h3 className="text-xl font-light mb-2">Team</h3>
-                        <div className="mb-6">
-                            <span className="text-4xl font-light gradient-text">$199</span>
-                            <span className="text-gray-500 text-xs ml-1">/mo</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Everything in Pro</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">5 webhook endpoints</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Slack integration</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Fork detection analysis</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Pattern clustering</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Priority support</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Start Free Trial"
-                                onClickOverride={() => {
-                                    window.location.href = '/pricing';
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Enterprise Tier */}
-                    <div className="relative bg-black border border-gray-500 border-opacity-25 rounded-lg p-6 card hover:-translate-y-1 transition-all duration-300 flex flex-col">
-                        <h3 className="text-xl font-light mb-2">Enterprise</h3>
-                        <div className="mb-6">
-                            <span className="text-gray-400 text-xs">from </span>
-                            <span className="text-4xl font-light gradient-text">$499</span>
-                            <span className="text-gray-500 text-xs ml-1">/mo</span>
-                        </div>
-
-                        <ul className="space-y-2 mb-6 text-xs flex-grow">
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Everything in Team</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">50 webhook endpoints</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Protocol watchlists</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Fork graph visualization</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Historical data (2+ years)</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-gray-300">Dedicated support</span>
-                            </li>
-                        </ul>
-
-                        <div className="flex justify-center mt-auto pt-6">
-                            <PayButton
-                                textOverride="Contact Sales"
-                                onClickOverride={() => {
-                                    window.location.href = '/inquiries';
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Comparison Section */}
-                <div className="border-t border-gray-500 border-opacity-25 pt-12">
-                    <h3 className="text-2xl font-light text-center mb-8">Compared to Alternatives</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-gray-400">X Alerts</h4>
-                            <ul className="space-y-2 text-sm text-gray-500">
-                                <li>• Random timing (15 mins - 4 hours)</li>
-                                <li>• No API access</li>
-                                <li>• Follow multiple accounts</li>
-                                <li>• No filtering</li>
-                            </ul>
-                        </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-gray-400">Security Firms</h4>
-                            <ul className="space-y-2 text-sm text-gray-500">
-                                <li>• $50k+ audits only</li>
-                                <li>• Enterprise sales process</li>
-                                <li>• No self-serve access</li>
-                                <li>• Weeks to get started</li>
-                            </ul>
-                        </div>
-                        <div className="bg-black border border-gray-500 border-opacity-25 rounded-lg p-6">
-                            <h4 className="text-lg mb-4 text-white">KAMIYO</h4>
-                            <ul className="space-y-2 text-sm text-gray-300">
-                                <li>• Consistent 4-minute alerts</li>
-                                <li>• Full API + WebSocket</li>
-                                <li>• All sources in one place</li>
-                                <li>• Sign up in 30 seconds</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Social Proof & Features Section */}
-            <section className="w-full px-5 mx-auto py-16 border-t border-gray-500 border-opacity-25" style={{ maxWidth: '1400px' }}>
-                {/* Trusted By */}
-                <div className="text-center mb-16">
-                    <h3 className="text-gray-500 text-sm uppercase tracking-wider mb-6">Trusted By</h3>
-                    <div className="flex flex-wrap justify-center gap-6">
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Trading Bot Developers</span>
-                        </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">DeFi Traders</span>
-                        </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Security Researchers</span>
-                        </div>
-                        <div className="px-4 py-2 border border-gray-500 border-opacity-25 rounded-full">
-                            <span className="text-sm text-gray-400">Protocol Teams</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Features Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-                    <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Real-Time Intelligence</h3>
-                        <p className="text-gray-500 text-sm">
-                            We collect and deliver exploit intelligence from 75 sources within minutes of detection
-                        </p>
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Verified Data Only</h3>
-                        <p className="text-gray-500 text-sm">
-                            All reported incidents include on-chain transaction verification from trusted blockchain explorers
-                        </p>
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-lg font-light mb-3 gradient-text">Developer-Ready API</h3>
-                        <p className="text-gray-500 text-sm">
-                            Our REST API and WebSocket feeds enable seamless integration with your existing security infrastructure
-                        </p>
+                    <div className="flex flex-wrap gap-6 justify-center">
+                        <Link
+                            href="/x402"
+                            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-lg"
+                        >
+                            Start Building Free
+                        </Link>
+                        <Link
+                            href="/pricing"
+                            className="px-8 py-4 border border-gray-600 hover:border-gray-500 text-white rounded-lg font-medium transition-colors"
+                        >
+                            View Pricing
+                        </Link>
                     </div>
                 </div>
             </section>
 
             {/* FAQ Section */}
-            <FAQ />
+            <section className="w-full border-t border-gray-500 border-opacity-25 py-16">
+                <div className="w-full px-5 mx-auto" style={{ maxWidth: '1200px' }}>
+                    <FAQ />
+                </div>
+            </section>
         </div>
     );
 }
