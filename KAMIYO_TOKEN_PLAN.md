@@ -18,10 +18,11 @@ $KAMIYO is the utility token for x402 Infrastructure SaaS, providing:
 
 ### Technical Specifications
 
-**Token Standard:** SPL Token (Solana Token-2022 Program)
+**Token Standard:** SPL Token-2022 (Solana Token Extensions Program)
+**Framework:** Anchor 0.29+ (Rust-based Solana development)
 **Extensions:**
-- Transfer Fee Extension (MEV protection via fees)
-- Transfer Hook Extension (advanced security logic)
+- Transfer Fee Extension (MEV protection via dynamic fees)
+- Transfer Hook Extension (custom anti-MEV logic, rate limiting, on-chain validation)
 - Confidential Transfer Extension (privacy-preserving transfers)
 - Permanent Delegate (emergency pause capability)
 - Interest-Bearing (optional for staking rewards)
@@ -31,6 +32,12 @@ $KAMIYO is the utility token for x402 Infrastructure SaaS, providing:
 - Decimals: 9
 - Non-mintable after initial mint
 - Non-burnable (deflationary through fees)
+
+**Development Stack:**
+- Language: Rust (1.70+)
+- Framework: Anchor 0.29+
+- Testing: Anchor test suite + Bankrun for fast integration tests
+- Security: Anchor constraints + custom validation + audit coverage
 
 ---
 
@@ -110,14 +117,47 @@ fn detect_sandwich_attack(ctx: &Context<Execute>) -> Result<()> {
         SANDWICH_DETECTION_WINDOW
     )?;
 
-    // Check for rapid buy-sell pattern
+    // Check for rapid buy-sell pattern (sandwich attack signature)
     if recent_transfers.len() > 2 {
         let time_delta = recent_transfers[0].timestamp - recent_transfers[2].timestamp;
 
+        // If buy-sell-buy or sell-buy-sell within 5 seconds: likely MEV
         if time_delta < 5 {  // 5 second window
+            msg!("Suspected sandwich attack detected");
             return err!(ErrorCode::SuspectedSandwichAttack);
         }
     }
+
+    Ok(())
+}
+
+// Additional MEV Protection: Rate Limiting (Anti-Sniper)
+fn enforce_rate_limit(ctx: &Context<Execute>, amount: u64) -> Result<()> {
+    let rate_limiter = &mut ctx.accounts.rate_limiter;
+    let clock = Clock::get()?;
+
+    // Reset rate limit window if expired
+    if clock.unix_timestamp - rate_limiter.window_start > RATE_LIMIT_WINDOW {
+        rate_limiter.window_start = clock.unix_timestamp;
+        rate_limiter.transfers_in_window = 0;
+        rate_limiter.volume_in_window = 0;
+    }
+
+    // Check transaction count limit
+    require!(
+        rate_limiter.transfers_in_window < MAX_TRANSFERS_PER_WINDOW,
+        ErrorCode::RateLimitExceeded
+    );
+
+    // Check volume limit (prevents large bot trades)
+    require!(
+        rate_limiter.volume_in_window + amount < MAX_VOLUME_PER_WINDOW,
+        ErrorCode::VolumeLimitExceeded
+    );
+
+    // Update rate limiter
+    rate_limiter.transfers_in_window += 1;
+    rate_limiter.volume_in_window += amount;
 
     Ok(())
 }
@@ -268,6 +308,528 @@ if clock.slot < pool.activation_slot + 1000 {
 for bin_id in active_id - 50..active_id + 50 {
     add_liquidity_to_bin(bin_id, base_liquidity / 100);
 }
+```
+
+### Meteora Anti-MEV Features (Built-In)
+
+**Decaying Fees:**
+```typescript
+// Meteora automatically increases fees during high volatility
+const dynamicFeeConfig = {
+    baseFee: 30,           // 0.3% base fee
+    volatilityMultiplier: 2.0,  // 2x fees during high volatility
+    decayRate: 0.95,       // Fee decays 5% per minute back to base
+}
+```
+
+**Size-Based Surcharges:**
+```typescript
+// Meteora charges extra for large trades (anti-whale MEV)
+const sizeSurcharges = {
+    tier1: { threshold: 100_000_000, surcharge: 10 },  // 0.1% extra on 100K+ USDC
+    tier2: { threshold: 500_000_000, surcharge: 25 },  // 0.25% extra on 500K+ USDC
+    tier3: { threshold: 1_000_000_000, surcharge: 50 }, // 0.5% extra on 1M+ USDC
+}
+```
+
+**Gated Deposits:**
+```typescript
+// Meteora can restrict who can add liquidity initially
+const gatedConfig = {
+    whitelist: [TEAM_WALLET, TREASURY_WALLET],
+    gatedUntilSlot: LAUNCH_SLOT + 10_000,  // ~1 hour after launch
+    minLockDuration: 7 * 24 * 60 * 60,     // 7 day minimum lock
+}
+```
+
+---
+
+## Atomic Launch Sequence (Jito Bundles)
+
+### Why Jito Bundles?
+
+**Problem with Normal Launch:**
+1. Mint transaction lands on-chain (public mempool)
+2. Bots detect new token mint
+3. Pool creation transaction visible before execution
+4. MEV bots frontrun initial liquidity provision
+5. Sniper bots buy before legitimate users
+
+**Solution: Atomic Bundle Execution**
+- All transactions execute in same slot, atomically
+- No intermediate state visible to MEV bots
+- Entire launch sequence is private until confirmed
+- Impossible to frontrun bundle transactions
+
+### Jito Bundle Construction
+
+**Launch Sequence (Atomic):**
+```typescript
+import { Bundle } from '@jito-labs/jito-ts';
+import { Connection, Keypair, Transaction } from '@solana/web3.js';
+
+async function createAtomicLaunch() {
+    const bundle = new Bundle([], 5); // Max 5 transactions
+
+    // Transaction 1: Initialize Token Mint (SPL Token-2022)
+    const mintTx = await createMintTransaction({
+        mintAuthority: deployerKeypair.publicKey,
+        decimals: 9,
+        supply: 1_000_000_000_000_000_000, // 1B tokens
+        extensions: [
+            'TransferFee',
+            'TransferHook',
+            'ConfidentialTransfer',
+            'PermanentDelegate'
+        ]
+    });
+    bundle.addTransaction(mintTx);
+
+    // Transaction 2: Create Meteora DLMM Pool
+    const poolTx = await createMeteoraPool({
+        tokenX: USDC_MINT,
+        tokenY: KAMIYO_MINT,
+        binStep: 25,
+        initialPrice: 0.01,
+        activationSlot: currentSlot + 100,
+        feeBps: 30,
+    });
+    bundle.addTransaction(poolTx);
+
+    // Transaction 3: Add Initial Liquidity (Concentrated)
+    const liquidityTx = await addLiquidity({
+        pool: poolPubkey,
+        usdcAmount: 100_000_000_000, // 100K USDC
+        kamiyoAmount: 10_000_000_000_000_000, // 10M KAMIYO
+        binRange: [-50, 50],
+        lockDuration: 30 * 24 * 60 * 60, // 30 days
+    });
+    bundle.addTransaction(liquidityTx);
+
+    // Transaction 4: Execute Initial Buy (Team)
+    const initialBuyTx = await createSwapTransaction({
+        pool: poolPubkey,
+        inputMint: USDC_MINT,
+        outputMint: KAMIYO_MINT,
+        amount: 1_000_000_000, // 1K USDC
+        minOutput: calculateMinOutput(1000, 0.01, 0.05), // 5% slippage
+    });
+    bundle.addTransaction(initialBuyTx);
+
+    // Transaction 5: Revoke Mint Authority (Immutable Supply)
+    const revokeTx = await revokeMintAuthority({
+        mint: KAMIYO_MINT,
+        authority: deployerKeypair.publicKey,
+    });
+    bundle.addTransaction(revokeTx);
+
+    // Send bundle to Jito block engine
+    const jitoUrl = 'https://mainnet.block-engine.jito.wtf/api/v1/bundles';
+    const bundleId = await bundle.sendBundle(jitoUrl);
+
+    console.log(`Bundle submitted: ${bundleId}`);
+
+    // Wait for confirmation
+    const result = await bundle.confirm();
+    console.log(`Launch confirmed in slot ${result.slot}`);
+
+    return {
+        mint: KAMIYO_MINT,
+        pool: poolPubkey,
+        bundleId,
+        slot: result.slot
+    };
+}
+```
+
+### Alternative: Smithii Integration
+
+**Smithii is a Jito-like bundler with additional features:**
+
+```typescript
+import { SmithiiClient } from 'smithii-sdk';
+
+async function launchWithSmithii() {
+    const smithii = new SmithiiClient({
+        endpoint: 'https://api.smithii.io',
+        apiKey: process.env.SMITHII_API_KEY
+    });
+
+    // Smithii auto-bundles related transactions
+    const launchSequence = await smithii.createLaunchSequence({
+        token: {
+            mint: KAMIYO_MINT,
+            supply: 1_000_000_000,
+            extensions: ['TransferFee', 'TransferHook']
+        },
+        dex: 'meteora',
+        liquidity: {
+            usdcAmount: 100_000,
+            binRange: [-50, 50],
+            lockDays: 30
+        },
+        antiMev: {
+            delayedActivation: 100, // slots
+            maxBuyOnLaunch: 0.001,  // 0.1% of supply
+            rateLimiting: true
+        }
+    });
+
+    const result = await smithii.executeLaunch(launchSequence);
+
+    console.log(`Token launched: ${result.mint}`);
+    console.log(`Pool created: ${result.pool}`);
+    console.log(`Bundle confirmed: ${result.bundleId}`);
+
+    return result;
+}
+```
+
+### Post-Launch Decentralization
+
+**Revoke Authorities (Trustless):**
+
+```typescript
+async function finalizeDecentralization() {
+    const transactions = [];
+
+    // 1. Revoke mint authority (no more tokens can be minted)
+    transactions.push(
+        await Token.createSetAuthorityInstruction(
+            TOKEN_2022_PROGRAM_ID,
+            KAMIYO_MINT,
+            null, // Set to null = irrevocable
+            'MintTokens',
+            deployerKeypair.publicKey,
+            []
+        )
+    );
+
+    // 2. Burn LP tokens (liquidity locked permanently)
+    const lpTokenAccount = await getAssociatedTokenAddress(
+        METEORA_LP_MINT,
+        deployerKeypair.publicKey,
+        false,
+        TOKEN_PROGRAM_ID
+    );
+
+    transactions.push(
+        await Token.createBurnInstruction(
+            TOKEN_PROGRAM_ID,
+            lpTokenAccount,
+            METEORA_LP_MINT,
+            deployerKeypair.publicKey,
+            [],
+            lpBalance // Burn all LP tokens
+        )
+    );
+
+    // 3. Transfer fee authority to DAO (community-governed)
+    transactions.push(
+        await Token.createSetAuthorityInstruction(
+            TOKEN_2022_PROGRAM_ID,
+            KAMIYO_MINT,
+            DAO_PROGRAM_ID, // Governance program
+            'TransferFeeConfig',
+            deployerKeypair.publicKey,
+            []
+        )
+    );
+
+    // Execute all in atomic bundle
+    const bundle = new Bundle(transactions, transactions.length);
+    const result = await bundle.sendBundle(JITO_URL);
+
+    console.log('Token fully decentralized');
+    console.log(`Mint authority: ${null}`);
+    console.log(`LP tokens: BURNED`);
+    console.log(`Fee authority: DAO`);
+
+    return result;
+}
+```
+
+---
+
+## Security Audit Framework
+
+### Solana-Specific Vulnerabilities (Beyond EVM)
+
+**1. Account Validation Vulnerabilities:**
+```rust
+// VULNERABLE: Missing account ownership check
+pub fn transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> {
+    // ❌ No check if source account actually belongs to signer
+    token::transfer(ctx.accounts.into(), amount)?;
+    Ok(())
+}
+
+// SECURE: Proper account validation
+pub fn transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> {
+    // ✅ Anchor constraint ensures ownership
+    require!(
+        ctx.accounts.source.owner == ctx.accounts.authority.key(),
+        ErrorCode::Unauthorized
+    );
+    token::transfer(ctx.accounts.into(), amount)?;
+    Ok(())
+}
+```
+
+**2. Signer Authorization Issues:**
+```rust
+// Use Anchor constraints to enforce authorization
+#[account(
+    mut,
+    has_one = authority @ ErrorCode::Unauthorized,
+    constraint = source.mint == KAMIYO_MINT @ ErrorCode::InvalidMint
+)]
+pub source: Account<'info, TokenAccount>,
+pub authority: Signer<'info>,
+```
+
+**3. Arithmetic Overflow Protection:**
+```rust
+// Rust prevents overflow in debug mode, but explicit checks in release
+use checked_math::CheckedMath;
+
+let new_balance = balance
+    .checked_add(amount)
+    .ok_or(ErrorCode::MathOverflow)?;
+```
+
+**4. Reentrancy Protection (CPI-based):**
+```rust
+// Solana doesn't have traditional reentrancy, but CPI reentrancy exists
+// Use instruction introspection to detect recursive calls
+let ixs = ctx.accounts.instructions.as_ref();
+require!(
+    !ixs.iter().any(|ix| ix.program_id == crate::id()),
+    ErrorCode::ReentrancyDetected
+);
+```
+
+**5. PDA Seed Collision:**
+```rust
+// Ensure PDA seeds are unique and include all necessary components
+#[account(
+    init,
+    payer = payer,
+    space = 8 + RateLimiter::LEN,
+    seeds = [
+        b"rate_limiter",
+        user.key().as_ref(),
+        &[clock.slot.to_le_bytes()][..] // Include slot to prevent replay
+    ],
+    bump
+)]
+pub rate_limiter: Account<'info, RateLimiter>,
+```
+
+**6. Missing Rent Exemption Checks:**
+```rust
+// Ensure accounts have rent exemption
+#[account(
+    init,
+    payer = payer,
+    space = 8 + TransferState::LEN,
+    rent_exempt = enforce // Anchor built-in
+)]
+pub transfer_state: Account<'info, TransferState>,
+```
+
+### Front-Running Protection (Solana-Specific)
+
+**1. Slot-Based Ordering (No Mempool):**
+- Solana doesn't have a public mempool like Ethereum
+- Transactions are sent directly to leaders
+- Front-running still possible via:
+  - Leader spam (multiple txs to same leader)
+  - Jito MEV bundles (controlled ordering)
+  - RPC node analysis (detect pending txs)
+
+**2. Anti-Front-Running Measures:**
+```rust
+// Commit-reveal pattern for sensitive operations
+pub fn commit_trade(ctx: Context<CommitTrade>, hash: [u8; 32]) -> Result<()> {
+    let commitment = &mut ctx.accounts.commitment;
+    commitment.hash = hash;
+    commitment.slot = Clock::get()?.slot;
+    Ok(())
+}
+
+pub fn reveal_trade(
+    ctx: Context<RevealTrade>,
+    amount: u64,
+    nonce: [u8; 32]
+) -> Result<()> {
+    let commitment = &ctx.accounts.commitment;
+
+    // Verify commitment
+    let expected_hash = hash(&[&amount.to_le_bytes(), &nonce].concat());
+    require!(commitment.hash == expected_hash, ErrorCode::InvalidReveal);
+
+    // Enforce delay (minimum 1 slot)
+    require!(
+        Clock::get()?.slot > commitment.slot,
+        ErrorCode::RevealTooEarly
+    );
+
+    // Execute trade
+    execute_trade(ctx, amount)?;
+    Ok(())
+}
+```
+
+**3. Slot-Based Rate Limiting:**
+```rust
+// Prevent spam attacks across multiple slots
+#[account]
+pub struct SlotRateLimiter {
+    pub last_slot: u64,
+    pub transactions_in_slot: u8,
+    pub max_per_slot: u8,
+}
+
+pub fn enforce_slot_limit(limiter: &mut SlotRateLimiter) -> Result<()> {
+    let current_slot = Clock::get()?.slot;
+
+    if limiter.last_slot != current_slot {
+        limiter.last_slot = current_slot;
+        limiter.transactions_in_slot = 0;
+    }
+
+    require!(
+        limiter.transactions_in_slot < limiter.max_per_slot,
+        ErrorCode::SlotRateLimitExceeded
+    );
+
+    limiter.transactions_in_slot += 1;
+    Ok(())
+}
+```
+
+### Comprehensive Audit Checklist
+
+**Pre-Deployment Security Audit:**
+
+1. **Static Analysis:**
+   - [ ] Run Anchor verify on all programs
+   - [ ] Scan with Soteria (Solana security scanner)
+   - [ ] Check for common vulnerabilities with cargo-audit
+   - [ ] Verify no unsafe Rust code blocks
+
+2. **Access Control:**
+   - [ ] All privileged functions require proper authorization
+   - [ ] Multisig required for critical operations
+   - [ ] PDAs use correct seeds and bumps
+   - [ ] Account ownership validated on all operations
+
+3. **Economic Security:**
+   - [ ] No integer overflow/underflow in calculations
+   - [ ] Fee calculations cannot be manipulated
+   - [ ] Rate limits prevent economic attacks
+   - [ ] Supply is correctly capped and immutable
+
+4. **MEV Resistance:**
+   - [ ] Transfer hooks implement sandwich detection
+   - [ ] Rate limiting prevents sniper bots
+   - [ ] Jito bundle used for atomic launch
+   - [ ] Pool activation delayed after creation
+
+5. **Front-Running Protection:**
+   - [ ] Sensitive operations use commit-reveal
+   - [ ] Slot-based rate limiting active
+   - [ ] No reliance on transaction ordering
+   - [ ] Price oracles resistant to manipulation
+
+6. **Code Quality:**
+   - [ ] 100% test coverage for critical paths
+   - [ ] Integration tests cover all edge cases
+   - [ ] Fuzz testing completed
+   - [ ] Third-party audit completed
+
+**Audit Providers (Recommended):**
+
+1. **OtterSec** (Solana specialists)
+   - Cost: $15K-$30K
+   - Timeline: 2-3 weeks
+   - Focus: Solana-specific vulnerabilities
+
+2. **Neodyme** (Anchor experts)
+   - Cost: $20K-$40K
+   - Timeline: 3-4 weeks
+   - Focus: Anchor framework security
+
+3. **Zellic** (Comprehensive)
+   - Cost: $25K-$50K
+   - Timeline: 4-6 weeks
+   - Focus: Full protocol audit
+
+### Testing Strategy
+
+**Unit Tests (Anchor):**
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anchor_lang::prelude::*;
+
+    #[test]
+    fn test_sandwich_detection() {
+        // Setup test environment
+        let program = program_test();
+
+        // Create rapid buy-sell-buy pattern
+        transfer(&user, &pool, 1000);
+        sleep(1); // 1 second
+        transfer(&pool, &user, 1000);
+        sleep(1);
+        transfer(&user, &pool, 1000);
+
+        // Should trigger sandwich detection
+        assert_eq!(
+            result.unwrap_err(),
+            ErrorCode::SuspectedSandwichAttack
+        );
+    }
+}
+```
+
+**Integration Tests (Bankrun):**
+```typescript
+import { BankrunProvider } from 'anchor-bankrun';
+
+describe('KAMIYO Token Launch', () => {
+    it('prevents frontrunning via Jito bundle', async () => {
+        const bundle = await createLaunchBundle();
+
+        // Simulate MEV bot attempting to frontrun
+        const mevTx = await createBuyTransaction({
+            amount: 10_000,
+            slippage: 0.5
+        });
+
+        // MEV tx should fail (pool not active yet)
+        await expect(mevTx).rejects.toThrow('PoolNotActive');
+
+        // Bundle executes atomically
+        await bundle.execute();
+
+        // Pool now active
+        const poolState = await getPoolState();
+        expect(poolState.active).toBe(true);
+    });
+});
+```
+
+**Mainnet Fork Testing:**
+```bash
+# Test on mainnet fork before actual deployment
+solana-test-validator \
+    --clone-upgradeable-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s \
+    --clone-upgradeable-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb \
+    --url https://api.mainnet-beta.solana.com
 ```
 
 ---
