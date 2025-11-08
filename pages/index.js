@@ -119,11 +119,13 @@ export default function Home() {
                                 loop
                                 muted
                                 playsInline
+                                preload="metadata"
                                 className="w-auto h-96 saturate-[2.0] contrast-[1.2]"
                                 aria-label="x402 Infrastructure payment verification demonstration"
                                 title="x402 Infrastructure multi-chain payment verification"
                             >
                                 <source src="/media/pfn_x_42.mp4" type="video/mp4" />
+                                Your browser does not support the video tag.
                             </video>
                         </div>
                     </div>
