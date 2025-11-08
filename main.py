@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Kamiyo - Exploit Intelligence Aggregator
+KAMIYO - x402 Payment Infrastructure
 Main entry point for running the complete system
 """
 
@@ -59,7 +59,7 @@ def run_frontend():
 def run_all():
     """Run all components (aggregator, API, frontend)"""
     logger.info("=" * 60)
-    logger.info("Starting Kamiyo - Exploit Intelligence Aggregator")
+    logger.info("Starting KAMIYO - x402 Payment Infrastructure")
     logger.info("=" * 60)
 
     processes = []
@@ -107,7 +107,7 @@ def run_all():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Kamiyo - Exploit Intelligence Aggregator"
+        description="KAMIYO - x402 Payment Infrastructure"
     )
 
     parser.add_argument(

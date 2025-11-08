@@ -1,4 +1,4 @@
-# KAMIYO - Exploit Intelligence Aggregator
+# KAMIYO - Multi-chain USDC Payment Verification (x402 Infrastructure)
 # Requirements
 
 # Core dependencies
