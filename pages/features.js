@@ -5,7 +5,7 @@ export default function Features() {
         <div className="min-h-screen bg-black text-white">
             <Head>
                 <title>Features - KAMIYO x402 Infrastructure</title>
-                <meta name="description" content="Explore KAMIYO's x402 Infrastructure for multi-chain payment verification. Production-ready API for verifying USDC payments across Solana, Base, Ethereum and more." />
+                <meta name="description" content="x402 features: multi-chain payment verification for Solana, Base, Ethereum and more." />
             </Head>
 
             <section className="py-10 px-5 mx-auto max-w-[1400px]">
@@ -26,13 +26,13 @@ export default function Features() {
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4 font-light">Universal USDC Verification</h3>
                             <p className="mb-4 text-gray-400">Verify USDC payments across 8+ blockchain networks with a single API call. Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and more.</p>
-                            <p className="mb-4 text-gray-400">Production-ready infrastructure with 99.9% uptime SLA and sub-500ms average response times.</p>
+                            <p className="mb-4 text-gray-400">99.9% uptime, responses under 500ms.</p>
                             <p className="text-sm text-gray-400">Available: All tiers from Free onwards</p>
                         </div>
 
                         <div>
                             <h3 className="text-xl md:text-2xl mb-4 font-light">Simple Integration</h3>
-                            <p className="mb-4 text-gray-400">Add crypto micropayments to any API in 10 minutes with our Python and JavaScript SDKs.</p>
+                            <p className="mb-4 text-gray-400">Add payment verification to your API in 10 minutes.</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
                                     <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -53,7 +53,7 @@ export default function Features() {
                                     <span className="text-gray-400"><strong className="text-white">REST API:</strong> Direct HTTP integration</span>
                                 </li>
                             </ul>
-                            <p className="text-sm text-gray-400">Both SDKs include TypeScript definitions and comprehensive documentation</p>
+                            <p className="text-sm text-gray-400">TypeScript support included</p>
                         </div>
                     </div>
 

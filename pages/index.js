@@ -69,7 +69,7 @@ export default function Home() {
                                     Multi-Chain Payment Verification
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    Multi-chain USDC payment verification for your APIs. Add crypto micropayments in 10 minutes. Production-ready infrastructure with 99.9% uptime SLA.
+                                    Verify USDC payments across Solana, Base, Ethereum and more. Simple API, 10 minute setup, 99.9% uptime.
                                 </p>
                             </header>
 
@@ -169,7 +169,7 @@ export default function Home() {
             {/* How It Works Section */}
             <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
-                    How x402 Payment Verification Works
+                    How It Works
                 </h2>
 
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
@@ -189,7 +189,7 @@ export default function Home() {
                         </div>
                     </div>
                     <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Production Ready Code</div>
+                        <div className="gradient-text mb-2 text-sm font-medium">Code Example</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
                             <div className="text-gray-500 mb-2">// Python SDK example</div>
                             <div className="text-white"><span className="text-cyan">from</span> x402 <span className="text-cyan">import</span> X402Client</div>
@@ -217,7 +217,7 @@ export default function Home() {
                     Pricing
                 </h2>
                 <p className="text-center text-gray-400 mb-12">
-                    Usage-based pricing for payment verification
+                    Start free, scale as you grow
                 </p>
 
                 <X402PricingTiers showTitle={false} />
@@ -290,7 +290,7 @@ export default function Home() {
                 </div>
 
                 <article className="text-center mb-16">
-                    <h3 className="text-2xl font-light mb-6">Why x402 Infrastructure?</h3>
+                    <h3 className="text-2xl font-light mb-6">Why x402?</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
                         <div className="flex gap-3">
                             <svg className="w-6 h-6 text-white flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -315,8 +315,8 @@ export default function Home() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
-                                <div className="text-white mb-1">Production Ready</div>
-                                <div className="text-gray-500 text-sm">99.9% uptime SLA, sub-500ms response times</div>
+                                <div className="text-white mb-1">Fast and Reliable</div>
+                                <div className="text-gray-500 text-sm">99.9% uptime, average response under 500ms</div>
                             </div>
                         </div>
                         <div className="flex gap-3">
@@ -334,7 +334,7 @@ export default function Home() {
                 <article className="bg-black border border-gray-500/25 rounded-lg p-8 max-w-3xl mx-auto">
                     <h3 className="text-2xl font-light mb-4 text-center">For Developers</h3>
                     <p className="text-gray-400 text-center mb-6">
-                        Integrate x402 Infrastructure payment verification with our SDKs
+                        Start verifying payments with our Python or JavaScript SDK
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
