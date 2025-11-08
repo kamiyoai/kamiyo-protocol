@@ -169,12 +169,12 @@ export default function Home() {
             {/* How It Works Section */}
             <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
-                    Integration
+                    How It Works
                 </h2>
 
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">How It Works</div>
+                        <div className="gradient-text mb-2 text-sm font-medium">Integration</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6">
                             <div className="text-white text-lg mb-3">Add to any API in <span className="text-cyan">10 minutes</span></div>
                             <div className="text-gray-400 text-sm mb-4 space-y-1">
