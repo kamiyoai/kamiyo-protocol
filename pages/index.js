@@ -51,7 +51,7 @@ export default function Home() {
         <div className="text-white bg-black min-h-screen">
             <SEO />
             {/* Hero Section - x402 Infrastructure */}
-            <section className="w-full border-b border-gray-500 border-opacity-25 bg-black">
+            <section className="w-full border-b border-gray-500/25 bg-black">
                 <div className="w-full px-5 mx-auto py-20" style={{ maxWidth: '1400px' }}>
                     <h1 className="sr-only">KAMIYO - x402 Infrastructure & Blockchain Security Intelligence</h1>
 
@@ -59,7 +59,7 @@ export default function Home() {
                         {/* Left: x402 Infrastructure */}
                         <div className="space-y-8">
                             <div className="inline-block">
-                                <span className="text-xs text-blue-400 border border-blue-500 border-opacity-50 px-3 py-1.5 rounded-full uppercase tracking-wider">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-1.5 rounded-full uppercase tracking-wider">
                                     New Product Launch
                                 </span>
                             </div>
@@ -78,13 +78,13 @@ export default function Home() {
 
                             {/* x402 Features */}
                             <div className="flex flex-wrap gap-3">
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     Free tier: 1,000 verifications/mo
                                 </span>
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     Multi-chain support
                                 </span>
-                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
+                                <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     5 min integration
                                 </span>
                             </div>
@@ -163,7 +163,7 @@ export default function Home() {
             </section>
 
             {/* x402 Stats Section */}
-            <section className="w-full border-b border-gray-500 border-opacity-25 py-16">
+            <section className="w-full border-b border-gray-500/25 py-16">
                 <div className="w-full px-5 mx-auto" style={{ maxWidth: '1400px' }}>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         <div className="text-center">
@@ -227,7 +227,7 @@ export default function Home() {
             </section>
 
             {/* Trusted By Developers */}
-            <section className="w-full border-b border-gray-500 border-opacity-25 py-16">
+            <section className="w-full border-b border-gray-500/25 py-16">
                 <div className="w-full px-5 mx-auto" style={{ maxWidth: '1400px' }}>
                     <h3 className="text-2xl font-light text-center mb-8 text-white">Trusted by Developers Worldwide</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -283,7 +283,7 @@ export default function Home() {
             </section>
 
             {/* FAQ Section */}
-            <section className="w-full border-t border-gray-500 border-opacity-25 py-16">
+            <section className="w-full border-t border-gray-500/25 py-16">
                 <div className="w-full px-5 mx-auto" style={{ maxWidth: '1200px' }}>
                     <FAQ />
                 </div>

@@ -17,9 +17,9 @@ export default function ApiDocs() {
         <meta name="description" content="Complete x402 Infrastructure API documentation for multi-chain USDC payment verification. Production-ready payment verification API." />
       </Head>
 
-      <section className="py-10 px-5 md:px-1 mx-auto max-w-[1400px]">
-        <div className="border-b border-gray-500 border-opacity-25 mb-12 pb-6">
-          <p className="font-light text-sm uppercase tracking-widest text-blue-400 mb-8">API Documentation</p>
+      <section className="py-10 px-5 mx-auto max-w-[1400px]">
+        <div className="border-dotted border-b border-cyan mb-12 pb-6">
+          <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;API ドキュメント</p>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">x402 Infrastructure API</h1>
           <p className="text-gray-400 mt-4">
             Multi-chain USDC payment verification for your APIs. Production-ready infrastructure with 99.9% uptime SLA.
@@ -27,7 +27,7 @@ export default function ApiDocs() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500 border-opacity-25 pb-4">
+        <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-500/25 pb-4">
           {['overview', 'quickstart', 'verify', 'chains', 'sdks'].map((tab) => (
             <button
               key={tab}

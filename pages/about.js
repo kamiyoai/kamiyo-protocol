@@ -7,10 +7,11 @@ export default function About() {
                 <title>About KAMIYO - x402 Infrastructure</title>
             </Head>
 
-            <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>
-                <div className="border-b border-gray-500 border-opacity-25 mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-blue-400 mb-8">About</p>
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light">What is KAMIYO</h1>
+            <section className="py-10 px-5 mx-auto max-w-[1400px]">
+                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;私たちについて</p>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">What is KAMIYO</h1>
+                    <h4 className="text-xl md:text-2xl mt-4 text-cyan">Multi-Chain Payment Verification</h4>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-20">
