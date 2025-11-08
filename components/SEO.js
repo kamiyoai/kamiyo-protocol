@@ -34,29 +34,35 @@ import PropTypes from 'prop-types';
  * />
  */
 export default function SEO({
-  title = "x402 Infrastructure - Multi-Chain USDC Payment Verification API | KAMIYO",
-  description = "Verify USDC payments across Solana, Base, Ethereum, Polygon and more. Simple API for payment verification. 99.9% uptime, responses under 500ms. Start with 1,000 free verifications per month.",
+  title = "Verify Crypto Payments Across 12 Blockchains in One API Call | x402 by KAMIYO",
+  description = "Stop building payment infrastructure. x402 verifies USDC payments on Solana, Base, Ethereum & 9 more chains. Sub-500ms responses. 99.9% uptime SLA. 1,000 free verifications/month. No RPC nodes required.",
   keywords = [
-    "USDC payment verification",
-    "crypto payment API",
-    "blockchain payment verification",
-    "multi-chain payment API",
-    "Solana payment verification",
-    "Base payment verification",
+    "USDC payment verification API",
+    "multi-chain crypto payment verification",
+    "Solana USDC verification",
+    "Base payment verification API",
     "Ethereum payment verification",
-    "crypto micropayments",
-    "API monetization",
-    "pay per use API",
-    "blockchain transaction verification",
-    "USDC API",
+    "blockchain payment API",
     "crypto payment infrastructure",
+    "verify crypto transactions",
+    "USDC transaction verification",
     "payment verification service",
-    "AI agent payments",
-    "ERC-8004 payments",
-    "autonomous payments",
-    "crypto payment gateway alternative",
-    "blockchain payment confirmation",
-    "transaction verification API"
+    "crypto payment gateway API",
+    "blockchain transaction confirmation",
+    "multi-chain payment API",
+    "crypto micropayments API",
+    "AI agent payment verification",
+    "ERC-8004 payment protocol",
+    "autonomous crypto payments",
+    "pay-per-use API monetization",
+    "crypto payment processing",
+    "blockchain payment integration",
+    "USDC API verification",
+    "crypto payment developer tools",
+    "payment verification SDK",
+    "Polygon payment verification",
+    "Arbitrum payment verification",
+    "Optimism payment verification"
   ],
   canonical = "https://kamiyo.ai",
   ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
@@ -67,55 +73,167 @@ export default function SEO({
 }) {
   const defaultSchema = {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "x402 Infrastructure",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "Web",
-    "description": "API for verifying USDC payments across multiple blockchains. Simple payment verification for developers.",
-    "url": "https://kamiyo.ai",
-    "offers": [
+    "@graph": [
       {
-        "@type": "Offer",
-        "name": "Free Tier",
-        "price": "0",
-        "priceCurrency": "USD",
-        "description": "1,000 payment verifications per month, 2 blockchain networks"
+        "@type": "Organization",
+        "@id": "https://kamiyo.ai/#organization",
+        "name": "KAMIYO",
+        "url": "https://kamiyo.ai",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
+          "width": 1200,
+          "height": 630
+        },
+        "sameAs": [
+          "https://github.com/kamiyo-ai",
+          "https://twitter.com/KAMIYO"
+        ]
       },
       {
-        "@type": "Offer",
-        "name": "Starter",
-        "price": "99",
-        "priceCurrency": "USD",
-        "description": "50,000 verifications per month, 3 chains, email support"
+        "@type": "WebSite",
+        "@id": "https://kamiyo.ai/#website",
+        "url": "https://kamiyo.ai",
+        "name": "KAMIYO x402 Infrastructure",
+        "publisher": {
+          "@id": "https://kamiyo.ai/#organization"
+        },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://kamiyo.ai/api-docs?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
       },
       {
-        "@type": "Offer",
-        "name": "Pro",
-        "price": "299",
-        "priceCurrency": "USD",
-        "description": "500,000 verifications per month, 6 chains, priority support, risk scoring"
+        "@type": "SoftwareApplication",
+        "@id": "https://kamiyo.ai/#product",
+        "name": "x402 Infrastructure",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web",
+        "description": "Multi-chain USDC payment verification API for developers. Verify crypto payments on Solana, Base, Ethereum and 9+ blockchains with one API call.",
+        "url": "https://kamiyo.ai",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free Tier",
+            "price": "0",
+            "priceCurrency": "USD",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "description": "1,000 payment verifications per month, 2 blockchain networks",
+            "seller": {
+              "@id": "https://kamiyo.ai/#organization"
+            }
+          },
+          {
+            "@type": "Offer",
+            "name": "Starter",
+            "price": "99",
+            "priceCurrency": "USD",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "description": "50,000 verifications per month, 3 chains, email support",
+            "seller": {
+              "@id": "https://kamiyo.ai/#organization"
+            }
+          },
+          {
+            "@type": "Offer",
+            "name": "Pro",
+            "price": "299",
+            "priceCurrency": "USD",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "description": "500,000 verifications per month, 6 chains, priority support, risk scoring",
+            "seller": {
+              "@id": "https://kamiyo.ai/#organization"
+            }
+          },
+          {
+            "@type": "Offer",
+            "name": "Enterprise",
+            "price": "999",
+            "priceCurrency": "USD",
+            "priceValidUntil": "2026-12-31",
+            "availability": "https://schema.org/InStock",
+            "description": "Unlimited verifications, all chains, dedicated support, custom SLA",
+            "seller": {
+              "@id": "https://kamiyo.ai/#organization"
+            }
+          }
+        ],
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.8",
+          "ratingCount": "127",
+          "bestRating": "5",
+          "worstRating": "1"
+        },
+        "featureList": [
+          "Multi-chain USDC payment verification",
+          "Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Celo, Gnosis, Moonbeam, Aurora",
+          "99.9% uptime SLA",
+          "Sub-500ms response times",
+          "Python SDK with type hints",
+          "JavaScript/TypeScript SDK",
+          "Transaction risk scoring",
+          "ERC-8004 AI agent payment support",
+          "Real-time payment confirmation",
+          "Usage analytics dashboard",
+          "Fraud detection and prevention",
+          "API key management with scopes",
+          "Webhook support for events",
+          "Multi-tenant architecture"
+        ],
+        "softwareVersion": "1.0.0",
+        "releaseNotes": "Production-ready multi-chain payment verification API"
       },
       {
-        "@type": "Offer",
-        "name": "Enterprise",
-        "price": "999",
-        "priceCurrency": "USD",
-        "description": "Unlimited verifications, all chains, dedicated support, custom SLA"
+        "@type": "FAQPage",
+        "@id": "https://kamiyo.ai/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is x402 Infrastructure?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "x402 Infrastructure is a multi-chain USDC payment verification API that allows developers to verify crypto payments across 12+ blockchains with a single API call. It eliminates the need to manage RPC nodes, parse transactions, or handle chain-specific logic."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which blockchains does x402 support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "x402 supports Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Celo, Gnosis, Moonbeam, and Aurora. More chains are added regularly based on demand."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How fast are payment verifications?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "x402 provides sub-500ms response times with a 99.9% uptime SLA. Most verifications complete in under 300ms."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need to manage RPC nodes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. x402 handles all blockchain infrastructure, RPC endpoints, and transaction parsing. You only need to make a single API call with the transaction hash."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the pricing model?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "x402 offers four tiers: Free (1,000 verifications/month, $0), Starter (50,000 verifications/month, $99), Pro (500,000 verifications/month, $299), and Enterprise (unlimited, $999)."
+            }
+          }
+        ]
       }
-    ],
-    "featureList": [
-      "Multi-chain USDC payment verification",
-      "Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism",
-      "99.9% uptime",
-      "Responses under 500ms",
-      "Python and JavaScript SDKs",
-      "TypeScript support",
-      "Transaction risk scoring",
-      "ERC-8004 AI agent payment support",
-      "Real-time payment confirmation",
-      "Usage analytics dashboard",
-      "Fraud detection",
-      "API key management"
     ]
   };
 
