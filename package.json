@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "node server.mjs",
     "lint": "next lint",
-    "deploy:tee": "cd tee-cloud-cli && bun tsup && bun run dist/index.js deploy ../tee-test/worker.js -n kami-test -c ../tee-test/docker-compose.yml"
+    "deploy:tee": "cd tee-cloud-cli && bun tsup && bun run dist/index.js deploy ../tee-test/worker.js -n kami-test -c ../tee-test/docker-compose.yml",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest tests/x402-saas/unit --passWithNoTests",
+    "test:integration": "bash tests/x402-saas/test-integration.sh",
+    "test:watch": "jest tests/x402-saas/unit --watch"
   },
   "dependencies": {
     "@elizaos/adapter-pglite": "0.25.6-alpha.1",
