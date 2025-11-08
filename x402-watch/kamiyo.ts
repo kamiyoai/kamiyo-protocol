@@ -1,13 +1,8 @@
-import { Network, AccessType } from '../types';
-import { USDC_BASE_TOKEN, USDC_POLYGON_TOKEN, USDC_SOLANA_TOKEN } from '../constants';
-
-import type { Facilitator, FacilitatorConfig } from '../types';
-
-export const kamiyo: FacilitatorConfig = {
+export const kamiyo = {
   url: 'https://kamiyo.ai/api/v1/x402',
 };
 
-export const kamiyoDiscovery: FacilitatorConfig = {
+export const kamiyoDiscovery = {
   url: 'https://kamiyo.ai/api/v1/x402',
 };
 
@@ -22,29 +17,29 @@ export const kamiyoFacilitator = {
   config: kamiyo,
   discoveryConfig: kamiyoDiscovery,
   facilitatorUrl: 'https://kamiyo.ai/api/v1/x402',
-  accessType: AccessType.GATED,
+  accessType: 'GATED',
   fee: 0,
   addresses: {
-    [Network.BASE]: [
+    BASE: [
       {
         address: '0x742d35cc6634c0532925a3b844bc9e7595f0bee4',
-        tokens: [USDC_BASE_TOKEN],
+        tokens: ['0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'],
         dateOfFirstTransaction: new Date('2025-01-01'),
       },
     ],
-    [Network.POLYGON]: [
+    POLYGON: [
       {
         address: '0x742d35cc6634c0532925a3b844bc9e7595f0bee4',
-        tokens: [USDC_POLYGON_TOKEN],
+        tokens: ['0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'],
         dateOfFirstTransaction: new Date('2025-01-01'),
       },
     ],
-    [Network.SOLANA]: [
+    SOLANA: [
       {
         address: 'KAMiYo7XwXVQcFhkfhC4RHApURAcqRHF8tF9WoZHkYR',
-        tokens: [USDC_SOLANA_TOKEN],
+        tokens: ['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'],
         dateOfFirstTransaction: new Date('2025-01-01'),
       },
     ],
   },
-} as const satisfies Facilitator;
+};
