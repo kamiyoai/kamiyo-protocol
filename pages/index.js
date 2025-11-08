@@ -169,7 +169,7 @@ export default function Home() {
             {/* How It Works Section */}
             <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
-                    How It Works
+                    Integration
                 </h2>
 
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
