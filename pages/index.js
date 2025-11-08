@@ -66,7 +66,7 @@ export default function Home() {
                             <header>
                                 <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;x402決済基盤</p>
                                 <h2 className="text-3xl md:text-5xl lg:text-[4rem] font-light mb-4 leading-tight text-white">
-                                    x402 Infrastructure
+                                    Multi-Chain Payment Verification
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
                                     Multi-chain USDC payment verification for your APIs. Add crypto micropayments in 10 minutes. Production-ready infrastructure with 99.9% uptime SLA.
