@@ -1,4 +1,4 @@
--- Kamiyo Exploit Intelligence Platform Database Schema
+-- KAMIYO x402 Infrastructure Database Schema
 -- Version: 1.0
 -- Purpose: Store aggregated exploit data from external sources
 

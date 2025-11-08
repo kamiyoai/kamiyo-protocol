@@ -102,8 +102,8 @@ cache_config = get_cache_config()
 
 # Create FastAPI app
 app = FastAPI(
-    title="Kamiyo Exploit Intelligence API",
-    description="Real-time aggregation of cryptocurrency exploits from multiple sources",
+    title="KAMIYO x402 Infrastructure",
+    description="Multi-chain USDC payment verification API with x402 protocol support",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
