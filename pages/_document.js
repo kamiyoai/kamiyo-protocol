@@ -16,8 +16,8 @@ export default function Document() {
                 "@type": "Organization",
                 "@id": "https://kamiyo.ai/#organization",
                 "name": "KAMIYO",
-                "legalName": "KAMIYO Security Intelligence",
-                "description": "KAMIYO provides real-time cryptocurrency exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API. Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec, and SlowMist.",
+                "legalName": "KAMIYO",
+                "description": "x402 Infrastructure - Multi-chain USDC payment verification API. Verify payments across Solana, Base, Ethereum and more. 99.9% uptime, responses under 500ms.",
                 "url": "https://kamiyo.ai",
                 "logo": "https://kamiyo.ai/favicon.png",
                 "foundingDate": "2024",
@@ -32,16 +32,20 @@ export default function Document() {
                     "url": "https://kamiyo.ai"
                 },
                 "offers": {
-                    "@type": "Offer",
-                    "description": "Security intelligence via MCP subscriptions ($19-299/mo) or x402 API ($0.01/query) for real-time exploit detection and protocol risk assessment"
+                    "@type": "AggregateOffer",
+                    "description": "Multi-chain USDC payment verification API with pricing from free tier (1,000 verifications/month) to Enterprise (unlimited verifications)",
+                    "lowPrice": "0",
+                    "highPrice": "999",
+                    "priceCurrency": "USD",
+                    "offerCount": "4"
                 }
             },
             {
                 "@type": "WebSite",
                 "@id": "https://kamiyo.ai/#website",
-                "name": "KAMIYO",
+                "name": "KAMIYO x402 Infrastructure",
                 "url": "https://kamiyo.ai",
-                "description": "Security intelligence platform for AI agents delivering real-time crypto exploit data via MCP and x402",
+                "description": "Multi-chain USDC payment verification API for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism and more",
                 "publisher": {
                     "@id": "https://kamiyo.ai/#organization"
                 },
@@ -59,35 +63,35 @@ export default function Document() {
                 "@type": "ItemList",
                 "@id": "https://kamiyo.ai/#sitenavigatation",
                 "name": "KAMIYO Site Navigation",
-                "description": "Main navigation elements for KAMIYO Security Intelligence platform",
+                "description": "Main navigation for x402 payment verification infrastructure",
                 "itemListElement": [
                     {
                         "@type": "SiteNavigationElement",
                         "position": 1,
                         "name": "Features",
-                        "description": "Explore security intelligence features: 20+ source aggregation, MCP integration, protocol risk scoring",
+                        "description": "Multi-chain USDC payment verification features",
                         "url": "https://kamiyo.ai/features"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 2,
                         "name": "Pricing",
-                        "description": "View pricing for MCP subscriptions and x402 API access to security intelligence",
+                        "description": "x402 pricing plans from free tier to Enterprise",
                         "url": "https://kamiyo.ai/pricing"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 3,
                         "name": "API Documentation",
-                        "description": "Complete API documentation for MCP integration and x402 security intelligence access",
+                        "description": "x402 payment verification API documentation",
                         "url": "https://kamiyo.ai/api-docs"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 4,
-                        "name": "Fork Analysis",
-                        "description": "Analyze blockchain forks for payment verification",
-                        "url": "https://kamiyo.ai/fork-analysis"
+                        "name": "About",
+                        "description": "Learn about x402 payment verification infrastructure",
+                        "url": "https://kamiyo.ai/about"
                     }
                 ]
             }
@@ -109,7 +113,7 @@ export default function Document() {
                 {/* Primary Meta Tags */}
                 <meta name="author" content="KAMIYO" />
                 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-                <meta name="keywords" content="crypto exploit intelligence, AI agent security, MCP server security, Claude Desktop security, real-time exploit detection, DeFi security intelligence, blockchain exploit database, protocol risk assessment, security intelligence API, CertiK API alternative, crypto threat intelligence, smart contract exploits, DeFi hack database, on-chain security monitoring, x402 API, blockchain security alerts, protocol vulnerability tracking, AI security agents, crypto security MCP" />
+                <meta name="keywords" content="USDC payment verification, crypto payment API, blockchain payment verification, multi-chain payment API, Solana payment verification, Base payment verification, Ethereum payment verification, crypto micropayments, API monetization, pay per use API, blockchain transaction verification, USDC API, crypto payment infrastructure, payment verification service, AI agent payments, ERC-8004 payments, x402 API, transaction verification API, crypto payment gateway, blockchain payment confirmation" />
 
                 {/* Mobile Optimization */}
                 <meta name="theme-color" content="#000000" />
@@ -118,8 +122,8 @@ export default function Document() {
                 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
-                <meta property="og:title" content="KAMIYO - Security Intelligence for AI Agents | MCP & x402" />
-                <meta property="og:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API ($0.01/query). Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec." />
+                <meta property="og:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
+                <meta property="og:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
                 <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:url" content="https://kamiyo.ai" />
                 <meta property="og:type" content="website" />
@@ -128,8 +132,8 @@ export default function Document() {
 
                 {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="KAMIYO - Security Intelligence for AI Agents | MCP & x402" />
-                <meta name="twitter:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
+                <meta name="twitter:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
+                <meta name="twitter:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
                 <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta name="twitter:site" content="@KAMIYO" />
                 <meta name="twitter:creator" content="@KAMIYO" />

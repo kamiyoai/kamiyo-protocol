@@ -1,13 +1,15 @@
 // pages/pricing.js
-import Head from "next/head";
+import SEO from "../components/SEO";
 import X402PricingTiers from "../components/X402PricingTiers";
 
 export default function PricingPage() {
     return (
         <div className="min-h-screen flex flex-col items-center py-10 px-5 mx-auto text-white bg-black max-w-[1400px]">
-            <Head>
-                <title>KAMIYO Pricing - x402 Infrastructure</title>
-            </Head>
+            <SEO
+                title="Pricing - x402 Multi-Chain Payment Verification API | KAMIYO"
+                description="x402 pricing: Free tier with 1,000 verifications/month. Starter $99/mo for 50K verifications. Pro $299/mo for 500K verifications. Enterprise $999/mo for unlimited verifications. All plans include Python and JavaScript SDKs."
+                canonical="https://kamiyo.ai/pricing"
+            />
 
             {/* x402 Infrastructure Pricing */}
             <div className="w-full mb-16">

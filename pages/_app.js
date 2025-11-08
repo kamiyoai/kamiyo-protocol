@@ -15,22 +15,22 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       <MenuProvider>
         <Head>
           {/* Primary Meta Tags */}
-          <title>Security Intelligence for AI Agents | MCP & x402 | KAMIYO</title>
-          <meta name="title" content="Security Intelligence for AI Agents | MCP & x402 | KAMIYO" />
-          <meta name="description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions (Claude Desktop) or x402 API ($0.01/query). Aggregating security data from 20+ sources including CertiK, PeckShield, BlockSec." />
+          <title>x402 Infrastructure - Multi-Chain USDC Payment Verification | KAMIYO</title>
+          <meta name="title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification | KAMIYO" />
+          <meta name="description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms. Start with 1,000 free verifications per month." />
 
           {/* Open Graph / Facebook */}
           <meta property="og:type" content="website" />
           <meta property="og:url" content="https://kamiyo.ai/" />
-          <meta property="og:title" content="Security Intelligence for AI Agents | MCP & x402" />
-          <meta property="og:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
+          <meta property="og:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
+          <meta property="og:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
           <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
 
           {/* Twitter */}
           <meta property="twitter:card" content="summary_large_image" />
           <meta property="twitter:url" content="https://kamiyo.ai/" />
-          <meta property="twitter:title" content="Security Intelligence for AI Agents | MCP & x402" />
-          <meta property="twitter:description" content="Real-time crypto exploit intelligence for AI agents. Access via MCP subscriptions or x402 API. Aggregating security data from 20+ sources. $0.01 per query or unlimited with MCP." />
+          <meta property="twitter:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
+          <meta property="twitter:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
           <meta property="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
           <meta name="twitter:site" content="@KAMIYO" />
           <meta name="twitter:creator" content="@KAMIYO" />

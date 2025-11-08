@@ -1,11 +1,14 @@
-import Head from 'next/head';
+import SEO from '../components/SEO';
 
 export default function PrivacyPolicy() {
     return (
         <div className="min-h-screen">
-            <Head>
-                <title>Privacy Policy - KAMIYO</title>
-            </Head>
+            <SEO
+                title="Privacy Policy - x402 Infrastructure | KAMIYO"
+                description="Privacy policy for x402 Infrastructure payment verification service. Learn how we collect, use, and protect your information."
+                canonical="https://kamiyo.ai/privacy-policy"
+                noindex={true}
+            />
 
             <section className="py-10 px-5 md:px-1 mx-auto max-w-[1400px]">
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
@@ -16,7 +19,7 @@ export default function PrivacyPolicy() {
                 <div className="grid grid-cols-1 gap-8 md:gap-16">
                     <div>
                         <h4 className="text-xl md:text-2xl mb-4">1. Introduction</h4>
-                        <p className="mb-10">KAMIYO (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates a security intelligence platform for AI agents. This Privacy Policy explains how we collect, use, and protect your information when you use our services. By accessing KAMIYO, you agree to the terms outlined in this policy.</p>
+                        <p className="mb-10">KAMIYO (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) operates x402 Infrastructure, a payment verification API. This Privacy Policy explains how we collect, use, and protect your information when you use our services. By accessing KAMIYO, you agree to the terms outlined in this policy.</p>
 
                         <h4 className="text-xl md:text-2xl mb-4">2. Data Collection & Usage</h4>
                         <p>We collect and process user data to provide API payment services and maintain platform functionality:</p>
