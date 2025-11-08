@@ -17,31 +17,31 @@ export default function About() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-20">
                     <div>
                         <h4 className="text-xl md:text-2xl mb-4 font-light">Payment Verification Infrastructure</h4>
-                        <p className="mb-4 text-gray-400">x402 Infrastructure is a production-ready API for verifying on-chain USDC payments across multiple blockchains. Developers use our service to confirm that payments have been made before granting access to APIs, data, or services.</p>
+                        <p className="mb-4 text-gray-400">x402 is an API for verifying USDC payments across blockchains. Developers use it to confirm payments before granting API access.</p>
 
-                        <p className="mb-4 text-gray-400">Add pay-per-use pricing to any API in 10 minutes. When a user makes a USDC payment on-chain, submit the transaction hash to our API for instant verification. We handle all blockchain complexity - you get a simple yes/no answer with payment details.</p>
+                        <p className="mb-4 text-gray-400">When a user sends USDC, submit the transaction hash to our API. We check the blockchain and return whether the payment is valid.</p>
 
-                        <p className="mb-4 text-gray-400">Verify payments across Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and more with a single API endpoint. Production-grade infrastructure with 99.9% uptime SLA and sub-500ms response times.</p>
+                        <p className="mb-4 text-gray-400">Works on Solana, Base, Ethereum, Polygon, Arbitrum, Optimism and more. One API endpoint for all chains. 99.9% uptime, responses under 500ms.</p>
 
                         <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Core Capabilities</h4>
                         <ol className="space-y-3 text-gray-400">
                             <li>
-                                <p><strong className="text-white">Transaction Verification:</strong> Confirm USDC payments happened on-chain with the correct amount and recipient.</p>
+                                <p><strong className="text-white">Transaction Verification:</strong> Check USDC payments on-chain with correct amount and recipient.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Multi-Chain Support:</strong> Single API works across 8+ blockchains - no need to integrate with each network separately.</p>
+                                <p><strong className="text-white">Multi-Chain Support:</strong> One API for 8+ blockchains.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Developer SDKs:</strong> Python and JavaScript clients with TypeScript support for rapid integration.</p>
+                                <p><strong className="text-white">Developer SDKs:</strong> Python and JavaScript libraries with TypeScript support.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Risk Scoring:</strong> Transaction analysis and fraud detection to protect against payment manipulation (Pro+ tiers).</p>
+                                <p><strong className="text-white">Risk Scoring:</strong> Fraud detection on Pro and Enterprise plans.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Usage-Based Pricing:</strong> Free tier with 1,000 verifications/month. Scale up to unlimited with transparent pricing.</p>
+                                <p><strong className="text-white">Usage-Based Pricing:</strong> Free tier: 1,000 verifications/month. Paid plans up to unlimited.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">ERC-8004 Ready:</strong> Support for AI agent payment verification enabling autonomous service payments.</p>
+                                <p><strong className="text-white">ERC-8004 Support:</strong> AI agents can verify their own payments.</p>
                             </li>
                         </ol>
                     </div>
@@ -52,18 +52,18 @@ export default function About() {
                                 <p><strong className="text-white">User Makes Payment:</strong><br/>Your customer sends USDC to your wallet address on any supported blockchain. They receive a transaction hash from their wallet.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Submit for Verification:</strong><br/>Your API receives the transaction hash from the user. You call x402 Infrastructure to verify the payment actually happened.</p>
+                                <p><strong className="text-white">Submit for Verification:</strong><br/>Your API receives the transaction hash. Call x402 to verify the payment.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Instant Confirmation:</strong><br/>We query the blockchain, confirm the payment amount and recipient, check confirmations, and return verification results in under 500ms.</p>
+                                <p><strong className="text-white">Instant Confirmation:</strong><br/>We check the blockchain and return results in under 500ms.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Grant Access:</strong><br/>If verification succeeds, you grant access to your API/data. If it fails, you reject the request. Simple pay-per-use model.</p>
+                                <p><strong className="text-white">Grant Access:</strong><br/>If verified, grant access. If not, reject the request.</p>
                             </li>
                         </ul>
                         <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Our Mission</h4>
-                        <p className="mb-4 text-gray-400">We built x402 Infrastructure to solve a specific problem: verifying crypto micropayments is complex and error-prone. Each blockchain has different RPC endpoints, transaction formats, and confirmation requirements.</p>
-                        <p className="text-gray-400">Our service handles all blockchain complexity so developers can add crypto payments to their APIs without managing nodes, parsing transactions, or learning blockchain protocols. One API call, any supported chain, instant verification.</p>
+                        <p className="mb-4 text-gray-400">We built x402 because verifying crypto payments is tedious. Every blockchain has different RPC endpoints, transaction formats, and confirmation rules.</p>
+                        <p className="text-gray-400">We handle the blockchain complexity. You just make one API call with a transaction hash and get back whether it's valid.</p>
                     </div>
                 </div>
 
