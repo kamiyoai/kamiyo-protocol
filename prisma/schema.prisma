@@ -209,11 +209,9 @@ model X402Verification {
   tenant         X402Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
-  @@index([createdAt])
+  @@index([createdAt], map: "X402Verification_createdAt_idx")
   @@index([tenantId, createdAt])
-  @@index([chain])
+  @@index([chain], map: "X402Verification_chain_idx")
   @@index([success])
   @@index([txHash])
-  @@index([chain])
-  @@index([createdAt])
 }
