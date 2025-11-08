@@ -77,7 +77,7 @@ export default function ApiDocs() {
               </p>
               <CodeBlock>curl -H "x-api-key: x402_live_..." https://api.kamiyo.ai/v1/x402/verify</CodeBlock>
               <p className="text-gray-400 text-sm mt-4">
-                Get your API key from the <a href="/x402" className="text-cyan">x402 dashboard</a>.
+                Get your API key from the <a href="/dashboard/x402" className="text-cyan">x402 dashboard</a>.
               </p>
             </div>
           </div>
@@ -92,7 +92,7 @@ export default function ApiDocs() {
               <div className="border-l-2 border-gray-800 pl-6">
                 <div className="text-white font-medium mb-2">Step 1: Get API Key</div>
                 <p className="text-gray-400 text-sm mb-4">
-                  Sign up at <a href="/x402" className="text-cyan">kamiyo.ai/x402</a> and create an API key from your dashboard.
+                  Sign up at <a href="/dashboard/x402" className="text-cyan">kamiyo.ai/dashboard/x402</a> and create an API key from your dashboard.
                 </p>
               </div>
 

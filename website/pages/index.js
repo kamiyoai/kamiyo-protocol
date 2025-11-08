@@ -90,13 +90,13 @@ export default function Home() {
                             {/* x402 CTA */}
                             <div className="flex flex-wrap gap-6 items-center pt-4">
                                 <Link
-                                    href="/x402"
+                                    href="/dashboard/x402"
                                     className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-lg"
                                 >
                                     Get Started Free
                                 </Link>
                                 <Link
-                                    href="/x402/docs"
+                                    href="/api-docs"
                                     className="px-8 py-4 border border-gray-500 hover:border-gray-400 text-white rounded-lg font-medium transition-colors"
                                 >
                                     View Documentation
@@ -265,7 +265,7 @@ export default function Home() {
 
                     <div className="flex flex-wrap gap-6 justify-center">
                         <Link
-                            href="/x402"
+                            href="/dashboard/x402"
                             className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-lg"
                         >
                             Start Building Free
