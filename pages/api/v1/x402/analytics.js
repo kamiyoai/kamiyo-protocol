@@ -4,6 +4,8 @@ import { APIKeyManager } from '../../../../lib/x402-saas/api-key-manager';
 import { InputValidation } from '../../../../lib/x402-saas/input-validation';
 import rateLimiter from '../../../../lib/x402-saas/rate-limiter';
 import { captureException } from '../../../../lib/x402-saas/sentry-config';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../auth/[...nextauth]';
 
 /**
  * Get usage analytics for tenant dashboard
@@ -20,41 +22,63 @@ export default async function handler(req, res) {
   }
 
   let apiKey;
+  let tenantId;
 
   try {
-    // Authenticate request
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Missing or invalid authorization header',
-        errorCode: 'UNAUTHENTICATED'
+    // Try session auth first (for dashboard)
+    const session = await getServerSession(req, res, authOptions);
+
+    if (session?.user?.email) {
+      // Get tenant by email
+      const tenant = await prisma.x402Tenant.findUnique({
+        where: { email: session.user.email }
       });
+
+      if (tenant) {
+        tenantId = tenant.id;
+      }
     }
 
-    apiKey = authHeader.substring(7);
+    // Fall back to API key auth (for external API calls)
+    if (!tenantId) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          error: 'Missing or invalid authorization',
+          errorCode: 'UNAUTHENTICATED'
+        });
+      }
 
-    // Validate API key and get tenant info
-    const keyInfo = await APIKeyManager.validateApiKey(apiKey);
-    if (!keyInfo) {
-      return res.status(401).json({
-        error: 'Invalid API key',
-        errorCode: 'INVALID_API_KEY'
-      });
+      apiKey = authHeader.substring(7);
+
+      // Validate API key and get tenant info
+      const keyInfo = await APIKeyManager.validateApiKey(apiKey);
+      if (!keyInfo) {
+        return res.status(401).json({
+          error: 'Invalid API key',
+          errorCode: 'INVALID_API_KEY'
+        });
+      }
+
+      tenantId = keyInfo.tenantId;
     }
 
-    // Check rate limit
-    const rateLimit = await rateLimiter.checkLimit(keyInfo.tenantId, keyInfo.tier);
-    res.setHeader('X-RateLimit-Limit', rateLimit.limit);
-    res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
-    res.setHeader('X-RateLimit-Reset', rateLimit.resetTime);
+    // Only apply rate limiting for API key auth (not session auth)
+    if (apiKey) {
+      const keyInfo = await APIKeyManager.validateApiKey(apiKey);
+      const rateLimit = await rateLimiter.checkLimit(keyInfo.tenantId, keyInfo.tier);
+      res.setHeader('X-RateLimit-Limit', rateLimit.limit);
+      res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
+      res.setHeader('X-RateLimit-Reset', rateLimit.resetTime);
 
-    if (!rateLimit.allowed) {
-      res.setHeader('Retry-After', rateLimit.retryAfter);
-      return res.status(429).json({
-        error: 'Rate limit exceeded',
-        errorCode: 'RATE_LIMIT_EXCEEDED',
-        retryAfter: rateLimit.retryAfter
-      });
+      if (!rateLimit.allowed) {
+        res.setHeader('Retry-After', rateLimit.retryAfter);
+        return res.status(429).json({
+          error: 'Rate limit exceeded',
+          errorCode: 'RATE_LIMIT_EXCEEDED',
+          retryAfter: rateLimit.retryAfter
+        });
+      }
     }
 
     // Get and validate query parameters
@@ -78,7 +102,7 @@ export default async function handler(req, res) {
     // Get verification logs for this tenant
     const verifications = await prisma.x402VerificationLog.findMany({
       where: {
-        tenantId: keyInfo.tenantId,
+        tenantId,
         createdAt: {
           gte: startDate,
           lte: endDate
@@ -99,7 +123,7 @@ export default async function handler(req, res) {
     const analytics = processAnalytics(verifications, daysInt);
 
     return res.status(200).json({
-      tenant_id: keyInfo.tenantId,
+      tenant_id: tenantId,
       period: {
         start: startDate.toISOString(),
         end: endDate.toISOString(),

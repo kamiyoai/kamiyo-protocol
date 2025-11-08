@@ -46,34 +46,39 @@ export default function X402Dashboard() {
       setLoading(true);
       setError(null);
 
-      // TODO: Get API key from user account
-      // For now, this is a placeholder
-      const apiKey = 'x402_live_placeholder';
+      // Get user's API keys
+      const keysRes = await fetch('/api/v1/x402/keys');
+      if (keysRes.ok) {
+        const keysData = await keysRes.json();
+        setApiKeys(keysData.api_keys || []);
+      }
 
-      // Load usage stats
-      const usageRes = await fetch('/api/v1/x402/usage', {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      });
+      // Load dashboard data using session auth (no API key needed)
+      const [usageRes, chainsRes, analyticsRes] = await Promise.all([
+        fetch('/api/v1/x402/usage'),
+        fetch('/api/v1/x402/supported-chains'),
+        fetch('/api/v1/x402/analytics?days=30')
+      ]);
 
       if (usageRes.ok) {
         const usageData = await usageRes.json();
         setUsage(usageData);
       }
 
-      // Load supported chains
-      const chainsRes = await fetch('/api/v1/x402/supported-chains', {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
-      });
-
       if (chainsRes.ok) {
         const chainsData = await chainsRes.json();
         setChains(chainsData);
       }
 
-      // Load analytics data (use mock data for now)
-      // TODO: Implement real analytics API endpoint
-      const mockAnalytics = generateMockData();
-      setAnalytics(mockAnalytics);
+      if (analyticsRes.ok) {
+        const analyticsData = await analyticsRes.json();
+        setAnalytics(analyticsData);
+      } else {
+        // Fallback to mock data if API fails
+        console.warn('Analytics API failed, using mock data');
+        const mockAnalytics = generateMockData();
+        setAnalytics(mockAnalytics);
+      }
 
       setLoading(false);
 
