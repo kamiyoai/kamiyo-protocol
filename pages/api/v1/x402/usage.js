@@ -7,6 +7,9 @@
 
 import { APIKeyManager } from '../../../../lib/x402-saas/api-key-manager.js';
 import { TenantManager } from '../../../../lib/x402-saas/tenant-manager.js';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../auth/[...nextauth]';
+import prisma from '../../../../lib/prisma';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -14,24 +17,35 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract API key from Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Missing or invalid Authorization header'
+    let tenant;
+
+    // Try session auth first (for dashboard)
+    const session = await getServerSession(req, res, authOptions);
+
+    if (session?.user?.email) {
+      tenant = await prisma.x402Tenant.findUnique({
+        where: { email: session.user.email }
       });
     }
 
-    const apiKey = authHeader.replace('Bearer ', '');
+    // Fall back to API key auth (for external API calls)
+    if (!tenant) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          error: 'Missing or invalid Authorization header'
+        });
+      }
 
-    // Validate API key and get tenant
-    const keyInfo = await APIKeyManager.validateApiKey(apiKey);
+      const apiKey = authHeader.replace('Bearer ', '');
+      const keyInfo = await APIKeyManager.validateApiKey(apiKey);
 
-    if (!keyInfo) {
-      return res.status(401).json({ error: 'Invalid API key' });
+      if (!keyInfo) {
+        return res.status(401).json({ error: 'Invalid API key' });
+      }
+
+      tenant = await TenantManager.getTenant(keyInfo.tenantId);
     }
-
-    const tenant = await TenantManager.getTenant(keyInfo.tenantId);
 
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
