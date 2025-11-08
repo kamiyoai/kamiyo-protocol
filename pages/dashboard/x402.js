@@ -8,13 +8,14 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
-import {
-  VerificationsTrendChart,
-  VerificationsByChainChart,
-  SuccessRateChart,
-  ResponseTimeChart,
-  generateMockData
-} from '../../components/dashboard/UsageCharts';
+// Charts temporarily disabled due to SSR issues
+// import {
+//   VerificationsTrendChart,
+//   VerificationsByChainChart,
+//   SuccessRateChart,
+//   ResponseTimeChart,
+//   generateMockData
+// } from '../../components/dashboard/UsageCharts';
 
 export default function X402Dashboard() {
   const { data: session, status } = useSession();
@@ -73,11 +74,6 @@ export default function X402Dashboard() {
       if (analyticsRes.ok) {
         const analyticsData = await analyticsRes.json();
         setAnalytics(analyticsData);
-      } else {
-        // Fallback to mock data if API fails
-        console.warn('Analytics API failed, using mock data');
-        const mockAnalytics = generateMockData();
-        setAnalytics(mockAnalytics);
       }
 
       setLoading(false);
@@ -231,20 +227,23 @@ export default function X402Dashboard() {
             </div>
           )}
 
-          {/* Analytics Charts */}
+          {/* Analytics Summary */}
           {analytics && (
             <div className="mb-12">
               <h2 className="text-2xl font-light mb-6 text-white">Usage Analytics</h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <VerificationsTrendChart data={analytics.trendData} />
-                <VerificationsByChainChart data={analytics.chainData} />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SuccessRateChart
-                  successRate={analytics.successRate}
-                  total={analytics.totalVerifications}
-                />
-                <ResponseTimeChart data={analytics.responseTimeData} />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-gray-400">Total Verifications</h3>
+                  <p className="mt-2 text-3xl font-bold text-white">{analytics.total_verifications || 0}</p>
+                </div>
+                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-gray-400">Success Rate</h3>
+                  <p className="mt-2 text-3xl font-bold text-green-400">{analytics.success_rate || 0}%</p>
+                </div>
+                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                  <h3 className="text-sm font-medium text-gray-400">Avg Response Time</h3>
+                  <p className="mt-2 text-3xl font-bold text-cyan">{analytics.avg_response_time_ms || 0}ms</p>
+                </div>
               </div>
             </div>
           )}
