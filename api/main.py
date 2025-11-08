@@ -268,9 +268,9 @@ async def websocket_route(websocket: WebSocket, token: Optional[str] = Query(Non
 async def root():
     """API root endpoint with x402 discovery"""
     response_data = {
-        "name": "Kamiyo Exploit Intelligence API",
+        "name": "KAMIYO x402 Infrastructure",
         "version": "1.0.0",
-        "description": "Aggregating crypto exploits from 20+ sources",
+        "description": "Multi-chain USDC payment verification API",
         "docs": "/docs",
         "endpoints": {
             "exploits": "/exploits",
