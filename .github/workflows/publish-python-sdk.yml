@@ -1,0 +1,68 @@
+name: Publish Python SDK to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.0.0)'
+        required: true
+        type: string
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+
+    - name: Build package
+      working-directory: sdks/python
+      run: |
+        rm -rf dist/ build/ *.egg-info
+        python -m build
+
+    - name: Check package
+      working-directory: sdks/python
+      run: |
+        python setup.py check
+        twine check dist/*
+
+    - name: Publish to TestPyPI (dry run)
+      if: github.event_name == 'workflow_dispatch'
+      working-directory: sdks/python
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      run: |
+        echo "Uploading to TestPyPI..."
+        twine upload --repository testpypi dist/* || echo "TestPyPI upload skipped"
+
+    - name: Publish to PyPI
+      if: github.event_name == 'release'
+      working-directory: sdks/python
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        echo "Uploading to PyPI..."
+        twine upload dist/*
+
+    - name: Create release artifact
+      if: github.event_name == 'release'
+      uses: actions/upload-artifact@v3
+      with:
+        name: python-sdk-dist
+        path: sdks/python/dist/
