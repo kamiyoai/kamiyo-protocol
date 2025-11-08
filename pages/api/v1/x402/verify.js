@@ -9,11 +9,15 @@ import { VerificationService } from '../../../../lib/x402-saas/verification-serv
 import { captureException } from '../../../../lib/x402-saas/sentry-config.js';
 import rateLimiter from '../../../../lib/x402-saas/rate-limiter.js';
 import { APIKeyManager } from '../../../../lib/x402-saas/api-key-manager.js';
+import { InputValidation } from '../../../../lib/x402-saas/input-validation.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // Define at function scope for error handling
+  let apiKey, chain, txHashValue;
 
   try {
     // Extract API key from Authorization header
@@ -25,7 +29,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const apiKey = authHeader.replace('Bearer ', '');
+    apiKey = authHeader.replace('Bearer ', '');
 
     // Validate API key and get tenant info (for rate limiting)
     const keyInfo = await APIKeyManager.validateApiKey(apiKey);
@@ -37,7 +41,7 @@ export default async function handler(req, res) {
     }
 
     // Check rate limit
-    const rateLimit = await rateLimiter.checkLimit(keyInfo.tenant.id, keyInfo.tenant.tier);
+    const rateLimit = await rateLimiter.checkLimit(keyInfo.tenantId, keyInfo.tier);
     res.setHeader('X-RateLimit-Limit', rateLimit.limit);
     res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
     res.setHeader('X-RateLimit-Reset', rateLimit.resetTime);
@@ -53,10 +57,11 @@ export default async function handler(req, res) {
     }
 
     // Parse request body
-    const { tx_hash, txHash, chain, expected_amount, expectedAmount } = req.body;
+    const { tx_hash, txHash: txHashAlt, chain: chainParam, expected_amount, expectedAmount } = req.body;
 
     // Support both snake_case and camelCase
-    const txHashValue = tx_hash || txHash;
+    txHashValue = tx_hash || txHashAlt;
+    chain = chainParam;
     const expectedAmountValue = expected_amount || expectedAmount;
 
     if (!txHashValue || !chain) {
@@ -64,6 +69,36 @@ export default async function handler(req, res) {
         error: 'Missing required fields',
         message: 'Required: tx_hash, chain'
       });
+    }
+
+    // Validate chain
+    const chainValidation = InputValidation.validateChain(chain);
+    if (!chainValidation.valid) {
+      return res.status(400).json({
+        error: chainValidation.error,
+        errorCode: 'INVALID_CHAIN'
+      });
+    }
+    chain = chainValidation.normalized;
+
+    // Validate transaction hash
+    const txHashValidation = InputValidation.validateTxHash(txHashValue, chain);
+    if (!txHashValidation.valid) {
+      return res.status(400).json({
+        error: txHashValidation.error,
+        errorCode: 'INVALID_TX_HASH'
+      });
+    }
+
+    // Validate amount if provided
+    if (expectedAmountValue !== null && expectedAmountValue !== undefined) {
+      const amountValidation = InputValidation.validateAmount(expectedAmountValue);
+      if (!amountValidation.valid) {
+        return res.status(400).json({
+          error: amountValidation.error,
+          errorCode: 'INVALID_AMOUNT'
+        });
+      }
     }
 
     // Get client IP

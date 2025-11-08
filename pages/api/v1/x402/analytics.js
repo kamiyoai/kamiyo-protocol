@@ -1,6 +1,9 @@
 // pages/api/v1/x402/analytics.js
 import prisma from '../../../../lib/prisma';
-import { validateApiKey } from '../../../../lib/x402-saas/api-key-manager';
+import { APIKeyManager } from '../../../../lib/x402-saas/api-key-manager';
+import { InputValidation } from '../../../../lib/x402-saas/input-validation';
+import rateLimiter from '../../../../lib/x402-saas/rate-limiter';
+import { captureException } from '../../../../lib/x402-saas/sentry-config';
 
 /**
  * Get usage analytics for tenant dashboard
@@ -16,38 +19,56 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Authenticate request
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: 'Missing or invalid authorization header',
-      error_code: 'UNAUTHENTICATED'
-    });
-  }
-
-  const apiKey = authHeader.substring(7);
+  let apiKey;
 
   try {
-    // Validate API key and get tenant
-    const tenant = await validateApiKey(apiKey);
+    // Authenticate request
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: 'Missing or invalid authorization header',
+        errorCode: 'UNAUTHENTICATED'
+      });
+    }
 
-    if (!tenant) {
+    apiKey = authHeader.substring(7);
+
+    // Validate API key and get tenant info
+    const keyInfo = await APIKeyManager.validateApiKey(apiKey);
+    if (!keyInfo) {
       return res.status(401).json({
         error: 'Invalid API key',
-        error_code: 'INVALID_API_KEY'
+        errorCode: 'INVALID_API_KEY'
       });
     }
 
-    // Get query parameters
+    // Check rate limit
+    const rateLimit = await rateLimiter.checkLimit(keyInfo.tenantId, keyInfo.tier);
+    res.setHeader('X-RateLimit-Limit', rateLimit.limit);
+    res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
+    res.setHeader('X-RateLimit-Reset', rateLimit.resetTime);
+
+    if (!rateLimit.allowed) {
+      res.setHeader('Retry-After', rateLimit.retryAfter);
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        errorCode: 'RATE_LIMIT_EXCEEDED',
+        retryAfter: rateLimit.retryAfter
+      });
+    }
+
+    // Get and validate query parameters
     const { days = 30 } = req.query;
-    const daysInt = parseInt(days);
+    const daysValidation = InputValidation.validateDays(days);
 
-    if (daysInt < 1 || daysInt > 90) {
+    if (!daysValidation.valid) {
       return res.status(400).json({
-        error: 'Invalid days parameter. Must be between 1 and 90.',
-        error_code: 'INVALID_PARAMETER'
+        error: daysValidation.error,
+        errorCode: 'INVALID_PARAMETER'
       });
     }
+
+    const daysInt = daysValidation.value;
 
     // Calculate date range
     const endDate = new Date();
@@ -57,7 +78,7 @@ export default async function handler(req, res) {
     // Get verification logs for this tenant
     const verifications = await prisma.x402VerificationLog.findMany({
       where: {
-        tenantId: tenant.id,
+        tenantId: keyInfo.tenantId,
         createdAt: {
           gte: startDate,
           lte: endDate
@@ -78,7 +99,7 @@ export default async function handler(req, res) {
     const analytics = processAnalytics(verifications, daysInt);
 
     return res.status(200).json({
-      tenant_id: tenant.id,
+      tenant_id: keyInfo.tenantId,
       period: {
         start: startDate.toISOString(),
         end: endDate.toISOString(),
@@ -89,9 +110,17 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Analytics error:', error);
+
+    // Track error with context
+    captureException(error, {
+      endpoint: '/api/v1/x402/analytics',
+      method: req.method,
+      apiKey: apiKey?.substring(0, 20) + '...'
+    });
+
     return res.status(500).json({
       error: 'Internal server error',
-      error_code: 'INTERNAL_ERROR',
+      errorCode: 'INTERNAL_ERROR',
       message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
