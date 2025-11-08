@@ -68,7 +68,7 @@ export default function X402PricingTiers({ showTitle = true }) {
         if (tier === 'enterprise') {
             router.push('/inquiries');
         } else {
-            router.push('/x402');
+            router.push('/dashboard/x402');
         }
     };
 
