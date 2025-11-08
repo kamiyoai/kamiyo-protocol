@@ -63,30 +63,37 @@ async function measureDatabaseLatency() {
 }
 
 async function checkPythonVerifier() {
+    const verifierUrl = process.env.PYTHON_VERIFIER_URL || 'http://localhost:8000';
+
     try {
-        // Try HTTP API first
-        const response = await fetch('http://localhost:8000/health', {
-            timeout: 2000
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+
+        const response = await fetch(`${verifierUrl}/health`, {
+            signal: controller.signal
         });
+
+        clearTimeout(timeout);
 
         if (response.ok) {
             return {
                 status: 'healthy',
                 mode: 'http_api',
-                endpoint: 'http://localhost:8000'
+                endpoint: verifierUrl
             };
         }
     } catch (error) {
-        // HTTP API not available, check if direct execution is possible
         return {
             status: 'degraded',
-            mode: 'direct_execution',
-            note: 'HTTP API unavailable, using direct execution fallback'
+            mode: 'http_api',
+            error: error.message,
+            endpoint: verifierUrl
         };
     }
 
     return {
-        status: 'healthy',
-        mode: 'direct_execution'
+        status: 'unhealthy',
+        mode: 'http_api',
+        endpoint: verifierUrl
     };
 }
