@@ -174,7 +174,7 @@ export default function Home() {
 
                 <div className="grid md:grid-cols-2 gap-8 mb-12">
                     <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Simple Integration</div>
+                        <div className="gradient-text mb-2 text-sm font-medium">How It Works</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-6">
                             <div className="text-white text-lg mb-3">Add to any API in <span className="text-cyan">10 minutes</span></div>
                             <div className="text-gray-400 text-sm mb-4 space-y-1">
@@ -189,7 +189,7 @@ export default function Home() {
                         </div>
                     </div>
                     <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Code Example</div>
+                        <div className="gradient-text mb-2 text-sm font-medium">Example</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
                             <div className="text-gray-500 mb-2">// Python SDK example</div>
                             <div className="text-white"><span className="text-cyan">from</span> x402 <span className="text-cyan">import</span> X402Client</div>
