@@ -72,11 +72,11 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Authentication</h3>
               <p className="text-gray-400 mb-4">
-                All API requests require an API key. Include your API key in the <code className="text-blue-400">x-api-key</code> header.
+                All API requests require an API key. Include your API key in the <code className="text-cyan">x-api-key</code> header.
               </p>
               <CodeBlock>curl -H "x-api-key: x402_live_..." https://api.kamiyo.ai/v1/x402/verify</CodeBlock>
               <p className="text-gray-400 text-sm mt-4">
-                Get your API key from the <a href="/x402" className="text-blue-400">x402 dashboard</a>.
+                Get your API key from the <a href="/x402" className="text-cyan">x402 dashboard</a>.
               </p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function ApiDocs() {
               <div className="border-l-2 border-gray-800 pl-6">
                 <div className="text-white font-medium mb-2">Step 1: Get API Key</div>
                 <p className="text-gray-400 text-sm mb-4">
-                  Sign up at <a href="/x402" className="text-blue-400">kamiyo.ai/x402</a> and create an API key from your dashboard.
+                  Sign up at <a href="/x402" className="text-cyan">kamiyo.ai/x402</a> and create an API key from your dashboard.
                 </p>
               </div>
 
@@ -160,22 +160,22 @@ chain: "solana"</CodeBlock>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     <tr>
-                      <td className="p-3 font-mono text-blue-400">tx_hash</td>
+                      <td className="p-3 font-mono text-cyan">tx_hash</td>
                       <td className="p-3 text-gray-400">string</td>
                       <td className="p-3 text-gray-400">Transaction hash on the specified chain</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-mono text-blue-400">chain</td>
+                      <td className="p-3 font-mono text-cyan">chain</td>
                       <td className="p-3 text-gray-400">string</td>
                       <td className="p-3 text-gray-400">Blockchain network (solana, base, ethereum, etc.)</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-mono text-blue-400">expected_amount</td>
+                      <td className="p-3 font-mono text-cyan">expected_amount</td>
                       <td className="p-3 text-gray-400">number</td>
                       <td className="p-3 text-gray-400">Expected payment amount in USDC</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-mono text-blue-400">recipient_address</td>
+                      <td className="p-3 font-mono text-cyan">recipient_address</td>
                       <td className="p-3 text-gray-400">string</td>
                       <td className="p-3 text-gray-400">Your wallet address that should receive payment</td>
                     </tr>
@@ -241,7 +241,7 @@ chain: "solana"</CodeBlock>
               <div className="border border-gray-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-2">Solana</h3>
                 <div className="text-sm text-gray-400 space-y-1">
-                  <div>Chain ID: <code className="text-blue-400">solana</code></div>
+                  <div>Chain ID: <code className="text-cyan">solana</code></div>
                   <div>Confirmations: 32</div>
                   <div>Avg settlement: ~13 seconds</div>
                 </div>
@@ -250,7 +250,7 @@ chain: "solana"</CodeBlock>
               <div className="border border-gray-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-2">Base</h3>
                 <div className="text-sm text-gray-400 space-y-1">
-                  <div>Chain ID: <code className="text-blue-400">base</code></div>
+                  <div>Chain ID: <code className="text-cyan">base</code></div>
                   <div>Confirmations: 6</div>
                   <div>Avg settlement: ~30 seconds</div>
                 </div>
@@ -259,7 +259,7 @@ chain: "solana"</CodeBlock>
               <div className="border border-gray-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-2">Ethereum</h3>
                 <div className="text-sm text-gray-400 space-y-1">
-                  <div>Chain ID: <code className="text-blue-400">ethereum</code></div>
+                  <div>Chain ID: <code className="text-cyan">ethereum</code></div>
                   <div>Confirmations: 12</div>
                   <div>Avg settlement: ~3 minutes</div>
                 </div>
@@ -268,7 +268,7 @@ chain: "solana"</CodeBlock>
               <div className="border border-gray-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-2">Polygon</h3>
                 <div className="text-sm text-gray-400 space-y-1">
-                  <div>Chain ID: <code className="text-blue-400">polygon</code></div>
+                  <div>Chain ID: <code className="text-cyan">polygon</code></div>
                   <div>Confirmations: 128</div>
                   <div>Avg settlement: ~5 minutes</div>
                 </div>
@@ -277,7 +277,7 @@ chain: "solana"</CodeBlock>
               <div className="border border-gray-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-2">Arbitrum</h3>
                 <div className="text-sm text-gray-400 space-y-1">
-                  <div>Chain ID: <code className="text-blue-400">arbitrum</code></div>
+                  <div>Chain ID: <code className="text-cyan">arbitrum</code></div>
                   <div>Confirmations: 10</div>
                   <div>Avg settlement: ~2 minutes</div>
                 </div>
@@ -286,7 +286,7 @@ chain: "solana"</CodeBlock>
               <div className="border border-gray-800 rounded-lg p-6">
                 <h3 className="text-lg font-medium mb-2">Optimism</h3>
                 <div className="text-sm text-gray-400 space-y-1">
-                  <div>Chain ID: <code className="text-blue-400">optimism</code></div>
+                  <div>Chain ID: <code className="text-cyan">optimism</code></div>
                   <div>Confirmations: 10</div>
                   <div>Avg settlement: ~2 minutes</div>
                 </div>
@@ -359,9 +359,9 @@ if (result.verified) {
             <div className="bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
               <h3 className="text-lg font-light mb-4">Additional Resources</h3>
               <div className="text-sm text-gray-400 space-y-2">
-                <div>• <a href="https://github.com/kamiyo-ai/x402-python" className="text-blue-400" target="_blank" rel="noopener noreferrer">Python SDK Documentation</a></div>
-                <div>• <a href="https://github.com/kamiyo-ai/x402-js" className="text-blue-400" target="_blank" rel="noopener noreferrer">JavaScript SDK Documentation</a></div>
-                <div>• <a href="/x402/docs" className="text-blue-400">Complete API Reference</a></div>
+                <div>• <a href="https://github.com/kamiyo-ai/x402-python" className="text-cyan" target="_blank" rel="noopener noreferrer">Python SDK Documentation</a></div>
+                <div>• <a href="https://github.com/kamiyo-ai/x402-js" className="text-cyan" target="_blank" rel="noopener noreferrer">JavaScript SDK Documentation</a></div>
+                <div>• <a href="/x402/docs" className="text-cyan">Complete API Reference</a></div>
               </div>
             </div>
           </div>
@@ -373,11 +373,11 @@ if (result.verified) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
               <div className="text-gray-400 mb-2">Documentation Issues</div>
-              <div className="text-white">Contact <a href="mailto:dev@kamiyo.ai" className="text-blue-400">dev@kamiyo.ai</a></div>
+              <div className="text-white">Contact <a href="mailto:dev@kamiyo.ai" className="text-cyan">dev@kamiyo.ai</a></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">Integration Support</div>
-              <div className="text-white">Email <a href="mailto:support@kamiyo.ai" className="text-blue-400">support@kamiyo.ai</a></div>
+              <div className="text-white">Email <a href="mailto:support@kamiyo.ai" className="text-cyan">support@kamiyo.ai</a></div>
             </div>
           </div>
         </div>

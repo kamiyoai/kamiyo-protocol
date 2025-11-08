@@ -35,19 +35,19 @@ export default function Features() {
                             <p className="mb-4 text-gray-400">Add crypto micropayments to any API in 10 minutes with our Python and JavaScript SDKs.</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Python SDK:</strong> pip install x402</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">JavaScript SDK:</strong> npm install @x402/sdk</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">REST API:</strong> Direct HTTP integration</span>
@@ -63,25 +63,25 @@ export default function Features() {
                             <p className="mb-4 text-gray-400">Start with 1,000 free verifications per month. Scale up as your usage grows:</p>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Free:</strong> 1,000 verifications/mo, 2 chains</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Starter ($99/mo):</strong> 50,000 verifications/mo, 3 chains</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Pro ($299/mo):</strong> 500,000 verifications/mo, 6 chains</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Enterprise ($999/mo):</strong> Unlimited verifications, all chains</span>
@@ -93,25 +93,25 @@ export default function Features() {
                             <h3 className="text-xl md:text-2xl mb-4 font-light">Advanced Features</h3>
                             <ul className="space-y-2 mb-4 text-sm">
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Risk Scoring:</strong> Fraud detection and transaction analysis (Pro+)</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Usage Analytics:</strong> Dashboard with real-time usage tracking</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">ERC-8004 Support:</strong> AI agent payment standard compliance</span>
                                 </li>
                                 <li className="flex items-start gap-2">
-                                    <svg className="w-3 h-3 text-blue-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 text-cyan mt-1 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                     </svg>
                                     <span className="text-gray-400"><strong className="text-white">Custom Integration:</strong> Dedicated support for Enterprise customers</span>
