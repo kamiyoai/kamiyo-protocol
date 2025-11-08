@@ -265,7 +265,7 @@ export default function Home() {
                         <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono mb-2">
                             <div className="text-gray-500">$ <span className="text-cyan">curl</span> -X POST api.kamiyo.ai/v1/x402/verify</div>
                             <div className="text-white mt-2">-H <span className="text-gray-400">"x-api-key: x402_..."</span></div>
-                            <div className="text-white">-d <span className="text-gray-400">'{"{'}"tx_hash":"..."{'}'}}'</span></div>
+                            <div className="text-white">-d <span className="text-gray-400">'{`{`}"tx_hash":"..."{`}`}'</span></div>
                         </div>
                     </div>
 
