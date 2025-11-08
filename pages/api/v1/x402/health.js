@@ -15,9 +15,14 @@ export default async function handler(req, res) {
         recentErrors: errorTracker.getRecentErrors().length
     };
 
-    // Database check
+    // Database check with timeout
     try {
-        await prisma.$queryRaw`SELECT 1`;
+        await Promise.race([
+            prisma.$queryRaw`SELECT 1`,
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Database timeout')), 5000)
+            )
+        ]);
         health.checks.database = {
             status: 'healthy',
             latency_ms: await measureDatabaseLatency()
@@ -48,7 +53,12 @@ export default async function handler(req, res) {
 
 async function measureDatabaseLatency() {
     const start = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.race([
+        prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Database timeout')), 5000)
+        )
+    ]);
     return Date.now() - start;
 }
 
