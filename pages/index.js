@@ -56,7 +56,7 @@ export default function Home() {
                 <section className="w-full border-b border-gray-500/25 bg-black">
                 <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
                     {/* SEO-friendly H1 (visually hidden) */}
-                    <h1 className="sr-only leading-[1.25]">KAMIYO: x402 Infrastructure - Multi-Chain USDC Payment Verification</h1>
+                    <h1 className="sr-only leading-[1.25]">KAMIYO: Multi-Chain Crypto Payment Verification API | x402 Infrastructure</h1>
 
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
@@ -66,26 +66,26 @@ export default function Home() {
                             <header>
                                 <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;x402決済基盤</p>
                                 <h2 className="text-3xl md:text-5xl lg:text-[4rem] font-light mb-4 leading-tight text-white">
-                                    Multi-Chain Payment Verification
+                                    Stop Building Payment Infrastructure. Start Shipping Features.
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    x402 verifies USDC payments across Solana, Base, Ethereum and more. Simple API, 10 minute setup, 99.9% uptime.
+                                    Verify crypto payments across 12 blockchains with one API call. No RPC nodes. No transaction parsing. No headaches.
                                 </p>
                             </header>
 
                             {/* Feature Badges */}
                             <div className="flex flex-wrap gap-3">
                                 <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
-                                    Free tier: 1,000 verifications/mo
+                                    1,000 free verifications/month
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
-                                    Multi-chain support
+                                    12 blockchains supported
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
-                                    5 min integration
+                                    10-minute integration
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
-                                    Sub-500ms response
+                                    99.9% uptime SLA
                                 </span>
                             </div>
 
@@ -290,15 +290,15 @@ export default function Home() {
                 </div>
 
                 <article className="text-center mb-16">
-                    <h3 className="text-2xl font-light mb-6">Why x402?</h3>
+                    <h3 className="text-2xl font-light mb-6">Why Developers Choose KAMIYO</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
                         <div className="flex gap-3">
                             <svg className="w-6 h-6 text-white flex-shrink-0 mt-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
-                                <div className="text-white mb-1">No Blockchain Expertise</div>
-                                <div className="text-gray-500 text-sm">We handle RPC endpoints, transaction parsing, and confirmations</div>
+                                <div className="text-white mb-1">Skip the Blockchain Learning Curve</div>
+                                <div className="text-gray-500 text-sm">We handle RPC endpoints, transaction parsing, and confirmations across all chains</div>
                             </div>
                         </div>
                         <div className="flex gap-3">
@@ -306,8 +306,8 @@ export default function Home() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
-                                <div className="text-white mb-1">Multi-Chain Support</div>
-                                <div className="text-gray-500 text-sm">One API for Solana, Base, Ethereum, and 5+ other chains</div>
+                                <div className="text-white mb-1">One API, Every Chain</div>
+                                <div className="text-gray-500 text-sm">Solana, Base, Ethereum, Polygon, Avalanche, and 7 more chains with a single integration</div>
                             </div>
                         </div>
                         <div className="flex gap-3">
@@ -315,8 +315,8 @@ export default function Home() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
-                                <div className="text-white mb-1">Fast and Reliable</div>
-                                <div className="text-gray-500 text-sm">99.9% uptime, average response under 500ms</div>
+                                <div className="text-white mb-1">Production-Grade from Day One</div>
+                                <div className="text-gray-500 text-sm">99.9% uptime SLA, sub-500ms responses, automatic RPC failover</div>
                             </div>
                         </div>
                         <div className="flex gap-3">
@@ -324,17 +324,17 @@ export default function Home() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             <div>
-                                <div className="text-white mb-1">AI Agent Compatible</div>
-                                <div className="text-gray-500 text-sm">ERC-8004 support for autonomous payments</div>
+                                <div className="text-white mb-1">Built for AI Agents</div>
+                                <div className="text-gray-500 text-sm">ERC-8004 compatible for autonomous payments, pay-per-use pricing</div>
                             </div>
                         </div>
                     </div>
                 </article>
 
                 <article className="bg-black border border-gray-500/25 rounded-lg p-8 max-w-3xl mx-auto">
-                    <h3 className="text-2xl font-light mb-4 text-center">For Developers</h3>
+                    <h3 className="text-2xl font-light mb-4 text-center">Developer-Friendly SDKs</h3>
                     <p className="text-gray-400 text-center mb-6">
-                        Start verifying payments with our Python or JavaScript SDK
+                        Official Python and JavaScript SDKs. TypeScript definitions included. 5-minute quick start.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
