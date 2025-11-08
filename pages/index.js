@@ -69,7 +69,7 @@ export default function Home() {
                                     Multi-Chain Payment Verification
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    Verify USDC payments across Solana, Base, Ethereum and more. Simple API, 10 minute setup, 99.9% uptime.
+                                    x402 verifies USDC payments across Solana, Base, Ethereum and more. Simple API, 10 minute setup, 99.9% uptime.
                                 </p>
                             </header>
 
