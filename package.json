@@ -76,7 +76,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
-    "ioredis": "^5.8.1",
+    "ioredis": "^5.8.2",
     "node-loader": "^2.1.0",
     "postcss": "^8.5.2",
     "prisma": "^6.4.1",
