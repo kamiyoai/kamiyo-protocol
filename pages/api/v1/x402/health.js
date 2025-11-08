@@ -1,5 +1,6 @@
 // pages/api/v1/x402/health.js
 import prisma from '../../../../lib/prisma';
+import errorTracker from '../../../../lib/x402-saas/sentry-config.js';
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
@@ -10,7 +11,8 @@ export default async function handler(req, res) {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        checks: {}
+        checks: {},
+        recentErrors: errorTracker.getRecentErrors().length
     };
 
     // Database check
