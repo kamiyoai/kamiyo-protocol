@@ -46,6 +46,9 @@ NEXTAUTH_URL=https://kamiyo.ai
 #### Optional Variables (for full x402 features)
 
 ```bash
+# Python Verifier API URL (for production mode)
+PYTHON_VERIFIER_URL=http://localhost:8000
+
 # Stripe (for billing)
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
@@ -101,6 +104,64 @@ curl https://kamiyo.ai/api/health
   "services": {
     "database": "connected",
     "api": "running"
+  }
+}
+```
+
+## Python Verifier Deployment
+
+The x402 platform uses a Python verifier for payment verification. This can be deployed in two modes:
+
+### Mode 1: HTTP API (Recommended for Production)
+
+Deploy the Python verifier as a separate FastAPI service.
+
+**1. Create new Render Web Service:**
+- Service Name: `kamiyo-x402-verifier`
+- Environment: Python 3
+- Build Command: `pip install fastapi uvicorn`
+- Start Command: `uvicorn api.x402.verifier_api:app --host 0.0.0.0 --port 8000`
+
+**2. Set environment variable in main app:**
+```bash
+PYTHON_VERIFIER_URL=https://kamiyo-x402-verifier.onrender.com
+```
+
+**3. Verify deployment:**
+```bash
+curl https://kamiyo-x402-verifier.onrender.com/health
+# Expected: {"status": "healthy"}
+```
+
+### Mode 2: Direct Execution (Fallback)
+
+If `PYTHON_VERIFIER_URL` is not set, the system will spawn Python processes directly from Node.js.
+
+**Pros:**
+- Simpler deployment (no separate service)
+- No additional cost
+
+**Cons:**
+- Higher latency (~500ms vs ~100ms)
+- Less scalable
+
+**To use:** Simply don't set `PYTHON_VERIFIER_URL` environment variable.
+
+### Health Check
+
+The `/api/v1/x402/health` endpoint reports verifier status:
+
+```bash
+curl https://kamiyo.ai/api/v1/x402/health
+```
+
+Response includes:
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "database": {"status": "healthy", "latency_ms": 15},
+    "verifier": {"status": "healthy", "mode": "http_api"}
   }
 }
 ```
