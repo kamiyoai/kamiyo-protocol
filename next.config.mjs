@@ -239,6 +239,31 @@ const nextConfig = {
                     },
                 ],
             },
+
+            // ================================================================
+            // CORS HEADERS FOR x402 API ROUTES
+            // ================================================================
+            {
+                source: '/api/v1/x402/:path*',
+                headers: [
+                    {
+                        key: 'Access-Control-Allow-Origin',
+                        value: process.env.ALLOWED_ORIGINS || '*',
+                    },
+                    {
+                        key: 'Access-Control-Allow-Methods',
+                        value: 'GET, POST, OPTIONS',
+                    },
+                    {
+                        key: 'Access-Control-Allow-Headers',
+                        value: 'Authorization, Content-Type, X-Requested-With',
+                    },
+                    {
+                        key: 'Access-Control-Max-Age',
+                        value: '86400', // 24 hours preflight cache
+                    },
+                ],
+            },
         ];
     },
 
