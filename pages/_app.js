@@ -19,7 +19,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   // If direct Python backend API calls are needed in the future, use csrfFetch() from utils/csrf.js
 
   return (
-    <div className={atkinson.className}>
+    <div className={`${atkinson.variable} ${atkinson.className}`}>
       <SessionProvider session={session}>
         <MenuProvider>
           <Head>
