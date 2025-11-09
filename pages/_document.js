@@ -152,14 +152,11 @@ export default function Document() {
                 <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
                 <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 
-                {/* Google Fonts */}
+                {/* Google Fonts - Atkinson Hyperlegible (2025 version) */}
                 <link
-                    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"
+                    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@300;400;700&display=swap"
                     rel="stylesheet"
                 />
-
-                {/* Preload hero video metadata for faster LCP */}
-                <link rel="preload" href="/media/pfn_x_42.mp4" as="video" type="video/mp4" />
             </Head>
             <body>
             <Main />
