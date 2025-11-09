@@ -7,6 +7,9 @@
 
 import { APIKeyManager } from '../../../../../lib/x402-saas/api-key-manager.js';
 import { BillingService } from '../../../../../lib/x402-saas/billing-service.js';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../../auth/[...nextauth]';
+import prisma from '../../../../../lib/prisma';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,21 +17,42 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract API key from Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Missing or invalid Authorization header'
+    let tenantId;
+
+    // Try session auth first (for dashboard)
+    const session = await getServerSession(req, res, authOptions);
+
+    if (session?.user?.email) {
+      const tenant = await prisma.x402Tenant.findUnique({
+        where: { email: session.user.email }
       });
+
+      if (tenant) {
+        tenantId = tenant.id;
+      }
     }
 
-    const apiKey = authHeader.replace('Bearer ', '');
+    // Fall back to API key auth (for external API calls)
+    if (!tenantId) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          error: 'Missing or invalid authorization'
+        });
+      }
 
-    // Validate API key and get tenant
-    const keyInfo = await APIKeyManager.validateApiKey(apiKey);
+      const apiKey = authHeader.replace('Bearer ', '');
+      const keyInfo = await APIKeyManager.validateApiKey(apiKey);
 
-    if (!keyInfo) {
-      return res.status(401).json({ error: 'Invalid API key' });
+      if (!keyInfo) {
+        return res.status(401).json({ error: 'Invalid API key' });
+      }
+
+      tenantId = keyInfo.tenantId;
+    }
+
+    if (!tenantId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     const { tier, success_url, successUrl, cancel_url, cancelUrl } = req.body;
@@ -56,7 +80,7 @@ export default async function handler(req, res) {
 
     // Create checkout session
     const session = await BillingService.createCheckoutSession(
-      keyInfo.tenantId,
+      tenantId,
       tier,
       finalSuccessUrl,
       finalCancelUrl

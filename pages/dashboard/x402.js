@@ -27,6 +27,8 @@ export default function X402Dashboard() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [copiedKeyId, setCopiedKeyId] = useState(null);
+  const [isCreatingKey, setIsCreatingKey] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -87,12 +89,9 @@ export default function X402Dashboard() {
 
   async function createCheckoutSession(tier) {
     try {
-      const apiKey = 'x402_live_placeholder'; // TODO: Get from user account
-
       const response = await fetch('/api/v1/x402/billing/create-checkout', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -117,12 +116,9 @@ export default function X402Dashboard() {
 
   async function openBillingPortal() {
     try {
-      const apiKey = 'x402_live_placeholder'; // TODO: Get from user account
-
       const response = await fetch('/api/v1/x402/billing/portal', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -136,6 +132,68 @@ export default function X402Dashboard() {
         // Redirect to Stripe Customer Portal
         window.location.href = data.portal_url;
       } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  }
+
+  async function createApiKey() {
+    setIsCreatingKey(true);
+    try {
+      const response = await fetch('/api/v1/x402/keys/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: `API Key ${new Date().toLocaleDateString()}`,
+          environment: 'production',
+          scopes: ['verify', 'analytics']
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`API Key Created!\n\nKey: ${data.api_key}\n\nSave this key now - you won't be able to see it again!`);
+        loadDashboardData();
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsCreatingKey(false);
+    }
+  }
+
+  async function copyToClipboard(text, keyId) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKeyId(keyId);
+      setTimeout(() => setCopiedKeyId(null), 2000);
+    } catch (err) {
+      alert('Failed to copy to clipboard');
+    }
+  }
+
+  async function revokeApiKey(keyId) {
+    if (!confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/v1/x402/keys/${keyId}/revoke`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        alert('API key revoked successfully');
+        loadDashboardData();
+      } else {
+        const data = await response.json();
         alert(`Error: ${data.error}`);
       }
     } catch (err) {
@@ -226,6 +284,62 @@ export default function X402Dashboard() {
               </div>
             </div>
           )}
+
+          {/* API Keys Management */}
+          <div className="mb-12">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-light text-white">API Keys</h2>
+              <button
+                onClick={createApiKey}
+                disabled={isCreatingKey}
+                className="px-4 py-2 bg-cyan text-black rounded hover:bg-cyan/80 disabled:opacity-50"
+              >
+                {isCreatingKey ? 'Creating...' : '+ Create New Key'}
+              </button>
+            </div>
+
+            {apiKeys.length === 0 ? (
+              <div className="bg-black border border-gray-500/25 rounded-lg p-8 text-center">
+                <p className="text-gray-400">No API keys yet. Create one to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {apiKeys.map(key => (
+                  <div key={key.id} className="bg-black border border-gray-500/25 rounded-lg p-6">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-medium text-white">{key.name}</h3>
+                        <div className="mt-2 flex items-center gap-2">
+                          <code className="text-sm text-cyan bg-gray-900 px-3 py-1 rounded font-mono">
+                            {key.key_prefix}••••••••
+                          </code>
+                          <button
+                            onClick={() => copyToClipboard(key.key_prefix, key.id)}
+                            className="text-sm text-gray-400 hover:text-cyan"
+                          >
+                            {copiedKeyId === key.id ? '✓ Copied' : 'Copy Prefix'}
+                          </button>
+                        </div>
+                        <div className="mt-3 flex gap-4 text-sm text-gray-400">
+                          <span>Environment: {key.environment}</span>
+                          <span>Created: {new Date(key.created_at).toLocaleDateString()}</span>
+                          {key.last_used && (
+                            <span>Last used: {new Date(key.last_used).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => revokeApiKey(key.id)}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Analytics Summary */}
           {analytics && (
