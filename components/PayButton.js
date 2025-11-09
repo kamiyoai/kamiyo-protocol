@@ -40,7 +40,7 @@ export default function PayButton({
                 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             {/* Button text */}
-            <span className="relative z-10 ml-8 tracking-wider transition-all duration-300 ease-out">
+            <span className="relative z-10 ml-8 tracking-wider transition-all duration-300 ease-out inline-block min-w-max">
                 {scrambledText}
             </span>
 

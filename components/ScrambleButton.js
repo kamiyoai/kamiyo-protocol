@@ -26,7 +26,7 @@ export function ScrambleButton({ text = "Summon Kami", enabled = true, onClick, 
             onClick={enabled ? onClick : undefined}
             disabled={loading || !enabled}
         >
-            <span className="relative z-10 ml-8 tracking-wider transition-all duration-300 ease-out flex items-center">
+            <span className="relative z-10 ml-8 tracking-wider transition-all duration-300 ease-out flex items-center min-w-max">
                 {loading ? (
                     <>
                         <AnimatedNoiseText />
