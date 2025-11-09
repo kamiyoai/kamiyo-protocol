@@ -152,19 +152,11 @@ export default function Document() {
                 <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
                 <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 
-                {/* Preload critical assets */}
+                {/* Google Fonts */}
                 <link
-                    rel="preload"
-                    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&display=swap"
-                    as="style"
-                    onLoad="this.onload=null;this.rel='stylesheet'"
+                    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"
+                    rel="stylesheet"
                 />
-                <noscript>
-                    <link
-                        href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&display=swap"
-                        rel="stylesheet"
-                    />
-                </noscript>
 
                 {/* Preload hero video metadata for faster LCP */}
                 <link rel="preload" href="/media/pfn_x_42.mp4" as="video" type="video/mp4" />
