@@ -2367,7 +2367,7 @@ pub mod x402_escrow {
                 walletConnected = false;
                 walletPublicKey = null;
                 walletProvider = null;
-                btn.innerHTML = '<img src="/x402resolve/media/Phantom-Icon_Transparent_White.svg" alt="Phantom">Connect Wallet';
+                btn.innerHTML = '<img src="/x402resolve/media/phantom-logo.svg" alt="Phantom">Connect Wallet';
                 btn.classList.remove('wallet-connected');
                 showStatus('Wallet disconnected', 'info');
                 return;
@@ -2434,7 +2434,7 @@ pub mod x402_escrow {
                                     walletPublicKey.toString().substring(walletPublicKey.toString().length - 4);
 
                 const walletName = walletProvider.isPhantom ? 'Phantom' : walletProvider.isSolflare ? 'Solflare' : 'Wallet';
-                btn.innerHTML = `<img src="/x402resolve/media/Phantom-Icon_Transparent_White.svg" alt="${walletName}">✓ ${shortAddress}`;
+                btn.innerHTML = `<img src="/x402resolve/media/phantom-logo.svg" alt="${walletName}">✓ ${shortAddress}`;
                 btn.classList.add('wallet-connected');
 
                 showStatus(`${walletName} connected: ${shortAddress}`, 'success');
@@ -2464,7 +2464,7 @@ pub mod x402_escrow {
                 } else {
                     showStatus('Failed to connect wallet. Please refresh and try again.', 'error');
                 }
-                btn.innerHTML = '<img src="/x402resolve/media/Phantom-Icon_Transparent_White.svg" alt="Phantom">Connect Wallet';
+                btn.innerHTML = '<img src="/x402resolve/media/phantom-logo.svg" alt="Phantom">Connect Wallet';
                 walletConnected = false;
                 walletPublicKey = null;
                 walletProvider = null;
