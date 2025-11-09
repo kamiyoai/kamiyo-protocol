@@ -34,6 +34,7 @@ input,
     font-family: var(--font-jetbrains), monospace;
     font-weight: 300;
     letter-spacing: -0.5px;
+    font-feature-settings: 'zero' 0;
 }
 
 h1,
@@ -45,6 +46,7 @@ h6 {
     font-family: var(--font-jetbrains), monospace;
     font-weight: 400;
     letter-spacing: -0.5px;
+    font-feature-settings: 'zero' 0;
 }
 
 p {
