@@ -79,7 +79,7 @@ export default async function handler(req, res) {
     const finalCancelUrl = cancel_url || cancelUrl || defaultCancelUrl;
 
     // Create checkout session
-    const session = await BillingService.createCheckoutSession(
+    const checkoutSession = await BillingService.createCheckoutSession(
       tenantId,
       tier,
       finalSuccessUrl,
@@ -87,8 +87,8 @@ export default async function handler(req, res) {
     );
 
     return res.status(200).json({
-      checkout_url: session.url,
-      session_id: session.id
+      checkout_url: checkoutSession.url,
+      session_id: checkoutSession.id
     });
 
   } catch (error) {
