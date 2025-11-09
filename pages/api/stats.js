@@ -37,15 +37,34 @@ async function handler(req, res) {
             }
         }
 
-        // Get REAL stats from the exploit intelligence database
+        // Get stats from the exploit intelligence database
         const days = parseInt(req.query.days) || 7;
-        const data = getStats(days);
+        let data;
 
-        // Add metadata about the data source
-        data.metadata = {
-            source: 'exploit-database',
-            query_time: new Date().toISOString()
-        };
+        try {
+            data = getStats(days);
+            // Add metadata about the data source
+            data.metadata = {
+                source: 'exploit-database',
+                query_time: new Date().toISOString()
+            };
+        } catch (dbError) {
+            console.error('Database not available, using placeholder data:', dbError.message);
+            // Return placeholder data when database is unavailable
+            data = {
+                total_exploits: 0,
+                total_loss_usd: 0,
+                period_exploits: 0,
+                period_days: days,
+                average_per_day: 0,
+                chains_tracked: 0,
+                metadata: {
+                    source: 'placeholder',
+                    query_time: new Date().toISOString(),
+                    note: 'Database unavailable - showing placeholder data'
+                }
+            };
+        }
 
         // Apply 24-hour delay for free tier statistics
         if (applyDelay && data) {

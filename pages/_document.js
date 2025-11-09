@@ -144,19 +144,6 @@ export default function Document() {
                     dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
                 />
 
-                {/* Preconnect to Google Fonts for performance */}
-                <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />
-
-                {/* DNS Prefetch for external resources */}
-                <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-                <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-
-                {/* Google Fonts - Atkinson Hyperlegible (2025 version) */}
-                <link
-                    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@300;400;700&display=swap"
-                    rel="stylesheet"
-                />
             </Head>
             <body>
             <Main />
