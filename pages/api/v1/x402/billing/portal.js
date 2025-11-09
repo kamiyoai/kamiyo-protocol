@@ -63,13 +63,13 @@ export default async function handler(req, res) {
     const finalReturnUrl = return_url || returnUrl || defaultReturnUrl;
 
     // Create portal session
-    const session = await BillingService.createPortalSession(
+    const portalSession = await BillingService.createPortalSession(
       tenantId,
       finalReturnUrl
     );
 
     return res.status(200).json({
-      portal_url: session.url
+      portal_url: portalSession.url
     });
 
   } catch (error) {
