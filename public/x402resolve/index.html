@@ -7,6 +7,7 @@
     <meta name="description" content="Live demo of x402Resolve escrow system on Solana devnet">
     <!-- Build: 2025-11-09T20:30:00Z - CDN Cache Bypass - Program ID Update -->
     <link rel="icon" type="image/x-icon" href="/x402resolve/media/favicon.ico">
+    <link rel="icon" type="image/png" href="/x402resolve/media/favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -2507,114 +2508,10 @@ pub mod x402_escrow {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-        // Scramble text effect for buttons
-        class ScrambleText {
-            constructor(buttonElement, textElement, originalText) {
-                this.button = buttonElement;
-                this.textElement = textElement;
-                this.originalText = originalText;
-                this.chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-                this.scrambleInterval = null;
-                this.isHovering = false;
-                this.enabled = true;
-
-                // Bind event listeners to button
-                this.button.addEventListener('mouseenter', () => this.onMouseEnter());
-                this.button.addEventListener('mouseleave', () => this.onMouseLeave());
-            }
-
-            onMouseEnter() {
-                if (!this.enabled || this.button.disabled) return;
-                this.isHovering = true;
-                this.scrambleLetters();
-            }
-
-            onMouseLeave() {
-                if (!this.enabled) return;
-                this.isHovering = false;
-                this.descrambleLetters();
-            }
-
-            scrambleLetters() {
-                if (this.scrambleInterval) clearInterval(this.scrambleInterval);
-
-                let progress = 0;
-                this.scrambleInterval = setInterval(() => {
-                    if (progress >= this.originalText.length) {
-                        clearInterval(this.scrambleInterval);
-                        return;
-                    }
-
-                    const scrambled = this.originalText
-                        .split("")
-                        .map((char, index) => {
-                            if (char === ' ') return ' ';
-                            return index < progress
-                                ? this.originalText[index]
-                                : this.chars[Math.floor(Math.random() * this.chars.length)];
-                        })
-                        .join("");
-
-                    this.textElement.textContent = scrambled;
-                    progress++;
-                }, 25);
-            }
-
-            descrambleLetters() {
-                if (this.scrambleInterval) clearInterval(this.scrambleInterval);
-
-                let progress = this.originalText.length;
-                this.scrambleInterval = setInterval(() => {
-                    if (progress <= 0) {
-                        clearInterval(this.scrambleInterval);
-                        this.textElement.textContent = this.originalText;
-                        return;
-                    }
-
-                    const scrambled = this.originalText
-                        .split("")
-                        .map((char, index) => {
-                            if (char === ' ') return ' ';
-                            return index >= progress
-                                ? this.originalText[index]
-                                : this.chars[Math.floor(Math.random() * this.chars.length)];
-                        })
-                        .join("");
-
-                    this.textElement.textContent = scrambled;
-                    progress--;
-                }, 35);
-            }
-
-            updateText(newText) {
-                this.originalText = newText;
-                if (!this.isHovering) {
-                    this.textElement.textContent = newText;
-                }
-            }
-
-            destroy() {
-                if (this.scrambleInterval) clearInterval(this.scrambleInterval);
-            }
-        }
-
-        // Initialize scramble text on buttons
-        let oracleBtnScramble = null;
-        document.addEventListener('DOMContentLoaded', () => {
-            const oracleBtn = document.getElementById('oracleBtn');
-            const oracleBtnText = document.getElementById('oracleBtnText');
-            if (oracleBtn && oracleBtnText) {
-                oracleBtnScramble = new ScrambleText(oracleBtn, oracleBtnText, oracleBtnText.textContent.trim());
-            }
-        });
-
-        // Helper function to update button text with scramble effect
+        // Helper function to update button text
         function updateButtonText(btn, text) {
-            if (btn.id === 'oracleBtn' && oracleBtnScramble) {
-                oracleBtnScramble.updateText(text);
-            } else {
-                btn.textContent = text;
-            }
+            btn.textContent = text;
+        }
         }
     </script>
 
@@ -2679,8 +2576,6 @@ pub mod x402_escrow {
     </div>
 
     <script>
-        let modalExplorerScramble = null;
-
         function showRefundModal(data) {
             const modal = document.getElementById('refundModal');
             document.getElementById('modalRefundAmount').textContent = '+' + data.refundAmount + ' SOL';
@@ -2691,13 +2586,6 @@ pub mod x402_escrow {
 
             // Prevent body scroll when modal is open
             document.body.style.overflow = 'hidden';
-
-            // Initialize scramble text effect for modal CTA if not already initialized
-            if (!modalExplorerScramble) {
-                const explorerBtn = document.getElementById('modalExplorerLink');
-                const explorerText = document.getElementById('modalExplorerText');
-                modalExplorerScramble = new ScrambleText(explorerBtn, explorerText, 'VIEW ON EXPLORER');
-            }
         }
 
         function closeRefundModal() {
