@@ -27,26 +27,19 @@ p,
 ul,
 ol,
 a,
-span,
-button,
-input,
-::placeholder {
-    font-family: var(--font-jetbrains), monospace;
-    font-weight: 300;
-    letter-spacing: -0.5px;
-    font-feature-settings: 'zero' 0;
-}
-
 h1,
 h2,
 h3,
 h4,
 h5,
-h6 {
-    font-family: var(--font-jetbrains), monospace;
+h6,
+span,
+button,
+input,
+::placeholder {
+    font-family: var(--font-atkinson-mono), monospace;
     font-weight: 400;
     letter-spacing: -0.5px;
-    font-feature-settings: 'zero' 0;
 }
 
 p {
@@ -57,7 +50,7 @@ p {
 }
 
 strong {
-    font-weight: 400;
+    font-weight: 700;
     color: #fff;
 }
 
