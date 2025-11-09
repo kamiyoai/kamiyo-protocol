@@ -2,14 +2,14 @@ import Head from 'next/head';
 import { SessionProvider } from 'next-auth/react';
 import { MenuProvider } from '../context/MenuContext';
 import Layout from '../components/Layout';
-import { Atkinson_Hyperlegible } from 'next/font/google';
+import { JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
 
-const atkinson = Atkinson_Hyperlegible({
-  weight: ['400', '700'],
+const jetbrainsMono = JetBrains_Mono({
+  weight: ['300', '400'],
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-atkinson',
+  variable: '--font-jetbrains',
 });
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
@@ -19,7 +19,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   // If direct Python backend API calls are needed in the future, use csrfFetch() from utils/csrf.js
 
   return (
-    <div className={`${atkinson.variable} ${atkinson.className}`}>
+    <div className={`${jetbrainsMono.variable} ${jetbrainsMono.className}`}>
       <SessionProvider session={session}>
         <MenuProvider>
           <Head>
