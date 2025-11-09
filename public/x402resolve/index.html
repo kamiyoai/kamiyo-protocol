@@ -1658,23 +1658,25 @@ pub mod x402_escrow {
            DEMO EFFECTS - Custom Cursor
            Comment out this section to disable
            ======================================== */
-        const cursor = document.createElement('div');
-        cursor.className = 'custom-cursor';
-        cursor.style.display = 'block'; // Make visible immediately
-        document.body.appendChild(cursor);
-
-        document.addEventListener('mousemove', (e) => {
-            cursor.style.left = e.clientX + 'px';
-            cursor.style.top = e.clientY + 'px';
-        });
-
-        document.addEventListener('mouseenter', () => {
+        (function() {
+            const cursor = document.createElement('div');
+            cursor.className = 'custom-cursor';
             cursor.style.display = 'block';
-        });
+            document.body.appendChild(cursor);
 
-        document.addEventListener('mouseleave', () => {
-            cursor.style.display = 'none';
-        });
+            document.addEventListener('mousemove', (e) => {
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+            });
+
+            document.addEventListener('mouseenter', () => {
+                cursor.style.display = 'block';
+            });
+
+            document.addEventListener('mouseleave', () => {
+                cursor.style.display = 'none';
+            });
+        })();
         /* ======================================== */
 
         /* ========================================
