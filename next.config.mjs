@@ -10,7 +10,7 @@
 const csp = process.env.NODE_ENV === 'development'
     ? `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://accounts.google.com;
+      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://accounts.google.com https://cdn.jsdelivr.net;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https: blob:;
@@ -18,11 +18,11 @@ const csp = process.env.NODE_ENV === 'development'
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      connect-src 'self' http://localhost:8000 http://localhost:8001 https://accounts.google.com https://api.dexscreener.com ws://localhost:* wss://localhost:*;
+      connect-src 'self' http://localhost:8000 http://localhost:8001 https://accounts.google.com https://api.dexscreener.com https://api.devnet.solana.com https://api.mainnet-beta.solana.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com ws://localhost:* wss://localhost:*;
     `
     : `
       default-src 'self';
-      script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com;
+      script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://accounts.google.com https://cdn.jsdelivr.net;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: https:;
@@ -30,7 +30,7 @@ const csp = process.env.NODE_ENV === 'development'
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      connect-src 'self' https://api.kamiyo.ai https://accounts.google.com https://api.dexscreener.com;
+      connect-src 'self' https://api.kamiyo.ai https://accounts.google.com https://api.dexscreener.com https://api.devnet.solana.com https://api.mainnet-beta.solana.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com;
     `;
 
 /**
@@ -291,6 +291,22 @@ const nextConfig = {
             {
                 source: '/api/socket/:path*',
                 destination: '/socket.io/:path*',
+            },
+            // Rewrite /x402resolve to serve the static HTML
+            {
+                source: '/x402resolve',
+                destination: '/x402resolve/index.html',
+            },
+            // Serve x402resolve at root when accessed via x402resolve.kamiyo.ai subdomain
+            {
+                source: '/',
+                destination: '/x402resolve/index.html',
+                has: [
+                    {
+                        type: 'host',
+                        value: 'x402resolve.kamiyo.ai',
+                    },
+                ],
             },
         ];
     },
