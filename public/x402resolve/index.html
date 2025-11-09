@@ -1660,6 +1660,7 @@ pub mod x402_escrow {
            ======================================== */
         const cursor = document.createElement('div');
         cursor.className = 'custom-cursor';
+        cursor.style.display = 'block'; // Make visible immediately
         document.body.appendChild(cursor);
 
         document.addEventListener('mousemove', (e) => {
