@@ -37,7 +37,7 @@ span,
 button,
 input,
 ::placeholder {
-    font-family: var(--font-atkinson-mono), monospace;
+    font-family: 'Atkinson Hyperlegible Mono', monospace;
     font-weight: 400;
     letter-spacing: -0.5px;
 }
