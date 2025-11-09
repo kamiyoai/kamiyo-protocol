@@ -65,7 +65,7 @@ export default function Home() {
                             {/* Heading */}
                             <header>
                                 <p className="font-light text-sm tracking-widest text-cyan mb-8">— &nbsp;x402決済基盤</p>
-                                <h2 className="text-[3.1rem] font-light mb-4 leading-tight text-white">
+                                <h2 className="text-[3.1rem] font-light mb-4 leading-tight text-white lowercase">
                                     Stop Building Payment Infrastructure.<br />Start Shipping Features.
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
