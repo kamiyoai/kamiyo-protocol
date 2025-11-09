@@ -309,10 +309,10 @@ const nextConfig = {
         // ====================================================================
         // TREE-SHAKING & BUNDLE SIZE OPTIMIZATION
         // ====================================================================
-        if (!dev) {
+        if (!dev && !isServer) {
             config.optimization = {
                 ...config.optimization,
-                // Split chunks for better caching
+                // Split chunks for better caching (client-side only)
                 splitChunks: {
                     chunks: 'all',
                     cacheGroups: {
