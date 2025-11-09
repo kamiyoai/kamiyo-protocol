@@ -107,7 +107,53 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: PYTHON_VERIFIER_URL
+        fromService:
+          type: web
+          name: kamiyo-x402-verifier
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: PYTHON_VERIFIER_KEY
+        sync: false
     healthCheckPath: /
+
+  # x402 Python Verifier Service
+  - type: web
+    name: kamiyo-x402-verifier
+    runtime: python
+    branch: main
+    rootDir: api/x402
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn verifier_api:app --host 0.0.0.0 --port $PORT --workers 2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHON_VERIFIER_KEY
+        sync: false
+      - key: X402_BASE_RPC_URL
+        sync: false
+      - key: X402_ETHEREUM_RPC_URL
+        sync: false
+      - key: X402_SOLANA_RPC_URL
+        sync: false
+      - key: X402_BASE_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_ETHEREUM_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_SOLANA_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_BASE_CONFIRMATIONS
+        value: 6
+      - key: X402_ETHEREUM_CONFIRMATIONS
+        value: 12
+      - key: X402_SOLANA_CONFIRMATIONS
+        value: 32
+      - key: X402_MIN_PAYMENT_USD
+        value: 0.10
+      - key: SENTRY_DSN
+        sync: false
+    healthCheckPath: /health
 
   # Exploit Aggregation Orchestrator (Fetches from 17+ sources)
   - type: worker

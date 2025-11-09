@@ -1,0 +1,20 @@
+# x402 Payment Verifier Service
+# Minimal dependencies for standalone deployment
+
+# FastAPI & Server
+fastapi==0.115.0
+uvicorn==0.32.1
+pydantic==2.10.3
+
+# Blockchain Libraries
+web3==6.11.3
+solana>=0.34.0
+
+# Environment & Config
+python-dotenv==1.0.0
+
+# HTTP Client (required by solana)
+httpx
+
+# Monitoring
+sentry-sdk==1.39.2
