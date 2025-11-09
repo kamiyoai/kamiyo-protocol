@@ -6,7 +6,7 @@ import { Atkinson_Hyperlegible } from 'next/font/google';
 import '../styles/globals.css';
 
 const atkinson = Atkinson_Hyperlegible({
-  weight: ['300', '400', '700'],
+  weight: ['400', '700'],
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-atkinson',
