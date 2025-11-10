@@ -1547,7 +1547,7 @@
 import { Connection, Keypair } from '@solana/web3.js';
 
 // Initialize client
-const connection = new Connection('https://rpc-devnet.helius.xyz');
+const connection = new Connection('https://api.devnet.solana.com');
 const wallet = Keypair.generate();
 
 const client = new KamiyoClient({
@@ -1878,7 +1878,7 @@ pub mod x402_escrow {
         // Solana connection check
         async function checkSolanaConnection() {
             try {
-                const connection = new solanaWeb3.Connection('https://rpc-devnet.helius.xyz');
+                const connection = new solanaWeb3.Connection('https://api.devnet.solana.com');
                 const startTime = performance.now();
                 await connection.getSlot();
                 const endTime = performance.now();
@@ -1895,7 +1895,7 @@ pub mod x402_escrow {
 
         async function checkProgramStatus() {
             try {
-                const connection = new solanaWeb3.Connection('https://rpc-devnet.helius.xyz');
+                const connection = new solanaWeb3.Connection('https://api.devnet.solana.com');
                 const programId = new solanaWeb3.PublicKey('AFmBBw7kbrnwhhzYadAMCMh4BBBZcZdS3P7Z6vpsqsSR');
                 const info = await connection.getAccountInfo(programId);
 
@@ -2491,7 +2491,7 @@ pub mod x402_escrow {
 
                 // Fetch and display balance
                 try {
-                    const connection = new solanaWeb3.Connection('https://rpc-devnet.helius.xyz');
+                    const connection = new solanaWeb3.Connection('https://api.devnet.solana.com');
                     const balance = await connection.getBalance(walletPublicKey);
                     const solBalance = (balance / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4);
                     showStatus(`Balance: ${solBalance} SOL (Devnet)`, 'info');
