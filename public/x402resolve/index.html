@@ -1430,7 +1430,7 @@
                     <h3 class="text-primary mb-15 text-lg">Recent On-Chain Oracle Assessments</h3>
                     <div id="recentAssessments" class="font-mono text-base text-tertiary">
                         <div class="text-center p-20 text-quaternary">
-                            Loading recent Switchboard oracle transactions...
+                            Loading recent Switchboard oracle transactions<span class="animated-dots"></span>
                         </div>
                     </div>
                     <div class="text-center mt-15 pt-15 border-top">
@@ -1763,7 +1763,7 @@ pub mod x402_escrow {
                 const assessmentList = document.getElementById('recentAssessments');
                 if (!assessmentList) return;
 
-                assessmentList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading recent Switchboard oracle transactions...</div>';
+                assessmentList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading recent Switchboard oracle transactions<span class="animated-dots"></span></div>';
 
                 // Fetch recent transactions from the program (limit to 3)
                 const disputes = await window.oracleSystem.fetchRecentDisputes(3);
