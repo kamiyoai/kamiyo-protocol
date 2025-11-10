@@ -308,6 +308,17 @@ const nextConfig = {
                     },
                 ],
             },
+            // Serve all x402resolve assets when accessed via subdomain
+            {
+                source: '/:path*',
+                destination: '/x402resolve/:path*',
+                has: [
+                    {
+                        type: 'host',
+                        value: 'x402resolve.kamiyo.ai',
+                    },
+                ],
+            },
         ];
     },
 
