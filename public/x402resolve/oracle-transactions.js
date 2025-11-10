@@ -4,7 +4,8 @@
  */
 
 const PROGRAM_ID = 'E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n';
-const DEVNET_RPC = 'https://api.devnet.solana.com';
+// Using public Helius devnet RPC - better rate limits than api.devnet.solana.com
+const DEVNET_RPC = 'https://rpc-devnet.helius.xyz';
 
 // Browser-compatible Buffer replacement
 class BufferPolyfill {
