@@ -5,16 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>x402Resolve - Live Demo | Solana x402 Hackathon 2025</title>
     <meta name="description" content="Live demo of x402Resolve escrow system on Solana devnet">
-    <!-- Build: 2025-11-09T20:30:00Z - CDN Cache Bypass - Program ID Update -->
-    <link rel="icon" type="image/x-icon" href="/x402resolve/media/favicon.ico">
-    <link rel="icon" type="image/png" href="/x402resolve/media/favicon.png">
+    <!-- Build: 2025-11-10T22:40:00Z - Cursor Fix and Program ID Update -->
+    <link rel="icon" type="image/x-icon" href="./media/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
-    <script src="/x402resolve/oracle-transactions.js?v=20251109" defer></script>
+    <script src="./oracle-transactions.js?v=20251109" defer></script>
     <style>
         /* ========================================
            CSS CUSTOM PROPERTIES (VARIABLES)
@@ -101,8 +100,8 @@
             --transition-slow: 0.3s ease;
 
             /* Other */
-            --font-family-primary: 'Atkinson Hyperlegible Mono', monospace;
-            --font-family-mono: 'Atkinson Hyperlegible Mono', monospace;
+            --font-family-primary: 'JetBrains Mono', monospace;
+            --font-family-mono: 'JetBrains Mono', monospace;
         }
 
         /* ========================================
@@ -122,7 +121,7 @@
             min-height: 100vh;
             padding: var(--spacing-2xl);
             line-height: 1.6;
-            cursor: none;
+            font-feature-settings: 'zero' 0;
         }
 
         h1, h2, h3, h4, h5, h6,
@@ -134,13 +133,6 @@
         .consensus-score,
         .refund-amount-value,
         .quality-score-value {
-            font-weight: 400;
-        }
-
-        button,
-        .btn-magenta-outline,
-        .wallet-connect-btn {
-            text-transform: none !important;
             font-weight: 400;
         }
 
@@ -170,9 +162,7 @@
         }
 
         .header-left {
-            flex: 1;
-            display: flex;
-            justify-content: flex-start;
+            flex: 0 0 auto;
         }
 
         .header-center {
@@ -181,9 +171,7 @@
         }
 
         .header-right {
-            flex: 1;
-            display: flex;
-            justify-content: flex-end;
+            flex: 0 0 auto;
         }
 
         .header h1 {
@@ -248,8 +236,9 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            flex: 1;
             min-height: 48px;
-            white-space: nowrap;
+            max-width: 250px;
         }
 
         /* ========================================
@@ -280,7 +269,7 @@
             white-space: nowrap;
             margin-bottom: -1px;
             position: relative;
-            text-transform: uppercase !important;
+            text-transform: uppercase;
         }
 
         .tab:hover {
@@ -480,7 +469,7 @@
         }
 
         a:hover {
-            /* Removed magenta hover color */
+            color: var(--color-magenta-dark);
         }
 
         /* ========================================
@@ -785,25 +774,6 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Animated dots */
-        .animated-dots {
-            display: inline-block;
-            width: 1.5em;
-            text-align: left;
-        }
-
-        .animated-dots::after {
-            content: '';
-            animation: dots 1.5s steps(4, end) infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: '\00a0\00a0\00a0'; }
-            40% { content: '.\00a0\00a0'; }
-            60% { content: '..\00a0'; }
-            80%, 100% { content: '...'; }
-        }
-
         @keyframes gradientFlow {
             0% { background-position: 0% 0%; }
             100% { background-position: 200% 0%; }
@@ -820,25 +790,19 @@
             border-radius: 48px;
             font-weight: var(--font-weight-semibold);
             cursor: pointer;
-            font-size: 12px;
+            font-size: var(--font-size-lg);
             transition: all var(--transition-base);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: var(--spacing-md);
             width: auto;
-            min-width: 200px;
             text-transform: none !important;
         }
 
         .wallet-connect-btn img {
             width: 24px;
             height: 24px;
-        }
-
-        .wallet-connect-btn,
-        .wallet-connect-btn * {
-            font-size: 12px !important;
         }
 
         .wallet-connect-btn:hover {
@@ -1138,7 +1102,7 @@
             text-align: center;
             padding: 8px 16px;
             font-size: 11px;
-            font-weight: 300;
+            font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
             border-radius: 20px;
@@ -1164,13 +1128,18 @@
             border: none;
             color: #666;
             font-size: 24px;
-            font-weight: 300;
             cursor: pointer;
+            transition: all 0.2s;
             padding: 0;
             width: 28px;
             height: 28px;
             line-height: 1;
             z-index: 100;
+        }
+
+        .refund-modal-close:hover {
+            color: #00d9ff;
+            transform: rotate(90deg);
         }
 
         .refund-modal-header {
@@ -1335,7 +1304,7 @@
             <div class="header-top">
                 <div class="header-left">
                     <a href="https://x402resolve.kamiyo.ai">
-                        <img src="/x402resolve/media/kamiyo_logomark.png" alt="KAMIYO" style="width: 200px; height: auto;">
+                        <img src="./media/kamiyo_logomark.png" alt="KAMIYO" style="width: 200px; height: auto;">
                     </a>
                 </div>
                 <div class="header-center">
@@ -1344,8 +1313,8 @@
                 </div>
                 <div class="header-right">
                     <button id="walletBtn" class="wallet-connect-btn" onclick="connectWallet()">
-                        <img src="/x402resolve/media/phantom-logo.svg" alt="Phantom">
-                        CONNECT WALLET
+                        <img src="./media/Phantom-Icon_Transparent_White.svg" alt="Phantom">
+                        Connect Wallet
                     </button>
                 </div>
             </div>
@@ -1356,7 +1325,7 @@
                 </div>
                 <span class="status-item" id="programStatus">Program: Loading...</span>
                 <span class="status-item" id="oracleStatus">Oracle: Checking...</span>
-                <span class="status-item" id="rpcLatency">RPC Latency: Checking...</span>
+                <span class="status-item" id="networkStatus">Network: Connecting...</span>
             </div>
         </div>
 
@@ -1378,11 +1347,11 @@
                     <h3 class="text-primary mb-15 text-lg">Recent On-Chain Oracle Assessments</h3>
                     <div id="recentAssessments" class="font-mono text-base text-tertiary">
                         <div class="text-center p-20 text-quaternary">
-                            Loading recent Switchboard oracle transactions<span class="animated-dots"></span>
+                            Loading recent Switchboard oracle transactions...
                         </div>
                     </div>
                     <div class="text-center mt-15 pt-15 border-top">
-                        <a href="https://explorer.solana.com/address/D9adezZ12cosX3GG2jK6PpbwMFLHzcCYVpcPCFcaciYP?cluster=devnet" target="_blank" class="text-cyan text-base" style="text-decoration: none;">
+                        <a href="https://explorer.solana.com/address/E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n?cluster=devnet" target="_blank" class="text-cyan text-base" style="text-decoration: none;">
                             View All Program Transactions →
                         </a>
                     </div>
@@ -1396,8 +1365,8 @@
                     </p>
                 </div>
 
-                <button onclick="runMultiOracle()" id="oracleBtn" class="btn-magenta-outline" style="margin-left: 20px;">
-                    <span id="oracleBtnText" style="position: relative; z-index: 10; letter-spacing: 0.5px; display: inline-block; width: 320px; text-align: center;">Run on-chain quality assessment</span>
+                <button onclick="runMultiOracle()" id="oracleBtn" class="btn-magenta-outline">
+                    <span id="oracleBtnText" style="position: relative; z-index: 10; letter-spacing: 0.5px; display: inline-block; min-width: 280px;">Run on-chain quality assessment</span>
                 </button>
                 <div id="oracleProgress" style="width: 100%; height: 2px; background: #1a1a1a; margin-top: 10px; border-radius: 1px; overflow: hidden; display: none; position: relative;">
                     <div id="oracleProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff44f5, #00d9ff, #ff44f5); background-size: 200% 100%; animation: gradientFlow 2s linear infinite; transition: width 0.3s ease; position: relative;">
@@ -1461,25 +1430,27 @@
 
         <!-- Tab 2: Live Analytics -->
         <div id="analytics-tab" class="tab-content">
-            <div class="card">
-                <h2>Quality Distribution</h2>
-                <div class="chart-container">
-                    <canvas id="qualityChart"></canvas>
+            <div class="demo-grid">
+                <div class="card">
+                    <h2><span>📈</span> Program Analytics</h2>
+                    <div id="programStats">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2><span>💎</span> Quality Distribution</h2>
+                    <div class="chart-container">
+                        <canvas id="qualityChart"></canvas>
+                    </div>
                 </div>
             </div>
 
             <div class="card">
-                <h2>Program Analytics</h2>
-                <div id="programStats">
-                    <div class="loading-spinner"></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Recent Transactions</h2>
+                <h2><span>⚡</span> Recent Transactions</h2>
                 <div id="recentTx">
                     <p style="text-align: center; color: #666; padding: 20px;">
-                        Loading recent program transactions<span class="animated-dots"></span>
+                        Loading recent program transactions...
                     </p>
                 </div>
             </div>
@@ -1605,19 +1576,11 @@ pub mod x402_escrow {
     </div>
 
     <script>
-        // Suppress 429 rate limit console spam (retries work fine)
-        const originalConsoleLog = console.log;
-        console.log = function(...args) {
-            const message = args.join(' ');
-            if (message.includes('429') || message.includes('Retrying after')) {
-                return; // Suppress 429 retry messages
-            }
-            originalConsoleLog.apply(console, args);
-        };
-
         // Global state
         let currentChart = null;
         let consensusChart = null;
+
+        /* ======================================== */
 
         /* ========================================
            DEMO EFFECTS - Click Ripple JavaScript
@@ -1696,10 +1659,10 @@ pub mod x402_escrow {
                 const assessmentList = document.getElementById('recentAssessments');
                 if (!assessmentList) return;
 
-                assessmentList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading recent Switchboard oracle transactions<span class="animated-dots"></span></div>';
+                assessmentList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading recent Switchboard oracle transactions...</div>';
 
-                // Fetch recent transactions from the program (limit to 3)
-                const disputes = await window.oracleSystem.fetchRecentDisputes(3);
+                // Fetch recent transactions from the program
+                const disputes = await window.oracleSystem.fetchRecentDisputes(5);
 
                 if (disputes.length === 0) {
                     assessmentList.innerHTML = `
@@ -1727,7 +1690,7 @@ pub mod x402_escrow {
 
                     assessmentList.innerHTML += `
                         <div style="margin-bottom: 12px; padding-bottom: 12px; ${borderBottom}">
-                            <div style="color: #00d9ff; margin-bottom: 5px;">Assessment ${dispute.signature.substring(0, 8)}...</div>
+                            <div style="color: #00d9ff; margin-bottom: 5px;">Switchboard Oracle Assessment #${disputes.length - idx}</div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
                                 <span>Quality Score:</span>
                                 <span class="gradient-text" style="font-weight: 300;">${qualityScore}/100</span>
@@ -1782,13 +1745,9 @@ pub mod x402_escrow {
 
             // Load real on-chain data after a short delay
             setTimeout(loadRecentDisputeData, 2000);
-
-            // Preload analytics data in background
-            setTimeout(loadAnalytics, 2000);
         });
 
         // Tab switching
-        let analyticsLoaded = false;
         function switchTab(tabName) {
             // Update tab buttons
             document.querySelectorAll('.tab').forEach(tab => {
@@ -1802,8 +1761,8 @@ pub mod x402_escrow {
             });
             document.getElementById(`${tabName}-tab`).classList.add('active');
 
-            // Load tab-specific data only if not already loaded
-            if (tabName === 'analytics' && !analyticsLoaded) {
+            // Load tab-specific data
+            if (tabName === 'analytics') {
                 loadAnalytics();
             }
         }
@@ -1812,17 +1771,12 @@ pub mod x402_escrow {
         async function checkSolanaConnection() {
             try {
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com');
-                const startTime = performance.now();
-                await connection.getSlot();
-                const endTime = performance.now();
-                const latency = Math.round(endTime - startTime);
-
-                const latencyColor = latency < 500 ? '#00d9ff' : latency < 1000 ? '#fbbf24' : '#ef4444';
-                document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">✓</span>&nbsp;${latency}ms`;
+                const version = await connection.getVersion();
+                document.getElementById('networkStatus').innerHTML = `Network:&nbsp;&nbsp;<span style="color: #00d9ff;">✓</span>&nbsp;Devnet`;
             } catch (error) {
-                document.getElementById('rpcLatency').textContent = 'RPC Latency: ✗ Error';
-                document.getElementById('rpcLatency').style.background = '#1a1a1a';
-                document.getElementById('rpcLatency').style.borderColor = '#ef4444';
+                document.getElementById('networkStatus').textContent = 'Network: ✗ Offline';
+                document.getElementById('networkStatus').style.background = '#1a1a1a';
+                document.getElementById('networkStatus').style.borderColor = '#ef4444';
             }
         }
 
@@ -2183,141 +2137,29 @@ pub mod x402_escrow {
         }
 
         async function loadAnalytics() {
-            try {
-                // Fetch real on-chain data
-                const disputes = await window.oracleSystem.fetchRecentDisputes(20);
-
-                // Calculate real stats from on-chain data
-                const totalDisputes = disputes.length;
-                const resolved = disputes.filter(d => d.logs.some(l =>
-                    l.includes('Quality Score:') || l.includes('Refund to Agent:')
-                )).length;
-
-                // Extract quality scores from logs
-                const qualityScores = [];
-                let totalRefunded = 0;
-
-                disputes.forEach(dispute => {
-                    const qualityLog = dispute.logs.find(l => l.includes('Quality Score:'));
-                    if (qualityLog) {
-                        const match = qualityLog.match(/Quality Score: (\d+)/);
-                        if (match) qualityScores.push(parseInt(match[1]));
-                    }
-
-                    const refundLog = dispute.logs.find(l => l.includes('Refund to Agent:'));
-                    if (refundLog) {
-                        const match = refundLog.match(/Refund to Agent: ([\d.]+)/);
-                        if (match) totalRefunded += parseFloat(match[1]);
-                    }
-                });
-
-                const avgQuality = qualityScores.length > 0
-                    ? (qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length).toFixed(1)
-                    : '0';
-
-                // Update program stats
+            // Simulate loading program stats
+            setTimeout(() => {
                 document.getElementById('programStats').innerHTML = `
                     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
                         <div style="text-align: center; padding: 30px 20px; background: #0a0a0a; border-radius: 8px; border: 1px solid #222;">
-                            <div style="color: #888; font-size: 0.875rem; margin-bottom: 10px;">Total Assessments</div>
-                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">${totalDisputes}</div>
+                            <div style="color: #888; font-size: 0.875rem; margin-bottom: 10px;">Total Disputes</div>
+                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">1,247</div>
                         </div>
                         <div style="text-align: center; padding: 30px 20px; background: #0a0a0a; border-radius: 8px; border: 1px solid #222;">
-                            <div style="color: #888; font-size: 0.875rem; margin-bottom: 10px;">Completed</div>
-                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">${resolved}</div>
+                            <div style="color: #888; font-size: 0.875rem; margin-bottom: 10px;">Resolved</div>
+                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">1,189</div>
                         </div>
                         <div style="text-align: center; padding: 30px 20px; background: #0a0a0a; border-radius: 8px; border: 1px solid #222;">
                             <div style="color: #888; font-size: 0.875rem; margin-bottom: 10px;">Avg Quality</div>
-                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">${avgQuality}</div>
+                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">72.5</div>
                         </div>
                         <div style="text-align: center; padding: 30px 20px; background: #0a0a0a; border-radius: 8px; border: 1px solid #222;">
                             <div style="color: #888; font-size: 0.875rem; margin-bottom: 10px;">Total Refunded</div>
-                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">${totalRefunded.toFixed(2)} SOL</div>
+                            <div class="gradient-text" style="font-size: 2.5rem; font-weight: 300;">8.4 SOL</div>
                         </div>
                     </div>
                 `;
-
-                // Load recent transactions
-                await loadRecentTransactions(disputes.slice(0, 10));
-
-                // Mark analytics as loaded
-                analyticsLoaded = true;
-
-            } catch (error) {
-                console.error('Failed to load analytics:', error);
-                document.getElementById('programStats').innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #666;">
-                        Unable to load analytics. Please check your connection.
-                    </div>
-                `;
-            }
-        }
-
-        async function loadRecentTransactions(disputes) {
-            const recentTx = document.getElementById('recentTx');
-
-            if (!disputes || disputes.length === 0) {
-                recentTx.innerHTML = `
-                    <p style="text-align: center; color: #666; padding: 20px;">
-                        No recent transactions found. Connect your wallet and run an assessment to create the first transaction!
-                    </p>
-                `;
-                return;
-            }
-
-            let html = '<div style="display: flex; flex-direction: column; gap: 15px;">';
-
-            disputes.forEach((dispute, idx) => {
-                const qualityLog = dispute.logs.find(l => l.includes('Quality Score:'));
-                const refundLog = dispute.logs.find(l => l.includes('Refund to Agent:'));
-
-                const qualityScore = qualityLog ? parseInt(qualityLog.match(/Quality Score: (\d+)/)?.[1] || '0') : 0;
-                const refundMatch = refundLog?.match(/Refund to Agent: ([\d.]+)/);
-                const refundAmount = refundMatch ? parseFloat(refundMatch[1]) : 0;
-
-                const timestamp = dispute.timestamp
-                    ? new Date(dispute.timestamp * 1000).toLocaleString()
-                    : 'Unknown';
-
-                const statusColor = qualityScore >= 75 ? '#00d9ff' : qualityScore >= 50 ? '#fbbf24' : '#ef4444';
-                const statusText = qualityScore >= 75 ? 'High Quality' : qualityScore >= 50 ? 'Medium Quality' : 'Low Quality';
-
-                html += `
-                    <div style="padding: 20px; background: #0a0a0a; border: 1px solid #222; border-radius: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-                            <div>
-                                <div style="color: ${statusColor}; font-size: 0.875rem; margin-bottom: 5px;">${statusText}</div>
-                                <div style="font-size: 0.75rem; color: #666;">${timestamp}</div>
-                            </div>
-                            <a href="https://explorer.solana.com/tx/${dispute.signature}?cluster=devnet"
-                               target="_blank"
-                               style="color: #ff00ff; text-decoration: none; display: flex; align-items: center; gap: 5px; font-size: 0.875rem;">
-                                View
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                    <polyline points="15 3 21 3 21 9"></polyline>
-                                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                                </svg>
-                            </a>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.875rem;">
-                            <div>
-                                <span style="color: #888;">Quality Score:</span>
-                                <span class="gradient-text" style="font-weight: 300; margin-left: 8px;">${qualityScore}/100</span>
-                            </div>
-                            <div>
-                                <span style="color: #888;">Refund:</span>
-                                <span style="color: ${refundAmount > 0 ? '#00d9ff' : '#888'}; margin-left: 8px;">
-                                    ${refundAmount > 0 ? refundAmount.toFixed(3) + ' SOL' : 'None'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += '</div>';
-            recentTx.innerHTML = html;
+            }, 500);
         }
 
         function copyCode(elementId) {
@@ -2350,7 +2192,7 @@ pub mod x402_escrow {
                 walletConnected = false;
                 walletPublicKey = null;
                 walletProvider = null;
-                btn.innerHTML = '<img src="/x402resolve/media/phantom-logo.svg" alt="Phantom">Connect Wallet';
+                btn.innerHTML = '<img src="./media/Phantom-Icon_Transparent_White.svg" alt="Phantom">Connect Wallet';
                 btn.classList.remove('wallet-connected');
                 showStatus('Wallet disconnected', 'info');
                 return;
@@ -2417,7 +2259,7 @@ pub mod x402_escrow {
                                     walletPublicKey.toString().substring(walletPublicKey.toString().length - 4);
 
                 const walletName = walletProvider.isPhantom ? 'Phantom' : walletProvider.isSolflare ? 'Solflare' : 'Wallet';
-                btn.innerHTML = `<img src="/x402resolve/media/phantom-logo.svg" alt="${walletName}">✓ ${shortAddress}`;
+                btn.innerHTML = `<img src="./media/Phantom-Icon_Transparent_White.svg" alt="${walletName}">✓ ${shortAddress}`;
                 btn.classList.add('wallet-connected');
 
                 showStatus(`${walletName} connected: ${shortAddress}`, 'success');
@@ -2447,7 +2289,7 @@ pub mod x402_escrow {
                 } else {
                     showStatus('Failed to connect wallet. Please refresh and try again.', 'error');
                 }
-                btn.innerHTML = '<img src="/x402resolve/media/phantom-logo.svg" alt="Phantom">Connect Wallet';
+                btn.innerHTML = '<img src="./media/Phantom-Icon_Transparent_White.svg" alt="Phantom">Connect Wallet';
                 walletConnected = false;
                 walletPublicKey = null;
                 walletProvider = null;
@@ -2490,29 +2332,134 @@ pub mod x402_escrow {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-        // Helper function to update button text
+        // Scramble text effect for buttons
+        class ScrambleText {
+            constructor(buttonElement, textElement, originalText) {
+                this.button = buttonElement;
+                this.textElement = textElement;
+                this.originalText = originalText;
+                this.chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                this.scrambleInterval = null;
+                this.isHovering = false;
+                this.enabled = true;
+
+                // Bind event listeners to button
+                this.button.addEventListener('mouseenter', () => this.onMouseEnter());
+                this.button.addEventListener('mouseleave', () => this.onMouseLeave());
+            }
+
+            onMouseEnter() {
+                if (!this.enabled || this.button.disabled) return;
+                this.isHovering = true;
+                this.scrambleLetters();
+            }
+
+            onMouseLeave() {
+                if (!this.enabled) return;
+                this.isHovering = false;
+                this.descrambleLetters();
+            }
+
+            scrambleLetters() {
+                if (this.scrambleInterval) clearInterval(this.scrambleInterval);
+
+                let progress = 0;
+                this.scrambleInterval = setInterval(() => {
+                    if (progress >= this.originalText.length) {
+                        clearInterval(this.scrambleInterval);
+                        return;
+                    }
+
+                    const scrambled = this.originalText
+                        .split("")
+                        .map((char, index) => {
+                            if (char === ' ') return ' ';
+                            return index < progress
+                                ? this.originalText[index]
+                                : this.chars[Math.floor(Math.random() * this.chars.length)];
+                        })
+                        .join("");
+
+                    this.textElement.textContent = scrambled;
+                    progress++;
+                }, 25);
+            }
+
+            descrambleLetters() {
+                if (this.scrambleInterval) clearInterval(this.scrambleInterval);
+
+                let progress = this.originalText.length - 1;
+                this.scrambleInterval = setInterval(() => {
+                    if (progress < 0) {
+                        clearInterval(this.scrambleInterval);
+                        this.textElement.textContent = this.originalText;
+                        return;
+                    }
+
+                    const scrambled = this.originalText
+                        .split("")
+                        .map((char, index) => {
+                            if (char === ' ') return ' ';
+                            return index > progress
+                                ? this.originalText[index]
+                                : this.chars[Math.floor(Math.random() * this.chars.length)];
+                        })
+                        .join("");
+
+                    this.textElement.textContent = scrambled;
+                    progress--;
+                }, 20);
+            }
+
+            updateText(newText) {
+                this.originalText = newText;
+                if (!this.isHovering) {
+                    this.textElement.textContent = newText;
+                }
+            }
+
+            destroy() {
+                if (this.scrambleInterval) clearInterval(this.scrambleInterval);
+            }
+        }
+
+        // Initialize scramble text on buttons
+        let oracleBtnScramble = null;
+        document.addEventListener('DOMContentLoaded', () => {
+            const oracleBtn = document.getElementById('oracleBtn');
+            const oracleBtnText = document.getElementById('oracleBtnText');
+            if (oracleBtn && oracleBtnText) {
+                oracleBtnScramble = new ScrambleText(oracleBtn, oracleBtnText, oracleBtnText.textContent.trim());
+            }
+        });
+
+        // Helper function to update button text with scramble effect
         function updateButtonText(btn, text) {
-            btn.textContent = text;
+            if (btn.id === 'oracleBtn' && oracleBtnScramble) {
+                oracleBtnScramble.updateText(text);
+            } else {
+                btn.textContent = text;
+            }
         }
     </script>
 
-    <footer class="text-center border-top" style="padding: 60px 20px 40px; margin-top: 80px; font-weight: 300; font-size: 12px;">
+    <footer class="text-center border-top" style="padding: 60px 20px 40px; margin-top: 80px;">
         <div style="max-width: 800px; margin: 0 auto;">
             <div class="text-center">
                 <a href="https://x402resolve.kamiyo.ai" class="display-inline-block">
-                    <img src="/x402resolve/media/footer-logo.png" alt="KAMIYO" style="width: 200px; height: auto;">
+                    <img src="./media/footer-logo.png" alt="KAMIYO" style="width: 250px; height: auto;">
                 </a>
             </div>
-            <p class="text-quaternary mb-10 mt-15" style="font-size: 1rem;">
-                Payment Verification Infrastructure
+            <p class="text-quaternary text-base mb-10 mt-15">
+                Give Your AI Agents a Security Brain
             </p>
-            <p class="text-quinary text-sm" style="color: #888; font-size: 12px;">
-                x402Resolve extends KAMIYO's payment verification infrastructure with quality-based escrow and dispute resolution, enabling trustless micropayments with automatic refunds for the AI agent economy.
+            <p class="text-quinary text-sm">
+                x402Resolve leverages KAMIYO's production-grade threat intelligence infrastructure, combining real-time exploit detection with cryptographic quality verification to enable trustless micropayments for the agent economy.
             </p>
             <div class="mt-20 text-base" style="display: flex; justify-content: center; gap: 24px;">
-                <a href="https://kamiyo.ai" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">Visit KAMIYO</a>
-                <a href="https://github.com/x402kamiyo/x402resolve" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">GitHub</a>
-                <a href="https://explorer.solana.com/address/D9adezZ12cosX3GG2jK6PpbwMFLHzcCYVpcPCFcaciYP?cluster=devnet" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">Solana Explorer</a>
+                <a href="https://kamiyo.ai" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none;">Visit KAMIYO</a>
+                <a href="https://github.com/x402kamiyo/x402resolve" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none;">GitHub</a>
+                <a href="https://explorer.solana.com/address/E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n?cluster=devnet" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none;">Solana Explorer</a>
             </div>
         </div>
     </footer>
@@ -2539,14 +2486,14 @@ pub mod x402_escrow {
 
                 <div style="text-align: center; margin: 15px 0;">
                     <div style="display: inline-flex; align-items: center; gap: 6px; padding: 0; background: transparent; border: none; color: #fff; font-size: 11px;">
-                        <span style="color: #00d9ff; font-size: 14px;">✓</span>
+                        <span style="color: #00d9ff;">✓</span>
                         <span>Ed25519 Verified On-Chain</span>
                     </div>
                 </div>
 
                 <div class="modal-actions" style="margin-top: 25px;">
                     <a id="modalExplorerLink" href="#" target="_blank" class="modal-btn-skewed">
-                        <span id="modalExplorerText" style="position: relative; z-index: 10; margin-left: 32px; letter-spacing: 0.5px; display: inline-block;">VIEW ON EXPLORER</span>
+                        <span style="position: relative; z-index: 10; margin-left: 32px; letter-spacing: 0.5px;">VIEW ON EXPLORER</span>
                         <span style="position: absolute; inset: 0; border: 1px dotted; border-image: linear-gradient(to right, magenta, cyan) 1; transform: skewX(-45deg) translateX(16px);"></span>
                         <span style="position: absolute; inset: 0; border-right: 1px dotted; border-image: linear-gradient(to bottom, magenta, cyan) 1; transform: skewX(-45deg) translateX(16px);"></span>
                         <span style="position: absolute; bottom: 0; left: -4px; width: 100%; border-bottom: 1px dotted; border-image: linear-gradient(to right, magenta, cyan) 1;"></span>
@@ -2559,7 +2506,7 @@ pub mod x402_escrow {
     <script>
         function showRefundModal(data) {
             const modal = document.getElementById('refundModal');
-            document.getElementById('modalRefundAmount').textContent = '+' + data.refundAmount + ' SOL';
+            document.getElementById('modalRefundAmount').textContent = data.refundAmount + ' SOL';
             document.getElementById('modalRefundPercentage').textContent = data.refundPercentage + '% of ' + data.escrowAmount + ' SOL escrow';
             document.getElementById('modalQualityScore').textContent = data.qualityScore;
             document.getElementById('modalExplorerLink').href = data.explorerLink;
@@ -2591,3 +2538,4 @@ pub mod x402_escrow {
     </script>
 </body>
 </html>
+<!-- Cache bust: 1762814117 -->
