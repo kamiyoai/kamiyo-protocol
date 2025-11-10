@@ -1783,7 +1783,7 @@ pub mod x402_escrow {
         async function checkProgramStatus() {
             try {
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com');
-                const programId = new solanaWeb3.PublicKey('AFmBBw7kbrnwhhzYadAMCMh4BBBZcZdS3P7Z6vpsqsSR');
+                const programId = new solanaWeb3.PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n');
                 const info = await connection.getAccountInfo(programId);
 
                 if (info && info.executable) {
