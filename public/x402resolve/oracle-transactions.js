@@ -493,7 +493,7 @@ class OracleTransactionSystem {
         try {
             const signatures = await this.connection.getSignaturesForAddress(
                 this.programId,
-                { limit: limit * 3 } // Fetch more to ensure we get enough after filtering
+                { limit }
             );
 
             const disputes = [];
@@ -505,15 +505,9 @@ class OracleTransactionSystem {
                     });
 
                     if (tx && tx.meta && tx.meta.logMessages) {
-                        // Look for resolve_dispute instruction (more flexible matching)
-                        const hasResolveDispute = tx.meta.logMessages.some(log =>
-                            log.includes('DisputeResolved') ||
-                            log.includes('resolve_dispute') ||
-                            log.includes('Quality Score:') ||
-                            log.includes('Refund to Agent:')
-                        );
-
-                        if (hasResolveDispute && tx.meta.err === null) {
+                        // Look for DisputeResolved event
+                        const disputeLog = tx.meta.logMessages.find(log => log.includes('DisputeResolved'));
+                        if (disputeLog) {
                             disputes.push({
                                 signature: sig.signature,
                                 slot: sig.slot,
@@ -525,13 +519,9 @@ class OracleTransactionSystem {
                 } catch (e) {
                     console.error(`Failed to fetch transaction ${sig.signature}:`, e);
                 }
-
-                // Stop once we have enough
-                if (disputes.length >= limit) break;
             }
 
-            console.log(`Found ${disputes.length} oracle assessments out of ${signatures.length} total transactions`);
-            return disputes.slice(0, limit);
+            return disputes;
         } catch (error) {
             console.error('Failed to fetch disputes:', error);
             return [];
