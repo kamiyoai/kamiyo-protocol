@@ -1,0 +1,3460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>x402 Facilitators</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="og-image.png">
+
+<!-- Primary Meta Tags -->
+<meta name="title" content="x402 Facilitators - Payment Protocol Registry">
+<meta name="description" content="Registry of facilitators supporting HTTP 402 payment protocol with quality-verified refunds on Solana.">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://facilitators.x402.watch/">
+<meta property="og:title" content="x402 Facilitators">
+<meta property="og:description" content="Registry of facilitators supporting HTTP 402 payment protocol with quality-verified refunds on Solana.">
+<meta property="og:image" content="https://facilitators.x402.watch/og-image.png">
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:url" content="https://facilitators.x402.watch/">
+<meta property="twitter:title" content="x402 Facilitators">
+<meta property="twitter:description" content="Registry of facilitators supporting HTTP 402 payment protocol with quality-verified refunds on Solana.">
+<meta property="twitter:image" content="https://facilitators.x402.watch/og-image.png">
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --bg-card: #ffffff;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666;
+      --text-tertiary: #999;
+      --border-color: #e0e0e0;
+      --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow-md: 0 12px 24px rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+      --header-bg: #f8f8f8;
+      --header-text: #1a1a1a;
+      --accent-primary: #667eea;
+      --accent-secondary: #764ba2;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-card: #2d2d2d;
+      --text-primary: #ffffff;
+      --text-secondary: #b0b0b0;
+      --text-tertiary: #808080;
+      --border-color: #404040;
+      --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+      --shadow-md: 0 12px 24px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+      --header-bg: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+      --header-text: #ffffff;
+      --accent-primary: #8b9fff;
+      --accent-secondary: #9d6cc8;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      min-height: 100vh;
+      padding: 20px;
+      color: var(--text-primary);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: var(--header-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow-sm);
+      padding: 32px 24px 24px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border-color);
+      position: relative;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .header-content {
+      flex: 1;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--header-text);
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      opacity: 0.8;
+      color: var(--header-text);
+    }
+
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .theme-toggle:hover {
+      transform: scale(1.05);
+      opacity: 0.8;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px 20px;
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--header-text);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      opacity: 0.8;
+      margin-top: 2px;
+      color: var(--header-text);
+    }
+
+    .filters-container {
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .filter-options {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      background: var(--bg-secondary);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    .filter-btn.active {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+    }
+
+    .code-guide {
+      margin: 20px 0 0;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .code-guide-summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+      user-select: none;
+    }
+
+    .code-guide-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .code-guide-summary::after {
+      content: '▼';
+      margin-left: auto;
+      font-size: 0.7rem;
+      opacity: 0.6;
+      transition: transform 0.2s ease;
+    }
+
+    .code-guide[open] .code-guide-summary::after {
+      transform: rotate(180deg);
+    }
+
+    .code-guide-summary:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+    }
+
+    .code-guide-summary:hover .code-guide-icon {
+      transform: scale(1.1);
+    }
+
+    .code-guide-icon {
+      font-size: 1.2rem;
+      transition: transform 0.2s ease;
+    }
+
+    .code-guide-content {
+      margin-top: 16px;
+      padding: 20px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .code-section {
+      margin-bottom: 20px;
+    }
+
+    .code-section:last-of-type {
+      margin-bottom: 16px;
+    }
+
+    .code-section h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.9;
+    }
+
+    .code-section pre {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .code-section code {
+      font-family: 'Courier New', Monaco, monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    .code-guide-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      background: var(--accent-primary);
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      border: 1px solid var(--accent-primary);
+    }
+
+    .code-guide-link:hover {
+      background: var(--accent-secondary);
+      border-color: var(--accent-secondary);
+      transform: translateY(-1px);
+    }
+
+    .card.hidden {
+      display: none;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+      overflow: visible;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      z-index: 1;
+    }
+
+    .card.has-expanded-addresses {
+      z-index: 1001;
+      overflow: visible;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .card-logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      object-fit: cover;
+      background: var(--bg-secondary);
+      border: 2px solid var(--border-color);
+    }
+
+    .card-title-section {
+      flex: 1;
+    }
+
+    .card-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .card-id {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-family: 'Courier New', monospace;
+    }
+
+    .card-accent {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+    }
+
+    .card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: visible;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+
+    .info-row-wrapper {
+      position: relative;
+      overflow: visible;
+    }
+
+    .info-label {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .info-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .networks {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .network-badge {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .network-base {
+      background: #0052ff;
+      color: white;
+    }
+
+    .network-polygon {
+      background: #8247e5;
+      color: white;
+    }
+
+    .network-solana {
+      background: #14f195;
+      color: #000;
+    }
+
+    .addresses-count {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent-primary);
+    }
+
+    .main-address-container {
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .main-address-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .access-icons {
+      display: flex;
+      gap: 4px;
+    }
+
+    .access-icon {
+      font-size: 0.85rem;
+    }
+
+    .main-address-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .main-address-text {
+      flex: 1;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      word-break: break-word;
+    }
+
+    .copy-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .copy-btn:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+    }
+
+    .copy-btn.copied {
+      background: #4caf50;
+      color: white;
+      border-color: #4caf50;
+    }
+
+    .fee-display {
+      display: inline-block;
+      padding: 4px 8px;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      color: var(--accent-primary);
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      border: 1px solid var(--border-color);
+    }
+
+    .card-link:hover {
+      background: var(--accent-primary);
+      color: white;
+    }
+
+    .card-link::after {
+      content: '→';
+      font-size: 1.1rem;
+    }
+
+    .addresses-interactive {
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      position: relative;
+    }
+
+    .addresses-interactive:hover .addresses-count {
+      color: var(--accent-secondary);
+    }
+
+    .addresses-interactive::after {
+      content: '▼';
+      font-size: 0.7rem;
+      margin-left: 6px;
+      opacity: 0.5;
+      transition: transform 0.2s ease;
+    }
+
+    .addresses-interactive.expanded::after {
+      transform: rotate(180deg);
+    }
+
+    .address-list {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .address-list.visible {
+      display: block;
+      z-index: 1000;
+    }
+
+    .address-item {
+      padding: 10px;
+      margin-bottom: 8px;
+      background: var(--bg-card);
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .address-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .address-text {
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      word-break: break-all;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .explorer-links {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .explorer-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      text-decoration: none;
+      color: var(--text-primary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .explorer-btn:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+      transform: translateY(-1px);
+    }
+
+    .explorer-icon {
+      width: 14px;
+      height: 14px;
+      object-fit: contain;
+    }
+
+    .network-label {
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--border-color);
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+    }
+
+    .network-label.base {
+      background: #e3f2fd;
+      color: #0052ff;
+    }
+
+    .network-label.polygon {
+      background: #f3e5f5;
+      color: #8247e5;
+    }
+
+    .network-label.solana {
+      background: #e8f5e9;
+      color: #00d4aa;
+    }
+
+    /* Desktop popover style */
+    @media (min-width: 769px) {
+      .address-list.visible {
+        position: absolute;
+        z-index: 1000;
+        background: var(--bg-card);
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--border-color);
+        min-width: 320px;
+        max-width: 400px;
+        left: 0;
+        right: 0;
+        margin-top: 8px;
+      }
+    }
+
+    footer {
+      text-align: center;
+      color: var(--text-secondary);
+      padding: 40px 20px;
+      opacity: 0.9;
+    }
+
+    footer a {
+      color: var(--accent-primary);
+      text-decoration: underline;
+    }
+
+    @media (max-width: 768px) {
+      header {
+        padding: 24px 16px 20px;
+      }
+
+      .header-top {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 12px;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      .subtitle {
+        font-size: 0.9rem;
+      }
+
+      .stats {
+        gap: 12px;
+      }
+
+      .stat {
+        padding: 8px 16px;
+      }
+
+      .stat-value {
+        font-size: 1.3rem;
+      }
+
+      .stat-label {
+        font-size: 0.7rem;
+      }
+
+      .filter-row {
+        gap: 16px;
+      }
+
+      .filter-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .filter-btn {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+      }
+
+      .cards-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .code-guide-content {
+        padding: 16px;
+      }
+
+      .code-section pre {
+        padding: 10px;
+      }
+
+      .code-section code {
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+
+      header {
+        padding: 20px 12px 16px;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        font-size: 1.75rem;
+      }
+
+      .theme-toggle {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      .card-logo {
+        width: 48px;
+        height: 48px;
+      }
+
+      .card-title {
+        font-size: 1.2rem;
+      }
+
+      .code-guide-summary {
+        font-size: 0.85rem;
+        padding: 10px 12px;
+      }
+
+      .code-guide-icon {
+        font-size: 1rem;
+      }
+
+      .code-guide-content {
+        padding: 12px;
+      }
+
+      .code-section h3 {
+        font-size: 0.85rem;
+      }
+
+      .code-section code {
+        font-size: 0.75rem;
+      }
+    }
+
+    .loading {
+      text-align: center;
+      color: var(--text-primary);
+      padding: 40px;
+    }
+
+    /* Scrollbar styling for address list */
+    .address-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .address-list::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    .address-list::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+
+    .address-list::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+  </style>
+  <script>
+    // Dark mode functionality
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeIcon(savedTheme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      updateThemeIcon(newTheme);
+    }
+
+    function updateThemeIcon(theme) {
+      const themeToggle = document.querySelector('.theme-toggle');
+      if (themeToggle) {
+        themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+      }
+    }
+
+    // Initialize theme on page load
+    document.addEventListener('DOMContentLoaded', initTheme);
+
+    // Filter functionality
+    const filters = {
+      networks: ['base', 'solana', 'polygon'], // All selected by default
+      fee: 'all', // 'all' or 'free'
+      access: 'all' // 'all', 'open', 'gated', 'gated_paid'
+    };
+
+    function toggleNetworkFilter(network) {
+      const index = filters.networks.indexOf(network);
+      if (index > -1) {
+        filters.networks.splice(index, 1);
+      } else {
+        filters.networks.push(network);
+      }
+      updateFilterButtons();
+      applyFilters();
+    }
+
+    function setFeeFilter(fee) {
+      filters.fee = fee;
+      updateFilterButtons();
+      applyFilters();
+    }
+
+    function setAccessFilter(access) {
+      filters.access = access;
+      updateFilterButtons();
+      applyFilters();
+    }
+
+    function isCardAccessMatch(cardAccess, filterAccess) {
+      if (filterAccess === 'all') return true;
+      if (filterAccess === 'open') {
+        // Open means not gated and not paid
+        return cardAccess !== 'gated' && cardAccess !== 'gated_paid';
+      }
+      if (filterAccess === 'gated') {
+        // Gated includes both gated and gated_paid (paid is implicitly gated)
+        return cardAccess === 'gated' || cardAccess === 'gated_paid';
+      }
+      if (filterAccess === 'paid') {
+        return cardAccess === 'gated_paid';
+      }
+      return cardAccess === filterAccess;
+    }
+
+    function updateFilterButtons() {
+      // Update network buttons
+      ['base', 'solana', 'polygon'].forEach(network => {
+        const btn = document.querySelector(`[data-filter-network="${network}"]`);
+        if (btn) {
+          btn.classList.toggle('active', filters.networks.includes(network));
+        }
+      });
+
+      // Update fee buttons
+      ['all', 'free'].forEach(fee => {
+        const btn = document.querySelector(`[data-filter-fee="${fee}"]`);
+        if (btn) {
+          btn.classList.toggle('active', filters.fee === fee);
+        }
+      });
+
+      // Update access buttons
+      ['all', 'open', 'gated', 'paid'].forEach(access => {
+        const btn = document.querySelector(`[data-filter-access="${access}"]`);
+        if (btn) {
+          btn.classList.toggle('active', filters.access === access);
+        }
+      });
+    }
+
+    function applyFilters() {
+      const cards = document.querySelectorAll('.card');
+      
+      cards.forEach(card => {
+        const cardNetworks = card.dataset.networks.split(',');
+        const cardFee = card.dataset.fee;
+        const cardAccess = card.dataset.access;
+
+        // Check network filter
+        const networkMatch = filters.networks.length === 0 || 
+                           filters.networks.some(network => cardNetworks.includes(network));
+
+        // Check fee filter
+        const feeMatch = filters.fee === 'all' || cardFee === filters.fee;
+
+        // Check access filter using the new logic
+        const accessMatch = isCardAccessMatch(cardAccess, filters.access);
+
+        // Show/hide card based on all filters
+        if (networkMatch && feeMatch && accessMatch) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    }
+
+    // Initialize filters on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      updateFilterButtons();
+    });
+
+    function toggleAddresses(cardId) {
+      const card = document.getElementById('card-' + cardId);
+      const trigger = card.querySelector('.addresses-interactive');
+      const list = card.querySelector('.address-list');
+      
+      if (list.classList.contains('visible')) {
+        list.classList.remove('visible');
+        trigger.classList.remove('expanded');
+        card.classList.remove('has-expanded-addresses');
+      } else {
+        // Close all other open lists
+        document.querySelectorAll('.address-list.visible').forEach(l => {
+          l.classList.remove('visible');
+        });
+        document.querySelectorAll('.addresses-interactive.expanded').forEach(t => {
+          t.classList.remove('expanded');
+        });
+        document.querySelectorAll('.card.has-expanded-addresses').forEach(c => {
+          c.classList.remove('has-expanded-addresses');
+        });
+        
+        list.classList.add('visible');
+        trigger.classList.add('expanded');
+        card.classList.add('has-expanded-addresses');
+      }
+    }
+
+    // Close address lists when clicking outside
+    document.addEventListener('click', function(event) {
+      if (!event.target.closest('.addresses-interactive') && !event.target.closest('.address-list')) {
+        document.querySelectorAll('.address-list.visible').forEach(l => {
+          l.classList.remove('visible');
+        });
+        document.querySelectorAll('.addresses-interactive.expanded').forEach(t => {
+          t.classList.remove('expanded');
+        });
+        document.querySelectorAll('.card.has-expanded-addresses').forEach(c => {
+          c.classList.remove('has-expanded-addresses');
+        });
+      }
+    });
+
+    // Copy address functionality
+    function copyAddress(address, btnElement) {
+      navigator.clipboard.writeText(address).then(() => {
+        const originalText = btnElement.textContent;
+        btnElement.textContent = 'Copied!';
+        btnElement.classList.add('copied');
+        
+        setTimeout(() => {
+          btnElement.textContent = originalText;
+          btnElement.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-top">
+        <div class="header-content">
+          <h1>x402 Facilitators</h1>
+          <p class="subtitle">Discover payment facilitators for the x402 protocol</p>
+        </div>
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value">19</div>
+          <div class="stat-label">Total Facilitators</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Networks Supported</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">94</div>
+          <div class="stat-label">Total Addresses</div>
+        </div>
+      </div>
+
+      <details class="code-guide">
+        <summary class="code-guide-summary">
+          <span class="code-guide-icon">💻</span>
+          <span>How to use in code</span>
+        </summary>
+        <div class="code-guide-content">
+          <div class="code-section">
+            <h3>Installation</h3>
+            <pre><code>bun add @swader/x402facilitators
+# or
+npm install @swader/x402facilitators</code></pre>
+          </div>
+          
+          <div class="code-section">
+            <h3>Quick Start</h3>
+            <pre><code>import { coinbase, thirdweb } from '@swader/x402facilitators';
+
+paymentMiddleware(
+  address,
+  resources,
+  coinbase // easily interchange any facilitator
+);</code></pre>
+          </div>
+          
+          <div class="code-section">
+            <h3>Auto Load-Balancing</h3>
+            <pre><code>import { auto } from '@swader/x402facilitators';
+
+// Automatically balances between facilitators for uptime
+paymentMiddleware(address, resources, auto);</code></pre>
+          </div>
+          
+          <div class="code-section">
+            <h3>Resource Discovery</h3>
+            <pre><code>import { coinbaseDiscovery, listAllFacilitatorResources } from '@swader/x402facilitators';
+
+// List all x402-protected resources
+const resources = await listAllFacilitatorResources(coinbaseDiscovery);</code></pre>
+          </div>
+
+          <a href="https://github.com/Swader/x402facilitators#readme" target="_blank" class="code-guide-link">
+            View full documentation →
+          </a>
+        </div>
+      </details>
+
+      <div class="filters-container">
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="filter-label">Networks:</span>
+            <div class="filter-options">
+              <button class="filter-btn active" data-filter-network="base" onclick="toggleNetworkFilter('base')">Base</button>
+              <button class="filter-btn active" data-filter-network="solana" onclick="toggleNetworkFilter('solana')">Solana</button>
+              <button class="filter-btn active" data-filter-network="polygon" onclick="toggleNetworkFilter('polygon')">Polygon</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-label">Fee:</span>
+            <div class="filter-options">
+              <button class="filter-btn active" data-filter-fee="all" onclick="setFeeFilter('all')">All</button>
+              <button class="filter-btn" data-filter-fee="free" onclick="setFeeFilter('free')">Free</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-label">Access:</span>
+            <div class="filter-options">
+              <button class="filter-btn active" data-filter-access="all" onclick="setAccessFilter('all')">All</button>
+              <button class="filter-btn" data-filter-access="open" onclick="setAccessFilter('open')">Open</button>
+              <button class="filter-btn" data-filter-access="gated" onclick="setAccessFilter('gated')">Gated</button>
+              <button class="filter-btn" data-filter-access="paid" onclick="setAccessFilter('paid')">Paid</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="cards-grid">
+      
+    <div class="card" id="card-polygon" 
+         data-networks="polygon"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #8247E5;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/polygon.png" 
+          alt="Polygon Facilitator logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Polygon Facilitator</div>
+          <div class="card-id">polygon</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://x402.polygon.technology</div>
+            <button class="copy-btn" onclick="copyAddress('https://x402.polygon.technology', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-polygon">polygon</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('polygon')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">24</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x29df60c005506AA325d7179F6e09eB4b4875dAde</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x29df60c005506AA325d7179F6e09eB4b4875dAde" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xF09A94831C18566781f70937f0996B96EfE691C8</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xF09A94831C18566781f70937f0996B96EfE691C8" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x42618f623Ec19beFf78dE9DbBFB653BfEaC05D09</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x42618f623Ec19beFf78dE9DbBFB653BfEaC05D09" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x3202643514D128FF0B4625D2682c0244CF58131c</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x3202643514D128FF0B4625D2682c0244CF58131c" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x11DA3fe5ADA6f5382Ebe972f14C3585DA4E65AeA</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x11DA3fe5ADA6f5382Ebe972f14C3585DA4E65AeA" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x135DfE729F9bbd7F88181E1B708d7506fd499140</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x135DfE729F9bbd7F88181E1B708d7506fd499140" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xDcb0Ac359025dC0DB1e22e6d33F404e5c92A1564</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xDcb0Ac359025dC0DB1e22e6d33F404e5c92A1564" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x99EFc08BB42282716fB59D221792f5207f714C9d</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x99EFc08BB42282716fB59D221792f5207f714C9d" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xbE5115800247405f020197BF473eBFd085a2C635</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xbE5115800247405f020197BF473eBFd085a2C635" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x5eAb3D78264Dab340340d6a37Ff0836464Ae5773</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x5eAb3D78264Dab340340d6a37Ff0836464Ae5773" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xE5D4197eFd5D03E3f30cBf11C0fF63Eb95a0A656</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xE5D4197eFd5D03E3f30cBf11C0fF63Eb95a0A656" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xfac8Edb989f1ba7F9dBb7A1233542D4e1fD6144F</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xfac8Edb989f1ba7F9dBb7A1233542D4e1fD6144F" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xaFdbfaCb5ed691bf0bCFA660901f299ce9775489</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xaFdbfaCb5ed691bf0bCFA660901f299ce9775489" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x1e48Ed59a502D0B324CdAf83362865b3ff49ABa2</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x1e48Ed59a502D0B324CdAf83362865b3ff49ABa2" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xA1dcBDC2C34577ACD4A1152A98807B2f281A112e</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xA1dcBDC2C34577ACD4A1152A98807B2f281A112e" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x9e281D4e26E1a4e7C27014E2ca8Cee7F2D44fa52</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x9e281D4e26E1a4e7C27014E2ca8Cee7F2D44fa52" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x76FCb8ae3365A487E6EA235386C1cf3AbADeDA60</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x76FCb8ae3365A487E6EA235386C1cf3AbADeDA60" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x9523B120C75640469f1D16490Da0388928229452</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x9523B120C75640469f1D16490Da0388928229452" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x153F3A70e4400c211d9B482b62aD721Bb02F96F6</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x153F3A70e4400c211d9B482b62aD721Bb02F96F6" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xd5dD012019C58882Dd507A8b3fCBB7b62e9a24c3</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xd5dD012019C58882Dd507A8b3fCBB7b62e9a24c3" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xfff23108338C218F895d75980E14688218D4E92a</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xfff23108338C218F895d75980E14688218D4E92a" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xF744e153Ef63f7EEe4a58e0F13761D16C2125EE3</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xF744e153Ef63f7EEe4a58e0F13761D16C2125EE3" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x0a8B10FE8Bd3072351600Adef4796F3F7aF72Ab0</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x0a8B10FE8Bd3072351600Adef4796F3F7aF72Ab0" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x971b4079A618F72Fa0F1792b07ed5923dfBF3500</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x971b4079A618F72Fa0F1792b07ed5923dfBF3500" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 22, 2025</span>
+        </div>
+        
+        
+        <a href="https://agentic-docs.polygon.technology/general/x402/intro/" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-coinbase" 
+         data-networks="base,solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #2563EB;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/coinbase.png" 
+          alt="Coinbase logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Coinbase</div>
+          <div class="card-id">coinbase</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.cdp.coinbase.com</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.cdp.coinbase.com', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('coinbase')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">11</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xdbdf3d8ed80f84c35d01c6c9f9271761bad90ba6</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xdbdf3d8ed80f84c35d01c6c9f9271761bad90ba6" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x9aae2b0d1b9dc55ac9bab9556f9a26cb64995fb9</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x9aae2b0d1b9dc55ac9bab9556f9a26cb64995fb9" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x3a70788150c7645a21b95b7062ab1784d3cc2104</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x3a70788150c7645a21b95b7062ab1784d3cc2104" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x708e57b6650a9a741ab39cae1969ea1d2d10eca1</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x708e57b6650a9a741ab39cae1969ea1d2d10eca1" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xce82eeec8e98e443ec34fda3c3e999cbe4cb6ac2</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xce82eeec8e98e443ec34fda3c3e999cbe4cb6ac2" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x7f6d822467df2a85f792d4508c5722ade96be056</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x7f6d822467df2a85f792d4508c5722ade96be056" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x001ddabba5782ee48842318bd9ff4008647c8d9c</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x001ddabba5782ee48842318bd9ff4008647c8d9c" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x9c09faa49c4235a09677159ff14f17498ac48738</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x9c09faa49c4235a09677159ff14f17498ac48738" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xcbb10c30a9a72fae9232f41cbbd566a097b4e03a</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xcbb10c30a9a72fae9232f41cbbd566a097b4e03a" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x9fb2714af0a84816f5c6322884f2907e33946b88</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x9fb2714af0a84816f5c6322884f2907e33946b88" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">L54zkaPQFeTn1UsEqieEXBqWrPShiaZEPD7mS5WXfQg</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/L54zkaPQFeTn1UsEqieEXBqWrPShiaZEPD7mS5WXfQg" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">May 5, 2025</span>
+        </div>
+        
+        
+        <a href="https://docs.cdp.coinbase.com/x402/welcome" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-questflow" 
+         data-networks="base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #0D9488;"></div>
+      <div class="card-header">
+        <img 
+          src="/questflow.png" 
+          alt="Questflow logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Questflow</div>
+          <div class="card-id">questflow</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">0x724efafb051f17ae824afcdf3c0368ae312da264</div>
+            <button class="copy-btn" onclick="copyAddress('0x724efafb051f17ae824afcdf3c0368ae312da264', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('questflow')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">10</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x724efafb051f17ae824afcdf3c0368ae312da264</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x724efafb051f17ae824afcdf3c0368ae312da264" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xa9a54ef09fc8b86bc747cec6ef8d6e81c38c6180</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xa9a54ef09fc8b86bc747cec6ef8d6e81c38c6180" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x4638bc811c93bf5e60deed32325e93505f681576</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x4638bc811c93bf5e60deed32325e93505f681576" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xd7d91a42dfadd906c5b9ccde7226d28251e4cd0f</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xd7d91a42dfadd906c5b9ccde7226d28251e4cd0f" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x4544b535938b67d2a410a98a7e3b0f8f68921ca7</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x4544b535938b67d2a410a98a7e3b0f8f68921ca7" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x59e8014a3b884392fbb679fe461da07b18c1ff81</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x59e8014a3b884392fbb679fe461da07b18c1ff81" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xe6123e6b389751c5f7e9349f3d626b105c1fe618</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xe6123e6b389751c5f7e9349f3d626b105c1fe618" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xf70e7cb30b132fab2a0a5e80d41861aa133ea21b</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xf70e7cb30b132fab2a0a5e80d41861aa133ea21b" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x90da501fdbec74bb0549100967eb221fed79c99b</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x90da501fdbec74bb0549100967eb221fed79c99b" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xce7819f0b0b871733c933d1f486533bab95ec47b</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xce7819f0b0b871733c933d1f486533bab95ec47b" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 29, 2025</span>
+        </div>
+        
+        
+        <a href="https://facilitator.questflow.ai" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-heurist" 
+         data-networks="base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #CDF138;"></div>
+      <div class="card-header">
+        <img 
+          src="https://misc-files.heurist.xyz/heurist-logo.png" 
+          alt="Heurist logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Heurist</div>
+          <div class="card-id">heurist</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.heurist.xyz</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.heurist.xyz', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('heurist')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">9</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xb578b7db22581507d62bdbeb85e06acd1be09e11</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xb578b7db22581507d62bdbeb85e06acd1be09e11" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x021cc47adeca6673def958e324ca38023b80a5be</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x021cc47adeca6673def958e324ca38023b80a5be" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x3f61093f61817b29d9556d3b092e67746af8cdfd</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x3f61093f61817b29d9556d3b092e67746af8cdfd" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x290d8b8edcafb25042725cb9e78bcac36b8865f8</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x290d8b8edcafb25042725cb9e78bcac36b8865f8" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x612d72dc8402bba997c61aa82ce718ea23b2df5d</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x612d72dc8402bba997c61aa82ce718ea23b2df5d" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x1fc230ee3c13d0d520d49360a967dbd1555c8326</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x1fc230ee3c13d0d520d49360a967dbd1555c8326" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x48ab4b0af4ddc2f666a3fcc43666c793889787a3</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x48ab4b0af4ddc2f666a3fcc43666c793889787a3" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xd97c12726dcf994797c981d31cfb243d231189fb</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xd97c12726dcf994797c981d31cfb243d231189fb" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x90d5e567017f6c696f1916f4365dd79985fce50f</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x90d5e567017f6c696f1916f4365dd79985fce50f" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Nov 7, 2025</span>
+        </div>
+        
+        
+        <a href="https://docs.heurist.ai/x402-products/facilitator" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-x402rs" 
+         data-networks="polygon,base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #93AEFF;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/x402rs.png" 
+          alt="X402rs logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">X402rs</div>
+          <div class="card-id">x402rs</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.x402.rs</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.x402.rs', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-polygon">polygon</span><span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('x402rs')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">7</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0xd8dfc729cbd05381647eb5540d756f4f8ad63eec</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0xd8dfc729cbd05381647eb5540d756f4f8ad63eec" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xd8dfc729cbd05381647eb5540d756f4f8ad63eec</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xd8dfc729cbd05381647eb5540d756f4f8ad63eec" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x76eee8f0acabd6b49f1cc4e9656a0c8892f3332e</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x76eee8f0acabd6b49f1cc4e9656a0c8892f3332e" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x97d38aa5de015245dcca76305b53abe6da25f6a5</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x97d38aa5de015245dcca76305b53abe6da25f6a5" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x0168f80e035ea68b191faf9bfc12778c87d92008</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x0168f80e035ea68b191faf9bfc12778c87d92008" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x5e437bee4321db862ac57085ea5eb97199c0ccc5</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x5e437bee4321db862ac57085ea5eb97199c0ccc5" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xc19829b32324f116ee7f80d193f99e445968499a</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xc19829b32324f116ee7f80d193f99e445968499a" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Dec 5, 2024</span>
+        </div>
+        
+        
+        <a href="https://x402.rs" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-payAI" 
+         data-networks="solana,base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #9F3EC9;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/payai.png" 
+          alt="PayAI logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">PayAI</div>
+          <div class="card-id">payAI</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.payai.network</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.payai.network', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-solana">solana</span><span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('payAI')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">6</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xc6699d2aada6c36dfea5c248dd70f9cb0235cb63</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xc6699d2aada6c36dfea5c248dd70f9cb0235cb63" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xb2bd29925cbbcea7628279c91945ca5b98bf371b</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xb2bd29925cbbcea7628279c91945ca5b98bf371b" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x25659315106580ce2a787ceec5efb2d347b539c9</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x25659315106580ce2a787ceec5efb2d347b539c9" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xb8f41cb13b1f213da1e94e1b742ec1323235c48f</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xb8f41cb13b1f213da1e94e1b742ec1323235c48f" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xe575fa51af90957d66fab6d63355f1ed021b887b</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xe575fa51af90957d66fab6d63355f1ed021b887b" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">May 18, 2025</span>
+        </div>
+        
+        
+        <a href="https://payai.network" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-codenut" 
+         data-networks="base,solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #FF6B35;"></div>
+      <div class="card-header">
+        <img 
+          src="/codenut.png" 
+          alt="CodeNut logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">CodeNut</div>
+          <div class="card-id">codenut</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.codenut.ai</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.codenut.ai', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('codenut')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">5</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x8d8Fa42584a727488eeb0E29405AD794a105bb9b</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x8d8Fa42584a727488eeb0E29405AD794a105bb9b" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x87aF99356d774312B73018b3B6562e1aE0e018C9</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x87aF99356d774312B73018b3B6562e1aE0e018C9" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x65058CF664D0D07f68B663B0D4b4f12A5E331a38</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x65058CF664D0D07f68B663B0D4b4f12A5E331a38" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x88E13D4c764a6c840Ce722A0a3765f55A85b327E</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x88E13D4c764a6c840Ce722A0a3765f55A85b327E" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">HsozMJWWHNADoZRmhDGKzua6XW6NNfNDdQ4CkE9i5wHt</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/HsozMJWWHNADoZRmhDGKzua6XW6NNfNDdQ4CkE9i5wHt" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 13, 2025</span>
+        </div>
+        
+        
+        <a href="https://docs.codenut.ai/guides/x402-facilitator" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-aurracloud" 
+         data-networks="base,solana"
+         data-fee="free"
+         data-access="gated_paid">
+      <div class="card-accent" style="background: #878787;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/aurracloud.png" 
+          alt="AurraCloud logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">AurraCloud</div>
+          <div class="card-id">aurracloud</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            <div class="access-icons"><span class="access-icon">🔒</span><span class="access-icon">💰</span></div>
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">0x222c4367a2950f3b53af260e111fc3060b0983ff</div>
+            <button class="copy-btn" onclick="copyAddress('0x222c4367a2950f3b53af260e111fc3060b0983ff', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('aurracloud')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">4</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x222c4367a2950f3b53af260e111fc3060b0983ff</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x222c4367a2950f3b53af260e111fc3060b0983ff" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xb70c4fe126de09bd292fe3d1e40c6d264ca6a52a</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xb70c4fe126de09bd292fe3d1e40c6d264ca6a52a" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xd348e724e0ef36291a28dfeccf692399b0e179f8</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xd348e724e0ef36291a28dfeccf692399b0e179f8" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">8x8CzkTHTYkW18frrTR7HdCV6fsjenvcykJAXWvoPQW</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/8x8CzkTHTYkW18frrTR7HdCV6fsjenvcykJAXWvoPQW" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 5, 2025</span>
+        </div>
+        
+        
+        <a href="https://x402-facilitator.aurracloud.com" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-openx402" 
+         data-networks="base,solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #E8EFFE;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/openx402.png" 
+          alt="OpenX402 logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">OpenX402</div>
+          <div class="card-id">openx402</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://open.x402.host</div>
+            <button class="copy-btn" onclick="copyAddress('https://open.x402.host', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('openx402')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">3</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x97316fa4730bc7d3b295234f8e4d04a0a4c093e8</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x97316fa4730bc7d3b295234f8e4d04a0a4c093e8" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x97db9b5291a218fc77198c285cefdc943ef74917</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x97db9b5291a218fc77198c285cefdc943ef74917" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">5xvht4fYDs99yprfm4UeuHSLxMBRpotfBtUCQqM3oDNG</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/5xvht4fYDs99yprfm4UeuHSLxMBRpotfBtUCQqM3oDNG" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 16, 2025</span>
+        </div>
+        
+        
+        <a href="https://open.x402.host" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-kamiyo" 
+         data-networks="base,polygon,solana"
+         data-fee="free"
+         data-access="gated">
+      <div class="card-accent" style="background: #00D4AA;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/kamiyo.png" 
+          alt="KAMIYO logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">KAMIYO</div>
+          <div class="card-id">kamiyo</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            <div class="access-icons"><span class="access-icon">🔒</span></div>
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://kamiyo.ai/api/v1/x402</div>
+            <button class="copy-btn" onclick="copyAddress('https://kamiyo.ai/api/v1/x402', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-polygon">polygon</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('kamiyo')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">3</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x742d35cc6634c0532925a3b844bc9e7595f0bee4</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x742d35cc6634c0532925a3b844bc9e7595f0bee4" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x742d35cc6634c0532925a3b844bc9e7595f0bee4</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x742d35cc6634c0532925a3b844bc9e7595f0bee4" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">KAMiYo7XwXVQcFhkfhC4RHApURAcqRHF8tF9WoZHkYR</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/KAMiYo7XwXVQcFhkfhC4RHApURAcqRHF8tF9WoZHkYR" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Jan 1, 2025</span>
+        </div>
+        
+        
+        <a href="https://kamiyo.ai/docs" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-thirdweb" 
+         data-networks="base,polygon"
+         data-fee="free"
+         data-access="gated_paid">
+      <div class="card-accent" style="background: #E91E8C;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/thirdweb.png" 
+          alt="Thirdweb logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Thirdweb</div>
+          <div class="card-id">thirdweb</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            <div class="access-icons"><span class="access-icon">🔒</span><span class="access-icon">💰</span></div>
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://api.thirdweb.com/v1/payments/x402</div>
+            <button class="copy-btn" onclick="copyAddress('https://api.thirdweb.com/v1/payments/x402', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-polygon">polygon</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('thirdweb')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">2</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x80c08de1a05df2bd633cf520754e40fde3c794d3</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x80c08de1a05df2bd633cf520754e40fde3c794d3" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label polygon">polygon</span>
+          <div class="address-text">0x80c08de1a05df2bd633cf520754e40fde3c794d3</div>
+          <div class="explorer-links">
+            <a href="https://polygonscan.com/address/0x80c08de1a05df2bd633cf520754e40fde3c794d3" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="polygon.webp" alt="polygon" class="explorer-icon" />
+              View on PolygonScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 7, 2025</span>
+        </div>
+        
+        
+        <a href="https://portal.thirdweb.com/payments/x402/facilitator" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-daydreams" 
+         data-networks="base,solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #D4A62A;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/router-logo-small.png" 
+          alt="Daydreams logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Daydreams</div>
+          <div class="card-id">daydreams</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.daydreams.systems</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.daydreams.systems', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('daydreams')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">2</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x279e08f711182c79Ba6d09669127a426228a4653</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x279e08f711182c79Ba6d09669127a426228a4653" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">DuQ4jFMmVABWGxabYHFkGzdyeJgS1hp4wrRuCtsJgT9a</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/DuQ4jFMmVABWGxabYHFkGzdyeJgS1hp4wrRuCtsJgT9a" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 16, 2025</span>
+        </div>
+        
+        
+        <a href="https://facilitator.daydreams.systems" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-ultravioletadao" 
+         data-networks="base,solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #9333EA;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/ultravioletadao.png" 
+          alt="Ultravioleta DAO logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Ultravioleta DAO</div>
+          <div class="card-id">ultravioletadao</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">0x103040545ac5031a11e8c03dd11324c7333a13c7</div>
+            <button class="copy-btn" onclick="copyAddress('0x103040545ac5031a11e8c03dd11324c7333a13c7', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span><span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('ultravioletadao')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">2</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x103040545ac5031a11e8c03dd11324c7333a13c7</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x103040545ac5031a11e8c03dd11324c7333a13c7" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">F742C4VfFLQ9zRQyithoj5229ZgtX2WqKCSFKgH2EThq</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/F742C4VfFLQ9zRQyithoj5229ZgtX2WqKCSFKgH2EThq" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 30, 2025</span>
+        </div>
+        
+        
+        <a href="https://facilitator.ultravioletadao.xyz" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-corbits" 
+         data-networks="solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #DD903A;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/corbits.png" 
+          alt="Corbits logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Corbits</div>
+          <div class="card-id">corbits</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.corbits.dev</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.corbits.dev', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('corbits')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">1</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">AepWpq3GQwL8CeKMtZyKtKPa7W91Coygh3ropAJapVdU</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/AepWpq3GQwL8CeKMtZyKtKPa7W91Coygh3ropAJapVdU" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Sep 21, 2025</span>
+        </div>
+        
+        
+        <a href="https://corbits.dev" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-dexter" 
+         data-networks="solana"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #DD903A;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/dexter.svg" 
+          alt="Dexter logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Dexter</div>
+          <div class="card-id">dexter</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.dexter.cash</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.dexter.cash', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-solana">solana</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('dexter')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">1</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label solana">solana</span>
+          <div class="address-text">DEXVS3su4dZQWTvvPnLDJLRK1CeeKG6K3QqdzthgAkNV</div>
+          <div class="explorer-links">
+            <a href="https://explorer.solana.com/address/DEXVS3su4dZQWTvvPnLDJLRK1CeeKG6K3QqdzthgAkNV" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="solana.webp" alt="solana" class="explorer-icon" />
+              View on Solana Explorer
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 26, 2025</span>
+        </div>
+        
+        
+        <a href="https://facilitator.dexter.cash" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-mogami" 
+         data-networks="base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #3A9E75;"></div>
+      <div class="card-header">
+        <img 
+          src="https://x402scan.com/mogami.png" 
+          alt="Mogami logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Mogami</div>
+          <div class="card-id">mogami</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://facilitator.mogami.tech/</div>
+            <button class="copy-btn" onclick="copyAddress('https://facilitator.mogami.tech/', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('mogami')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">1</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0xfe0920a0a7f0f8a1ec689146c30c3bbef439bf8a</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0xfe0920a0a7f0f8a1ec689146c30c3bbef439bf8a" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 24, 2025</span>
+        </div>
+        
+        
+        <a href="https://mogami.tech/" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-402104" 
+         data-networks="base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: var(--color-yellow-300);"></div>
+      <div class="card-header">
+        <img 
+          src="/402104.png" 
+          alt="402104 logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">402104</div>
+          <div class="card-id">402104</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://x402.load.network</div>
+            <button class="copy-btn" onclick="copyAddress('https://x402.load.network', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('402104')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">1</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x73b2b8df52fbe7c40fe78db52e3dffdd5db5ad07</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x73b2b8df52fbe7c40fe78db52e3dffdd5db5ad07" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 29, 2025</span>
+        </div>
+        
+        
+        <a href="https://x402.load.network" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-xecho" 
+         data-networks="base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #134E4A;"></div>
+      <div class="card-header">
+        <img 
+          src="/xecho.png" 
+          alt="xEcho logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">xEcho</div>
+          <div class="card-id">xecho</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://www.xechoai.xyz</div>
+            <button class="copy-btn" onclick="copyAddress('https://www.xechoai.xyz', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('xecho')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">1</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x3be45f576696a2fd5a93c1330cd19f1607ab311d</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x3be45f576696a2fd5a93c1330cd19f1607ab311d" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Oct 30, 2025</span>
+        </div>
+        
+        
+        <a href="https://www.xechoai.xyz" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+
+    <div class="card" id="card-virtuals" 
+         data-networks="base"
+         data-fee="free"
+         data-access="public">
+      <div class="card-accent" style="background: #15886D;"></div>
+      <div class="card-header">
+        <img 
+          src="/virtuals.png" 
+          alt="Virtuals Protocol logo" 
+          class="card-logo"
+          onerror="this.style.display='none'"
+        />
+        <div class="card-title-section">
+          <div class="card-title">Virtuals Protocol</div>
+          <div class="card-id">virtuals</div>
+        </div>
+      </div>
+      
+      <div class="card-content">
+        <div class="main-address-container">
+          <div class="main-address-label">
+            Facilitator API URL
+            
+            <span class="fee-display">0% Fee</span>
+          </div>
+          <div class="main-address-display">
+            <div class="main-address-text">https://acpx.virtuals.io/</div>
+            <button class="copy-btn" onclick="copyAddress('https://acpx.virtuals.io/', this)">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <span class="info-label">Networks</span>
+          <div class="networks">
+            <span class="network-badge network-base">base</span>
+          </div>
+        </div>
+        
+        <div class="info-row-wrapper">
+          <div class="info-row addresses-interactive" onclick="toggleAddresses('virtuals')">
+            <span class="info-label">Addresses</span>
+            <span class="addresses-count">1</span>
+          </div>
+          
+          <div class="address-list">
+            
+        <div class="address-item">
+          <span class="network-label base">base</span>
+          <div class="address-text">0x80735b3f7808e2e229ace880dbe85e80115631ca</div>
+          <div class="explorer-links">
+            <a href="https://basescan.org/address/0x80735b3f7808e2e229ace880dbe85e80115631ca" target="_blank" rel="noopener noreferrer" class="explorer-btn">
+              <img src="base.webp" alt="base" class="explorer-icon" />
+              View on BaseScan
+            </a>
+          </div>
+        </div>
+      
+          </div>
+        </div>
+        
+        
+        <div class="info-row">
+          <span class="info-label">First Transaction</span>
+          <span class="info-value">Nov 5, 2025</span>
+        </div>
+        
+        
+        <a href="https://app.virtuals.io" target="_blank" class="card-link">
+          View Documentation
+        </a>
+      </div>
+    </div>
+  
+    </div>
+
+    <footer>
+      <p>Built with ❤️ for the x402 community</p>
+      <p><a href="https://github.com/Swader/x402facilitators" target="_blank">View on GitHub</a></p>
+    </footer>
+  </div>
+</body>
+</html>
+
