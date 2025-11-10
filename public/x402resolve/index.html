@@ -215,6 +215,24 @@
             50% { opacity: 0.5; }
         }
 
+        .animated-dots {
+            display: inline-block;
+            width: 1.5em;
+            text-align: left;
+        }
+
+        .animated-dots::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '\00a0\00a0\00a0'; }
+            40% { content: '.\00a0\00a0'; }
+            60% { content: '..\00a0'; }
+            80%, 100% { content: '...'; }
+        }
+
         .network-status {
             display: flex;
             justify-content: center;
@@ -1313,7 +1331,6 @@
                 </div>
                 <div class="header-right">
                     <button id="walletBtn" class="wallet-connect-btn" onclick="connectWallet()">
-                        <img src="./media/Phantom-Icon_Transparent_White.svg" alt="Phantom">
                         Connect Wallet
                     </button>
                 </div>
@@ -1323,9 +1340,9 @@
                     <span class="live-dot"></span>
                     <span>Live on Devnet</span>
                 </div>
-                <span class="status-item" id="programStatus">Program: Loading...</span>
-                <span class="status-item" id="oracleStatus">Oracle: Checking...</span>
-                <span class="status-item" id="networkStatus">Network: Connecting...</span>
+                <span class="status-item" id="programStatus">Program: Loading<span class="animated-dots"></span></span>
+                <span class="status-item" id="oracleStatus">Oracle: Checking<span class="animated-dots"></span></span>
+                <span class="status-item" id="networkStatus">Network: Connecting<span class="animated-dots"></span></span>
             </div>
         </div>
 
@@ -1347,7 +1364,7 @@
                     <h3 class="text-primary mb-15 text-lg">Recent On-Chain Oracle Assessments</h3>
                     <div id="recentAssessments" class="font-mono text-base text-tertiary">
                         <div class="text-center p-20 text-quaternary">
-                            Loading recent Switchboard oracle transactions...
+                            Loading recent Switchboard oracle transactions<span class="animated-dots"></span>
                         </div>
                     </div>
                     <div class="text-center mt-15 pt-15 border-top">
@@ -1450,7 +1467,7 @@
                 <h2><span>⚡</span> Recent Transactions</h2>
                 <div id="recentTx">
                     <p style="text-align: center; color: #666; padding: 20px;">
-                        Loading recent program transactions...
+                        Loading recent program transactions<span class="animated-dots"></span>
                     </p>
                 </div>
             </div>
@@ -2192,7 +2209,7 @@ pub mod x402_escrow {
                 walletConnected = false;
                 walletPublicKey = null;
                 walletProvider = null;
-                btn.innerHTML = '<img src="./media/Phantom-Icon_Transparent_White.svg" alt="Phantom">Connect Wallet';
+                btn.innerHTML = 'Connect Wallet';
                 btn.classList.remove('wallet-connected');
                 showStatus('Wallet disconnected', 'info');
                 return;
@@ -2259,7 +2276,7 @@ pub mod x402_escrow {
                                     walletPublicKey.toString().substring(walletPublicKey.toString().length - 4);
 
                 const walletName = walletProvider.isPhantom ? 'Phantom' : walletProvider.isSolflare ? 'Solflare' : 'Wallet';
-                btn.innerHTML = `<img src="./media/Phantom-Icon_Transparent_White.svg" alt="${walletName}">✓ ${shortAddress}`;
+                btn.innerHTML = `✓ ${shortAddress}`;
                 btn.classList.add('wallet-connected');
 
                 showStatus(`${walletName} connected: ${shortAddress}`, 'success');
@@ -2289,7 +2306,7 @@ pub mod x402_escrow {
                 } else {
                     showStatus('Failed to connect wallet. Please refresh and try again.', 'error');
                 }
-                btn.innerHTML = '<img src="./media/Phantom-Icon_Transparent_White.svg" alt="Phantom">Connect Wallet';
+                btn.innerHTML = 'Connect Wallet';
                 walletConnected = false;
                 walletPublicKey = null;
                 walletProvider = null;
