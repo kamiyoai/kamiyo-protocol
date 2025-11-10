@@ -1382,7 +1382,7 @@
                         </div>
                     </div>
                     <div class="text-center mt-15 pt-15 border-top">
-                        <a href="https://explorer.solana.com/address/D9adezZ12cosX3GG2jK6PpbwMFLHzcCYVpcPCFcaciYP?cluster=devnet" target="_blank" class="text-cyan text-base" style="text-decoration: none;">
+                        <a href="https://explorer.solana.com/address/E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n?cluster=devnet" target="_blank" class="text-cyan text-base" style="text-decoration: none;">
                             View All Program Transactions →
                         </a>
                     </div>
@@ -1829,7 +1829,7 @@ pub mod x402_escrow {
         async function checkProgramStatus() {
             try {
                 const connection = new solanaWeb3.Connection('https://api.devnet.solana.com');
-                const programId = new solanaWeb3.PublicKey('AFmBBw7kbrnwhhzYadAMCMh4BBBZcZdS3P7Z6vpsqsSR');
+                const programId = new solanaWeb3.PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n');
                 const info = await connection.getAccountInfo(programId);
 
                 if (info && info.executable) {
@@ -2512,7 +2512,7 @@ pub mod x402_escrow {
             <div class="mt-20 text-base" style="display: flex; justify-content: center; gap: 24px;">
                 <a href="https://kamiyo.ai" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">Visit KAMIYO</a>
                 <a href="https://github.com/x402kamiyo/x402resolve" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">GitHub</a>
-                <a href="https://explorer.solana.com/address/D9adezZ12cosX3GG2jK6PpbwMFLHzcCYVpcPCFcaciYP?cluster=devnet" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">Solana Explorer</a>
+                <a href="https://explorer.solana.com/address/E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n?cluster=devnet" target="_blank" class="text-decoration-none" style="color: #ff00ff; text-decoration: none; font-size: 12px;">Solana Explorer</a>
             </div>
         </div>
     </footer>
