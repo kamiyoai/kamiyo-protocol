@@ -505,11 +505,12 @@ class OracleTransactionSystem {
                     });
 
                     if (tx && tx.meta && tx.meta.logMessages) {
-                        // Look for any program events (EscrowCreated, DisputeMarked, DisputeResolved)
+                        // Look for program instructions (actual log format from the contract)
                         const hasEvent = tx.meta.logMessages.some(log =>
-                            log.includes('EscrowCreated') ||
-                            log.includes('DisputeMarked') ||
-                            log.includes('DisputeResolved')
+                            log.includes('Instruction: InitializeEscrow') ||
+                            log.includes('Instruction: MarkDisputed') ||
+                            log.includes('Instruction: ResolveDispute') ||
+                            log.includes('Quality Score:')
                         );
 
                         if (hasEvent) {
