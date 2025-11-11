@@ -39,8 +39,9 @@
             --color-magenta: #ff00ff;
             --color-magenta-hover: #ff44f5;
             --color-magenta-dark: #e600e6;
-            --color-cyan: #00d9ff;
+            --color-cyan: #00ffff;
             --color-cyan-light: #4fe9ea;
+            --color-blue-light: #b0b9f9;
 
             /* Semantic Colors */
             --color-success: #10b981;
@@ -48,12 +49,12 @@
             --color-warning: #f59e0b;
             --color-warning-light: #fbbf24;
             --color-error: #ef4444;
-            --color-info: #00d9ff;
+            --color-info: #00ffff;
 
             /* Gradients */
-            --gradient-primary: linear-gradient(90deg, #00d9ff, #ff00ff);
+            --gradient-primary: linear-gradient(90deg, #00ffff, #ff00ff);
             --gradient-secondary: linear-gradient(90deg, #4fe9ea, #ff44f5);
-            --gradient-tertiary: linear-gradient(90deg, #ff44f5, #00d9ff, #ff44f5);
+            --gradient-tertiary: linear-gradient(90deg, #ff44f5, #00ffff, #ff44f5);
 
             /* Typography Scale */
             --font-size-xs: 0.75rem;      /* 12px */
@@ -687,12 +688,16 @@
         }
 
         .code-string {
-            color: var(--color-cyan);
+            color: var(--color-blue-light);
         }
 
         .code-comment {
             color: var(--color-text-quaternary);
             font-style: italic;
+        }
+
+        .code-number {
+            color: var(--color-blue-light);
         }
 
         .copy-button {
@@ -1073,7 +1078,7 @@
             inset: 0;
             border-radius: 12px;
             padding: 1px;
-            background: linear-gradient(135deg, #00d9ff, #ff00ff);
+            background: linear-gradient(135deg, #00ffff, #ff00ff);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
@@ -1082,7 +1087,7 @@
         }
 
         .refund-modal-badge {
-            background: linear-gradient(90deg, #ff00ff, #00d9ff);
+            background: linear-gradient(90deg, #ff00ff, #00ffff);
             color: white;
             text-align: center;
             padding: 8px 16px;
@@ -1349,7 +1354,7 @@
                     <span id="oracleBtnText" style="position: relative; z-index: 10; letter-spacing: 0.5px; display: inline-block; width: 320px; text-align: center;">Run on-chain quality assessment</span>
                 </button>
                 <div id="oracleProgress" style="width: 100%; height: 2px; background: #1a1a1a; margin-top: 10px; border-radius: 1px; overflow: hidden; display: none; position: relative;">
-                    <div id="oracleProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff44f5, #00d9ff, #ff44f5); background-size: 200% 100%; animation: gradientFlow 2s linear infinite; transition: width 0.3s ease; position: relative;">
+                    <div id="oracleProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff44f5, #00ffff, #ff44f5); background-size: 200% 100%; animation: gradientFlow 2s linear infinite; transition: width 0.3s ease; position: relative;">
                         <div style="position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(0,0,0,0.3) 8px, rgba(0,0,0,0.3) 9px);"></div>
                     </div>
                 </div>
@@ -1647,14 +1652,14 @@ pub mod x402_escrow {
 
                     assessmentList.innerHTML += `
                         <div style="margin-bottom: 12px; padding-bottom: 12px; ${borderBottom}">
-                            <div style="color: #00d9ff; margin-bottom: 5px;">Assessment ${dispute.signature.substring(0, 8)}...</div>
+                            <div style="color: #00ffff; margin-bottom: 5px;">Assessment ${dispute.signature.substring(0, 8)}...</div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
                                 <span>Quality Score:</span>
                                 <span class="gradient-text" style="font-weight: 300;">${qualityScore}/100</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
                                 <span>Refund:</span>
-                                <span style="color: ${refundAmount > 0 ? '#00d9ff' : '#888'};">${refundAmount > 0 ? refundAmount.toFixed(3) + ' SOL' : 'None'}</span>
+                                <span style="color: ${refundAmount > 0 ? '#00ffff' : '#888'};">${refundAmount > 0 ? refundAmount.toFixed(3) + ' SOL' : 'None'}</span>
                             </div>
                             <div style="font-size: 0.75rem; margin-top: 8px;">
                                 <a href="https://explorer.solana.com/tx/${dispute.signature}?cluster=devnet" target="_blank" style="color: #666; text-decoration: none; display: flex; align-items: center; gap: 5px;">
@@ -1737,7 +1742,7 @@ pub mod x402_escrow {
                 const endTime = performance.now();
                 const latency = Math.round(endTime - startTime);
 
-                const latencyColor = latency < 500 ? '#00d9ff' : latency < 1000 ? '#fbbf24' : '#ef4444';
+                const latencyColor = latency < 500 ? '#00ffff' : latency < 1000 ? '#fbbf24' : '#ef4444';
                 document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">✓</span>&nbsp;${latency}ms`;
             } catch (error) {
                 document.getElementById('rpcLatency').textContent = 'RPC Latency: ✗ Error';
@@ -1762,9 +1767,9 @@ pub mod x402_escrow {
                     try {
                         const programDataInfo = await connection.getAccountInfo(programDataPubkey);
                         const size = programDataInfo ? Math.round(programDataInfo.data.length / 1024) : 275;
-                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00d9ff;">✓</span>&nbsp;Deployed (${size}KB)`;
+                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed (${size}KB)`;
                     } catch {
-                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00d9ff;">✓</span>&nbsp;Deployed`;
+                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed`;
                     }
                 } else {
                     document.getElementById('programStatus').textContent = 'Program: Not found';
@@ -1777,7 +1782,7 @@ pub mod x402_escrow {
         async function checkOracleStatus() {
             // Simulated - replace with actual oracle endpoint
             setTimeout(() => {
-                document.getElementById('oracleStatus').innerHTML = 'Oracle:&nbsp;&nbsp;<span style="color: #00d9ff;">✓</span>&nbsp;Ready';
+                document.getElementById('oracleStatus').innerHTML = 'Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Ready';
             }, 500);
         }
 
@@ -2199,7 +2204,7 @@ pub mod x402_escrow {
                     ? new Date(dispute.timestamp * 1000).toLocaleString()
                     : 'Unknown';
 
-                const statusColor = qualityScore >= 75 ? '#00d9ff' : qualityScore >= 50 ? '#fbbf24' : '#ef4444';
+                const statusColor = qualityScore >= 75 ? '#00ffff' : qualityScore >= 50 ? '#fbbf24' : '#ef4444';
                 const statusText = qualityScore >= 75 ? 'High Quality' : qualityScore >= 50 ? 'Medium Quality' : 'Low Quality';
 
                 html += `
@@ -2227,7 +2232,7 @@ pub mod x402_escrow {
                             </div>
                             <div>
                                 <span style="color: #888;">Refund:</span>
-                                <span style="color: ${refundAmount > 0 ? '#00d9ff' : '#888'}; margin-left: 8px;">
+                                <span style="color: ${refundAmount > 0 ? '#00ffff' : '#888'}; margin-left: 8px;">
                                     ${refundAmount > 0 ? refundAmount.toFixed(3) + ' SOL' : 'None'}
                                 </span>
                             </div>
@@ -2387,7 +2392,7 @@ pub mod x402_escrow {
                 position: fixed;
                 top: 80px;
                 right: 20px;
-                background: ${type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#00d9ff'};
+                background: ${type === 'error' ? '#ef4444' : type === 'success' ? '#10b981' : '#00ffff'};
                 color: white;
                 padding: 12px 20px;
                 border-radius: 8px;
@@ -2459,7 +2464,7 @@ pub mod x402_escrow {
 
                 <div style="text-align: center; margin: 15px 0;">
                     <div style="display: inline-flex; align-items: center; gap: 6px; padding: 0; background: transparent; border: none; color: #fff; font-size: 11px;">
-                        <span style="color: #00d9ff; font-size: 14px;">✓</span>
+                        <span style="color: #00ffff; font-size: 14px;">✓</span>
                         <span>Ed25519 Verified On-Chain</span>
                     </div>
                 </div>
