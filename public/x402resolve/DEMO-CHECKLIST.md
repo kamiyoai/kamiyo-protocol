@@ -69,7 +69,17 @@ btn.innerHTML = `✓ ${shortAddress}`;
 - `<img src="./media/Phantom-Icon_Transparent_White.svg">`
 - Any wallet provider logos (Phantom, Solflare, etc.)
 
-### 4. Animated Dots for Loading Messages
+### 4. SDK Package Name
+**MUST use @kamiyo/x402-sdk**
+
+SDK Integration tab TypeScript code example:
+```javascript
+import { EscrowClient, KamiyoClient } from '@kamiyo/x402-sdk';
+```
+
+**DO NOT use**: @x402resolve/sdk or any other package name
+
+### 5. Animated Dots for Loading Messages
 **MUST include animated dots CSS and markup**
 
 Required CSS (after @keyframes pulse):
@@ -114,6 +124,7 @@ Before pushing to production or main branch, verify:
 - [ ] Font is Atkinson Hyperlegible Mono (NOT JetBrains Mono)
 - [ ] Program ID is E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n
 - [ ] No wallet logos in Connect Wallet button
+- [ ] SDK package name is @kamiyo/x402-sdk (NOT @x402resolve/sdk)
 - [ ] Animated dots CSS exists in style section
 - [ ] All loading messages have `<span class="animated-dots"></span>`
 - [ ] Build meta comment includes current date and "All Fixes Applied"
@@ -131,6 +142,12 @@ grep -c "E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n" public/x402resolve/index.
 
 # Check for old program ID (should return 0 matches)
 grep -c "AFmBBw7" public/x402resolve/index.html
+
+# Check SDK package name (should return 1+ matches)
+grep -c "@kamiyo/x402-sdk" public/x402resolve/index.html
+
+# Check for old SDK package name (should return 0 matches)
+grep -c "@x402resolve/sdk" public/x402resolve/index.html
 
 # Check animated dots CSS exists
 grep -n "@keyframes dots" public/x402resolve/index.html

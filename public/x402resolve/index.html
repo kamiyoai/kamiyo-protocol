@@ -1440,41 +1440,40 @@
                 <h2><span>💻</span> TypeScript SDK</h2>
                 <div class="code-block">
                     <button class="copy-button" onclick="copyCode('ts-code')">Copy</button>
-                    <pre id="ts-code">import { KamiyoClient, EscrowClient } from '@x402resolve/sdk';
-import { Connection, Keypair } from '@solana/web3.js';
+                    <pre id="ts-code">import { EscrowClient, KamiyoClient } from '@kamiyo/x402-sdk';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { AnchorProvider } from '@coral-xyz/anchor';
 
-// Initialize client
+// Initialize connection and wallet
 const connection = new Connection('https://api.devnet.solana.com');
 const wallet = Keypair.generate();
+const provider = new AnchorProvider(connection, wallet, {});
 
-const client = new KamiyoClient({
-  apiUrl: 'https://api.kamiyo.ai',
-  enablex402Resolve: true,
-  walletPublicKey: wallet.publicKey
-});
+// Initialize escrow client
+const escrowClient = new EscrowClient(provider);
+const programId = new PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n');
 
 // Create escrow payment
-const payment = await client.pay({
-  amount: 0.01,
-  recipient: apiWallet,
-  query: 'Uniswap V3 exploits on Ethereum',
-  expectedCriteria: {
-    minRecords: 5,
-    requiredFields: ['tx_hash', 'amount_usd', 'timestamp'],
-    maxAgeDays: 30
-  }
-});
+const escrowId = 'tx_' + Date.now();
+const apiWallet = new PublicKey('...');
+const amount = 0.01; // SOL
 
-// File dispute if quality is poor
-if (data.quality < 80) {
-  const dispute = await client.dispute({
-    transactionId: payment.transactionId,
-    reason: 'Incomplete data - missing required fields',
-    evidence: data
-  });
+const tx = await escrowClient.initializeEscrow(
+  escrowId,
+  apiWallet,
+  amount,
+  provider.wallet.publicKey
+);
 
-  console.log(`Refund: ${dispute.refundPercentage}%`);
-}</pre>
+console.log('Escrow created:', tx);
+
+// Later: Mark disputed if quality is poor
+const tx = await escrowClient.markDisputed(
+  escrowId,
+  provider.wallet.publicKey
+);
+
+console.log('Dispute filed:', tx);</pre>
                 </div>
             </div>
 
