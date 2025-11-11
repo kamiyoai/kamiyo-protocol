@@ -487,7 +487,7 @@ class OracleTransactionSystem {
     }
 
     /**
-     * Fetch recent dispute resolutions from chain
+     * Fetch recent program transactions from chain
      */
     async fetchRecentDisputes(limit = 10) {
         try {
@@ -496,7 +496,7 @@ class OracleTransactionSystem {
                 { limit }
             );
 
-            const disputes = [];
+            const transactions = [];
 
             for (const sig of signatures) {
                 try {
@@ -505,10 +505,15 @@ class OracleTransactionSystem {
                     });
 
                     if (tx && tx.meta && tx.meta.logMessages) {
-                        // Look for DisputeResolved event
-                        const disputeLog = tx.meta.logMessages.find(log => log.includes('DisputeResolved'));
-                        if (disputeLog) {
-                            disputes.push({
+                        // Look for any program events (EscrowCreated, DisputeMarked, DisputeResolved)
+                        const hasEvent = tx.meta.logMessages.some(log =>
+                            log.includes('EscrowCreated') ||
+                            log.includes('DisputeMarked') ||
+                            log.includes('DisputeResolved')
+                        );
+
+                        if (hasEvent) {
+                            transactions.push({
                                 signature: sig.signature,
                                 slot: sig.slot,
                                 timestamp: sig.blockTime,
@@ -521,9 +526,9 @@ class OracleTransactionSystem {
                 }
             }
 
-            return disputes;
+            return transactions;
         } catch (error) {
-            console.error('Failed to fetch disputes:', error);
+            console.error('Failed to fetch transactions:', error);
             return [];
         }
     }
