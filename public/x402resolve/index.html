@@ -599,56 +599,6 @@
             -webkit-text-fill-color: transparent;
         }
 
-        /* ========================================
-           DEMO EFFECTS - Click Ripple
-           Comment out this section to disable
-           ======================================== */
-        .click-ripple {
-            position: fixed;
-            border-radius: var(--radius-full);
-            border: 1px solid;
-            pointer-events: none;
-            z-index: 9999;
-        }
-
-        .click-ripple.magenta {
-            animation: ripple-expand-magenta 2.5s ease-out forwards;
-        }
-
-        .click-ripple.black {
-            animation: ripple-expand-black 2.5s ease-out forwards;
-        }
-
-        @keyframes ripple-expand-magenta {
-            0% {
-                width: 0;
-                height: 0;
-                opacity: 1;
-                border-color: var(--color-magenta-hover);
-            }
-            100% {
-                width: 125px;
-                height: 125px;
-                opacity: 0;
-                border-color: var(--color-magenta-hover);
-            }
-        }
-
-        @keyframes ripple-expand-black {
-            0% {
-                width: 0;
-                height: 0;
-                opacity: 1;
-                border-color: var(--color-bg-primary);
-            }
-            100% {
-                width: 125px;
-                height: 125px;
-                opacity: 0;
-                border-color: var(--color-bg-primary);
-            }
-        }
-        /* ======================================== */
 
         /* ========================================
            ALERT COMPONENTS
@@ -1618,34 +1568,6 @@ pub mod x402_escrow {
         let currentChart = null;
         let consensusChart = null;
 
-        /* ========================================
-           DEMO EFFECTS - Click Ripple JavaScript
-           Comment out this section to disable
-           ======================================== */
-        document.addEventListener('click', (e) => {
-            // Create 3 ripples with staggered timing
-            for (let i = 0; i < 3; i++) {
-                setTimeout(() => {
-                    const ripple = document.createElement('div');
-                    // All magenta rings
-                    ripple.className = 'click-ripple magenta';
-
-                    // Position centered at click location (will expand from center)
-                    ripple.style.left = e.clientX + 'px';
-                    ripple.style.top = e.clientY + 'px';
-                    ripple.style.transform = 'translate(-50%, -50%)';
-
-                    // Add to body
-                    document.body.appendChild(ripple);
-
-                    // Remove after animation completes
-                    setTimeout(() => {
-                        ripple.remove();
-                    }, 2500);
-                }, i * 400); // Stagger by 400ms for more spacing
-            }
-        });
-        /* ======================================== */
 
         // Initialize
         function highlightSyntax() {
