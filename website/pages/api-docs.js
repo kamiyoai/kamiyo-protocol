@@ -15,6 +15,15 @@ export default function ApiDocs() {
       <Head>
         <title>API Documentation - KAMIYO</title>
         <meta name="description" content="Complete API documentation for KAMIYO exploit intelligence platform" />
+        <meta property="og:title" content="KAMIYO API Documentation" />
+        <meta property="og:description" content="Integrate KAMIYO's exploit intelligence into your applications. Multi-chain payment verification facilitator supporting BASE, POLYGON, and SOLANA." />
+        <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+        <meta property="og:url" content="https://kamiyo.ai/docs" />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="KAMIYO API Documentation" />
+        <meta name="twitter:description" content="Multi-chain payment verification facilitator supporting BASE, POLYGON, and SOLANA" />
+        <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
       </Head>
 
       <section className="py-10 px-5 md:px-1 mx-auto" style={{ maxWidth: '1400px' }}>

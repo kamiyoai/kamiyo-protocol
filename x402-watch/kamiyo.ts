@@ -10,7 +10,7 @@ export const kamiyoFacilitator = {
   id: 'kamiyo',
   metadata: {
     name: 'KAMIYO',
-    image: 'https://x402scan.com/kamiyo.png',
+    image: 'https://kamiyo.ai/favicon.png',
     docsUrl: 'https://kamiyo.ai/docs',
     color: '#00D4AA',
   },
