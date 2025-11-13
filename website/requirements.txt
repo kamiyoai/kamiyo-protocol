@@ -1,8 +1,7 @@
-# KAMIYO - Exploit Intelligence Aggregator
+# KAMIYO - x402 Payment Infrastructure
 # Requirements
 
 # Core dependencies
-feedparser==6.0.11
 python-dateutil==2.9.0
 requests==2.32.3
 PyYAML==6.0.2
@@ -49,28 +48,14 @@ slowapi==0.1.9  # Rate limiting for FastAPI
 # Retry Logic
 tenacity==8.2.3  # Retry logic for API calls and external services
 
-# Scheduling
-schedule==1.2.2
-celery==5.3.4  # For background tasks
+# Background tasks
+celery==5.3.4
 
 # Web3 & Blockchain
 web3==6.11.3
 
-# Twitter/Social
-tweepy==4.14.0
-beautifulsoup4==4.12.2
-
-# Telegram Integration (Day 25)
-python-telegram-bot==20.7
-telethon==1.34.0  # For advanced channel monitoring
-
-# Discord Integration (Day 26)
-discord.py==2.3.2  # Discord bot library with slash command support
-
-# Social Media Posting (Day 31)
-praw==7.7.1  # Reddit API wrapper
-# tweepy already listed above (line 52)
-websockets==12.0  # WebSocket client for real-time KAMIYO updates
+# WebSocket support
+websockets==12.0
 
 # AI Enhancement for Deep Dive Analysis
 anthropic>=0.34.0  # Claude AI for enhanced thread generation
@@ -89,9 +74,7 @@ mypy==1.7.1
 python-dotenv==1.0.0
 cryptography==41.0.7
 
-# Performance & Optimization (Days 14-15)
-brotli==1.1.0  # Brotli compression (better than gzip)
-pybloom-live==4.0.0  # Bloom filter for deduplication
-aiodns==3.1.1  # Async DNS resolution for aggregators
-charset-normalizer==3.3.2  # Fast character encoding detection (replaces cchardet, Python 3.11+ compatible)
+# Performance & Optimization
+brotli==1.1.0
+charset-normalizer==3.3.2
 click==8.1.7
