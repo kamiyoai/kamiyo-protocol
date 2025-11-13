@@ -24,6 +24,9 @@ from api.x402 import routes as x402_routes
 from api.x402.middleware import X402Middleware
 from api.x402.routes import payment_tracker
 
+# ERC-8004 Agent Identity
+from api.erc8004 import router as erc8004_router
+
 # Stripe Payment System
 from api.payments import routes as payment_routes
 from api.subscriptions import routes as subscription_routes
@@ -164,6 +167,7 @@ if cache_config.middleware_enabled:
 
 # Include routers
 app.include_router(x402_routes.router, tags=["x402 Payments"])
+app.include_router(erc8004_router, tags=["ERC-8004 Agents"])
 app.include_router(payment_routes.router, prefix="/api/v1/payments", tags=["Stripe Payments"])
 app.include_router(subscription_routes.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
 app.include_router(webhook_routes.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
