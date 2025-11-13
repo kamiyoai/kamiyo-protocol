@@ -1,95 +1,79 @@
 # -*- coding: utf-8 -*-
 """
-Kamiyo REST API
-FastAPI application for exploit intelligence aggregation
+KAMIYO x402 Payment Facilitator API
+FastAPI application for HTTP 402 Payment Required standard
 """
 
 import sys
 import os
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, Query, HTTPException, Path, WebSocket, Header, Request
+from fastapi import FastAPI, HTTPException, Header, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
 import logging
-import asyncio
 
-from api.models import (
-    ExploitResponse,
-    ExploitsListResponse,
-    StatsResponse,
-    HealthResponse,
-    SourceHealth,
-    ErrorResponse
-)
-from database import get_db
-from api.community import router as community_router
-from intelligence.source_scorer import SourceScorer
-from api.websocket_server import websocket_endpoint, get_websocket_manager
-from api.scheduled_tasks import get_task_runner
+# x402 Payment System
+from api.x402 import routes as x402_routes
+from api.x402.middleware import X402Middleware
+from api.x402.routes import payment_tracker
 
-# Week 2 Payment System Routers
-# Temporarily disabled due to missing dependencies (prometheus_client, psycopg2)
-# from api.payments import routes as payment_routes
-# from api.subscriptions import routes as subscription_routes
-# from api.webhooks import routes as webhook_routes
-# from api.billing import routes as billing_routes
-
-# User Webhooks Router
-from api.user_webhooks import routes as user_webhook_routes
-
-# Discord Integration Router
-from api.discord_routes import router as discord_router
-
-# Telegram Integration Router
-from api.telegram import router as telegram_router
-
-# Alert Status Router
-from api.alert_status import router as alert_status_router
-
-# Protocol Watchlists Router
-from api.watchlists import router as watchlists_router
-
-# Slack Integration Router
-from api.slack import router as slack_router
-
-# API v2 - Deep Analysis Router
-from api.v2 import analysis_router
+# Stripe Payment System
+from api.payments import routes as payment_routes
+from api.subscriptions import routes as subscription_routes
+from api.webhooks import routes as webhook_routes
+from api.billing import routes as billing_routes
 
 # Cache imports
 from api.middleware.cache_middleware import CacheMiddleware
 from caching.cache_manager import get_cache_manager
-from caching.warming import get_warmer
 from config.cache_config import get_cache_config
 
-# Rate limiting imports (P0-3)
+# Rate limiting
 from api.middleware.rate_limiter import RateLimitMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+# CSRF Protection
+from api.csrf_protection import (
+    get_csrf_protect,
+    csrf_protect_exception_handler,
+    validate_csrf_production_config,
+    csrf_settings
+)
+from fastapi_csrf_protect import CsrfProtect
+from fastapi_csrf_protect.exceptions import CsrfProtectError
+
+# PCI logging filter
+from api.payments.pci_logging_filter import setup_pci_compliant_logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Database optimization constants
-MAX_PAGE_SIZE = 500
-
-# Import PCI logging filter (must be imported after logging.basicConfig)
-from api.payments.pci_logging_filter import setup_pci_compliant_logging
 
 # Get cache configuration
 cache_config = get_cache_config()
 
 # Create FastAPI app
 app = FastAPI(
-    title="Kamiyo Exploit Intelligence API",
-    description="Real-time aggregation of cryptocurrency exploits from 18+ verified sources (42 Twitter security accounts)",
-    version="1.0.0",
+    title="KAMIYO x402 Payment Facilitator",
+    description="HTTP 402 Payment Required - Monetize your API with crypto payments",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
 
+# Add exception handlers
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(CsrfProtectError, csrf_protect_exception_handler)
+
 # CORS middleware
-# Configure CORS based on environment with HTTPS enforcement
 def validate_origins(origins: list, is_production: bool) -> list:
     """Validate that production origins use HTTPS"""
     validated = []
@@ -107,14 +91,11 @@ raw_origins = os.getenv(
     "https://kamiyo.ai,https://www.kamiyo.ai,https://api.kamiyo.ai"
 ).split(",")
 
-# Validate origins
 ALLOWED_ORIGINS = validate_origins(raw_origins, is_production)
 
-# In development, allow localhost
 if not is_production:
     ALLOWED_ORIGINS.extend(["http://localhost:3000", "http://localhost:8000"])
 
-# In production, ensure at least one valid origin
 if is_production and not ALLOWED_ORIGINS:
     raise ValueError("[SECURITY] No valid HTTPS origins configured for production")
 
@@ -123,24 +104,23 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-CSRF-Token", "X-Payment-Token", "X-Payment-Tx", "X-Payment-Chain"],
+    expose_headers=["X-CSRF-Token", "X-Payment-Required"],
     max_age=3600,
 )
 
-# Security headers middleware (P0-1)
+# Security headers middleware
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     """Add security headers to all responses"""
     response = await call_next(request)
 
-    # Defense-in-depth security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
-    # Content-Security-Policy (CSP) - Additional XSS protection layer
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self'; "
@@ -150,14 +130,12 @@ async def add_security_headers(request, call_next):
         "frame-ancestors 'none';"
     )
 
-    # HSTS only in production (prevents MITM attacks)
     if is_production:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     return response
 
-# Rate limiting middleware (P0-3)
-# Use Redis in production for distributed rate limiting
+# Rate limiting middleware
 use_redis_rate_limit = is_production and os.getenv("REDIS_URL")
 app.add_middleware(
     RateLimitMiddleware,
@@ -165,6 +143,13 @@ app.add_middleware(
     redis_url=os.getenv("REDIS_URL")
 )
 logger.info(f"Rate limiting middleware enabled (Redis: {use_redis_rate_limit})")
+
+# x402 Payment Middleware
+app.add_middleware(
+    X402Middleware,
+    payment_tracker=payment_tracker
+)
+logger.info("x402 Payment middleware enabled")
 
 # Cache middleware
 if cache_config.middleware_enabled:
@@ -177,458 +162,144 @@ if cache_config.middleware_enabled:
     )
     logger.info("Cache middleware enabled")
 
-# Database instance
-db = get_db()
-
-# Source scorer instance
-source_scorer = SourceScorer()
-
 # Include routers
-app.include_router(community_router)
+app.include_router(x402_routes.router, tags=["x402 Payments"])
+app.include_router(payment_routes.router, prefix="/api/v1/payments", tags=["Stripe Payments"])
+app.include_router(subscription_routes.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
+app.include_router(webhook_routes.router, prefix="/api/v1/webhooks", tags=["Webhooks"])
+app.include_router(billing_routes.router, prefix="/api/v1/billing", tags=["Billing"])
 
-# Week 2 Payment System Routers
-# Temporarily disabled due to missing dependencies (prometheus_client, psycopg2)
-# app.include_router(payment_routes.router, prefix="/api/v1/payments", tags=["Payments"])
-# app.include_router(subscription_routes.router, prefix="/api/v1/subscriptions", tags=["Subscriptions"])
-# app.include_router(webhook_routes.router, prefix="/api/v1/webhooks", tags=["Stripe Webhooks"])
-# app.include_router(billing_routes.router, prefix="/api/v1/billing", tags=["Billing"])
-
-# User Webhooks Router
-app.include_router(user_webhook_routes.router, tags=["User Webhooks"])
-
-# Discord Integration Router
-app.include_router(discord_router, prefix="/api/v1/discord", tags=["Discord"])
-
-# Telegram Integration Router
-app.include_router(telegram_router, prefix="/api/v1/telegram", tags=["Telegram"])
-
-# Alert Status Router
-app.include_router(alert_status_router, tags=["Alerts"])
-
-# Protocol Watchlists Router
-app.include_router(watchlists_router, tags=["Protocol Watchlists"])
-
-# Slack Integration Router
-app.include_router(slack_router, tags=["Slack"])
-
-# API v2 - Deep Analysis Router
-app.include_router(analysis_router, tags=["Deep Analysis"])
-
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_route(websocket: WebSocket, token: Optional[str] = Query(None), chains: Optional[str] = Query(None), min_amount: float = Query(0.0)):
-    """WebSocket endpoint for real-time exploit updates"""
-    await websocket_endpoint(websocket, token, chains, min_amount)
-
-
-@app.get("/", tags=["Root"])
+# Root endpoint
+@app.get("/", tags=["Info"])
 async def root():
-    """API root endpoint"""
+    """API root - x402 Payment Facilitator information"""
     return {
-        "name": "Kamiyo Exploit Intelligence API",
-        "version": "1.0.0",
-        "description": "Aggregating crypto exploits from 18 verified aggregators (including 42 Twitter security accounts)",
-        "docs": "/docs",
+        "name": "KAMIYO x402 Payment Facilitator",
+        "version": "2.0.0",
+        "description": "HTTP 402 Payment Required - Monetize your API with cryptocurrency payments",
+        "features": [
+            "Multi-chain support (Base, Ethereum, Solana)",
+            "Direct wallet-to-wallet payments",
+            "No KYC required",
+            "Pay-per-use pricing",
+            "Instant settlement"
+        ],
+        "documentation": "/docs",
         "endpoints": {
-            "exploits": "/exploits",
-            "stats": "/stats",
-            "health": "/health",
-            "chains": "/chains",
-            "community": "/community",
-            "sources": "/sources/rankings"
+            "pricing": "/x402/pricing",
+            "verify_payment": "/x402/verify",
+            "token_status": "/x402/token/status",
+            "supported_chains": "/x402/chains",
+            "csrf_token": "/api/csrf-token"
+        },
+        "payment_methods": [
+            "USDC on Base Network",
+            "USDC on Ethereum",
+            "USDC on Solana"
+        ],
+        "website": "https://kamiyo.ai",
+        "docs": "https://docs.kamiyo.ai/x402"
+    }
+
+# CSRF token endpoint
+@app.get("/api/csrf-token", tags=["Security"])
+async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
+    """
+    Generate CSRF token for client
+
+    Returns a CSRF token that must be included in all state-changing requests.
+    Required for POST, PUT, DELETE, PATCH requests.
+    """
+    try:
+        csrf_token = csrf_protect.generate_csrf()
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "csrf_token": csrf_token,
+                "expires_in": csrf_settings.csrf_token_expiration,
+                "header_name": csrf_settings.csrf_header_name,
+                "usage": f"Include token in {csrf_settings.csrf_header_name} header"
+            },
+            headers={
+                "X-CSRF-Token": csrf_token,
+                "Cache-Control": "no-store, no-cache, must-revalidate",
+                "Pragma": "no-cache"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate CSRF token: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate CSRF token"
+        )
+
+# Health check
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """
+    Health check endpoint
+
+    Returns system health status for monitoring.
+    """
+    from datetime import datetime
+
+    return {
+        "status": "healthy",
+        "service": "kamiyo-x402",
+        "version": "2.0.0",
+        "timestamp": datetime.now().isoformat(),
+        "components": {
+            "api": "operational",
+            "x402": "operational",
+            "payments": "operational"
         }
     }
 
-
-@app.get("/exploits", response_model=ExploitsListResponse, tags=["Exploits"])
-async def get_exploits(
-    request: Request,
-    page: int = Query(1, ge=1, le=10000, description="Page number (max 10,000)"),
-    page_size: int = Query(100, ge=1, le=500, description="Items per page (max 500 for performance)"),
-    chain: Optional[str] = Query(None, max_length=100, description="Filter by blockchain"),
-    min_amount: Optional[float] = Query(None, ge=0, description="Minimum loss amount (USD)"),
-    protocol: Optional[str] = Query(None, max_length=100, description="Filter by protocol name"),
-    authorization: Optional[str] = Header(None, description="Authorization header (Bearer token)"),
-):
-    """
-    Get list of exploits with optional filtering and pagination
-
-    - **page**: Page number (default: 1)
-    - **page_size**: Items per page (default: 100, max: 1000)
-    - **chain**: Filter by blockchain (e.g., "Ethereum", "BSC")
-    - **min_amount**: Minimum loss amount in USD
-    - **protocol**: Filter by protocol name (partial match)
-
-    **Authentication:**
-    - Optional: Authorization header with Bearer token (API key)
-    - Free tier (no auth): Gets delayed data (24h delay)
-    - Paid tiers (with auth): Gets real-time data
-    """
-    try:
-        # Explicit page_size validation (MASTER-003)
-        if page_size > MAX_PAGE_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "page_size_too_large",
-                    "max_allowed": MAX_PAGE_SIZE,
-                    "requested": page_size
-                }
-            )
-
-        # Import auth helpers
-        from api.auth_helpers import get_optional_user, has_real_time_access
-        from datetime import datetime, timedelta
-
-        # Get user from optional auth
-        user = await get_optional_user(request, authorization)
-
-        # Check if user has real-time access
-        is_real_time = has_real_time_access(user)
-
-        # Calculate offset
-        offset = (page - 1) * page_size
-
-        # Fetch exploits, excluding non-blockchain sources by default
-        # This ensures the frontend doesn't need to filter github_advisories, test, etc.
-        exclude_sources = ['github_advisories', 'test', 'manual_test']
-
-        exploits = db.get_recent_exploits(
-            limit=page_size,
-            offset=offset,
-            chain=chain,
-            min_amount=min_amount,
-            exclude_sources=exclude_sources
-        )
-
-        # Apply delayed data filter for free tier users
-        if not is_real_time:
-            # Free tier gets data delayed by 24 hours
-            from datetime import timezone
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
-            filtered_exploits = []
-            for e in exploits:
-                exploit_timestamp = e.get('timestamp')
-                if exploit_timestamp:
-                    # Handle both datetime objects (from PostgreSQL) and strings (from SQLite)
-                    if isinstance(exploit_timestamp, str):
-                        ts = datetime.fromisoformat(exploit_timestamp.replace('Z', '+00:00'))
-                    else:
-                        # Already a datetime object from psycopg2
-                        ts = exploit_timestamp
-
-                    # Make timezone-aware if needed
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=timezone.utc)
-
-                    if ts < cutoff_time:
-                        filtered_exploits.append(e)
-                else:
-                    # Keep exploits without timestamp
-                    filtered_exploits.append(e)
-            exploits = filtered_exploits
-            logger.info(f"Applied 24h delay filter for free tier user")
-
-        # Filter by protocol if specified (case-insensitive partial match)
-        if protocol:
-            protocol_lower = protocol.lower()
-            exploits = [
-                e for e in exploits
-                if protocol_lower in e['protocol'].lower()
-            ]
-
-        # Get total count (approximate for performance)
-        total = db.get_total_exploits()
-
-        # Convert to response models
-        exploit_responses = [ExploitResponse(**exploit) for exploit in exploits]
-
-        return ExploitsListResponse(
-            data=exploit_responses,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_more=offset + len(exploits) < total
-        )
-
-    except Exception as e:
-        logger.error(f"Error fetching exploits: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/exploits/{tx_hash}", response_model=ExploitResponse, tags=["Exploits"])
-async def get_exploit(
-    tx_hash: str = Path(..., description="Transaction hash")
-):
-    """
-    Get single exploit by transaction hash
-
-    - **tx_hash**: Transaction hash (or generated hash for sources without real tx hash)
-    """
-    try:
-        exploit = db.get_exploit_by_tx_hash(tx_hash)
-
-        if not exploit:
-            raise HTTPException(status_code=404, detail="Exploit not found")
-
-        return ExploitResponse(**exploit)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching exploit: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/stats", response_model=StatsResponse, tags=["Statistics"])
-async def get_stats(
-    days: int = Query(1, ge=1, le=365, description="Time period in days")
-):
-    """
-    Get statistics for specified time period
-
-    - **days**: Number of days to include (default: 1, max: 365)
-
-    Returns total exploits, total loss, affected chains/protocols, and more.
-    """
-    try:
-        if days == 1:
-            stats = db.get_stats_24h()
-        else:
-            stats = db.get_stats_custom(days=days)
-
-        # Add period_days to response
-        stats['period_days'] = days
-
-        return StatsResponse(**stats)
-
-    except Exception as e:
-        logger.error(f"Error fetching stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/chains", tags=["Chains"])
-async def get_chains():
-    """
-    Get list of all blockchains in database
-
-    Returns list of chain names with exploit counts (optimized single-query).
-    """
-    try:
-        # Use optimized single-query method (fixes N+1 query problem)
-        chain_counts = db.get_chains_with_counts()
-
-        return {
-            "total_chains": len(chain_counts),
-            "chains": chain_counts
-        }
-
-    except Exception as e:
-        logger.error(f"Error fetching chains: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch chains")
-
-
-@app.get("/health", response_model=HealthResponse, tags=["Health"])
-async def health_check():
-    """
-    Get health status of aggregation sources and database
-
-    Returns source health, database statistics, and system status with detailed monitoring metrics.
-    """
-    try:
-        from datetime import datetime
-
-        # Try to get source health, but don't fail if it errors
-        sources = []
-        try:
-            sources = db.get_source_health()
-        except Exception as source_error:
-            logger.warning(f"Failed to get source health (non-fatal): {source_error}")
-            # Continue with empty sources list
-
-        total_exploits = db.get_total_exploits()
-        chains = db.get_chains()
-
-        # Convert sources to models
-        source_models = [SourceHealth(**source) for source in sources]
-
-        return HealthResponse(
-            status="healthy",
-            database_exploits=total_exploits,
-            tracked_chains=len(chains),
-            active_sources=75,  # All 75 sources are actively monitored
-            total_sources=75,  # Total sources monitored (includes Twitter accounts, RSS feeds, aggregators, etc.)
-            sources=source_models,
-            timestamp=datetime.now().isoformat()
-        )
-
-    except Exception as e:
-        logger.error(f"Error fetching health: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+# Readiness check
 @app.get("/ready", tags=["Health"])
 async def readiness_check():
     """
-    Readiness probe for deployment health checks
+    Readiness probe for Kubernetes
 
-    Returns 200 when app is ready to serve traffic, 503 otherwise.
-    Checks critical dependencies: database, cache (if enabled).
+    Checks if service can handle traffic.
     """
     try:
-        # Check database connectivity
-        total_exploits = db.get_total_exploits()
-
-        # Check cache connectivity (if enabled)
-        cache_healthy = True
+        # Check Redis if enabled
+        redis_healthy = True
         if cache_config.l2_enabled:
             try:
                 cache_manager = get_cache_manager()
-                cache_healthy = await cache_manager.ping()
+                if cache_manager._redis is None:
+                    await cache_manager.connect()
+                await cache_manager._redis.ping()
             except Exception as e:
-                logger.warning(f"Cache health check failed: {e}")
-                cache_healthy = False
+                logger.warning(f"Redis health check failed: {e}")
+                redis_healthy = False
 
-        # Return ready if database is accessible
-        # Cache is optional - degrade gracefully
-        if total_exploits >= 0:  # Database accessible
-            return {
-                "status": "ready",
-                "database": "healthy",
-                "cache": "healthy" if cache_healthy else "degraded",
-                "exploits": total_exploits
-            }
-        else:
-            raise HTTPException(status_code=503, detail="Database not accessible")
+        return {
+            "status": "ready",
+            "redis": "healthy" if redis_healthy else "degraded"
+        }
 
     except Exception as e:
         logger.error(f"Readiness check failed: {e}")
-        raise HTTPException(status_code=503, detail="Not ready")
-
-
-@app.get("/sources/rankings", tags=["Sources"])
-async def get_source_rankings(
-    days: int = Query(30, ge=1, le=365, description="Time period for evaluation")
-):
-    """
-    Get quality rankings for all aggregation sources
-
-    Scores sources based on:
-    - **Speed**: Time from incident to report (30%)
-    - **Exclusivity**: Percentage of first-reports (25%)
-    - **Reliability**: Uptime and fetch success rate (20%)
-    - **Coverage**: Chains/protocols covered (15%)
-    - **Accuracy**: Verification rate (10%)
-
-    Returns comprehensive comparison with rankings and metrics.
-    """
-    try:
-        comparison = source_scorer.get_source_comparison(days=days)
-        return comparison
-
-    except Exception as e:
-        logger.error(f"Error fetching source rankings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/sources/{source_name}/score", tags=["Sources"])
-async def get_source_score(
-    source_name: str = Path(..., description="Source name"),
-    days: int = Query(30, ge=1, le=365, description="Time period for evaluation")
-):
-    """
-    Get detailed quality score for specific source
-
-    Returns total score, individual metric scores, and exploit count.
-    """
-    try:
-        score_data = source_scorer.score_source(source_name, days=days)
-
-        if score_data.get('total_score') == 0:
-            raise HTTPException(status_code=404, detail="Source not found or no data available")
-
-        return score_data
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching source score: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/admin/clean-test-data", tags=["Admin"])
-async def clean_test_data(
-    x_api_key: Optional[str] = Header(None, description="Admin API key")
-):
-    """
-    Delete test/dummy data from database
-
-    Removes only the test protocol entry (source='test').
-    DeFiLlama exploits with 'generated-' tx hashes are kept as they are real exploits.
-
-    **Requires admin API key in X-API-Key header**
-    """
-    try:
-        # Check admin API key
-        admin_key = os.getenv("ADMIN_API_KEY")
-        if not admin_key:
-            raise HTTPException(status_code=500, detail="Admin API key not configured")
-
-        if x_api_key != admin_key:
-            raise HTTPException(status_code=403, detail="Invalid admin API key")
-
-        # Delete test exploit
-        query = """
-            DELETE FROM exploits
-            WHERE source = 'test'
-            RETURNING id, protocol, source, tx_hash
-        """
-
-        result = db.execute_with_retry(query, readonly=False)
-
-        if result:
-            deleted_count = len(result)
-            deleted_items = [
-                {
-                    "id": row[0],
-                    "protocol": row[1],
-                    "source": row[2],
-                    "tx_hash": row[3]
-                }
-                for row in result
-            ]
-
-            logger.info(f"Deleted {deleted_count} test exploit(s)")
-
-            return {
-                "status": "success",
-                "deleted_count": deleted_count,
-                "deleted_items": deleted_items,
-                "message": f"Successfully removed {deleted_count} test exploit(s)"
-            }
-        else:
-            return {
-                "status": "success",
-                "deleted_count": 0,
-                "deleted_items": [],
-                "message": "No test exploits found (may have already been deleted)"
-            }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error cleaning test data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+        raise HTTPException(
+            status_code=503,
+            detail=f"Not ready: {str(e)}"
+        )
 
 # Error handlers
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
     return JSONResponse(
         status_code=404,
-        content={"error": "Not found", "detail": str(exc.detail)}
+        content={
+            "error": "Not found",
+            "detail": str(exc.detail) if hasattr(exc, 'detail') else "Resource not found",
+            "documentation": "/docs"
+        }
     )
-
 
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
@@ -637,77 +308,100 @@ async def internal_error_handler(request, exc):
         content={"error": "Internal server error", "detail": str(exc)}
     )
 
+# CSRF Protection Middleware
+@app.middleware("http")
+async def csrf_protection_middleware(request: Request, call_next):
+    """CSRF protection for state-changing requests"""
+    from api.csrf_protection import is_endpoint_exempt
 
-# Startup/shutdown events
+    if is_endpoint_exempt(request.url.path, request.method):
+        return await call_next(request)
+
+    if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
+        csrf_protect = get_csrf_protect()
+        try:
+            await csrf_protect.validate_csrf(request)
+        except CsrfProtectError:
+            raise
+        except Exception as e:
+            logger.error(f"CSRF validation error: {e}")
+            raise HTTPException(status_code=403, detail="CSRF token validation failed")
+
+    return await call_next(request)
+
+# Startup event
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Kamiyo API starting up...")
+    logger.info("KAMIYO x402 Payment Facilitator starting up...")
 
-    # Initialize PCI-compliant logging FIRST (before any payment processing)
-    # CRITICAL: This must run before any logs that might contain payment data
-    # PCI DSS Requirement 3.4: Render PAN unreadable anywhere it is stored (including logs)
+    # Validate CSRF configuration
     try:
-        pci_filter = setup_pci_compliant_logging(
-            apply_to_root=True,  # Protect ALL loggers
-            apply_to_loggers=['api.payments', 'api.subscriptions', 'stripe'],  # Extra protection for payment loggers
+        validate_csrf_production_config()
+        logger.info("[SECURITY] CSRF protection initialized")
+    except RuntimeError as e:
+        logger.critical(f"[SECURITY] CSRF validation failed: {e}")
+        if is_production:
+            raise
+
+    # Initialize PCI-compliant logging
+    try:
+        setup_pci_compliant_logging(
+            apply_to_root=True,
+            apply_to_loggers=['api.payments', 'api.subscriptions', 'stripe'],
             log_level=os.getenv('LOG_LEVEL', 'INFO')
         )
-        logger.info("[PCI COMPLIANCE] Logging filter initialized - all sensitive data will be redacted")
+        logger.info("[PCI COMPLIANCE] Logging filter initialized")
     except Exception as e:
-        logger.critical(f"[PCI COMPLIANCE] Failed to initialize logging filter: {e}")
-        logger.critical("PAYMENT PROCESSING SHOULD BE DISABLED - LOGS MAY CONTAIN SENSITIVE DATA")
-        # In production, you might want to prevent startup here
+        logger.critical(f"[PCI COMPLIANCE] Failed to initialize logging: {e}")
 
-    # Check Stripe API version health (P1-1)
-    # PCI DSS Requirement 12.10.1: Incident response planning
+    # Validate production secrets
+    if is_production:
+        logger.info("[SECURITY] Validating production configuration...")
+
+        dangerous_defaults = {
+            "X402_ADMIN_KEY": "dev_x402_admin_key_change_in_production",
+            "X402_BASE_PAYMENT_ADDRESS": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+            "X402_ETHEREUM_PAYMENT_ADDRESS": "0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7",
+            "X402_SOLANA_PAYMENT_ADDRESS": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+        }
+
+        failed_checks = []
+        for key, dangerous_value in dangerous_defaults.items():
+            current_value = os.getenv(key)
+            if current_value == dangerous_value:
+                failed_checks.append(key)
+                logger.critical(f"[SECURITY] {key} using insecure default!")
+            elif not current_value:
+                failed_checks.append(key)
+                logger.critical(f"[SECURITY] {key} not set!")
+
+        # Check Stripe key
+        stripe_key = os.getenv("STRIPE_SECRET_KEY")
+        if stripe_key and stripe_key.startswith("sk_test_"):
+            failed_checks.append("STRIPE_SECRET_KEY")
+            logger.critical("[SECURITY] Using test Stripe key in production!")
+
+        if failed_checks:
+            error_msg = f"[SECURITY] Production blocked due to insecure config: {', '.join(failed_checks)}"
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
+
+        logger.info("[SECURITY] Production configuration validated")
+
+    # Check Stripe version
     try:
         from api.payments.stripe_version_monitor import get_version_monitor
-
         version_monitor = get_version_monitor()
         version_health = version_monitor.check_version_health()
 
         if version_health['status'] == 'critical':
-            logger.critical(
-                f"[STRIPE VERSION] CRITICAL: API version {version_health['version']} "
-                f"is {version_health['age_days']} days old. Upgrade required immediately."
-            )
+            logger.critical(f"[STRIPE] API version {version_health['version']} is {version_health['age_days']} days old")
         elif version_health['status'] == 'warning':
-            logger.warning(
-                f"[STRIPE VERSION] WARNING: API version {version_health['version']} "
-                f"is {version_health['age_days']} days old. Plan upgrade soon."
-            )
+            logger.warning(f"[STRIPE] API version {version_health['version']} is {version_health['age_days']} days old")
         else:
-            logger.info(
-                f"[STRIPE VERSION] Healthy: API version {version_health['version']} "
-                f"is {version_health['age_days']} days old."
-            )
+            logger.info(f"[STRIPE] API version {version_health['version']} healthy")
     except Exception as e:
-        logger.error(f"[STRIPE VERSION] Failed to check version health: {e}")
-
-    # Log database stats with error handling
-    try:
-        total_exploits = db.get_total_exploits()
-        logger.info(f"Database exploits: {total_exploits}")
-    except Exception as e:
-        logger.error(f"Failed to get database exploits count: {e}")
-        # Don't fail startup, continue without this stat
-
-    try:
-        chains = db.get_chains()
-        logger.info(f"Tracked chains: {len(chains)}")
-    except Exception as e:
-        logger.error(f"Failed to get chains: {e}")
-        # Don't fail startup, continue without this stat
-
-    # Start WebSocket heartbeat
-    ws_manager = get_websocket_manager()
-    await ws_manager.start_heartbeat_task()
-    logger.info("WebSocket manager started")
-
-    # Start scheduled task runner
-    task_runner = get_task_runner()
-    await task_runner.start()
-    logger.info("Scheduled task runner started")
+        logger.error(f"[STRIPE] Version check failed: {e}")
 
     # Initialize cache
     if cache_config.l2_enabled:
@@ -716,71 +410,28 @@ async def startup_event():
             await cache_manager.connect()
             logger.info("Cache manager connected")
         except Exception as e:
-            logger.error(f"Failed to connect cache manager: {e}")
+            logger.error(f"Failed to connect cache: {e}")
 
-    # Start cache warming
-    if cache_config.warming_enabled and cache_config.warming_on_startup:
-        try:
-            warmer = get_warmer()
+    logger.info("✅ x402 Payment Facilitator ready")
 
-            # Warm critical data
-            await warmer.warm_statistics(db)
-            await warmer.warm_chains(db)
-            await warmer.warm_health(db)
-            await warmer.warm_exploits_list(
-                db,
-                page_sizes=[100, 50],
-                chains=db.get_chains()[:5]  # Top 5 chains
-            )
-
-            # Start scheduled warming
-            if cache_config.warming_scheduled:
-                await warmer.start_scheduled_warming()
-
-            logger.info("Cache warming completed")
-            logger.info(f"Warming stats: {warmer.get_stats()}")
-        except Exception as e:
-            logger.error(f"Cache warming failed: {e}")
-
-
+# Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("Kamiyo API shutting down...")
-
-    # Stop scheduled task runner
-    task_runner = get_task_runner()
-    task_runner.stop()
-    logger.info("Scheduled task runner stopped")
-
-    # Stop WebSocket heartbeat
-    ws_manager = get_websocket_manager()
-    ws_manager.stop_heartbeat_task()
-    logger.info("WebSocket manager stopped")
-
-    # Stop cache warming
-    if cache_config.warming_enabled:
-        try:
-            warmer = get_warmer()
-            warmer.stop_scheduled_warming()
-            logger.info("Cache warming stopped")
-        except Exception as e:
-            logger.error(f"Failed to stop cache warming: {e}")
+    logger.info("KAMIYO x402 shutting down...")
 
     # Disconnect cache
     if cache_config.l2_enabled:
         try:
             cache_manager = get_cache_manager()
             await cache_manager.disconnect()
-            logger.info("Cache manager disconnected")
+            logger.info("Cache disconnected")
         except Exception as e:
-            logger.error(f"Failed to disconnect cache manager: {e}")
-
+            logger.error(f"Failed to disconnect cache: {e}")
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(
-        "main:app",
+        "main_x402:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
