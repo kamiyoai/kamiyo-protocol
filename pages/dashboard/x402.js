@@ -8,6 +8,8 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import PayButton from '../../components/PayButton';
+import { LinkButton } from '../../components/Button';
 // Charts temporarily disabled due to SSR issues
 // import {
 //   VerificationsTrendChart,
@@ -233,50 +235,50 @@ export default function X402Dashboard() {
 
           {/* Checkout success/cancel message */}
           {router.query.checkout === 'success' && (
-            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-green-800">✓ Subscription activated successfully!</p>
+            <div className="mb-6 bg-black border border-dotted border-cyan p-4">
+              <p className="text-cyan">✓ Subscription activated successfully!</p>
             </div>
           )}
           {router.query.checkout === 'cancelled' && (
-            <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800">Checkout cancelled. You can try again anytime.</p>
+            <div className="mb-6 bg-black border border-dotted border-gray-500 p-4">
+              <p className="text-gray-400">Checkout cancelled. You can try again anytime.</p>
             </div>
           )}
 
           {/* Error message */}
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800">Error: {error}</p>
+            <div className="mb-6 bg-black border border-dotted border-red-500 p-4">
+              <p className="text-red-400">Error: {error}</p>
             </div>
           )}
 
           {/* Usage Stats */}
           {usage && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-sm font-medium text-gray-500">Current Tier</h3>
-                <p className="mt-2 text-3xl font-bold text-gray-900 capitalize">{usage.tier}</p>
+              <div className="bg-black border border-dotted border-gray-500/25 p-6">
+                <h3 className="text-sm font-medium text-gray-400">Current Tier</h3>
+                <p className="mt-2 text-3xl font-light text-white capitalize">{usage.tier}</p>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-sm font-medium text-gray-500">Verifications Used</h3>
-                <p className="mt-2 text-3xl font-bold text-gray-900">
+              <div className="bg-black border border-dotted border-gray-500/25 p-6">
+                <h3 className="text-sm font-medium text-gray-400">Verifications Used</h3>
+                <p className="mt-2 text-3xl font-light text-white">
                   {usage.verifications_used.toLocaleString()}
-                  <span className="text-lg text-gray-500">
+                  <span className="text-lg text-gray-400">
                     {usage.verifications_limit !== -1 && ` / ${usage.verifications_limit.toLocaleString()}`}
                   </span>
                 </p>
-                <div className="mt-4 bg-gray-200 rounded-full h-2">
+                <div className="mt-4 bg-gray-800 h-2">
                   <div
-                    className="bg-blue-600 h-2 rounded-full"
+                    className="bg-gradient-to-r from-cyan to-magenta h-2"
                     style={{ width: `${Math.min(usage.usage_percent, 100)}%` }}
                   ></div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-sm font-medium text-gray-500">Verifications Remaining</h3>
-                <p className="mt-2 text-3xl font-bold text-gray-900">
+              <div className="bg-black border border-dotted border-gray-500/25 p-6">
+                <h3 className="text-sm font-medium text-gray-400">Verifications Remaining</h3>
+                <p className="mt-2 text-3xl font-light text-white">
                   {usage.verifications_remaining === -1
                     ? 'Unlimited'
                     : usage.verifications_remaining.toLocaleString()}
@@ -289,23 +291,21 @@ export default function X402Dashboard() {
           <div className="mb-12">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-light text-white">API Keys</h2>
-              <button
-                onClick={createApiKey}
+              <PayButton
+                textOverride={isCreatingKey ? 'Creating...' : '+ Create New Key'}
+                onClickOverride={createApiKey}
                 disabled={isCreatingKey}
-                className="px-4 py-2 bg-cyan text-black rounded hover:bg-cyan/80 disabled:opacity-50"
-              >
-                {isCreatingKey ? 'Creating...' : '+ Create New Key'}
-              </button>
+              />
             </div>
 
             {apiKeys.length === 0 ? (
-              <div className="bg-black border border-gray-500/25 rounded-lg p-8 text-center">
+              <div className="bg-black border border-dotted border-gray-500/25 p-8 text-center">
                 <p className="text-gray-400">No API keys yet. Create one to get started.</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {apiKeys.map(key => (
-                  <div key={key.id} className="bg-black border border-gray-500/25 rounded-lg p-6">
+                  <div key={key.id} className="bg-black border border-dotted border-gray-500/25 p-6">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="text-lg font-medium text-white">{key.name}</h3>
@@ -346,17 +346,17 @@ export default function X402Dashboard() {
             <div className="mb-12">
               <h2 className="text-2xl font-light mb-6 text-white">Usage Analytics</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                <div className="bg-black border border-dotted border-gray-500/25 p-6">
                   <h3 className="text-sm font-medium text-gray-400">Total Verifications</h3>
-                  <p className="mt-2 text-3xl font-bold text-white">{analytics.total_verifications || 0}</p>
+                  <p className="mt-2 text-3xl font-light text-white">{analytics.total_verifications || 0}</p>
                 </div>
-                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                <div className="bg-black border border-dotted border-gray-500/25 p-6">
                   <h3 className="text-sm font-medium text-gray-400">Success Rate</h3>
-                  <p className="mt-2 text-3xl font-bold text-green-400">{analytics.success_rate || 0}%</p>
+                  <p className="mt-2 text-3xl font-light text-cyan">{analytics.success_rate || 0}%</p>
                 </div>
-                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                <div className="bg-black border border-dotted border-gray-500/25 p-6">
                   <h3 className="text-sm font-medium text-gray-400">Avg Response Time</h3>
-                  <p className="mt-2 text-3xl font-bold text-cyan">{analytics.avg_response_time_ms || 0}ms</p>
+                  <p className="mt-2 text-3xl font-light text-cyan">{analytics.avg_response_time_ms || 0}ms</p>
                 </div>
               </div>
             </div>
@@ -364,13 +364,13 @@ export default function X402Dashboard() {
 
           {/* Enabled Chains */}
           {chains && (
-            <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
+            <div className="bg-black border border-dotted border-gray-500/25 p-6 mb-8">
               <h2 className="text-lg font-light text-white mb-4">Enabled Chains</h2>
               <div className="flex flex-wrap gap-2">
                 {chains.enabled_chains.map(chain => (
                   <span
                     key={chain}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border border-cyan text-cyan"
+                    className="inline-flex items-center px-3 py-1 text-sm font-medium border border-dotted border-cyan text-cyan"
                   >
                     {chain.charAt(0).toUpperCase() + chain.slice(1)}
                   </span>
@@ -386,8 +386,8 @@ export default function X402Dashboard() {
 
           {/* Upgrade Section */}
           {usage && usage.tier !== 'enterprise' && (
-            <div className="bg-white rounded-lg shadow p-6 mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Upgrade Your Plan</h2>
+            <div className="bg-black border border-dotted border-gray-500/25 p-6 mb-8">
+              <h2 className="text-lg font-light text-white mb-4">Upgrade Your Plan</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {usage.tier === 'free' && (
                   <>
@@ -441,28 +441,27 @@ export default function X402Dashboard() {
 
           {/* Billing Portal */}
           {usage && usage.tier !== 'free' && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Billing Management</h2>
-              <p className="text-gray-600 mb-4">
+            <div className="bg-black border border-dotted border-gray-500/25 p-6">
+              <h2 className="text-lg font-light text-white mb-4">Billing Management</h2>
+              <p className="text-gray-400 mb-4">
                 Manage your subscription, payment methods, and invoices.
               </p>
-              <button
-                onClick={openBillingPortal}
-                className="px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800"
-              >
-                Open Billing Portal
-              </button>
+              <PayButton
+                textOverride="Open Billing Portal"
+                onClickOverride={openBillingPortal}
+              />
             </div>
           )}
 
           {/* Documentation Link */}
           <div className="mt-8 text-center">
-            <a
-              href="https://kamiyo.ai/docs/x402"
-              className="text-blue-600 hover:underline"
+            <LinkButton
+              href="/api-docs"
+              title="View API documentation for x402 Infrastructure"
+              aria-label="View API documentation"
             >
               View API Documentation →
-            </a>
+            </LinkButton>
           </div>
         </div>
       </div>
@@ -472,16 +471,16 @@ export default function X402Dashboard() {
 
 function PricingCard({ name, price, verifications, onClick }) {
   return (
-    <div className="border rounded-lg p-4">
-      <h3 className="text-lg font-semibold">{name}</h3>
-      <p className="text-3xl font-bold mt-2">${price}<span className="text-sm text-gray-500">/mo</span></p>
-      <p className="text-gray-600 mt-2">{verifications} verifications</p>
-      <button
-        onClick={onClick}
-        className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-      >
-        Upgrade to {name}
-      </button>
+    <div className="border border-dotted border-gray-500/25 p-4">
+      <h3 className="text-lg font-light text-white">{name}</h3>
+      <p className="text-3xl font-light text-white mt-2">${price}<span className="text-sm text-gray-400">/mo</span></p>
+      <p className="text-gray-400 mt-2">{verifications} verifications</p>
+      <div className="mt-4 flex justify-center">
+        <PayButton
+          textOverride={`Upgrade to ${name}`}
+          onClickOverride={onClick}
+        />
+      </div>
     </div>
   );
 }

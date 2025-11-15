@@ -7,6 +7,7 @@
 
 import { APIKeyManager } from '../../../../../lib/x402-saas/api-key-manager.js';
 import { BillingService } from '../../../../../lib/x402-saas/billing-service.js';
+import { TenantManager } from '../../../../../lib/x402-saas/tenant-manager.js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../auth/[...nextauth]';
 import prisma from '../../../../../lib/prisma';
@@ -23,9 +24,19 @@ export default async function handler(req, res) {
     const session = await getServerSession(req, res, authOptions);
 
     if (session?.user?.email) {
-      const tenant = await prisma.x402Tenant.findUnique({
+      let tenant = await prisma.x402Tenant.findUnique({
         where: { email: session.user.email }
       });
+
+      // Create tenant if it doesn't exist
+      if (!tenant) {
+        const result = await TenantManager.createTenant(
+          session.user.email,
+          session.user.name || session.user.email,
+          'free'
+        );
+        tenant = result.tenant;
+      }
 
       if (tenant) {
         tenantId = tenant.id;

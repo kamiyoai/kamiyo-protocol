@@ -184,7 +184,7 @@ export default function SubscriptionPage() {
                         return (
                             <div
                                 key={tier.name}
-                                className={`relative bg-black border border-gray-500/25 rounded-lg p-6 flex flex-col transition-all duration-300 ${
+                                className={`relative bg-black border border-gray-500/25 border-dotted p-6 flex flex-col transition-all duration-300 ${
                                     isCurrent
                                         ? 'card card-highlighted -translate-y-1'
                                         : ''
@@ -192,7 +192,7 @@ export default function SubscriptionPage() {
                             >
                                 {isCurrent && (
                                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                                        <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
+                                        <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 border-dotted">
                                             Current Plan
                                         </span>
                                     </div>
