@@ -334,7 +334,9 @@ export default function ApiKeysPage() {
 
                         <div className="bg-void rounded p-4 font-mono text-xs overflow-x-auto">
                             <pre>{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
-     https://api.kamiyo.ai/v2/exploits/recent`}</pre>
+     -H "Content-Type: application/json" \\
+     -d '{"tx_hash": "YOUR_TX_HASH", "chain": "solana"}' \\
+     https://api.kamiyo.ai/v1/x402/verify`}</pre>
                         </div>
 
                         <div className="space-y-2">

@@ -45,9 +45,9 @@ export default function UsageDashboardPage() {
                         hour: 15,
                         day: 342,
                         endpoints: {
-                            '/exploits': 250,
-                            '/stats': 50,
-                            '/chains': 42
+                            '/v1/x402/verify': 250,
+                            '/v1/x402/supported-chains': 50,
+                            '/v1/x402/usage': 42
                         }
                     },
                     limits: {
@@ -77,9 +77,9 @@ export default function UsageDashboardPage() {
                     hour: 15,
                     day: 342,
                     endpoints: {
-                        '/exploits': 250,
-                        '/stats': 50,
-                        '/chains': 42
+                        '/v1/x402/verify': 250,
+                        '/v1/x402/supported-chains': 50,
+                        '/v1/x402/usage': 42
                     }
                 },
                 limits: {
