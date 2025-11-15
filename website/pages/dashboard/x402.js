@@ -270,7 +270,7 @@ export default function X402Dashboard() {
                 </p>
                 <div className="mt-4 bg-gray-800 h-2">
                   <div
-                    className="bg-cyan h-2"
+                    className="bg-gradient-to-r from-cyan to-magenta h-2"
                     style={{ width: `${Math.min(usage.usage_percent, 100)}%` }}
                   ></div>
                 </div>
