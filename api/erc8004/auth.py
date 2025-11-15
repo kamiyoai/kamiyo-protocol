@@ -83,7 +83,7 @@ async def get_current_user(
                 SELECT u.id, u.tier, k.key_hash, u.wallet_address
                 FROM api_keys k
                 JOIN users u ON k.user_id::uuid = u.id
-                WHERE k.key_hash = %s AND k.is_active = TRUE
+                WHERE k.key_hash = $1 AND k.is_active = TRUE
             """, key_hash)
 
         if not user:
