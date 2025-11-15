@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;ダッシュボード</p>
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Security Intelligence Dashboard</h1>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">x402 Dashboard</h1>
                     <p className="text-gray-400 mt-4">
                         Subscription Tier: <span className="text-white">{tierDisplay}</span>
                     </p>
@@ -161,13 +161,13 @@ export default function DashboardPage() {
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => router.push('/api-docs')}>
                         <h3 className="text-lg font-light mb-2">API Documentation</h3>
-                        <p className="text-gray-400 text-sm mb-4">Learn how to integrate security intelligence via MCP or x402</p>
+                        <p className="text-gray-400 text-sm mb-4">Learn how to integrate payment verification via MCP or x402</p>
                         <span className="text-cyan text-sm">View Docs →</span>
                     </div>
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
                          onClick={() => router.push('/dashboard/api-keys')}>
                         <h3 className="text-lg font-light mb-2">Manage API Keys</h3>
-                        <p className="text-gray-400 text-sm mb-4">Create and manage your API keys for security intelligence</p>
+                        <p className="text-gray-400 text-sm mb-4">Create and manage your API keys for payment verification</p>
                         <span className="text-cyan text-sm">Manage Keys →</span>
                     </div>
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
@@ -229,27 +229,27 @@ export default function DashboardPage() {
                 {/* Getting Started for Free Tier */}
                 {!subscription.isSubscribed && (
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <h2 className="text-2xl font-light mb-4">Getting Started with Security Intelligence</h2>
+                        <h2 className="text-2xl font-light mb-4">Getting Started with Payment Verification</h2>
                         <div className="space-y-4">
                             <div className="flex items-start gap-4">
                                 <div className="text-cyan text-2xl font-light">1</div>
                                 <div>
                                     <h3 className="text-white mb-1">Create an API Key</h3>
-                                    <p className="text-gray-400 text-sm">Generate your first API key to start accessing security intelligence</p>
+                                    <p className="text-gray-400 text-sm">Generate your first API key to start verifying crypto payments</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-4">
                                 <div className="text-cyan text-2xl font-light">2</div>
                                 <div>
                                     <h3 className="text-white mb-1">Read the Documentation</h3>
-                                    <p className="text-gray-400 text-sm">Learn how to integrate security intelligence via MCP or x402 in your AI agents</p>
+                                    <p className="text-gray-400 text-sm">Learn how to integrate payment verification via x402 API</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-4">
                                 <div className="text-cyan text-2xl font-light">3</div>
                                 <div>
-                                    <h3 className="text-white mb-1">Start Querying</h3>
-                                    <p className="text-gray-400 text-sm">Start with MCP subscription or pay-per-query x402 access</p>
+                                    <h3 className="text-white mb-1">Start Verifying</h3>
+                                    <p className="text-gray-400 text-sm">Verify USDC payments across 12+ blockchains with one API call</p>
                                 </div>
                             </div>
                         </div>

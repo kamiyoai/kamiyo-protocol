@@ -94,8 +94,8 @@ export default function CheckoutSuccess() {
                                 <li className="flex items-start gap-3">
                                     <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-bold">3</span>
                                     <div>
-                                        <div className="font-semibold text-white mb-1">Start using security intelligence</div>
-                                        <div className="text-gray-400">Try: "Search for recent crypto exploits" or "Check vulnerabilities in Uniswap"</div>
+                                        <div className="font-semibold text-white mb-1">Start verifying payments</div>
+                                        <div className="text-gray-400">Verify USDC payments across 12+ blockchains with one API call</div>
                                     </div>
                                 </li>
                             </ol>
