@@ -5,6 +5,7 @@ import PayButton from './PayButton';
 
 export default function X402PricingTiers({ showTitle = true }) {
     const router = useRouter();
+    const [loading, setLoading] = useState(null);
 
     const tiers = [
         {
@@ -64,11 +65,51 @@ export default function X402PricingTiers({ showTitle = true }) {
         }
     ];
 
-    const handleSelect = (tier) => {
+    const handleSelect = async (tier) => {
         if (tier === 'enterprise') {
             router.push('/inquiries');
-        } else {
+            return;
+        }
+
+        if (tier === 'free') {
             router.push('/dashboard/x402');
+            return;
+        }
+
+        setLoading(tier);
+
+        try {
+            const response = await fetch('/api/v1/x402/billing/create-checkout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tier,
+                    success_url: `${window.location.origin}/dashboard?checkout=success`,
+                    cancel_url: `${window.location.origin}/pricing?checkout=cancelled`
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('Checkout error:', error);
+                alert(`Error: ${error.error || 'Failed to create checkout session'}`);
+                setLoading(null);
+                return;
+            }
+
+            const data = await response.json();
+
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else {
+                throw new Error('No checkout URL returned');
+            }
+        } catch (error) {
+            console.error('Failed to create checkout session:', error);
+            alert('Failed to start checkout. Please try again or contact support.');
+            setLoading(null);
         }
     };
 
@@ -132,13 +173,16 @@ export default function X402PricingTiers({ showTitle = true }) {
                                 <div className="flex justify-center mt-auto pt-6">
                                     <PayButton
                                         textOverride={
-                                            plan.tier === 'enterprise'
+                                            loading === plan.tier
+                                                ? 'Processing...'
+                                                : plan.tier === 'enterprise'
                                                 ? 'Contact Sales'
                                                 : plan.tier === 'free'
                                                 ? 'Get Started'
                                                 : 'Start Free Trial'
                                         }
                                         onClickOverride={() => handleSelect(plan.tier)}
+                                        disabled={loading !== null}
                                     />
                                 </div>
                             </div>
