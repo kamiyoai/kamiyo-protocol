@@ -76,13 +76,13 @@ export default function Home() {
 
                             {/* x402 Features */}
                             <div className="flex flex-wrap gap-3">
-                                <span className="text-xs text-gray-400 border border-dotted border-gray-500/50 px-3 py-2">
+                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
                                     Free tier: 1,000 verifications/mo
                                 </span>
-                                <span className="text-xs text-gray-400 border border-dotted border-gray-500/50 px-3 py-2">
+                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
                                     Multi-chain support
                                 </span>
-                                <span className="text-xs text-gray-400 border border-dotted border-gray-500/50 px-3 py-2">
+                                <span className="text-xs text-gray-400 border border-gray-500 border-opacity-50 px-3 py-2 rounded-full">
                                     5 min integration
                                 </span>
                             </div>
