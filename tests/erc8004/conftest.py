@@ -20,23 +20,17 @@ def event_loop():
 @pytest.fixture
 async def test_db() -> AsyncGenerator:
     """
-    Test database with transaction rollback
+    Test database connection (no transaction isolation)
 
-    Ensures tests don't persist data between runs.
+    NOTE: Tests write to real database.
+    Use unique UUIDs to avoid conflicts.
     """
     from config.database_pool import get_db
 
     pool = await get_db()
 
     async with pool.acquire() as conn:
-        # Start transaction for isolation
-        tx = conn.transaction()
-        await tx.start()
-
         yield conn
-
-        # Rollback all changes
-        await tx.rollback()
 
 
 @pytest.fixture
