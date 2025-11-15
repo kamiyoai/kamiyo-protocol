@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import { ScrambleButton } from "../../components/ScrambleButton";
+import { LinkButton } from "../../components/Button";
 
 const tiers = [
     {
@@ -67,7 +68,13 @@ export default function SubscriptionPage() {
     const [upgrading, setUpgrading] = useState(false);
 
     useEffect(() => {
-        if (status !== "authenticated" || !session?.user) {
+        // Wait for session to finish loading before making redirect decisions
+        if (status === "loading") {
+            return;
+        }
+
+        // Only redirect if we're certain the user is not authenticated
+        if (status === "unauthenticated" || !session?.user) {
             router.push("/auth/signin");
             return;
         }
@@ -177,15 +184,15 @@ export default function SubscriptionPage() {
                         return (
                             <div
                                 key={tier.name}
-                                className={`relative bg-black border rounded-lg p-6 flex flex-col ${
+                                className={`relative bg-black border border-gray-500/25 border-dotted p-6 flex flex-col transition-all duration-300 ${
                                     isCurrent
-                                        ? 'border-cyan'
-                                        : 'border-gray-500 border-opacity-25'
+                                        ? 'card card-highlighted -translate-y-1'
+                                        : ''
                                 }`}
                             >
                                 {isCurrent && (
                                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                                        <span className="bg-cyan text-black text-xs uppercase tracking-wider px-3 py-1 rounded-full">
+                                        <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 border-dotted">
                                             Current Plan
                                         </span>
                                     </div>
@@ -248,26 +255,13 @@ export default function SubscriptionPage() {
                         <p className="text-gray-400 mb-4">
                             Need to update payment method or view invoices?
                         </p>
-                        <button
-                            onClick={async () => {
-                                try {
-                                    const res = await fetch('/api/subscription/portal', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ email: session.user.email })
-                                    });
-                                    const data = await res.json();
-                                    if (data.url) {
-                                        window.location.href = data.url;
-                                    }
-                                } catch (error) {
-                                    console.error('Error accessing billing portal:', error);
-                                }
-                            }}
-                            className="text-cyan hover:text-magenta transition-colors text-sm"
+                        <LinkButton
+                            href="https://billing.stripe.com/p/login/9B628q7kD3vG0w0fD79bO00"
+                            target="_blank"
+                            rel="noopener noreferrer"
                         >
                             Access Billing Portal →
-                        </button>
+                        </LinkButton>
                     </div>
                 )}
             </div>
