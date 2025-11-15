@@ -151,8 +151,8 @@ export default function UsageDashboardPage() {
     const minutePercentage = getUsagePercentage(usageData.current_usage.minute, usageData.limits.minute);
 
     return (
-        <div className="min-h-screen bg-void text-white p-8">
-            <div className="max-w-[1400px] mx-auto">
+        <div className="min-h-screen bg-void text-white">
+            <div className="py-8 px-5 mx-auto max-w-[1400px]">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
@@ -194,9 +194,10 @@ export default function UsageDashboardPage() {
                 </div>
 
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">Usage Analytics</h1>
-                    <p className="text-gray-400">
+                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;使用状況</p>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Usage Analytics</h1>
+                    <p className="text-gray-400 mt-4">
                         Monitor your KAMIYO API usage and rate limits
                     </p>
                 </div>

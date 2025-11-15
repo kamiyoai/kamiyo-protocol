@@ -79,7 +79,7 @@ export default function DashboardPage() {
         <div className="bg-black text-white min-h-screen py-8">
             <Head><title>Dashboard - KAMIYO</title></Head>
 
-            <div className="max-w-[1400px] mx-auto px-8">
+            <div className="max-w-[1400px] mx-auto px-5">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
@@ -121,10 +121,13 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                <h1 className="text-4xl font-light mb-2 leading-[1.25]">Security Intelligence Dashboard</h1>
-                <p className="text-gray-400 mb-8">
-                    Subscription Tier: <span className="text-white">{tierDisplay}</span>
-                </p>
+                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;ダッシュボード</p>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Security Intelligence Dashboard</h1>
+                    <p className="text-gray-400 mt-4">
+                        Subscription Tier: <span className="text-white">{tierDisplay}</span>
+                    </p>
+                </div>
 
                 {/* Subscription Info Card */}
                 <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
