@@ -152,7 +152,7 @@ export default function UsageDashboardPage() {
 
     return (
         <div className="min-h-screen bg-void text-white p-8">
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-[1400px] mx-auto">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
