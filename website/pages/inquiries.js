@@ -48,7 +48,7 @@ export default function ContactPage() {
     };
 
     return (
-        <div className="text-white bg-black flex items-center justify-center min-h-[calc(100vh-140px)]">
+        <div className="text-white bg-black min-h-[calc(100vh-140px)]">
             <Head>
                 <title>Inquiries</title>
             </Head>
