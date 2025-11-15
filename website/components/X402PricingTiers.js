@@ -1,33 +1,31 @@
 // components/X402PricingTiers.js
-import Link from "next/link";
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import PayButton from './PayButton';
 
 export default function X402PricingTiers({ showTitle = true }) {
+    const router = useRouter();
+    const [loading, setLoading] = useState(null);
+
     const tiers = [
         {
             name: "Free",
+            tier: "free",
             price: "$0",
-            period: "forever",
-            description: "Perfect for testing and development",
-            verifications: "1,000/mo",
-            chains: "2 chains",
+            priceDetail: "forever",
             features: [
                 "1,000 verifications/month",
                 "Solana & Base support",
                 "Multi-chain USDC verification",
                 "Community support",
                 "Standard rate limits"
-            ],
-            cta: "Get Started Free",
-            ctaLink: "/x402",
-            highlighted: false
+            ]
         },
         {
             name: "Starter",
+            tier: "starter",
             price: "$99",
-            period: "/mo",
-            description: "For growing applications",
-            verifications: "50,000/mo",
-            chains: "3 chains",
+            priceDetail: "/mo",
             features: [
                 "50,000 verifications/month",
                 "Solana, Base & Ethereum",
@@ -35,18 +33,13 @@ export default function X402PricingTiers({ showTitle = true }) {
                 "Email support",
                 "Higher rate limits",
                 "99.9% uptime SLA"
-            ],
-            cta: "Start Free Trial",
-            ctaLink: "/x402",
-            highlighted: true
+            ]
         },
         {
             name: "Pro",
+            tier: "pro",
             price: "$299",
-            period: "/mo",
-            description: "For production applications",
-            verifications: "500,000/mo",
-            chains: "6 chains",
+            priceDetail: "/mo",
             features: [
                 "500,000 verifications/month",
                 "6 blockchain networks",
@@ -54,18 +47,13 @@ export default function X402PricingTiers({ showTitle = true }) {
                 "Priority support",
                 "Custom rate limits",
                 "99.95% uptime SLA"
-            ],
-            cta: "Start Free Trial",
-            ctaLink: "/x402",
-            highlighted: false
+            ]
         },
         {
             name: "Enterprise",
+            tier: "enterprise",
             price: "$999",
-            period: "/mo",
-            description: "For high-volume operations",
-            verifications: "Unlimited",
-            chains: "All chains",
+            priceDetail: "/mo",
             features: [
                 "Unlimited verifications",
                 "All supported chains",
@@ -73,12 +61,57 @@ export default function X402PricingTiers({ showTitle = true }) {
                 "Dedicated support",
                 "Custom SLA agreements",
                 "On-premise deployment option"
-            ],
-            cta: "Contact Sales",
-            ctaLink: "/inquiries",
-            highlighted: false
+            ]
         }
     ];
+
+    const handleSelect = async (tier) => {
+        if (tier === 'enterprise') {
+            router.push('/inquiries');
+            return;
+        }
+
+        if (tier === 'free') {
+            router.push('/dashboard/x402');
+            return;
+        }
+
+        setLoading(tier);
+
+        try {
+            const response = await fetch('/api/v1/x402/billing/create-checkout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tier,
+                    success_url: `${window.location.origin}/dashboard?checkout=success`,
+                    cancel_url: `${window.location.origin}/pricing?checkout=cancelled`
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('Checkout error:', error);
+                alert(`Error: ${error.error || 'Failed to create checkout session'}`);
+                setLoading(null);
+                return;
+            }
+
+            const data = await response.json();
+
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else {
+                throw new Error('No checkout URL returned');
+            }
+        } catch (error) {
+            console.error('Failed to create checkout session:', error);
+            alert('Failed to start checkout. Please try again or contact support.');
+            setLoading(null);
+        }
+    };
 
     return (
         <div className="w-full">
@@ -93,89 +126,69 @@ export default function X402PricingTiers({ showTitle = true }) {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {tiers.map((tier) => (
-                    <div
-                        key={tier.name}
-                        className="border border-gray-800 rounded-lg p-8 space-y-4"
-                    >
-                        <div>
-                            <h4 className="text-xl font-light text-white mb-2">
-                                {tier.name}
-                            </h4>
-                            <p className="text-gray-400 text-sm">
-                                {tier.description}
-                            </p>
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {tiers.map((plan, index) => {
+                    const isHighlighted = plan.tier === 'starter';
 
-                        <div>
-                            <span className="text-4xl font-light text-white">
-                                {tier.price}
-                            </span>
-                            <span className="text-gray-400 text-sm ml-1">
-                                {tier.period}
-                            </span>
-                        </div>
+                    return (
+                        <div
+                            key={plan.tier}
+                            className={`relative bg-black ${isHighlighted ? 'border border-transparent bg-gradient-to-br from-cyan via-cyan to-magenta bg-clip-padding' : 'border border-gray-500 border-opacity-25'} rounded-lg ${isHighlighted ? '-translate-y-1' : ''} hover:-translate-y-1 transition-all duration-300 flex flex-col`}
+                            itemScope
+                            itemType="https://schema.org/Offer"
+                            style={isHighlighted ? {
+                                background: 'linear-gradient(black, black) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box'
+                            } : {}}
+                        >
+                            <div className="p-6 flex flex-col flex-grow">
+                                {isHighlighted && (
+                                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                        <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
+                                            Most Popular
+                                        </span>
+                                    </div>
+                                )}
 
-                        <div className="border-t border-gray-800 pt-4">
-                            <div className="text-sm text-gray-400 mb-1">
-                                <span className="text-white font-light">
-                                    {tier.verifications}
-                                </span>{' '}
-                                verifications
+                                <h3 className="text-xl font-light mb-2" itemProp="name">{plan.name}</h3>
+
+                                <div className="mb-6" itemProp="priceSpecification" itemScope itemType="https://schema.org/PriceSpecification">
+                                    <span className="text-4xl font-light gradient-text" itemProp="price">{plan.price}</span>
+                                    <span className="text-gray-500 text-xs ml-1" itemProp="priceCurrency" content="USD">{plan.priceDetail}</span>
+                                </div>
+
+                                <ul className="space-y-2 mb-6 text-xs flex-grow" role="list">
+                                    {plan.features.map((feature, idx) => (
+                                        <li key={idx} className="flex items-start gap-2">
+                                            <svg className="w-3 h-3 text-cyan mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            <span className="text-gray-300">{feature}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <meta itemProp="availability" content="https://schema.org/InStock" />
+                                <meta itemProp="url" content={`https://kamiyo.ai/pricing#${plan.tier}`} />
+
+                                <div className="flex justify-center mt-auto pt-6">
+                                    <PayButton
+                                        textOverride={
+                                            loading === plan.tier
+                                                ? 'Processing...'
+                                                : plan.tier === 'enterprise'
+                                                ? 'Contact Sales'
+                                                : plan.tier === 'free'
+                                                ? 'Get Started'
+                                                : 'Start Free Trial'
+                                        }
+                                        onClickOverride={() => handleSelect(plan.tier)}
+                                        disabled={loading !== null}
+                                    />
+                                </div>
                             </div>
-                            <div className="text-sm text-gray-400">
-                                <span className="text-white font-light">
-                                    {tier.chains}
-                                </span>{' '}
-                                supported
-                            </div>
                         </div>
-
-                        <ul className="space-y-2 border-t border-gray-800 pt-4">
-                            {tier.features.map((feature, idx) => (
-                                <li key={idx} className="flex items-start gap-2 text-sm">
-                                    <svg
-                                        className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M5 13l4 4L19 7"
-                                        />
-                                    </svg>
-                                    <span className="text-gray-400">{feature}</span>
-                                </li>
-                            ))}
-                        </ul>
-
-                        <div className="pt-4">
-                            <Link
-                                href={tier.ctaLink}
-                                className={`block text-center px-6 py-3 rounded-lg font-medium transition-colors ${
-                                    tier.highlighted
-                                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                        : 'border border-gray-600 hover:border-gray-500 text-white'
-                                }`}
-                            >
-                                {tier.cta}
-                            </Link>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            <div className="mt-12 text-center">
-                <p className="text-gray-400 text-sm">
-                    All plans include API access, Python & JavaScript SDKs, and production-ready infrastructure.{' '}
-                    <Link href="/x402/docs" className="text-blue-400 hover:text-blue-300">
-                        View documentation →
-                    </Link>
-                </p>
+                    );
+                })}
             </div>
         </div>
     );
