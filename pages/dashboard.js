@@ -79,7 +79,7 @@ export default function DashboardPage() {
         <div className="bg-black text-white min-h-screen py-8">
             <Head><title>Dashboard - KAMIYO</title></Head>
 
-            <div className="max-w-7xl mx-auto px-8">
+            <div className="max-w-[1400px] mx-auto px-8">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
