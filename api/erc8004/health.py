@@ -4,8 +4,8 @@ Health check and metrics endpoints for ERC-8004
 
 from fastapi import APIRouter, Response
 from prometheus_client import generate_latest
-from database import get_db
-from .rate_limiter import redis_client
+from .rate_limiter import get_redis_client
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,58 +17,42 @@ async def health_check():
     """
     Comprehensive health check
 
-    Verifies database, Redis, and materialized view freshness.
+    Verifies database and Redis connectivity.
     Returns 200 if healthy, 503 if any critical component fails.
     """
+    from config.database_pool import get_db
+
     checks = {}
     overall_healthy = True
 
     try:
-        db = get_db()
-        await db.execute("SELECT 1")
-        checks['database'] = {'status': 'healthy'}
+        pool = await get_db()
+        async with pool.acquire() as conn:
+            await conn.execute("SELECT 1")
+        checks['database'] = 'connected'
     except Exception as e:
-        checks['database'] = {'status': 'unhealthy', 'error': str(e)}
+        checks['database'] = 'disconnected'
         overall_healthy = False
         logger.error(f"Database health check failed: {e}")
 
     try:
+        redis_client = await get_redis_client()
         await redis_client.ping()
-        checks['redis'] = {'status': 'healthy'}
+        checks['redis'] = 'connected'
     except Exception as e:
-        checks['redis'] = {'status': 'unhealthy', 'error': str(e)}
+        checks['redis'] = 'disconnected'
         overall_healthy = False
         logger.error(f"Redis health check failed: {e}")
-
-    try:
-        db = get_db()
-        result = await db.fetch_one("""
-            SELECT EXTRACT(EPOCH FROM (NOW() - MAX(last_feedback_at)))::int as age_seconds
-            FROM mv_erc8004_agent_reputation
-        """)
-        age_seconds = result[0] if result and result[0] else 0
-
-        if age_seconds > 3600:
-            checks['materialized_views'] = {
-                'status': 'degraded',
-                'age_seconds': age_seconds,
-                'message': 'Views need refresh'
-            }
-        else:
-            checks['materialized_views'] = {
-                'status': 'healthy',
-                'age_seconds': age_seconds
-            }
-    except Exception as e:
-        checks['materialized_views'] = {'status': 'unknown', 'error': str(e)}
-        logger.warning(f"Materialized view check failed: {e}")
 
     status_code = 200 if overall_healthy else 503
 
     return {
         'status': 'healthy' if overall_healthy else 'unhealthy',
-        'checks': checks,
-        'version': '1.0.0'
+        'checks': {
+            'database': checks.get('database', 'unknown'),
+            'redis': checks.get('redis', 'unknown')
+        },
+        'timestamp': datetime.now().isoformat()
     }
 
 

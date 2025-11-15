@@ -36,10 +36,18 @@ async def init_redis_client():
         raise ConnectionError(f"Failed to connect to Redis: {e}")
 
 
-redis_client = None  # Will be initialized on startup
+async def get_redis_client():
+    """Get or initialize Redis client"""
+    global redis_client
+    if redis_client is None:
+        redis_client = await init_redis_client()
+    return redis_client
 
 
-async def get_rate_limit_key(request: Request) -> str:
+redis_client = None  # Will be initialized on first use
+
+
+def get_rate_limit_key(request: Request) -> str:
     """
     Generate rate limit key based on API key or IP address
 
