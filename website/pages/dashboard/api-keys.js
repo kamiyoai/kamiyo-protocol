@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { csrfFetch } from '../../utils/csrf'; // BLOCKER 1: CSRF Protection
 
 export default function ApiKeysPage() {
     const { data: session, status } = useSession();
@@ -53,7 +54,8 @@ export default function ApiKeysPage() {
         try {
             setError(null);
 
-            const response = await fetch('/api/user/api-keys', {
+            // Use csrfFetch for CSRF-protected POST request (BLOCKER 1)
+            const response = await csrfFetch('/api/user/api-keys', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -90,7 +92,8 @@ export default function ApiKeysPage() {
         try {
             setError(null);
 
-            const response = await fetch('/api/user/api-keys', {
+            // Use csrfFetch for CSRF-protected DELETE request (BLOCKER 1)
+            const response = await csrfFetch('/api/user/api-keys', {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json'
@@ -121,15 +124,15 @@ export default function ApiKeysPage() {
 
     if (status === 'loading' || loading) {
         return (
-            <div className="min-h-screen bg-void flex items-center justify-center">
+            <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="text-white">Loading...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-void text-white p-8">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen bg-black text-white py-10 px-5">
+            <div className="max-w-[1400px] mx-auto">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
@@ -152,6 +155,12 @@ export default function ApiKeysPage() {
                             API Keys
                         </button>
                         <button
+                            onClick={() => router.push('/dashboard/usage')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Usage Analytics
+                        </button>
+                        <button
                             onClick={() => router.push('/pricing')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
@@ -170,27 +179,27 @@ export default function ApiKeysPage() {
 
                 {/* Error Display */}
                 {error && (
-                    <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 mb-6">
+                    <div className="bg-red-900/20 border border-red-500 border-dotted p-4 mb-6">
                         <p className="text-red-400">Error: {error}</p>
                     </div>
                 )}
 
                 {/* New Key Created (show full key once) */}
                 {createdKey && (
-                    <div className="bg-amaterasu/10 border border-amaterasu rounded-lg p-6 mb-6">
-                        <h3 className="text-xl font-semibold mb-2 text-amaterasu">
+                    <div className="bg-cyan/10 border border-cyan border-dotted p-6 mb-6">
+                        <h3 className="text-xl font-semibold mb-2 text-cyan">
                             API Key Created Successfully!
                         </h3>
                         <p className="text-sm text-gray-400 mb-4">
-                            ⚠️ Save this key securely. You won't be able to see it again.
+                            Save this key securely. You won't be able to see it again.
                         </p>
 
-                        <div className="bg-obsidian rounded p-4 font-mono text-sm">
+                        <div className="bg-gray-900 border-dotted p-4 font-mono text-sm">
                             <div className="flex items-center justify-between">
-                                <code className="text-amaterasu">{createdKey.key}</code>
+                                <code className="text-cyan">{createdKey.key}</code>
                                 <button
                                     onClick={() => copyToClipboard(createdKey.key)}
-                                    className="ml-4 px-4 py-2 bg-amaterasu/20 hover:bg-amaterasu/30 rounded text-amaterasu transition"
+                                    className="ml-4 px-4 py-2 bg-cyan/20 hover:bg-cyan/30 border-dotted text-cyan transition"
                                 >
                                     Copy
                                 </button>
@@ -201,7 +210,7 @@ export default function ApiKeysPage() {
                             onClick={() => setCreatedKey(null)}
                             className="mt-4 text-sm text-gray-400 hover:text-white"
                         >
-                            ✓ I've saved this key
+                            I've saved this key
                         </button>
                     </div>
                 )}
@@ -210,14 +219,14 @@ export default function ApiKeysPage() {
                 {!showCreateForm && (
                     <button
                         onClick={() => setShowCreateForm(true)}
-                        className="mb-6 px-6 py-3 bg-amaterasu hover:bg-amaterasu/80 text-black font-semibold rounded-lg transition"
+                        className="mb-6 px-6 py-3 bg-cyan hover:bg-cyan/80 text-black font-semibold border-dotted transition"
                     >
                         + Create New API Key
                     </button>
                 )}
 
                 {showCreateForm && (
-                    <div className="bg-obsidian border border-kamiyo-border rounded-lg p-6 mb-6">
+                    <div className="bg-gray-900 border border-kamiyo-border border-dotted p-6 mb-6">
                         <h3 className="text-xl font-semibold mb-4">Create New API Key</h3>
 
                         <div className="mb-4">
@@ -229,14 +238,14 @@ export default function ApiKeysPage() {
                                 value={newKeyName}
                                 onChange={(e) => setNewKeyName(e.target.value)}
                                 placeholder="e.g., Production Server, Development, etc."
-                                className="w-full px-4 py-2 bg-void border border-kamiyo-border rounded-lg focus:border-amaterasu focus:outline-none"
+                                className="w-full px-4 py-2 bg-black border border-kamiyo-border border-dotted focus:border-cyan focus:outline-none"
                             />
                         </div>
 
                         <div className="flex gap-3">
                             <button
                                 onClick={createApiKey}
-                                className="px-6 py-2 bg-amaterasu hover:bg-amaterasu/80 text-black font-semibold rounded-lg transition"
+                                className="px-6 py-2 bg-cyan hover:bg-cyan/80 text-black font-semibold border-dotted transition"
                             >
                                 Generate Key
                             </button>
@@ -245,7 +254,7 @@ export default function ApiKeysPage() {
                                     setShowCreateForm(false);
                                     setNewKeyName('');
                                 }}
-                                className="px-6 py-2 bg-transparent border border-kamiyo-border hover:border-gray-500 rounded-lg transition"
+                                className="px-6 py-2 bg-transparent border border-kamiyo-border hover:border-gray-500 border-dotted transition"
                             >
                                 Cancel
                             </button>
@@ -258,14 +267,14 @@ export default function ApiKeysPage() {
                     <h2 className="text-2xl font-semibold mb-4">Your API Keys</h2>
 
                     {apiKeys.length === 0 ? (
-                        <div className="bg-obsidian border border-kamiyo-border rounded-lg p-8 text-center">
+                        <div className="bg-gray-900 border border-kamiyo-border border-dotted py-10 px-5 text-center">
                             <p className="text-gray-400">No API keys yet. Create one to get started!</p>
                         </div>
                     ) : (
                         apiKeys.map((key) => (
                             <div
                                 key={key.id}
-                                className="bg-obsidian border border-kamiyo-border rounded-lg p-6 hover:border-amaterasu/30 transition"
+                                className="bg-gray-900 border border-kamiyo-border border-dotted p-6 hover:border-cyan/30 transition"
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
@@ -274,13 +283,13 @@ export default function ApiKeysPage() {
                                                 {key.name || 'Unnamed Key'}
                                             </h3>
                                             <span
-                                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                                className={`px-2 py-1 border-dotted text-xs font-medium ${
                                                     key.status === 'active'
                                                         ? 'bg-green-900/30 text-green-400'
                                                         : 'bg-red-900/30 text-red-400'
                                                 }`}
                                             >
-                                                {key.status === 'active' ? '✓ Active' : '✗ Revoked'}
+                                                {key.status === 'active' ? 'Active' : 'Revoked'}
                                             </span>
                                         </div>
 
@@ -302,7 +311,7 @@ export default function ApiKeysPage() {
                                     {key.status === 'active' && (
                                         <button
                                             onClick={() => revokeApiKey(key.id)}
-                                            className="ml-4 px-4 py-2 bg-red-900/20 hover:bg-red-900/30 border border-red-500/30 hover:border-red-500 text-red-400 rounded-lg transition text-sm"
+                                            className="ml-4 px-4 py-2 bg-red-900/20 hover:bg-red-900/30 border border-red-500/30 hover:border-red-500 text-red-400 border-dotted transition text-sm"
                                         >
                                             Revoke
                                         </button>
@@ -314,7 +323,7 @@ export default function ApiKeysPage() {
                 </div>
 
                 {/* Documentation */}
-                <div className="mt-12 bg-obsidian border border-kamiyo-border rounded-lg p-6">
+                <div className="mt-12 bg-gray-900 border border-kamiyo-border border-dotted p-6">
                     <h3 className="text-xl font-semibold mb-4">Using Your API Key</h3>
 
                     <div className="space-y-4 text-sm text-gray-300">
@@ -322,7 +331,7 @@ export default function ApiKeysPage() {
                             Use your API key to authenticate requests to the KAMIYO API:
                         </p>
 
-                        <div className="bg-void rounded p-4 font-mono text-xs overflow-x-auto">
+                        <div className="bg-black border-dotted p-4 font-mono text-xs overflow-x-auto">
                             <pre>{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
      https://api.kamiyo.ai/v2/exploits/recent`}</pre>
                         </div>
