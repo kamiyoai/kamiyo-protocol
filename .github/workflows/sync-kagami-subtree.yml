@@ -1,0 +1,30 @@
+name: Sync Kagami Subtree
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/kamiyo-kagami/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.KAGAMI_SYNC_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "KAMIYO Bot"
+          git config user.email "dev@kamiyo.ai"
+
+      - name: Push subtree to kagami repo
+        run: |
+          git remote add kagami-standalone https://x-access-token:${{ secrets.KAGAMI_SYNC_TOKEN }}@github.com/kamiyo-ai/kagami.git
+
+          # Split and push subtree
+          git subtree push --prefix=packages/kamiyo-kagami kagami-standalone main
