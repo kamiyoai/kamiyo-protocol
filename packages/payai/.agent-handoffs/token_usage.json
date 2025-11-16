@@ -1,0 +1,21 @@
+{
+  "session_start": "2025-10-27T11:43:16.152899", 
+  "warning_threshold": 0.8, 
+  "token_checkpoints": [
+    {
+      "tokens": 10, 
+      "timestamp": "2025-10-27T11:43:20.587898", 
+      "cumulative_total": 10, 
+      "description": "Test message 1"
+    }, 
+    {
+      "tokens": 5, 
+      "timestamp": "2025-10-27T11:43:20.588604", 
+      "cumulative_total": 115005, 
+      "description": "Handoff trigger"
+    }
+  ], 
+  "total_tokens_estimated": 115005, 
+  "last_handoff_update": "2025-10-27T11:44:44.224026", 
+  "context_window_limit": 128000
+}

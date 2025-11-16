@@ -1,0 +1,69 @@
+# docker-compose.backup.yml
+# Automated backup service configuration
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.backup.yml up
+
+version: '3.8'
+
+services:
+  # Automated backup service
+  backup:
+    image: postgres:15-alpine
+    container_name: kamiyo-backup
+    restart: unless-stopped
+
+    # Run backup scheduler
+    command: /scripts/backup-scheduler.sh
+
+    # Mount scripts and backup storage
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./backups:/backups
+      - /var/log:/var/log
+
+    # Environment variables
+    environment:
+      # Database connection
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-kamiyo_exploits}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+      # Backup settings
+      - BACKUP_DIR=/backups
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}  # Daily at 2 AM
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+
+      # Optional: S3 upload
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+
+    # Depends on database
+    depends_on:
+      - postgres
+
+    # Network
+    networks:
+      - kamiyo-network
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "test", "-f", "/backups/latest.sql.gz"]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
+
+networks:
+  kamiyo-network:
+    driver: bridge

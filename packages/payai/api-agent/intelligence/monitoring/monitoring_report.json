@@ -1,0 +1,34 @@
+{
+  "report_generated": "2025-10-06T00:56:58.369841",
+  "total_protocols": 3,
+  "total_alerts": 7,
+  "alerts_by_severity": {
+    "WARNING": 7
+  },
+  "alerts_by_type": {
+    "SYSTEM": 7
+  },
+  "protocols": [
+    {
+      "name": "CosmWasm Core",
+      "status": "active",
+      "last_scan": "2025-10-06T00:56:28.351632",
+      "vulnerability_count": 0,
+      "alert_count": 2
+    },
+    {
+      "name": "Osmosis DEX",
+      "status": "active",
+      "last_scan": "2025-10-06T00:55:58.335598",
+      "vulnerability_count": 0,
+      "alert_count": 1
+    },
+    {
+      "name": "Sample CosmWasm",
+      "status": "active",
+      "last_scan": "2025-10-06T00:56:43.360239",
+      "vulnerability_count": 0,
+      "alert_count": 4
+    }
+  ]
+}
