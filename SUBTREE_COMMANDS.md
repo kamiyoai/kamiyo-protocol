@@ -5,6 +5,8 @@
 ```
 kamiyo (main repo)
 ├── packages/kamiyo-kagami → kamiyo-ai/kagami
+├── packages/kamiyo-x402resolve → kamiyo-ai/x402resolve
+├── packages/kamiyo-hyperliquid → kamiyo-ai/kamiyo-hyperliquid
 └── packages/payai → mizuki-tamaki/kamiyo-payai
 ```
 
@@ -37,6 +39,32 @@ git push origin main
 git subtree push --prefix=packages/payai payai-remote main
 ```
 
+### Work on X402 Resolve in Main Repo
+
+```bash
+cd packages/kamiyo-x402resolve
+# Make changes
+git add packages/kamiyo-x402resolve
+git commit -m "Update x402resolve: description"
+git push origin main
+
+# Push to open source
+git subtree push --prefix=packages/kamiyo-x402resolve x402resolve-remote main
+```
+
+### Work on Hyperliquid in Main Repo
+
+```bash
+cd packages/kamiyo-hyperliquid
+# Make changes
+git add packages/kamiyo-hyperliquid
+git commit -m "Update hyperliquid: description"
+git push origin main
+
+# Push to open source
+git subtree push --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main
+```
+
 ### Pull Updates from Open Source
 
 If someone contributes to kagami on GitHub:
@@ -53,16 +81,34 @@ git subtree pull --prefix=packages/payai payai-remote main --squash
 git push origin main
 ```
 
+If someone contributes to x402resolve:
+
+```bash
+git subtree pull --prefix=packages/kamiyo-x402resolve x402resolve-remote main --squash
+git push origin main
+```
+
+If someone contributes to hyperliquid:
+
+```bash
+git subtree pull --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main --squash
+git push origin main
+```
+
 ## One-Time Setup (Already Done)
 
 ```bash
 # Add remotes
 git remote add kagami-remote https://github.com/kamiyo-ai/kagami.git
 git remote add payai-remote https://github.com/mizuki-tamaki/kamiyo-payai.git
+git remote add x402resolve-remote https://github.com/kamiyo-ai/x402resolve.git
+git remote add hyperliquid-remote https://github.com/kamiyo-ai/kamiyo-hyperliquid.git
 
 # Add subtrees
 git subtree add --prefix=packages/kamiyo-kagami kagami-remote main --squash
 git subtree add --prefix=packages/payai payai-remote main --squash
+git subtree add --prefix=packages/kamiyo-x402resolve x402resolve-remote main --squash
+git subtree add --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main --squash
 ```
 
 ## Common Operations
@@ -72,6 +118,8 @@ git subtree add --prefix=packages/payai payai-remote main --squash
 ```bash
 # After committing to main repo
 git subtree push --prefix=packages/kamiyo-kagami kagami-remote main
+git subtree push --prefix=packages/kamiyo-x402resolve x402resolve-remote main
+git subtree push --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main
 git subtree push --prefix=packages/payai payai-remote main
 ```
 
@@ -79,13 +127,15 @@ git subtree push --prefix=packages/payai payai-remote main
 
 ```bash
 git subtree pull --prefix=packages/kamiyo-kagami kagami-remote main --squash
+git subtree pull --prefix=packages/kamiyo-x402resolve x402resolve-remote main --squash
+git subtree pull --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main --squash
 git subtree pull --prefix=packages/payai payai-remote main --squash
 ```
 
 ### Check Remote Status
 
 ```bash
-git remote -v | grep -E "(kagami|payai)-remote"
+git remote -v | grep -E "(kagami|x402resolve|hyperliquid|payai)-remote"
 ```
 
 ## Important Notes
