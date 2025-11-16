@@ -1,0 +1,237 @@
+databases:
+  - name: kamiyo-postgres
+    databaseName: kamiyo
+    user: kamiyo
+    plan: starter
+    # Automated daily backups enabled by default
+    # Backup retention: 7 days
+
+services:
+  # FastAPI Backend
+  - type: web
+    name: kamiyo-api
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 4
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kamiyo-postgres
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: X402_ADMIN_KEY
+        sync: false
+      - key: X402_BASE_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_ETHEREUM_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_SOLANA_PAYMENT_ADDRESS
+        sync: false
+      - key: X402_BASE_RPC_URL
+        sync: false
+      - key: X402_ETHEREUM_RPC_URL
+        sync: false
+      - key: X402_SOLANA_RPC_URL
+        sync: false
+      - key: CSRF_SECRET_KEY
+        sync: false
+    healthCheckPath: /health
+
+  # Next.js Frontend
+  - type: web
+    name: kamiyo-frontend
+    runtime: node
+    branch: main
+    buildCommand: bash scripts/render-build.sh
+    startCommand: npm start
+    disk:
+      name: kamiyo-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 18.20.8
+      - key: PORT
+        value: 3000
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kamiyo-postgres
+          property: connectionString
+      - key: EXPLOIT_DB_PATH
+        value: /opt/render/project/src/data/kamiyo.db
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: kamiyo-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_API_ENDPOINT
+        fromService:
+          type: web
+          name: kamiyo-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+    healthCheckPath: /
+
+  # Exploit Aggregation Orchestrator (Fetches from 17+ sources)
+  - type: worker
+    name: kamiyo-aggregator
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 -u -c "from aggregators.orchestrator import AggregationOrchestrator; import logging; logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'); o = AggregationOrchestrator(); o.run_forever(interval_minutes=5)"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kamiyo-postgres
+          property: connectionString
+
+  # Social Media Watcher (24/7 Posting to X/Discord)
+  - type: worker
+    name: kamiyo-social-watcher
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd website && python3 social/kamiyo_watcher.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      - key: KAMIYO_API_URL
+        value: https://api.kamiyo.ai
+      # Social posting intervals and thresholds
+      - key: POLL_INTERVAL_SECONDS
+        value: 60  # Check every 60 seconds
+      - key: SOCIAL_MIN_AMOUNT_USD
+        value: 1000000  # $1M minimum - post significant exploits (2-3x per week)
+      - key: DEEP_DIVE_THRESHOLD_USD
+        value: 1000000  # $1M minimum - ALL posts >= $1M get Claude AI deep dive
+      # Claude AI for enhanced analysis (REQUIRED for deep dive)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MAX_POSTS_PER_CYCLE
+        value: 3  # Max exploits to post per cycle (prevents rate limits)
+      - key: SOCIAL_ENABLED_CHAINS
+        value: Ethereum,BSC,Polygon,Arbitrum
+      # Lookback period for initial run (hours)
+      - key: SOCIAL_LOOKBACK_HOURS
+        value: 168  # 7 days - posts recent exploits on first run
+      # Pre-populate with already posted tx hashes (comma-separated) to avoid duplicates
+      - key: ALREADY_POSTED_TX_HASHES
+        value: ""  # Leave empty on first deploy, or add tx hashes that were already posted
+      # Twitter/X credentials (REQUIRED)
+      - key: X_TWITTER_ENABLED
+        value: true
+      - key: X_API_KEY
+        sync: false
+      - key: X_API_SECRET
+        sync: false
+      - key: X_ACCESS_TOKEN
+        sync: false
+      - key: X_ACCESS_SECRET
+        sync: false
+      - key: X_BEARER_TOKEN
+        sync: false
+      # Discord webhooks (optional)
+      - key: DISCORD_SOCIAL_ENABLED
+        value: false
+      - key: DISCORD_SOCIAL_WEBHOOKS
+        sync: false
+      # Reddit (optional)
+      - key: REDDIT_ENABLED
+        value: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USERNAME
+        sync: false
+      - key: REDDIT_PASSWORD
+        sync: false
+      - key: REDDIT_SUBREDDITS
+        value: CryptoCurrency,defi,ethereum,ethdev
+      # Discord credentials (optional) - Uses webhooks for posting
+      - key: DISCORD_SOCIAL_ENABLED
+        value: false
+      - key: DISCORD_SOCIAL_WEBHOOKS
+        sync: false
+        # Format: channel_name=webhook_url,another_channel=another_url
+        # Example: exploits=https://discord.com/api/webhooks/...
+      # Telegram (optional)
+      - key: TELEGRAM_SOCIAL_ENABLED
+        value: false
+      - key: TELEGRAM_SOCIAL_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_SOCIAL_CHATS
+        sync: false
+
+  # AI Agent Quote Tweet Random Scheduler (Posts 2x daily at random times)
+  - type: worker
+    name: kamiyo-ai-quote-scheduler
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 social/random_scheduler.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ENVIRONMENT
+        value: production
+      # Claude AI for quote generation (REQUIRED)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Twitter/X credentials (REQUIRED)
+      - key: X_API_KEY
+        sync: false
+      - key: X_API_SECRET
+        sync: false
+      - key: X_ACCESS_TOKEN
+        sync: false
+      - key: X_ACCESS_SECRET
+        sync: false
+      - key: X_BEARER_TOKEN
+        sync: false
+      # Discord webhooks (optional)
+      - key: DISCORD_SOCIAL_ENABLED
+        value: false
+      - key: DISCORD_SOCIAL_WEBHOOK
+        sync: false

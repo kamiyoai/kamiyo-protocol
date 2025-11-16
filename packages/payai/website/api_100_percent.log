@@ -1,0 +1,226 @@
+/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+* 'orm_mode' has been renamed to 'from_attributes'
+  warnings.warn(message, UserWarning)
+INFO:api.main:Rate limiting middleware enabled (Redis: False)
+INFO:api.main:Cache middleware enabled
+INFO:database.manager:Database schema initialized
+INFO:database.manager:Database manager initialized: data/kamiyo.db
+INFO:database.manager:Database schema initialized
+INFO:database.manager:Database manager initialized: data/kamiyo.db
+INFO:     Started server process [2219]
+INFO:     Waiting for application startup.
+INFO:api.middleware.rate_limiter:Rate limiting middleware initialized with tier-based limits
+INFO:api.main:Kamiyo API starting up...
+INFO:root:[PCI FILTER] Initialized with 17 redaction patterns
+INFO:root:[PCI FILTER] Applied to root logger (all logs protected)
+INFO:root:[PCI FILTER] Applied to logger: api.payments
+INFO:root:[PCI FILTER] Applied to logger: api.subscriptions
+INFO:root:[PCI FILTER] Applied to logger: stripe
+INFO:root:[PCI FILTER] PCI-compliant logging initialized. All sensitive payment data will be redacted from logs.
+INFO:api.main:[PCI COMPLIANCE] Logging filter initialized - all sensitive data will be redacted
+WARNING:config.stripe_config:STRIPE_SECRET_KEY not set - payment processing disabled
+WARNING:config.stripe_config:STRIPE_PUBLISHABLE_KEY not set
+INFO:config.stripe_config:Stripe configuration loaded - Mode: LIVE
+INFO:config.stripe_config:Secret key: ✗
+INFO:config.stripe_config:Publishable key: ✗
+INFO:config.stripe_config:Webhook secret: ✗
+INFO:config.stripe_config:API version: 2023-10-16
+INFO:monitoring.alerts:Alert channels enabled: {'discord': False, 'slack': False, 'email': False}
+INFO:api.payments.stripe_version_monitor:[PCI] Stripe Version Monitor initialized - tracking version: 2023-10-16
+INFO:api.payments.stripe_version_monitor:[PCI] Starting Stripe API version health check
+INFO:api.payments.stripe_version_monitor:[PCI] Current Stripe API version: 2023-10-16 (age: 729 days)
+WARNING:api.payments.stripe_version_monitor:[PCI] Failed to verify Stripe account version: No API key provided. (HINT: set your API key using "stripe.api_key = <API-KEY>"). You can generate API keys from the Stripe web interface.  See https://stripe.com/api for details, or email support@stripe.com if you have any questions.
+CRITICAL:api.payments.stripe_version_monitor:[PCI] CRITICAL ALERT: Stripe API version >1 year old
+INFO:api.payments.stripe_version_monitor:[PCI] Version health check complete - status: critical
+CRITICAL:api.main:[STRIPE VERSION] CRITICAL: API version 2023-10-16 is 729 days old. Upgrade required immediately.
+INFO:api.main:Database exploits: 431
+INFO:api.main:Tracked chains: 55
+INFO:api.websocket_server:Heartbeat task started
+INFO:api.main:WebSocket manager started
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.main:Failed to connect cache manager: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:caching.warming:Warming statistics cache...
+INFO:caching.warming:Registered warming task: stats:days=1
+INFO:caching.warming:Registered warming task: stats:days=7
+INFO:caching.warming:Registered warming task: stats:days=30
+INFO:caching.warming:Registered warming task: stats:days=90
+INFO:caching.warming:Starting cache warming on startup...
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:caching.warming:Startup warming completed in 0.02s
+INFO:caching.warming:Warming chains cache...
+INFO:caching.warming:Registered warming task: chains:all
+INFO:caching.warming:Starting cache warming on startup...
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:caching.warming:Startup warming completed in 0.01s
+INFO:caching.warming:Warming health cache...
+INFO:caching.warming:Registered warming task: health:sources
+INFO:caching.warming:Starting cache warming on startup...
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:caching.warming:Startup warming completed in 0.02s
+INFO:caching.warming:Warming exploits list cache...
+INFO:caching.warming:Registered warming task: exploits:page=1:size=100
+INFO:caching.warming:Registered warming task: exploits:page=2:size=100
+INFO:caching.warming:Registered warming task: exploits:page=3:size=100
+INFO:caching.warming:Registered warming task: exploits:page=1:size=50
+INFO:caching.warming:Registered warming task: exploits:page=2:size=50
+INFO:caching.warming:Registered warming task: exploits:page=3:size=50
+INFO:caching.warming:Registered warming task: exploits:chain=Abstract:page=1:size=100
+INFO:caching.warming:Registered warming task: exploits:chain=Abstract:page=1:size=50
+INFO:caching.warming:Registered warming task: exploits:chain=Acala:page=1:size=100
+INFO:caching.warming:Registered warming task: exploits:chain=Acala:page=1:size=50
+INFO:caching.warming:Registered warming task: exploits:chain=Algorand:page=1:size=100
+INFO:caching.warming:Registered warming task: exploits:chain=Algorand:page=1:size=50
+INFO:caching.warming:Registered warming task: exploits:chain=Aptos:page=1:size=100
+INFO:caching.warming:Registered warming task: exploits:chain=Aptos:page=1:size=50
+INFO:caching.warming:Registered warming task: exploits:chain=Arbitrum:page=1:size=100
+INFO:caching.warming:Registered warming task: exploits:chain=Arbitrum:page=1:size=50
+INFO:caching.warming:Starting cache warming on startup...
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:caching.warming:Startup warming completed in 0.08s
+INFO:caching.warming:Starting scheduled cache warming...
+INFO:api.main:Cache warming completed
+INFO:api.main:Warming stats: {'total_warmed': 37, 'startup_warmed': 22, 'scheduled_warmed': 0, 'predictive_warmed': 0, 'failed_warmings': 0, 'last_warming': '2025-10-14T10:28:02.596854', 'total_tasks': 22, 'background_tasks': 22, 'enabled': True, 'hot_keys': 0}
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63184 - "GET /exploits?page=1&page_size=3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63216 - "GET /exploits?page=1&page_size=3 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63225 - "GET /exploits/0x1234567890abcdef HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63231 - "GET /chains HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.main:Error fetching source rankings: 'DatabaseManager' object has no attribute 'connection'
+INFO:     127.0.0.1:63237 - "GET /sources/rankings?days=30 HTTP/1.1" 500 Internal Server Error
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63279 - "GET /exploits?page=1&page_size=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63298 - "GET /health HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+WARNING:api.main:Cache health check failed: 'CacheManager' object has no attribute 'ping'
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63300 - "GET /ready HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63306 - "GET / HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63337 - "GET /stats?days=7 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63344 - "GET /exploits?chain=Ethereum&page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63377 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63388 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63552 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63558 - "GET /exploits?page=1&page_size=3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63958 - "GET /stats?days=7 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:63996 - "GET /exploits?page_size=1000 HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:64023 - "HEAD /exploits HTTP/1.1" 405 Method Not Allowed
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:64031 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64037 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64039 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64041 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64043 - "GET /exploits?page_size=10 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:52566 - "GET /exploits?page=1&page_size=3 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:52598 - "GET /exploits?page=1&page_size=10 HTTP/1.1" 200 OK
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in get: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:api.auth_helpers:Error getting optional user: 'NoneType' object has no attribute 'client'
+INFO:api.main:Applied 24h delay filter for free tier user
+ERROR:caching.cache_manager:Failed to connect to Redis: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+ERROR:caching.cache_manager:Redis error in set: Error Multiple exceptions: [Errno 61] Connect call failed ('::1', 6379, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 6379) connecting to localhost:6379.
+INFO:     127.0.0.1:52631 - "GET /exploits?page=1&page_size=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52662 - "GET /exploits?page=1&page_size=50 HTTP/1.1" 200 OK

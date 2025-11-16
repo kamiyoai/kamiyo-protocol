@@ -1,0 +1,66 @@
+Traceback (most recent call last):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/runpy.py", line 193, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/click/core.py", line 1161, in __call__
+    return self.main(*args, **kwargs)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/click/core.py", line 1082, in main
+    rv = self.invoke(ctx)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/click/core.py", line 1443, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/click/core.py", line 788, in invoke
+    return __callback(*args, **kwargs)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/main.py", line 412, in main
+    run(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/main.py", line 579, in run
+    server.run()
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/server.py", line 65, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/asyncio/runners.py", line 43, in run
+    return loop.run_until_complete(main)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/asyncio/base_events.py", line 616, in run_until_complete
+    return future.result()
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/server.py", line 69, in serve
+    await self._serve(sockets)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/server.py", line 76, in _serve
+    config.load()
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/config.py", line 434, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.8/lib/python3.8/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1014, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 783, in exec_module
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/Users/dennisgoslar/Projekter/kamiyo/api/main.py", line 48, in <module>
+    from api.alert_status import router as alert_status_router
+  File "/Users/dennisgoslar/Projekter/kamiyo/api/alert_status/__init__.py", line 4, in <module>
+    from api.alert_status.routes import router
+  File "/Users/dennisgoslar/Projekter/kamiyo/api/alert_status/routes.py", line 48, in <module>
+    async def get_alert_status(user=Depends(get_current_user)):
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/routing.py", line 1070, in decorator
+    self.add_api_route(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/routing.py", line 1009, in add_api_route
+    route = route_class(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/routing.py", line 630, in __init__
+    self.dependant = get_dependant(path=self.path_format, call=self.endpoint)
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 300, in get_dependant
+    sub_dependant = get_param_sub_dependant(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 132, in get_param_sub_dependant
+    return get_sub_dependant(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 168, in get_sub_dependant
+    sub_dependant = get_dependant(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 293, in get_dependant
+    param_details = analyze_param(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/dependencies/utils.py", line 496, in analyze_param
+    field = create_model_field(
+  File "/Users/dennisgoslar/Library/Python/3.8/lib/python/site-packages/fastapi/utils.py", line 98, in create_model_field
+    raise fastapi.exceptions.FastAPIError(
+fastapi.exceptions.FastAPIError: Invalid args for response field! Hint: check that typing.Union[starlette.requests.Request, NoneType] is a valid Pydantic field type. If you are using a return type annotation that is not a valid Pydantic field (e.g. Union[Response, dict, None]) you can disable generating the response model from the type annotation with the path operation decorator parameter response_model=None. Read more: https://fastapi.tiangolo.com/tutorial/response-model/

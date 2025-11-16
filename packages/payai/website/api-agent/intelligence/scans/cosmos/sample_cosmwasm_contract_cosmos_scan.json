@@ -1,0 +1,132 @@
+{
+  "protocol": "Sample CosmWasm Contract",
+  "ecosystem": "Cosmos/CosmWasm",
+  "scanned_files": 1,
+  "vulnerabilities": [
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 13,
+      "code_snippet": "pub fn instantiate(",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 17,
+      "code_snippet": "_msg: InstantiateMsg,",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 32,
+      "code_snippet": "ExecuteMsg::Transfer { recipient, amount } => {",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 51,
+      "code_snippet": "ExecuteMsg::Mint { recipient, amount } => {",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 57,
+      "code_snippet": "ExecuteMsg::UpdateAdmin { new_admin } => {",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 84,
+      "code_snippet": "pub struct InstantiateMsg {}",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Missing Input Validation",
+      "severity": "MEDIUM",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 87,
+      "code_snippet": "pub enum ExecuteMsg {",
+      "description": "Entry point function lacks input validation. No checks for empty values, bounds, or malicious input.",
+      "recommendation": "Add validation: require!() checks, is_empty(), bounds checking. Validate addresses with addr_validate(). Check amounts > 0.",
+      "confidence": 0.6,
+      "similar_exploits": [
+        "POLY_NETWORK_2021 ($611,000,000)",
+        "TRANSIT_SWAP_2022 ($21,000,000)"
+      ]
+    },
+    {
+      "vuln_type": "Cross-Contract Reentrancy",
+      "severity": "HIGH",
+      "file_path": "/Users/dennisgoslar/Projekter/worktrees/cosmos-scanner/targets/sample-cosmwasm/src/contract.rs",
+      "line_number": 38,
+      "code_snippet": "let send_msg = CosmosMsg::Bank(BankMsg::Send {",
+      "description": "External call before state update. Vulnerable to cross-contract reentrancy attacks.",
+      "recommendation": "Follow checks-effects-interactions pattern. Update all state BEFORE external calls/messages.",
+      "confidence": 0.7,
+      "similar_exploits": [
+        "CREAM_2021 ($130,000,000)"
+      ]
+    }
+  ],
+  "risk_score": 71,
+  "risk_level": "HIGH",
+  "summary": {
+    "Missing Input Validation": {
+      "count": 7,
+      "severity": "MEDIUM",
+      "avg_confidence": 0.6
+    },
+    "Cross-Contract Reentrancy": {
+      "count": 1,
+      "severity": "HIGH",
+      "avg_confidence": 0.7
+    }
+  }
+}
