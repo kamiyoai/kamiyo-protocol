@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAMIYO Security Audit Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background: #f9fafb;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .score-section {
+            padding: 3rem 2rem;
+            text-align: center;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .score-circle {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 1rem;
+            border-radius: 50%;
+            background: conic-gradient(#ef4444 0.0deg, #e5e7eb 0deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .score-circle::before {
+            content: '';
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            border-radius: 50%;
+            background: white;
+        }
+
+        .score-value {
+            position: relative;
+            font-size: 3rem;
+            font-weight: bold;
+            color: #ef4444;
+        }
+
+        .score-status {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #ef4444;
+            margin-top: 1rem;
+        }
+
+        .summary-section {
+            padding: 2rem;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .summary-card.critical { border-color: #ef4444; }
+        .summary-card.high { border-color: #f59e0b; }
+        .summary-card.medium { border-color: #f59e0b; }
+        .summary-card.low { border-color: #3b82f6; }
+
+        .summary-card h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card .count {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .findings-section {
+            padding: 2rem;
+        }
+
+        .findings-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #1f2937;
+        }
+
+        .finding {
+            background: #f9fafb;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+        }
+
+        .finding.critical { border-color: #ef4444; }
+        .finding.high { border-color: #f59e0b; }
+        .finding.medium { border-color: #f59e0b; }
+        .finding.low { border-color: #3b82f6; }
+
+        .finding-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .severity-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-badge.critical {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .severity-badge.high {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .severity-badge.medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .severity-badge.low {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .finding-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .finding-category {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .finding-description {
+            color: #4b5563;
+            margin-bottom: 1rem;
+        }
+
+        .finding-details {
+            display: grid;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .finding-detail {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .finding-detail strong {
+            color: #374151;
+            min-width: 120px;
+        }
+
+        .finding-detail span {
+            color: #6b7280;
+        }
+
+        .recommendation {
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+
+        .recommendation strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .footer {
+            padding: 2rem;
+            text-align: center;
+            background: #f9fafb;
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .no-findings {
+            text-align: center;
+            padding: 3rem;
+            color: #22c55e;
+        }
+
+        .no-findings svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Security Audit Report</h1>
+            <p>KAMIYO Exploit Intelligence Platform</p>
+            <p>October 29, 2025 at 07:55:06</p>
+        </div>
+
+        <div class="score-section">
+            <div class="score-circle">
+                <div class="score-value">0</div>
+            </div>
+            <div class="score-status">CRITICAL</div>
+            <p style="color: #6b7280; margin-top: 0.5rem;">Overall Security Score</p>
+        </div>
+
+        <div class="summary-section">
+            <h2>Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-card critical">
+                    <h3>Critical</h3>
+                    <div class="count" style="color: #ef4444;">5</div>
+                </div>
+                <div class="summary-card high">
+                    <h3>High</h3>
+                    <div class="count" style="color: #f59e0b;">22</div>
+                </div>
+                <div class="summary-card medium">
+                    <h3>Medium</h3>
+                    <div class="count" style="color: #f59e0b;">10</div>
+                </div>
+                <div class="summary-card low">
+                    <h3>Low</h3>
+                    <div class="count" style="color: #3b82f6;">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="findings-section">
+            <h2>Detailed Findings</h2>
+
+            <div class="finding critical">
+                <div class="finding-header">
+                    <span class="severity-badge critical">CRITICAL</span>
+                    <span class="finding-title">SQL injection risk: f-string in execute()</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 483</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>api/discord_routes.py:483</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding critical">
+                <div class="finding-header">
+                    <span class="severity-badge critical">CRITICAL</span>
+                    <span class="finding-title">SQL injection risk: f-string in execute()</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 330</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>api/user_webhooks/routes.py:330</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding critical">
+                <div class="finding-header">
+                    <span class="severity-badge critical">CRITICAL</span>
+                    <span class="finding-title">SQL injection risk: f-string in execute()</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 145</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>database/archival.py:145</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding critical">
+                <div class="finding-header">
+                    <span class="severity-badge critical">CRITICAL</span>
+                    <span class="finding-title">SQL injection risk: f-string in execute()</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 316</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>database/archival.py:316</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding critical">
+                <div class="finding-header">
+                    <span class="severity-badge critical">CRITICAL</span>
+                    <span class="finding-title">SQL injection risk: f-string in execute()</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 280</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>database/postgres_manager.py:280</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 74</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/about.js:74</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 78</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/about.js:78</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 74</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/about.js:74</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 78</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/about.js:78</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 119</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/features.js:119</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 123</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/features.js:123</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 119</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/features.js:119</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 123</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/features.js:123</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 140</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/_document.js:140</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 140</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/_document.js:140</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 101</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/api-docs.js:101</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 105</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/api-docs.js:105</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 101</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/api-docs.js:101</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 105</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/api-docs.js:105</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 98</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/pricing.js:98</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 98</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>pages/pricing.js:98</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 62</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>components/Breadcrumb.js:62</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 62</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>components/Breadcrumb.js:62</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 195</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>components/SEO.js:195</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 195</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>components/SEO.js:195</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: dangerouslySetInnerHTML usage</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 72</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>components/FAQ.js:72</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding high">
+                <div class="finding-header">
+                    <span class="severity-badge high">HIGH</span>
+                    <span class="finding-title">XSS risk: direct innerHTML assignment</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 72</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>components/FAQ.js:72</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module for security-critical randomness</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 9</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>api/auth/timing_safe.py:9</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module for security-critical randomness</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 11</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/backfill-exploits.py:11</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module for security-critical randomness</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 8</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:8</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 76</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:76</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 77</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:77</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 94</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:94</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 106</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:106</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 129</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:129</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 141</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:141</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+            <div class="finding medium">
+                <div class="finding-header">
+                    <span class="severity-badge medium">MEDIUM</span>
+                    <span class="finding-title">Insecure random: Use secrets module instead</span>
+                </div>
+                <div class="finding-category">Code Security Patterns</div>
+                <div class="finding-description">Potential security issue at line 210</div>
+                <div class="finding-details">
+
+                    <div class="finding-detail">
+                        <strong>Location:</strong>
+                        <span>scripts/load_test.py:210</span>
+                    </div>
+
+                </div>
+
+                <div class="recommendation">
+                    <strong>Recommendation:</strong>
+                    Review and remediate this security pattern
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="footer">
+            <p>Generated by KAMIYO Security Audit v1.0</p>
+            <p>Audit completed in 60.37 seconds</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "protocol": "Uniswap V3",
+  "risk_score": 10,
+  "risk_level": "MEDIUM",
+  "pattern_summary": {
+    "reentrancy": {
+      "count": 1,
+      "contracts": [
+        "audits/tob/contracts/crytic/echidna/Setup.sol"
+      ],
+      "severity": "CRITICAL",
+      "similar_exploits": [
+        "CREAM_2021"
+      ]
+    }
+  },
+  "recommendations": [
+    {
+      "pattern": "reentrancy",
+      "action": "Add ReentrancyGuard modifier to affected functions",
+      "priority": "CRITICAL",
+      "affected_contracts": [
+        "audits/tob/contracts/crytic/echidna/Setup.sol"
+      ]
+    }
+  ],
+  "similar_historical_exploits": [
+    {
+      "exploit": "Cream Finance",
+      "amount_usd": 130000000,
+      "pattern": "reentrancy",
+      "date": "2021-10-27"
+    }
+  ]
+}

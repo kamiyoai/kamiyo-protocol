@@ -1,0 +1,249 @@
+{
+  "protocol": "Compound V3",
+  "scan_timestamp": "2025-10-06T00:09:46.456643",
+  "total_contracts": 105,
+  "contracts_with_patterns": 15,
+  "findings": {
+    "contracts/ScrollComet.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.transfer\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      },
+      {
+        "pattern_type": "oracle_manipulation",
+        "severity": "CRITICAL",
+        "description": "Potential oracle manipulation - price from manipulatable source",
+        "matched_patterns": [
+          "getReserves\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "MANGO_2022",
+          "GMX_2023"
+        ]
+      }
+    ],
+    "contracts/CometWithExtendedAssetList.sol": [
+      {
+        "pattern_type": "oracle_manipulation",
+        "severity": "CRITICAL",
+        "description": "Potential oracle manipulation - price from manipulatable source",
+        "matched_patterns": [
+          "getReserves\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "MANGO_2022",
+          "GMX_2023"
+        ]
+      }
+    ],
+    "contracts/Comet.sol": [
+      {
+        "pattern_type": "oracle_manipulation",
+        "severity": "CRITICAL",
+        "description": "Potential oracle manipulation - price from manipulatable source",
+        "matched_patterns": [
+          "getReserves\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "MANGO_2022",
+          "GMX_2023"
+        ]
+      }
+    ],
+    "contracts/CometMainInterface.sol": [
+      {
+        "pattern_type": "oracle_manipulation",
+        "severity": "CRITICAL",
+        "description": "Potential oracle manipulation - price from manipulatable source",
+        "matched_patterns": [
+          "getReserves\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "MANGO_2022",
+          "GMX_2023"
+        ]
+      }
+    ],
+    "contracts/CometRewards.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.transfer\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/Configurator.sol": [
+      {
+        "pattern_type": "oracle_manipulation",
+        "severity": "CRITICAL",
+        "description": "Potential oracle manipulation - price from manipulatable source",
+        "matched_patterns": [
+          "getReserves\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "MANGO_2022",
+          "GMX_2023"
+        ]
+      },
+      {
+        "pattern_type": "access_control",
+        "severity": "CRITICAL",
+        "description": "Potential access control issue - privileged operation without protection",
+        "matched_patterns": [
+          "function\\s+initialize.*public"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "POLY_NETWORK_2021",
+          "TRANSIT_SWAP_2022"
+        ]
+      }
+    ],
+    "contracts/bulkers/MainnetBulkerWithWstETHSupport.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.call\\{value:",
+          "function\\s+\\w+.*external.*\\{[^}]*\\.call"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/bulkers/BaseBulker.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.transfer\\(",
+          "function\\s+\\w+.*external.*\\{[^}]*\\.call"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/bridges/SweepableBridgeReceiver.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.transfer\\(",
+          "function\\s+\\w+.*external.*\\{[^}]*\\.call"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/bridges/BaseBridgeReceiver.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "function\\s+\\w+.*external.*\\{[^}]*\\.call"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/liquidator/OnChainLiquidator.sol": [
+      {
+        "pattern_type": "flash_loan_price_manipulation",
+        "severity": "HIGH",
+        "description": "Potential flash loan manipulation - price derived from manipulatable balance",
+        "matched_patterns": [
+          "flashLoan"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": []
+      }
+    ],
+    "contracts/liquidator/vendor/@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.call\\{value:"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/liquidator/vendor/@uniswap/v3-periphery/contracts/base/PeripheryPayments.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.transfer\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/vendor/Timelock.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.call\\{value:"
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ],
+    "contracts/vendor/canonical-weth/contracts/WETH9.sol": [
+      {
+        "pattern_type": "reentrancy",
+        "severity": "CRITICAL",
+        "description": "Potential reentrancy vulnerability - external call before state update",
+        "matched_patterns": [
+          "\\.transfer\\("
+        ],
+        "confidence": 0.7,
+        "similar_exploits": [
+          "CREAM_2021"
+        ]
+      }
+    ]
+  }
+}

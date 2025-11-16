@@ -1,0 +1,36 @@
+# ==========================================
+# Dockerfile for Telegram Bot Service
+# Production-ready container for Kamiyo Telegram integration
+# ==========================================
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY alerts/ ./alerts/
+COPY aggregators/ ./aggregators/
+COPY database/ ./database/
+COPY intelligence/ ./intelligence/
+
+# Create non-root user
+RUN useradd -m -u 1000 kamiyo && chown -R kamiyo:kamiyo /app
+USER kamiyo
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Run Telegram bot
+CMD ["python", "-m", "alerts.telegram_bot"]

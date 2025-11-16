@@ -1,0 +1,19 @@
+# KAMIYO MCP Server Requirements
+# MCP (Model Context Protocol) dependencies for AI agent integration
+
+# MCP SDK - Official Anthropic implementation
+mcp @ git+https://github.com/modelcontextprotocol/python-sdk.git
+
+# Core dependencies
+pydantic>=2.5.0         # Data validation and settings management
+python-dotenv>=1.0.0    # Environment configuration
+httpx>=0.25.0           # Async HTTP client for API calls
+
+# Authentication & Security
+pyjwt>=2.8.0            # JWT token management for subscriptions
+
+# Payment Integration
+stripe>=7.0.0           # Stripe API for subscription management
+
+# Logging & Monitoring
+structlog>=24.1.0       # Structured logging

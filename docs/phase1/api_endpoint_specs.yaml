@@ -1,0 +1,1655 @@
+openapi: 3.0.3
+info:
+  title: KAMIYO Invisible Harmony API
+  description: |
+    RESTful API for KAMIYO's "Invisible Harmony" alignment features enabling AI agent coordination.
+
+    **Features:**
+    - Auto-Negotiation Escrows: Trustless work agreements with automated dispute resolution
+    - Cross-Chain Harmony Bridges: Seamless USDC transfers across Base, Ethereum, and Solana
+    - Silent Verifier Oracles: AI-powered quality verification for deliverables
+    - Balance Whisperers: Off-chain shadow balances for efficient microtransactions
+    - Harmony Analytics: Comprehensive metrics and user reputation system
+
+    **Authentication:**
+    All endpoints require either:
+    - Bearer token (JWT from NextAuth)
+    - API key (x402 payment token)
+    - Wallet signature (for on-chain actions)
+
+    **KAMIYO Token Benefits:**
+    Staking KAMIYO tokens unlocks premium features and discounts:
+    - Bronze (1k): 25% off fees, +5 priority
+    - Silver (5k): 50% off fees, +10 priority
+    - Gold (10k): 100% off verifier costs, +20 priority
+    - Platinum (50k): All discounts + VIP support, +50 priority
+
+  version: 1.0.0
+  contact:
+    name: KAMIYO Support
+    email: support@kamiyo.ai
+    url: https://kamiyo.ai
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.kamiyo.ai/api/v1
+    description: Production server
+  - url: https://staging-api.kamiyo.ai/api/v1
+    description: Staging server
+  - url: http://localhost:8000/api/v1
+    description: Local development
+
+tags:
+  - name: Escrows
+    description: Auto-negotiation escrow management
+  - name: Bridges
+    description: Cross-chain USDC transfers
+  - name: Verifiers
+    description: AI quality verification
+  - name: Whisperers
+    description: Shadow balance management
+  - name: Analytics
+    description: Harmony feature analytics
+  - name: KAMIYO
+    description: KAMIYO token staking
+
+paths:
+  # ============================================================================
+  # ESCROWS
+  # ============================================================================
+  /harmony/escrow/create:
+    post:
+      tags: [Escrows]
+      summary: Create new escrow agreement
+      description: |
+        Deploy a new escrow contract for AI agent work agreement.
+        Locks USDC until both parties agree terms are met.
+      operationId: createEscrow
+      security:
+        - bearerAuth: []
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEscrowRequest'
+      responses:
+        '201':
+          description: Escrow created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrowResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /harmony/escrow/{escrow_id}:
+    get:
+      tags: [Escrows]
+      summary: Get escrow details
+      operationId: getEscrow
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EscrowId'
+      responses:
+        '200':
+          description: Escrow details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrowDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /harmony/escrow/accept:
+    post:
+      tags: [Escrows]
+      summary: Accept escrow terms (seller)
+      operationId: acceptEscrow
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptEscrowRequest'
+      responses:
+        '200':
+          description: Escrow accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrowResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /harmony/escrow/submit:
+    post:
+      tags: [Escrows]
+      summary: Submit completed work (seller)
+      operationId: submitEscrowWork
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitWorkRequest'
+      responses:
+        '200':
+          description: Work submitted, verification initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitWorkResponse'
+
+  /harmony/escrow/dispute:
+    post:
+      tags: [Escrows]
+      summary: Initiate dispute (buyer)
+      operationId: initiateDispute
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisputeRequest'
+      responses:
+        '200':
+          description: Dispute initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputeResponse'
+
+  /harmony/escrow/list:
+    get:
+      tags: [Escrows]
+      summary: List user's escrows
+      operationId: listEscrows
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, completed, disputed, all]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of escrows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EscrowListResponse'
+
+  # ============================================================================
+  # BRIDGES
+  # ============================================================================
+  /harmony/bridge/quote:
+    post:
+      tags: [Bridges]
+      summary: Get bridge transfer quote
+      operationId: getBridgeQuote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BridgeQuoteRequest'
+      responses:
+        '200':
+          description: Bridge quote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeQuote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /harmony/bridge/create:
+    post:
+      tags: [Bridges]
+      summary: Initiate cross-chain bridge transfer
+      operationId: createBridge
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBridgeRequest'
+      responses:
+        '201':
+          description: Bridge transfer initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+
+  /harmony/bridge/{bridge_id}/status:
+    get:
+      tags: [Bridges]
+      summary: Check bridge transfer status
+      operationId: getBridgeStatus
+      parameters:
+        - name: bridge_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bridge status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /harmony/bridge/routes:
+    get:
+      tags: [Bridges]
+      summary: List available bridge routes
+      operationId: listBridgeRoutes
+      responses:
+        '200':
+          description: Available bridge routes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BridgeRoutesResponse'
+
+  # ============================================================================
+  # VERIFIERS
+  # ============================================================================
+  /harmony/verifier/create:
+    post:
+      tags: [Verifiers]
+      summary: Initiate AI verification
+      operationId: createVerification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVerificationRequest'
+      responses:
+        '201':
+          description: Verification initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+
+  /harmony/verifier/{verification_id}/status:
+    get:
+      tags: [Verifiers]
+      summary: Check verification status
+      operationId: getVerificationStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: verification_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Verification results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /harmony/verifier/templates:
+    get:
+      tags: [Verifiers]
+      summary: List verification templates
+      operationId: listVerifierTemplates
+      responses:
+        '200':
+          description: Available templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifierTemplatesResponse'
+
+  /harmony/verifier/{verification_id}/override:
+    post:
+      tags: [Verifiers]
+      summary: Human override of AI verification
+      operationId: overrideVerification
+      security:
+        - walletSignature: []
+      parameters:
+        - name: verification_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationOverrideRequest'
+      responses:
+        '200':
+          description: Verification overridden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResult'
+
+  # ============================================================================
+  # WHISPERERS (SHADOW BALANCES)
+  # ============================================================================
+  /harmony/whisperer/deposit:
+    post:
+      tags: [Whisperers]
+      summary: Deposit funds into shadow balance
+      operationId: depositShadowBalance
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShadowDepositRequest'
+      responses:
+        '201':
+          description: Deposit confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShadowDepositResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /harmony/whisperer/balance:
+    get:
+      tags: [Whisperers]
+      summary: Check shadow balance
+      operationId: getShadowBalance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wallet_address
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shadow balance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShadowBalanceResponse'
+
+  /harmony/whisperer/withdraw:
+    post:
+      tags: [Whisperers]
+      summary: Withdraw from shadow balance (triggers settlement)
+      operationId: withdrawShadowBalance
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShadowWithdrawRequest'
+      responses:
+        '202':
+          description: Withdrawal initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShadowWithdrawResponse'
+
+  /harmony/whisperer/settlement/{settlement_id}/status:
+    get:
+      tags: [Whisperers]
+      summary: Track settlement status
+      operationId: getSettlementStatus
+      parameters:
+        - name: settlement_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Settlement status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementStatus'
+
+  /harmony/whisperer/history:
+    get:
+      tags: [Whisperers]
+      summary: Get shadow balance transaction history
+      operationId: getShadowHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wallet_address
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Transaction history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShadowHistoryResponse'
+
+  # ============================================================================
+  # ANALYTICS
+  # ============================================================================
+  /harmony/analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Get network-wide analytics overview
+      operationId: getAnalyticsOverview
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, 90d]
+            default: 7d
+      responses:
+        '200':
+          description: Analytics overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsOverview'
+
+  /harmony/analytics/user:
+    get:
+      tags: [Analytics]
+      summary: Get user-specific analytics
+      operationId: getUserAnalytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wallet_address
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+            default: 30d
+      responses:
+        '200':
+          description: User analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAnalytics'
+
+  /harmony/analytics/leaderboard:
+    get:
+      tags: [Analytics]
+      summary: Get top users by metric
+      operationId: getLeaderboard
+      parameters:
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [reputation, volume, activity]
+            default: reputation
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+
+  /harmony/analytics/trends:
+    get:
+      tags: [Analytics]
+      summary: Get time-series trend data
+      operationId: getTrends
+      parameters:
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [escrow_volume, bridge_volume, verifier_usage]
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+            default: 30d
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [hourly, daily]
+            default: daily
+      responses:
+        '200':
+          description: Trend data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendsResponse'
+
+  # ============================================================================
+  # KAMIYO TOKEN STAKING
+  # ============================================================================
+  /kamiyo/stake:
+    post:
+      tags: [KAMIYO]
+      summary: Stake KAMIYO tokens
+      operationId: stakeKamiyo
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StakeRequest'
+      responses:
+        '201':
+          description: Stake created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StakeResponse'
+
+  /kamiyo/benefits:
+    get:
+      tags: [KAMIYO]
+      summary: Get current staking benefits
+      operationId: getKamiyoBenefits
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: wallet_address
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staking benefits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenefitsResponse'
+
+  /kamiyo/unstake:
+    post:
+      tags: [KAMIYO]
+      summary: Initiate unstaking
+      operationId: unstakeKamiyo
+      security:
+        - walletSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnstakeRequest'
+      responses:
+        '202':
+          description: Unstaking initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnstakeResponse'
+
+# ============================================================================
+# COMPONENTS
+# ============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from NextAuth or x402 payment token
+
+    walletSignature:
+      type: apiKey
+      in: header
+      name: X-Wallet-Signature
+      description: Wallet signature proving ownership
+
+  parameters:
+    EscrowId:
+      name: escrow_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Unique escrow identifier
+
+  schemas:
+    # ========================================================================
+    # ESCROW SCHEMAS
+    # ========================================================================
+    CreateEscrowRequest:
+      type: object
+      required:
+        - buyer_address
+        - amount_usdc
+        - chain
+        - terms
+        - payment_tx_hash
+      properties:
+        buyer_address:
+          type: string
+          example: '0x742d35Cc6634C0532925a3b8D4B5e3A3A3b7b7b7'
+        amount_usdc:
+          type: number
+          minimum: 1
+          example: 50.00
+        chain:
+          type: string
+          enum: [base, ethereum, solana]
+        terms:
+          $ref: '#/components/schemas/EscrowTerms'
+        payment_tx_hash:
+          type: string
+          example: '0xabc123...'
+        kamiyo_stake:
+          type: number
+          description: Optional KAMIYO stake for priority
+
+    EscrowTerms:
+      type: object
+      required:
+        - title
+        - description
+        - deliverables
+        - delivery_deadline
+      properties:
+        title:
+          type: string
+          example: 'Generate 10 exploit intelligence reports'
+        description:
+          type: string
+        deliverables:
+          type: array
+          items:
+            type: string
+        delivery_deadline:
+          type: string
+          format: date-time
+        quality_threshold:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 80
+
+    EscrowResponse:
+      type: object
+      properties:
+        escrow_id:
+          type: integer
+        escrow_address:
+          type: string
+        chain:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, submitted, disputed, released, refunded, expired]
+        invitation_link:
+          type: string
+        acceptance_deadline:
+          type: string
+          format: date-time
+        priority_score:
+          type: integer
+
+    EscrowDetail:
+      allOf:
+        - $ref: '#/components/schemas/EscrowResponse'
+        - type: object
+          properties:
+            buyer_address:
+              type: string
+            seller_address:
+              type: string
+            amount_usdc:
+              type: number
+            terms:
+              $ref: '#/components/schemas/EscrowTerms'
+            deliverable_url:
+              type: string
+            quality_score:
+              type: integer
+            negotiation_history:
+              type: array
+              items:
+                $ref: '#/components/schemas/NegotiationEvent'
+            deadlines:
+              type: object
+              properties:
+                delivery_deadline:
+                  type: string
+                  format: date-time
+                review_deadline:
+                  type: string
+                  format: date-time
+            kamiyo_stakes:
+              type: object
+              properties:
+                buyer:
+                  type: number
+                seller:
+                  type: number
+
+    NegotiationEvent:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        actor:
+          type: string
+          enum: [buyer, seller, system]
+        action:
+          type: string
+        message:
+          type: string
+
+    AcceptEscrowRequest:
+      type: object
+      required:
+        - escrow_id
+        - seller_address
+        - wallet_signature
+      properties:
+        escrow_id:
+          type: integer
+        seller_address:
+          type: string
+        wallet_signature:
+          type: string
+        estimated_delivery:
+          type: string
+          format: date-time
+        kamiyo_stake:
+          type: number
+
+    SubmitWorkRequest:
+      type: object
+      required:
+        - escrow_id
+        - deliverable_url
+        - deliverable_hash
+      properties:
+        escrow_id:
+          type: integer
+        deliverable_url:
+          type: string
+          format: uri
+        deliverable_hash:
+          type: string
+        completion_notes:
+          type: string
+        request_verification:
+          type: boolean
+          default: true
+
+    SubmitWorkResponse:
+      type: object
+      properties:
+        escrow_id:
+          type: integer
+        status:
+          type: string
+        verification_initiated:
+          type: boolean
+        verification_id:
+          type: integer
+        estimated_verification_time:
+          type: integer
+
+    DisputeRequest:
+      type: object
+      required:
+        - escrow_id
+        - dispute_reason
+        - requested_action
+      properties:
+        escrow_id:
+          type: integer
+        dispute_reason:
+          type: string
+        requested_action:
+          type: string
+          enum: [partial_refund, full_refund, arbitration]
+        evidence_urls:
+          type: array
+          items:
+            type: string
+
+    DisputeResponse:
+      type: object
+      properties:
+        escrow_id:
+          type: integer
+        status:
+          type: string
+        dispute_id:
+          type: integer
+        arbitration_options:
+          type: object
+
+    EscrowListResponse:
+      type: object
+      properties:
+        escrows:
+          type: array
+          items:
+            $ref: '#/components/schemas/EscrowResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        summary:
+          type: object
+          properties:
+            active_as_buyer:
+              type: integer
+            active_as_seller:
+              type: integer
+            completed:
+              type: integer
+            disputed:
+              type: integer
+            total_volume_usdc:
+              type: number
+
+    # ========================================================================
+    # BRIDGE SCHEMAS
+    # ========================================================================
+    BridgeQuoteRequest:
+      type: object
+      required:
+        - source_chain
+        - destination_chain
+        - amount_usdc
+        - destination_address
+      properties:
+        source_chain:
+          type: string
+          enum: [solana, base, ethereum]
+        destination_chain:
+          type: string
+          enum: [solana, base, ethereum]
+        amount_usdc:
+          type: number
+          minimum: 1
+        destination_address:
+          type: string
+        priority:
+          type: string
+          enum: [normal, fast]
+          default: normal
+
+    BridgeQuote:
+      type: object
+      properties:
+        quote_id:
+          type: string
+        source_chain:
+          type: string
+        destination_chain:
+          type: string
+        source_amount:
+          type: number
+        destination_amount:
+          type: number
+        fees:
+          $ref: '#/components/schemas/BridgeFees'
+        estimated_time_seconds:
+          type: integer
+        route:
+          type: object
+        kamiyo_discount:
+          type: object
+        expires_at:
+          type: string
+          format: date-time
+
+    BridgeFees:
+      type: object
+      properties:
+        bridge_fee:
+          type: number
+        kamiyo_fee:
+          type: number
+        gas_estimate:
+          type: number
+        total:
+          type: number
+
+    CreateBridgeRequest:
+      type: object
+      required:
+        - quote_id
+        - source_tx_hash
+      properties:
+        quote_id:
+          type: string
+        source_tx_hash:
+          type: string
+        apply_kamiyo_discount:
+          type: boolean
+        kamiyo_stake_tx:
+          type: string
+
+    BridgeResponse:
+      type: object
+      properties:
+        bridge_id:
+          type: string
+        status:
+          type: string
+        source_confirmation:
+          type: object
+        wormhole_vaa:
+          type: string
+        estimated_completion:
+          type: string
+          format: date-time
+        tracking_url:
+          type: string
+
+    BridgeStatus:
+      type: object
+      properties:
+        bridge_id:
+          type: string
+        status:
+          type: string
+        progress:
+          type: integer
+        timeline:
+          type: array
+          items:
+            type: object
+        destination:
+          type: object
+
+    BridgeRoutesResponse:
+      type: object
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/BridgeRoute'
+        recommended_routes:
+          type: array
+          items:
+            type: object
+
+    BridgeRoute:
+      type: object
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        average_time_seconds:
+          type: integer
+        base_fee_percentage:
+          type: number
+        min_fee_usdc:
+          type: number
+        success_rate:
+          type: number
+        is_active:
+          type: boolean
+
+    # ========================================================================
+    # VERIFIER SCHEMAS
+    # ========================================================================
+    CreateVerificationRequest:
+      type: object
+      required:
+        - escrow_id
+        - deliverable_url
+        - deliverable_type
+        - criteria
+      properties:
+        escrow_id:
+          type: integer
+        deliverable_url:
+          type: string
+          format: uri
+        deliverable_type:
+          type: string
+          enum: [document, code, design, data]
+        criteria:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/VerificationCriterion'
+        verifier_model:
+          type: string
+          enum: [claude-3-5-sonnet, gpt-4]
+          default: claude-3-5-sonnet
+        auto_release_threshold:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 80
+        paid_by:
+          type: string
+          enum: [buyer, seller, kamiyo]
+
+    VerificationCriterion:
+      type: object
+      required:
+        - weight
+        - description
+      properties:
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+        description:
+          type: string
+
+    VerificationResponse:
+      type: object
+      properties:
+        verification_id:
+          type: integer
+        status:
+          type: string
+        escrow_id:
+          type: integer
+        estimated_time_seconds:
+          type: integer
+        estimated_cost_usdc:
+          type: number
+        tracking_url:
+          type: string
+
+    VerificationResult:
+      type: object
+      properties:
+        verification_id:
+          type: integer
+        escrow_id:
+          type: integer
+        status:
+          type: string
+        results:
+          $ref: '#/components/schemas/VerificationResults'
+        metadata:
+          type: object
+        actions:
+          type: object
+
+    VerificationResults:
+      type: object
+      properties:
+        overall_score:
+          type: integer
+        confidence:
+          type: number
+        criteria_scores:
+          type: object
+        strengths:
+          type: array
+          items:
+            type: string
+        improvements:
+          type: array
+          items:
+            type: string
+        detailed_feedback:
+          type: string
+
+    VerifierTemplatesResponse:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerifierTemplate'
+
+    VerifierTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        deliverable_type:
+          type: string
+        description:
+          type: string
+        criteria:
+          type: object
+        times_used:
+          type: integer
+        average_score:
+          type: number
+
+    VerificationOverrideRequest:
+      type: object
+      required:
+        - reviewer_address
+        - new_score
+        - override_reason
+        - wallet_signature
+      properties:
+        reviewer_address:
+          type: string
+        new_score:
+          type: integer
+        override_reason:
+          type: string
+        wallet_signature:
+          type: string
+
+    # ========================================================================
+    # SHADOW BALANCE SCHEMAS
+    # ========================================================================
+    ShadowDepositRequest:
+      type: object
+      required:
+        - wallet_address
+        - amount_usdc
+        - chain
+        - deposit_tx_hash
+        - wallet_signature
+      properties:
+        wallet_address:
+          type: string
+        amount_usdc:
+          type: number
+        chain:
+          type: string
+        deposit_tx_hash:
+          type: string
+        wallet_signature:
+          type: string
+
+    ShadowDepositResponse:
+      type: object
+      properties:
+        deposit_id:
+          type: integer
+        wallet_address:
+          type: string
+        amount_deposited:
+          type: number
+        previous_balance:
+          type: number
+        new_balance:
+          type: number
+        chain:
+          type: string
+        confirmations:
+          type: integer
+        verified:
+          type: boolean
+        estimated_requests:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    ShadowBalanceResponse:
+      type: object
+      properties:
+        wallet_address:
+          type: string
+        shadow_balance_usdc:
+          type: number
+        pending_debits_usdc:
+          type: number
+        available_balance_usdc:
+          type: number
+        on_chain_deposits_total:
+          type: number
+        off_chain_spent_total:
+          type: number
+        settlement_info:
+          type: object
+        recent_transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShadowTransaction'
+
+    ShadowTransaction:
+      type: object
+      properties:
+        type:
+          type: string
+        amount:
+          type: number
+        balance_after:
+          type: number
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ShadowWithdrawRequest:
+      type: object
+      required:
+        - wallet_address
+        - amount_usdc
+        - destination_chain
+        - wallet_signature
+      properties:
+        wallet_address:
+          type: string
+        amount_usdc:
+          type: number
+        destination_chain:
+          type: string
+        wallet_signature:
+          type: string
+
+    ShadowWithdrawResponse:
+      type: object
+      properties:
+        settlement_id:
+          type: integer
+        wallet_address:
+          type: string
+        withdrawal_amount:
+          type: number
+        shadow_balance_before:
+          type: number
+        shadow_balance_after:
+          type: number
+        status:
+          type: string
+        settlement:
+          type: object
+        tracking_url:
+          type: string
+
+    SettlementStatus:
+      type: object
+      properties:
+        settlement_id:
+          type: integer
+        status:
+          type: string
+        settlement_type:
+          type: string
+        details:
+          type: object
+        timeline:
+          type: array
+          items:
+            type: object
+        shadow_balance_updated:
+          type: number
+        completed_at:
+          type: string
+          format: date-time
+
+    ShadowHistoryResponse:
+      type: object
+      properties:
+        wallet_address:
+          type: string
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShadowTransaction'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        summary:
+          type: object
+
+    # ========================================================================
+    # ANALYTICS SCHEMAS
+    # ========================================================================
+    AnalyticsOverview:
+      type: object
+      properties:
+        period:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        escrows:
+          type: object
+        bridges:
+          type: object
+        verifications:
+          type: object
+        shadow_balances:
+          type: object
+        kamiyo_token:
+          type: object
+        agents:
+          type: object
+
+    UserAnalytics:
+      type: object
+      properties:
+        wallet_address:
+          type: string
+        period:
+          type: string
+        reputation:
+          $ref: '#/components/schemas/UserReputation'
+        escrows:
+          type: object
+        bridges:
+          type: object
+        verifications:
+          type: object
+        shadow_balance:
+          type: object
+        kamiyo_tokens:
+          type: object
+        trends:
+          type: object
+
+    UserReputation:
+      type: object
+      properties:
+        overall_score:
+          type: integer
+        rank:
+          type: integer
+        percentile:
+          type: number
+        badges:
+          type: array
+          items:
+            type: string
+
+    LeaderboardResponse:
+      type: object
+      properties:
+        metric:
+          type: string
+        limit:
+          type: integer
+        generated_at:
+          type: string
+          format: date-time
+        leaderboard:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        user_position:
+          type: object
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        wallet_address:
+          type: string
+        reputation_score:
+          type: integer
+        metrics:
+          type: object
+        badges:
+          type: array
+          items:
+            type: string
+
+    TrendsResponse:
+      type: object
+      properties:
+        metric:
+          type: string
+        period:
+          type: string
+        granularity:
+          type: string
+        data_points:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataPoint'
+        summary:
+          type: object
+        forecast:
+          type: object
+
+    DataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        value:
+          type: number
+        count:
+          type: integer
+        avg:
+          type: number
+
+    # ========================================================================
+    # KAMIYO STAKING SCHEMAS
+    # ========================================================================
+    StakeRequest:
+      type: object
+      required:
+        - wallet_address
+        - amount_kamiyo
+        - stake_tx_hash
+      properties:
+        wallet_address:
+          type: string
+        amount_kamiyo:
+          type: number
+        stake_tx_hash:
+          type: string
+        lock_duration_days:
+          type: integer
+          enum: [0, 30, 90, 365]
+          default: 0
+
+    StakeResponse:
+      type: object
+      properties:
+        stake_id:
+          type: integer
+        wallet_address:
+          type: string
+        amount_kamiyo:
+          type: number
+        current_tier:
+          type: string
+          enum: [bronze, silver, gold, platinum]
+        locked_until:
+          type: string
+          format: date-time
+        benefits:
+          type: object
+
+    BenefitsResponse:
+      type: object
+      properties:
+        wallet_address:
+          type: string
+        current_tier:
+          type: string
+        staked_amount:
+          type: number
+        benefits:
+          type: object
+        total_savings_usdc:
+          type: number
+
+    UnstakeRequest:
+      type: object
+      required:
+        - stake_id
+        - wallet_signature
+      properties:
+        stake_id:
+          type: integer
+        wallet_signature:
+          type: string
+
+    UnstakeResponse:
+      type: object
+      properties:
+        stake_id:
+          type: integer
+        status:
+          type: string
+        cooldown_ends_at:
+          type: string
+          format: date-time
+        unstake_amount:
+          type: number
+
+    # ========================================================================
+    # SHARED SCHEMAS
+    # ========================================================================
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        has_more:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    PaymentRequired:
+      description: Payment required (HTTP 402)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              payment_required:
+                type: boolean
+              amount_usdc:
+                type: number
+              payment_methods:
+                type: array
+                items:
+                  type: object
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
