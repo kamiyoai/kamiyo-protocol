@@ -1,0 +1,41 @@
+{
+  "name": "@x402resolve/middleware",
+  "version": "1.0.0",
+  "description": "HTTP 402 Payment Required middleware for x402Resolve",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "x402",
+    "http-402",
+    "payment-required",
+    "middleware",
+    "express",
+    "fastapi",
+    "solana",
+    "escrow"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.95.8",
+    "@x402resolve/x402-sdk": "*"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.10",
+    "express": "^4.19.2",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.2",
+    "typescript": "^5.5.3"
+  },
+  "peerDependencies": {
+    "express": "^4.0.0"
+  }
+}

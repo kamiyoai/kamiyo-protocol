@@ -1,0 +1,21 @@
+{
+  "name": "x402-agent-integration-test",
+  "version": "1.0.0",
+  "description": "Integration test validating agents with MCP server and SDK",
+  "main": "integration-test.ts",
+  "scripts": {
+    "test": "tsx integration-test.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.0",
+    "@x402resolve/agent-client": "^1.0.0",
+    "@x402resolve/x402-sdk": "^1.0.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  }
+}

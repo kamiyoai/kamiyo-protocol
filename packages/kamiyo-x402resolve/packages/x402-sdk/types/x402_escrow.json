@@ -1,0 +1,1209 @@
+{
+  "address": "E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n",
+  "metadata": {
+    "name": "x402_escrow",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "x402Resolve Escrow Program - Automated dispute resolution for agent payments"
+  },
+  "docs": [
+    "x402Resolve Escrow Program",
+    "",
+    "Holds payments in escrow with time-lock and dispute resolution.",
+    "Enables automated refunds based on verifier oracle signatures."
+  ],
+  "instructions": [
+    {
+      "name": "check_rate_limit",
+      "docs": [
+        "Rate limit check - ensures entity hasn't exceeded limits"
+      ],
+      "discriminator": [
+        49,
+        221,
+        190,
+        242,
+        213,
+        153,
+        95,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "rate_limiter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  116,
+                  101,
+                  95,
+                  108,
+                  105,
+                  109,
+                  105,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "entity"
+              }
+            ]
+          }
+        },
+        {
+          "name": "entity",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_reputation",
+      "docs": [
+        "Initialize or update entity reputation"
+      ],
+      "discriminator": [
+        236,
+        239,
+        233,
+        112,
+        220,
+        149,
+        26,
+        175
+      ],
+      "accounts": [
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "entity"
+              }
+            ]
+          }
+        },
+        {
+          "name": "entity"
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_escrow",
+      "docs": [
+        "Initialize a new escrow for agent-to-API payment",
+        "",
+        "# Arguments",
+        "* `amount` - Amount to escrow (lamports)",
+        "* `time_lock` - Duration before auto-release (seconds)",
+        "* `transaction_id` - Unique transaction identifier"
+      ],
+      "discriminator": [
+        243,
+        160,
+        77,
+        153,
+        11,
+        92,
+        48,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "transaction_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "api"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "time_lock",
+          "type": "i64"
+        },
+        {
+          "name": "transaction_id",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "mark_disputed",
+      "docs": [
+        "Mark escrow as disputed (agent initiates dispute)"
+      ],
+      "discriminator": [
+        136,
+        86,
+        152,
+        120,
+        3,
+        21,
+        223,
+        251
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.transaction_id",
+                "account": "Escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "release_funds",
+      "docs": [
+        "Release funds to API (happy path - no dispute)",
+        "",
+        "Can be called by:",
+        "- Agent (explicitly releasing)",
+        "- Anyone after time_lock expires (auto-release)"
+      ],
+      "discriminator": [
+        225,
+        88,
+        91,
+        108,
+        126,
+        52,
+        2,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.transaction_id",
+                "account": "Escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "api",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolve_dispute",
+      "docs": [
+        "Resolve dispute with verifier oracle signature",
+        "",
+        "x402 Verifier Oracle assesses quality and signs a refund percentage.",
+        "This instruction validates the signature and splits funds accordingly.",
+        "",
+        "# Arguments",
+        "* `quality_score` - Quality score from verifier (0-100)",
+        "* `refund_percentage` - Refund percentage (0-100)",
+        "* `signature` - Ed25519 signature from verifier oracle"
+      ],
+      "discriminator": [
+        231,
+        6,
+        202,
+        6,
+        96,
+        103,
+        12,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.transaction_id",
+                "account": "Escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "api",
+          "writable": true
+        },
+        {
+          "name": "verifier"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "agent_reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "api_reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "api"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quality_score",
+          "type": "u8"
+        },
+        {
+          "name": "refund_percentage",
+          "type": "u8"
+        },
+        {
+          "name": "signature",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolve_dispute_switchboard",
+      "docs": [
+        "Resolve dispute with Switchboard On-Demand oracle",
+        "",
+        "Uses Switchboard decentralized oracle network for trustless quality assessment.",
+        "The Switchboard Function calculates quality score off-chain and produces",
+        "a cryptographically verified attestation that's validated on-chain.",
+        "",
+        "# Arguments",
+        "* `quality_score` - Quality score from Switchboard Function (0-100)",
+        "* `refund_percentage` - Refund percentage from Switchboard (0-100)"
+      ],
+      "discriminator": [
+        129,
+        18,
+        15,
+        153,
+        147,
+        215,
+        194,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.transaction_id",
+                "account": "Escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "api",
+          "writable": true
+        },
+        {
+          "name": "switchboard_function",
+          "docs": [
+            "Switchboard Function pull feed containing quality score"
+          ]
+        },
+        {
+          "name": "agent_reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "api_reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "api"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quality_score",
+          "type": "u8"
+        },
+        {
+          "name": "refund_percentage",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "update_reputation",
+      "docs": [
+        "Update reputation after transaction completes",
+        "Only callable by the escrow program itself during resolve_dispute"
+      ],
+      "discriminator": [
+        194,
+        220,
+        43,
+        201,
+        54,
+        209,
+        49,
+        178
+      ],
+      "accounts": [
+        {
+          "name": "reputation",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  112,
+                  117,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reputation.entity",
+                "account": "EntityReputation"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority that can update reputation (restricted)"
+          ],
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "quality_score",
+          "type": "u8"
+        },
+        {
+          "name": "refund_percentage",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "EntityReputation",
+      "discriminator": [
+        177,
+        250,
+        208,
+        215,
+        36,
+        125,
+        97,
+        9
+      ]
+    },
+    {
+      "name": "Escrow",
+      "discriminator": [
+        31,
+        213,
+        123,
+        187,
+        186,
+        22,
+        218,
+        155
+      ]
+    },
+    {
+      "name": "RateLimiter",
+      "discriminator": [
+        223,
+        136,
+        175,
+        223,
+        208,
+        34,
+        214,
+        238
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "DisputeMarked",
+      "discriminator": [
+        71,
+        235,
+        136,
+        63,
+        73,
+        224,
+        8,
+        216
+      ]
+    },
+    {
+      "name": "DisputeResolved",
+      "discriminator": [
+        121,
+        64,
+        249,
+        153,
+        139,
+        128,
+        236,
+        187
+      ]
+    },
+    {
+      "name": "EscrowInitialized",
+      "discriminator": [
+        222,
+        186,
+        157,
+        47,
+        145,
+        142,
+        176,
+        248
+      ]
+    },
+    {
+      "name": "FundsReleased",
+      "discriminator": [
+        178,
+        119,
+        252,
+        230,
+        131,
+        104,
+        210,
+        210
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidStatus",
+      "msg": "Invalid escrow status for this operation"
+    },
+    {
+      "code": 6001,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: Only agent or expired escrow can release"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidQualityScore",
+      "msg": "Invalid quality score (must be 0-100)"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidRefundPercentage",
+      "msg": "Invalid refund percentage (must be 0-100)"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidSignature",
+      "msg": "Invalid verifier signature"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidTimeLock",
+      "msg": "Invalid time lock: must be between 1 hour and 30 days"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount: must be greater than 0"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidTransactionId",
+      "msg": "Invalid transaction ID: must be non-empty and max 64 chars"
+    },
+    {
+      "code": 6008,
+      "name": "TimeLockNotExpired",
+      "msg": "Time lock not expired: cannot release funds yet"
+    },
+    {
+      "code": 6009,
+      "name": "DisputeWindowExpired",
+      "msg": "Dispute window expired: cannot dispute after time lock"
+    },
+    {
+      "code": 6010,
+      "name": "AmountTooLarge",
+      "msg": "Amount too large: exceeds maximum escrow amount"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientDisputeFunds",
+      "msg": "Insufficient funds to pay dispute cost"
+    },
+    {
+      "code": 6012,
+      "name": "RateLimitExceeded",
+      "msg": "Rate limit exceeded: too many transactions"
+    },
+    {
+      "code": 6013,
+      "name": "ProviderSuspended",
+      "msg": "Provider is suspended"
+    },
+    {
+      "code": 6014,
+      "name": "ReputationTooLow",
+      "msg": "Reputation score too low for this operation"
+    },
+    {
+      "code": 6015,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow in calculation"
+    },
+    {
+      "code": 6016,
+      "name": "InsufficientRentReserve",
+      "msg": "Insufficient rent reserve in escrow account"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidSwitchboardAttestation",
+      "msg": "Invalid Switchboard attestation"
+    },
+    {
+      "code": 6018,
+      "name": "StaleAttestation",
+      "msg": "Switchboard attestation is stale (older than 60 seconds)"
+    },
+    {
+      "code": 6019,
+      "name": "QualityScoreMismatch",
+      "msg": "Quality score mismatch between Switchboard and submitted value"
+    }
+  ],
+  "types": [
+    {
+      "name": "DisputeMarked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "transaction_id",
+            "type": "string"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DisputeResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "transaction_id",
+            "type": "string"
+          },
+          {
+            "name": "quality_score",
+            "type": "u8"
+          },
+          {
+            "name": "refund_percentage",
+            "type": "u8"
+          },
+          {
+            "name": "refund_amount",
+            "type": "u64"
+          },
+          {
+            "name": "payment_amount",
+            "type": "u64"
+          },
+          {
+            "name": "verifier",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntityReputation",
+      "docs": [
+        "Entity Reputation - tracks agent/provider performance on-chain"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity",
+            "type": "pubkey"
+          },
+          {
+            "name": "entity_type",
+            "type": {
+              "defined": {
+                "name": "EntityType"
+              }
+            }
+          },
+          {
+            "name": "total_transactions",
+            "type": "u64"
+          },
+          {
+            "name": "disputes_filed",
+            "type": "u64"
+          },
+          {
+            "name": "disputes_won",
+            "type": "u64"
+          },
+          {
+            "name": "disputes_partial",
+            "type": "u64"
+          },
+          {
+            "name": "disputes_lost",
+            "type": "u64"
+          },
+          {
+            "name": "average_quality_received",
+            "type": "u8"
+          },
+          {
+            "name": "reputation_score",
+            "type": "u16"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "last_updated",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntityType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Agent"
+          },
+          {
+            "name": "Provider"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Escrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "api",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "EscrowStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "transaction_id",
+            "type": "string"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "quality_score",
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "refund_percentage",
+            "type": {
+              "option": "u8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "api",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "transaction_id",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Released"
+          },
+          {
+            "name": "Disputed"
+          },
+          {
+            "name": "Resolved"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FundsReleased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "transaction_id",
+            "type": "string"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "api",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RateLimiter",
+      "docs": [
+        "Rate Limiter - prevents spam and abuse"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity",
+            "type": "pubkey"
+          },
+          {
+            "name": "verification_level",
+            "type": {
+              "defined": {
+                "name": "VerificationLevel"
+              }
+            }
+          },
+          {
+            "name": "transactions_last_hour",
+            "type": "u16"
+          },
+          {
+            "name": "transactions_last_day",
+            "type": "u16"
+          },
+          {
+            "name": "disputes_last_day",
+            "type": "u16"
+          },
+          {
+            "name": "last_hour_check",
+            "type": "i64"
+          },
+          {
+            "name": "last_day_check",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationLevel",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Basic"
+          },
+          {
+            "name": "Staked"
+          },
+          {
+            "name": "Social"
+          },
+          {
+            "name": "KYC"
+          }
+        ]
+      }
+    }
+  ]
+}

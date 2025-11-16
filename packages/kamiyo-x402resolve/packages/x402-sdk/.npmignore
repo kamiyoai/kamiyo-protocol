@@ -1,0 +1,8 @@
+src/
+tests/
+*.test.ts
+tsconfig.json
+.eslintrc.js
+jest.config.js
+node_modules/
+*.tsbuildinfo

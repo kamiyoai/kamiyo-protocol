@@ -1,0 +1,25 @@
+{
+  "name": "x402-comprehensive-validation",
+  "version": "1.0.0",
+  "description": "Comprehensive validation of MCP + SDK + Agents integration",
+  "type": "module",
+  "main": "run-validation.ts",
+  "scripts": {
+    "validate": "tsx simple-validation.ts",
+    "validate:full": "tsx run-validation.ts",
+    "test": "npm run validate"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.95.0",
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  }
+}
