@@ -1,6 +1,4 @@
-"""
-Test configuration and fixtures for ERC-8004 tests
-"""
+"""Test configuration and fixtures"""
 
 import pytest
 import asyncio
@@ -11,7 +9,6 @@ from datetime import datetime
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """Create event loop for async tests"""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -19,27 +16,14 @@ def event_loop():
 
 @pytest.fixture
 async def test_db() -> AsyncGenerator:
-    """
-    Test database connection (no transaction isolation)
-
-    NOTE: Tests write to real database.
-    Use unique UUIDs to avoid conflicts.
-    """
     from config.database_pool import get_db
-
     pool = await get_db()
-
     async with pool.acquire() as conn:
         yield conn
 
 
 @pytest.fixture
 async def test_agent(test_db):
-    """
-    Create a test agent for use in tests
-
-    Returns agent_uuid for the created agent.
-    """
     agent_uuid = str(uuid.uuid4())
     agent_id = 1
 
@@ -65,11 +49,6 @@ async def test_agent(test_db):
 
 @pytest.fixture
 async def test_api_key(test_db):
-    """
-    Create a test API key for authentication
-
-    Returns API key string.
-    """
     import hashlib
 
     api_key = f"test_key_{uuid.uuid4()}"
@@ -105,11 +84,6 @@ async def test_api_key(test_db):
 
 @pytest.fixture
 async def test_payment(test_db):
-    """
-    Create a test x402 payment
-
-    Returns payment_id and tx_hash.
-    """
     payment_id = str(uuid.uuid4())
     tx_hash = "0x" + "a" * 64
 
