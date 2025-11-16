@@ -111,7 +111,12 @@ pytest tests/
 
 ## License
 
-MIT
+CC BY-NC 4.0 (Creative Commons Attribution-NonCommercial)
+
+Free for personal, academic, and open source use.
+Commercial use requires license - contact enterprise@kamiyo.ai
+
+See [LICENSE](./LICENSE)
 
 ---
 
