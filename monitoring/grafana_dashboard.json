@@ -1,0 +1,214 @@
+{
+  "dashboard": {
+    "title": "ERC-8004 Production Metrics",
+    "tags": ["erc8004", "agent-identity", "production"],
+    "timezone": "utc",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Agent Registrations (Rate)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(erc8004_agent_registrations_total[5m])",
+            "legendFormat": "{{chain}} - {{status}}"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Registrations/sec",
+            "format": "short"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Registration Latency (P50, P95, P99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(erc8004_agent_registration_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(erc8004_agent_registration_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(erc8004_agent_registration_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P99"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Seconds",
+            "format": "s"
+          }
+        ],
+        "alert": {
+          "name": "High Registration Latency",
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [2],
+                "type": "gt"
+              },
+              "query": {
+                "params": ["P95", "5m", "now"]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(erc8004_agent_registrations_total{status=\"error\"}[5m])) / sum(rate(erc8004_agent_registrations_total[5m]))",
+            "legendFormat": "Error Rate"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Error %",
+            "format": "percent"
+          }
+        ],
+        "alert": {
+          "name": "High Error Rate",
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [0.05],
+                "type": "gt"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(erc8004_cache_hits_total[5m])) / (sum(rate(erc8004_cache_hits_total[5m])) + sum(rate(erc8004_cache_misses_total[5m])))",
+            "legendFormat": "Hit Rate"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Hit %",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Active Agents by Chain",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "erc8004_active_agents_total",
+            "legendFormat": "{{chain}}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Feedback Submissions (Rate)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(erc8004_feedback_submissions_total[5m])",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Rate Limit Hits",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(erc8004_rate_limit_exceeded_total[5m])",
+            "legendFormat": "Rate Limits Hit"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Database Transaction Rollbacks",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(erc8004_database_rollbacks_total[5m])",
+            "legendFormat": "Rollbacks/sec"
+          },
+          {
+            "expr": "rate(erc8004_database_transactions_total[5m])",
+            "legendFormat": "Total Transactions/sec"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Health Check Status",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "erc8004_health_check{check=\"database\",status=\"healthy\"}"
+          }
+        ],
+        "valueName": "current",
+        "valueMaps": [
+          {"value": "1", "text": "HEALTHY"},
+          {"value": "0", "text": "UNHEALTHY"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Database Pool Utilization",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "database_pool_utilization",
+            "legendFormat": "Utilization"
+          },
+          {
+            "expr": "database_pool_size",
+            "legendFormat": "Pool Size"
+          },
+          {
+            "expr": "database_pool_free",
+            "legendFormat": "Free Connections"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Connections",
+            "format": "short"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "chain",
+          "type": "query",
+          "query": "label_values(erc8004_agent_registrations_total, chain)",
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    },
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}

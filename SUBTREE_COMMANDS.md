@@ -4,7 +4,7 @@
 
 ```
 kamiyo (main repo)
-├── packages/kagami → kamiyo-ai/kagami
+├── packages/kamiyo-kagami → kamiyo-ai/kagami
 └── packages/payai → mizuki-tamaki/kamiyo-payai
 ```
 
@@ -14,14 +14,14 @@ kamiyo (main repo)
 
 ```bash
 cd /Users/dennisgoslar/Projekter/kamiyo
-cd packages/kagami
+cd packages/kamiyo-kagami
 # Make changes to kagami
-git add packages/kagami
+git add packages/kamiyo-kagami
 git commit -m "Update kagami: description"
 git push origin main
 
 # Push to open source repo
-git subtree push --prefix=packages/kagami kagami-remote main
+git subtree push --prefix=packages/kamiyo-kagami kagami-remote main
 ```
 
 ### Work on PayAI in Main Repo
@@ -42,7 +42,7 @@ git subtree push --prefix=packages/payai payai-remote main
 If someone contributes to kagami on GitHub:
 
 ```bash
-git subtree pull --prefix=packages/kagami kagami-remote main --squash
+git subtree pull --prefix=packages/kamiyo-kagami kagami-remote main --squash
 git push origin main
 ```
 
@@ -61,7 +61,7 @@ git remote add kagami-remote https://github.com/kamiyo-ai/kagami.git
 git remote add payai-remote https://github.com/mizuki-tamaki/kamiyo-payai.git
 
 # Add subtrees
-git subtree add --prefix=packages/kagami kagami-remote main --squash
+git subtree add --prefix=packages/kamiyo-kagami kagami-remote main --squash
 git subtree add --prefix=packages/payai payai-remote main --squash
 ```
 
@@ -71,14 +71,14 @@ git subtree add --prefix=packages/payai payai-remote main --squash
 
 ```bash
 # After committing to main repo
-git subtree push --prefix=packages/kagami kagami-remote main
+git subtree push --prefix=packages/kamiyo-kagami kagami-remote main
 git subtree push --prefix=packages/payai payai-remote main
 ```
 
 ### Pull All Updates from Open Source
 
 ```bash
-git subtree pull --prefix=packages/kagami kagami-remote main --squash
+git subtree pull --prefix=packages/kamiyo-kagami kagami-remote main --squash
 git subtree pull --prefix=packages/payai payai-remote main --squash
 ```
 
@@ -118,19 +118,19 @@ git subtree pull --prefix=packages/kagami kagami-remote main --squash
 
 ```bash
 # Force push (use carefully)
-git push kagami-remote `git subtree split --prefix=packages/kagami main`:main --force
+git push kagami-remote `git subtree split --prefix=packages/kamiyo-kagami main`:main --force
 ```
 
 ### If you accidentally worked in separate repo:
 
 ```bash
 cd /Users/dennisgoslar/Projekter/kagami
-# Copy changes manually to kamiyo/packages/kagami
-rsync -av --exclude='.git' ./ ../kamiyo/packages/kagami/
+# Copy changes manually to kamiyo/packages/kamiyo-kagami
+rsync -av --exclude='.git' ./ ../kamiyo/packages/kamiyo-kagami/
 cd ../kamiyo
-git add packages/kagami
+git add packages/kamiyo-kagami
 git commit -m "Sync kagami changes"
-git subtree push --prefix=packages/kagami kagami-remote main
+git subtree push --prefix=packages/kamiyo-kagami kagami-remote main
 ```
 
 ---
