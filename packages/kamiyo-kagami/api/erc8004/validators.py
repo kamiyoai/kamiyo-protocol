@@ -8,19 +8,18 @@ from .exceptions import (
     ChainNotSupportedException,
     RegistrationFileInvalidException
 )
-# Supported blockchain networks
 SUPPORTED_CHAINS = {
     "base", "ethereum", "polygon", "arbitrum", "optimism",
     "avalanche", "bnb", "celo", "gnosis", "moonbeam",
     "aurora", "sepolia", "base-sepolia"
 }
-# Address validation regex
+
 ETH_ADDRESS_REGEX = re.compile(r'^0x[a-fA-F0-9]{40}$')
 TX_HASH_REGEX = re.compile(r'^0x[a-fA-F0-9]{64}$')
 CHAIN_REGEX = re.compile(r'^[a-z0-9-]+$')
 TAG_REGEX = re.compile(r'^[a-z0-9_-]+$')
 KEY_REGEX = re.compile(r'^[a-zA-Z0-9_-]+$')
-# Size limits
+
 MAX_NAME_LENGTH = 200
 MAX_DESCRIPTION_LENGTH = 2000
 MAX_URI_LENGTH = 2048
@@ -34,7 +33,6 @@ def validate_ethereum_address(address: str, field: str = "address") -> str:
     address = address.strip()
     if not ETH_ADDRESS_REGEX.match(address):
         raise InvalidAddressException(address, field)
-    # Return lowercase for consistent storage
     return address.lower()
 def validate_tx_hash(tx_hash: str, field: str = "tx_hash") -> str:
     if not tx_hash or not isinstance(tx_hash, str):
@@ -89,7 +87,6 @@ def validate_uri(uri: Optional[str], field: str = "uri") -> Optional[str]:
             field,
             f"URI too long (max {MAX_URI_LENGTH} characters)"
         )
-    # Basic URI validation
     if not (uri.startswith("http://") or uri.startswith("https://") or
             uri.startswith("ipfs://") or uri.startswith("ar://")):
         raise ValidationException(
@@ -196,11 +193,7 @@ def validate_registration_file(registration_file: Dict[str, Any]) -> Dict[str, A
 def sanitize_string(value: str, max_length: int) -> str:
     if not isinstance(value, str):
         raise ValidationException("value", "Must be a string")
-    # Remove null bytes
-    value = value.replace('\x00', '')
-    # Strip whitespace
-    value = value.strip()
-    # Check length
+    value = value.replace('\x00', '').strip()
     if len(value) > max_length:
         raise ValidationException(
             "value",
@@ -212,7 +205,6 @@ def validate_pagination(limit: int, offset: int) -> tuple:
         raise ValidationException("limit", "Limit must be a positive integer")
     if not isinstance(offset, int) or offset < 0:
         raise ValidationException("offset", "Offset must be non-negative")
-    # Enforce maximum limit
     max_limit = 100
     if limit > max_limit:
         raise ValidationException(
