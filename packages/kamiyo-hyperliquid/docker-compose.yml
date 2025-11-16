@@ -1,0 +1,307 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: kamiyo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kamiyo_hyperliquid
+      POSTGRES_USER: kamiyo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kamiyo_secure_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kamiyo -d kamiyo_hyperliquid"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kamiyo-network
+
+  # ============================================================================
+  # Redis Cache (Optional, for production)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: kamiyo-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-kamiyo_redis_password}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - kamiyo-network
+
+  # ============================================================================
+  # KAMIYO Hyperliquid API Server
+  # ============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kamiyo-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://kamiyo:${POSTGRES_PASSWORD:-kamiyo_secure_password}@postgres:5432/kamiyo_hyperliquid
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-kamiyo_redis_password}@redis:6379/0
+
+      # API Configuration
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      RATE_LIMIT: ${RATE_LIMIT:-60/minute}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+
+      # Monitoring Thresholds
+      CRITICAL_LOSS_24H: ${CRITICAL_LOSS_24H:-2000000}
+      HIGH_LOSS_24H: ${HIGH_LOSS_24H:-1000000}
+      ORACLE_CRITICAL_DEVIATION: ${ORACLE_CRITICAL_DEVIATION:-1.0}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+
+      # Alerts
+      ALERTS_ENABLED: ${ALERTS_ENABLED:-true}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kamiyo-network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python -c 'from database.connection import get_database; db = get_database(); db.health_check()' &&
+        echo 'Database ready!' &&
+        uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS:-4}
+      "
+
+  # ============================================================================
+  # WebSocket Real-time Monitor
+  # ============================================================================
+  websocket:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kamiyo-websocket
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://kamiyo:${POSTGRES_PASSWORD:-kamiyo_secure_password}@postgres:5432/kamiyo_hyperliquid
+
+      # WebSocket Configuration
+      WEBSOCKET_ENABLED: ${WEBSOCKET_ENABLED:-true}
+      WEBSOCKET_URL: ${WEBSOCKET_URL:-wss://api.hyperliquid.xyz/ws}
+      WEBSOCKET_AUTO_RECONNECT: ${WEBSOCKET_AUTO_RECONNECT:-true}
+
+      # Monitoring
+      HLP_VAULT_ADDRESS: ${HLP_VAULT_ADDRESS:-0xdfc24b077bc1425ad1dea75bcb6f8158e10df303}
+      MONITORED_ADDRESSES: ${MONITORED_ADDRESSES:-}
+
+      # Alerts
+      ALERTS_ENABLED: ${ALERTS_ENABLED:-true}
+      ALERT_MIN_SEVERITY: ${ALERT_MIN_SEVERITY:-high}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - kamiyo-network
+    command: python websocket/runner.py
+
+  # ============================================================================
+  # Monitor Scheduler (Database Persistence)
+  # ============================================================================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kamiyo-scheduler
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://kamiyo:${POSTGRES_PASSWORD:-kamiyo_secure_password}@postgres:5432/kamiyo_hyperliquid
+
+      # Scheduler Configuration
+      HLP_CHECK_INTERVAL: ${HLP_CHECK_INTERVAL:-300}
+      ORACLE_CHECK_INTERVAL: ${ORACLE_CHECK_INTERVAL:-60}
+      LIQUIDATION_CHECK_INTERVAL: ${LIQUIDATION_CHECK_INTERVAL:-180}
+
+      # Monitoring
+      HLP_VAULT_ADDRESS: ${HLP_VAULT_ADDRESS:-0xdfc24b077bc1425ad1dea75bcb6f8158e10df303}
+
+      # Alerts
+      ALERTS_ENABLED: ${ALERTS_ENABLED:-true}
+      ALERT_MIN_SEVERITY: ${ALERT_MIN_SEVERITY:-high}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - kamiyo-network
+    command: python monitors/scheduler.py
+
+  # ============================================================================
+  # Prometheus (Metrics Collection)
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: kamiyo-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - kamiyo-network
+    profiles:
+      - monitoring
+
+  # ============================================================================
+  # Grafana (Metrics Visualization)
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: kamiyo-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - kamiyo-network
+    profiles:
+      - monitoring
+
+  # ============================================================================
+  # PgAdmin (Database Administration)
+  # ============================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: kamiyo-pgadmin
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@kamiyo.ai}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - kamiyo-network
+    profiles:
+      - admin
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  kamiyo-network:
+    driver: bridge
+    name: kamiyo-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres_data:
+    name: kamiyo-postgres-data
+  redis_data:
+    name: kamiyo-redis-data
+  prometheus_data:
+    name: kamiyo-prometheus-data
+  grafana_data:
+    name: kamiyo-grafana-data
+  pgadmin_data:
+    name: kamiyo-pgadmin-data

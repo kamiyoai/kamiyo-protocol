@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        pip install pytest pytest-cov
+        python -m pytest tests/unit/ -v
+
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+        if [ -z "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"* %s (%h)" --no-merges)
+        else
+          CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"* %s (%h)" --no-merges)
+        fi
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          # Release ${{ steps.get_version.outputs.VERSION }}
+
+          ## Changes in this release:
+
+          ${{ steps.changelog.outputs.CHANGELOG }}
+
+          ## Installation
+
+          ```bash
+          git clone https://github.com/${{ github.repository }}
+          cd kamiyo-hyperliquid
+          pip install -r requirements.txt
+          ```
+
+          ## Documentation
+          See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for full documentation.
+        draft: false
+        prerelease: false
+
+  docker-build:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Extract version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Log in to Docker Hub (if configured)
+      if: ${{ secrets.DOCKER_USERNAME != '' }}
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build Docker image
+      run: |
+        docker build -t kamiyo-hyperliquid:${{ steps.get_version.outputs.VERSION }} .
+        docker tag kamiyo-hyperliquid:${{ steps.get_version.outputs.VERSION }} kamiyo-hyperliquid:latest
+
+    - name: Push to Docker Hub (if configured)
+      if: ${{ secrets.DOCKER_USERNAME != '' }}
+      run: |
+        docker push kamiyo-hyperliquid:${{ steps.get_version.outputs.VERSION }}
+        docker push kamiyo-hyperliquid:latest
