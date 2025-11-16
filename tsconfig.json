@@ -22,6 +22,23 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "frontend", "_frontend_backup", "tests", "website/tests", "website/website", "solana-programs", "blockchain", "services"]
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "pages/**/*.ts",
+    "pages/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "utils/**/*.ts",
+    "utils/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
+    "context/**/*.ts",
+    "context/**/*.tsx",
+    "styles/**/*.ts",
+    "styles/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "frontend", "_frontend_backup", "tests", "website", "solana-programs", "blockchain", "services"]
 }
