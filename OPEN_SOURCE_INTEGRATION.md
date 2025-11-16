@@ -9,12 +9,16 @@ KAMIYO uses git subtrees to incorporate open source repositories into the main m
 ```
 kamiyo/ (main repo - kamiyo-ai/kamiyo)
 ├── packages/
-│   ├── kamiyo-kagami/   # ERC-8004 agent identity (open source)
-│   ├── payai/           # Payment infrastructure (open source)
-│   └── x402resolve/     # x402 resolution library (future open source)
-├── website/             # Main website (private)
-├── api/                 # Main API (private)
-└── services/            # Core services (private)
+│   ├── kamiyo-kagami/       # ERC-8004 agent identity (open source)
+│   ├── kamiyo-x402resolve/  # x402 payment resolution (open source)
+│   ├── kamiyo-hyperliquid/  # Hyperliquid integration (open source)
+│   ├── payai/               # Payment infrastructure (open source)
+│   ├── plugins/             # Internal plugins
+│   ├── sdk-js/              # JavaScript SDK
+│   └── sdks/                # Multi-language SDKs
+├── website/                 # Main website (private)
+├── api/                     # Main API (private)
+└── services/                # Core services (private)
 ```
 
 ## Git Subtree Setup
@@ -47,6 +51,34 @@ git subtree add --prefix=packages/payai payai-remote main --squash
 # Future updates
 git subtree pull --prefix=packages/payai payai-remote main --squash
 git subtree push --prefix=packages/payai payai-remote main
+```
+
+### 3. Add X402 Resolve as Subtree
+
+```bash
+# Add x402resolve remote
+git remote add x402resolve-remote https://github.com/kamiyo-ai/x402resolve.git
+
+# Add x402resolve as subtree
+git subtree add --prefix=packages/kamiyo-x402resolve x402resolve-remote main --squash
+
+# Future updates
+git subtree pull --prefix=packages/kamiyo-x402resolve x402resolve-remote main --squash
+git subtree push --prefix=packages/kamiyo-x402resolve x402resolve-remote main
+```
+
+### 4. Add Hyperliquid as Subtree
+
+```bash
+# Add hyperliquid remote
+git remote add hyperliquid-remote https://github.com/kamiyo-ai/kamiyo-hyperliquid.git
+
+# Add hyperliquid as subtree
+git subtree add --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main --squash
+
+# Future updates
+git subtree pull --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main --squash
+git subtree push --prefix=packages/kamiyo-hyperliquid hyperliquid-remote main
 ```
 
 ## Workflow
