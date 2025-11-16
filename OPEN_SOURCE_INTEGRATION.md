@@ -9,7 +9,7 @@ KAMIYO uses git subtrees to incorporate open source repositories into the main m
 ```
 kamiyo/ (main repo - kamiyo-ai/kamiyo)
 ├── packages/
-│   ├── kagami/          # ERC-8004 agent identity (open source)
+│   ├── kamiyo-kagami/   # ERC-8004 agent identity (open source)
 │   ├── payai/           # Payment infrastructure (open source)
 │   └── x402resolve/     # x402 resolution library (future open source)
 ├── website/             # Main website (private)
@@ -25,14 +25,14 @@ kamiyo/ (main repo - kamiyo-ai/kamiyo)
 # Add kagami remote
 git remote add kagami-remote https://github.com/kamiyo-ai/kagami.git
 
-# Add kagami as subtree in packages/kagami/
-git subtree add --prefix=packages/kagami kagami-remote main --squash
+# Add kagami as subtree in packages/kamiyo-kagami/
+git subtree add --prefix=packages/kamiyo-kagami kagami-remote main --squash
 
 # Future updates from kagami
-git subtree pull --prefix=packages/kagami kagami-remote main --squash
+git subtree pull --prefix=packages/kamiyo-kagami kagami-remote main --squash
 
 # Push changes to kagami
-git subtree push --prefix=packages/kagami kagami-remote main
+git subtree push --prefix=packages/kamiyo-kagami kagami-remote main
 ```
 
 ### 2. Add PayAI as Subtree
@@ -55,21 +55,21 @@ git subtree push --prefix=packages/payai payai-remote main
 
 ```bash
 # Work on kagami in main repo
-cd packages/kagami
+cd packages/kamiyo-kagami
 # Make changes
-git add packages/kagami
+git add packages/kamiyo-kagami
 git commit -m "Update kagami: add feature X"
 git push origin main
 
 # Push changes to open source repo
-git subtree push --prefix=packages/kagami kagami-remote main
+git subtree push --prefix=packages/kamiyo-kagami kagami-remote main
 ```
 
 ### Pull Updates from Open Source
 
 ```bash
 # Someone contributed to kagami on GitHub
-git subtree pull --prefix=packages/kagami kagami-remote main --squash
+git subtree pull --prefix=packages/kamiyo-kagami kagami-remote main --squash
 
 # Review and merge
 git push origin main
@@ -102,7 +102,7 @@ cd kagami
 ## Directory Structure
 
 ```
-packages/kagami/
+packages/kamiyo-kagami/
 ├── api/erc8004/        # FastAPI endpoints
 ├── database/           # PostgreSQL migrations
 ├── contracts/          # Solidity contracts
@@ -148,7 +148,7 @@ Main kamiyo services import from packages:
 
 ```python
 # In kamiyo/api/main.py
-from packages.kagami.api.erc8004.routes import router as kagami_router
+from packages.kamiyo_kagami.api.erc8004.routes import router as kagami_router
 from packages.payai.api.routes import router as payai_router
 
 app.include_router(kagami_router, prefix="/api/v1/kagami")
@@ -164,7 +164,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cd packages/kagami && pytest tests/
+      - run: cd packages/kamiyo-kagami && pytest tests/
 
   test-payai:
     runs-on: ubuntu-latest
