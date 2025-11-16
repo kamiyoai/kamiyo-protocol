@@ -21,6 +21,9 @@ class ManifestVerifier:
 
     HIGH_VALUE_THRESHOLD_USDC = Decimal("10000.00")
     COMMITMENT_TIMELOCK_SECONDS = 300
+    MAX_HOP_DEPTH = 10
+    MAX_RATIONAL_HOPS = 8
+    MANIFEST_ACTIVATION_DELAY_SECONDS = 12  # ~1 block on Base L2
 
     @staticmethod
     async def verify_forward(
@@ -119,6 +122,21 @@ class ManifestVerifier:
                         "invalid_receipts": cycle_result['invalid_receipts']
                     }
 
+                # Check for extraction loops (A→B→C→B)
+                loop_result = await conn.fetchrow("""
+                    SELECT has_loop, loop_agents, loop_hops, extracted_value_usdc
+                    FROM detect_extraction_loop($1)
+                """, root_tx_hash)
+
+                if loop_result and loop_result['has_loop']:
+                    return {
+                        "safe": False,
+                        "reason": "extraction_loop_detected",
+                        "loop_agents": loop_result['loop_agents'],
+                        "loop_hops": loop_result['loop_hops'],
+                        "extracted_value_usdc": float(loop_result['extracted_value_usdc'])
+                    }
+
                 return {
                     "safe": True,
                     "manifest_hash": manifest_hash,
@@ -188,6 +206,24 @@ class ManifestVerifier:
                     raise ValidationException(
                         "signature",
                         "Receipt signature verification failed"
+                    )
+
+                # Enforce hop limit
+                if hop > ManifestVerifier.MAX_HOP_DEPTH:
+                    raise ValidationException(
+                        "hop",
+                        f"Hop depth {hop} exceeds maximum {ManifestVerifier.MAX_HOP_DEPTH}"
+                    )
+
+                # Check stake availability (prevent amplification)
+                stake_available = await conn.fetchval("""
+                    SELECT check_stake_amplification($1, $2, $3)
+                """, dest_agent_uuid, root_tx_hash, Decimal("100.0"))  # min stake per hop
+
+                if not stake_available:
+                    raise ValidationException(
+                        "stake",
+                        "Insufficient stake available (amplification detected)"
                     )
 
                 # Store receipt
@@ -373,6 +409,17 @@ class ManifestVerifier:
                         "Manifest signature verification failed"
                     )
 
+                # Enforce activation delay (MEV protection)
+                earliest_activation = await conn.fetchval("""
+                    SELECT enforce_activation_delay($1, $2)
+                """, agent_uuid, ManifestVerifier.MANIFEST_ACTIVATION_DELAY_SECONDS)
+
+                if valid_from < earliest_activation:
+                    raise ValidationException(
+                        "valid_from",
+                        f"Manifest activation too soon. Earliest: {earliest_activation.isoformat()}"
+                    )
+
                 # Check for recent manifest (track flips)
                 old_manifest = await conn.fetchrow("""
                     SELECT id FROM erc8004_endpoint_manifests
@@ -486,6 +533,53 @@ class ManifestVerifier:
                 "bounty_usdc": float(bounty or 0),
                 "cycle_agents": cycle_result['cycle_agents'],
                 "cycle_depth": cycle_result['cycle_depth']
+            }
+
+    @staticmethod
+    async def report_mev_incident(
+        root_tx_hash: str,
+        attack_type: str,
+        attacker_agent_uuid: str,
+        victim_agent_uuid: str,
+        extracted_value_usdc: Decimal,
+        block_number: int,
+        tx_index: int,
+        evidence_hash: str
+    ) -> Dict:
+        """Report MEV attack incident"""
+        pool = await get_db()
+
+        valid_types = ['frontrun', 'sandwich', 'timebandit', 'extraction_loop']
+        if attack_type not in valid_types:
+            raise ValidationException("attack_type", f"Invalid type. Must be one of: {valid_types}")
+
+        async with pool.acquire() as conn:
+            incident_id = await conn.fetchval("""
+                SELECT record_mev_incident($1, $2, $3, $4, $5, $6, $7, $8)
+            """,
+                root_tx_hash, attack_type, attacker_agent_uuid, victim_agent_uuid,
+                extracted_value_usdc, block_number, tx_index, evidence_hash
+            )
+
+            incident = await conn.fetchrow("""
+                SELECT slashed_amount_usdc, created_at
+                FROM erc8004_mev_incidents
+                WHERE id = $1
+            """, incident_id)
+
+            logger.info(
+                "mev_incident_reported",
+                root_tx=root_tx_hash,
+                attack_type=attack_type,
+                attacker=attacker_agent_uuid,
+                slashed_usdc=float(incident['slashed_amount_usdc'] or 0)
+            )
+
+            return {
+                "reported": True,
+                "incident_id": str(incident_id),
+                "slashed_usdc": float(incident['slashed_amount_usdc'] or 0),
+                "reported_at": incident['created_at'].isoformat()
             }
 
     @staticmethod
