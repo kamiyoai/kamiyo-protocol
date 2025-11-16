@@ -3,15 +3,16 @@
 from typing import Dict, Optional, List
 from decimal import Decimal
 from datetime import datetime, timedelta
-import hashlib
 import asyncpg
 
 from config.database_pool import get_db
 from .monitoring import logger
+from .signature_verification import SignatureVerifier
 from .exceptions import (
     ValidationException,
     CircularDependencyException,
-    AgentNotFoundException
+    AgentNotFoundException,
+    DatabaseException
 )
 
 
@@ -41,39 +42,96 @@ class ManifestVerifier:
         """
         pool = await get_db()
 
-        async with pool.acquire() as conn:
-            # Verify manifest
-            manifest_valid = await conn.fetchval("""
-                SELECT verify_manifest($1, $2, $3, CURRENT_TIMESTAMP)
-            """, dest_agent_uuid, manifest_hash, manifest_nonce)
+        try:
+            async with pool.acquire() as conn:
+                # Get manifest details for signature verification
+                manifest = await conn.fetchrow("""
+                    SELECT agent_uuid, endpoint_uri, pubkey, nonce,
+                           valid_from, valid_until, manifest_hash, status
+                    FROM erc8004_endpoint_manifests
+                    WHERE agent_uuid = $1
+                      AND manifest_hash = $2
+                      AND nonce = $3
+                """, dest_agent_uuid, manifest_hash, manifest_nonce)
 
-            if not manifest_valid:
+                if not manifest:
+                    return {
+                        "safe": False,
+                        "reason": "manifest_not_found",
+                        "details": "No manifest found with given hash and nonce"
+                    }
+
+                # Get agent owner for signature verification
+                agent_owner = await conn.fetchval("""
+                    SELECT owner_address FROM erc8004_agents WHERE id = $1
+                """, dest_agent_uuid)
+
+                if not agent_owner:
+                    return {
+                        "safe": False,
+                        "reason": "agent_not_found",
+                        "details": "Destination agent not found"
+                    }
+
+                # Verify signature
+                sig_valid = SignatureVerifier.verify_manifest_signature(
+                    agent_uuid=str(manifest['agent_uuid']),
+                    endpoint_uri=manifest['endpoint_uri'],
+                    pubkey=manifest['pubkey'],
+                    nonce=manifest['nonce'],
+                    valid_from_iso=manifest['valid_from'].isoformat(),
+                    valid_until_iso=manifest['valid_until'].isoformat(),
+                    signature=manifest_signature,
+                    expected_signer=agent_owner
+                )
+
+                if not sig_valid:
+                    return {
+                        "safe": False,
+                        "reason": "invalid_signature",
+                        "details": "Manifest signature verification failed"
+                    }
+
+                # Verify manifest status and time window
+                manifest_valid = await conn.fetchval("""
+                    SELECT verify_manifest($1, $2, $3, CURRENT_TIMESTAMP)
+                """, dest_agent_uuid, manifest_hash, manifest_nonce)
+
+                if not manifest_valid:
+                    return {
+                        "safe": False,
+                        "reason": "manifest_expired",
+                        "details": "Manifest expired or revoked"
+                    }
+
+                # Check for cycles
+                cycle_result = await conn.fetchrow("""
+                    SELECT has_cycle, cycle_agents, cycle_depth, invalid_receipts
+                    FROM detect_cycle_with_receipts($1)
+                """, root_tx_hash)
+
+                if cycle_result and cycle_result['has_cycle']:
+                    return {
+                        "safe": False,
+                        "reason": "cycle_detected",
+                        "cycle_agents": cycle_result['cycle_agents'],
+                        "cycle_depth": cycle_result['cycle_depth'],
+                        "invalid_receipts": cycle_result['invalid_receipts']
+                    }
+
                 return {
-                    "safe": False,
-                    "reason": "invalid_manifest",
-                    "details": "Manifest signature, nonce, or time window invalid"
+                    "safe": True,
+                    "manifest_hash": manifest_hash,
+                    "manifest_nonce": manifest_nonce,
+                    "verified_at": datetime.utcnow().isoformat()
                 }
 
-            # Check for cycles
-            cycle_result = await conn.fetchrow("""
-                SELECT has_cycle, cycle_agents, cycle_depth, invalid_receipts
-                FROM detect_cycle_with_receipts($1)
-            """, root_tx_hash)
-
-            if cycle_result['has_cycle']:
-                return {
-                    "safe": False,
-                    "reason": "cycle_detected",
-                    "cycle_agents": cycle_result['cycle_agents'],
-                    "cycle_depth": cycle_result['cycle_depth'],
-                    "invalid_receipts": cycle_result['invalid_receipts']
-                }
-
-            return {
-                "safe": True,
-                "manifest_hash": manifest_hash,
-                "manifest_nonce": manifest_nonce
-            }
+        except asyncpg.PostgresError as e:
+            logger.error("verify_forward_db_error", error=str(e))
+            raise DatabaseException("verify_forward", str(e))
+        except Exception as e:
+            logger.error("verify_forward_error", error=str(e))
+            raise ValidationException("verify_forward", str(e))
 
     @staticmethod
     async def record_forward(
@@ -95,70 +153,111 @@ class ManifestVerifier:
         """
         pool = await get_db()
 
-        async with pool.acquire() as conn:
-            # Compute receipt hash
-            receipt_data = f"{root_tx_hash}{hop}{source_agent_uuid}{dest_agent_uuid}{next_hop_hash or ''}{receipt_nonce}"
-            receipt_hash = "0x" + hashlib.sha256(receipt_data.encode()).hexdigest()
+        try:
+            async with pool.acquire() as conn:
+                # Compute receipt hash
+                receipt_hash = SignatureVerifier.compute_receipt_hash(
+                    root_tx_hash=root_tx_hash,
+                    hop=hop,
+                    source_agent_uuid=source_agent_uuid,
+                    dest_agent_uuid=dest_agent_uuid,
+                    next_hop_hash=next_hop_hash,
+                    receipt_nonce=receipt_nonce
+                )
 
-            # Store receipt
-            receipt = await conn.fetchrow("""
-                INSERT INTO erc8004_forward_receipts (
+                # Verify receipt signature
+                dest_agent_owner = await conn.fetchval("""
+                    SELECT owner_address FROM erc8004_agents WHERE id = $1
+                """, dest_agent_uuid)
+
+                if not dest_agent_owner:
+                    raise AgentNotFoundException(dest_agent_uuid)
+
+                sig_valid = SignatureVerifier.verify_receipt_signature(
+                    root_tx_hash=root_tx_hash,
+                    hop=hop,
+                    source_agent_uuid=source_agent_uuid,
+                    dest_agent_uuid=dest_agent_uuid,
+                    next_hop_hash=next_hop_hash,
+                    receipt_nonce=receipt_nonce,
+                    signature=signature,
+                    expected_signer=dest_agent_owner
+                )
+
+                if not sig_valid:
+                    raise ValidationException(
+                        "signature",
+                        "Receipt signature verification failed"
+                    )
+
+                # Store receipt
+                receipt = await conn.fetchrow("""
+                    INSERT INTO erc8004_forward_receipts (
+                        root_tx_hash, hop, source_agent_uuid, dest_agent_uuid,
+                        manifest_id, next_hop_hash, receipt_nonce, receipt_hash,
+                        signature, chain
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    RETURNING id, receipt_hash, created_at
+                """,
                     root_tx_hash, hop, source_agent_uuid, dest_agent_uuid,
                     manifest_id, next_hop_hash, receipt_nonce, receipt_hash,
                     signature, chain
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                RETURNING id, receipt_hash, created_at
-            """,
-                root_tx_hash, hop, source_agent_uuid, dest_agent_uuid,
-                manifest_id, next_hop_hash, receipt_nonce, receipt_hash,
-                signature, chain
-            )
+                )
 
-            # Update payment chain tracking
-            await conn.execute("""
-                INSERT INTO erc8004_payment_chains (
-                    root_tx_hash, hop, source_agent_uuid, target_agent_uuid,
-                    chain, timestamp
-                ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-                ON CONFLICT (root_tx_hash, hop) DO NOTHING
-            """, root_tx_hash, hop, source_agent_uuid, dest_agent_uuid, chain)
-
-            # Check for cycle after recording
-            cycle_result = await conn.fetchrow("""
-                SELECT has_cycle, cycle_agents, cycle_depth
-                FROM detect_cycle_with_receipts($1)
-            """, root_tx_hash)
-
-            if cycle_result['has_cycle']:
-                # Trigger provisional settlement
+                # Update payment chain tracking
                 await conn.execute("""
-                    SELECT trigger_provisional_settlement($1, $2, $3, NULL)
-                """,
-                    root_tx_hash,
-                    cycle_result['cycle_agents'],
-                    cycle_result['cycle_depth']
+                    INSERT INTO erc8004_payment_chains (
+                        root_tx_hash, hop, source_agent_uuid, target_agent_uuid,
+                        chain, timestamp
+                    ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+                    ON CONFLICT (root_tx_hash, hop) DO NOTHING
+                """, root_tx_hash, hop, source_agent_uuid, dest_agent_uuid, chain)
+
+                # Check for cycle after recording
+                cycle_result = await conn.fetchrow("""
+                    SELECT has_cycle, cycle_agents, cycle_depth
+                    FROM detect_cycle_with_receipts($1)
+                """, root_tx_hash)
+
+                if cycle_result and cycle_result['has_cycle']:
+                    # Trigger provisional settlement
+                    await conn.execute("""
+                        SELECT trigger_provisional_settlement($1, $2, $3, NULL)
+                    """,
+                        root_tx_hash,
+                        cycle_result['cycle_agents'],
+                        cycle_result['cycle_depth']
+                    )
+
+                    raise CircularDependencyException(
+                        cycle_agents=cycle_result['cycle_agents'],
+                        cycle_depth=cycle_result['cycle_depth']
+                    )
+
+                logger.info(
+                    "forward_recorded",
+                    root_tx=root_tx_hash,
+                    hop=hop,
+                    source=source_agent_uuid,
+                    dest=dest_agent_uuid,
+                    receipt_hash=receipt_hash
                 )
 
-                raise CircularDependencyException(
-                    cycle_agents=cycle_result['cycle_agents'],
-                    cycle_depth=cycle_result['cycle_depth']
-                )
+                return {
+                    "recorded": True,
+                    "receipt_id": str(receipt['id']),
+                    "receipt_hash": receipt_hash,
+                    "timestamp": receipt['created_at'].isoformat()
+                }
 
-            logger.info(
-                "forward_recorded",
-                root_tx=root_tx_hash,
-                hop=hop,
-                source=source_agent_uuid,
-                dest=dest_agent_uuid,
-                receipt_hash=receipt_hash
-            )
-
-            return {
-                "recorded": True,
-                "receipt_id": str(receipt['id']),
-                "receipt_hash": receipt_hash,
-                "timestamp": receipt['created_at'].isoformat()
-            }
+        except CircularDependencyException:
+            raise
+        except asyncpg.PostgresError as e:
+            logger.error("record_forward_db_error", error=str(e))
+            raise DatabaseException("record_forward", str(e))
+        except Exception as e:
+            logger.error("record_forward_error", error=str(e))
+            raise
 
     @staticmethod
     async def create_onchain_commitment(
@@ -186,10 +285,13 @@ class ManifestVerifier:
                 seconds=ManifestVerifier.COMMITMENT_TIMELOCK_SECONDS
             )
 
-            # In production, this would submit actual on-chain tx
-            commitment_tx_hash = "0x" + hashlib.sha256(
-                f"{root_tx_hash}{routing_hash}{amount_usdc}".encode()
-            ).hexdigest()
+            # Compute commitment transaction hash
+            commitment_tx_hash = SignatureVerifier.compute_routing_hash([
+                root_tx_hash,
+                first_hop_agent_uuid,
+                routing_hash,
+                str(amount_usdc)
+            ])
 
             commitment = await conn.fetchrow("""
                 INSERT INTO erc8004_onchain_commitments (
@@ -233,70 +335,104 @@ class ManifestVerifier:
         """Publish signed endpoint manifest"""
         pool = await get_db()
 
-        async with pool.acquire() as conn:
-            # Verify agent exists
-            agent_exists = await conn.fetchval("""
-                SELECT EXISTS(SELECT 1 FROM erc8004_agents WHERE id = $1)
-            """, agent_uuid)
-
-            if not agent_exists:
-                raise AgentNotFoundException(agent_uuid)
-
-            # Compute manifest hash
-            manifest_data = f"{agent_uuid}{endpoint_uri}{pubkey}{nonce}{valid_from.isoformat()}{valid_until.isoformat()}"
-            manifest_hash = "0x" + hashlib.sha256(manifest_data.encode()).hexdigest()
-
-            # Check for recent manifest (track flips)
-            old_manifest = await conn.fetchrow("""
-                SELECT id FROM erc8004_endpoint_manifests
-                WHERE agent_uuid = $1
-                  AND status = 'active'
-                ORDER BY created_at DESC
-                LIMIT 1
-            """, agent_uuid)
-
-            # Expire old manifests
-            if old_manifest:
-                await conn.execute("""
-                    UPDATE erc8004_endpoint_manifests
-                    SET status = 'expired'
-                    WHERE agent_uuid = $1 AND status = 'active'
+        try:
+            async with pool.acquire() as conn:
+                # Verify agent exists and get owner
+                agent_owner = await conn.fetchval("""
+                    SELECT owner_address FROM erc8004_agents WHERE id = $1
                 """, agent_uuid)
 
-            # Create new manifest
-            manifest = await conn.fetchrow("""
-                INSERT INTO erc8004_endpoint_manifests (
+                if not agent_owner:
+                    raise AgentNotFoundException(agent_uuid)
+
+                # Compute manifest hash
+                manifest_hash = SignatureVerifier.compute_manifest_hash(
+                    agent_uuid=agent_uuid,
+                    endpoint_uri=endpoint_uri,
+                    pubkey=pubkey,
+                    nonce=nonce,
+                    valid_from_iso=valid_from.isoformat(),
+                    valid_until_iso=valid_until.isoformat()
+                )
+
+                # Verify signature
+                sig_valid = SignatureVerifier.verify_manifest_signature(
+                    agent_uuid=agent_uuid,
+                    endpoint_uri=endpoint_uri,
+                    pubkey=pubkey,
+                    nonce=nonce,
+                    valid_from_iso=valid_from.isoformat(),
+                    valid_until_iso=valid_until.isoformat(),
+                    signature=signature,
+                    expected_signer=agent_owner
+                )
+
+                if not sig_valid:
+                    raise ValidationException(
+                        "signature",
+                        "Manifest signature verification failed"
+                    )
+
+                # Check for recent manifest (track flips)
+                old_manifest = await conn.fetchrow("""
+                    SELECT id FROM erc8004_endpoint_manifests
+                    WHERE agent_uuid = $1
+                      AND status = 'active'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, agent_uuid)
+
+                # Expire old manifests
+                if old_manifest:
+                    await conn.execute("""
+                        UPDATE erc8004_endpoint_manifests
+                        SET status = 'expired'
+                        WHERE agent_uuid = $1 AND status = 'active'
+                    """, agent_uuid)
+
+                # Create new manifest
+                manifest = await conn.fetchrow("""
+                    INSERT INTO erc8004_endpoint_manifests (
+                        agent_uuid, endpoint_uri, pubkey, nonce,
+                        valid_from, valid_until, manifest_hash,
+                        signature, chain
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    RETURNING id, manifest_hash, created_at
+                """,
                     agent_uuid, endpoint_uri, pubkey, nonce,
                     valid_from, valid_until, manifest_hash,
                     signature, chain
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                RETURNING id, manifest_hash, created_at
-            """,
-                agent_uuid, endpoint_uri, pubkey, nonce,
-                valid_from, valid_until, manifest_hash,
-                signature, chain
-            )
+                )
 
-            # Record flip if applicable
-            if old_manifest:
-                await conn.execute("""
-                    SELECT record_manifest_flip($1, $2, $3)
-                """, agent_uuid, old_manifest['id'], manifest['id'])
+                # Record flip if applicable
+                if old_manifest:
+                    await conn.execute("""
+                        SELECT record_manifest_flip($1, $2, $3)
+                    """, agent_uuid, old_manifest['id'], manifest['id'])
 
-            logger.info(
-                "manifest_published",
-                agent_uuid=agent_uuid,
-                manifest_hash=manifest_hash,
-                nonce=nonce
-            )
+                logger.info(
+                    "manifest_published",
+                    agent_uuid=agent_uuid,
+                    manifest_hash=manifest_hash,
+                    nonce=nonce
+                )
 
-            return {
-                "published": True,
-                "manifest_id": str(manifest['id']),
-                "manifest_hash": manifest_hash,
-                "valid_from": valid_from.isoformat(),
-                "valid_until": valid_until.isoformat()
-            }
+                return {
+                    "published": True,
+                    "manifest_id": str(manifest['id']),
+                    "manifest_hash": manifest_hash,
+                    "valid_from": valid_from.isoformat(),
+                    "valid_until": valid_until.isoformat()
+                }
+
+        except asyncpg.PostgresError as e:
+            logger.error("publish_manifest_db_error", error=str(e))
+            raise DatabaseException("publish_manifest", str(e))
+        except (AgentNotFoundException, ValidationException):
+            raise
+        except Exception as e:
+            logger.error("publish_manifest_error", error=str(e))
+            raise
 
     @staticmethod
     async def report_cycle(
