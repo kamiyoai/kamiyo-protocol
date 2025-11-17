@@ -379,10 +379,10 @@ export default function Home() {
             {/* Building For Section */}
             <section className="w-full border-t border-gray-500/25 py-16">
                 <div className="w-full px-5 mx-auto max-w-[1400px]">
-                    <h2 className="text-2xl md:text-3xl font-light text-center mb-12 text-gray-400">
+                    <h2 className="text-3xl md:text-4xl font-light text-center mb-4 text-gray-400">
                         Building for
                     </h2>
-                    <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20">
+                    <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20 min-h-[10rem]">
                         <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
                             <img
                                 src="/media/payai.svg"
