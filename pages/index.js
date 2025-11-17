@@ -383,32 +383,32 @@ export default function Home() {
                         Building for
                     </h2>
                     <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20">
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
                             <img
                                 src="/media/payai.svg"
                                 alt="PayAI"
-                                className="h-12 w-auto"
+                                className="h-32 w-auto"
                             />
                         </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
                             <img
                                 src="/media/hyperliquid.svg"
                                 alt="Hyperliquid"
-                                className="h-12 w-auto"
+                                className="h-8 w-auto"
                             />
                         </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
                             <img
                                 src="/media/daydreams.png"
                                 alt="Daydreams"
                                 className="h-12 w-auto"
                             />
                         </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
                             <img
                                 src="/media/solana.svg"
                                 alt="Solana"
-                                className="h-12 w-auto"
+                                className="h-8 w-auto"
                             />
                         </div>
                     </div>
