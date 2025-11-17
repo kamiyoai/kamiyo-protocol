@@ -52,7 +52,7 @@ export default function X402PricingTiers({ showTitle = true }) {
         {
             name: "Enterprise",
             tier: "enterprise",
-            price: "$999",
+            price: "from $999",
             priceDetail: "/mo",
             features: [
                 "Unlimited verifications",
