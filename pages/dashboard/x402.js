@@ -315,7 +315,7 @@ export default function X402Dashboard() {
                           </code>
                           <button
                             onClick={() => copyToClipboard(key.key_prefix, key.id)}
-                            className="text-sm text-gray-400 hover:text-cyan"
+                            className="text-sm text-gray-400 hover:text-magenta"
                           >
                             {copiedKeyId === key.id ? '✓ Copied' : 'Copy Prefix'}
                           </button>

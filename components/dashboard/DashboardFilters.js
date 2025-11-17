@@ -83,7 +83,7 @@ export default function DashboardFilters({ onFiltersChange }) {
                 <div>
                     <button
                         onClick={applyFilters}
-                        className="w-full px-4 py-2 text-xs uppercase tracking-wider bg-black border border-gray-500 border-opacity-25 rounded hover:border-cyan transition-colors"
+                        className="w-full px-4 py-2 text-xs uppercase tracking-wider bg-black border border-gray-500 border-opacity-25 rounded hover:border-magenta transition-colors"
                     >
                         Apply Filters
                     </button>

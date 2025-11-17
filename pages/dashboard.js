@@ -158,19 +158,19 @@ export default function DashboardPage() {
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
                          onClick={() => router.push('/api-docs')}>
                         <h3 className="text-lg font-light mb-2">API Documentation</h3>
                         <p className="text-gray-400 text-sm mb-4">Learn how to integrate payment verification via MCP or x402</p>
                         <span className="text-cyan text-sm">View Docs →</span>
                     </div>
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
                          onClick={() => router.push('/dashboard/api-keys')}>
                         <h3 className="text-lg font-light mb-2">Manage API Keys</h3>
                         <p className="text-gray-400 text-sm mb-4">Create and manage your API keys for payment verification</p>
                         <span className="text-cyan text-sm">Manage Keys →</span>
                     </div>
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-cyan transition-colors cursor-pointer"
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
                          onClick={() => window.open('https://discord.com/invite/6Qxps5XP', '_blank')}>
                         <h3 className="text-lg font-light mb-2">Join Community</h3>
                         <p className="text-gray-400 text-sm mb-4">Get support and connect with other developers</p>
