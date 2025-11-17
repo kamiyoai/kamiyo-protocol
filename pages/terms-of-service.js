@@ -7,9 +7,9 @@ export default function TermsOfService() {
     return (
         <>
             <SEO
-                title="Terms of Service | KAMIYO Security Intelligence"
-                description="KAMIYO Terms of Service covering acceptable use, payment terms, API usage limits, liability, and your rights. Read before using our MCP or x402 services."
-                canonical="https://kamiyo.ai/terms"
+                title="Terms of Service | KAMIYO x402 Payment Verification"
+                description="KAMIYO Terms of Service covering acceptable use, payment terms, API usage limits, liability, and your rights. Read before using our x402 payment verification service."
+                canonical="https://kamiyo.ai/terms-of-service"
                 noindex={false}
             />
             <div className="min-h-screen bg-black text-white">
@@ -26,7 +26,7 @@ export default function TermsOfService() {
                     {/* Introduction */}
                     <section className="mb-12">
                         <p className="text-gray-300 leading-relaxed mb-4">
-                            These Terms of Service ("Terms", "Agreement") govern your access to and use of the KAMIYO Security Intelligence platform ("Service") operated by Kamiyo.ai ("KAMIYO", "we", "us", or "our"). The Service includes our MCP (Model Context Protocol) subscriptions, x402 API, and all related services, tools, and features accessible at kamiyo.ai.
+                            These Terms of Service ("Terms", "Agreement") govern your access to and use of the KAMIYO x402 payment verification infrastructure ("Service") operated by Kamiyo.ai ("KAMIYO", "we", "us", or "our"). The Service provides multi-chain USDC payment verification API and all related services, tools, and features accessible at kamiyo.ai.
                         </p>
                         <p className="text-gray-300 leading-relaxed mb-4">
                             By accessing or using the Service, you agree to be bound by these Terms. If you disagree with any part of these Terms, you may not access or use the Service.
@@ -72,35 +72,54 @@ export default function TermsOfService() {
                             1. Service Description
                         </h2>
                         <div className="text-gray-300 space-y-4">
-                            <p>KAMIYO provides security intelligence for AI agents through two primary offerings:</p>
+                            <p>KAMIYO provides multi-chain USDC payment verification through the x402 API with the following subscription tiers:</p>
 
                             <div className="bg-black border border-gray-500/25 rounded-lg p-4">
-                                <h3 className="font-semibold text-white mb-2">MCP (Model Context Protocol) Subscriptions</h3>
-                                <p className="text-sm mb-2">
-                                    Subscription-based access providing unlimited security intelligence queries through MCP servers compatible with Claude Desktop and other AI agent frameworks.
-                                </p>
+                                <h3 className="font-semibold text-white mb-2">Free Tier</h3>
                                 <ul className="text-sm space-y-1 ml-4 list-disc list-inside">
-                                    <li>Personal Plan: $19/month - 1 concurrent AI agent</li>
-                                    <li>Team Plan: $99/month - 5 concurrent AI agents</li>
-                                    <li>Enterprise Plan: $299/month - Unlimited AI agents</li>
+                                    <li>1,000 verifications/month</li>
+                                    <li>Solana & Base blockchain support</li>
+                                    <li>Community support</li>
+                                    <li>Standard rate limits</li>
                                 </ul>
                             </div>
 
                             <div className="bg-black border border-gray-500/25 rounded-lg p-4">
-                                <h3 className="font-semibold text-white mb-2">x402 Pay-Per-Query API</h3>
-                                <p className="text-sm mb-2">
-                                    Pay-as-you-go access at $0.01 per query using USDC payments on Base, Ethereum, or Solana blockchains. No account registration required.
-                                </p>
+                                <h3 className="font-semibold text-white mb-2">Starter Plan - $99/month</h3>
                                 <ul className="text-sm space-y-1 ml-4 list-disc list-inside">
-                                    <li>Price: $0.01 USD per query</li>
-                                    <li>Payment tokens valid for 24 hours</li>
-                                    <li>100 queries per payment token</li>
-                                    <li>Multi-chain support (Base, Ethereum, Solana)</li>
+                                    <li>50,000 verifications/month</li>
+                                    <li>Solana, Base & Ethereum support</li>
+                                    <li>Email support (48h response)</li>
+                                    <li>99.9% uptime SLA</li>
+                                </ul>
+                            </div>
+
+                            <div className="bg-black border border-gray-500/25 rounded-lg p-4">
+                                <h3 className="font-semibold text-white mb-2">Pro Plan - $299/month</h3>
+                                <ul className="text-sm space-y-1 ml-4 list-disc list-inside">
+                                    <li>500,000 verifications/month</li>
+                                    <li>6 blockchain networks</li>
+                                    <li>Advanced risk scoring</li>
+                                    <li>Priority support (24h response)</li>
+                                    <li>Webhook integration</li>
+                                    <li>99.95% uptime SLA</li>
+                                </ul>
+                            </div>
+
+                            <div className="bg-black border border-gray-500/25 rounded-lg p-4">
+                                <h3 className="font-semibold text-white mb-2">Enterprise Plan - $999/month</h3>
+                                <ul className="text-sm space-y-1 ml-4 list-disc list-inside">
+                                    <li>Unlimited verifications</li>
+                                    <li>All supported blockchain networks</li>
+                                    <li>Custom integration support</li>
+                                    <li>24/7 dedicated support</li>
+                                    <li>Custom SLA agreements</li>
+                                    <li>On-premise deployment option</li>
                                 </ul>
                             </div>
 
                             <p className="mt-4">
-                                Both offerings provide access to real-time cryptocurrency exploit intelligence aggregated from 20+ sources including blockchain security firms, on-chain analytics platforms, and vulnerability databases.
+                                The Service verifies USDC payment transactions across multiple blockchain networks including Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, and others.
                             </p>
                         </div>
                     </section>
@@ -154,18 +173,13 @@ export default function TermsOfService() {
                     {/* Section 3 */}
                     <section id="subscription-terms" className="mb-12">
                         <h2 className="text-2xl font-light mb-6 border-b border-gray-500/25 pb-3">
-                            3. MCP Subscription Terms
+                            3. Subscription Terms
                         </h2>
                         <div className="text-gray-300 space-y-4">
                             <h3 className="text-lg font-light text-cyan">3.1 Subscription Plans</h3>
                             <p>
-                                MCP subscriptions are billed monthly and renew automatically until cancelled. Plan details:
+                                Paid subscriptions (Starter, Pro, Enterprise) are billed monthly and renew automatically until cancelled. See Section 1 for plan details and pricing.
                             </p>
-                            <ul className="list-disc list-inside ml-4 space-y-2">
-                                <li><strong className="text-white">Personal ($19/mo):</strong> 1 concurrent AI agent, unlimited queries, email support</li>
-                                <li><strong className="text-white">Team ($99/mo):</strong> 5 concurrent AI agents, team workspace, webhook notifications, priority support</li>
-                                <li><strong className="text-white">Enterprise ($299/mo):</strong> Unlimited AI agents, custom MCP tools, 99.9% SLA, dedicated support</li>
-                            </ul>
 
                             <h3 className="text-lg font-light text-cyan mt-6">3.2 Auto-Renewal</h3>
                             <p>
@@ -183,9 +197,9 @@ export default function TermsOfService() {
                                 <li><strong className="text-white">Downgrades:</strong> Effective at the end of the current billing period</li>
                             </ul>
 
-                            <h3 className="text-lg font-light text-cyan mt-6">3.5 Free Trials</h3>
+                            <h3 className="text-lg font-light text-cyan mt-6">3.5 Free Tier</h3>
                             <p>
-                                We may offer free trials at our discretion. Trial terms will be specified at signup. You must provide valid payment information to start a trial. You will be charged when the trial ends unless you cancel beforehand.
+                                The Free tier provides 1,000 verifications per month at no cost. Free tier accounts may be subject to rate limiting and do not include SLA guarantees. We reserve the right to modify or discontinue the Free tier at any time.
                             </p>
                         </div>
                     </section>
@@ -193,47 +207,50 @@ export default function TermsOfService() {
                     {/* Section 4 */}
                     <section id="x402-terms" className="mb-12">
                         <h2 className="text-2xl font-light mb-6 border-b border-gray-500/25 pb-3">
-                            4. x402 API Terms
+                            4. x402 API Usage
                         </h2>
                         <div className="text-gray-300 space-y-4">
-                            <h3 className="text-lg font-light text-cyan">4.1 Payment Protocol</h3>
+                            <h3 className="text-lg font-light text-cyan">4.1 API Access</h3>
                             <p>
-                                The x402 API uses blockchain-based payment verification. When you make a request to an x402 endpoint:
+                                The x402 API provides multi-chain USDC payment verification. API access is provided through API keys based on your subscription tier:
                             </p>
-                            <ol className="list-decimal list-inside ml-4 space-y-2">
-                                <li>You receive an HTTP 402 Payment Required response with payment details</li>
-                                <li>You send USDC payment ($0.01) to the specified blockchain address</li>
-                                <li>Our system verifies the on-chain transaction</li>
-                                <li>You receive a payment token valid for 100 queries over 24 hours</li>
-                            </ol>
+                            <ul className="list-disc list-inside ml-4 space-y-2">
+                                <li>Free tier: 1,000 verifications/month</li>
+                                <li>Starter: 50,000 verifications/month</li>
+                                <li>Pro: 500,000 verifications/month</li>
+                                <li>Enterprise: Unlimited verifications</li>
+                            </ul>
 
                             <h3 className="text-lg font-light text-cyan mt-6">4.2 Supported Blockchains</h3>
-                            <p>We currently support USDC payments on:</p>
+                            <p>The x402 API verifies USDC payment transactions on the following blockchains (availability varies by tier):</p>
                             <ul className="list-disc list-inside ml-4 space-y-2">
-                                <li>Base (recommended for low fees)</li>
-                                <li>Ethereum Mainnet</li>
                                 <li>Solana</li>
+                                <li>Base</li>
+                                <li>Ethereum</li>
+                                <li>Polygon</li>
+                                <li>Arbitrum</li>
+                                <li>Optimism</li>
+                                <li>Additional chains (Pro and Enterprise tiers)</li>
                             </ul>
 
-                            <h3 className="text-lg font-light text-cyan mt-6">4.3 Payment Tokens</h3>
+                            <h3 className="text-lg font-light text-cyan mt-6">4.3 Service Level Agreements</h3>
                             <ul className="list-disc list-inside ml-4 space-y-2">
-                                <li>Each payment token is valid for 100 API queries</li>
-                                <li>Tokens expire 24 hours after issuance</li>
-                                <li>Unused queries do not roll over or receive refunds</li>
-                                <li>Tokens are non-transferable</li>
+                                <li>Response time: &lt;500ms average (Starter, Pro, Enterprise)</li>
+                                <li>Uptime SLA: 99.9% (Starter), 99.95% (Pro), 99.99% (Enterprise)</li>
+                                <li>Free tier: Best-effort, no SLA guarantees</li>
                             </ul>
 
-                            <h3 className="text-lg font-light text-cyan mt-6">4.4 Blockchain Transaction Risks</h3>
+                            <h3 className="text-lg font-light text-cyan mt-6">4.4 Blockchain Verification</h3>
                             <div className="bg-black border border-cyan border-opacity-50 rounded-lg p-4">
-                                <p className="text-sm font-semibold text-cyan mb-2">BLOCKCHAIN DISCLAIMER</p>
+                                <p className="text-sm font-semibold text-cyan mb-2">IMPORTANT NOTICE</p>
                                 <p className="text-sm space-y-2">
-                                    Blockchain transactions are irreversible. You are solely responsible for:
+                                    The x402 API verifies transactions on public blockchains. You acknowledge:
                                 </p>
                                 <ul className="text-sm list-disc list-inside ml-4 mt-2 space-y-1">
-                                    <li>Verifying payment addresses before sending funds</li>
-                                    <li>Ensuring sufficient funds for transaction fees (gas)</li>
-                                    <li>Understanding that failed transactions are not refundable</li>
-                                    <li>Network congestion delays beyond our control</li>
+                                    <li>Blockchain data is sourced from third-party RPC providers</li>
+                                    <li>Network delays or outages may affect verification speed</li>
+                                    <li>We are not responsible for blockchain network issues</li>
+                                    <li>All verifications are final and non-reversible</li>
                                 </ul>
                                 <p className="text-sm mt-2">
                                     We are not liable for losses due to incorrect addresses, failed transactions, or blockchain network issues.

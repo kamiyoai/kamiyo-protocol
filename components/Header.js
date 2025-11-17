@@ -235,6 +235,14 @@ export default function Header({ children }) {
                                         >
                                             Privacy Policy
                                         </Link>
+                                        <Link
+                                            href="/terms-of-service"
+                                            rel="noopener noreferrer"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            Terms of Service
+                                        </Link>
                                     </nav>
 
                                     <nav className="flex flex-col items-center space-y-4 pt-6 border-t border-gray-500 border-opacity-25">
