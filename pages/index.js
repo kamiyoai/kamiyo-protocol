@@ -382,26 +382,26 @@ export default function Home() {
                     <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
                         Building for
                     </h2>
-                    <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20 min-h-[10rem]">
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
+                    <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
                             <img
                                 src="/media/payai.svg"
                                 alt="PayAI"
-                                className="h-8 md:h-10 w-auto"
+                                className="h-12 w-auto"
                             />
                         </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
                             <img
                                 src="/media/hyperliquid.svg"
                                 alt="Hyperliquid"
-                                className="h-8 md:h-10 w-auto"
+                                className="h-12 w-auto"
                             />
                         </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
                             <img
                                 src="/media/daydreams.png"
                                 alt="Daydreams"
-                                className="h-8 md:h-10 w-auto"
+                                className="h-12 w-auto"
                             />
                         </div>
                     </div>
