@@ -371,14 +371,18 @@ if (result.verified) {
         {/* Support Section */}
         <div className="mt-12 bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
           <h3 className="text-xl font-light mb-4">Need Help?</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
             <div>
-              <div className="text-gray-400 mb-2">Documentation Issues</div>
-              <div className="text-white">Contact <a href="mailto:dev@kamiyo.ai" className="text-cyan">dev@kamiyo.ai</a></div>
+              <div className="text-gray-400 mb-2">General Inquiries</div>
+              <div className="text-white"><a href="mailto:kamiyo@kamiyo.ai" className="text-cyan">kamiyo@kamiyo.ai</a></div>
             </div>
             <div>
               <div className="text-gray-400 mb-2">Integration Support</div>
-              <div className="text-white">Email <a href="mailto:support@kamiyo.ai" className="text-cyan">support@kamiyo.ai</a></div>
+              <div className="text-white"><a href="mailto:support@kamiyo.ai" className="text-cyan">support@kamiyo.ai</a></div>
+            </div>
+            <div>
+              <div className="text-gray-400 mb-2">Partnerships</div>
+              <div className="text-white"><a href="mailto:partnerships@kamiyo.ai" className="text-cyan">partnerships@kamiyo.ai</a></div>
             </div>
           </div>
         </div>
