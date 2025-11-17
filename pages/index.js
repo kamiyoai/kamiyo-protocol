@@ -376,6 +376,38 @@ export default function Home() {
                 </article>
             </section>
 
+            {/* Building For Section */}
+            <section className="w-full border-t border-gray-500/25 py-16">
+                <div className="w-full px-5 mx-auto max-w-[1400px]">
+                    <h2 className="text-2xl md:text-3xl font-light text-center mb-12 text-gray-400">
+                        Building for
+                    </h2>
+                    <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20">
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
+                            <img
+                                src="/media/payai.svg"
+                                alt="PayAI"
+                                className="h-8 md:h-10 w-auto"
+                            />
+                        </div>
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
+                            <img
+                                src="/media/hyperliquid.svg"
+                                alt="Hyperliquid"
+                                className="h-8 md:h-10 w-auto"
+                            />
+                        </div>
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
+                            <img
+                                src="/media/daydreams.png"
+                                alt="Daydreams"
+                                className="h-8 md:h-10 w-auto"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* FAQ Section */}
             <section className="w-full border-t border-gray-500/25 py-16">
                 <div className="w-full px-5 mx-auto max-w-[1200px]">
