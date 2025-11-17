@@ -69,7 +69,7 @@ export default function Home() {
                                     Stop building payment infrastructure.<br />Start shipping features.
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    Verify crypto payments across 12 blockchains with one API call. No RPC nodes. No transaction parsing. No headaches.
+                                    Multi-chain payment verification in one line of code. No infrastructure. No parsing. No authentication.
                                 </p>
                             </header>
 
