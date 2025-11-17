@@ -52,8 +52,9 @@ export default function X402PricingTiers({ showTitle = true }) {
         {
             name: "Enterprise",
             tier: "enterprise",
-            price: "from $999",
+            price: "$999",
             priceDetail: "/mo",
+            pricePrefix: "from ",
             features: [
                 "Unlimited verifications",
                 "All supported chains",
@@ -152,6 +153,7 @@ export default function X402PricingTiers({ showTitle = true }) {
                                 <h3 className="text-xl font-light mb-2" itemProp="name">{plan.name}</h3>
 
                                 <div className="mb-6" itemProp="priceSpecification" itemScope itemType="https://schema.org/PriceSpecification">
+                                    {plan.pricePrefix && <span className="text-gray-500 text-xs mr-1">{plan.pricePrefix}</span>}
                                     <span className="text-4xl font-light gradient-text" itemProp="price">{plan.price}</span>
                                     <span className="text-gray-500 text-xs ml-1" itemProp="priceCurrency" content="USD">{plan.priceDetail}</span>
                                 </div>
