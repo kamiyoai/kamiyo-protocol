@@ -392,15 +392,15 @@ export default function Home() {
                         </div>
                         <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
                             <img
-                                src="/media/hyperliquid.svg"
-                                alt="Hyperliquid"
+                                src="/media/daydreams.png"
+                                alt="Daydreams"
                                 className="h-8 md:h-10 w-auto"
                             />
                         </div>
                         <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100">
                             <img
-                                src="/media/daydreams.png"
-                                alt="Daydreams"
+                                src="/media/hyperliquid.svg"
+                                alt="Hyperliquid"
                                 className="h-8 md:h-10 w-auto"
                             />
                         </div>
