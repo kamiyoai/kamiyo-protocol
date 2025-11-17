@@ -408,7 +408,8 @@ export default function Home() {
                             <img
                                 src="/media/solana.svg"
                                 alt="Solana"
-                                className="h-8 w-auto"
+                                style={{ height: '1.65rem' }}
+                                className="w-auto"
                             />
                         </div>
                     </div>
