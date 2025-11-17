@@ -203,13 +203,6 @@ export default function Header({ children }) {
                                     >
                                         About
                                     </Link>
-                                    <Link
-                                        href="/features"
-                                        onClick={closeMenu}
-                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
-                                    >
-                                        Features
-                                    </Link>
                                     <Link href="/pricing"
                                           rel="noopener noreferrer"
                                           onClick={closeMenu}
