@@ -3,7 +3,7 @@ import { useMenu } from "../context/MenuContext";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { hasMinimumTier, TierName } from "../lib/tiers";
 
@@ -12,6 +12,7 @@ export default function Header({ children }) {
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
     const { data: session } = useSession();
     const [userTier, setUserTier] = useState(null);
+    const menuRef = useRef(null);
 
     // Used to ensure the portal renders only on the client
     const [mounted, setMounted] = useState(false);
@@ -30,6 +31,27 @@ export default function Header({ children }) {
                 .catch(err => console.error('Error fetching subscription:', err));
         }
     }, [session]);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (isMenuOpen && menuRef.current && !menuRef.current.contains(event.target)) {
+                // Check if the click is not on the hamburger button
+                const isHamburgerButton = event.target.closest('button[aria-label*="menu"]');
+                if (!isHamburgerButton) {
+                    setMenuOpen(false);
+                }
+            }
+        };
+
+        if (isMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isMenuOpen, setMenuOpen]);
 
     const closeMenu = () => {
         setMenuOpen(false);
@@ -156,6 +178,7 @@ export default function Header({ children }) {
             {mounted &&
                 createPortal(
                     <div
+                        ref={menuRef}
                         className={`w-72 fixed top-0 right-0 h-screen flex flex-col bg-black border-l border-gray-500 border-opacity-25 transform transition-transform duration-300 z-50 ${
                             isMenuOpen ? "translate-x-0" : "translate-x-72"
                         }`}
