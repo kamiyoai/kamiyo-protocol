@@ -64,8 +64,8 @@ export default function About() {
                             </li>
                         </ul>
                         <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Our Mission</h4>
-                        <p className="mb-4 text-gray-400">We built x402 because verifying crypto payments is tedious. Every blockchain has different RPC endpoints, transaction formats, and confirmation rules.</p>
-                        <p className="text-gray-400">We handle the blockchain complexity. You just make one API call with a transaction hash and get back whether it's valid.</p>
+                        <p className="mb-4 text-gray-400">x402 was built to eliminate the complexity of multi-chain payment verification. Every blockchain has different RPC endpoints, transaction formats, and confirmation rules.</p>
+                        <p className="text-gray-400">Our infrastructure handles the blockchain complexity. You just make one API call with a transaction hash and get back whether it's valid.</p>
                     </div>
                 </div>
 
