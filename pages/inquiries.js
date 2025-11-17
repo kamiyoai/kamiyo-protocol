@@ -56,7 +56,7 @@ export default function ContactPage() {
 
                 {/* Left Section - Contact Info */}
                 <div className="flex flex-col justify-between">
-                    <div>                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;Contact us</p>
+                    <div>                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;Contact us</p>
                         <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25] border-dotted border-b border-cyan pb-8">
               <span className="relative py-1">
                 Inquiries &

@@ -122,7 +122,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;ダッシュボード</p>
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;ダッシュボード</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Dashboard</h1>
                     <p className="text-gray-400 mt-4">
                         Subscription Tier: <span className="text-white">{tierDisplay}</span>

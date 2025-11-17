@@ -171,7 +171,7 @@ export default function ApiKeysPage() {
 
                 {/* Header */}
                 <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;APIキー</p>
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;APIキー</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">API Keys</h1>
                     <p className="text-gray-400 mt-4">
                         Manage your KAMIYO API keys for programmatic access

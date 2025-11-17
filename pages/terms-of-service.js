@@ -16,7 +16,7 @@ export default function TermsOfService() {
                 <div className="max-w-4xl mx-auto px-5 py-16">
                     {/* Header */}
                     <header className="mb-12 border-b border-gray-500/25 pb-8">
-                        <p className="font-light text-sm uppercase tracking-widest text-cyan mb-8">— &nbsp;利用規約</p>
+                        <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;利用規約</p>
                         <h1 className="text-4xl md:text-5xl font-light mb-4 leading-[1.25]">Terms of Service</h1>
                         <p className="text-gray-400 text-sm">
                             Last Updated: <time dateTime="2025-10-29">{lastUpdated}</time>
