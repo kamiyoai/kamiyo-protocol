@@ -73,11 +73,13 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Authentication</h3>
               <p className="text-gray-400 mb-4">
-                All API requests require an API key. Include your API key in the <code className="text-cyan">x-api-key</code> header.
+                <strong className="text-white">No API key required for basic usage.</strong> x402 is designed for AI agents and autonomous systems to verify payments without authentication.
               </p>
-              <CodeBlock>curl -H "x-api-key: x402_live_..." https://api.kamiyo.ai/v1/x402/verify</CodeBlock>
+              <CodeBlock>curl https://api.kamiyo.ai/v1/x402/verify \
+  -H "Content-Type: application/json" \
+  -d '{`{"tx_hash": "...", "chain": "solana"}`}'</CodeBlock>
               <p className="text-gray-400 text-sm mt-4">
-                Get your API key from the <a href="/dashboard/x402" className="text-cyan">x402 dashboard</a>.
+                <em>Optional:</em> Add an API key for enhanced features like analytics, higher rate limits, and webhook notifications. Get your API key from the <a href="/dashboard/x402" className="text-magenta hover:text-cyan">x402 dashboard</a>.
               </p>
             </div>
           </div>
@@ -90,14 +92,7 @@ export default function ApiDocs() {
 
             <div className="space-y-8">
               <div className="border-l-2 border-gray-800 pl-6">
-                <div className="text-white font-medium mb-2">Step 1: Get API Key</div>
-                <p className="text-gray-400 text-sm mb-4">
-                  Sign up at <a href="/dashboard/x402" className="text-cyan">kamiyo.ai/dashboard/x402</a> and create an API key from your dashboard.
-                </p>
-              </div>
-
-              <div className="border-l-2 border-gray-800 pl-6">
-                <div className="text-white font-medium mb-2">Step 2: User Sends Payment</div>
+                <div className="text-white font-medium mb-2">Step 1: User Sends Payment</div>
                 <p className="text-gray-400 text-sm mb-4">
                   Your customer sends USDC to your wallet address on any supported blockchain. They provide you with the transaction hash.
                 </p>
@@ -107,12 +102,11 @@ chain: "solana"</CodeBlock>
               </div>
 
               <div className="border-l-2 border-gray-800 pl-6">
-                <div className="text-white font-medium mb-2">Step 3: Verify Payment</div>
+                <div className="text-white font-medium mb-2">Step 2: Verify Payment</div>
                 <p className="text-gray-400 text-sm mb-4">
-                  Call the verification endpoint with the transaction hash and chain.
+                  Call the verification endpoint with the transaction hash and chain. No API key needed.
                 </p>
                 <CodeBlock>{`curl -X POST https://api.kamiyo.ai/v1/x402/verify \\
-  -H "x-api-key: x402_live_..." \\
   -H "Content-Type: application/json" \\
   -d '{
     "tx_hash": "0xabc123...",
@@ -123,7 +117,7 @@ chain: "solana"</CodeBlock>
               </div>
 
               <div className="border-l-2 border-gray-800 pl-6">
-                <div className="text-white font-medium mb-2">Step 4: Grant Access</div>
+                <div className="text-white font-medium mb-2">Step 3: Grant Access</div>
                 <p className="text-gray-400 text-sm mb-4">
                   If verification succeeds, grant access to your API or service. If it fails, reject the request.
                 </p>
@@ -188,7 +182,6 @@ chain: "solana"</CodeBlock>
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Example Request</h3>
               <CodeBlock>{`curl -X POST https://api.kamiyo.ai/v1/x402/verify \\
-  -H "x-api-key: x402_live_..." \\
   -H "Content-Type: application/json" \\
   -d '{
     "tx_hash": "3k2j5h3k2j5h3k2j5h3k2j5h...",
@@ -196,6 +189,7 @@ chain: "solana"</CodeBlock>
     "expected_amount": 10.00,
     "recipient_address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
   }'`}</CodeBlock>
+              <p className="text-gray-400 text-xs mt-2"><em>Note: No API key required. Add <code className="text-cyan">x-api-key</code> header for enhanced features.</em></p>
             </div>
 
             <div className="mb-8">
@@ -297,10 +291,9 @@ chain: "solana"</CodeBlock>
             <div className="mt-8 bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
               <h3 className="text-lg font-light mb-4">GET /v1/x402/chains</h3>
               <p className="text-gray-400 text-sm mb-4">
-                Get a programmatic list of all supported chains and their configurations.
+                Get a programmatic list of all supported chains and their configurations. No API key needed.
               </p>
-              <CodeBlock>{`curl -H "x-api-key: x402_live_..." \\
-  https://api.kamiyo.ai/v1/x402/chains`}</CodeBlock>
+              <CodeBlock>curl https://api.kamiyo.ai/v1/x402/chains</CodeBlock>
             </div>
           </div>
         )}
@@ -317,7 +310,8 @@ chain: "solana"</CodeBlock>
               </div>
               <CodeBlock>{`from x402 import X402Client
 
-client = X402Client(api_key="x402_live_...")
+# No API key needed for basic usage
+client = X402Client()
 
 result = client.verify_payment(
     tx_hash="3k2j5h3k2j5h...",
@@ -329,7 +323,10 @@ result = client.verify_payment(
 if result.verified:
     print(f"Payment verified: {result.amount} USDC")
 else:
-    print(f"Verification failed: {result.error}")`}</CodeBlock>
+    print(f"Verification failed: {result.error}")
+
+# Optional: Use API key for enhanced features
+# client = X402Client(api_key="x402_live_...")`}</CodeBlock>
             </div>
 
             <div className="mb-8">
@@ -339,9 +336,8 @@ else:
               </div>
               <CodeBlock>{`import { X402Client } from '@x402/sdk';
 
-const client = new X402Client({
-  apiKey: 'x402_live_...'
-});
+// No API key needed for basic usage
+const client = new X402Client();
 
 const result = await client.verifyPayment({
   txHash: '3k2j5h3k2j5h...',
@@ -354,7 +350,10 @@ if (result.verified) {
   console.log(\`Payment verified: \${result.amount} USDC\`);
 } else {
   console.log(\`Verification failed: \${result.error}\`);
-}`}</CodeBlock>
+}
+
+// Optional: Use API key for enhanced features
+// const client = new X402Client({ apiKey: 'x402_live_...' });`}</CodeBlock>
             </div>
 
             <div className="bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
