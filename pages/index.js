@@ -404,6 +404,13 @@ export default function Home() {
                                 className="h-12 w-auto"
                             />
                         </div>
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center h-12">
+                            <img
+                                src="/media/solana.svg"
+                                alt="Solana"
+                                className="h-12 w-auto"
+                            />
+                        </div>
                     </div>
                 </div>
             </section>
