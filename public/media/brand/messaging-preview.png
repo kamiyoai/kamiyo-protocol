@@ -1,0 +1,5 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#000000"/>
+  <text x="400" y="280" font-family="monospace" font-size="48" fill="#00ffff" text-anchor="middle">MESSAGING</text>
+  <text x="400" y="340" font-family="monospace" font-size="18" fill="#d1d5db" text-anchor="middle">Core value propositions</text>
+</svg>
