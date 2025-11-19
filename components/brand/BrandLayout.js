@@ -7,6 +7,7 @@ export default function BrandLayout({ children }) {
     const currentPath = router.pathname;
 
     const sections = [
+        { name: "Overview", href: "/brand" },
         { name: "Logo & Identity", href: "/brand/logo" },
         { name: "Color", href: "/brand/color" },
         { name: "Typography", href: "/brand/typography" },

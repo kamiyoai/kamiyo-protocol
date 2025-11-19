@@ -266,6 +266,13 @@ export default function Header({ children }) {
                                         >
                                             Terms of Service
                                         </Link>
+                                        <Link
+                                            href="/brand"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            Brand Guidelines
+                                        </Link>
                                     </nav>
 
                                     <nav className="flex flex-col items-center space-y-4 pt-6 border-t border-gray-500 border-opacity-25">
@@ -287,13 +294,6 @@ export default function Header({ children }) {
                                         >
                                             Discord
                                         </a>
-                                        <Link
-                                            href="/brand"
-                                            onClick={closeMenu}
-                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
-                                        >
-                                            Brand Guidelines
-                                        </Link>
                                     </nav>
                             </div>
                         </div>
