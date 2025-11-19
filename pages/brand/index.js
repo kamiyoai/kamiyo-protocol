@@ -22,22 +22,19 @@ export default function BrandPage() {
                     </h1>
                     <div className="space-y-4 text-gray-400 text-base leading-relaxed mb-8">
                         <p>
-                            KAMIYO began as infrastructure to protect against crypto exploits and has evolved
-                            into the payment verification layer for the onchain economy.
+                            KAMIYO is the payment verification layer for the onchain economy. These brand guidelines
+                            provide the visual elements, usage rules, and assets for representing KAMIYO in your
+                            projects, integrations, and communications.
                         </p>
                         <p>
-                            These guidelines serve as a foundation, not restrictions. We built KAMIYO for
-                            developers who value technical precision and production reliability. Whether you're
-                            building AI agents, payment APIs, or onchain infrastructure, these elements maintain
-                            the cyberpunk aesthetic and developer-first approach that define KAMIYO.
-                        </p>
-                        <p className="text-white font-medium">
-                            Adapt them. Remix them. Build with them.
+                            The KAMIYO brand combines technical precision with cyberpunk aesthetics. Use these
+                            guidelines to maintain consistency when featuring KAMIYO logos, colors, and typography
+                            in your applications, documentation, or marketing materials.
                         </p>
                     </div>
 
                     {/* CTA Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-6 items-start ml-5">
+                    <div className="flex flex-col sm:flex-row gap-6 items-start md:ml-8">
                         <PayButton
                             textOverride="Download Brand Assets"
                             onClickOverride={() => window.location.href = '/kamiyo-brand.zip'}
