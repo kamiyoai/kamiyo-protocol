@@ -102,7 +102,7 @@ export default function LogoPage() {
                     <div className="border border-gray-500/20 rounded-lg p-6">
                         <h3 className="text-white text-sm mb-3">Best Practices</h3>
                         <ul className="text-xs text-gray-400 space-y-2">
-                            <li>• Stack icon, wordmark, and optional tagline vertically</li>
+                            <li>• Stack icon, wordmark, and Japanese tagline vertically</li>
                             <li>• Center-align all elements</li>
                             <li>• Maintain proportional spacing between elements</li>
                             <li>• Use on dark backgrounds</li>
