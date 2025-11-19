@@ -1,0 +1,11 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#000000"/>
+  <rect x="100" y="150" width="600" height="300" rx="8" fill="#282d34"/>
+  <text x="120" y="200" font-family="monospace" font-size="14" fill="#6b7280"># Install SDK</text>
+  <text x="120" y="240" font-family="monospace" font-size="14" fill="#ffffff">pip install x402</text>
+  <text x="120" y="300" font-family="monospace" font-size="14" fill="#6b7280"># Verify payment</text>
+  <text x="120" y="340" font-family="monospace" font-size="14" fill="#ffffff">result = client.verify_payment(</text>
+  <text x="140" y="370" font-family="monospace" font-size="14" fill="#ffffff">tx_hash="...",</text>
+  <text x="140" y="400" font-family="monospace" font-size="14" fill="#ffffff">chain="solana"</text>
+  <text x="120" y="430" font-family="monospace" font-size="14" fill="#ffffff">)</text>
+</svg>

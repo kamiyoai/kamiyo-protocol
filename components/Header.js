@@ -287,6 +287,13 @@ export default function Header({ children }) {
                                         >
                                             Discord
                                         </a>
+                                        <Link
+                                            href="/brand"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            Brand Guidelines
+                                        </Link>
                                     </nav>
                             </div>
                         </div>
