@@ -204,8 +204,8 @@ export default function UsageDashboardPage() {
 
                 {/* Tier Badge */}
                 <div className="mb-8 inline-block">
-                    <div className="px-4 py-2 bg-cyan text-black rounded-lg">
-                        <span className="font-light uppercase text-sm">
+                    <div className="px-4 py-2 border border-cyan rounded-lg">
+                        <span className="font-light uppercase text-sm text-white">
                             {usageData.tier} Tier
                         </span>
                     </div>
@@ -214,67 +214,67 @@ export default function UsageDashboardPage() {
                 {/* Rate Limit Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     {/* Daily Usage */}
-                    <div className={`border rounded-lg p-6 ${getUsageColor(dayPercentage)}`}>
-                        <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                        <div className="text-xs uppercase tracking-wider mb-2 text-gray-400">
                             Daily Limit
                         </div>
-                        <div className="text-3xl font-light mb-2">
+                        <div className="text-3xl font-light mb-2 gradient-text">
                             {usageData.current_usage.day.toLocaleString()}
                         </div>
-                        <div className="text-sm mb-4">
+                        <div className="text-sm mb-4 text-gray-400">
                             of {usageData.limits.day.toLocaleString()} requests
                         </div>
-                        <div className="w-full bg-black rounded-full h-2 mb-2">
+                        <div className="w-full bg-black rounded-full h-1 mb-2">
                             <div
-                                className="bg-current h-2 rounded-full transition-all duration-500"
+                                className="bg-gradient-to-r from-cyan to-magenta h-1 rounded-full transition-all duration-500"
                                 style={{ width: `${dayPercentage}%` }}
                             />
                         </div>
-                        <div className="text-xs">
+                        <div className="text-xs text-gray-400">
                             {usageData.remaining.day.toLocaleString()} remaining ({(100 - dayPercentage).toFixed(1)}%)
                         </div>
                     </div>
 
                     {/* Hourly Usage */}
-                    <div className={`border rounded-lg p-6 ${getUsageColor(hourPercentage)}`}>
-                        <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                        <div className="text-xs uppercase tracking-wider mb-2 text-gray-400">
                             Hourly Limit
                         </div>
-                        <div className="text-3xl font-light mb-2">
+                        <div className="text-3xl font-light mb-2 gradient-text">
                             {usageData.current_usage.hour.toLocaleString()}
                         </div>
-                        <div className="text-sm mb-4">
+                        <div className="text-sm mb-4 text-gray-400">
                             of {usageData.limits.hour.toLocaleString()} requests
                         </div>
-                        <div className="w-full bg-black rounded-full h-2 mb-2">
+                        <div className="w-full bg-black rounded-full h-1 mb-2">
                             <div
-                                className="bg-current h-2 rounded-full transition-all duration-500"
+                                className="bg-gradient-to-r from-cyan to-magenta h-1 rounded-full transition-all duration-500"
                                 style={{ width: `${hourPercentage}%` }}
                             />
                         </div>
-                        <div className="text-xs">
+                        <div className="text-xs text-gray-400">
                             {usageData.remaining.hour.toLocaleString()} remaining ({(100 - hourPercentage).toFixed(1)}%)
                         </div>
                     </div>
 
                     {/* Per-Minute Usage */}
-                    <div className={`border rounded-lg p-6 ${getUsageColor(minutePercentage)}`}>
-                        <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                        <div className="text-xs uppercase tracking-wider mb-2 text-gray-400">
                             Per-Minute Limit
                         </div>
-                        <div className="text-3xl font-light mb-2">
+                        <div className="text-3xl font-light mb-2 gradient-text">
                             {usageData.current_usage.minute}
                         </div>
-                        <div className="text-sm mb-4">
+                        <div className="text-sm mb-4 text-gray-400">
                             of {usageData.limits.minute} requests
                         </div>
-                        <div className="w-full bg-black rounded-full h-2 mb-2">
+                        <div className="w-full bg-black rounded-full h-1 mb-2">
                             <div
-                                className="bg-current h-2 rounded-full transition-all duration-500"
+                                className="bg-gradient-to-r from-cyan to-magenta h-1 rounded-full transition-all duration-500"
                                 style={{ width: `${minutePercentage}%` }}
                             />
                         </div>
-                        <div className="text-xs">
+                        <div className="text-xs text-gray-400">
                             {usageData.remaining.minute} remaining ({(100 - minutePercentage).toFixed(1)}%)
                         </div>
                     </div>
