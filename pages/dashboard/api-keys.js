@@ -137,12 +137,6 @@ export default function ApiKeysPage() {
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button
-                            onClick={() => window.location.href = 'https://kamiyo.ai'}
-                            className="text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                            ← Home
-                        </button>
-                        <button
                             onClick={() => router.push('/')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
@@ -150,21 +144,15 @@ export default function ApiKeysPage() {
                         </button>
                         <button
                             onClick={() => router.push('/api-keys')}
-                            className="text-white text-sm border-b border-gray-500/25"
+                            className="text-white text-sm border-b border-cyan"
                         >
                             API Keys
                         </button>
                         <button
-                            onClick={() => router.push('/usage')}
+                            onClick={() => router.push('/subscription')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
-                            Usage Analytics
-                        </button>
-                        <button
-                            onClick={() => window.location.href = 'https://kamiyo.ai/pricing'}
-                            className="text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                            Pricing
+                            Subscription
                         </button>
                     </div>
                 </div>
