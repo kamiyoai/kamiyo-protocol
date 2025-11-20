@@ -50,7 +50,7 @@ export default function CheckoutSuccess() {
                         <h2 className="text-xl font-light mb-2 text-red-400">Error Loading Order</h2>
                         <p className="text-gray-300 mb-4">{error}</p>
                         <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push('/')}
                             className="bg-cyan text-black px-6 py-2 rounded hover:bg-cyan-400 transition-colors text-sm uppercase tracking-wider"
                         >
                             Go to Dashboard
@@ -103,7 +103,7 @@ export default function CheckoutSuccess() {
 
                         <div className="flex flex-col sm:flex-row gap-4">
                             <button
-                                onClick={() => router.push('/dashboard')}
+                                onClick={() => router.push('/')}
                                 className="flex-1 bg-cyan text-black px-6 py-3 rounded hover:bg-cyan-400 transition-colors text-sm uppercase tracking-wider font-semibold"
                             >
                                 Go to Dashboard

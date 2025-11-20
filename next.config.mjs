@@ -272,8 +272,19 @@ const nextConfig = {
     // ========================================================================
     async redirects() {
         return [
-            // Trailing slash normalization (prevents duplicate content issues)
-            // Note: API routes are excluded to prevent NextAuth redirect loops
+            // Redirect main domain /dashboard to dashboard subdomain
+            {
+                source: '/dashboard',
+                destination: 'https://dashboard.kamiyo.ai/',
+                permanent: true,
+                statusCode: 301,
+            },
+            {
+                source: '/dashboard/:path*',
+                destination: 'https://dashboard.kamiyo.ai/:path*',
+                permanent: true,
+                statusCode: 301,
+            },
         ];
     },
 
@@ -316,6 +327,28 @@ const nextConfig = {
                     {
                         type: 'host',
                         value: 'x402resolve.kamiyo.ai',
+                    },
+                ],
+            },
+            // Serve dashboard at root when accessed via dashboard.kamiyo.ai subdomain
+            {
+                source: '/',
+                destination: '/dashboard',
+                has: [
+                    {
+                        type: 'host',
+                        value: 'dashboard.kamiyo.ai',
+                    },
+                ],
+            },
+            // Map root-level paths to /dashboard/* when on dashboard subdomain
+            {
+                source: '/:path(api-keys|subscription|usage|success|x402)',
+                destination: '/dashboard/:path',
+                has: [
+                    {
+                        type: 'host',
+                        value: 'dashboard.kamiyo.ai',
                     },
                 ],
             },
