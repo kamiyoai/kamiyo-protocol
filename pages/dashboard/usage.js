@@ -204,8 +204,8 @@ export default function UsageDashboardPage() {
 
                 {/* Tier Badge */}
                 <div className="mb-8 inline-block">
-                    <div className="px-4 py-2 bg-gradient-to-r from-cyan to-magenta rounded-lg">
-                        <span className="text-white font-light uppercase text-sm">
+                    <div className="px-4 py-2 bg-cyan text-black rounded-lg">
+                        <span className="font-light uppercase text-sm">
                             {usageData.tier} Tier
                         </span>
                     </div>
@@ -312,7 +312,7 @@ export default function UsageDashboardPage() {
 
                 {/* Upgrade CTA (if close to limits) */}
                 {dayPercentage >= 75 && usageData.tier === 'free' && (
-                    <div className="bg-gradient-to-r from-cyan/10 to-magenta/10 border border-gray-500/25 rounded-lg p-6 mb-8">
+                    <div className="bg-black border border-cyan/50 rounded-lg p-6 mb-8">
                         <h3 className="text-xl font-light mb-2 text-cyan">
                             Approaching Your Daily Limit
                         </h3>
@@ -322,7 +322,7 @@ export default function UsageDashboardPage() {
                         </p>
                         <button
                             onClick={() => window.location.href = 'https://kamiyo.ai/pricing'}
-                            className="px-6 py-3 bg-gradient-to-r from-cyan to-magenta text-white font-light rounded-lg hover:opacity-90 transition"
+                            className="px-6 py-3 bg-cyan text-black font-light rounded-lg hover:bg-cyan-400 transition"
                         >
                             View Upgrade Options
                         </button>

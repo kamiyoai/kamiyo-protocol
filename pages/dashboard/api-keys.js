@@ -187,8 +187,8 @@ export default function ApiKeysPage() {
 
                 {/* New Key Created (show full key once) */}
                 {createdKey && (
-                    <div className="bg-gradient-to-r from-cyan/10 to-magenta/10 border border-gray-500/25 rounded-lg p-6 mb-6">
-                        <h3 className="text-xl font-light mb-2 bg-gradient-to-r from-cyan to-magenta bg-clip-text text-transparent">
+                    <div className="bg-black border border-cyan/50 rounded-lg p-6 mb-6">
+                        <h3 className="text-xl font-light mb-2 text-cyan">
                             API Key Created Successfully!
                         </h3>
                         <p className="text-sm text-gray-400 mb-4">
@@ -200,7 +200,7 @@ export default function ApiKeysPage() {
                                 <code className="text-cyan">{createdKey.key}</code>
                                 <button
                                     onClick={() => copyToClipboard(createdKey.key)}
-                                    className="ml-4 px-4 py-2 bg-cyan/20 hover:bg-cyan/30 rounded text-cyan transition"
+                                    className="ml-4 px-4 py-2 border border-cyan text-cyan hover:border-white hover:text-white rounded transition"
                                 >
                                     Copy
                                 </button>
@@ -220,7 +220,7 @@ export default function ApiKeysPage() {
                 {!showCreateForm && (
                     <button
                         onClick={() => setShowCreateForm(true)}
-                        className="mb-6 px-6 py-3 bg-gradient-to-r from-cyan to-magenta text-white font-light rounded-lg hover:opacity-90 transition"
+                        className="mb-6 px-6 py-3 bg-cyan text-black font-light rounded-lg hover:bg-cyan-400 transition"
                     >
                         + Create New API Key
                     </button>
@@ -246,7 +246,7 @@ export default function ApiKeysPage() {
                         <div className="flex gap-3">
                             <button
                                 onClick={createApiKey}
-                                className="px-6 py-2 bg-gradient-to-r from-cyan to-magenta text-white font-light rounded-lg hover:opacity-90 transition"
+                                className="px-6 py-2 bg-cyan text-black font-light rounded-lg hover:bg-cyan-400 transition"
                             >
                                 Generate Key
                             </button>
