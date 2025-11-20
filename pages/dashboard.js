@@ -96,6 +96,12 @@ export default function DashboardPage() {
                             API Keys
                         </button>
                         <button
+                            onClick={() => router.push('/usage')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Usage
+                        </button>
+                        <button
                             onClick={() => router.push('/subscription')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >

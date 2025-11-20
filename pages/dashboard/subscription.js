@@ -175,6 +175,12 @@ export default function SubscriptionPage() {
                             API Keys
                         </button>
                         <button
+                            onClick={() => router.push('/usage')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Usage
+                        </button>
+                        <button
                             onClick={() => router.push('/subscription')}
                             className="text-white text-sm border-b border-cyan"
                         >
