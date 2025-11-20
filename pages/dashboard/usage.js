@@ -157,12 +157,6 @@ export default function UsageDashboardPage() {
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button
-                            onClick={() => window.location.href = 'https://kamiyo.ai'}
-                            className="text-gray-400 hover:text-white transition-colors text-sm"
-                        >
-                            ← Home
-                        </button>
-                        <button
                             onClick={() => router.push('/')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
@@ -175,22 +169,12 @@ export default function UsageDashboardPage() {
                             API Keys
                         </button>
                         <button
-                            onClick={() => router.push('/usage')}
-                            className="text-white text-sm border-b border-gray-500/25"
+                            onClick={() => router.push('/subscription')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
-                            Usage Analytics
+                            Subscription
                         </button>
                     </div>
-                    <button
-                        onClick={() => setAutoRefresh(!autoRefresh)}
-                        className={`text-xs px-3 py-1 rounded border ${
-                            autoRefresh
-                                ? 'border-cyan text-cyan'
-                                : 'border-gray-500 text-gray-500'
-                        }`}
-                    >
-                        {autoRefresh ? '● Auto-refresh ON' : '○ Auto-refresh OFF'}
-                    </button>
                 </div>
 
                 {/* Header */}

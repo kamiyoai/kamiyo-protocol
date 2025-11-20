@@ -160,13 +160,27 @@ export default function SubscriptionPage() {
 
             <div className="max-w-7xl mx-auto">
                 {/* Navigation */}
-                <div className="mb-6 flex items-center gap-6">
-                    <button
-                        onClick={() => router.push('/')}
-                        className="text-gray-400 hover:text-white transition-colors text-sm"
-                    >
-                        ← Dashboard
-                    </button>
+                <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => router.push('/api-keys')}
+                            className="text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            API Keys
+                        </button>
+                        <button
+                            onClick={() => router.push('/subscription')}
+                            className="text-white text-sm border-b border-cyan"
+                        >
+                            Subscription
+                        </button>
+                    </div>
                 </div>
 
                 <h1 className="text-4xl font-light mb-2">Manage Subscription</h1>
