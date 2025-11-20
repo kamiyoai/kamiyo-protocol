@@ -220,7 +220,7 @@ export default function ApiKeysPage() {
                 {!showCreateForm && (
                     <button
                         onClick={() => setShowCreateForm(true)}
-                        className="mb-6 px-6 py-3 bg-cyan text-black font-light rounded-lg hover:bg-cyan-400 transition"
+                        className="mb-6 px-3 py-1 text-sm border border-dotted border-magenta text-magenta hover:text-white hover:border-white transition"
                     >
                         + Create New API Key
                     </button>
