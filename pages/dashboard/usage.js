@@ -205,7 +205,7 @@ export default function UsageDashboardPage() {
                 {/* Tier Badge */}
                 <div className="mb-8 inline-block">
                     <div className="px-4 py-2 bg-gradient-to-r from-cyan to-magenta rounded-lg">
-                        <span className="text-white font-semibold uppercase text-sm">
+                        <span className="text-white font-light uppercase text-sm">
                             {usageData.tier} Tier
                         </span>
                     </div>
@@ -322,7 +322,7 @@ export default function UsageDashboardPage() {
                         </p>
                         <button
                             onClick={() => window.location.href = 'https://kamiyo.ai/pricing'}
-                            className="px-6 py-3 bg-gradient-to-r from-cyan to-magenta text-white font-semibold rounded-lg hover:opacity-90 transition"
+                            className="px-6 py-3 bg-gradient-to-r from-cyan to-magenta text-white font-light rounded-lg hover:opacity-90 transition"
                         >
                             View Upgrade Options
                         </button>

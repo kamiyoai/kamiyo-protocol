@@ -46,7 +46,7 @@ export default function CheckoutSuccess() {
                 )}
 
                 {error && (
-                    <div className="bg-red-900 bg-opacity-20 border border-red-500 /50 p-6 rounded-lg">
+                    <div className="bg-red-900 bg-opacity-20 border border-red-500/50 p-6 rounded-lg">
                         <h2 className="text-xl font-light mb-2 text-red-400">Error Loading Order</h2>
                         <p className="text-gray-300 mb-4">{error}</p>
                         <button
@@ -61,7 +61,7 @@ export default function CheckoutSuccess() {
                 {orderDetails && (
                     <div className="animate-fade-in">
                         <div className="text-center mb-8">
-                            <div className="inline-block p-4 bg-green-900 bg-opacity-20 border border-green-500 /50 rounded-full mb-4">
+                            <div className="inline-block p-4 bg-green-900 bg-opacity-20 border border-green-500/50 rounded-full mb-4">
                                 <svg className="w-12 h-12 text-green-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
@@ -78,21 +78,21 @@ export default function CheckoutSuccess() {
                             <h2 className="text-xl font-light mb-4 text-cyan">Next Steps:</h2>
                             <ol className="space-y-4 text-sm text-gray-300">
                                 <li className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-semibold">1</span>
+                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-light">1</span>
                                     <div>
                                         <div className="font-light text-white mb-1">Check your email</div>
                                         <div className="text-gray-400">You'll receive your MCP token and setup instructions at {orderDetails.customer_email || 'your registered email'}</div>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-semibold">2</span>
+                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-light">2</span>
                                     <div>
                                         <div className="font-light text-white mb-1">Add KAMIYO to Claude Desktop</div>
                                         <div className="text-gray-400">Follow the setup guide to configure your MCP server</div>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-semibold">3</span>
+                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-light">3</span>
                                     <div>
                                         <div className="font-light text-white mb-1">Start verifying payments</div>
                                         <div className="text-gray-400">Verify USDC payments across 12+ blockchains with one API call</div>
@@ -104,13 +104,13 @@ export default function CheckoutSuccess() {
                         <div className="flex flex-col sm:flex-row gap-4">
                             <button
                                 onClick={() => router.push('/')}
-                                className="flex-1 bg-cyan text-black px-6 py-3 rounded hover:bg-cyan-400 transition-colors text-sm uppercase tracking-wider font-semibold"
+                                className="flex-1 bg-cyan text-black px-6 py-3 rounded hover:bg-cyan-400 transition-colors text-sm uppercase tracking-wider font-light"
                             >
                                 Go to Dashboard
                             </button>
                             <button
                                 onClick={() => router.push('/mcp/setup')}
-                                className="flex-1 border border-cyan text-cyan px-6 py-3 rounded hover:bg-cyan hover:text-black transition-colors text-sm uppercase tracking-wider font-semibold"
+                                className="flex-1 border border-cyan text-cyan px-6 py-3 rounded hover:bg-cyan hover:text-black transition-colors text-sm uppercase tracking-wider font-light"
                             >
                                 View Setup Guide
                             </button>

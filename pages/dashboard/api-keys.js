@@ -187,8 +187,8 @@ export default function ApiKeysPage() {
 
                 {/* New Key Created (show full key once) */}
                 {createdKey && (
-                    <div className="bg-amaterasu/10 border border-amaterasu rounded-lg p-6 mb-6">
-                        <h3 className="text-xl font-light mb-2 text-amaterasu">
+                    <div className="bg-gradient-to-r from-cyan/10 to-magenta/10 border border-gray-500/25 rounded-lg p-6 mb-6">
+                        <h3 className="text-xl font-light mb-2 bg-gradient-to-r from-cyan to-magenta bg-clip-text text-transparent">
                             API Key Created Successfully!
                         </h3>
                         <p className="text-sm text-gray-400 mb-4">
@@ -197,10 +197,10 @@ export default function ApiKeysPage() {
 
                         <div className="bg-black rounded p-4 font-mono text-sm">
                             <div className="flex items-center justify-between">
-                                <code className="text-amaterasu">{createdKey.key}</code>
+                                <code className="text-cyan">{createdKey.key}</code>
                                 <button
                                     onClick={() => copyToClipboard(createdKey.key)}
-                                    className="ml-4 px-4 py-2 bg-amaterasu/20 hover:bg-amaterasu/30 rounded text-amaterasu transition"
+                                    className="ml-4 px-4 py-2 bg-cyan/20 hover:bg-cyan/30 rounded text-cyan transition"
                                 >
                                     Copy
                                 </button>
@@ -220,7 +220,7 @@ export default function ApiKeysPage() {
                 {!showCreateForm && (
                     <button
                         onClick={() => setShowCreateForm(true)}
-                        className="mb-6 px-6 py-3 bg-amaterasu hover:bg-amaterasu/80 text-black font-semibold rounded-lg transition"
+                        className="mb-6 px-6 py-3 bg-gradient-to-r from-cyan to-magenta text-white font-light rounded-lg hover:opacity-90 transition"
                     >
                         + Create New API Key
                     </button>
@@ -231,7 +231,7 @@ export default function ApiKeysPage() {
                         <h3 className="text-xl font-light mb-4">Create New API Key</h3>
 
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">
+                            <label className="block text-sm font-light mb-2">
                                 Key Name (optional)
                             </label>
                             <input
@@ -239,14 +239,14 @@ export default function ApiKeysPage() {
                                 value={newKeyName}
                                 onChange={(e) => setNewKeyName(e.target.value)}
                                 placeholder="e.g., Production Server, Development, etc."
-                                className="w-full px-4 py-2 bg-black border border-gray-500/25 rounded-lg focus:border-amaterasu focus:outline-none"
+                                className="w-full px-4 py-2 bg-black border border-gray-500/25 rounded-lg focus:border-cyan focus:outline-none"
                             />
                         </div>
 
                         <div className="flex gap-3">
                             <button
                                 onClick={createApiKey}
-                                className="px-6 py-2 bg-amaterasu hover:bg-amaterasu/80 text-black font-semibold rounded-lg transition"
+                                className="px-6 py-2 bg-gradient-to-r from-cyan to-magenta text-white font-light rounded-lg hover:opacity-90 transition"
                             >
                                 Generate Key
                             </button>
@@ -275,7 +275,7 @@ export default function ApiKeysPage() {
                         apiKeys.map((key) => (
                             <div
                                 key={key.id}
-                                className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-amaterasu/30 transition"
+                                className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-gray-500/50 transition"
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
@@ -340,7 +340,7 @@ export default function ApiKeysPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <p className="font-semibold">Security Best Practices:</p>
+                            <p className="font-light">Security Best Practices:</p>
                             <ul className="list-disc list-inside space-y-1 ml-4">
                                 <li>Never share your API keys publicly</li>
                                 <li>Use environment variables to store keys</li>
