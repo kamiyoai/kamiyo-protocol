@@ -38,8 +38,8 @@ export default function CheckoutSuccess() {
                 {loading && (
                     <div className="text-center">
                         <div className="animate-pulse mb-4">
-                            <div className="h-8 bg-gray-800 rounded w-3/4 mx-auto mb-4"></div>
-                            <div className="h-4 bg-gray-800 rounded w-1/2 mx-auto"></div>
+                            <div className="h-8 bg-black rounded w-3/4 mx-auto mb-4"></div>
+                            <div className="h-4 bg-black rounded w-1/2 mx-auto"></div>
                         </div>
                         <p className="text-gray-400">Loading order details...</p>
                     </div>
@@ -74,27 +74,27 @@ export default function CheckoutSuccess() {
                             </p>
                         </div>
 
-                        <div className="bg-gray-900 bg-opacity-50 border border-cyan /30 p-6 rounded-lg mb-8">
+                        <div className="bg-black bg-opacity-50 border border-gray-500/25 p-6 rounded-lg mb-8">
                             <h2 className="text-xl font-light mb-4 text-cyan">Next Steps:</h2>
                             <ol className="space-y-4 text-sm text-gray-300">
                                 <li className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-semibold">1</span>
                                     <div>
-                                        <div className="font-semibold text-white mb-1">Check your email</div>
+                                        <div className="font-light text-white mb-1">Check your email</div>
                                         <div className="text-gray-400">You'll receive your MCP token and setup instructions at {orderDetails.customer_email || 'your registered email'}</div>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-semibold">2</span>
                                     <div>
-                                        <div className="font-semibold text-white mb-1">Add KAMIYO to Claude Desktop</div>
+                                        <div className="font-light text-white mb-1">Add KAMIYO to Claude Desktop</div>
                                         <div className="text-gray-400">Follow the setup guide to configure your MCP server</div>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                                    <span className="flex-shrink-0 w-6 h-6 bg-cyan text-black rounded-full flex items-center justify-center text-xs font-semibold">3</span>
                                     <div>
-                                        <div className="font-semibold text-white mb-1">Start verifying payments</div>
+                                        <div className="font-light text-white mb-1">Start verifying payments</div>
                                         <div className="text-gray-400">Verify USDC payments across 12+ blockchains with one API call</div>
                                     </div>
                                 </li>

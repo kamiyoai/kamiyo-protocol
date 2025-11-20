@@ -227,7 +227,7 @@ export default function X402Dashboard() {
       <div className="min-h-screen bg-black text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
-          <div className="mb-8 border-dotted border-b border-cyan pb-6">
+          <div className="mb-8 border-dotted border-b border-gray-500/25 pb-6">
             <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4">—  DASHBOARD</p>
             <h1 className="text-3xl font-light text-white">x402 Infrastructure</h1>
             <p className="mt-2 text-gray-400">Payment verification API management</p>
@@ -235,7 +235,7 @@ export default function X402Dashboard() {
 
           {/* Checkout success/cancel message */}
           {router.query.checkout === 'success' && (
-            <div className="mb-6 bg-black border border-dotted border-cyan p-4">
+            <div className="mb-6 bg-black border border-dotted border-gray-500/25 p-4">
               <p className="text-cyan">✓ Subscription activated successfully!</p>
             </div>
           )}
@@ -268,7 +268,7 @@ export default function X402Dashboard() {
                     {usage.verifications_limit !== -1 && ` / ${usage.verifications_limit.toLocaleString()}`}
                   </span>
                 </p>
-                <div className="mt-4 bg-gray-800 h-2">
+                <div className="mt-4 bg-black h-2">
                   <div
                     className="bg-gradient-to-r from-cyan to-magenta h-2"
                     style={{ width: `${Math.min(usage.usage_percent, 100)}%` }}
@@ -308,9 +308,9 @@ export default function X402Dashboard() {
                   <div key={key.id} className="bg-black border border-dotted border-gray-500/25 p-6">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <h3 className="text-lg font-medium text-white">{key.name}</h3>
+                        <h3 className="text-lg font-light text-white">{key.name}</h3>
                         <div className="mt-2 flex items-center gap-2">
-                          <code className="text-sm text-cyan bg-gray-900 px-3 py-1 rounded font-mono">
+                          <code className="text-sm text-cyan bg-black px-3 py-1 rounded font-mono">
                             {key.key_prefix}••••••••
                           </code>
                           <button
