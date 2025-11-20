@@ -156,18 +156,107 @@ export default function DashboardPage() {
                     )}
                 </div>
 
+                {/* Mitama Integration */}
+                <div className="bg-black border border-cyan/50 rounded-lg p-8 mb-8">
+                    <div className="flex items-start justify-between mb-6">
+                        <div>
+                            <h2 className="text-2xl font-light mb-2">Agent Identity Layer: Mitama</h2>
+                            <p className="text-gray-400 text-sm">Open source framework for autonomous agent identities on Solana</p>
+                        </div>
+                        <span className="text-cyan text-xs border border-cyan px-2 py-1 rounded">OPEN SOURCE</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                        <div>
+                            <h3 className="text-white font-light mb-3">What is Mitama?</h3>
+                            <p className="text-gray-400 text-sm mb-4">
+                                Mitama provides PDA-based identities and reputation for AI agents.
+                                While Mitama handles identity and trust, KAMIYO provides payment infrastructure.
+                            </p>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-cyan" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                    </svg>
+                                    <span className="text-gray-400">PDA-based identities (no private keys)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-cyan" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                    </svg>
+                                    <span className="text-gray-400">On-chain reputation tracking</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-cyan" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                    </svg>
+                                    <span className="text-gray-400">MEV protection and strategy testing</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-cyan" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                    </svg>
+                                    <span className="text-gray-400">MIT licensed - fork, modify, build</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-white font-light mb-3">Quick Start</h3>
+                            <div className="bg-gray-900/50 border border-gray-700 rounded p-4 mb-4">
+                                <pre className="text-xs text-gray-300 overflow-x-auto">
+{`npm install @kamiyo/mitama
+
+import { MitamaSDK } from '@kamiyo/mitama';
+
+const sdk = new MitamaSDK({
+  solanaRpc: 'https://api.mainnet-beta.solana.com',
+  kamiyoApiKey: process.env.KAMIYO_API_KEY
+});
+
+const agent = await sdk.createAgent({
+  name: 'TradingBot',
+  type: 'Trading'
+});`}
+                                </pre>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => window.open('https://github.com/susumu-kamiyo/mitama', '_blank')}
+                                    className="text-cyan hover:text-white transition-colors text-sm border border-cyan hover:border-white px-4 py-2 rounded"
+                                >
+                                    View on GitHub
+                                </button>
+                                <button
+                                    onClick={() => router.push('/docs/mitama')}
+                                    className="text-gray-400 hover:text-white transition-colors text-sm border border-gray-700 hover:border-white px-4 py-2 rounded"
+                                >
+                                    Documentation
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-800 pt-6">
+                        <h3 className="text-white font-light mb-3 text-sm">Architecture</h3>
+                        <div className="text-gray-400 text-xs font-mono">
+                            Your Agent → Mitama (Identity) → KAMIYO (Payment) → Solana
+                        </div>
+                    </div>
+                </div>
+
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
                          onClick={() => router.push('/api-docs')}>
                         <h3 className="text-lg font-light mb-2">API Documentation</h3>
-                        <p className="text-gray-400 text-sm mb-4">Learn how to integrate payment verification via MCP or x402</p>
+                        <p className="text-gray-400 text-sm mb-4">Learn how to integrate payment infrastructure</p>
                         <span className="text-cyan text-sm">View Docs →</span>
                     </div>
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
                          onClick={() => router.push('/dashboard/api-keys')}>
                         <h3 className="text-lg font-light mb-2">Manage API Keys</h3>
-                        <p className="text-gray-400 text-sm mb-4">Create and manage your API keys for payment verification</p>
+                        <p className="text-gray-400 text-sm mb-4">Create and manage API keys for payment processing</p>
                         <span className="text-cyan text-sm">Manage Keys →</span>
                     </div>
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
