@@ -26,7 +26,7 @@ from api.models import (
 )
 from database import get_db
 from api.community import router as community_router
-from intelligence.source_scorer import SourceScorer
+from services.intelligence.source_scorer import SourceScorer
 from api.websocket_server import websocket_endpoint, get_websocket_manager
 from api.scheduled_tasks import get_task_runner
 
