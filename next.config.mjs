@@ -285,6 +285,31 @@ const nextConfig = {
                 permanent: true,
                 statusCode: 301,
             },
+            // Redirect /dashboard to / when on dashboard subdomain (prevent duplicate path)
+            {
+                source: '/dashboard',
+                destination: '/',
+                permanent: true,
+                statusCode: 301,
+                has: [
+                    {
+                        type: 'host',
+                        value: 'dashboard.kamiyo.ai',
+                    },
+                ],
+            },
+            {
+                source: '/dashboard/:path*',
+                destination: '/:path*',
+                permanent: true,
+                statusCode: 301,
+                has: [
+                    {
+                        type: 'host',
+                        value: 'dashboard.kamiyo.ai',
+                    },
+                ],
+            },
         ];
     },
 
