@@ -84,19 +84,19 @@ export default function DashboardPage() {
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push('/')}
                             className="text-white text-sm border-b border-cyan"
                         >
                             Dashboard
                         </button>
                         <button
-                            onClick={() => router.push('/dashboard/api-keys')}
+                            onClick={() => router.push('/api-keys')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
                             API Keys
                         </button>
                         <button
-                            onClick={() => router.push('/dashboard/subscription')}
+                            onClick={() => router.push('/subscription')}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
                             Subscription
@@ -254,7 +254,7 @@ const agent = await sdk.createAgent({
                         <span className="text-cyan text-sm">View Docs →</span>
                     </div>
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
-                         onClick={() => router.push('/dashboard/api-keys')}>
+                         onClick={() => router.push('/api-keys')}>
                         <h3 className="text-lg font-light mb-2">Manage API Keys</h3>
                         <p className="text-gray-400 text-sm mb-4">Create and manage API keys for payment processing</p>
                         <span className="text-cyan text-sm">Manage Keys →</span>
@@ -273,7 +273,7 @@ const agent = await sdk.createAgent({
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-light">Usage Analytics</h2>
                             <button
-                                onClick={() => router.push('/dashboard/usage')}
+                                onClick={() => router.push('/usage')}
                                 className="text-cyan hover:text-magenta transition-colors text-sm"
                             >
                                 View Detailed Stats →

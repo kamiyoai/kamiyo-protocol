@@ -162,7 +162,7 @@ export default function SubscriptionPage() {
                 {/* Navigation */}
                 <div className="mb-6 flex items-center gap-6">
                     <button
-                        onClick={() => router.push('/dashboard')}
+                        onClick={() => router.push('/')}
                         className="text-gray-400 hover:text-white transition-colors text-sm"
                     >
                         ← Dashboard
