@@ -188,7 +188,7 @@ export default function UsageDashboardPage() {
 
                 {/* Tier Badge */}
                 <div className="mb-8 inline-block">
-                    <div className="px-4 py-2 border border-cyan rounded-lg">
+                    <div className="relative px-4 py-2 border border-transparent rounded-lg card card-highlighted">
                         <span className="font-light uppercase text-sm text-white">
                             {usageData.tier} Tier
                         </span>
