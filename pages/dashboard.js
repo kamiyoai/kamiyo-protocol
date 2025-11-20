@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
         // Only redirect if we're certain the user is not authenticated
         if (status === "unauthenticated" || !session?.user) {
-            router.push("/auth/signin");
+            window.location.href = "https://kamiyo.ai/auth/signin";
             return;
         }
 
@@ -150,7 +150,7 @@ export default function DashboardPage() {
                         <div className="mt-6">
                             <ScrambleButton
                                 text="Upgrade Subscription"
-                                onClick={() => router.push('/pricing')}
+                                onClick={() => window.location.href = 'https://kamiyo.ai/pricing'}
                             />
                         </div>
                     )}
@@ -228,7 +228,7 @@ const agent = await sdk.createAgent({
                                     View on GitHub
                                 </button>
                                 <button
-                                    onClick={() => router.push('/docs/mitama')}
+                                    onClick={() => window.location.href = 'https://kamiyo.ai/docs/mitama'}
                                     className="text-gray-400 hover:text-white transition-colors text-sm border border-gray-700 hover:border-white px-4 py-2 rounded"
                                 >
                                     Documentation
@@ -248,7 +248,7 @@ const agent = await sdk.createAgent({
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-magenta transition-colors cursor-pointer"
-                         onClick={() => router.push('/api-docs')}>
+                         onClick={() => window.location.href = 'https://kamiyo.ai/api-docs'}>
                         <h3 className="text-lg font-light mb-2">API Documentation</h3>
                         <p className="text-gray-400 text-sm mb-4">Learn how to integrate payment infrastructure</p>
                         <span className="text-cyan text-sm">View Docs →</span>
