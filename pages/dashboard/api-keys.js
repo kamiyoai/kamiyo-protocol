@@ -161,7 +161,7 @@ export default function ApiKeysPage() {
                             Usage Analytics
                         </button>
                         <button
-                            onClick={() => router.push('/pricing')}
+                            onClick={() => window.location.href = 'https://kamiyo.ai/pricing'}
                             className="text-gray-400 hover:text-white transition-colors text-sm"
                         >
                             Pricing

@@ -321,7 +321,7 @@ export default function UsageDashboardPage() {
                             Upgrade to Pro for 50x more requests and real-time data.
                         </p>
                         <button
-                            onClick={() => router.push('/pricing')}
+                            onClick={() => window.location.href = 'https://kamiyo.ai/pricing'}
                             className="px-6 py-3 bg-gradient-to-r from-cyan to-magenta text-white font-semibold rounded-lg hover:opacity-90 transition"
                         >
                             View Upgrade Options
