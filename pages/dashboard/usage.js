@@ -132,7 +132,7 @@ export default function UsageDashboardPage() {
 
     if (status === 'loading' || loading) {
         return (
-            <div className="min-h-screen bg-void flex items-center justify-center">
+            <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="text-white">Loading...</div>
             </div>
         );
@@ -140,7 +140,7 @@ export default function UsageDashboardPage() {
 
     if (!usageData) {
         return (
-            <div className="min-h-screen bg-void flex items-center justify-center">
+            <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="text-white">No usage data available</div>
             </div>
         );
@@ -151,7 +151,7 @@ export default function UsageDashboardPage() {
     const minutePercentage = getUsagePercentage(usageData.current_usage.minute, usageData.limits.minute);
 
     return (
-        <div className="min-h-screen bg-void text-white">
+        <div className="min-h-screen bg-black text-white">
             <div className="py-8 px-5 mx-auto max-w-[1400px]">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
@@ -176,7 +176,7 @@ export default function UsageDashboardPage() {
                         </button>
                         <button
                             onClick={() => router.push('/usage')}
-                            className="text-white text-sm border-b border-cyan"
+                            className="text-white text-sm border-b border-gray-500/25"
                         >
                             Usage Analytics
                         </button>
@@ -194,7 +194,7 @@ export default function UsageDashboardPage() {
                 </div>
 
                 {/* Header */}
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                <div className="border-dotted border-b border-gray-500/25 mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;使用状況</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Usage Analytics</h1>
                     <p className="text-gray-400 mt-4">
@@ -218,13 +218,13 @@ export default function UsageDashboardPage() {
                         <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
                             Daily Limit
                         </div>
-                        <div className="text-3xl font-bold mb-2">
+                        <div className="text-3xl font-light mb-2">
                             {usageData.current_usage.day.toLocaleString()}
                         </div>
                         <div className="text-sm mb-4">
                             of {usageData.limits.day.toLocaleString()} requests
                         </div>
-                        <div className="w-full bg-gray-800 rounded-full h-2 mb-2">
+                        <div className="w-full bg-black rounded-full h-2 mb-2">
                             <div
                                 className="bg-current h-2 rounded-full transition-all duration-500"
                                 style={{ width: `${dayPercentage}%` }}
@@ -240,13 +240,13 @@ export default function UsageDashboardPage() {
                         <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
                             Hourly Limit
                         </div>
-                        <div className="text-3xl font-bold mb-2">
+                        <div className="text-3xl font-light mb-2">
                             {usageData.current_usage.hour.toLocaleString()}
                         </div>
                         <div className="text-sm mb-4">
                             of {usageData.limits.hour.toLocaleString()} requests
                         </div>
-                        <div className="w-full bg-gray-800 rounded-full h-2 mb-2">
+                        <div className="w-full bg-black rounded-full h-2 mb-2">
                             <div
                                 className="bg-current h-2 rounded-full transition-all duration-500"
                                 style={{ width: `${hourPercentage}%` }}
@@ -262,13 +262,13 @@ export default function UsageDashboardPage() {
                         <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
                             Per-Minute Limit
                         </div>
-                        <div className="text-3xl font-bold mb-2">
+                        <div className="text-3xl font-light mb-2">
                             {usageData.current_usage.minute}
                         </div>
                         <div className="text-sm mb-4">
                             of {usageData.limits.minute} requests
                         </div>
-                        <div className="w-full bg-gray-800 rounded-full h-2 mb-2">
+                        <div className="w-full bg-black rounded-full h-2 mb-2">
                             <div
                                 className="bg-current h-2 rounded-full transition-all duration-500"
                                 style={{ width: `${minutePercentage}%` }}
@@ -282,8 +282,8 @@ export default function UsageDashboardPage() {
 
                 {/* Endpoint Breakdown */}
                 {usageData.current_usage.endpoints && Object.keys(usageData.current_usage.endpoints).length > 0 && (
-                    <div className="bg-obsidian border border-kamiyo-border rounded-lg p-6 mb-8">
-                        <h2 className="text-2xl font-semibold mb-4">Endpoint Breakdown (Today)</h2>
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-8">
+                        <h2 className="text-2xl font-light mb-4">Endpoint Breakdown (Today)</h2>
                         <div className="space-y-4">
                             {Object.entries(usageData.current_usage.endpoints)
                                 .sort(([, a], [, b]) => b - a)
@@ -297,7 +297,7 @@ export default function UsageDashboardPage() {
                                                     {count.toLocaleString()} requests ({percentage.toFixed(1)}%)
                                                 </span>
                                             </div>
-                                            <div className="w-full bg-gray-800 rounded-full h-2">
+                                            <div className="w-full bg-black rounded-full h-2">
                                                 <div
                                                     className="bg-gradient-to-r from-cyan to-magenta h-2 rounded-full transition-all duration-500"
                                                     style={{ width: `${percentage}%` }}
@@ -312,8 +312,8 @@ export default function UsageDashboardPage() {
 
                 {/* Upgrade CTA (if close to limits) */}
                 {dayPercentage >= 75 && usageData.tier === 'free' && (
-                    <div className="bg-gradient-to-r from-cyan/10 to-magenta/10 border border-cyan/50 rounded-lg p-6 mb-8">
-                        <h3 className="text-xl font-semibold mb-2 text-cyan">
+                    <div className="bg-gradient-to-r from-cyan/10 to-magenta/10 border border-gray-500/25 rounded-lg p-6 mb-8">
+                        <h3 className="text-xl font-light mb-2 text-cyan">
                             Approaching Your Daily Limit
                         </h3>
                         <p className="text-gray-300 mb-4">
@@ -330,8 +330,8 @@ export default function UsageDashboardPage() {
                 )}
 
                 {/* Info Box */}
-                <div className="bg-obsidian border border-kamiyo-border rounded-lg p-6">
-                    <h3 className="text-xl font-semibold mb-4">About Rate Limits</h3>
+                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                    <h3 className="text-xl font-light mb-4">About Rate Limits</h3>
                     <div className="space-y-3 text-sm text-gray-300">
                         <p>
                             <strong className="text-white">Daily Limits:</strong> Total API requests allowed per 24-hour period

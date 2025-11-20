@@ -124,14 +124,14 @@ export default function ApiKeysPage() {
 
     if (status === 'loading' || loading) {
         return (
-            <div className="min-h-screen bg-void flex items-center justify-center">
+            <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="text-white">Loading...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-void text-white">
+        <div className="min-h-screen bg-black text-white">
             <div className="py-8 px-5 mx-auto max-w-[1400px]">
                 {/* Navigation */}
                 <div className="mb-6 flex items-center justify-between">
@@ -150,7 +150,7 @@ export default function ApiKeysPage() {
                         </button>
                         <button
                             onClick={() => router.push('/api-keys')}
-                            className="text-white text-sm border-b border-cyan"
+                            className="text-white text-sm border-b border-gray-500/25"
                         >
                             API Keys
                         </button>
@@ -170,7 +170,7 @@ export default function ApiKeysPage() {
                 </div>
 
                 {/* Header */}
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                <div className="border-dotted border-b border-gray-500/25 mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;APIキー</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">API Keys</h1>
                     <p className="text-gray-400 mt-4">
@@ -188,14 +188,14 @@ export default function ApiKeysPage() {
                 {/* New Key Created (show full key once) */}
                 {createdKey && (
                     <div className="bg-amaterasu/10 border border-amaterasu rounded-lg p-6 mb-6">
-                        <h3 className="text-xl font-semibold mb-2 text-amaterasu">
+                        <h3 className="text-xl font-light mb-2 text-amaterasu">
                             API Key Created Successfully!
                         </h3>
                         <p className="text-sm text-gray-400 mb-4">
                             Save this key securely. You won't be able to see it again.
                         </p>
 
-                        <div className="bg-obsidian rounded p-4 font-mono text-sm">
+                        <div className="bg-black rounded p-4 font-mono text-sm">
                             <div className="flex items-center justify-between">
                                 <code className="text-amaterasu">{createdKey.key}</code>
                                 <button
@@ -227,8 +227,8 @@ export default function ApiKeysPage() {
                 )}
 
                 {showCreateForm && (
-                    <div className="bg-obsidian border border-kamiyo-border rounded-lg p-6 mb-6">
-                        <h3 className="text-xl font-semibold mb-4">Create New API Key</h3>
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-6">
+                        <h3 className="text-xl font-light mb-4">Create New API Key</h3>
 
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-2">
@@ -239,7 +239,7 @@ export default function ApiKeysPage() {
                                 value={newKeyName}
                                 onChange={(e) => setNewKeyName(e.target.value)}
                                 placeholder="e.g., Production Server, Development, etc."
-                                className="w-full px-4 py-2 bg-void border border-kamiyo-border rounded-lg focus:border-amaterasu focus:outline-none"
+                                className="w-full px-4 py-2 bg-black border border-gray-500/25 rounded-lg focus:border-amaterasu focus:outline-none"
                             />
                         </div>
 
@@ -255,7 +255,7 @@ export default function ApiKeysPage() {
                                     setShowCreateForm(false);
                                     setNewKeyName('');
                                 }}
-                                className="px-6 py-2 bg-transparent border border-kamiyo-border hover:border-gray-500 rounded-lg transition"
+                                className="px-6 py-2 bg-transparent border border-gray-500/25 hover:border-gray-500 rounded-lg transition"
                             >
                                 Cancel
                             </button>
@@ -265,22 +265,22 @@ export default function ApiKeysPage() {
 
                 {/* API Keys List */}
                 <div className="space-y-4">
-                    <h2 className="text-2xl font-semibold mb-4">Your API Keys</h2>
+                    <h2 className="text-2xl font-light mb-4">Your API Keys</h2>
 
                     {apiKeys.length === 0 ? (
-                        <div className="bg-obsidian border border-kamiyo-border rounded-lg p-8 text-center">
+                        <div className="bg-black border border-gray-500/25 rounded-lg p-8 text-center">
                             <p className="text-gray-400">No API keys yet. Create one to get started!</p>
                         </div>
                     ) : (
                         apiKeys.map((key) => (
                             <div
                                 key={key.id}
-                                className="bg-obsidian border border-kamiyo-border rounded-lg p-6 hover:border-amaterasu/30 transition"
+                                className="bg-black border border-gray-500/25 rounded-lg p-6 hover:border-amaterasu/30 transition"
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="text-lg font-semibold">
+                                            <h3 className="text-lg font-light">
                                                 {key.name || 'Unnamed Key'}
                                             </h3>
                                             <span
@@ -324,15 +324,15 @@ export default function ApiKeysPage() {
                 </div>
 
                 {/* Documentation */}
-                <div className="mt-12 bg-obsidian border border-kamiyo-border rounded-lg p-6">
-                    <h3 className="text-xl font-semibold mb-4">Using Your API Key</h3>
+                <div className="mt-12 bg-black border border-gray-500/25 rounded-lg p-6">
+                    <h3 className="text-xl font-light mb-4">Using Your API Key</h3>
 
                     <div className="space-y-4 text-sm text-gray-300">
                         <p>
                             Use your API key to authenticate requests to the KAMIYO API:
                         </p>
 
-                        <div className="bg-void rounded p-4 font-mono text-xs overflow-x-auto">
+                        <div className="bg-black rounded p-4 font-mono text-xs overflow-x-auto">
                             <pre>{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
      -H "Content-Type: application/json" \\
      -d '{"tx_hash": "YOUR_TX_HASH", "chain": "solana"}' \\
