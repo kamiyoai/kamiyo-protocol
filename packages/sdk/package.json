@@ -1,0 +1,34 @@
+{
+  "name": "@mitama/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Mitama autonomous agent framework",
+  "keywords": ["solana", "agents", "sdk", "blockchain"],
+  "homepage": "https://github.com/kamiyo-ai/mitama#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/mitama.git",
+    "directory": "packages/sdk"
+  },
+  "license": "MIT",
+  "author": "KAMIYO <susumu@kamiyo.ai>",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@mitama/core": "^0.1.0",
+    "@solana/web3.js": "^1.87.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "mitama",
+  "version": "0.1.0",
+  "description": "Open source autonomous agent framework for Solana",
+  "keywords": ["solana", "agents", "blockchain", "autonomous", "web3"],
+  "homepage": "https://github.com/kamiyo-ai/mitama",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/mitama.git"
+  },
+  "license": "MIT",
+  "author": "KAMIYO <susumu@kamiyo.ai>",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "test": "echo \"See individual packages for tests\""
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
