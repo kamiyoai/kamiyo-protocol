@@ -1,5 +1,4 @@
 // pages/index.js
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
@@ -9,44 +8,6 @@ import SEO from "../components/SEO";
 import { LinkButton } from "../components/Button";
 
 export default function Home() {
-    const [stats, setStats] = useState({
-        totalExploits: '-',
-        totalLoss: '-',
-        chainsTracked: '-',
-        activeSources: '-'
-    });
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        loadStats();
-        const interval = setInterval(loadStats, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const loadStats = async () => {
-        try {
-            const [healthRes, statsRes] = await Promise.all([
-                fetch('/api/health'),
-                fetch('/api/stats?days=7')
-            ]);
-
-            const healthData = await healthRes.json();
-            const statsData = await statsRes.json();
-
-            setStats({
-                totalExploits: healthData.database_exploits?.toLocaleString() || '-',
-                totalLoss: statsData.total_loss_usd != null
-                    ? `$${(statsData.total_loss_usd / 1000000).toFixed(1)}M`
-                    : '-',
-                chainsTracked: healthData.tracked_chains || '-',
-                activeSources: `${healthData.active_sources || 0}/${healthData.total_sources || 0}`
-            });
-            setLoading(false);
-        } catch (error) {
-            console.error('Error loading stats:', error);
-            setLoading(false);
-        }
-    };
 
     return (
         <>
