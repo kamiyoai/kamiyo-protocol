@@ -81,20 +81,18 @@ See the `examples/` directory for complete working examples:
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Enterprise Features
+## KAMIYO Platform
 
-For production-ready infrastructure, AI integration, and commercial support:
+This framework provides core abstractions. For the complete platform:
 
-**KAMIYO Platform** provides:
-- Daydreams AI cognitive framework integration
-- Production API and infrastructure
-- Surfpool strategy validation on devnet fork
-- MEV protection
-- PostgreSQL + pgvector memory system
-- Monitoring and observability
-- Professional support and SLA
+- **AI Integration**: Daydreams cognitive framework for agent decision-making
+- **Strategy Testing**: Surfpool devnet fork for risk-free validation
+- **Infrastructure**: FastAPI server, PostgreSQL + pgvector memory system
+- **Security**: MEV protection and authentication layer
+- **Monitoring**: Prometheus and Grafana observability stack
+- **Commercial Licensing**: Enterprise support and deployment assistance
 
-Visit [kamiyo.ai](https://kamiyo.ai) or contact license@kamiyo.ai
+Contact: license@kamiyo.ai | [kamiyo.ai](https://kamiyo.ai)
 
 ---
 
