@@ -1,6 +1,5 @@
 // pages/index.js
 import Link from "next/link";
-import StatsCard from "../components/dashboard/StatsCard";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
 import X402PricingTiers from "../components/X402PricingTiers";
@@ -91,97 +90,6 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
-            </section>
-
-            {/* Stats Grid */}
-            <section className="w-full px-5 mx-auto pt-8 pb-8 max-w-[1400px]">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <StatsCard
-                        label="Supported Chains"
-                        value="8+"
-                        loading={false}
-                    />
-                    <StatsCard
-                        label="Avg Response Time"
-                        value="<500ms"
-                        loading={false}
-                    />
-                    <StatsCard
-                        label="API Uptime"
-                        value="99.9%"
-                        loading={false}
-                    />
-                    <StatsCard
-                        label="Verifications/Month"
-                        value="10M+"
-                        loading={false}
-                    />
-                    <StatsCard
-                        label="Starting Price"
-                        value="$99"
-                        loading={false}
-                    />
-                    <StatsCard
-                        label="Free Tier"
-                        value="1,000/mo"
-                        loading={false}
-                    />
-                </div>
-            </section>
-
-            {/* How It Works Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
-                <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
-                    How It Works
-                </h2>
-
-                <div className="grid md:grid-cols-2 gap-8 mb-12">
-                    <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Setup</div>
-                        <div className="bg-black border border-gray-500/20 rounded-lg p-6">
-                            <div className="text-white text-lg mb-3">Add to any API in <span className="text-cyan">10 minutes</span></div>
-                            <div className="text-gray-400 text-sm mb-4 space-y-1">
-                                <div><strong className="text-cyan">Step 1:</strong> User sends USDC to your wallet</div>
-                                <div><strong className="text-cyan">Step 2:</strong> Submit tx hash to x402 API</div>
-                                <div><strong className="text-cyan">Step 3:</strong> Get instant verification result</div>
-                                <div><strong className="text-cyan">Step 4:</strong> Grant or deny access</div>
-                            </div>
-                            <div className="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-500/20">
-                                <strong className="text-cyan">Chains:</strong> Solana, Base, Ethereum, Polygon, Arbitrum, Optimism
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Example</div>
-                        <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                            <div className="text-gray-500 mb-2"># No API key needed for agents</div>
-                            <div className="text-white"><span className="text-cyan">from</span> x402 <span className="text-cyan">import</span> X402Client</div>
-                            <div className="text-white mb-2"></div>
-                            <div className="text-white">client = X402Client()</div>
-                            <div className="text-white mb-2"></div>
-                            <div className="text-white">result = client.verify_payment(</div>
-                            <div className="ml-4 text-white">tx_hash=<span className="text-gray-400">"..."</span>,</div>
-                            <div className="ml-4 text-white">chain=<span className="text-gray-400">"solana"</span>,</div>
-                            <div className="ml-4 text-white">expected_amount=<span className="text-magenta">10.00</span></div>
-                            <div className="text-white">)</div>
-                            <div className="text-white mb-2"></div>
-                            <div className="text-white"><span className="text-cyan">if</span> result.verified:</div>
-                            <div className="ml-4 text-white"><span className="text-gray-500"># Grant access</span></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Pricing Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
-                <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
-                    Pricing
-                </h2>
-                <p className="text-center text-gray-400 mb-12">
-                    Start free, scale as you grow
-                </p>
-
-                <X402PricingTiers showTitle={false} />
             </section>
 
             {/* Built for Developers Section */}
@@ -333,6 +241,61 @@ export default function Home() {
                         </LinkButton>
                     </div>
                 </article>
+            </section>
+
+            {/* How It Works Section */}
+            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
+                <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
+                    How It Works
+                </h2>
+
+                <div className="grid md:grid-cols-2 gap-8 mb-12">
+                    <div>
+                        <div className="gradient-text mb-2 text-sm font-medium">Setup</div>
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-6">
+                            <div className="text-white text-lg mb-3">Add to any API in <span className="text-cyan">10 minutes</span></div>
+                            <div className="text-gray-400 text-sm mb-4 space-y-1">
+                                <div><strong className="text-cyan">Step 1:</strong> User sends USDC to your wallet</div>
+                                <div><strong className="text-cyan">Step 2:</strong> Submit tx hash to x402 API</div>
+                                <div><strong className="text-cyan">Step 3:</strong> Get instant verification result</div>
+                                <div><strong className="text-cyan">Step 4:</strong> Grant or deny access</div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-500/20">
+                                <strong className="text-cyan">Chains:</strong> Solana, Base, Ethereum, Polygon, Arbitrum, Optimism
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="gradient-text mb-2 text-sm font-medium">Example</div>
+                        <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+                            <div className="text-gray-500 mb-2"># No API key needed for agents</div>
+                            <div className="text-white"><span className="text-cyan">from</span> x402 <span className="text-cyan">import</span> X402Client</div>
+                            <div className="text-white mb-2"></div>
+                            <div className="text-white">client = X402Client()</div>
+                            <div className="text-white mb-2"></div>
+                            <div className="text-white">result = client.verify_payment(</div>
+                            <div className="ml-4 text-white">tx_hash=<span className="text-gray-400">"..."</span>,</div>
+                            <div className="ml-4 text-white">chain=<span className="text-gray-400">"solana"</span>,</div>
+                            <div className="ml-4 text-white">expected_amount=<span className="text-magenta">10.00</span></div>
+                            <div className="text-white">)</div>
+                            <div className="text-white mb-2"></div>
+                            <div className="text-white"><span className="text-cyan">if</span> result.verified:</div>
+                            <div className="ml-4 text-white"><span className="text-gray-500"># Grant access</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Pricing Section */}
+            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
+                <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
+                    Pricing
+                </h2>
+                <p className="text-center text-gray-400 mb-12">
+                    Start free, scale as you grow
+                </p>
+
+                <X402PricingTiers showTitle={false} />
             </section>
 
             {/* Building For Section */}
