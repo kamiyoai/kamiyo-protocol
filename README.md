@@ -14,6 +14,31 @@ Mitama provides core abstractions and interfaces for building autonomous agents 
 - TypeScript SDK
 - Clean, extensible architecture
 
+```
+┌─────────────────────────────────────────────────────┐
+│                  MITAMA FRAMEWORK                   │
+│            Autonomous Agents on Solana              │
+└─────────────────────────────────────────────────────┘
+                         │
+        ┌────────────────┼────────────────┐
+        │                                 │
+   ┌────▼─────┐                   ┌──────▼──────┐
+   │   Core   │                   │     SDK     │
+   │          │                   │             │
+   │ Types    │◄──────────────────┤  Client     │
+   │ Interfaces│                  │  Provider   │
+   │ Contracts│                   │  Strategy   │
+   └────┬─────┘                   └──────┬──────┘
+        │                                │
+        │         ┌──────────────────────┘
+        │         │
+        ▼         ▼
+   ┌────────────────────┐
+   │   Solana Runtime   │
+   │   PDA • Reputation │
+   └────────────────────┘
+```
+
 ## Installation
 
 ```bash
@@ -40,6 +65,39 @@ const agent = await sdk.createAgent(
 );
 
 console.log('Agent created:', agent.pda.toString());
+```
+
+### Agent Lifecycle
+
+```
+┌──────────┐
+│   User   │
+└─────┬────┘
+      │
+      │ 1. createAgent()
+      ▼
+┌─────────────────┐
+│  MitamaSDK      │
+│  ┌───────────┐  │
+│  │ Provider  │  │──┐
+│  └───────────┘  │  │ 2. Generate PDA
+└─────────────────┘  │    Store identity
+      │              │    Initialize stake
+      │◄─────────────┘
+      │
+      │ 3. Return AgentIdentity
+      ▼
+┌─────────────────────────┐
+│   Solana Program        │
+│   ┌───────────────┐     │
+│   │ Agent PDA     │     │
+│   │ • Owner       │     │
+│   │ • Name        │     │
+│   │ • Type        │     │
+│   │ • Reputation  │     │
+│   │ • Stake       │     │
+│   └───────────────┘     │
+└─────────────────────────┘
 ```
 
 ## Package Structure
@@ -84,6 +142,34 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## KAMIYO Platform
 
 This framework provides core abstractions. For the complete platform:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                    KAMIYO PLATFORM                         │
+│                    (Commercial)                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │  Daydreams   │  │   Surfpool   │  │  Production  │    │
+│  │  AI Engine   │  │  Validation  │  │     API      │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │     MEV      │  │  PostgreSQL  │  │  Monitoring  │    │
+│  │  Protection  │  │  + pgvector  │  │    Stack     │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘    │
+└────────────────────────────┬───────────────────────────────┘
+                             │
+                             │ uses
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                   MITAMA FRAMEWORK                         │
+│                   (Open Source - MIT)                      │
+│  ┌──────────────┐              ┌──────────────┐           │
+│  │ @mitama/core │              │ @mitama/sdk  │           │
+│  │  Interfaces  │◄─────────────┤   Client     │           │
+│  └──────────────┘              └──────────────┘           │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Platform Features:**
 
 - **AI Integration**: Daydreams cognitive framework for agent decision-making
 - **Strategy Testing**: Surfpool devnet fork for risk-free validation
