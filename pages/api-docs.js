@@ -73,14 +73,13 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Authentication</h3>
               <p className="text-gray-400 mb-4">
-                <strong className="text-white">API key required.</strong> All x402 API requests require authentication using a Bearer token. Get your API key from the <a href="/dashboard/x402" className="text-magenta hover:text-cyan">x402 dashboard</a>.
+                <strong className="text-white">No API key required for basic usage.</strong> x402 is designed for AI agents and autonomous systems to verify payments without authentication barriers. Optional API keys provide higher rate limits and access to additional chains.
               </p>
               <CodeBlock>curl https://api.kamiyo.ai/v1/x402/verify \
-  -H "Authorization: Bearer x402_live_XXXXX" \
   -H "Content-Type: application/json" \
   -d '{`{"tx_hash": "...", "chain": "solana"}`}'</CodeBlock>
               <p className="text-gray-400 text-sm mt-4">
-                Free tier includes 1,000 verifications per month. Higher tiers unlock additional chains, enhanced rate limits, and analytics.
+                <strong>Rate Limits:</strong> Unauthenticated: 5 req/min, 50 req/hour (Solana &amp; Base only). With API key: 10-2,000 req/min with access to all 8 chains. Get your API key from the <a href="/dashboard/x402" className="text-magenta hover:text-cyan">x402 dashboard</a>.
               </p>
             </div>
           </div>
@@ -310,10 +309,12 @@ chain: "solana"</CodeBlock>
             <div className="mt-8 bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
               <h3 className="text-lg font-light mb-4">GET /v1/x402/chains</h3>
               <p className="text-gray-400 text-sm mb-4">
-                Get a programmatic list of all supported chains and their configurations.
+                Get a programmatic list of all supported chains and their configurations. No API key required.
               </p>
-              <CodeBlock>curl https://api.kamiyo.ai/v1/x402/chains \
-  -H "Authorization: Bearer x402_live_XXXXX"</CodeBlock>
+              <CodeBlock>curl https://api.kamiyo.ai/v1/x402/chains</CodeBlock>
+              <p className="text-gray-400 text-xs mt-2">
+                Note: Unauthenticated requests only have access to Solana and Base chains.
+              </p>
             </div>
           </div>
         )}
@@ -330,8 +331,8 @@ chain: "solana"</CodeBlock>
               </div>
               <CodeBlock>{`from x402 import X402Client
 
-# Initialize with API key
-client = X402Client(api_key="x402_live_...")
+# No API key needed for basic usage
+client = X402Client()
 
 result = client.verify_payment(
     tx_hash="3k2j5h3k2j5h...",
@@ -343,7 +344,10 @@ result = client.verify_payment(
 if result.verified:
     print(f"Payment verified: {result.amount} USDC")
 else:
-    print(f"Verification failed: {result.error}")`}</CodeBlock>
+    print(f"Verification failed: {result.error}")
+
+# Optional: Use API key for higher limits and more chains
+# client = X402Client(api_key="x402_live_...")`}</CodeBlock>
             </div>
 
             <div className="mb-8">
@@ -353,8 +357,8 @@ else:
               </div>
               <CodeBlock>{`import { X402Client } from '@x402/sdk';
 
-// Initialize with API key
-const client = new X402Client({ apiKey: 'x402_live_...' });
+// No API key needed for basic usage
+const client = new X402Client();
 
 const result = await client.verifyPayment({
   txHash: '3k2j5h3k2j5h...',
@@ -367,7 +371,10 @@ if (result.verified) {
   console.log(\`Payment verified: \${result.amount} USDC\`);
 } else {
   console.log(\`Verification failed: \${result.error}\`);
-}`}</CodeBlock>
+}
+
+// Optional: Use API key for higher limits and more chains
+// const client = new X402Client({ apiKey: 'x402_live_...' });`}</CodeBlock>
             </div>
 
             <div className="bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
