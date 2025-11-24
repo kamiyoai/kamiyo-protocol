@@ -307,6 +307,13 @@ export default function Home() {
                     <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20">
                         <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
                             <img
+                                src="/media/monad.png"
+                                alt="Monad"
+                                className="h-10 w-auto"
+                            />
+                        </div>
+                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
+                            <img
                                 src="/media/payai.svg"
                                 alt="PayAI"
                                 className="h-32 w-auto"
