@@ -129,7 +129,7 @@ export default function Home() {
                             <span>&lt;500ms</span>
                         </div>
                         <div className="text-gray-400 text-sm mb-4">
-                            Call x402 API to verify the payment happened on-chain. No API key needed.
+                            Call x402 API to verify the payment happened on-chain. No API key required.
                         </div>
                         <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono mb-2">
                             <div className="text-gray-500">$ <span className="text-cyan">curl</span> -X POST api.kamiyo.ai/v1/x402/verify</div>
@@ -268,7 +268,7 @@ export default function Home() {
                     <div>
                         <div className="gradient-text mb-2 text-sm font-medium">Example</div>
                         <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                            <div className="text-gray-500 mb-2"># No API key needed for agents</div>
+                            <div className="text-gray-500 mb-2"># No API key required</div>
                             <div className="text-white"><span className="text-cyan">from</span> x402 <span className="text-cyan">import</span> X402Client</div>
                             <div className="text-white mb-2"></div>
                             <div className="text-white">client = X402Client()</div>

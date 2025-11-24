@@ -2,7 +2,7 @@
  * POST /api/v1/x402/verify
  *
  * Verify on-chain USDC payment
- * Requires: Bearer token with API key
+ * Authentication: Optional (API key provides higher rate limits)
  */
 
 import { VerificationService } from '../../../../lib/x402-saas/verification-service.js';
@@ -17,31 +17,37 @@ export default async function handler(req, res) {
   }
 
   // Define at function scope for error handling
-  let apiKey, chain, txHashValue;
+  let apiKey, chain, txHashValue, isAuthenticated = false;
 
   try {
-    // Extract API key from Authorization header
+    // Get client IP for unauthenticated rate limiting
+    const ipAddress = req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+                     req.headers['x-real-ip'] ||
+                     req.socket.remoteAddress;
+
+    // Extract API key from Authorization header (optional)
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        error: 'Missing or invalid Authorization header',
-        message: 'Include "Authorization: Bearer x402_live_XXXXX" header'
-      });
+    let keyInfo = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      apiKey = authHeader.replace('Bearer ', '');
+
+      // Validate API key and get tenant info
+      keyInfo = await APIKeyManager.validateApiKey(apiKey);
+      if (!keyInfo) {
+        return res.status(401).json({
+          error: 'Invalid API key',
+          message: 'The provided API key is invalid or revoked'
+        });
+      }
+      isAuthenticated = true;
     }
 
-    apiKey = authHeader.replace('Bearer ', '');
+    // Check rate limit (IP-based for unauthenticated, tenant-based for authenticated)
+    const rateLimitId = isAuthenticated ? keyInfo.tenantId : `ip:${ipAddress}`;
+    const tier = isAuthenticated ? keyInfo.tier : 'unauthenticated';
 
-    // Validate API key and get tenant info (for rate limiting)
-    const keyInfo = await APIKeyManager.validateApiKey(apiKey);
-    if (!keyInfo) {
-      return res.status(401).json({
-        error: 'Invalid API key',
-        message: 'The provided API key is invalid or revoked'
-      });
-    }
-
-    // Check rate limit
-    const rateLimit = await rateLimiter.checkLimit(keyInfo.tenantId, keyInfo.tier);
+    const rateLimit = await rateLimiter.checkLimit(rateLimitId, tier);
     res.setHeader('X-RateLimit-Limit', rateLimit.limit);
     res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
     res.setHeader('X-RateLimit-Reset', rateLimit.resetTime);
@@ -50,7 +56,7 @@ export default async function handler(req, res) {
       res.setHeader('Retry-After', rateLimit.retryAfter);
       return res.status(429).json({
         error: 'Rate limit exceeded',
-        message: `Too many requests. Limit: ${rateLimit.limit}/${rateLimit.window}`,
+        message: `Too many requests. Limit: ${rateLimit.limit}/${rateLimit.window}. ${!isAuthenticated ? 'Use an API key for higher limits.' : ''}`,
         retryAfter: rateLimit.retryAfter,
         resetTime: new Date(rateLimit.resetTime).toISOString()
       });
@@ -101,12 +107,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // Get client IP
-    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-
-    // Call verification service
+    // Call verification service (apiKey can be null for unauthenticated requests)
     const result = await VerificationService.verifyPayment(
-      apiKey,
+      apiKey || null,
       txHashValue,
       chain,
       expectedAmountValue,
@@ -115,6 +118,15 @@ export default async function handler(req, res) {
 
     // Handle different error cases
     if (!result.success) {
+      // Skip API key errors for unauthenticated requests
+      if (!isAuthenticated && (result.errorCode === 'INVALID_API_KEY' || result.errorCode === 'TENANT_SUSPENDED')) {
+        // These errors shouldn't occur for unauthenticated requests, but handle gracefully
+        return res.status(400).json({
+          error: 'Verification failed',
+          message: result.message || 'Unable to verify payment'
+        });
+      }
+
       if (result.errorCode === 'INVALID_API_KEY' || result.errorCode === 'TENANT_SUSPENDED') {
         return res.status(401).json(result);
       }
@@ -124,7 +136,10 @@ export default async function handler(req, res) {
       }
 
       if (result.errorCode === 'CHAIN_NOT_ENABLED') {
-        return res.status(403).json(result);
+        return res.status(403).json({
+          ...result,
+          message: `${result.message}${!isAuthenticated ? ' Upgrade to access this chain.' : ''}`
+        });
       }
 
       return res.status(400).json(result);
