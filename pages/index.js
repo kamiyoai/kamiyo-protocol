@@ -309,7 +309,7 @@ export default function Home() {
                             <img
                                 src="/media/monad.png"
                                 alt="Monad"
-                                className="h-10 w-auto"
+                                className="h-8 w-auto"
                             />
                         </div>
                         <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
