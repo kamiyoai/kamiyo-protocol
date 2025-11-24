@@ -39,7 +39,7 @@ export default function Home() {
                                     1,000 free verifications/month
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
-                                    12 blockchains supported
+                                    8 blockchains supported
                                 </span>
                                 <span className="text-xs text-gray-400 border border-gray-500/50 px-3 py-2 rounded-full">
                                     10-minute integration
@@ -176,7 +176,7 @@ export default function Home() {
                             </svg>
                             <div>
                                 <div className="text-white mb-1">One API, Every Chain</div>
-                                <div className="text-gray-500 text-sm">Solana, Base, Ethereum, Polygon, Avalanche, and 7 more chains with a single integration</div>
+                                <div className="text-gray-500 text-sm">Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, and BSC with a single integration</div>
                             </div>
                         </div>
                         <div className="flex gap-3">
@@ -210,7 +210,7 @@ export default function Home() {
                             <div className="text-white mb-2 font-semibold">Python SDK</div>
                             <div className="bg-black border border-gray-500/20 rounded p-3 text-xs font-mono text-gray-300 overflow-x-auto">
                                 <div className="text-gray-500"># Install SDK</div>
-                                <div className="text-white"><span className="text-cyan">pip</span> install x402</div>
+                                <div className="text-white"><span className="text-cyan">pip</span> install x402-python</div>
                                 <br/>
                                 <div className="text-gray-500"># Verify payment</div>
                                 <div className="text-white">result = client.verify_payment(</div>
@@ -261,7 +261,7 @@ export default function Home() {
                                 <div><strong className="text-cyan">Step 4:</strong> Grant or deny access</div>
                             </div>
                             <div className="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-500/20">
-                                <strong className="text-cyan">Chains:</strong> Solana, Base, Ethereum, Polygon, Arbitrum, Optimism
+                                <strong className="text-cyan">Chains:</strong> Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, BSC
                             </div>
                         </div>
                     </div>

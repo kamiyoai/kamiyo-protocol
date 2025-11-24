@@ -73,13 +73,14 @@ export default function ApiDocs() {
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Authentication</h3>
               <p className="text-gray-400 mb-4">
-                <strong className="text-white">No API key required for basic usage.</strong> x402 is designed for AI agents and autonomous systems to verify payments without authentication.
+                <strong className="text-white">API key required.</strong> All x402 API requests require authentication using a Bearer token. Get your API key from the <a href="/dashboard/x402" className="text-magenta hover:text-cyan">x402 dashboard</a>.
               </p>
               <CodeBlock>curl https://api.kamiyo.ai/v1/x402/verify \
+  -H "Authorization: Bearer x402_live_XXXXX" \
   -H "Content-Type: application/json" \
   -d '{`{"tx_hash": "...", "chain": "solana"}`}'</CodeBlock>
               <p className="text-gray-400 text-sm mt-4">
-                <em>Optional:</em> Add an API key for enhanced features like analytics, higher rate limits, and webhook notifications. Get your API key from the <a href="/dashboard/x402" className="text-magenta hover:text-cyan">x402 dashboard</a>.
+                Free tier includes 1,000 verifications per month. Higher tiers unlock additional chains, enhanced rate limits, and analytics.
               </p>
             </div>
           </div>
@@ -286,14 +287,33 @@ chain: "solana"</CodeBlock>
                   <div>Avg settlement: ~2 minutes</div>
                 </div>
               </div>
+
+              <div className="border border-gray-800 rounded-lg p-6">
+                <h3 className="text-lg font-medium mb-2">Avalanche</h3>
+                <div className="text-sm text-gray-400 space-y-1">
+                  <div>Chain ID: <code className="text-cyan">avalanche</code></div>
+                  <div>Confirmations: 6</div>
+                  <div>Avg settlement: ~1 minute</div>
+                </div>
+              </div>
+
+              <div className="border border-gray-800 rounded-lg p-6">
+                <h3 className="text-lg font-medium mb-2">BSC</h3>
+                <div className="text-sm text-gray-400 space-y-1">
+                  <div>Chain ID: <code className="text-cyan">bsc</code></div>
+                  <div>Confirmations: 15</div>
+                  <div>Avg settlement: ~45 seconds</div>
+                </div>
+              </div>
             </div>
 
             <div className="mt-8 bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
               <h3 className="text-lg font-light mb-4">GET /v1/x402/chains</h3>
               <p className="text-gray-400 text-sm mb-4">
-                Get a programmatic list of all supported chains and their configurations. No API key needed.
+                Get a programmatic list of all supported chains and their configurations.
               </p>
-              <CodeBlock>curl https://api.kamiyo.ai/v1/x402/chains</CodeBlock>
+              <CodeBlock>curl https://api.kamiyo.ai/v1/x402/chains \
+  -H "Authorization: Bearer x402_live_XXXXX"</CodeBlock>
             </div>
           </div>
         )}
@@ -306,12 +326,12 @@ chain: "solana"</CodeBlock>
             <div className="mb-8">
               <h3 className="text-xl font-light mb-4">Python SDK</h3>
               <div className="mb-4">
-                <CodeBlock>pip install x402</CodeBlock>
+                <CodeBlock>pip install x402-python</CodeBlock>
               </div>
               <CodeBlock>{`from x402 import X402Client
 
-# No API key needed for basic usage
-client = X402Client()
+# Initialize with API key
+client = X402Client(api_key="x402_live_...")
 
 result = client.verify_payment(
     tx_hash="3k2j5h3k2j5h...",
@@ -323,10 +343,7 @@ result = client.verify_payment(
 if result.verified:
     print(f"Payment verified: {result.amount} USDC")
 else:
-    print(f"Verification failed: {result.error}")
-
-# Optional: Use API key for enhanced features
-# client = X402Client(api_key="x402_live_...")`}</CodeBlock>
+    print(f"Verification failed: {result.error}")`}</CodeBlock>
             </div>
 
             <div className="mb-8">
@@ -336,8 +353,8 @@ else:
               </div>
               <CodeBlock>{`import { X402Client } from '@x402/sdk';
 
-// No API key needed for basic usage
-const client = new X402Client();
+// Initialize with API key
+const client = new X402Client({ apiKey: 'x402_live_...' });
 
 const result = await client.verifyPayment({
   txHash: '3k2j5h3k2j5h...',
@@ -350,10 +367,7 @@ if (result.verified) {
   console.log(\`Payment verified: \${result.amount} USDC\`);
 } else {
   console.log(\`Verification failed: \${result.error}\`);
-}
-
-// Optional: Use API key for enhanced features
-// const client = new X402Client({ apiKey: 'x402_live_...' });`}</CodeBlock>
+}`}</CodeBlock>
             </div>
 
             <div className="bg-gray-900 bg-opacity-30 border border-gray-800 rounded-lg p-6">
