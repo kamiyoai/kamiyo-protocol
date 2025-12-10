@@ -58,9 +58,9 @@ export default function GlitchLabel({ text = "testing" }) {
 
     return (
         <span
-            className="gradient-text text-xs font-medium tracking-widest uppercase"
+            className="text-white text-xs font-medium tracking-widest uppercase"
             style={{
-                animation: isGlitching ? "opacityGlitch 0.3s ease-in-out infinite" : "GradientMove 3s linear infinite"
+                animation: isGlitching ? "opacityGlitch 1.2s ease-in-out infinite" : "none"
             }}
         >
             {displayText}
