@@ -1,26 +1,43 @@
 {
   "name": "mitama",
   "version": "0.1.0",
-  "description": "Open source autonomous agent framework for Solana",
-  "keywords": ["solana", "agents", "blockchain", "autonomous", "web3"],
+  "description": "Agent Identity and Conflict Resolution Protocol for Solana",
+  "keywords": [
+    "solana",
+    "agents",
+    "identity",
+    "conflict-resolution",
+    "escrow",
+    "oracle",
+    "web3"
+  ],
   "homepage": "https://github.com/kamiyo-ai/mitama",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamiyo-ai/mitama.git"
   },
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "author": "KAMIYO <susumu@kamiyo.ai>",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc --build",
-    "clean": "tsc --build --clean",
-    "test": "echo \"See individual packages for tests\""
+    "build": "anchor build && npm run build:sdk",
+    "build:program": "anchor build",
+    "build:sdk": "cd packages/mitama-sdk && npm run build",
+    "clean": "rm -rf target && cd packages/mitama-sdk && rm -rf dist",
+    "test": "anchor test",
+    "test:sdk": "cd packages/mitama-sdk && npm test"
   },
   "devDependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
+    "chai": "^6.2.1",
+    "mocha": "^11.7.5",
+    "ts-mocha": "^11.1.0",
     "typescript": "^5.3.0"
   }
 }

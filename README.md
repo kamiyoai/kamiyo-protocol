@@ -1,42 +1,53 @@
-# Mitama
+# Mitama 魂
 
-Open source autonomous agent framework for Solana.
+**Agent Identity and Conflict Resolution Protocol for Solana**
+
+*The soul that persists through conflict*
 
 ## Overview
 
-Mitama provides core abstractions and interfaces for building autonomous agents on Solana with PDA-based identities, reputation tracking, and strategy testing.
+Mitama provides autonomous agents with on-chain identity, stake-backed accountability, and trustless conflict resolution through multi-oracle consensus. When agents and providers disagree, Mitama's arbitration system determines fair outcomes through quality-based assessment.
+
+### Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Agent** | Autonomous entity with PDA identity and staked collateral |
+| **Agreement** | Payment commitment between agent and provider |
+| **Conflict** | Disputed agreement requiring oracle arbitration |
+| **Resolution** | Quality-based settlement (0-100% refund sliding scale) |
 
 ### Features
 
-- PDA-based agent identities
-- On-chain reputation system
-- Strategy testing framework interfaces
-- TypeScript SDK
-- Clean, extensible architecture
+- **Agent Identity**: PDA-based identities with stake-backed accountability
+- **Conflict Resolution**: Multi-oracle consensus for fair dispute arbitration
+- **Reputation System**: On-chain trust scoring for agents and providers
+- **Quality Arbitration**: Sliding refund scale based on service quality assessment
+- **SPL Token Support**: Native SOL, USDC, USDT
+- **TypeScript SDK**: Full client library for agent operations
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  MITAMA FRAMEWORK                   │
-│            Autonomous Agents on Solana              │
-└─────────────────────────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                                 │
-   ┌────▼─────┐                   ┌──────▼──────┐
-   │   Core   │                   │     SDK     │
-   │          │                   │             │
-   │ Types    │◄──────────────────┤  Client     │
-   │ Interfaces│                  │  Provider   │
-   │ Contracts│                   │  Strategy   │
-   └────┬─────┘                   └──────┬──────┘
-        │                                │
-        │         ┌──────────────────────┘
-        │         │
-        ▼         ▼
-   ┌────────────────────┐
-   │   Solana Runtime   │
-   │   PDA • Reputation │
-   └────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      MITAMA PROTOCOL                         │
+│          Agent Identity & Conflict Resolution                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+    ┌────▼────┐         ┌─────▼─────┐        ┌────▼────┐
+    │ Identity │         │ Agreement │        │ Oracle  │
+    │          │         │           │        │         │
+    │ • PDA    │         │ • Create  │        │ • Score │
+    │ • Stake  │         │ • Release │        │ • Vote  │
+    │ • Rep    │         │ • Dispute │        │ • Verify│
+    └────┬─────┘         └─────┬─────┘        └────┬────┘
+         │                     │                   │
+         └─────────────────────┼───────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │    Solana Runtime   │
+                    │    PDA • Consensus  │
+                    └─────────────────────┘
 ```
 
 ## Installation
@@ -65,6 +76,56 @@ const agent = await sdk.createAgent(
 );
 
 console.log('Agent created:', agent.pda.toString());
+```
+
+### Conflict Resolution Flow
+
+```
+┌──────────┐                              ┌──────────┐
+│  Agent   │                              │ Provider │
+└────┬─────┘                              └────┬─────┘
+     │                                         │
+     │  1. Create Agreement (lock funds)       │
+     ├────────────────────────────────────────►│
+     │                                         │
+     │  2. Provider delivers service           │
+     │◄────────────────────────────────────────┤
+     │                                         │
+     │  3a. Happy path: Release funds          │
+     ├────────────────────────────────────────►│
+     │                                         │
+     │  3b. Unhappy path: Mark Disputed        │
+     ├─────────────┐                           │
+     │             ▼                           │
+     │    ┌────────────────┐                   │
+     │    │  Oracle Panel  │                   │
+     │    │ ┌────┐ ┌────┐  │                   │
+     │    │ │ O1 │ │ O2 │  │ 4. Quality scores │
+     │    │ └────┘ └────┘  │    (consensus)    │
+     │    │    ┌────┐      │                   │
+     │    │    │ O3 │      │                   │
+     │    │    └────┘      │                   │
+     │    └───────┬────────┘                   │
+     │            │                            │
+     │            ▼ 5. Resolution              │
+     │    ┌─────────────────┐                  │
+     │    │  Quality-Based  │                  │
+     │    │   Settlement    │                  │
+     │    │                 │                  │
+     │    │ 0-49%: Full ◄───┼──────────────────┤
+     │    │ refund          │                  │
+     │    │                 │                  │
+     │    │ 50-79%: Partial │                  │
+     │    │                 │                  │
+     │◄───┤ 80-100%: Full ──┼─────────────────►│
+     │    │ payment         │                  │
+     │    └─────────────────┘                  │
+     │                                         │
+     ▼                                         ▼
+  ┌────────────────┐                ┌────────────────┐
+  │ Update Agent   │                │ Update Provider│
+  │  Reputation    │                │  Reputation    │
+  └────────────────┘                └────────────────┘
 ```
 
 ### Agent Lifecycle

@@ -1,0 +1,970 @@
+{
+  "address": "E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n",
+  "metadata": {
+    "name": "naori_escrow",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "initializeEscrow",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "agent",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "api",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "timeLock",
+          "type": "i64"
+        },
+        {
+          "name": "transactionId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "releaseFunds",
+      "discriminator": [
+        223,
+        28,
+        84,
+        101,
+        126,
+        198,
+        138,
+        136
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "agent",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "api",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolveDispute",
+      "discriminator": [
+        162,
+        159,
+        101,
+        217,
+        224,
+        78,
+        50,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "agent",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "api",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "verifier",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "instructionsSysvar",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "agentReputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "apiReputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "qualityScore",
+          "type": "u8"
+        },
+        {
+          "name": "refundPercentage",
+          "type": "u8"
+        },
+        {
+          "name": "signature",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolveDisputeSwitchboard",
+      "discriminator": [
+        89,
+        137,
+        212,
+        95,
+        224,
+        104,
+        238,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "agent",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "api",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "switchboardFunction",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "agentReputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "apiReputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "qualityScore",
+          "type": "u8"
+        },
+        {
+          "name": "refundPercentage",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "markDisputed",
+      "discriminator": [
+        119,
+        145,
+        102,
+        68,
+        238,
+        151,
+        127,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "reputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "agent",
+          "isMut": true,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initReputation",
+      "discriminator": [
+        62,
+        192,
+        209,
+        217,
+        158,
+        238,
+        164,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "reputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "entity",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateReputation",
+      "discriminator": [
+        142,
+        85,
+        191,
+        50,
+        128,
+        52,
+        173,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "reputation",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "qualityScore",
+          "type": "u8"
+        },
+        {
+          "name": "refundPercentage",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "checkRateLimit",
+      "discriminator": [
+        234,
+        37,
+        165,
+        12,
+        15,
+        241,
+        220,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "rateLimiter",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "entity",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Escrow",
+      "discriminator": [
+        31,
+        213,
+        123,
+        187,
+        186,
+        22,
+        218,
+        155
+      ]
+    },
+    {
+      "name": "EntityReputation",
+      "discriminator": [
+        183,
+        97,
+        108,
+        84,
+        170,
+        36,
+        252,
+        251
+      ]
+    },
+    {
+      "name": "RateLimiter",
+      "discriminator": [
+        219,
+        81,
+        232,
+        97,
+        82,
+        163,
+        219,
+        137
+      ]
+    },
+    {
+      "name": "WorkAgreement",
+      "discriminator": [
+        92,
+        145,
+        201,
+        72,
+        89,
+        139,
+        107,
+        219
+      ]
+    },
+    {
+      "name": "ProviderPenalties",
+      "discriminator": [
+        156,
+        223,
+        48,
+        117,
+        207,
+        41,
+        162,
+        98
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "Escrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "api",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "EscrowStatus"
+              }
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "expiresAt",
+            "type": "i64"
+          },
+          {
+            "name": "transactionId",
+            "type": "string"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "qualityScore",
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "refundPercentage",
+            "type": {
+              "option": "u8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntityReputation",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity",
+            "type": "pubkey"
+          },
+          {
+            "name": "entityType",
+            "type": {
+              "defined": {
+                "name": "EntityType"
+              }
+            }
+          },
+          {
+            "name": "totalTransactions",
+            "type": "u64"
+          },
+          {
+            "name": "disputesFiled",
+            "type": "u64"
+          },
+          {
+            "name": "disputesWon",
+            "type": "u64"
+          },
+          {
+            "name": "disputesPartial",
+            "type": "u64"
+          },
+          {
+            "name": "disputesLost",
+            "type": "u64"
+          },
+          {
+            "name": "averageQualityReceived",
+            "type": "u8"
+          },
+          {
+            "name": "reputationScore",
+            "type": "u16"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "lastUpdated",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RateLimiter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity",
+            "type": "pubkey"
+          },
+          {
+            "name": "verificationLevel",
+            "type": {
+              "defined": {
+                "name": "VerificationLevel"
+              }
+            }
+          },
+          {
+            "name": "transactionsLastHour",
+            "type": "u16"
+          },
+          {
+            "name": "transactionsLastDay",
+            "type": "u16"
+          },
+          {
+            "name": "disputesLastDay",
+            "type": "u16"
+          },
+          {
+            "name": "lastHourCheck",
+            "type": "i64"
+          },
+          {
+            "name": "lastDayCheck",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WorkAgreement",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "query",
+            "type": "string"
+          },
+          {
+            "name": "requiredFields",
+            "type": "u8"
+          },
+          {
+            "name": "minRecords",
+            "type": "u32"
+          },
+          {
+            "name": "maxAgeDays",
+            "type": "u32"
+          },
+          {
+            "name": "minQualityScore",
+            "type": "u8"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProviderPenalties",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "provider",
+            "type": "pubkey"
+          },
+          {
+            "name": "strikeCount",
+            "type": "u8"
+          },
+          {
+            "name": "suspended",
+            "type": "bool"
+          },
+          {
+            "name": "suspensionEnd",
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "totalRefundsIssued",
+            "type": "u64"
+          },
+          {
+            "name": "poorQualityCount",
+            "type": "u32"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "lastUpdated",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Released"
+          },
+          {
+            "name": "Disputed"
+          },
+          {
+            "name": "Resolved"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntityType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Agent"
+          },
+          {
+            "name": "Provider"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationLevel",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Basic"
+          },
+          {
+            "name": "Staked"
+          },
+          {
+            "name": "Social"
+          },
+          {
+            "name": "KYC"
+          }
+        ]
+      }
+    },
+    {
+      "name": "escrowInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "agent",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "api",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "amount",
+            "type": "u64",
+            "index": false
+          },
+          {
+            "name": "expiresAt",
+            "type": "i64",
+            "index": false
+          },
+          {
+            "name": "transactionId",
+            "type": "string",
+            "index": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "disputeMarked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "agent",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "transactionId",
+            "type": "string",
+            "index": false
+          },
+          {
+            "name": "timestamp",
+            "type": "i64",
+            "index": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "disputeResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "transactionId",
+            "type": "string",
+            "index": false
+          },
+          {
+            "name": "qualityScore",
+            "type": "u8",
+            "index": false
+          },
+          {
+            "name": "refundPercentage",
+            "type": "u8",
+            "index": false
+          },
+          {
+            "name": "refundAmount",
+            "type": "u64",
+            "index": false
+          },
+          {
+            "name": "paymentAmount",
+            "type": "u64",
+            "index": false
+          },
+          {
+            "name": "verifier",
+            "type": "pubkey",
+            "index": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "fundsReleased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "transactionId",
+            "type": "string",
+            "index": false
+          },
+          {
+            "name": "amount",
+            "type": "u64",
+            "index": false
+          },
+          {
+            "name": "api",
+            "type": "pubkey",
+            "index": false
+          },
+          {
+            "name": "timestamp",
+            "type": "i64",
+            "index": false
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidStatus",
+      "msg": "Invalid escrow status for this operation"
+    },
+    {
+      "code": 6001,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: Only agent or expired escrow can release"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidQualityScore",
+      "msg": "Invalid quality score (must be 0-100)"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidRefundPercentage",
+      "msg": "Invalid refund percentage (must be 0-100)"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidSignature",
+      "msg": "Invalid verifier signature"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidTimeLock",
+      "msg": "Invalid time lock: must be between 1 hour and 30 days"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount: must be greater than 0"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidTransactionId",
+      "msg": "Invalid transaction ID: must be non-empty and max 64 chars"
+    },
+    {
+      "code": 6008,
+      "name": "TimeLockNotExpired",
+      "msg": "Time lock not expired: cannot release funds yet"
+    },
+    {
+      "code": 6009,
+      "name": "DisputeWindowExpired",
+      "msg": "Dispute window expired: cannot dispute after time lock"
+    },
+    {
+      "code": 6010,
+      "name": "AmountTooLarge",
+      "msg": "Amount too large: exceeds maximum escrow amount"
+    },
+    {
+      "code": 6011,
+      "name": "InsufficientDisputeFunds",
+      "msg": "Insufficient funds to pay dispute cost"
+    },
+    {
+      "code": 6012,
+      "name": "RateLimitExceeded",
+      "msg": "Rate limit exceeded: too many transactions"
+    },
+    {
+      "code": 6013,
+      "name": "ProviderSuspended",
+      "msg": "Provider is suspended"
+    },
+    {
+      "code": 6014,
+      "name": "ReputationTooLow",
+      "msg": "Reputation score too low for this operation"
+    },
+    {
+      "code": 6015,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow in calculation"
+    },
+    {
+      "code": 6016,
+      "name": "InsufficientRentReserve",
+      "msg": "Insufficient rent reserve in escrow account"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidSwitchboardAttestation",
+      "msg": "Invalid Switchboard attestation"
+    },
+    {
+      "code": 6018,
+      "name": "StaleAttestation",
+      "msg": "Switchboard attestation is stale (older than 60 seconds)"
+    },
+    {
+      "code": 6019,
+      "name": "QualityScoreMismatch",
+      "msg": "Quality score mismatch between Switchboard and submitted value"
+    }
+  ]
+}

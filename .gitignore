@@ -6,6 +6,12 @@ dist/
 build/
 *.tsbuildinfo
 
+# Anchor/Solana
+.anchor/
+target/
+programs/*/target/
+*.so
+
 # Environment
 .env
 .env.*
@@ -22,3 +28,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Scripts
+scripts/faucet.log
