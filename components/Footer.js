@@ -14,7 +14,7 @@ const Footer = () => {
             <div className="flex flex-col md:flex-row items-center justify-between w-full px-5 mx-auto py-5 gap-4" style={{ maxWidth: '1400px' }}>
                 <div className="flex flex-col items-center md:items-start gap-2">
                     <p className="mb-0 text-[0.6rem] text-center md:text-left text-gray-500 font-light">
-                        Copyright &copy; {new Date().getFullYear()} Kamiyo.ai
+                        Copyright &copy; {new Date().getFullYear()} KAMIYO
                     </p>
                     <div className="flex items-center gap-3 text-[0.6rem]">
                         <a href="/privacy-policy" className="text-gray-500 hover:text-magenta transition-colors">

@@ -225,6 +225,13 @@ ol li {
     94% { opacity: 0.4; }
 }
 
+@keyframes opacityGlitchSubtle {
+    0%, 100% { opacity: 1; }
+    45% { opacity: 1; }
+    50% { opacity: 0.6; }
+    55% { opacity: 1; }
+}
+
 /* Miscellaneous */
 .loading-dots {
     display: inline-flex;
