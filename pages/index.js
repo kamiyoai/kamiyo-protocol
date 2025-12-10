@@ -299,90 +299,214 @@ export default function Home() {
                         </p>
                     </header>
 
+                    {/* Core Features */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
                         <div className="bg-black border border-gray-500/25 rounded-lg p-6">
                             <div className="text-cyan text-sm mb-2">Identity</div>
                             <div className="text-white text-xl mb-3">PDA-Based Agent Identities</div>
-                            <div className="text-gray-400 text-sm">
+                            <div className="text-gray-400 text-sm mb-4">
                                 Stake-backed accountability on Solana. Agents build reputation through successful transactions and fair dispute outcomes.
+                            </div>
+                            <div className="text-xs text-gray-500 pt-3 border-t border-gray-500/20 space-y-1">
+                                <div>SOL collateral required for identity creation</div>
+                                <div>On-chain reputation scoring</div>
+                                <div>Deterministic PDA derivation</div>
                             </div>
                         </div>
 
                         <div className="bg-black border border-gray-500/25 rounded-lg p-6">
                             <div className="text-cyan text-sm mb-2">Resolution</div>
                             <div className="text-white text-xl mb-3">Quality-Based Arbitration</div>
-                            <div className="text-gray-400 text-sm">
+                            <div className="text-gray-400 text-sm mb-4">
                                 Sliding refund scale (0-100%) based on service quality assessment. Oracles evaluate disputes and determine fair settlements.
+                            </div>
+                            <div className="text-xs text-gray-500 pt-3 border-t border-gray-500/20 space-y-1">
+                                <div>Switchboard oracle integration</div>
+                                <div>Automated fund distribution</div>
+                                <div>SPL token support (SOL, USDC, USDT)</div>
                             </div>
                         </div>
 
                         <div className="bg-black border border-gray-500/25 rounded-lg p-6">
                             <div className="text-cyan text-sm mb-2">Consensus</div>
                             <div className="text-white text-xl mb-3">Multi-Oracle Verification</div>
-                            <div className="text-gray-400 text-sm">
+                            <div className="text-gray-400 text-sm mb-4">
                                 Decentralized dispute resolution through oracle consensus. No single point of failure or bias in conflict outcomes.
+                            </div>
+                            <div className="text-xs text-gray-500 pt-3 border-t border-gray-500/20 space-y-1">
+                                <div>Configurable oracle panel size</div>
+                                <div>Median-based consensus</div>
+                                <div>Anti-collusion mechanisms</div>
                             </div>
                         </div>
                     </div>
 
+                    {/* Quality Scale */}
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-12">
+                        <div className="gradient-text mb-4 text-sm font-medium">Quality-Based Refund Scale</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center p-4 border border-gray-500/20 rounded-lg">
+                                <div className="text-2xl font-light text-white mb-1">80-100%</div>
+                                <div className="text-cyan text-sm mb-2">Quality Score</div>
+                                <div className="text-gray-400 text-xs">Full payment to provider</div>
+                            </div>
+                            <div className="text-center p-4 border border-gray-500/20 rounded-lg">
+                                <div className="text-2xl font-light text-white mb-1">65-79%</div>
+                                <div className="text-cyan text-sm mb-2">Quality Score</div>
+                                <div className="text-gray-400 text-xs">35% refund to agent</div>
+                            </div>
+                            <div className="text-center p-4 border border-gray-500/20 rounded-lg">
+                                <div className="text-2xl font-light text-white mb-1">50-64%</div>
+                                <div className="text-cyan text-sm mb-2">Quality Score</div>
+                                <div className="text-gray-400 text-xs">75% refund to agent</div>
+                            </div>
+                            <div className="text-center p-4 border border-gray-500/20 rounded-lg">
+                                <div className="text-2xl font-light text-white mb-1">0-49%</div>
+                                <div className="text-cyan text-sm mb-2">Quality Score</div>
+                                <div className="text-gray-400 text-xs">Complete refund to agent</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Flow and Integration */}
                     <div className="grid md:grid-cols-2 gap-8 mb-12">
                         <div>
                             <div className="gradient-text mb-2 text-sm font-medium">Conflict Resolution Flow</div>
                             <div className="bg-black border border-gray-500/20 rounded-lg p-6">
-                                <div className="space-y-3 text-sm">
+                                <div className="space-y-4 text-sm">
                                     <div className="flex items-start gap-3">
-                                        <span className="text-cyan font-mono">1</span>
+                                        <span className="text-cyan font-mono text-lg">1</span>
                                         <div>
                                             <div className="text-white">Agent creates agreement</div>
-                                            <div className="text-gray-500">Funds locked in escrow PDA</div>
+                                            <div className="text-gray-500">Funds locked in escrow PDA with configurable time-lock</div>
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3">
-                                        <span className="text-cyan font-mono">2</span>
+                                        <span className="text-cyan font-mono text-lg">2</span>
                                         <div>
                                             <div className="text-white">Provider delivers service</div>
-                                            <div className="text-gray-500">Or agent marks as disputed</div>
+                                            <div className="text-gray-500">Agent releases funds on success or initiates dispute</div>
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3">
-                                        <span className="text-cyan font-mono">3</span>
+                                        <span className="text-cyan font-mono text-lg">3</span>
                                         <div>
                                             <div className="text-white">Oracle panel scores quality</div>
-                                            <div className="text-gray-500">Consensus determines refund %</div>
+                                            <div className="text-gray-500">Multiple oracles evaluate and reach consensus on 0-100 scale</div>
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3">
-                                        <span className="text-cyan font-mono">4</span>
+                                        <span className="text-cyan font-mono text-lg">4</span>
                                         <div>
-                                            <div className="text-white">Funds distributed</div>
-                                            <div className="text-gray-500">Reputations updated on-chain</div>
+                                            <div className="text-white">Funds distributed automatically</div>
+                                            <div className="text-gray-500">Refund percentage applied, reputations updated on-chain</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div>
-                            <div className="gradient-text mb-2 text-sm font-medium">Integration</div>
+                            <div className="gradient-text mb-2 text-sm font-medium">SDK Integration</div>
                             <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                                <div className="text-gray-500 mb-2">// Create protected agreement</div>
+                                <div className="text-gray-500 mb-2">// Create agent identity with stake</div>
                                 <div className="text-white"><span className="text-cyan">import</span> {'{'} MitamaClient {'}'} <span className="text-cyan">from</span> <span className="text-gray-400">'@mitama/sdk'</span></div>
                                 <div className="text-white mb-2"></div>
                                 <div className="text-white"><span className="text-cyan">const</span> client = <span className="text-cyan">new</span> MitamaClient(config)</div>
                                 <div className="text-white mb-2"></div>
-                                <div className="text-gray-500">// Lock funds with time-lock</div>
-                                <div className="text-white"><span className="text-cyan">await</span> client.createAgreement({'{'}</div>
+                                <div className="text-gray-500">// Register agent with collateral</div>
+                                <div className="text-white"><span className="text-cyan">await</span> client.createIdentity({'{'}</div>
+                                <div className="ml-4 text-white">stake: <span className="text-magenta">0.1</span>, <span className="text-gray-500">// SOL</span></div>
+                                <div className="ml-4 text-white">metadata: {'{'} name: <span className="text-gray-400">"agent-1"</span> {'}'}</div>
+                                <div className="text-white">{'}'})</div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-gray-500">// Create protected agreement</div>
+                                <div className="text-white"><span className="text-cyan">const</span> agreement = <span className="text-cyan">await</span> client.createAgreement({'{'}</div>
                                 <div className="ml-4 text-white">provider: <span className="text-gray-400">providerPubkey</span>,</div>
-                                <div className="ml-4 text-white">amount: <span className="text-magenta">1.0</span>, <span className="text-gray-500">// SOL</span></div>
+                                <div className="ml-4 text-white">amount: <span className="text-magenta">1.0</span>,</div>
+                                <div className="ml-4 text-white">token: <span className="text-gray-400">"SOL"</span>, <span className="text-gray-500">// or "USDC", "USDT"</span></div>
                                 <div className="ml-4 text-white">timeLockHours: <span className="text-magenta">24</span></div>
                                 <div className="text-white">{'}'})</div>
                                 <div className="text-white mb-2"></div>
-                                <div className="text-gray-500">// Dispute if quality is poor</div>
-                                <div className="text-white"><span className="text-cyan">await</span> client.dispute(txId)</div>
+                                <div className="text-gray-500">// On success: release funds</div>
+                                <div className="text-white"><span className="text-cyan">await</span> client.release(agreement.id)</div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-gray-500">// On dispute: trigger oracle arbitration</div>
+                                <div className="text-white"><span className="text-cyan">await</span> client.dispute(agreement.id)</div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="text-center">
+                    {/* SDK Packages */}
+                    <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-12">
+                        <div className="gradient-text mb-4 text-sm font-medium">SDK Packages</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-cyan text-sm mb-1">@mitama/sdk</div>
+                                <div className="text-gray-400 text-xs">Core TypeScript client for identity, agreements, and dispute handling</div>
+                            </div>
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-cyan text-sm mb-1">@mitama/middleware</div>
+                                <div className="text-gray-400 text-xs">Express/FastAPI middleware for HTTP 402 payment flows</div>
+                            </div>
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-cyan text-sm mb-1">@mitama/agent-client</div>
+                                <div className="text-gray-400 text-xs">Autonomous agent with configurable quality thresholds</div>
+                            </div>
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-cyan text-sm mb-1">@mitama/mcp-server</div>
+                                <div className="text-gray-400 text-xs">Model Context Protocol integration for AI systems</div>
+                            </div>
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-cyan text-sm mb-1">@mitama/switchboard</div>
+                                <div className="text-gray-400 text-xs">Oracle function implementation for quality scoring</div>
+                            </div>
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-gray-500 text-sm mb-1">programs/mitama</div>
+                                <div className="text-gray-400 text-xs">Anchor-based Solana program (Rust)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Autonomous Agent Example */}
+                    <div className="grid md:grid-cols-2 gap-8 mb-12">
+                        <div>
+                            <div className="gradient-text mb-2 text-sm font-medium">Autonomous Agent</div>
+                            <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+                                <div className="text-gray-500 mb-2">// Automated service consumption with dispute protection</div>
+                                <div className="text-white"><span className="text-cyan">import</span> {'{'} AutonomousServiceAgent {'}'} <span className="text-cyan">from</span> <span className="text-gray-400">'@mitama/agent-client'</span></div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-white"><span className="text-cyan">const</span> agent = <span className="text-cyan">new</span> AutonomousServiceAgent({'{'}</div>
+                                <div className="ml-4 text-white">wallet: <span className="text-gray-400">keypair</span>,</div>
+                                <div className="ml-4 text-white">qualityThreshold: <span className="text-magenta">0.7</span>, <span className="text-gray-500">// Auto-dispute below 70%</span></div>
+                                <div className="ml-4 text-white">maxPricePerCall: <span className="text-magenta">0.01</span></div>
+                                <div className="text-white">{'}'})</div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-gray-500">// Consume API with automatic protection</div>
+                                <div className="text-white"><span className="text-cyan">const</span> result = <span className="text-cyan">await</span> agent.consume({'{'}</div>
+                                <div className="ml-4 text-white">provider: <span className="text-gray-400">apiEndpoint</span>,</div>
+                                <div className="ml-4 text-white">request: {'{'} prompt: <span className="text-gray-400">"..."</span> {'}'}</div>
+                                <div className="text-white">{'}'})</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="gradient-text mb-2 text-sm font-medium">HTTP 402 Middleware</div>
+                            <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+                                <div className="text-gray-500 mb-2">// Add payment protection to Express routes</div>
+                                <div className="text-white"><span className="text-cyan">import</span> {'{'} mitamaMiddleware {'}'} <span className="text-cyan">from</span> <span className="text-gray-400">'@mitama/middleware'</span></div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-white">app.use(<span className="text-gray-400">'/api/premium'</span>, mitamaMiddleware({'{'}</div>
+                                <div className="ml-4 text-white">price: <span className="text-magenta">0.001</span>, <span className="text-gray-500">// SOL per request</span></div>
+                                <div className="ml-4 text-white">token: <span className="text-gray-400">"USDC"</span>,</div>
+                                <div className="ml-4 text-white">escrowRequired: <span className="text-magenta">true</span></div>
+                                <div className="text-white">{'}'}))</div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-gray-500">// Returns 402 Payment Required with</div>
+                                <div className="text-gray-500">// agreement creation instructions</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-6">
                         <a
                             href="https://github.com/kamiyo-ai/mitama"
                             target="_blank"
@@ -392,8 +516,12 @@ export default function Home() {
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                 <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
                             </svg>
-                            View on GitHub →
+                            View on GitHub
                         </a>
+                        <span className="text-gray-600 hidden md:inline">|</span>
+                        <div className="font-mono text-xs text-gray-500">
+                            npm install @mitama/sdk
+                        </div>
                     </div>
                 </div>
             </section>
