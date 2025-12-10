@@ -1,4 +1,6 @@
-# Mitama 魂
+# Mitama
+
+https://github.com/user-attachments/assets/0d75fe73-20e0-4136-aea2-70bb71279d4b
 
 **Agent Identity and Conflict Resolution Protocol for Solana**
 
