@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  SOLANA_VERSION: 1.18.26
+  ANCHOR_VERSION: 0.31.1
+  NODE_VERSION: 20
+
+jobs:
+  # Rust/Solana Program
+  solana-program:
+    name: Build Solana Program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Solana
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+      - name: Build Program
+        run: anchor build
+
+      - name: Upload Program Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mitama-program
+          path: target/deploy/mitama.so
+
+  # TypeScript Packages
+  typescript:
+    name: Build TypeScript Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build SDK
+        run: npm run build --workspace=@mitama/sdk
+
+      - name: Build Middleware
+        run: npm run build --workspace=@mitama/middleware
+
+      - name: Build Agent Client
+        run: npm run build --workspace=@mitama/agent-client
+
+      - name: Build Switchboard
+        run: npm run build --workspace=@mitama/switchboard-function
+
+      - name: Build MCP Server
+        run: npm run build --workspace=@mitama/mcp-server
+
+  # Anchor Tests
+  anchor-tests:
+    name: Anchor Tests
+    runs-on: ubuntu-latest
+    needs: solana-program
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Install Solana
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Anchor Tests
+        run: anchor test
+
+  # Lint
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Rust Format Check
+        run: |
+          cd programs/mitama
+          cargo fmt --check
+
+      - name: Rust Clippy
+        run: |
+          cd programs/mitama
+          cargo clippy -- -D warnings
