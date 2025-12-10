@@ -62,7 +62,13 @@ export default function SEO({
     "payment verification SDK",
     "Polygon payment verification",
     "Arbitrum payment verification",
-    "Optimism payment verification"
+    "Optimism payment verification",
+    "AI agent identity verification",
+    "agent dispute resolution",
+    "Solana escrow protocol",
+    "multi-oracle consensus",
+    "stake-backed agent accountability",
+    "AI agent conflict resolution"
   ],
   canonical = "https://kamiyo.ai",
   ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
@@ -183,7 +189,10 @@ export default function SEO({
           "Fraud detection and prevention",
           "API key management with scopes",
           "Webhook support for events",
-          "Multi-tenant architecture"
+          "Multi-tenant architecture",
+          "Mitama agent identity protocol",
+          "On-chain dispute resolution",
+          "Multi-oracle consensus system"
         ],
         "softwareVersion": "1.0.0",
         "releaseNotes": "Production-ready multi-chain payment verification API"

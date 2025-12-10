@@ -5,6 +5,7 @@ import FAQ from "../components/FAQ";
 import X402PricingTiers from "../components/X402PricingTiers";
 import SEO from "../components/SEO";
 import { LinkButton } from "../components/Button";
+import GlitchLabel from "../components/GlitchLabel";
 
 export default function Home() {
 
@@ -282,6 +283,117 @@ export default function Home() {
                             <div className="text-white"><span className="text-cyan">if</span> result.verified:</div>
                             <div className="ml-4 text-white"><span className="text-gray-500"># Grant access</span></div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Mitama Section */}
+            <section className="w-full border-t border-gray-500/25 py-16">
+                <div className="w-full px-5 mx-auto max-w-[1400px]">
+                    <header className="text-center mb-12">
+                        <p className="font-light text-sm tracking-widest text-cyan mb-2">— &nbsp;魂 MITAMA</p>
+                        <div className="mb-4"><GlitchLabel text="testing" /></div>
+                        <h2 className="text-3xl md:text-4xl font-light mb-4">Agent Identity & Conflict Resolution</h2>
+                        <p className="text-gray-400 text-sm md:text-lg max-w-2xl mx-auto">
+                            On-chain identity and trustless dispute arbitration for autonomous agents. When payments go wrong, Mitama resolves conflicts through multi-oracle consensus.
+                        </p>
+                    </header>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                        <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                            <div className="text-cyan text-sm mb-2">Identity</div>
+                            <div className="text-white text-xl mb-3">PDA-Based Agent Identities</div>
+                            <div className="text-gray-400 text-sm">
+                                Stake-backed accountability on Solana. Agents build reputation through successful transactions and fair dispute outcomes.
+                            </div>
+                        </div>
+
+                        <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                            <div className="text-cyan text-sm mb-2">Resolution</div>
+                            <div className="text-white text-xl mb-3">Quality-Based Arbitration</div>
+                            <div className="text-gray-400 text-sm">
+                                Sliding refund scale (0-100%) based on service quality assessment. Oracles evaluate disputes and determine fair settlements.
+                            </div>
+                        </div>
+
+                        <div className="bg-black border border-gray-500/25 rounded-lg p-6">
+                            <div className="text-cyan text-sm mb-2">Consensus</div>
+                            <div className="text-white text-xl mb-3">Multi-Oracle Verification</div>
+                            <div className="text-gray-400 text-sm">
+                                Decentralized dispute resolution through oracle consensus. No single point of failure or bias in conflict outcomes.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-8 mb-12">
+                        <div>
+                            <div className="gradient-text mb-2 text-sm font-medium">Conflict Resolution Flow</div>
+                            <div className="bg-black border border-gray-500/20 rounded-lg p-6">
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-cyan font-mono">1</span>
+                                        <div>
+                                            <div className="text-white">Agent creates agreement</div>
+                                            <div className="text-gray-500">Funds locked in escrow PDA</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-cyan font-mono">2</span>
+                                        <div>
+                                            <div className="text-white">Provider delivers service</div>
+                                            <div className="text-gray-500">Or agent marks as disputed</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-cyan font-mono">3</span>
+                                        <div>
+                                            <div className="text-white">Oracle panel scores quality</div>
+                                            <div className="text-gray-500">Consensus determines refund %</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-cyan font-mono">4</span>
+                                        <div>
+                                            <div className="text-white">Funds distributed</div>
+                                            <div className="text-gray-500">Reputations updated on-chain</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="gradient-text mb-2 text-sm font-medium">Integration</div>
+                            <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
+                                <div className="text-gray-500 mb-2">// Create protected agreement</div>
+                                <div className="text-white"><span className="text-cyan">import</span> {'{'} MitamaClient {'}'} <span className="text-cyan">from</span> <span className="text-gray-400">'@mitama/sdk'</span></div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-white"><span className="text-cyan">const</span> client = <span className="text-cyan">new</span> MitamaClient(config)</div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-gray-500">// Lock funds with time-lock</div>
+                                <div className="text-white"><span className="text-cyan">await</span> client.createAgreement({'{'}</div>
+                                <div className="ml-4 text-white">provider: <span className="text-gray-400">providerPubkey</span>,</div>
+                                <div className="ml-4 text-white">amount: <span className="text-magenta">1.0</span>, <span className="text-gray-500">// SOL</span></div>
+                                <div className="ml-4 text-white">timeLockHours: <span className="text-magenta">24</span></div>
+                                <div className="text-white">{'}'})</div>
+                                <div className="text-white mb-2"></div>
+                                <div className="text-gray-500">// Dispute if quality is poor</div>
+                                <div className="text-white"><span className="text-cyan">await</span> client.dispute(txId)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="text-center">
+                        <a
+                            href="https://github.com/kamiyo-ai/mitama"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm"
+                        >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                            </svg>
+                            View on GitHub →
+                        </a>
                     </div>
                 </div>
             </section>

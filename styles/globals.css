@@ -211,6 +211,20 @@ ol li {
     animation: GradientMove 3s linear infinite;
 }
 
+@keyframes opacityGlitch {
+    0%, 100% { opacity: 1; }
+    5% { opacity: 0.3; }
+    10% { opacity: 1; }
+    15% { opacity: 0.6; }
+    20% { opacity: 1; }
+    50% { opacity: 1; }
+    52% { opacity: 0.4; }
+    54% { opacity: 1; }
+    80% { opacity: 1; }
+    82% { opacity: 0.2; }
+    84% { opacity: 0.8; }
+    86% { opacity: 1; }
+}
 
 /* Miscellaneous */
 .loading-dots {
