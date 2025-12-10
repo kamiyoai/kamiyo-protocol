@@ -1,6 +1,6 @@
-# Mitama
+# ミタマプロトコル Mitama
 
-https://github.com/user-attachments/assets/0d75fe73-20e0-4136-aea2-70bb71279d4b
+![mitama](https://github.com/user-attachments/assets/7ed437d2-5b5f-45cc-a571-17eb8a0543ea)
 
 **Agent Identity and Conflict Resolution Protocol for Solana**
 
