@@ -43,7 +43,7 @@ export default function GlitchLabel({ text = "testing" }) {
                         .join("")
                 );
                 progress++;
-            }, 50);
+            }, 120);
         };
 
         runCycle();
@@ -60,7 +60,7 @@ export default function GlitchLabel({ text = "testing" }) {
         <span
             className="text-white text-xs font-medium tracking-widest uppercase"
             style={{
-                animation: isGlitching ? "opacityGlitch 1.2s ease-in-out infinite" : "none"
+                animation: !isGlitching ? "opacityGlitch 1.2s ease-in-out infinite" : "none"
             }}
         >
             {displayText}
