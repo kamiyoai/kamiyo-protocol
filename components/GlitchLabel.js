@@ -18,36 +18,40 @@ export default function GlitchLabel({ text = "testing" }) {
                     timeoutRef.current = setTimeout(() => {
                         setDisplayText(text);
                         setIsGlitching(false);
-                    }, 600);
-                }, 2000);
-            }, 600);
+                    }, 1200);
+                }, 4000);
+            }, 1200);
         };
 
         const scramble = () => {
             setIsGlitching(true);
             let progress = 0;
+            let iterations = 0;
+            const maxIterations = text.length * 4;
             clearInterval(intervalRef.current);
             intervalRef.current = setInterval(() => {
-                if (progress >= text.length) {
+                iterations++;
+                if (iterations >= maxIterations) {
                     clearInterval(intervalRef.current);
+                    setDisplayText(text);
                     return;
                 }
-                setDisplayText(prev =>
+                const revealPoint = Math.floor(iterations / 4);
+                setDisplayText(
                     text
                         .split("")
                         .map((char, index) =>
-                            index < progress
+                            index < revealPoint
                                 ? text[index]
                                 : chars[Math.floor(Math.random() * chars.length)]
                         )
                         .join("")
                 );
-                progress++;
-            }, 120);
+            }, 80);
         };
 
         runCycle();
-        const cycleInterval = setInterval(runCycle, 6000);
+        const cycleInterval = setInterval(runCycle, 12000);
 
         return () => {
             clearInterval(intervalRef.current);
@@ -60,7 +64,7 @@ export default function GlitchLabel({ text = "testing" }) {
         <span
             className="text-white text-xs font-medium tracking-widest uppercase"
             style={{
-                animation: !isGlitching ? "opacityGlitch 1.2s ease-in-out infinite" : "none"
+                animation: !isGlitching ? "opacityGlitchSubtle 3s ease-in-out infinite" : "none"
             }}
         >
             {displayText}
