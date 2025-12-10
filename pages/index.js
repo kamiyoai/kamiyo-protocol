@@ -291,7 +291,7 @@ export default function Home() {
             <section className="w-full border-t border-gray-500/25 py-16">
                 <div className="w-full px-5 mx-auto max-w-[1400px]">
                     <header className="text-center mb-12">
-                        <p className="font-light text-sm tracking-widest text-cyan mb-2">— &nbsp;魂 MITAMA</p>
+                        <p className="font-light text-sm tracking-widest text-cyan mb-2">ミタマプロトコル MITAMA</p>
                         <div className="mb-4"><GlitchLabel text="testing" /></div>
                         <h2 className="text-3xl md:text-4xl font-light mb-4">Agent Identity & Conflict Resolution</h2>
                         <p className="text-gray-400 text-sm md:text-lg max-w-2xl mx-auto">
