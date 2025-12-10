@@ -21,7 +21,9 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     ed25519_program,
+    rent::Rent,
     sysvar::instructions::{load_instruction_at_checked, ID as INSTRUCTIONS_ID},
+    sysvar::Sysvar,
 };
 use switchboard_on_demand::on_demand::accounts::pull_feed::PullFeedAccountData;
 use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer};
@@ -53,6 +55,13 @@ const MAX_TIME_LOCK: i64 = 2_592_000;               // 30 days
 const MAX_ESCROW_AMOUNT: u64 = 1_000_000_000_000;   // 1000 SOL
 const MIN_ESCROW_AMOUNT: u64 = 1_000_000;           // 0.001 SOL
 const BASE_DISPUTE_COST: u64 = 1_000_000;           // 0.001 SOL
+
+// Protocol fee constants (defaults)
+const DEFAULT_AGREEMENT_FEE_BPS: u16 = 50;          // 0.5%
+const DEFAULT_DISPUTE_FEE_BPS: u16 = 100;           // 1% of disputed amount
+const DEFAULT_DISPUTE_BASE_FEE: u64 = 10_000_000;   // 0.01 SOL
+const DEFAULT_IDENTITY_FEE: u64 = 5_000_000;        // 0.005 SOL
+const MAX_FEE_BPS: u16 = 500;                       // 5% max
 
 // Multi-oracle consensus constants
 const MAX_ORACLES: usize = 5;
@@ -151,6 +160,27 @@ pub struct OracleAdded {
 pub struct OracleRemoved {
     pub registry: Pubkey,
     pub oracle: Pubkey,
+}
+
+#[event]
+pub struct ProtocolConfigInitialized {
+    pub config: Pubkey,
+    pub admin: Pubkey,
+    pub treasury: Pubkey,
+}
+
+#[event]
+pub struct ProtocolConfigUpdated {
+    pub config: Pubkey,
+    pub admin: Pubkey,
+}
+
+#[event]
+pub struct ProtocolFeeCollected {
+    pub fee_type: String,
+    pub amount: u64,
+    pub payer: Pubkey,
+    pub treasury: Pubkey,
 }
 
 #[event]
@@ -359,13 +389,18 @@ pub mod mitama {
             MitamaError::InsufficientStake
         );
 
+        let protocol_config = &mut ctx.accounts.protocol_config;
+        require!(protocol_config.is_active, MitamaError::ProtocolNotActive);
+
+        let identity_fee = protocol_config.identity_fee;
+
         let clock = Clock::get()?;
         let agent = &mut ctx.accounts.agent;
 
         agent.owner = ctx.accounts.owner.key();
         agent.name = name.clone();
         agent.agent_type = agent_type;
-        agent.reputation = 500; // Start at medium reputation
+        agent.reputation = 500;
         agent.stake_amount = stake_amount;
         agent.is_active = true;
         agent.created_at = clock.unix_timestamp;
@@ -389,7 +424,32 @@ pub mod mitama {
             ],
         )?;
 
-        msg!("Agent created: {} (type: {:?})", name, agent_type);
+        // Collect identity creation fee
+        if identity_fee > 0 {
+            let fee_ix = anchor_lang::solana_program::system_instruction::transfer(
+                &ctx.accounts.owner.key(),
+                &ctx.accounts.fee_vault.key(),
+                identity_fee,
+            );
+            anchor_lang::solana_program::program::invoke(
+                &fee_ix,
+                &[
+                    ctx.accounts.owner.to_account_info(),
+                    ctx.accounts.fee_vault.to_account_info(),
+                ],
+            )?;
+
+            protocol_config.total_fees_collected = protocol_config
+                .total_fees_collected
+                .saturating_add(identity_fee);
+
+            emit!(ProtocolFeeCollected {
+                fee_type: "identity".to_string(),
+                amount: identity_fee,
+                payer: ctx.accounts.owner.key(),
+                treasury: protocol_config.treasury,
+            });
+        }
 
         emit!(AgentCreated {
             agent_pda: agent.key(),
@@ -482,6 +542,16 @@ pub mod mitama {
             MitamaError::InvalidTransactionId
         );
 
+        let protocol_config = &mut ctx.accounts.protocol_config;
+        require!(protocol_config.is_active, MitamaError::ProtocolNotActive);
+
+        // Calculate agreement fee (basis points)
+        let agreement_fee = (amount as u128)
+            .checked_mul(protocol_config.agreement_fee_bps as u128)
+            .ok_or(MitamaError::ArithmeticOverflow)?
+            .checked_div(10_000)
+            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+
         let clock = Clock::get()?;
         let escrow = &mut ctx.accounts.escrow;
 
@@ -527,8 +597,6 @@ pub mod mitama {
             };
             let cpi_ctx = CpiContext::new(token_program.to_account_info(), cpi_accounts);
             token::transfer(cpi_ctx, amount)?;
-
-            msg!("SPL Token escrow created: {} tokens", amount);
         } else {
             escrow.token_mint = None;
             escrow.escrow_token_account = None;
@@ -546,8 +614,33 @@ pub mod mitama {
                     escrow.to_account_info(),
                 ],
             )?;
+        }
 
-            msg!("SOL escrow created: {} lamports", amount);
+        // Collect agreement fee (SOL only for simplicity)
+        if agreement_fee > 0 {
+            let fee_ix = anchor_lang::solana_program::system_instruction::transfer(
+                &ctx.accounts.agent.key(),
+                &ctx.accounts.fee_vault.key(),
+                agreement_fee,
+            );
+            anchor_lang::solana_program::program::invoke(
+                &fee_ix,
+                &[
+                    ctx.accounts.agent.to_account_info(),
+                    ctx.accounts.fee_vault.to_account_info(),
+                ],
+            )?;
+
+            protocol_config.total_fees_collected = protocol_config
+                .total_fees_collected
+                .saturating_add(agreement_fee);
+
+            emit!(ProtocolFeeCollected {
+                fee_type: "agreement".to_string(),
+                amount: agreement_fee,
+                payer: ctx.accounts.agent.key(),
+                treasury: protocol_config.treasury,
+            });
         }
 
         emit!(EscrowInitialized {
@@ -644,18 +737,59 @@ pub mod mitama {
     pub fn mark_disputed(ctx: Context<MarkDisputed>) -> Result<()> {
         let escrow = &mut ctx.accounts.escrow;
         let reputation = &mut ctx.accounts.reputation;
+        let protocol_config = &mut ctx.accounts.protocol_config;
 
+        require!(protocol_config.is_active, MitamaError::ProtocolNotActive);
         require!(escrow.status == EscrowStatus::Active, MitamaError::InvalidStatus);
         require!(ctx.accounts.agent.key() == escrow.agent, MitamaError::Unauthorized);
 
         let clock = Clock::get()?;
         require!(clock.unix_timestamp < escrow.expires_at, MitamaError::DisputeWindowExpired);
 
-        let dispute_cost = calculate_dispute_cost(reputation);
+        // Calculate dispute fee: base fee + percentage of disputed amount
+        let percentage_fee = (escrow.amount as u128)
+            .checked_mul(protocol_config.dispute_fee_bps as u128)
+            .ok_or(MitamaError::ArithmeticOverflow)?
+            .checked_div(10_000)
+            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+
+        let dispute_fee = protocol_config.dispute_base_fee.saturating_add(percentage_fee);
+
+        // Also factor in reputation-based cost multiplier
+        let reputation_multiplier = calculate_dispute_cost(reputation);
+        let total_dispute_cost = dispute_fee.saturating_add(reputation_multiplier);
+
         require!(
-            ctx.accounts.agent.lamports() >= dispute_cost,
+            ctx.accounts.agent.lamports() >= total_dispute_cost,
             MitamaError::InsufficientDisputeFunds
         );
+
+        // Collect dispute fee
+        if total_dispute_cost > 0 {
+            let fee_ix = anchor_lang::solana_program::system_instruction::transfer(
+                &ctx.accounts.agent.key(),
+                &ctx.accounts.fee_vault.key(),
+                total_dispute_cost,
+            );
+            anchor_lang::solana_program::program::invoke(
+                &fee_ix,
+                &[
+                    ctx.accounts.agent.to_account_info(),
+                    ctx.accounts.fee_vault.to_account_info(),
+                ],
+            )?;
+
+            protocol_config.total_fees_collected = protocol_config
+                .total_fees_collected
+                .saturating_add(total_dispute_cost);
+
+            emit!(ProtocolFeeCollected {
+                fee_type: "dispute".to_string(),
+                amount: total_dispute_cost,
+                payer: ctx.accounts.agent.key(),
+                treasury: protocol_config.treasury,
+            });
+        }
 
         reputation.disputes_filed = reputation.disputes_filed.saturating_add(1);
         escrow.status = EscrowStatus::Disputed;
@@ -877,6 +1011,130 @@ pub mod mitama {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Protocol Config Instructions
+    // ========================================================================
+
+    /// Initialize protocol configuration with fee parameters
+    pub fn initialize_protocol_config(
+        ctx: Context<InitializeProtocolConfig>,
+        treasury: Pubkey,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.protocol_config;
+        let clock = Clock::get()?;
+
+        config.admin = ctx.accounts.admin.key();
+        config.treasury = treasury;
+        config.agreement_fee_bps = DEFAULT_AGREEMENT_FEE_BPS;
+        config.dispute_fee_bps = DEFAULT_DISPUTE_FEE_BPS;
+        config.dispute_base_fee = DEFAULT_DISPUTE_BASE_FEE;
+        config.identity_fee = DEFAULT_IDENTITY_FEE;
+        config.total_fees_collected = 0;
+        config.is_active = true;
+        config.created_at = clock.unix_timestamp;
+        config.updated_at = clock.unix_timestamp;
+        config.bump = ctx.bumps.protocol_config;
+
+        emit!(ProtocolConfigInitialized {
+            config: config.key(),
+            admin: config.admin,
+            treasury: config.treasury,
+        });
+
+        Ok(())
+    }
+
+    /// Update protocol fee parameters (admin only)
+    pub fn update_protocol_config(
+        ctx: Context<UpdateProtocolConfig>,
+        new_treasury: Option<Pubkey>,
+        new_agreement_fee_bps: Option<u16>,
+        new_dispute_fee_bps: Option<u16>,
+        new_dispute_base_fee: Option<u64>,
+        new_identity_fee: Option<u64>,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.protocol_config;
+
+        require!(
+            ctx.accounts.admin.key() == config.admin,
+            MitamaError::Unauthorized
+        );
+
+        if let Some(treasury) = new_treasury {
+            config.treasury = treasury;
+        }
+
+        if let Some(fee_bps) = new_agreement_fee_bps {
+            require!(fee_bps <= MAX_FEE_BPS, MitamaError::FeeTooHigh);
+            config.agreement_fee_bps = fee_bps;
+        }
+
+        if let Some(fee_bps) = new_dispute_fee_bps {
+            require!(fee_bps <= MAX_FEE_BPS, MitamaError::FeeTooHigh);
+            config.dispute_fee_bps = fee_bps;
+        }
+
+        if let Some(base_fee) = new_dispute_base_fee {
+            config.dispute_base_fee = base_fee;
+        }
+
+        if let Some(identity_fee) = new_identity_fee {
+            config.identity_fee = identity_fee;
+        }
+
+        let clock = Clock::get()?;
+        config.updated_at = clock.unix_timestamp;
+
+        emit!(ProtocolConfigUpdated {
+            config: config.key(),
+            admin: config.admin,
+        });
+
+        Ok(())
+    }
+
+    /// Transfer protocol admin to new address
+    pub fn transfer_protocol_admin(
+        ctx: Context<UpdateProtocolConfig>,
+        new_admin: Pubkey,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.protocol_config;
+
+        require!(
+            ctx.accounts.admin.key() == config.admin,
+            MitamaError::Unauthorized
+        );
+
+        config.admin = new_admin;
+
+        let clock = Clock::get()?;
+        config.updated_at = clock.unix_timestamp;
+
+        Ok(())
+    }
+
+    /// Withdraw accumulated fees to treasury
+    pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
+        let config = &ctx.accounts.protocol_config;
+
+        require!(
+            ctx.accounts.admin.key() == config.admin,
+            MitamaError::Unauthorized
+        );
+
+        let fee_vault_balance = ctx.accounts.fee_vault.lamports();
+        let rent = Rent::get()?;
+        let min_balance = rent.minimum_balance(0);
+
+        let withdrawable = fee_vault_balance.saturating_sub(min_balance);
+        require!(withdrawable > 0, MitamaError::InsufficientFunds);
+
+        **ctx.accounts.fee_vault.try_borrow_mut_lamports()? -= withdrawable;
+        **ctx.accounts.treasury.try_borrow_mut_lamports()? += withdrawable;
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -897,6 +1155,21 @@ pub struct CreateAgent<'info> {
 
     #[account(mut)]
     pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    /// CHECK: Fee vault PDA
+    #[account(
+        mut,
+        seeds = [b"fee_vault"],
+        bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -943,6 +1216,21 @@ pub struct InitializeEscrow<'info> {
 
     /// CHECK: API wallet address
     pub api: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    /// CHECK: Fee vault PDA
+    #[account(
+        mut,
+        seeds = [b"fee_vault"],
+        bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
 
@@ -1003,6 +1291,23 @@ pub struct MarkDisputed<'info> {
 
     #[account(mut)]
     pub agent: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    /// CHECK: Fee vault PDA
+    #[account(
+        mut,
+        seeds = [b"fee_vault"],
+        bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -1090,6 +1395,74 @@ pub struct InitReputation<'info> {
 
     #[account(mut)]
     pub payer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeProtocolConfig<'info> {
+    #[account(
+        init,
+        payer = admin,
+        space = 8 + ProtocolConfig::INIT_SPACE,
+        seeds = [b"protocol_config"],
+        bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    /// Fee vault PDA to hold collected fees
+    #[account(
+        init,
+        payer = admin,
+        space = 0,
+        seeds = [b"fee_vault"],
+        bump
+    )]
+    /// CHECK: PDA that holds fees
+    pub fee_vault: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateProtocolConfig<'info> {
+    #[account(
+        mut,
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct WithdrawFees<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    /// CHECK: Fee vault PDA
+    #[account(
+        mut,
+        seeds = [b"fee_vault"],
+        bump
+    )]
+    pub fee_vault: AccountInfo<'info>,
+
+    /// CHECK: Treasury wallet to receive fees
+    #[account(
+        mut,
+        constraint = treasury.key() == protocol_config.treasury @ MitamaError::InvalidTreasury
+    )]
+    pub treasury: AccountInfo<'info>,
+
+    pub admin: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -1222,6 +1595,23 @@ pub enum VerificationLevel {
     KYC,
 }
 
+/// Protocol configuration for fee collection
+#[account]
+#[derive(InitSpace)]
+pub struct ProtocolConfig {
+    pub admin: Pubkey,              // Protocol admin
+    pub treasury: Pubkey,           // Treasury wallet for fee withdrawal
+    pub agreement_fee_bps: u16,     // Fee on agreement creation (basis points)
+    pub dispute_fee_bps: u16,       // Fee on disputed amount (basis points)
+    pub dispute_base_fee: u64,      // Base fee for initiating dispute
+    pub identity_fee: u64,          // Fee for creating agent identity
+    pub total_fees_collected: u64,  // Running total of fees collected
+    pub is_active: bool,            // Protocol active flag
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -1305,4 +1695,16 @@ pub enum MitamaError {
 
     #[msg("Agent not active")]
     AgentNotActive,
+
+    #[msg("Fee exceeds maximum allowed")]
+    FeeTooHigh,
+
+    #[msg("Invalid treasury address")]
+    InvalidTreasury,
+
+    #[msg("Insufficient funds for withdrawal")]
+    InsufficientFunds,
+
+    #[msg("Protocol is not active")]
+    ProtocolNotActive,
 }

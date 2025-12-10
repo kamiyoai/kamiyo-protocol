@@ -158,6 +158,30 @@ export const QUALITY_REFUND_SCALE = {
   GOOD: { minQuality: 80, maxQuality: 100, refund: 0 },
 } as const;
 
+// Protocol Configuration Account
+export interface ProtocolConfig {
+  admin: PublicKey;
+  treasury: PublicKey;
+  agreementFeeBps: number;    // Fee on agreement creation (basis points)
+  disputeFeeBps: number;      // Fee on disputed amount (basis points)
+  disputeBaseFee: BN;         // Base fee for initiating dispute
+  identityFee: BN;            // Fee for creating agent identity
+  totalFeesCollected: BN;     // Running total of fees collected
+  isActive: boolean;
+  createdAt: BN;
+  updatedAt: BN;
+  bump: number;
+}
+
+// Protocol Config Update Parameters
+export interface UpdateProtocolConfigParams {
+  newTreasury?: PublicKey;
+  newAgreementFeeBps?: number;
+  newDisputeFeeBps?: number;
+  newDisputeBaseFee?: BN;
+  newIdentityFee?: BN;
+}
+
 // Constants
 export const MIN_TIME_LOCK_SECONDS = 3600; // 1 hour
 export const MAX_TIME_LOCK_SECONDS = 2_592_000; // 30 days
@@ -165,3 +189,10 @@ export const MIN_STAKE_AMOUNT = 100_000_000; // 0.1 SOL
 export const MAX_ORACLES = 5;
 export const MIN_CONSENSUS_ORACLES = 2;
 export const MAX_SCORE_DEVIATION = 15;
+
+// Protocol Fee Defaults
+export const DEFAULT_AGREEMENT_FEE_BPS = 50;      // 0.5%
+export const DEFAULT_DISPUTE_FEE_BPS = 100;       // 1%
+export const DEFAULT_DISPUTE_BASE_FEE = 10_000_000; // 0.01 SOL
+export const DEFAULT_IDENTITY_FEE = 5_000_000;    // 0.005 SOL
+export const MAX_FEE_BPS = 500;                   // 5% max

@@ -18,8 +18,10 @@ import {
   Agreement,
   OracleRegistry,
   EntityReputation,
+  ProtocolConfig,
   CreateAgentParams,
   CreateAgreementParams,
+  UpdateProtocolConfigParams,
   AgentType,
 } from "./types";
 
@@ -94,6 +96,26 @@ export class MitamaClient {
   getReputationPDA(entity: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("reputation"), entity.toBuffer()],
+      this.programId
+    );
+  }
+
+  /**
+   * Derive the protocol config PDA
+   */
+  getProtocolConfigPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_config")],
+      this.programId
+    );
+  }
+
+  /**
+   * Derive the fee vault PDA
+   */
+  getFeeVaultPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_vault")],
       this.programId
     );
   }
@@ -175,6 +197,58 @@ export class MitamaClient {
     }
   }
 
+  /**
+   * Fetch protocol configuration
+   */
+  async getProtocolConfig(): Promise<ProtocolConfig | null> {
+    const [configPDA] = this.getProtocolConfigPDA();
+    try {
+      const accountInfo = await this.connection.getAccountInfo(configPDA);
+      if (!accountInfo) return null;
+      return this.deserializeProtocolConfig(accountInfo.data);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get current protocol fees
+   */
+  async getProtocolFees(): Promise<{
+    agreementFeeBps: number;
+    disputeFeeBps: number;
+    disputeBaseFee: BN;
+    identityFee: BN;
+  } | null> {
+    const config = await this.getProtocolConfig();
+    if (!config) return null;
+    return {
+      agreementFeeBps: config.agreementFeeBps,
+      disputeFeeBps: config.disputeFeeBps,
+      disputeBaseFee: config.disputeBaseFee,
+      identityFee: config.identityFee,
+    };
+  }
+
+  /**
+   * Calculate agreement fee for a given amount
+   */
+  async calculateAgreementFee(amount: BN): Promise<BN> {
+    const config = await this.getProtocolConfig();
+    if (!config) return new BN(0);
+    return amount.mul(new BN(config.agreementFeeBps)).div(new BN(10000));
+  }
+
+  /**
+   * Calculate dispute fee for a given amount
+   */
+  async calculateDisputeFee(amount: BN): Promise<BN> {
+    const config = await this.getProtocolConfig();
+    if (!config) return new BN(0);
+    const percentageFee = amount.mul(new BN(config.disputeFeeBps)).div(new BN(10000));
+    return config.disputeBaseFee.add(percentageFee);
+  }
+
   // ========================================================================
   // Instruction Builders
   // ========================================================================
@@ -187,6 +261,8 @@ export class MitamaClient {
     params: CreateAgentParams
   ): TransactionInstruction {
     const [agentPDA] = this.getAgentPDA(owner);
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
+    const [feeVaultPDA] = this.getFeeVaultPDA();
 
     // Build instruction data
     // Discriminator (8 bytes) + name (4 + name.length) + agent_type (1) + stake_amount (8)
@@ -207,6 +283,8 @@ export class MitamaClient {
       keys: [
         { pubkey: agentPDA, isSigner: false, isWritable: true },
         { pubkey: owner, isSigner: true, isWritable: true },
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: true },
+        { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
@@ -222,6 +300,8 @@ export class MitamaClient {
     params: CreateAgreementParams
   ): TransactionInstruction {
     const [agreementPDA] = this.getAgreementPDA(params.transactionId);
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
+    const [feeVaultPDA] = this.getFeeVaultPDA();
 
     // Build instruction data
     const discriminator = Buffer.from([
@@ -242,6 +322,8 @@ export class MitamaClient {
       { pubkey: agreementPDA, isSigner: false, isWritable: true },
       { pubkey: agent, isSigner: true, isWritable: true },
       { pubkey: params.provider, isSigner: false, isWritable: false },
+      { pubkey: protocolConfigPDA, isSigner: false, isWritable: true },
+      { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ];
 
@@ -287,6 +369,8 @@ export class MitamaClient {
   ): TransactionInstruction {
     const [agreementPDA] = this.getAgreementPDA(transactionId);
     const [reputationPDA] = this.getReputationPDA(agent);
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
+    const [feeVaultPDA] = this.getFeeVaultPDA();
 
     const discriminator = Buffer.from([
       0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
@@ -297,6 +381,9 @@ export class MitamaClient {
         { pubkey: agreementPDA, isSigner: false, isWritable: true },
         { pubkey: reputationPDA, isSigner: false, isWritable: true },
         { pubkey: agent, isSigner: true, isWritable: true },
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: true },
+        { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
       data: discriminator,
@@ -619,6 +706,56 @@ export class MitamaClient {
       oracles,
       minConsensus,
       maxScoreDeviation,
+      createdAt,
+      updatedAt,
+      bump,
+    };
+  }
+
+  private deserializeProtocolConfig(data: Buffer): ProtocolConfig {
+    let offset = 8; // Skip discriminator
+
+    const admin = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const treasury = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const agreementFeeBps = data.readUInt16LE(offset);
+    offset += 2;
+
+    const disputeFeeBps = data.readUInt16LE(offset);
+    offset += 2;
+
+    const disputeBaseFee = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const identityFee = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const totalFeesCollected = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const isActive = data[offset] === 1;
+    offset += 1;
+
+    const createdAt = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const updatedAt = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const bump = data[offset];
+
+    return {
+      admin,
+      treasury,
+      agreementFeeBps,
+      disputeFeeBps,
+      disputeBaseFee,
+      identityFee,
+      totalFeesCollected,
+      isActive,
       createdAt,
       updatedAt,
       bump,
