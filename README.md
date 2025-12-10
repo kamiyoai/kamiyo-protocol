@@ -1,4 +1,4 @@
-# ミタマプロトコル Mitama
+# Mitama
 
 ![mitama](https://github.com/user-attachments/assets/7ed437d2-5b5f-45cc-a571-17eb8a0543ea)
 
