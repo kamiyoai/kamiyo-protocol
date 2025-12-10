@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { Connection, PublicKey, Keypair } from '@solana/web3.js';
-import { NaoriPaymentMiddleware, getEscrowInfo } from '../src/express';
+import { MitamaPaymentMiddleware, getEscrowInfo } from '../src/express';
 
-describe('NaoriPaymentMiddleware', () => {
+describe('MitamaPaymentMiddleware', () => {
   const mockProgramId = Keypair.generate().publicKey;
   const mockConnection = {
     getAccountInfo: jest.fn()
@@ -28,7 +28,7 @@ describe('NaoriPaymentMiddleware', () => {
 
   describe('Payment Required (402)', () => {
     it('returns 402 when no payment proof provided', async () => {
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
@@ -57,7 +57,7 @@ describe('NaoriPaymentMiddleware', () => {
     });
 
     it('includes payment flow instructions in response', async () => {
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
@@ -91,7 +91,7 @@ describe('NaoriPaymentMiddleware', () => {
         rentEpoch: 0
       });
 
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
@@ -118,7 +118,7 @@ describe('NaoriPaymentMiddleware', () => {
         rentEpoch: 0
       });
 
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
@@ -139,7 +139,7 @@ describe('NaoriPaymentMiddleware', () => {
       const invalidEscrow = Keypair.generate().publicKey;
       mockConnection.getAccountInfo.mockResolvedValueOnce(null);
 
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
@@ -171,7 +171,7 @@ describe('NaoriPaymentMiddleware', () => {
         rentEpoch: 0
       });
 
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
@@ -194,7 +194,7 @@ describe('NaoriPaymentMiddleware', () => {
     });
 
     it('rejects invalid public key format', async () => {
-      const middleware = NaoriPaymentMiddleware({
+      const middleware = MitamaPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,

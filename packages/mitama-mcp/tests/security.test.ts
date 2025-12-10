@@ -1,5 +1,5 @@
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { EscrowClient } from '../packages/Naori-sdk/src/escrow-client';
+import { EscrowClient } from '../packages/mitama-sdk/src/escrow-client';
 import { describe, it, beforeAll, expect } from '@jest/globals';
 import * as anchor from '@coral-xyz/anchor';
 

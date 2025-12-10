@@ -26,7 +26,7 @@ export interface X402Request extends Request {
  *
  * Usage:
  * ```typescript
- * app.use('/api/*', NaoriPaymentMiddleware({
+ * app.use('/api/*', MitamaPaymentMiddleware({
  *   realm: 'my-api',
  *   programId: ESCROW_PROGRAM_ID,
  *   connection: new Connection('https://api.devnet.solana.com'),
@@ -35,7 +35,7 @@ export interface X402Request extends Request {
  * }));
  * ```
  */
-export function NaoriPaymentMiddleware(options: X402Options) {
+export function MitamaPaymentMiddleware(options: X402Options) {
   return async (req: X402Request, res: Response, next: NextFunction) => {
     const paymentProof = req.headers['x-payment-proof'] as string;
 

@@ -1,7 +1,7 @@
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { KamiyoClient } from '../packages/Naori-sdk/src/client';
-import { EscrowClient } from '../packages/Naori-sdk/src/escrow-client';
-import { Hyoban } from '../packages/Naori-sdk/src/reputation';
+import { KamiyoClient } from '../packages/mitama-sdk/src/client';
+import { EscrowClient } from '../packages/mitama-sdk/src/escrow-client';
+import { Hyoban } from '../packages/mitama-sdk/src/reputation';
 import { describe, it, beforeAll, expect } from '@jest/globals';
 import * as anchor from '@coral-xyz/anchor';
 

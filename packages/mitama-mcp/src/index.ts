@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * KAMIYO Naori MCP Server
+ * KAMIYO Mitama MCP Server
  *
- * Model Context Protocol server for Naori Solana escrow program.
+ * Model Context Protocol server for Mitama Solana escrow program.
  * Provides AI agents (like Claude) with tools to create protected API payments,
  * assess quality, and file disputes with automatic refunds.
  */
@@ -218,7 +218,7 @@ class KamiyoMCPServer {
     // Initialize MCP server
     this.server = new Server(
       {
-        name: 'kamiyo-Naori',
+        name: 'kamiyo-mitama',
         version: '1.0.0',
       },
       {
@@ -230,12 +230,12 @@ class KamiyoMCPServer {
 
     // Load configuration from environment
     const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-    const programIdStr = process.env.NAORI_PROGRAM_ID;
+    const programIdStr = process.env.MITAMA_PROGRAM_ID;
     const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
     const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
     if (!programIdStr) {
-      throw new Error('NAORI_PROGRAM_ID environment variable is required');
+      throw new Error('MITAMA_PROGRAM_ID environment variable is required');
     }
 
     if (!agentPrivateKey && !agentKeypairPath) {
@@ -380,7 +380,7 @@ class KamiyoMCPServer {
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('KAMIYO Naori MCP Server running on stdio');
+    console.error('KAMIYO Mitama MCP Server running on stdio');
     console.error(`Agent wallet: ${this.solanaClient.publicKey.toBase58()}`);
   }
 }

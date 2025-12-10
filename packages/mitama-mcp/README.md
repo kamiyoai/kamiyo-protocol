@@ -1,4 +1,4 @@
-# Naori MCP Server
+# Mitama MCP Server
 
 Production-ready Model Context Protocol server for HTTP 402 payments with quality-verified refunds on Solana.
 
@@ -37,7 +37,7 @@ npm run build
 Create `.env` file:
 
 ```bash
-NAORI_PROGRAM_ID=E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n
+MITAMA_PROGRAM_ID=E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n
 AGENT_PRIVATE_KEY=<base58_or_base64_or_json_array>
 SOLANA_RPC_URL=https://api.devnet.solana.com
 ```
@@ -49,11 +49,11 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "naori": {
+    "mitama": {
       "command": "node",
       "args": ["/absolute/path/to/packages/mcp-server/dist/index.js"],
       "env": {
-        "NAORI_PROGRAM_ID": "E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n",
+        "MITAMA_PROGRAM_ID": "E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n",
         "AGENT_PRIVATE_KEY": "your_base58_private_key",
         "SOLANA_RPC_URL": "https://api.devnet.solana.com"
       }

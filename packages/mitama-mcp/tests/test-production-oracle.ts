@@ -9,7 +9,7 @@ const PROGRAM_ID = new PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n')
 const RPC_URL = 'https://api.devnet.solana.com';
 
 // Load IDL
-const idlPath = './packages/Naori-sdk/types/naori_escrow.json';
+const idlPath = './packages/mitama-sdk/types/mitama_escrow.json';
 const idl = JSON.parse(fs.readFileSync(idlPath, 'utf-8'));
 
 // Deterministic oracle keypair

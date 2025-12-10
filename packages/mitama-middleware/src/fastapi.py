@@ -7,7 +7,7 @@ https://httpwg.org/specs/rfc9110.html#status.402
 Usage:
 ```python
 from fastapi import FastAPI, Request
-from Naori_middleware import Naori_payment_middleware, X402Config
+from mitama_middleware import mitama_payment_middleware, X402Config
 
 app = FastAPI()
 
@@ -19,7 +19,7 @@ config = X402Config(
     quality_guarantee=True
 )
 
-app.middleware("http")(Naori_payment_middleware(config))
+app.middleware("http")(mitama_payment_middleware(config))
 ```
 """
 
@@ -33,7 +33,7 @@ import httpx
 
 @dataclass
 class X402Config:
-    """Configuration for Naori payment middleware"""
+    """Configuration for Mitama payment middleware"""
     realm: str
     program_id: str
     rpc_url: str
@@ -74,7 +74,7 @@ async def verify_escrow(escrow_pubkey: str, program_id: str, rpc_url: str) -> bo
         return False
 
 
-def Naori_payment_middleware(config: X402Config) -> Callable:
+def mitama_payment_middleware(config: X402Config) -> Callable:
     """
     Create HTTP 402 payment middleware for FastAPI
 

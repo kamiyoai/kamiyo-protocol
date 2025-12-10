@@ -58,7 +58,7 @@ export class ReputationNFTSystem {
     const mintKeypair = Keypair.generate();
 
     const metadata = {
-      name: `Naori ${tier.toUpperCase()} Provider`,
+      name: `Mitama ${tier.toUpperCase()} Provider`,
       symbol: `X402${tier.charAt(0).toUpperCase()}`,
       uri: this.generateMetadataURI(provider, tier, stats),
     };
@@ -132,9 +132,9 @@ export class ReputationNFTSystem {
     }
   ): string {
     const json = {
-      name: `Naori ${tier.toUpperCase()} Provider`,
+      name: `Mitama ${tier.toUpperCase()} Provider`,
       description: `Reputation badge for API provider ${provider.toBase58().slice(0, 8)}`,
-      image: `https://naori.kamiyo.ai/badges/${tier}.png`,
+      image: `https://mitama.kamiyo.ai/badges/${tier}.png`,
       attributes: [
         { trait_type: 'Tier', value: tier },
         { trait_type: 'Transactions', value: stats.transactionCount },
@@ -149,7 +149,7 @@ export class ReputationNFTSystem {
     };
 
     const hash = createHash('sha256').update(JSON.stringify(json)).digest('hex');
-    return `https://naori.kamiyo.ai/metadata/${hash}.json`;
+    return `https://mitama.kamiyo.ai/metadata/${hash}.json`;
   }
 
   async queryBadge(provider: PublicKey): Promise<ReputationBadge | null> {

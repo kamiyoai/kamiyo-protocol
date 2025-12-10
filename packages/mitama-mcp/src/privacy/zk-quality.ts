@@ -108,7 +108,7 @@ export class ZKQualityVerifier {
   private getVerificationKey(): string {
     return crypto
       .createHash('sha256')
-      .update('naori_zk_verifier_v1')
+      .update('mitama_zk_verifier_v1')
       .digest('hex');
   }
 

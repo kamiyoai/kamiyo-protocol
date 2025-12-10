@@ -1,11 +1,11 @@
-# @kamiyo/naori-middleware
+# @kamiyo/mitama-middleware
 
-HTTP 402 Payment Required middleware for Express.js with Naori escrow integration.
+HTTP 402 Payment Required middleware for Express.js with Mitama escrow integration.
 
 ## Installation
 
 ```bash
-npm install @kamiyo/naori-middleware
+npm install @kamiyo/mitama-middleware
 ```
 
 ## Quick Start
@@ -13,12 +13,12 @@ npm install @kamiyo/naori-middleware
 ```typescript
 import express from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { NaoriPaymentMiddleware } from '@kamiyo/naori-middleware';
+import { MitamaPaymentMiddleware } from '@kamiyo/mitama-middleware';
 
 const app = express();
 const connection = new Connection('https://api.devnet.solana.com');
 
-app.use('/api/*', NaoriPaymentMiddleware({
+app.use('/api/*', MitamaPaymentMiddleware({
   realm: 'my-api',
   programId: new PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n'),
   connection,
@@ -42,7 +42,7 @@ app.get('/api/data', (req, res) => {
 
 ## API Reference
 
-### NaoriPaymentMiddleware(options)
+### MitamaPaymentMiddleware(options)
 
 Creates Express middleware for HTTP 402 payment verification.
 
@@ -58,7 +58,7 @@ Creates Express middleware for HTTP 402 payment verification.
 Extract escrow information from authenticated request.
 
 ```typescript
-import { getEscrowInfo } from '@kamiyo/naori-middleware';
+import { getEscrowInfo } from '@kamiyo/mitama-middleware';
 
 app.get('/api/data', (req, res) => {
   const escrow = getEscrowInfo(req);

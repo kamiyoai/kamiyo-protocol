@@ -47,18 +47,18 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 }
 
 async function main() {
-  console.log('🚀 KAMIYO Naori MCP Server - E2E Integration Tests\n');
+  console.log('🚀 KAMIYO Mitama MCP Server - E2E Integration Tests\n');
   console.log('Network: Solana Devnet');
   console.log('Program ID: E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n\n');
 
   // Setup
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-  const programIdStr = process.env.NAORI_PROGRAM_ID;
+  const programIdStr = process.env.MITAMA_PROGRAM_ID;
   const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
 
   if (!programIdStr || !agentPrivateKey) {
     console.error('❌ Missing environment variables. Please set:');
-    console.error('  - NAORI_PROGRAM_ID');
+    console.error('  - MITAMA_PROGRAM_ID');
     console.error('  - AGENT_PRIVATE_KEY');
     process.exit(1);
   }

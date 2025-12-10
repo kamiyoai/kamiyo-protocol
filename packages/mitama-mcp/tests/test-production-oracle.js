@@ -80,7 +80,7 @@ var nacl = __importStar(require("tweetnacl"));
 var PROGRAM_ID = new web3_js_1.PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n');
 var RPC_URL = 'https://api.devnet.solana.com';
 // Load IDL
-var idlPath = './packages/Naori-sdk/types/naori_escrow.json';
+var idlPath = './packages/mitama-sdk/types/mitama_escrow.json';
 var idl = JSON.parse(fs.readFileSync(idlPath, 'utf-8'));
 // Oracle keypair (deterministic for demo)
 var ORACLE_SEED = new Uint8Array(32);
@@ -94,7 +94,7 @@ function main() {
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    console.log('Naori Production Oracle Test\n');
+                    console.log('Mitama Production Oracle Test\n');
                     connection = new web3_js_1.Connection(RPC_URL, 'confirmed');
                     keypairPath = './test-agent-keypair.json';
                     if (fs.existsSync(keypairPath)) {

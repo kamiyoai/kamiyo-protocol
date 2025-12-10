@@ -196,10 +196,10 @@ export class EconomicDashboard {
       qualityPremium: number;
     };
   } {
-    const NaoriCost = escrowAmount * 0.01;
+    const mitamaCost = escrowAmount * 0.01;
     const refundAmount = escrowAmount * ((100 - qualityScore) / 100);
 
-    const costSavings = traditionalCost - NaoriCost + refundAmount;
+    const costSavings = traditionalCost - mitamaCost + refundAmount;
     const timeSavingsValue = (timeSaved / 3600) * 50;
     const qualityPremium = qualityScore > 80 ? escrowAmount * 0.1 : 0;
 

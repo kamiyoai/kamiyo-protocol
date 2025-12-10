@@ -334,7 +334,7 @@ async function runFullTestSuite() {
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║                                                               ║');
     console.log('║        A+ PRODUCTION-GRADE E2E TEST SUITE                     ║');
-    console.log('║        Naori Oracle Transaction System                  ║');
+    console.log('║        Mitama Oracle Transaction System                 ║');
     console.log('║                                                               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log('\n');

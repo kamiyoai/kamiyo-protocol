@@ -38,16 +38,16 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 }
 
 async function main() {
-  console.log('🚀 KAMIYO Naori MCP Server - Tool Functionality Tests\n');
+  console.log('🚀 KAMIYO Mitama MCP Server - Tool Functionality Tests\n');
 
   // Setup
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-  const programIdStr = process.env.NAORI_PROGRAM_ID;
+  const programIdStr = process.env.MITAMA_PROGRAM_ID;
   const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
   const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
   if (!programIdStr) {
-    console.error('❌ Missing NAORI_PROGRAM_ID environment variable');
+    console.error('❌ Missing MITAMA_PROGRAM_ID environment variable');
     process.exit(1);
   }
 

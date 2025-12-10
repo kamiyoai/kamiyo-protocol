@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 
 /**
  * Utility class for deriving Program Derived Addresses (PDAs)
- * for the Naori escrow program
+ * for the Mitama escrow program
  */
 export class PDADeriver {
   constructor(private programId: PublicKey) {}

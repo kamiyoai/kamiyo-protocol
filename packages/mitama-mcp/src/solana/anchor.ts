@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load IDL dynamically and convert discriminators to Buffers
-const idlPath = path.join(__dirname, '../idl/naori_escrow.json');
+const idlPath = path.join(__dirname, '../idl/x402_escrow.json');
 const idlContent = fs.readFileSync(idlPath, 'utf-8');
 const rawIdl = JSON.parse(idlContent);
 
@@ -79,7 +79,7 @@ export interface EntityReputationAccount {
 }
 
 /**
- * Wrapper for Naori Anchor program
+ * Wrapper for Mitama Anchor program
  * Provides type-safe methods for all program instructions
  */
 export class X402Program {
