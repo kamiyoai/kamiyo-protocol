@@ -9,7 +9,7 @@ export default function Layout({ children }) {
     return (
         <div className="min-h-screen flex flex-col relative">
             {/* Move fixed styling here and pass className */}
-            <div className="fixed top-0 left-0 w-full z-50 bg-black/[0.93] border-b border-gray-500 border-opacity-25">
+            <div className="fixed top-0 left-0 w-full z-50 bg-black/[0.94] border-b border-gray-500 border-opacity-25">
                 <Header />
             </div>
             {/* Ensure content scrolls properly */}
