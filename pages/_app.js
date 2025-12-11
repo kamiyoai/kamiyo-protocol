@@ -1,15 +1,72 @@
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import Head from 'next/head';
-import { SessionProvider } from 'next-auth/react';
+import { SessionProvider, useSession } from 'next-auth/react';
 import { MenuProvider } from '../context/MenuContext';
 import Layout from '../components/Layout';
+import LoadingSpinner from '../components/LoadingSpinner';
 import '../styles/globals.css';
 
-function MyApp({ Component, pageProps: { session, ...pageProps } }) {
-  // CSRF protection disabled - not needed for Next.js API routes
-  // The billing flow uses Next.js API routes (/api/billing/*) which are server-side
-  // and don't require CSRF tokens from the frontend.
-  // If direct Python backend API calls are needed in the future, use csrfFetch() from utils/csrf.js
+function LoadingWrapper({ children }) {
+    const { status } = useSession();
+    const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    const [initialLoad, setInitialLoad] = useState(true);
 
+    useEffect(() => {
+        const handleStart = () => setLoading(true);
+        const handleComplete = () => setLoading(false);
+
+        router.events.on("routeChangeStart", handleStart);
+        router.events.on("routeChangeComplete", handleComplete);
+        router.events.on("routeChangeError", handleComplete);
+
+        return () => {
+            router.events.off("routeChangeStart", handleStart);
+            router.events.off("routeChangeComplete", handleComplete);
+            router.events.off("routeChangeError", handleComplete);
+        };
+    }, [router]);
+
+    useEffect(() => {
+        if (status === "authenticated" && router.pathname === "/auth/signin") {
+            const callbackUrl = router.query.callbackUrl || "/";
+            router.replace(callbackUrl);
+        }
+    }, [status, router]);
+
+    useEffect(() => {
+        if (initialLoad) {
+            // Show spinner for minimum 1.5s, then wait for load event
+            const minDisplayTimer = setTimeout(() => {
+                if (document.readyState === "complete") {
+                    setInitialLoad(false);
+                } else {
+                    const handleLoad = () => setInitialLoad(false);
+                    window.addEventListener("load", handleLoad);
+                    return () => window.removeEventListener("load", handleLoad);
+                }
+            }, 1500);
+
+            // Fallback: always hide after 4s
+            const fallbackTimer = setTimeout(() => setInitialLoad(false), 4000);
+
+            return () => {
+                clearTimeout(minDisplayTimer);
+                clearTimeout(fallbackTimer);
+            };
+        }
+    }, [initialLoad]);
+
+    return (
+        <>
+            {children}
+            {(status === "loading" || loading || initialLoad) && <LoadingSpinner />}
+        </>
+    );
+}
+
+function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   return (
     <>
       <SessionProvider session={session}>
@@ -40,9 +97,11 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
             <meta name="twitter:site" content="@KAMIYO" />
             <meta name="twitter:creator" content="@KAMIYO" />
           </Head>
-          <Layout>
-            <Component {...pageProps} />
-          </Layout>
+          <LoadingWrapper>
+            <Layout>
+              <Component {...pageProps} />
+            </Layout>
+          </LoadingWrapper>
         </MenuProvider>
       </SessionProvider>
     </>

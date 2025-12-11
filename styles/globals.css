@@ -227,9 +227,13 @@ ol li {
 
 @keyframes opacityGlitchSubtle {
     0%, 100% { opacity: 1; }
-    45% { opacity: 1; }
-    50% { opacity: 0.6; }
-    55% { opacity: 1; }
+    30% { opacity: 1; }
+    33% { opacity: 0.4; }
+    36% { opacity: 1; }
+    70% { opacity: 1; }
+    73% { opacity: 0.3; }
+    76% { opacity: 0.8; }
+    79% { opacity: 1; }
 }
 
 /* Miscellaneous */

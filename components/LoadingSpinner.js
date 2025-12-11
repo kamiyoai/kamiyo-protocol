@@ -41,14 +41,27 @@ const getRandomScramble = () => {
 };
 
 const LoadingSpinner = () => {
+    const [mounted, setMounted] = useState(false);
     const [scrambledText, setScrambledText] = useState(Array(30).fill(""));
 
     useEffect(() => {
+        setMounted(true);
+        setScrambledText(Array(30).fill("").map(getRandomScramble));
+    }, []);
+
+    useEffect(() => {
+        if (!mounted) return;
         const interval = setInterval(() => {
             setScrambledText(Array(30).fill("").map(getRandomScramble));
         }, 800);
         return () => clearInterval(interval);
-    }, []);
+    }, [mounted]);
+
+    if (!mounted) {
+        return (
+            <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center overflow-hidden bg-black z-[999] opacity-75" />
+        );
+    }
 
     return (
         <div className="fixed inset-0 w-screen h-screen flex flex-col items-center justify-center overflow-hidden bg-black z-[999] opacity-75">
@@ -58,8 +71,8 @@ const LoadingSpinner = () => {
                         key={i}
                         className={`mx-1 text-xs ${i % 5 === 0 ? "text-[#FF00FF]" : i % 5 === 1 ? "text-[#4FE9EA]" : "text-chalk"}`}
                         style={{
-                            animation: `fadeInOut ${Math.random() * 2 + 1}s infinite`,
-                            opacity: Math.random() > 0.9 ? 0.2 : 1,
+                            animation: `fadeInOut ${1 + (i % 3)}s infinite`,
+                            opacity: i % 7 === 0 ? 0.2 : 1,
                         }}
                     >
                         {text}
@@ -73,8 +86,8 @@ const LoadingSpinner = () => {
                         key={i}
                         className={`mx-1 text-xs ${i % 8 === 0 ? "text-[#FF00FF]" : i % 7 === 1 ? "text-[#4FE9EA]" : "text-white"}`}
                         style={{
-                            animation: `fadeInOut ${Math.random() * 3 + 1}s infinite`,
-                            opacity: Math.random() > 0.9 ? 0.2 : 1,
+                            animation: `fadeInOut ${1.5 + (i % 4)}s infinite`,
+                            opacity: i % 9 === 0 ? 0.2 : 1,
                         }}
                     >
                         {text}
@@ -88,8 +101,8 @@ const LoadingSpinner = () => {
                         key={i}
                         className={`mx-1 text-xs ${i % 3 === 0 ? "text-[#FF00FF]" : i % 2 === 1 ? "text-[#4FE9EA]" : "text-white"}`}
                         style={{
-                            animation: `fadeInOut ${Math.random() * 3 + 1}s infinite`,
-                            opacity: Math.random() > 0.9 ? 0.2 : 1,
+                            animation: `fadeInOut ${2 + (i % 3)}s infinite`,
+                            opacity: i % 11 === 0 ? 0.2 : 1,
                         }}
                     >
                         {text}
@@ -101,4 +114,3 @@ const LoadingSpinner = () => {
 };
 
 export default LoadingSpinner;
-
