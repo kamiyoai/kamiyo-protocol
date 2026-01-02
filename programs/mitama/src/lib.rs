@@ -242,8 +242,6 @@ pub fn verify_ed25519_signature(
 
 /// Calculate weighted consensus score from oracle submissions
 /// Uses weighted average for scores within deviation threshold of median
-/// Reserved for multi-oracle dispute resolution
-#[allow(dead_code)]
 fn calculate_weighted_consensus(
     scores: &[(u8, u16)], // (score, weight) pairs
     max_deviation: u8,
@@ -273,16 +271,12 @@ fn calculate_weighted_consensus(
 }
 
 /// Simple consensus without weights (backwards compatible)
-/// Reserved for multi-oracle dispute resolution
-#[allow(dead_code)]
 fn calculate_consensus_score(scores: &[u8], max_deviation: u8) -> Result<u8> {
     let weighted: Vec<(u8, u16)> = scores.iter().map(|s| (*s, 1)).collect();
     calculate_weighted_consensus(&weighted, max_deviation)
 }
 
 /// Calculate refund percentage based on quality score
-/// Reserved for automatic dispute resolution
-#[allow(dead_code)]
 fn calculate_refund_from_quality(quality_score: u8) -> u8 {
     match quality_score {
         0..=49 => 100,
@@ -999,12 +993,33 @@ pub mod mitama {
     // Protocol Management Instructions
     // ========================================================================
 
-    /// Initialize protocol configuration (one-time setup)
-    pub fn initialize_protocol(ctx: Context<InitializeProtocol>) -> Result<()> {
+    /// Initialize protocol configuration with multi-sig (one-time setup)
+    /// Requires 3 distinct authority addresses for 2-of-3 multi-sig
+    pub fn initialize_protocol(
+        ctx: Context<InitializeProtocol>,
+        secondary_signer: Pubkey,
+        tertiary_signer: Pubkey,
+    ) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
         let clock = Clock::get()?;
 
-        config.authority = ctx.accounts.authority.key();
+        // Ensure all three signers are distinct
+        let primary = ctx.accounts.authority.key();
+        require!(
+            primary != secondary_signer
+                && primary != tertiary_signer
+                && secondary_signer != tertiary_signer,
+            MitamaError::DuplicateMultiSigSigner
+        );
+        require!(
+            secondary_signer != Pubkey::default() && tertiary_signer != Pubkey::default(),
+            MitamaError::InvalidAuthority
+        );
+
+        config.authority = primary;
+        config.secondary_signer = secondary_signer;
+        config.tertiary_signer = tertiary_signer;
+        config.required_signatures = 2; // 2-of-3 multi-sig
         config.paused = false;
         config.version = PROTOCOL_VERSION;
         config.total_escrows_created = 0;
@@ -1023,9 +1038,21 @@ pub mod mitama {
     }
 
     /// Pause protocol - emergency stop for all escrow operations
+    /// Requires 2-of-3 multi-sig authorization
     pub fn pause_protocol(ctx: Context<ManageProtocol>) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
         require!(!config.paused, MitamaError::ProtocolAlreadyPaused);
+
+        // Validate 2-of-3 multi-sig: both signers must be from the authority set
+        let signer_one = ctx.accounts.signer_one.key();
+        let signer_two = ctx.accounts.signer_two.key();
+        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+
+        let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
+        require!(
+            valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
+            MitamaError::InvalidMultiSigSigner
+        );
 
         let clock = Clock::get()?;
         config.paused = true;
@@ -1033,7 +1060,7 @@ pub mod mitama {
 
         emit!(ProtocolPaused {
             config: config.key(),
-            authority: ctx.accounts.authority.key(),
+            authority: signer_one,
             timestamp: clock.unix_timestamp,
         });
 
@@ -1041,9 +1068,21 @@ pub mod mitama {
     }
 
     /// Unpause protocol - resume normal operations
+    /// Requires 2-of-3 multi-sig authorization
     pub fn unpause_protocol(ctx: Context<ManageProtocol>) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
         require!(config.paused, MitamaError::ProtocolNotPaused);
+
+        // Validate 2-of-3 multi-sig
+        let signer_one = ctx.accounts.signer_one.key();
+        let signer_two = ctx.accounts.signer_two.key();
+        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+
+        let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
+        require!(
+            valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
+            MitamaError::InvalidMultiSigSigner
+        );
 
         let clock = Clock::get()?;
         config.paused = false;
@@ -1051,24 +1090,197 @@ pub mod mitama {
 
         emit!(ProtocolUnpaused {
             config: config.key(),
-            authority: ctx.accounts.authority.key(),
+            authority: signer_one,
             timestamp: clock.unix_timestamp,
         });
 
         Ok(())
     }
 
-    /// Transfer protocol authority
+    /// Transfer protocol authority (replace one of the multi-sig signers)
+    /// Requires 2-of-3 multi-sig authorization
     pub fn transfer_protocol_authority(
         ctx: Context<ManageProtocol>,
-        new_authority: Pubkey,
+        signer_to_replace: Pubkey,
+        new_signer: Pubkey,
     ) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
-        require!(new_authority != Pubkey::default(), MitamaError::InvalidAuthority);
+        require!(new_signer != Pubkey::default(), MitamaError::InvalidAuthority);
 
+        // Validate 2-of-3 multi-sig
+        let signer_one = ctx.accounts.signer_one.key();
+        let signer_two = ctx.accounts.signer_two.key();
+        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+
+        let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
+        require!(
+            valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
+            MitamaError::InvalidMultiSigSigner
+        );
+
+        // Ensure new signer is not already in the set
+        require!(!valid_signers.contains(&new_signer), MitamaError::DuplicateMultiSigSigner);
+
+        // Replace the specified signer
         let clock = Clock::get()?;
-        config.authority = new_authority;
+        if signer_to_replace == config.authority {
+            config.authority = new_signer;
+        } else if signer_to_replace == config.secondary_signer {
+            config.secondary_signer = new_signer;
+        } else if signer_to_replace == config.tertiary_signer {
+            config.tertiary_signer = new_signer;
+        } else {
+            return Err(MitamaError::InvalidAuthority.into());
+        }
+
         config.updated_at = clock.unix_timestamp;
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // Multi-Oracle Dispute Resolution Instructions
+    // ========================================================================
+
+    /// Submit oracle quality score for dispute resolution
+    /// Multiple oracles can submit scores, consensus is calculated on finalization
+    pub fn submit_oracle_score(
+        ctx: Context<SubmitOracleScore>,
+        quality_score: u8,
+        signature: [u8; 64],
+    ) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+        let oracle_registry = &ctx.accounts.oracle_registry;
+
+        require!(
+            escrow.status == EscrowStatus::Disputed,
+            MitamaError::InvalidStatus
+        );
+        require!(quality_score <= 100, MitamaError::InvalidQualityScore);
+
+        // Verify oracle is registered
+        let oracle_key = ctx.accounts.oracle.key();
+        require!(
+            oracle_registry.oracles.iter().any(|o| o.pubkey == oracle_key),
+            MitamaError::UnregisteredOracle
+        );
+
+        // Verify signature
+        let message = format!("{}:{}", escrow.transaction_id, quality_score);
+        verify_ed25519_signature(
+            &ctx.accounts.instructions_sysvar,
+            &signature,
+            &oracle_key,
+            message.as_bytes(),
+            0,
+        )?;
+
+        // Check for duplicate submission
+        require!(
+            !escrow.oracle_submissions.iter().any(|s| s.oracle == oracle_key),
+            MitamaError::DuplicateOracleSubmission
+        );
+
+        // Add submission
+        let clock = Clock::get()?;
+        escrow.oracle_submissions.push(OracleSubmission {
+            oracle: oracle_key,
+            quality_score,
+            submitted_at: clock.unix_timestamp,
+        });
+
+        msg!(
+            "Oracle {} submitted score {} for escrow {}",
+            oracle_key,
+            quality_score,
+            escrow.key()
+        );
+
+        Ok(())
+    }
+
+    /// Finalize multi-oracle dispute resolution
+    /// Calculates consensus from submitted oracle scores and distributes funds
+    pub fn finalize_multi_oracle_dispute(ctx: Context<FinalizeMultiOracleDispute>) -> Result<()> {
+        let oracle_registry = &ctx.accounts.oracle_registry;
+
+        // Extract values needed for calculations
+        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores) = {
+            let escrow = &ctx.accounts.escrow;
+            let individual_scores: Vec<u8> = escrow.oracle_submissions.iter().map(|s| s.quality_score).collect();
+            let oracles: Vec<Pubkey> = escrow.oracle_submissions.iter().map(|s| s.oracle).collect();
+            let weighted_scores: Vec<(u8, u16)> = escrow
+                .oracle_submissions
+                .iter()
+                .filter_map(|submission| {
+                    oracle_registry
+                        .oracles
+                        .iter()
+                        .find(|o| o.pubkey == submission.oracle)
+                        .map(|o| (submission.quality_score, o.weight))
+                })
+                .collect();
+            (
+                escrow.status,
+                escrow.amount,
+                escrow.transaction_id.clone(),
+                escrow.key(),
+                individual_scores,
+                oracles,
+                weighted_scores,
+            )
+        };
+
+        require!(status == EscrowStatus::Disputed, MitamaError::InvalidStatus);
+        require!(
+            oracles.len() >= oracle_registry.min_consensus as usize,
+            MitamaError::InsufficientOracleConsensus
+        );
+
+        // Calculate consensus
+        let consensus_score = calculate_weighted_consensus(
+            &weighted_scores,
+            oracle_registry.max_score_deviation,
+        )?;
+
+        // Calculate refund based on quality
+        let refund_percentage = calculate_refund_from_quality(consensus_score);
+
+        let refund_amount = (amount as u128)
+            .checked_mul(refund_percentage as u128)
+            .ok_or(MitamaError::ArithmeticOverflow)?
+            .checked_div(100)
+            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+        let payment_amount = amount.saturating_sub(refund_amount);
+
+        // Transfer funds
+        if refund_amount > 0 {
+            **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
+            **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += refund_amount;
+        }
+
+        if payment_amount > 0 {
+            **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= payment_amount;
+            **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += payment_amount;
+        }
+
+        // Update escrow state
+        let escrow = &mut ctx.accounts.escrow;
+        escrow.status = EscrowStatus::Resolved;
+        escrow.quality_score = Some(consensus_score);
+        escrow.refund_percentage = Some(refund_percentage);
+
+        emit!(MultiOracleDisputeResolved {
+            escrow: escrow_key,
+            transaction_id,
+            oracle_count: oracles.len() as u8,
+            individual_scores,
+            oracles,
+            consensus_score,
+            refund_percentage,
+            refund_amount,
+            payment_amount,
+        });
 
         Ok(())
     }
@@ -1336,11 +1548,14 @@ pub struct ManageProtocol<'info> {
         mut,
         seeds = [b"protocol_config"],
         bump = protocol_config.bump,
-        constraint = protocol_config.authority == authority.key() @ MitamaError::Unauthorized
     )]
     pub protocol_config: Account<'info, ProtocolConfig>,
 
-    pub authority: Signer<'info>,
+    /// Primary signer (must be one of the multi-sig authorities)
+    pub signer_one: Signer<'info>,
+
+    /// Secondary signer (must be one of the multi-sig authorities)
+    pub signer_two: Signer<'info>,
 }
 
 #[derive(Accounts)]
@@ -1361,6 +1576,56 @@ pub struct InitReputation<'info> {
     pub payer: Signer<'info>,
 
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SubmitOracleScore<'info> {
+    #[account(
+        mut,
+        seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
+        bump = escrow.bump
+    )]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    /// Oracle submitting the score (must be registered)
+    pub oracle: Signer<'info>,
+
+    /// CHECK: Instructions sysvar for signature verification
+    #[account(address = INSTRUCTIONS_ID)]
+    pub instructions_sysvar: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct FinalizeMultiOracleDispute<'info> {
+    #[account(
+        mut,
+        seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
+        bump = escrow.bump
+    )]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    /// CHECK: Agent wallet to receive refund
+    #[account(mut)]
+    pub agent: AccountInfo<'info>,
+
+    /// CHECK: API wallet to receive payment
+    #[account(mut)]
+    pub api: AccountInfo<'info>,
+
+    /// Anyone can call finalize once enough oracles have submitted
+    pub caller: Signer<'info>,
 }
 
 // ============================================================================
@@ -1395,10 +1660,18 @@ pub enum AgentType {
 }
 
 /// Protocol Configuration - global settings and emergency controls
+/// Uses 2-of-3 multi-sig for critical operations (pause/unpause)
 #[account]
 #[derive(InitSpace)]
 pub struct ProtocolConfig {
+    /// Primary authority (can propose actions)
     pub authority: Pubkey,
+    /// Secondary signer for multi-sig (required for pause/unpause)
+    pub secondary_signer: Pubkey,
+    /// Tertiary signer for multi-sig (required for pause/unpause)
+    pub tertiary_signer: Pubkey,
+    /// Number of required signatures for critical operations (default: 2)
+    pub required_signatures: u8,
     pub paused: bool,
     pub version: u8,
     pub total_escrows_created: u64,
@@ -1603,4 +1876,10 @@ pub enum MitamaError {
 
     #[msg("Invalid authority address")]
     InvalidAuthority,
+
+    #[msg("Duplicate multi-sig signer")]
+    DuplicateMultiSigSigner,
+
+    #[msg("Invalid multi-sig signer")]
+    InvalidMultiSigSigner,
 }
