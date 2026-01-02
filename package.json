@@ -28,7 +28,9 @@
     "build:sdk": "cd packages/mitama-sdk && npm run build",
     "clean": "rm -rf target && cd packages/mitama-sdk && rm -rf dist",
     "test": "anchor test",
-    "test:sdk": "cd packages/mitama-sdk && npm test"
+    "test:sdk": "cd packages/mitama-sdk && npm test",
+    "monitor": "npx ts-node scripts/monitor.ts",
+    "setup:mainnet": "./scripts/setup-mainnet.sh"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",

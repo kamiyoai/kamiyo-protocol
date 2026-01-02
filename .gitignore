@@ -17,6 +17,12 @@ programs/*/target/
 .env.*
 !.env.example
 
+# Keypairs (NEVER commit!)
+*-keypair.json
+authority-*.json
+deployer.json
+wallet.json
+
 # IDE
 .vscode/
 .idea/
