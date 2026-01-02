@@ -1,72 +1,178 @@
-# @kamiyo/mitama-middleware
+# @mitama/middleware
 
-HTTP 402 Payment Required middleware for Express.js with Mitama escrow integration.
+HTTP 402 Payment Required middleware with Solana Actions (Blinks) integration for agentic payments.
 
 ## Installation
 
 ```bash
-npm install @kamiyo/mitama-middleware
+npm install @mitama/middleware
 ```
 
+## Features
+
+- **HTTP 402 Compliant**: Implements RFC 9110 Section 15.5.3
+- **Solana Actions**: Full Blinks support for discoverable payment links
+- **Escrow Protection**: Mitama dispute resolution for quality guarantees
+- **SPL Token Support**: SOL, USDC, USDT payments
+- **Agent-Ready**: Programmatic payment discovery and execution
+
 ## Quick Start
+
+### Basic HTTP 402 Middleware
 
 ```typescript
 import express from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { MitamaPaymentMiddleware } from '@kamiyo/mitama-middleware';
+import { MitamaPaymentMiddleware } from '@mitama/middleware';
 
 const app = express();
-const connection = new Connection('https://api.devnet.solana.com');
+const connection = new Connection('https://api.mainnet-beta.solana.com');
 
-app.use('/api/*', MitamaPaymentMiddleware({
+app.use('/api/premium', MitamaPaymentMiddleware({
   realm: 'my-api',
-  programId: new PublicKey('E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n'),
+  programId: new PublicKey('8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC'),
   connection,
   price: 0.001,
   qualityGuarantee: true
 }));
 
-app.get('/api/data', (req, res) => {
-  // Request has passed payment verification
-  // Access escrow info via req.escrow
+app.get('/api/premium/data', (req, res) => {
   res.json({ data: 'protected content' });
 });
 ```
 
-## Features
+### Solana Actions (Blinks) Integration
 
-- **RFC 9110 Compliant**: Implements HTTP 402 Payment Required
-- **Automatic Verification**: Validates escrow accounts on-chain
-- **Quality Guarantee**: Optional quality guarantee with dispute resolution
-- **Type Safe**: Full TypeScript support with type definitions
+```typescript
+import express from 'express';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { createActionsRouter } from '@mitama/middleware';
+
+const app = express();
+
+// Mount Solana Actions endpoints
+app.use(createActionsRouter({
+  baseUrl: 'https://api.example.com',
+  programId: new PublicKey('8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC'),
+  connection: new Connection('https://api.mainnet-beta.solana.com'),
+  providerWallet: new PublicKey('YOUR_WALLET'),
+  title: 'Premium API Access',
+  description: 'Pay-per-use AI inference API',
+  pricing: [
+    { id: 'basic', label: 'Single Request', amount: 0.001, currency: 'SOL' },
+    { id: 'pro', label: '100 Requests', amount: 0.05, currency: 'SOL' },
+    { id: 'usdc', label: 'Single Request', amount: 0.10, currency: 'USDC' },
+  ],
+  escrowRequired: true,
+  defaultTimeLock: 86400, // 24 hours
+}));
+
+app.listen(3000);
+```
+
+This creates the following endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /actions.json` | Solana Actions rules file |
+| `GET /api/actions/pay` | Payment action metadata |
+| `POST /api/actions/pay/:tierId` | Create payment transaction |
+| `GET /api/actions/escrow` | Escrow action metadata |
+| `POST /api/actions/escrow/:tierId` | Create escrow transaction |
+
+### Agent Integration (SDK)
+
+```typescript
+import { Connection, Keypair } from '@solana/web3.js';
+import { X402Client } from '@mitama/sdk';
+
+const client = new X402Client({
+  connection: new Connection('https://api.mainnet-beta.solana.com'),
+  wallet: Keypair.generate(),
+  programId: new PublicKey('8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC'),
+  qualityThreshold: 70,
+  maxPricePerRequest: 0.1,
+});
+
+// Auto-discover and pay for API access
+const response = await client.request('https://api.example.com/premium/inference', {
+  method: 'POST',
+  body: JSON.stringify({ prompt: 'Hello' }),
+  useEscrow: true,
+});
+
+if (response.success) {
+  console.log(response.data);
+}
+```
 
 ## API Reference
 
 ### MitamaPaymentMiddleware(options)
 
-Creates Express middleware for HTTP 402 payment verification.
+Express middleware for HTTP 402 payment verification.
 
-**Options:**
-- `realm` (string): API realm identifier
-- `programId` (PublicKey): Solana escrow program ID
-- `connection` (Connection): Solana connection
-- `price` (number): Price in SOL
-- `qualityGuarantee` (boolean, optional): Enable quality guarantee
+| Option | Type | Description |
+|--------|------|-------------|
+| `realm` | string | API realm identifier |
+| `programId` | PublicKey | Mitama program ID |
+| `connection` | Connection | Solana RPC connection |
+| `price` | number | Price in SOL |
+| `qualityGuarantee` | boolean | Enable dispute protection |
 
-### getEscrowInfo(req)
+### createActionsRouter(config)
 
-Extract escrow information from authenticated request.
+Creates Express router with Solana Actions endpoints.
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `baseUrl` | string | Base URL for action endpoints |
+| `programId` | PublicKey | Mitama program ID |
+| `connection` | Connection | Solana RPC connection |
+| `providerWallet` | PublicKey | Wallet to receive payments |
+| `title` | string | Action title |
+| `description` | string | Action description |
+| `pricing` | PricingTier[] | Available pricing options |
+| `escrowRequired` | boolean | Require escrow for protection |
+| `defaultTimeLock` | number | Default escrow time lock (seconds) |
+
+### PricingTier
 
 ```typescript
-import { getEscrowInfo } from '@kamiyo/mitama-middleware';
+interface PricingTier {
+  id: string;           // Tier identifier
+  label: string;        // Display label
+  amount: number;       // Price amount
+  currency: 'SOL' | 'USDC' | 'USDT';
+  description?: string; // What the tier provides
+}
+```
 
-app.get('/api/data', (req, res) => {
-  const escrow = getEscrowInfo(req);
-  console.log(`Payment: ${escrow.amount} SOL`);
-  res.json({ data: 'protected' });
-});
+## Solana Actions Flow
+
+```
+Agent                              API Provider
+  │                                     │
+  │  1. GET /actions.json               │
+  ├────────────────────────────────────►│
+  │     (discover payment options)      │
+  │◄────────────────────────────────────┤
+  │                                     │
+  │  2. POST /api/actions/pay/:tier     │
+  ├────────────────────────────────────►│
+  │     (get unsigned transaction)      │
+  │◄────────────────────────────────────┤
+  │                                     │
+  │  3. Sign & submit transaction       │
+  ├────────────────────────────────────►│ Solana
+  │                                     │
+  │  4. Request API with payment proof  │
+  ├────────────────────────────────────►│
+  │     X-Payment-Proof: <escrow>       │
+  │◄────────────────────────────────────┤
+  │     (protected content)             │
 ```
 
 ## License
 
-MIT
+BUSL-1.1
