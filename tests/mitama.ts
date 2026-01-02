@@ -1,6 +1,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
+import {
+  createMint,
+  createAssociatedTokenAccount,
+  mintTo,
+  getAccount,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { expect } from "chai";
 
 // Import IDL (will be generated after build)
@@ -570,6 +578,296 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       // Verify stake was returned
       const balanceAfter = await provider.connection.getBalance(deactivateOwner.publicKey);
       expect(balanceAfter).to.be.greaterThan(balanceBefore);
+    });
+  });
+
+  // ============================================================================
+  // SPL Token Escrow Tests
+  // ============================================================================
+
+  describe("SPL Token Escrows", () => {
+    let tokenMint: PublicKey;
+    let mintAuthority: Keypair;
+    let agentTokenAccount: PublicKey;
+    let providerTokenAccount: PublicKey;
+    const TOKEN_DECIMALS = 6; // USDC-like decimals
+
+    before(async () => {
+      // Create a test SPL token mint (simulating USDC)
+      mintAuthority = Keypair.generate();
+      const airdropSig = await provider.connection.requestAirdrop(
+        mintAuthority.publicKey,
+        2 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig);
+
+      // Create the mint
+      tokenMint = await createMint(
+        provider.connection,
+        mintAuthority,
+        mintAuthority.publicKey,
+        null,
+        TOKEN_DECIMALS
+      );
+
+      // Create associated token accounts for agent and provider
+      agentTokenAccount = await createAssociatedTokenAccount(
+        provider.connection,
+        mintAuthority,
+        tokenMint,
+        owner.publicKey
+      );
+
+      providerTokenAccount = await createAssociatedTokenAccount(
+        provider.connection,
+        mintAuthority,
+        tokenMint,
+        provider2.publicKey
+      );
+
+      // Mint tokens to agent (10,000 tokens)
+      const mintAmount = 10_000 * 10 ** TOKEN_DECIMALS;
+      await mintTo(
+        provider.connection,
+        mintAuthority,
+        tokenMint,
+        agentTokenAccount,
+        mintAuthority,
+        mintAmount
+      );
+    });
+
+    it("Initializes an SPL token escrow", async () => {
+      const splTxId = `spl-escrow-${Date.now()}`;
+      const [splEscrowPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow"), Buffer.from(splTxId)],
+        program.programId
+      );
+
+      // Create escrow token account PDA
+      const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow_token"), splEscrowPDA.toBuffer()],
+        program.programId
+      );
+
+      const amount = new anchor.BN(100 * 10 ** TOKEN_DECIMALS); // 100 tokens
+      const timeLock = new anchor.BN(3600);
+
+      // Get agent token balance before
+      const agentBalanceBefore = await getAccount(provider.connection, agentTokenAccount);
+
+      await program.methods
+        .initializeEscrow(amount, timeLock, splTxId, true) // use_spl_token = true
+        .accounts({
+          escrow: splEscrowPDA,
+          agent: owner.publicKey,
+          api: provider2.publicKey,
+          systemProgram: SystemProgram.programId,
+          tokenMint: tokenMint,
+          escrowTokenAccount: escrowTokenAccountPDA,
+          agentTokenAccount: agentTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([owner])
+        .rpc();
+
+      // Verify escrow state
+      const escrow = await program.account.escrow.fetch(splEscrowPDA);
+      expect(escrow.tokenMint?.toString()).to.equal(tokenMint.toString());
+      expect(escrow.amount.toNumber()).to.equal(amount.toNumber());
+      expect(escrow.status).to.deep.equal({ active: {} });
+
+      // Verify tokens were transferred from agent
+      const agentBalanceAfter = await getAccount(provider.connection, agentTokenAccount);
+      expect(Number(agentBalanceBefore.amount) - Number(agentBalanceAfter.amount)).to.equal(amount.toNumber());
+    });
+
+    it("Releases SPL tokens to provider", async () => {
+      const releaseTxId = `spl-release-${Date.now()}`;
+      const [releaseEscrowPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow"), Buffer.from(releaseTxId)],
+        program.programId
+      );
+
+      const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow_token"), releaseEscrowPDA.toBuffer()],
+        program.programId
+      );
+
+      const amount = new anchor.BN(50 * 10 ** TOKEN_DECIMALS); // 50 tokens
+      const timeLock = new anchor.BN(3600);
+
+      // Initialize escrow
+      await program.methods
+        .initializeEscrow(amount, timeLock, releaseTxId, true)
+        .accounts({
+          escrow: releaseEscrowPDA,
+          agent: owner.publicKey,
+          api: provider2.publicKey,
+          systemProgram: SystemProgram.programId,
+          tokenMint: tokenMint,
+          escrowTokenAccount: escrowTokenAccountPDA,
+          agentTokenAccount: agentTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([owner])
+        .rpc();
+
+      // Get provider token balance before release
+      const providerBalanceBefore = await getAccount(provider.connection, providerTokenAccount);
+
+      // Release funds to provider
+      await program.methods
+        .releaseFunds()
+        .accounts({
+          escrow: releaseEscrowPDA,
+          agent: owner.publicKey,
+          api: provider2.publicKey,
+          systemProgram: SystemProgram.programId,
+          escrowTokenAccount: escrowTokenAccountPDA,
+          apiTokenAccount: providerTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([owner])
+        .rpc();
+
+      // Verify escrow status
+      const escrow = await program.account.escrow.fetch(releaseEscrowPDA);
+      expect(escrow.status).to.deep.equal({ released: {} });
+
+      // Verify provider received tokens
+      const providerBalanceAfter = await getAccount(provider.connection, providerTokenAccount);
+      expect(Number(providerBalanceAfter.amount) - Number(providerBalanceBefore.amount)).to.equal(amount.toNumber());
+    });
+
+    it("Handles dispute with SPL token escrow", async () => {
+      const disputeTxId = `spl-dispute-${Date.now()}`;
+      const [disputeEscrowPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow"), Buffer.from(disputeTxId)],
+        program.programId
+      );
+
+      const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow_token"), disputeEscrowPDA.toBuffer()],
+        program.programId
+      );
+
+      const amount = new anchor.BN(25 * 10 ** TOKEN_DECIMALS); // 25 tokens
+      const timeLock = new anchor.BN(3600);
+
+      // Initialize escrow
+      await program.methods
+        .initializeEscrow(amount, timeLock, disputeTxId, true)
+        .accounts({
+          escrow: disputeEscrowPDA,
+          agent: owner.publicKey,
+          api: provider2.publicKey,
+          systemProgram: SystemProgram.programId,
+          tokenMint: tokenMint,
+          escrowTokenAccount: escrowTokenAccountPDA,
+          agentTokenAccount: agentTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([owner])
+        .rpc();
+
+      // Mark as disputed
+      await program.methods
+        .markDisputed()
+        .accounts({
+          escrow: disputeEscrowPDA,
+          reputation: reputationPDA,
+          agent: owner.publicKey,
+        })
+        .signers([owner])
+        .rpc();
+
+      // Verify dispute status
+      const escrow = await program.account.escrow.fetch(disputeEscrowPDA);
+      expect(escrow.status).to.deep.equal({ disputed: {} });
+      expect(escrow.tokenMint?.toString()).to.equal(tokenMint.toString());
+    });
+
+    it("Fails to initialize SPL escrow without token accounts", async () => {
+      const noAccountTxId = `no-token-account-${Date.now()}`;
+      const [noAccountEscrowPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("escrow"), Buffer.from(noAccountTxId)],
+        program.programId
+      );
+
+      const amount = new anchor.BN(10 * 10 ** TOKEN_DECIMALS);
+      const timeLock = new anchor.BN(3600);
+
+      try {
+        await program.methods
+          .initializeEscrow(amount, timeLock, noAccountTxId, true) // use_spl_token = true
+          .accounts({
+            escrow: noAccountEscrowPDA,
+            agent: owner.publicKey,
+            api: provider2.publicKey,
+            systemProgram: SystemProgram.programId,
+            tokenMint: null, // Missing required accounts
+            escrowTokenAccount: null,
+            agentTokenAccount: null,
+            tokenProgram: null,
+            associatedTokenProgram: null,
+          })
+          .signers([owner])
+          .rpc();
+        expect.fail("Should have thrown MissingTokenAccount error");
+      } catch (err: any) {
+        expect(err.error?.errorCode?.code || err.message).to.include("MissingTokenAccount");
+      }
+    });
+
+    it("Creates multiple SPL token escrows for same agent", async () => {
+      const escrows: { txId: string; pda: PublicKey; amount: anchor.BN }[] = [];
+
+      // Create 3 escrows
+      for (let i = 0; i < 3; i++) {
+        const txId = `multi-spl-${Date.now()}-${i}`;
+        const [escrowPDA] = PublicKey.findProgramAddressSync(
+          [Buffer.from("escrow"), Buffer.from(txId)],
+          program.programId
+        );
+
+        const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
+          [Buffer.from("escrow_token"), escrowPDA.toBuffer()],
+          program.programId
+        );
+
+        const amount = new anchor.BN((i + 1) * 10 * 10 ** TOKEN_DECIMALS);
+        const timeLock = new anchor.BN(3600);
+
+        await program.methods
+          .initializeEscrow(amount, timeLock, txId, true)
+          .accounts({
+            escrow: escrowPDA,
+            agent: owner.publicKey,
+            api: provider2.publicKey,
+            systemProgram: SystemProgram.programId,
+            tokenMint: tokenMint,
+            escrowTokenAccount: escrowTokenAccountPDA,
+            agentTokenAccount: agentTokenAccount,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          })
+          .signers([owner])
+          .rpc();
+
+        escrows.push({ txId, pda: escrowPDA, amount });
+      }
+
+      // Verify all escrows
+      for (const escrowInfo of escrows) {
+        const escrow = await program.account.escrow.fetch(escrowInfo.pda);
+        expect(escrow.amount.toNumber()).to.equal(escrowInfo.amount.toNumber());
+        expect(escrow.tokenMint?.toString()).to.equal(tokenMint.toString());
+        expect(escrow.status).to.deep.equal({ active: {} });
+      }
     });
   });
 });
