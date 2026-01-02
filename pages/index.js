@@ -292,7 +292,7 @@ export default function Home() {
                 <div className="w-full px-5 mx-auto max-w-[1400px]">
                     <header className="text-center mb-12">
                         <p className="font-light text-sm mb-2"><span className="tracking-normal">ミタマプロトコル</span> <span className="gradient-text tracking-[5px]">MITAMA</span></p>
-                        <div className="mb-4"><GlitchLabel text="testing" /></div>
+                        <div className="mb-4"><GlitchLabel text="mainnet" /></div>
                         <h2 className="text-3xl md:text-4xl font-light mb-4">Agent Identity & Conflict Resolution</h2>
                         <p className="text-gray-400 text-sm md:text-lg max-w-2xl mx-auto">
                             On-chain identity and trustless dispute arbitration for autonomous agents. When payments go wrong, Mitama resolves conflicts through multi-oracle consensus.
@@ -455,6 +455,10 @@ export default function Home() {
                             <div className="p-4 border border-gray-500/20 rounded-lg">
                                 <div className="font-mono text-cyan text-sm mb-1">@mitama/mcp-server</div>
                                 <div className="text-gray-400 text-xs">Model Context Protocol integration for AI systems</div>
+                            </div>
+                            <div className="p-4 border border-gray-500/20 rounded-lg">
+                                <div className="font-mono text-cyan text-sm mb-1">@mitama/surfpool</div>
+                                <div className="text-gray-400 text-xs">Strategy simulation and pre-flight validation with Surfpool</div>
                             </div>
                             <div className="p-4 border border-gray-500/20 rounded-lg">
                                 <div className="font-mono text-cyan text-sm mb-1">@mitama/switchboard</div>
