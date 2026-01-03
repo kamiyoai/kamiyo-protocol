@@ -23,7 +23,7 @@ export default function Home() {
                         <article className="space-y-8">
                             {/* Heading */}
                             <header>
-                                <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;エージェント信頼基盤</p>
+                                <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;えーじぇんとしんらい</p>
                                 <h2 className="text-[2.2rem] md:text-[3.1rem] font-light mb-4 leading-tight text-white">
                                     Trust infrastructure for autonomous agents
                                 </h2>
