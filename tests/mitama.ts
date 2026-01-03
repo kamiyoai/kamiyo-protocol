@@ -55,7 +55,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
     );
 
     [escrowPDA, escrowBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("escrow"), Buffer.from(transactionId)],
+      [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(transactionId)],
       program.programId
     );
 
@@ -192,7 +192,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
     it("Fails to create escrow with invalid time lock", async () => {
       const newTxId = `test-invalid-${Date.now()}`;
       const [newEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(newTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(newTxId)],
         program.programId
       );
 
@@ -225,7 +225,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       // Create a new escrow for release test
       const releaseTxId = `release-${Date.now()}`;
       const [releaseEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(releaseTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(releaseTxId)],
         program.programId
       );
 
@@ -308,7 +308,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       // Create a new escrow for dispute test
       const disputeTxId = `dispute-${Date.now()}`;
       const [disputeEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(disputeTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(disputeTxId)],
         program.programId
       );
 
@@ -355,7 +355,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       // Create and release an escrow
       const releasedTxId = `released-dispute-${Date.now()}`;
       const [releasedEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(releasedTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(releasedTxId)],
         program.programId
       );
 
@@ -640,7 +640,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
     it("Initializes an SPL token escrow", async () => {
       const splTxId = `spl-escrow-${Date.now()}`;
       const [splEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(splTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(splTxId)],
         program.programId
       );
 
@@ -686,7 +686,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
     it("Releases SPL tokens to provider", async () => {
       const releaseTxId = `spl-release-${Date.now()}`;
       const [releaseEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(releaseTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(releaseTxId)],
         program.programId
       );
 
@@ -745,7 +745,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
     it("Handles dispute with SPL token escrow", async () => {
       const disputeTxId = `spl-dispute-${Date.now()}`;
       const [disputeEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(disputeTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(disputeTxId)],
         program.programId
       );
 
@@ -794,7 +794,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
     it("Fails to initialize SPL escrow without token accounts", async () => {
       const noAccountTxId = `no-token-account-${Date.now()}`;
       const [noAccountEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), Buffer.from(noAccountTxId)],
+        [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(noAccountTxId)],
         program.programId
       );
 
@@ -830,7 +830,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       for (let i = 0; i < 3; i++) {
         const txId = `multi-spl-${Date.now()}-${i}`;
         const [escrowPDA] = PublicKey.findProgramAddressSync(
-          [Buffer.from("escrow"), Buffer.from(txId)],
+          [Buffer.from("escrow"), owner.publicKey.toBuffer(), Buffer.from(txId)],
           program.programId
         );
 

@@ -64,11 +64,11 @@ export class MitamaClient {
   }
 
   /**
-   * Derive the agreement (escrow) PDA for a transaction ID
+   * Derive the agreement (escrow) PDA for an agent and transaction ID
    */
-  getAgreementPDA(transactionId: string): [PublicKey, number] {
+  getAgreementPDA(agent: PublicKey, transactionId: string): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("escrow"), Buffer.from(transactionId)],
+      [Buffer.from("escrow"), agent.toBuffer(), Buffer.from(transactionId)],
       this.programId
     );
   }
@@ -76,8 +76,8 @@ export class MitamaClient {
   /**
    * Alias for getAgreementPDA for backward compatibility
    */
-  deriveAgreementAddress(transactionId: string): [PublicKey, number] {
-    return this.getAgreementPDA(transactionId);
+  deriveAgreementAddress(agent: PublicKey, transactionId: string): [PublicKey, number] {
+    return this.getAgreementPDA(agent, transactionId);
   }
 
   /**
@@ -160,12 +160,13 @@ export class MitamaClient {
   }
 
   /**
-   * Fetch agreement by transaction ID
+   * Fetch agreement by agent and transaction ID
    */
   async getAgreementByTransactionId(
+    agent: PublicKey,
     transactionId: string
   ): Promise<Agreement | null> {
-    const [agreementPDA] = this.getAgreementPDA(transactionId);
+    const [agreementPDA] = this.getAgreementPDA(agent, transactionId);
     return this.getAgreement(agreementPDA);
   }
 
@@ -299,7 +300,7 @@ export class MitamaClient {
     agent: PublicKey,
     params: CreateAgreementParams
   ): TransactionInstruction {
-    const [agreementPDA] = this.getAgreementPDA(params.transactionId);
+    const [agreementPDA] = this.getAgreementPDA(agent, params.transactionId);
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();
 
@@ -342,7 +343,7 @@ export class MitamaClient {
     transactionId: string,
     provider: PublicKey
   ): TransactionInstruction {
-    const [agreementPDA] = this.getAgreementPDA(transactionId);
+    const [agreementPDA] = this.getAgreementPDA(agent, transactionId);
 
     const discriminator = Buffer.from([
       0x8a, 0x9b, 0xac, 0xbd, 0xce, 0xdf, 0xe0, 0xf1,
@@ -367,7 +368,7 @@ export class MitamaClient {
     agent: PublicKey,
     transactionId: string
   ): TransactionInstruction {
-    const [agreementPDA] = this.getAgreementPDA(transactionId);
+    const [agreementPDA] = this.getAgreementPDA(agent, transactionId);
     const [reputationPDA] = this.getReputationPDA(agent);
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();

@@ -270,12 +270,6 @@ fn calculate_weighted_consensus(
     Ok((weighted_sum / total_weight) as u8)
 }
 
-/// Simple consensus without weights (backwards compatible)
-fn calculate_consensus_score(scores: &[u8], max_deviation: u8) -> Result<u8> {
-    let weighted: Vec<(u8, u16)> = scores.iter().map(|s| (*s, 1)).collect();
-    calculate_weighted_consensus(&weighted, max_deviation)
-}
-
 /// Calculate refund percentage based on quality score
 fn calculate_refund_from_quality(quality_score: u8) -> u8 {
     match quality_score {

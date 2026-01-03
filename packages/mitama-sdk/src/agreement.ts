@@ -49,16 +49,17 @@ export class AgreementManager {
     };
 
     const signature = await this.client.createAgreement(params);
-    const [pda] = this.client.getAgreementPDA(transactionId);
+    const [pda] = this.client.getAgreementPDA(this.client.wallet.publicKey, transactionId);
 
     return { signature, pda };
   }
 
   /**
-   * Get agreement by transaction ID
+   * Get agreement by transaction ID (uses connected wallet as agent)
    */
-  async getByTransactionId(transactionId: string): Promise<Agreement | null> {
-    return this.client.getAgreementByTransactionId(transactionId);
+  async getByTransactionId(transactionId: string, agent?: PublicKey): Promise<Agreement | null> {
+    const agentKey = agent ?? this.client.wallet.publicKey;
+    return this.client.getAgreementByTransactionId(agentKey, transactionId);
   }
 
   /**
@@ -110,10 +111,11 @@ export class AgreementManager {
   }
 
   /**
-   * Get agreement PDA
+   * Get agreement PDA for the connected wallet
    */
-  getPDA(transactionId: string): PublicKey {
-    const [pda] = this.client.getAgreementPDA(transactionId);
+  getPDA(transactionId: string, agent?: PublicKey): PublicKey {
+    const agentKey = agent ?? this.client.wallet.publicKey;
+    const [pda] = this.client.getAgreementPDA(agentKey, transactionId);
     return pda;
   }
 
