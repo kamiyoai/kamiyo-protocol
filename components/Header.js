@@ -70,8 +70,8 @@ export default function Header({ children }) {
             {/* Sticky header container */}
             <header className={`w-full text-white transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"}`}>
                 <div className="w-full px-5 mx-auto py-3 flex items-center justify-between" style={{ maxWidth: '1400px' }}>
-                    <div className="flex-shrink-0 overflow-hidden">
-                        <Link href="/" className="flex items-center">
+                    <div className="flex items-center gap-8">
+                        <Link href="/" className="flex items-center flex-shrink-0">
                             {/* Mobile logo */}
                             <img
                                 src="/media/KAMIYO_logomark.png"
@@ -89,6 +89,27 @@ export default function Header({ children }) {
                                 className="hidden md:block object-contain h-14 w-auto"
                             />
                         </Link>
+                        {/* Header navigation links */}
+                        <nav className="hidden md:flex items-center gap-6">
+                            <Link
+                                href="/about"
+                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                            >
+                                About
+                            </Link>
+                            <Link
+                                href="/pricing"
+                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                            >
+                                Pricing
+                            </Link>
+                            <Link
+                                href="/inquiries"
+                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                            >
+                                Inquiries
+                            </Link>
+                        </nav>
                     </div>
                     <div className="flex items-center gap-8">
                         {session && (
