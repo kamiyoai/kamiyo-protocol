@@ -1733,50 +1733,79 @@ pub mod mitama {
             }
         }
 
+        // RPC endpoints with fallbacks
+        const RPC_ENDPOINTS = [
+            'https://api.mainnet-beta.solana.com',
+            'https://solana-mainnet.g.alchemy.com/v2/demo',
+            'https://rpc.ankr.com/solana'
+        ];
+
+        async function getWorkingConnection() {
+            for (const endpoint of RPC_ENDPOINTS) {
+                try {
+                    const connection = new solanaWeb3.Connection(endpoint, 'confirmed');
+                    await connection.getSlot();
+                    return connection;
+                } catch {
+                    continue;
+                }
+            }
+            return new solanaWeb3.Connection(RPC_ENDPOINTS[0], 'confirmed');
+        }
+
         // Solana connection check
         async function checkSolanaConnection() {
-            try {
-                const connection = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com');
-                const startTime = performance.now();
-                await connection.getSlot();
-                const endTime = performance.now();
-                const latency = Math.round(endTime - startTime);
+            for (const endpoint of RPC_ENDPOINTS) {
+                try {
+                    const connection = new solanaWeb3.Connection(endpoint, 'confirmed');
+                    const startTime = performance.now();
+                    await connection.getSlot();
+                    const endTime = performance.now();
+                    const latency = Math.round(endTime - startTime);
 
-                const latencyColor = latency < 500 ? '#00ffff' : latency < 1000 ? '#fbbf24' : '#ef4444';
-                document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">✓</span>&nbsp;${latency}ms`;
-            } catch (error) {
-                document.getElementById('rpcLatency').textContent = 'RPC Latency: ✗ Error';
-                document.getElementById('rpcLatency').style.background = '#1a1a1a';
-                document.getElementById('rpcLatency').style.borderColor = '#ef4444';
+                    const latencyColor = latency < 500 ? '#00ffff' : latency < 1000 ? '#fbbf24' : '#ef4444';
+                    document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">✓</span>&nbsp;${latency}ms`;
+                    return;
+                } catch {
+                    continue;
+                }
             }
+            document.getElementById('rpcLatency').textContent = 'RPC Latency: ✗ Error';
+            document.getElementById('rpcLatency').style.background = '#1a1a1a';
+            document.getElementById('rpcLatency').style.borderColor = '#ef4444';
         }
 
         async function checkProgramStatus() {
-            try {
-                const connection = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com');
-                const programId = new solanaWeb3.PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
-                const info = await connection.getAccountInfo(programId);
+            for (const endpoint of RPC_ENDPOINTS) {
+                try {
+                    const connection = new solanaWeb3.Connection(endpoint, 'confirmed');
+                    const programId = new solanaWeb3.PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+                    const info = await connection.getAccountInfo(programId);
 
-                if (info && info.executable) {
-                    // For executable accounts, get the programdata account
-                    const programDataPubkey = (await solanaWeb3.PublicKey.findProgramAddress(
-                        [programId.toBuffer()],
-                        new solanaWeb3.PublicKey('BPFLoaderUpgradeab1e11111111111111111111111')
-                    ))[0];
+                    if (info && info.executable) {
+                        // For executable accounts, get the programdata account
+                        const programDataPubkey = (await solanaWeb3.PublicKey.findProgramAddress(
+                            [programId.toBuffer()],
+                            new solanaWeb3.PublicKey('BPFLoaderUpgradeab1e11111111111111111111111')
+                        ))[0];
 
-                    try {
-                        const programDataInfo = await connection.getAccountInfo(programDataPubkey);
-                        const size = programDataInfo ? Math.round(programDataInfo.data.length / 1024) : 275;
-                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed (${size}KB)`;
-                    } catch {
-                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed`;
+                        try {
+                            const programDataInfo = await connection.getAccountInfo(programDataPubkey);
+                            const size = programDataInfo ? Math.round(programDataInfo.data.length / 1024) : 275;
+                            document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed (${size}KB)`;
+                        } catch {
+                            document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed`;
+                        }
+                        return;
+                    } else {
+                        document.getElementById('programStatus').textContent = 'Program: Not found';
+                        return;
                     }
-                } else {
-                    document.getElementById('programStatus').textContent = 'Program: Not found';
+                } catch {
+                    continue;
                 }
-            } catch (error) {
-                document.getElementById('programStatus').textContent = 'Program: Error checking';
             }
+            document.getElementById('programStatus').textContent = 'Program: Error checking';
         }
 
         async function checkOracleStatus() {
@@ -2349,14 +2378,14 @@ pub mod mitama {
 
                 // Fetch and display balance
                 try {
-                    const connection = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com');
+                    const connection = await getWorkingConnection();
                     const balance = await connection.getBalance(walletPublicKey);
                     const solBalance = (balance / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4);
                     showStatus(`Balance: ${solBalance} SOL`, 'info');
 
                     if (balance === 0) {
                         setTimeout(() => {
-                            showStatus('Need SOL? Visit faucet.solana.com', 'info');
+                            showStatus('Need SOL? Visit solana.com', 'info');
                         }, 3000);
                     }
                 } catch (err) {
