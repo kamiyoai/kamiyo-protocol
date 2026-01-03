@@ -64,7 +64,7 @@ export default function Home() {
                                         title="View API Documentation"
                                         aria-label="View Documentation"
                                     >
-                                        Documentation →
+                                        View docs →
                                     </LinkButton>
                                 </div>
                             </div>
