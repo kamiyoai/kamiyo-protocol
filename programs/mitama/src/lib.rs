@@ -54,8 +54,16 @@
 //! ## Slashing Mechanisms
 //!
 //! 1. **Agent Slashing**: 5% of stake slashed for frivolous disputes (quality >= 80)
-//! 2. **Oracle Slashing**: 10% of stake slashed for voting against consensus (future)
-//! 3. **Oracle Removal**: After 3 violations, oracle can be removed from registry
+//! 2. **Oracle Slashing**: 10% of stake slashed for voting outside consensus deviation
+//! 3. **Oracle Removal**: After 3 violations, oracle should be removed from registry
+//!
+//! ## Escrow Expiration Handling
+//!
+//! Escrows have a configurable time-lock (1 hour to 30 days). After expiration:
+//! - **Grace Period**: 7 days after expiration for dispute resolution
+//! - **Active Escrow**: Full refund to agent (API failed to deliver)
+//! - **Disputed Escrow**: 50/50 split if no oracle consensus reached
+//! - **Permissionless Claim**: Anyone can trigger `claim_expired_escrow` after grace period
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
@@ -359,7 +367,13 @@ fn calculate_weighted_consensus(
     require!(total_weight > 0, MitamaError::NoConsensusReached);
 
     // Use ceiling division for tie-breaking (favors agent refunds in boundary cases)
-    let consensus = (weighted_sum + total_weight - 1) / total_weight;
+    // Safe: weighted_sum is max 100 * u16::MAX * 5 oracles = ~32M, fits in u64
+    let consensus = weighted_sum
+        .checked_add(total_weight)
+        .ok_or(MitamaError::ArithmeticOverflow)?
+        .saturating_sub(1)
+        .checked_div(total_weight)
+        .ok_or(MitamaError::ArithmeticOverflow)?;
     Ok(consensus.min(100) as u8)
 }
 
@@ -662,7 +676,9 @@ pub mod mitama {
         escrow.amount = amount;
         escrow.status = EscrowStatus::Active;
         escrow.created_at = clock.unix_timestamp;
-        escrow.expires_at = clock.unix_timestamp + time_lock;
+        escrow.expires_at = clock.unix_timestamp
+            .checked_add(time_lock)
+            .ok_or(MitamaError::ArithmeticOverflow)?;
         escrow.transaction_id = transaction_id.clone();
         escrow.bump = ctx.bumps.escrow;
         escrow.quality_score = None;
@@ -1491,6 +1507,56 @@ pub mod mitama {
             }
         }
 
+        // Oracle stake slashing for voting against consensus
+        // Oracles whose scores deviate more than max_score_deviation from consensus are slashed
+        {
+            let oracle_registry = &mut ctx.accounts.oracle_registry;
+            let max_deviation = oracle_registry.max_score_deviation;
+
+            for submission in ctx.accounts.escrow.oracle_submissions.iter() {
+                let score_diff = submission.quality_score.abs_diff(consensus_score);
+
+                // If oracle voted outside acceptable deviation, slash their stake
+                if score_diff > max_deviation {
+                    if let Some(oracle) = oracle_registry.oracles.iter_mut().find(|o| o.pubkey == submission.oracle) {
+                        let slash_amount = (oracle.stake_amount as u128)
+                            .checked_mul(ORACLE_SLASH_PERCENT as u128)
+                            .ok_or(MitamaError::ArithmeticOverflow)?
+                            .checked_div(100)
+                            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+
+                        if slash_amount > 0 && oracle.stake_amount >= slash_amount {
+                            oracle.stake_amount = oracle.stake_amount.saturating_sub(slash_amount);
+                            oracle.violation_count = oracle.violation_count.saturating_add(1);
+
+                            emit!(OracleSlashed {
+                                oracle: oracle.pubkey,
+                                slash_amount,
+                                violation_count: oracle.violation_count,
+                                reason: format!(
+                                    "Voted {} (consensus: {}), deviation: {} > max: {}",
+                                    submission.quality_score,
+                                    consensus_score,
+                                    score_diff,
+                                    max_deviation
+                                ),
+                            });
+
+                            // Mark for removal if too many violations
+                            if oracle.violation_count >= MAX_ORACLE_SLASH_VIOLATIONS {
+                                msg!(
+                                    "Oracle {} exceeded violation limit ({}/{}), should be removed",
+                                    oracle.pubkey,
+                                    oracle.violation_count,
+                                    MAX_ORACLE_SLASH_VIOLATIONS
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Transfer escrow funds (interactions - after state updates)
         // Handle both SOL and SPL tokens
         let seeds = &[b"escrow".as_ref(), agent_key.as_ref(), transaction_id.as_bytes(), &[bump]];
@@ -2053,6 +2119,7 @@ pub struct FinalizeMultiOracleDispute<'info> {
     pub escrow: Account<'info, Escrow>,
 
     #[account(
+        mut,
         seeds = [b"oracle_registry"],
         bump = oracle_registry.bump
     )]
