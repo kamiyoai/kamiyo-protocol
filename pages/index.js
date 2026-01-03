@@ -216,78 +216,101 @@ export default function Home() {
 
             {/* SDK Integration Section */}
             <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
-                <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
+                <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
                     SDK Integration
                 </h2>
+                <p className="text-gray-400 text-center mb-12">Three lines to protect your first transaction</p>
 
-                <div className="grid md:grid-cols-2 gap-8 mb-12">
-                    <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Create Protected Agreement</div>
-                        <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                            <div className="text-gray-500 mb-2">// Create escrow with dispute protection</div>
-                            <div className="text-white"><span className="text-cyan">import</span> {'{'} KamiyoClient {'}'} <span className="text-cyan">from</span> <span className="text-gray-400">'@kamiyo/sdk'</span></div>
-                            <div className="text-white mb-2"></div>
-                            <div className="text-white"><span className="text-cyan">const</span> client = <span className="text-cyan">new</span> KamiyoClient(config)</div>
-                            <div className="text-white mb-2"></div>
-                            <div className="text-gray-500">// Register agent with collateral</div>
-                            <div className="text-white"><span className="text-cyan">await</span> client.createIdentity({'{'}</div>
-                            <div className="ml-4 text-white">stake: <span className="text-magenta">0.1</span>, <span className="text-gray-500">// SOL</span></div>
-                            <div className="ml-4 text-white">metadata: {'{'} name: <span className="text-gray-400">"agent-1"</span> {'}'}</div>
+                {/* Single unified code block */}
+                <div className="max-w-3xl mx-auto mb-12">
+                    <div className="rounded-lg overflow-hidden border border-gray-500/25">
+                        {/* Code block header */}
+                        <div className="bg-gray-900/50 px-4 py-2 flex items-center justify-between border-b border-gray-500/25">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 font-mono">typescript</span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(`import { KAMIYOClient } from '@kamiyo/sdk'
+
+const client = new KAMIYOClient({ connection, wallet })
+
+// 1. Create agent identity with stake
+await client.createAgent({
+  name: 'MyAgent',
+  stakeAmount: 500_000_000
+})
+
+// 2. Lock funds in escrow
+const agreement = await client.createAgreement({
+  provider: providerPubkey,
+  amount: 100_000_000,
+  timeLockSeconds: 86400
+})
+
+// 3. Release on success, or dispute
+await client.releaseFunds(agreement.id)
+// or: await client.markDisputed(agreement.id)`);
+                                }}
+                                className="text-xs text-gray-500 hover:text-white transition-colors flex items-center gap-1"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Copy
+                            </button>
+                        </div>
+                        {/* Code content */}
+                        <div className="bg-black p-6 font-mono text-sm overflow-x-auto">
+                            <div className="text-white"><span className="text-cyan">import</span> {'{'} KAMIYOClient {'}'} <span className="text-cyan">from</span> <span className="text-gray-400">'@kamiyo/sdk'</span></div>
+                            <div className="text-white mb-4"></div>
+                            <div className="text-white"><span className="text-cyan">const</span> client = <span className="text-cyan">new</span> KAMIYOClient({'{'} connection, wallet {'}'})</div>
+                            <div className="text-white mb-4"></div>
+                            <div className="text-gray-500">// 1. Create agent identity with stake</div>
+                            <div className="text-white"><span className="text-cyan">await</span> client.createAgent({'{'}</div>
+                            <div className="ml-4 text-white">name: <span className="text-gray-400">'MyAgent'</span>,</div>
+                            <div className="ml-4 text-white">stakeAmount: <span className="text-magenta">500_000_000</span></div>
                             <div className="text-white">{'}'})</div>
-                            <div className="text-white mb-2"></div>
-                            <div className="text-gray-500">// Create protected agreement</div>
+                            <div className="text-white mb-4"></div>
+                            <div className="text-gray-500">// 2. Lock funds in escrow</div>
                             <div className="text-white"><span className="text-cyan">const</span> agreement = <span className="text-cyan">await</span> client.createAgreement({'{'}</div>
                             <div className="ml-4 text-white">provider: <span className="text-gray-400">providerPubkey</span>,</div>
-                            <div className="ml-4 text-white">amount: <span className="text-magenta">1.0</span>,</div>
-                            <div className="ml-4 text-white">token: <span className="text-gray-400">"USDC"</span>,</div>
-                            <div className="ml-4 text-white">timeLockHours: <span className="text-magenta">24</span></div>
+                            <div className="ml-4 text-white">amount: <span className="text-magenta">100_000_000</span>,</div>
+                            <div className="ml-4 text-white">timeLockSeconds: <span className="text-magenta">86400</span></div>
                             <div className="text-white">{'}'})</div>
-                        </div>
-                    </div>
-                    <div>
-                        <div className="gradient-text mb-2 text-sm font-medium">Release or Dispute</div>
-                        <div className="bg-black border border-gray-500/20 rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                            <div className="text-gray-500 mb-2">// On success: release funds to provider</div>
-                            <div className="text-white"><span className="text-cyan">await</span> client.release(agreement.id)</div>
                             <div className="text-white mb-4"></div>
-                            <div className="text-gray-500">// On dispute: trigger oracle arbitration</div>
-                            <div className="text-white"><span className="text-cyan">await</span> client.dispute(agreement.id)</div>
-                            <div className="text-white mb-4"></div>
-                            <div className="text-gray-500">// Oracles score quality (0-100)</div>
-                            <div className="text-gray-500">// Funds distributed based on median score</div>
-                            <div className="text-gray-500">// Reputations updated automatically</div>
+                            <div className="text-gray-500">// 3. Release on success, or dispute</div>
+                            <div className="text-white"><span className="text-cyan">await</span> client.releaseFunds(agreement.id)</div>
+                            <div className="text-gray-500">// or: await client.markDisputed(agreement.id)</div>
                         </div>
                     </div>
                 </div>
 
                 {/* SDK Packages */}
-                <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                    <div className="gradient-text mb-4 text-sm font-medium">Packages</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div className="p-4 border border-gray-500/20 rounded-lg">
-                            <div className="font-mono text-cyan text-sm mb-1">@kamiyo/sdk</div>
-                            <div className="text-gray-400 text-xs">Core TypeScript client for identity, agreements, and disputes</div>
-                        </div>
-                        <div className="p-4 border border-gray-500/20 rounded-lg">
-                            <div className="font-mono text-cyan text-sm mb-1">@kamiyo/middleware</div>
-                            <div className="text-gray-400 text-xs">Express/FastAPI middleware for HTTP 402 payment flows</div>
-                        </div>
-                        <div className="p-4 border border-gray-500/20 rounded-lg">
-                            <div className="font-mono text-cyan text-sm mb-1">@kamiyo/agent-client</div>
-                            <div className="text-gray-400 text-xs">Autonomous agent with configurable quality thresholds</div>
-                        </div>
-                        <div className="p-4 border border-gray-500/20 rounded-lg">
-                            <div className="font-mono text-cyan text-sm mb-1">@kamiyo/mcp</div>
-                            <div className="text-gray-400 text-xs">Model Context Protocol integration for AI systems</div>
-                        </div>
-                        <div className="p-4 border border-gray-500/20 rounded-lg">
-                            <div className="font-mono text-cyan text-sm mb-1">@kamiyo/x402</div>
-                            <div className="text-gray-400 text-xs">x402 payment verification with escrow protection</div>
-                        </div>
-                        <div className="p-4 border border-gray-500/20 rounded-lg">
-                            <div className="font-mono text-gray-500 text-sm mb-1">programs/kamiyo</div>
-                            <div className="text-gray-400 text-xs">Anchor-based Solana program (Rust)</div>
-                        </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
+                        <div className="font-mono text-cyan text-xs mb-1">@kamiyo/sdk</div>
+                        <div className="text-gray-500 text-xs">Core client</div>
+                    </div>
+                    <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
+                        <div className="font-mono text-cyan text-xs mb-1">@kamiyo/agent-client</div>
+                        <div className="text-gray-500 text-xs">Auto-dispute</div>
+                    </div>
+                    <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
+                        <div className="font-mono text-cyan text-xs mb-1">@kamiyo/middleware</div>
+                        <div className="text-gray-500 text-xs">HTTP 402</div>
+                    </div>
+                    <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
+                        <div className="font-mono text-cyan text-xs mb-1">@kamiyo/mcp</div>
+                        <div className="text-gray-500 text-xs">Claude/LLMs</div>
+                    </div>
+                    <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
+                        <div className="font-mono text-cyan text-xs mb-1">@kamiyo/langchain</div>
+                        <div className="text-gray-500 text-xs">LangChain</div>
+                    </div>
+                    <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
+                        <div className="font-mono text-cyan text-xs mb-1">@kamiyo/x402-client</div>
+                        <div className="text-gray-500 text-xs">x402 escrow</div>
                     </div>
                 </div>
             </section>
