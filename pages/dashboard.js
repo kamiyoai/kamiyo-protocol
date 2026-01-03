@@ -228,13 +228,13 @@ const agent = await sdk.createAgent({
                             </div>
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => window.open('https://github.com/susumu-kamiyo/mitama', '_blank')}
+                                    onClick={() => window.open('https://github.com/kamiyo-ai/kamiyo-protocol', '_blank')}
                                     className="text-cyan hover:text-white transition-colors text-sm border border-cyan hover:border-white px-4 py-2 rounded"
                                 >
                                     View on GitHub
                                 </button>
                                 <button
-                                    onClick={() => window.location.href = 'https://kamiyo.ai/docs/mitama'}
+                                    onClick={() => window.location.href = '/api-docs'}
                                     className="text-gray-400 hover:text-white transition-colors text-sm border border-gray-700 hover:border-white px-4 py-2 rounded"
                                 >
                                     Documentation
