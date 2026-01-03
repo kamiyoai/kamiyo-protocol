@@ -19,7 +19,7 @@
     "dispute-resolution"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
-  "license": "BUSL-1.1",
+  "license": "MIT",
   "dependencies": {
     "@solana/web3.js": "^1.95.8",
     "@coral-xyz/anchor": "^0.31.1",

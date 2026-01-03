@@ -26,7 +26,7 @@
     "conflict-resolution"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
-  "license": "BUSL-1.1",
+  "license": "MIT",
   "dependencies": {
     "@mitama/sdk": "^0.1.0",
     "@solana/spl-token": "^0.4.9",

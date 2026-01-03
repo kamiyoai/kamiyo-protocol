@@ -214,7 +214,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-[BUSL-1.1](LICENSE) - Free for non-commercial use. Commercial license: license@kamiyo.ai
+- **Core Program**: [BUSL-1.1](LICENSE) - Free for non-commercial use
+- **SDK & Packages**: [MIT](packages/mitama-sdk/LICENSE) - Free for any use
+
+Commercial license for core program: license@kamiyo.ai
 
 ## Links
 

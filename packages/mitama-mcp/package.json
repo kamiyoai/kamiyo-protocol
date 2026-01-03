@@ -29,7 +29,7 @@
     "conflict-resolution"
   ],
   "author": "KAMIYO",
-  "license": "BUSL-1.1",
+  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
     "@coral-xyz/anchor": "^0.31.1",
