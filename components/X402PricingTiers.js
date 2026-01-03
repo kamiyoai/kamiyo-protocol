@@ -9,59 +9,56 @@ export default function X402PricingTiers({ showTitle = true }) {
 
     const tiers = [
         {
-            name: "Free",
+            name: "Protocol",
             tier: "free",
-            price: "$0",
-            priceDetail: "forever",
+            price: "0.1%",
+            priceDetail: "per escrow",
             features: [
-                "1,000 verifications/month",
-                "Solana & Base support",
-                "Multi-chain USDC verification",
-                "Community support",
-                "Standard rate limits"
-            ]
+                "Unlimited escrow agreements",
+                "SOL, USDC, USDT support",
+                "Multi-oracle dispute resolution",
+                "On-chain reputation tracking",
+                "Open source SDK"
+            ],
+            footnote: "Min 5,000 lamports per escrow. 2% fee on disputes (1% protocol + 1% oracle pool)."
         },
         {
-            name: "Starter",
+            name: "Dashboard",
             tier: "starter",
-            price: "$99",
+            price: "$49",
             priceDetail: "/mo",
             features: [
-                "50,000 verifications/month",
-                "Solana, Base & Ethereum",
-                "Priority verification",
-                "Email support",
-                "Higher rate limits",
-                "99.9% uptime SLA"
+                "Real-time escrow monitoring",
+                "Dispute analytics",
+                "Agent reputation insights",
+                "Transaction history export",
+                "Email alerts"
             ]
         },
         {
-            name: "Pro",
+            name: "Team",
             tier: "pro",
-            price: "$299",
+            price: "$199",
             priceDetail: "/mo",
             features: [
-                "500,000 verifications/month",
-                "6 blockchain networks",
-                "Advanced risk scoring",
-                "Priority support",
-                "Custom rate limits",
-                "99.95% uptime SLA"
+                "Everything in Dashboard",
+                "Multi-agent management",
+                "Custom oracle panels",
+                "API access for analytics",
+                "Priority support"
             ]
         },
         {
             name: "Enterprise",
             tier: "enterprise",
-            price: "$999",
-            priceDetail: "/mo",
-            pricePrefix: "from ",
+            price: "Custom",
+            priceDetail: "",
             features: [
-                "Unlimited verifications",
-                "All supported chains",
-                "Custom integration support",
-                "Dedicated support",
-                "Custom SLA agreements",
-                "On-premise deployment option"
+                "Everything in Team",
+                "Private oracle network",
+                "Custom fee structures",
+                "Dedicated account manager",
+                "SLA guarantees"
             ]
         }
     ];
@@ -73,7 +70,7 @@ export default function X402PricingTiers({ showTitle = true }) {
         }
 
         if (tier === 'free') {
-            router.push('/dashboard/x402');
+            router.push('/api-docs');
             return;
         }
 
@@ -122,7 +119,7 @@ export default function X402PricingTiers({ showTitle = true }) {
                         Simple, Transparent Pricing
                     </h3>
                     <p className="text-gray-400 text-lg">
-                        Start free and scale as you grow. All plans include multi-chain support.
+                        Pay-per-use protocol fees. Optional dashboard for monitoring and analytics.
                     </p>
                 </div>
             )}
@@ -172,6 +169,10 @@ export default function X402PricingTiers({ showTitle = true }) {
                                 <meta itemProp="availability" content="https://schema.org/InStock" />
                                 <meta itemProp="url" content={`https://kamiyo.ai/pricing#${plan.tier}`} />
 
+                                {plan.footnote && (
+                                    <p className="text-gray-500 text-xs mt-4 mb-2">{plan.footnote}</p>
+                                )}
+
                                 <div className="flex justify-center mt-auto pt-6">
                                     <PayButton
                                         textOverride={
@@ -180,8 +181,8 @@ export default function X402PricingTiers({ showTitle = true }) {
                                                 : plan.tier === 'enterprise'
                                                 ? 'Contact Sales'
                                                 : plan.tier === 'free'
-                                                ? 'Get Started'
-                                                : 'Start Free Trial'
+                                                ? 'View Docs'
+                                                : 'Get Started'
                                         }
                                         onClickOverride={() => handleSelect(plan.tier)}
                                         disabled={loading !== null}
