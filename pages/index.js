@@ -105,110 +105,126 @@ export default function Home() {
 
             {/* How It Works Section */}
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="how-it-works-heading">
-                <header className="text-center mb-12">
+                <header className="text-center mb-16">
                     <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">How It Works</h2>
                     <p className="text-gray-400 text-sm md:text-lg">From agreement to settlement in four steps</p>
                 </header>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan font-mono text-2xl mb-3">1</div>
-                        <div className="text-white text-lg mb-2">Create Agreement</div>
-                        <div className="text-gray-400 text-sm">
-                            Agent creates escrow with funds locked in PDA. Configurable time-lock and token type.
-                        </div>
-                    </div>
+                {/* Timeline with connecting line */}
+                <div className="relative mb-16">
+                    {/* Connecting line - hidden on mobile */}
+                    <div className="hidden md:block absolute top-8 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" style={{ left: '12.5%', right: '12.5%' }}></div>
 
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan font-mono text-2xl mb-3">2</div>
-                        <div className="text-white text-lg mb-2">Service Delivered</div>
-                        <div className="text-gray-400 text-sm">
-                            Provider delivers service. Agent evaluates quality and decides: release or dispute.
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
+                        {/* Step 1 */}
+                        <div className="relative flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
+                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <div className="text-white text-lg font-light mb-2">Create Agreement</div>
+                            <div className="text-gray-500 text-sm">
+                                Funds locked in escrow PDA with configurable time-lock
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan font-mono text-2xl mb-3">3</div>
-                        <div className="text-white text-lg mb-2">Oracle Consensus</div>
-                        <div className="text-gray-400 text-sm">
-                            On dispute, oracle panel scores quality (0-100). Median score determines refund percentage.
+                        {/* Step 2 */}
+                        <div className="relative flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
+                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                            </div>
+                            <div className="text-white text-lg font-light mb-2">Service Delivered</div>
+                            <div className="text-gray-500 text-sm">
+                                Provider delivers, agent evaluates quality
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan font-mono text-2xl mb-3">4</div>
-                        <div className="text-white text-lg mb-2">Auto Settlement</div>
-                        <div className="text-gray-400 text-sm">
-                            Funds distributed automatically. Reputations updated on-chain. No human intervention.
+                        {/* Step 3 */}
+                        <div className="relative flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
+                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                                </svg>
+                            </div>
+                            <div className="text-white text-lg font-light mb-2">Oracle Consensus</div>
+                            <div className="text-gray-500 text-sm">
+                                Multi-oracle panel scores quality (0-100)
+                            </div>
+                        </div>
+
+                        {/* Step 4 */}
+                        <div className="relative flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
+                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div className="text-white text-lg font-light mb-2">Auto Settlement</div>
+                            <div className="text-gray-500 text-sm">
+                                Funds distributed, reputations updated on-chain
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Quality Scale */}
-                <div className="bg-black border border-gray-500/25 rounded-lg p-6 mb-12">
-                    <div className="gradient-text mb-4 text-sm font-medium">Quality-Based Refund Scale</div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="text-center p-4 border border-gray-500/20 rounded-lg">
-                            <div className="text-2xl font-light text-white mb-1">80-100%</div>
-                            <div className="text-cyan text-sm mb-2">Quality Score</div>
-                            <div className="text-gray-400 text-xs">Full payment to provider</div>
+                {/* Collapsible Quality Scale */}
+                <details className="group mb-12">
+                    <summary className="flex items-center justify-between cursor-pointer bg-black border border-gray-500/25 rounded-lg p-4 hover:border-gray-500/50 transition-colors">
+                        <span className="text-gray-400 text-sm">View quality-based refund scale</span>
+                        <svg className="w-5 h-5 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </summary>
+                    <div className="mt-4 grid grid-cols-4 gap-px bg-gray-800 rounded-lg overflow-hidden">
+                        <div className="bg-black p-4 text-center">
+                            <div className="text-xl font-light text-white mb-1">80-100%</div>
+                            <div className="text-cyan text-xs mb-1">Quality</div>
+                            <div className="text-gray-500 text-xs">100% to provider</div>
                         </div>
-                        <div className="text-center p-4 border border-gray-500/20 rounded-lg">
-                            <div className="text-2xl font-light text-white mb-1">65-79%</div>
-                            <div className="text-cyan text-sm mb-2">Quality Score</div>
-                            <div className="text-gray-400 text-xs">35% refund to agent</div>
+                        <div className="bg-black p-4 text-center">
+                            <div className="text-xl font-light text-white mb-1">65-79%</div>
+                            <div className="text-cyan text-xs mb-1">Quality</div>
+                            <div className="text-gray-500 text-xs">35% refund</div>
                         </div>
-                        <div className="text-center p-4 border border-gray-500/20 rounded-lg">
-                            <div className="text-2xl font-light text-white mb-1">50-64%</div>
-                            <div className="text-cyan text-sm mb-2">Quality Score</div>
-                            <div className="text-gray-400 text-xs">75% refund to agent</div>
+                        <div className="bg-black p-4 text-center">
+                            <div className="text-xl font-light text-white mb-1">50-64%</div>
+                            <div className="text-cyan text-xs mb-1">Quality</div>
+                            <div className="text-gray-500 text-xs">75% refund</div>
                         </div>
-                        <div className="text-center p-4 border border-gray-500/20 rounded-lg">
-                            <div className="text-2xl font-light text-white mb-1">0-49%</div>
-                            <div className="text-cyan text-sm mb-2">Quality Score</div>
-                            <div className="text-gray-400 text-xs">Complete refund to agent</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Core Features */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan text-sm mb-2">Identity</div>
-                        <div className="text-white text-xl mb-3">Stake-Backed Agents</div>
-                        <div className="text-gray-400 text-sm mb-4">
-                            PDA-based identities on Solana. Agents build reputation through successful transactions and fair dispute outcomes.
-                        </div>
-                        <div className="text-xs text-gray-500 pt-3 border-t border-gray-500/20 space-y-1">
-                            <div>SOL collateral for identity creation</div>
-                            <div>On-chain reputation scoring</div>
-                            <div>Deterministic PDA derivation</div>
+                        <div className="bg-black p-4 text-center">
+                            <div className="text-xl font-light text-white mb-1">0-49%</div>
+                            <div className="text-cyan text-xs mb-1">Quality</div>
+                            <div className="text-gray-500 text-xs">100% refund</div>
                         </div>
                     </div>
+                </details>
 
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan text-sm mb-2">Resolution</div>
-                        <div className="text-white text-xl mb-3">Quality-Based Arbitration</div>
-                        <div className="text-gray-400 text-sm mb-4">
-                            Sliding refund scale (0-100%) based on service quality. Oracles evaluate and determine fair settlements.
-                        </div>
-                        <div className="text-xs text-gray-500 pt-3 border-t border-gray-500/20 space-y-1">
-                            <div>Switchboard oracle integration</div>
-                            <div>Automated fund distribution</div>
-                            <div>SPL token support (SOL, USDC, USDT)</div>
+                {/* Core Features - more compact */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="border border-gray-500/25 rounded-lg p-5">
+                        <div className="text-cyan text-xs uppercase tracking-wider mb-2">Identity</div>
+                        <div className="text-white text-lg font-light mb-2">Stake-Backed Agents</div>
+                        <div className="text-gray-500 text-sm">
+                            PDA-based identities with SOL collateral. On-chain reputation scoring.
                         </div>
                     </div>
 
-                    <div className="bg-black border border-gray-500/25 rounded-lg p-6">
-                        <div className="text-cyan text-sm mb-2">Consensus</div>
-                        <div className="text-white text-xl mb-3">Multi-Oracle Verification</div>
-                        <div className="text-gray-400 text-sm mb-4">
-                            Decentralized dispute resolution through oracle consensus. No single point of failure or bias.
+                    <div className="border border-gray-500/25 rounded-lg p-5">
+                        <div className="text-cyan text-xs uppercase tracking-wider mb-2">Resolution</div>
+                        <div className="text-white text-lg font-light mb-2">Quality-Based Arbitration</div>
+                        <div className="text-gray-500 text-sm">
+                            Sliding refund scale based on oracle-determined quality scores.
                         </div>
-                        <div className="text-xs text-gray-500 pt-3 border-t border-gray-500/20 space-y-1">
-                            <div>Configurable oracle panel size</div>
-                            <div>Median-based consensus</div>
-                            <div>Anti-collusion mechanisms</div>
+                    </div>
+
+                    <div className="border border-gray-500/25 rounded-lg p-5">
+                        <div className="text-cyan text-xs uppercase tracking-wider mb-2">Consensus</div>
+                        <div className="text-white text-lg font-light mb-2">Multi-Oracle Verification</div>
+                        <div className="text-gray-500 text-sm">
+                            Decentralized dispute resolution. Median-based, anti-collusion.
                         </div>
                     </div>
                 </div>
