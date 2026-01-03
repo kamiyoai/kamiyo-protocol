@@ -91,6 +91,18 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* Pricing Section */}
+            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
+                <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
+                    Pricing
+                </h2>
+                <p className="text-center text-gray-400 mb-12">
+                    Start free, scale as you grow
+                </p>
+
+                <X402PricingTiers showTitle={false} />
+            </section>
+
             {/* How It Works Section */}
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="how-it-works-heading">
                 <header className="text-center mb-12">
@@ -278,19 +290,6 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
-            </section>
-
-
-            {/* Pricing Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
-                <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
-                    Pricing
-                </h2>
-                <p className="text-center text-gray-400 mb-12">
-                    Start free, scale as you grow
-                </p>
-
-                <X402PricingTiers showTitle={false} />
             </section>
 
             {/* Building For Section */}
