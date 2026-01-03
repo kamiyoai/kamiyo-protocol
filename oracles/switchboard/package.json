@@ -1,0 +1,16 @@
+{
+  "name": "@mitama/switchboard-oracle",
+  "version": "0.1.0",
+  "description": "Switchboard oracle function for Mitama dispute resolution",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "docker build -t mitama-oracle .",
+    "deploy": "sb solana function create --container mitama-oracle"
+  },
+  "dependencies": {
+    "@switchboard-xyz/solana.js": "^3.0.0",
+    "@solana/web3.js": "^1.98.0",
+    "@coral-xyz/anchor": "^0.31.1"
+  }
+}
