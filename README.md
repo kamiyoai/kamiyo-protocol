@@ -1,6 +1,6 @@
 # Mitama
 
-![mitama](https://github.com/user-attachments/assets/7ed437d2-5b5f-45cc-a571-17eb8a0543ea)
+![mitama](assets/mitama.gif)
 
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-green.svg)](https://solana.com)
