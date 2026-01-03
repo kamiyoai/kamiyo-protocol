@@ -21,6 +21,11 @@ export function middleware(request) {
     return NextResponse.rewrite(new URL('/x402resolve/index.html', request.url));
   }
 
+  // Handle mitama subdomain
+  if (hostname === 'mitama.kamiyo.ai' && pathname === '/') {
+    return NextResponse.rewrite(new URL('/mitama/index.html', request.url));
+  }
+
   // Apply only to x402 API routes
   if (pathname.startsWith('/api/v1/x402/')) {
     // Handle OPTIONS preflight requests
