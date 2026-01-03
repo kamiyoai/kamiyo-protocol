@@ -1,0 +1,64 @@
+[package]
+name = "mitama-zk"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zero-knowledge proof system for Mitama using Zcash's Halo2"
+repository = "https://github.com/kamiyo-ai/mitama"
+keywords = ["zk", "halo2", "zcash", "solana", "privacy"]
+
+# =============================================================================
+# ACKNOWLEDGMENTS
+# =============================================================================
+# This crate builds upon the groundbreaking work of the Zcash team:
+#
+# - Halo2: https://github.com/zcash/halo2
+#   The Halo2 zero-knowledge proving system (PLONK-based, no trusted setup)
+#   Created by Sean Bowe, Daira Hopwood, and the Electric Coin Company
+#
+# - Halo: https://eprint.iacr.org/2019/1021
+#   "Recursive Proof Composition without a Trusted Setup"
+#   By Sean Bowe, Jack Grigg, Daira Hopwood
+#
+# We use Halo2 for privacy-preserving oracle voting in dispute resolution,
+# enabling oracles to commit votes without revealing them until finalization.
+# =============================================================================
+
+[dependencies]
+# Zcash Halo2 - The core ZK proving system
+# https://github.com/zcash/halo2
+halo2_proofs = { git = "https://github.com/zcash/halo2", tag = "halo2_proofs-0.3.0" }
+halo2_gadgets = { git = "https://github.com/zcash/halo2", tag = "halo2_gadgets-0.3.0" }
+
+# Finite field arithmetic
+ff = "0.13"
+group = "0.13"
+pasta_curves = "0.5"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+
+# Hashing
+blake2 = "0.10"
+sha2 = "0.10"
+
+# Randomness
+rand = "0.8"
+rand_core = "0.6"
+getrandom = "0.2"
+
+# Error handling
+thiserror = "1.0"
+
+[dev-dependencies]
+criterion = "0.5"
+
+# Benchmarks (uncomment when ready)
+# [[bench]]
+# name = "oracle_vote"
+# harness = false
+
+[features]
+default = ["multicore"]
+multicore = ["halo2_proofs/multicore"]

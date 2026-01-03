@@ -5,6 +5,7 @@
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-green.svg)](https://solana.com)
 [![Anchor](https://img.shields.io/badge/Anchor-0.31-purple.svg)](https://anchor-lang.com)
+[![Zcash Halo2](https://img.shields.io/badge/ZK-Zcash%20Halo2-orange.svg)](https://github.com/zcash/halo2)
 [![Status](https://img.shields.io/badge/Status-Live-brightgreen.svg)](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
 
 **On-chain agent identity and conflict resolution for Solana.**
@@ -20,6 +21,46 @@ Mitama enables autonomous agents to transact with accountability through stake-b
 - **Dispute Resolution** - Multi-oracle consensus with quality-based settlement
 - **Reputation Tracking** - On-chain trust scores for all parties
 - **SPL Token Support** - SOL, USDC, USDT
+- **Zero-Knowledge Privacy** - Private oracle voting with [Zcash Halo2](https://github.com/zcash/halo2)
+
+## Zero-Knowledge Proofs
+
+Mitama uses a **dual ZK architecture** combining the best of both worlds:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    Dual ZK Architecture                         │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   Zcash Halo2                    iden3 Circom/Groth16          │
+│   ───────────                    ───────────────────           │
+│   • No trusted setup             • Native Solana verification  │
+│   • Commitment hiding            • ~200k compute units         │
+│   • PLONK arithmetization        • Battle-tested tooling       │
+│                                                                 │
+│   Use: Privacy guarantees        Use: On-chain finality        │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Oracle Voting Flow:**
+```
+1. Commit Phase  → Halo2 Poseidon commitment (trustless)
+2. Reveal Phase  → Circom proof generation
+3. On-chain      → Groth16 verification via alt_bn128 syscalls
+```
+
+| System | Purpose | Trusted Setup |
+|--------|---------|---------------|
+| [Zcash Halo2](https://github.com/zcash/halo2) | Off-chain privacy | None |
+| [iden3 Circom](https://github.com/iden3/circom) | On-chain verification | Per-circuit |
+| [groth16-solana](https://github.com/Lightprotocol/groth16-solana) | Solana verifier | Audited |
+
+Built on research from:
+- [Halo Paper](https://eprint.iacr.org/2019/1021) - Sean Bowe, Jack Grigg, Daira Hopwood (ECC)
+- [Groth16](https://eprint.iacr.org/2016/260) - Jens Groth
+
+See [`crates/mitama-zk`](crates/mitama-zk) (Halo2) and [`circuits/`](circuits/) (Circom).
 
 ## Installation
 
@@ -130,6 +171,8 @@ Agent                          Provider
 | `@mitama/middleware` | Express middleware for HTTP 402 payment flows |
 | `@mitama/agent-client` | Autonomous agent with auto-dispute |
 | `@mitama/mcp` | Model Context Protocol server for Claude/LLM agents |
+| `mitama-zk` | Zero-knowledge proofs with [Zcash Halo2](https://github.com/zcash/halo2) (Rust) |
+| `circuits/` | [Circom](https://github.com/iden3/circom) circuits for Groth16 on-chain verification |
 
 ## API Reference
 
