@@ -1,11 +1,31 @@
 // pages/index.js
+import { useEffect, useRef, useState } from "react";
 import PayButton from "../components/PayButton";
 import FAQ from "../components/FAQ";
-import X402PricingTiers from "../components/X402PricingTiers";
 import SEO from "../components/SEO";
 import { LinkButton } from "../components/Button";
 
 export default function Home() {
+    const [scaleVisible, setScaleVisible] = useState(false);
+    const scaleRef = useRef(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setScaleVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { threshold: 0.2 }
+        );
+
+        if (scaleRef.current) {
+            observer.observe(scaleRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, []);
 
     return (
         <>
@@ -91,18 +111,6 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Pricing Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
-                <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
-                    Pricing
-                </h2>
-                <p className="text-center text-gray-400 mb-12">
-                    Start free, scale as you grow
-                </p>
-
-                <X402PricingTiers showTitle={false} />
-            </section>
-
             {/* How It Works Section */}
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="how-it-works-heading">
                 <header className="text-center mb-16">
@@ -146,7 +154,7 @@ export default function Home() {
                         <div className="relative flex flex-col items-center text-center">
                             <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
                                 <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
                             </div>
                             <div className="text-white text-lg font-light mb-2">Oracle Consensus</div>
@@ -169,38 +177,6 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
-
-                {/* Collapsible Quality Scale */}
-                <details className="group mb-12">
-                    <summary className="flex items-center justify-between cursor-pointer bg-black border border-gray-500/25 rounded-lg p-4 hover:border-gray-500/50 transition-colors">
-                        <span className="text-gray-400 text-sm">View quality-based refund scale</span>
-                        <svg className="w-5 h-5 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </summary>
-                    <div className="mt-4 grid grid-cols-4 gap-px bg-gray-800 rounded-lg overflow-hidden">
-                        <div className="bg-black p-4 text-center">
-                            <div className="text-xl font-light text-white mb-1">80-100%</div>
-                            <div className="text-cyan text-xs mb-1">Quality</div>
-                            <div className="text-gray-500 text-xs">100% to provider</div>
-                        </div>
-                        <div className="bg-black p-4 text-center">
-                            <div className="text-xl font-light text-white mb-1">65-79%</div>
-                            <div className="text-cyan text-xs mb-1">Quality</div>
-                            <div className="text-gray-500 text-xs">35% refund</div>
-                        </div>
-                        <div className="bg-black p-4 text-center">
-                            <div className="text-xl font-light text-white mb-1">50-64%</div>
-                            <div className="text-cyan text-xs mb-1">Quality</div>
-                            <div className="text-gray-500 text-xs">75% refund</div>
-                        </div>
-                        <div className="bg-black p-4 text-center">
-                            <div className="text-xl font-light text-white mb-1">0-49%</div>
-                            <div className="text-cyan text-xs mb-1">Quality</div>
-                            <div className="text-gray-500 text-xs">100% refund</div>
-                        </div>
-                    </div>
-                </details>
 
                 {/* Core Features - more compact */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -225,6 +201,45 @@ export default function Home() {
                         <div className="text-white text-lg font-light mb-2">Multi-Oracle Verification</div>
                         <div className="text-gray-500 text-sm">
                             Decentralized dispute resolution. Median-based, anti-collusion.
+                        </div>
+                    </div>
+                </div>
+
+                {/* Quality-Based Refund Scale */}
+                <div className="mt-12" ref={scaleRef}>
+                    <h3 className="text-xl font-light text-white mb-6">Quality-based refund scale</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            style={{ transitionDelay: '0ms' }}
+                        >
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">80-100%</div>
+                            <div className="text-white text-2xl font-light mb-1">100%</div>
+                            <div className="text-gray-500 text-xs">to provider</div>
+                        </div>
+                        <div
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            style={{ transitionDelay: '100ms' }}
+                        >
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">65-79%</div>
+                            <div className="text-white text-2xl font-light mb-1">35%</div>
+                            <div className="text-gray-500 text-xs">refund</div>
+                        </div>
+                        <div
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            style={{ transitionDelay: '200ms' }}
+                        >
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">50-64%</div>
+                            <div className="text-white text-2xl font-light mb-1">75%</div>
+                            <div className="text-gray-500 text-xs">refund</div>
+                        </div>
+                        <div
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            style={{ transitionDelay: '300ms' }}
+                        >
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">0-49%</div>
+                            <div className="text-white text-2xl font-light mb-1">100%</div>
+                            <div className="text-gray-500 text-xs">refund</div>
                         </div>
                     </div>
                 </div>
