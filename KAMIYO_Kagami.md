@@ -1,5 +1,5 @@
-# **Kagami: Production Agent Identity & Development Protocol**
-## Full Development Plan for Claude Sonnet 4.5 Agent Infrastructure
+# **Kagami: Solana Agent Identity & Reputation Framework**
+## Agent-Agnostic Infrastructure for Autonomous On-Chain Agents
 
 ---
 
@@ -8,11 +8,11 @@
 Build a Solana-native agent identity and reputation system that combines:
 - **PDA-based agent wallets** (no private keys needed)
 - **Surfpool integration** for safe testing with mainnet data
-- **Claude Sonnet 4.5** as the agent intelligence layer
+- **Agent-agnostic design** - works with any AI provider, custom logic, or autonomous system
 - **MEV protection and manifest verification** (proven in KAMIYO production)
 - **Revenue generation** from day one
 
-**Target: Working MVP in 14 days, production-ready in 30 days**
+**Core Principle:** Kagami provides the on-chain identity, reputation, and execution infrastructure. The intelligence layer is pluggable - use Claude, GPT, Llama, custom ML models, or pure algorithmic logic.
 
 ---
 
@@ -40,7 +40,11 @@ kamiyo/
 │   │   ├── agent-identity/
 │   │   └── agent-registry/
 │   ├── sdk/          # TypeScript SDK
-│   ├── agent/        # Claude Sonnet 4.5 agent implementation
+│   ├── adapters/     # Pluggable intelligence adapters
+│   │   ├── base.ts   # Base adapter interface
+│   │   ├── anthropic/ # Claude adapter (example)
+│   │   ├── openai/   # GPT adapter (example)
+│   │   └── custom/   # Custom logic adapter
 │   ├── api/          # FastAPI backend (reusable)
 │   ├── database/     # PostgreSQL schemas
 │   ├── surfpool/     # Surfpool integration
@@ -80,7 +84,7 @@ curl -fsSL https://surfpool.run/install.sh | sh
 # Setup Python environment (for API)
 python -m venv venv
 source venv/bin/activate
-pip install fastapi uvicorn sqlalchemy psycopg2-binary anthropic
+pip install fastapi uvicorn sqlalchemy psycopg2-binary solana
 
 # Setup as npm package (for TypeScript SDK)
 npm init -y
@@ -91,14 +95,18 @@ cat > pyproject.toml << EOF
 [project]
 name = "kagami"
 version = "0.1.0"
-description = "Solana agent identity and reputation framework"
+description = "Solana agent identity and reputation framework - agent agnostic"
 license = {text = "CC BY-NC 4.0"}
 authors = [{name = "KAMIYO", email = "hello@kamiyo.ai"}]
 dependencies = [
     "fastapi>=0.104.0",
-    "anthropic>=0.8.0",
     "solana>=0.30.0",
 ]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.8.0"]
+openai = ["openai>=1.0.0"]
+all = ["anthropic>=0.8.0", "openai>=1.0.0"]
 EOF
 ```
 
@@ -243,9 +251,10 @@ CREATE TABLE agents (
     stake_amount BIGINT DEFAULT 0,
     stake_locked_until TIMESTAMP,
     
-    -- Claude integration
-    claude_api_key_encrypted TEXT,
-    claude_model VARCHAR(50) DEFAULT 'claude-3-5-sonnet-20241022',
+    -- Intelligence adapter configuration (agent-agnostic)
+    adapter_type VARCHAR(50) DEFAULT 'custom',  -- 'anthropic', 'openai', 'custom', etc.
+    adapter_config_encrypted TEXT,  -- Encrypted JSON config (API keys, model settings)
+    adapter_endpoint VARCHAR(255),  -- Optional custom endpoint for self-hosted models
     
     -- Surfpool testing
     surfpool_dev_pda VARCHAR(44),
@@ -283,90 +292,191 @@ CREATE TABLE agent_actions (
 
 ---
 
-## **Phase 2: Claude Integration (Days 4-6)**
+## **Phase 2: Pluggable Intelligence Layer (Days 4-6)**
 
-### Day 4: Claude Sonnet 4.5 Agent Core
+### Day 4: Base Adapter Interface & Agent Core
+
+```typescript
+// adapters/base.ts - Abstract interface for all intelligence adapters
+import { PublicKey } from '@solana/web3.js';
+
+export interface AgentContext {
+    name: string;
+    pda: PublicKey;
+    reputationScore: number;
+    capabilities: string[];
+    memory: Message[];
+}
+
+export interface Message {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
+
+export interface DecisionResult {
+    execute: boolean;
+    reasoning: string;
+    confidence?: number;
+}
+
+export interface IntelligenceAdapter {
+    /**
+     * Process a prompt and return a response
+     * Implementations can use any AI provider, ML model, or custom logic
+     */
+    think(prompt: string, context: AgentContext): Promise<string>;
+
+    /**
+     * Make an execution decision for a proposed action
+     * Returns whether to proceed and reasoning
+     */
+    decide(action: string, params: Record<string, any>, context: AgentContext): Promise<DecisionResult>;
+
+    /**
+     * Optional: Custom strategy evaluation logic
+     */
+    evaluateStrategy?(strategy: Record<string, any>, context: AgentContext): Promise<number>;
+}
+
+// adapters/custom.ts - Pure algorithmic adapter (no AI)
+export class CustomLogicAdapter implements IntelligenceAdapter {
+    private rules: DecisionRule[];
+
+    constructor(rules: DecisionRule[]) {
+        this.rules = rules;
+    }
+
+    async think(prompt: string, context: AgentContext): Promise<string> {
+        // Pure rule-based response
+        return this.evaluateRules(prompt, context);
+    }
+
+    async decide(action: string, params: Record<string, any>, context: AgentContext): Promise<DecisionResult> {
+        // Algorithmic decision based on rules
+        const score = this.calculateRiskScore(action, params, context);
+        return {
+            execute: score > 0.5,
+            reasoning: `Risk score: ${score}`,
+            confidence: score
+        };
+    }
+}
+
+// adapters/anthropic.ts - Claude adapter (optional)
+export class AnthropicAdapter implements IntelligenceAdapter {
+    private client: Anthropic;
+    private model: string;
+
+    constructor(apiKey: string, model: string = 'claude-3-5-sonnet-20241022') {
+        this.client = new Anthropic({ apiKey });
+        this.model = model;
+    }
+
+    async think(prompt: string, context: AgentContext): Promise<string> {
+        const response = await this.client.messages.create({
+            model: this.model,
+            max_tokens: 2000,
+            system: this.buildSystemPrompt(context),
+            messages: [...context.memory, { role: 'user', content: prompt }]
+        });
+        return response.content[0].text;
+    }
+
+    async decide(action: string, params: Record<string, any>, context: AgentContext): Promise<DecisionResult> {
+        const response = await this.think(
+            `Should I execute: ${action} with ${JSON.stringify(params)}? Reply with JSON: {execute: bool, reasoning: string}`,
+            context
+        );
+        return JSON.parse(response);
+    }
+}
+
+// adapters/openai.ts - GPT adapter (optional)
+export class OpenAIAdapter implements IntelligenceAdapter {
+    private client: OpenAI;
+    private model: string;
+
+    constructor(apiKey: string, model: string = 'gpt-4-turbo') {
+        this.client = new OpenAI({ apiKey });
+        this.model = model;
+    }
+
+    async think(prompt: string, context: AgentContext): Promise<string> {
+        const response = await this.client.chat.completions.create({
+            model: this.model,
+            messages: [
+                { role: 'system', content: this.buildSystemPrompt(context) },
+                ...context.memory,
+                { role: 'user', content: prompt }
+            ]
+        });
+        return response.choices[0].message.content;
+    }
+
+    async decide(action: string, params: Record<string, any>, context: AgentContext): Promise<DecisionResult> {
+        const response = await this.think(
+            `Should I execute: ${action} with ${JSON.stringify(params)}? Reply with JSON: {execute: bool, reasoning: string}`,
+            context
+        );
+        return JSON.parse(response);
+    }
+}
+```
 
 ```python
-# agent/claude_agent.py
-import os
+# agent/kagami_agent.py - Agent-agnostic Solana agent
 import json
 import asyncio
-from typing import Dict, Any, Optional
-from anthropic import Anthropic
+from typing import Dict, Any, Optional, Protocol
 from solana.rpc.async_api import AsyncClient
-from solders.keypair import Keypair
 from solders.pubkey import Pubkey
 import aiohttp
 
-class SolanaClaudeAgent:
+class IntelligenceAdapter(Protocol):
+    """Protocol for pluggable intelligence adapters"""
+    async def think(self, prompt: str, context: Dict[str, Any]) -> str: ...
+    async def decide(self, action: str, params: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]: ...
+
+class KagamiAgent:
+    """Agent-agnostic Solana agent - intelligence layer is pluggable"""
+
     def __init__(
         self,
         agent_name: str,
         agent_pda: str,
-        anthropic_api_key: str,
+        adapter: IntelligenceAdapter,  # Pluggable intelligence
         solana_rpc: str = "http://localhost:8899",
         surfpool_rpc: str = "http://localhost:8899"
     ):
         self.name = agent_name
         self.pda = Pubkey.from_string(agent_pda)
-        self.anthropic = Anthropic(api_key=anthropic_api_key)
+        self.adapter = adapter  # Any intelligence adapter
         self.solana_client = AsyncClient(solana_rpc)
         self.surfpool_client = AsyncClient(surfpool_rpc)
-        self.memory = []  # Agent memory/context
-        
+        self.memory = []
+
     async def think(self, prompt: str, context: Dict[str, Any] = None) -> str:
-        """Use Claude to process and respond to prompts"""
-        
-        # Build system prompt with agent identity
-        system_prompt = f"""You are {self.name}, an autonomous AI agent on Solana.
-        Your PDA address: {self.pda}
-        Your capabilities: {context.get('capabilities', [])}
-        Current reputation: {context.get('reputation_score', 0)}
-        
-        You can:
-        1. Execute on-chain transactions through your PDA
-        2. Interact with other agents and protocols
-        3. Manage your reputation and stake
-        4. Test strategies in Surfpool before mainnet execution
-        
-        Always act in accordance with your reputation and user delegations.
-        """
-        
-        # Add recent memory/context
-        messages = [
-            {"role": "system", "content": system_prompt}
-        ]
-        
-        # Add conversation history
-        for memory in self.memory[-10:]:  # Last 10 interactions
-            messages.append(memory)
-            
-        messages.append({"role": "user", "content": prompt})
-        
-        try:
-            response = self.anthropic.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=2000,
-                messages=messages,
-                temperature=0.7
-            )
-            
-            # Store in memory
-            self.memory.append({"role": "user", "content": prompt})
-            self.memory.append({"role": "assistant", "content": response.content[0].text})
-            
-            return response.content[0].text
-            
-        except Exception as e:
-            return f"Error in Claude processing: {str(e)}"
-    
+        """Delegate thinking to the configured adapter"""
+        full_context = {
+            "name": self.name,
+            "pda": str(self.pda),
+            "memory": self.memory[-10:],
+            **(context or {})
+        }
+
+        response = await self.adapter.think(prompt, full_context)
+
+        # Store in memory
+        self.memory.append({"role": "user", "content": prompt})
+        self.memory.append({"role": "assistant", "content": response})
+
+        return response
+
     async def test_strategy_surfpool(self, strategy: Dict[str, Any]) -> Dict[str, Any]:
         """Test a strategy in Surfpool before mainnet execution"""
-        
-        # Use Surfpool cheatcodes to bootstrap test environment
+
         async with aiohttp.ClientSession() as session:
-            # Give ourselves test tokens
+            # Bootstrap test environment
             await session.post(
                 f"{self.surfpool_client.endpoint}/",
                 json={
@@ -374,80 +484,79 @@ class SolanaClaudeAgent:
                     "method": "surfnet_setTokenAccount",
                     "params": [
                         str(self.pda),
-                        "So11111111111111111111111111111111111112",  # SOL
+                        "So11111111111111111111111111111111111112",
                         {"amount": 1000000000000, "state": "initialized"}
                     ],
                     "id": 1
                 }
             )
-            
-            # Execute strategy in test environment
+
             results = await self._execute_strategy(strategy, is_test=True)
-            
+
             return {
                 "success": results.get("success", False),
                 "profit_loss": results.get("pnl", 0),
                 "gas_used": results.get("gas", 0),
                 "would_execute_mainnet": results.get("pnl", 0) > 0
             }
-    
+
     async def execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute an on-chain action through the agent's PDA"""
-        
-        # First, ask Claude if this action should be executed
-        decision = await self.think(
-            f"Should I execute this action? Action: {action}, Parameters: {params}. "
-            f"Consider my reputation and current state. Respond with JSON containing "
-            f"'execute': true/false and 'reasoning': your explanation."
-        )
-        
-        try:
-            decision_json = json.loads(decision)
-            if not decision_json.get("execute", False):
-                return {
-                    "executed": False,
-                    "reasoning": decision_json.get("reasoning", "Declined by agent")
-                }
-        except:
-            pass
-            
+
+        # Delegate decision to adapter
+        context = {
+            "reputation_score": await self._get_reputation(),
+            "capabilities": await self._get_capabilities()
+        }
+
+        decision = await self.adapter.decide(action, params, context)
+
+        if not decision.get("execute", False):
+            return {
+                "executed": False,
+                "reasoning": decision.get("reasoning", "Declined by adapter")
+            }
+
         # Test in Surfpool first if high-value
-        if params.get("value", 0) > 1000000000:  # > 1 SOL
+        if params.get("value", 0) > 1000000000:
             test_result = await self.test_strategy_surfpool({
                 "action": action,
                 "params": params
             })
-            
+
             if not test_result["would_execute_mainnet"]:
                 return {
                     "executed": False,
                     "reasoning": "Failed Surfpool test",
                     "test_result": test_result
                 }
-        
-        # Execute on-chain
-        # This would integrate with your Anchor program
+
         return await self._execute_onchain(action, params)
 ```
 
-### Day 5: API Layer (Adapt from KAMIYO Core)
+### Day 5: API Layer (Agent-Agnostic)
 
 ```python
 # api/main.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Literal
 import asyncpg
-from agent.claude_agent import SolanaClaudeAgent
+from agent.kagami_agent import KagamiAgent
+from adapters import load_adapter
 
 app = FastAPI(title="Kagami Agent API")
+
+class AdapterConfig(BaseModel):
+    type: Literal['anthropic', 'openai', 'custom', 'webhook']
+    config: Dict[str, Any] = {}  # API keys, model settings, webhook URL, etc.
 
 class AgentRegistration(BaseModel):
     name: str
     owner_address: str
     agent_type: str
     initial_stake: int
-    anthropic_api_key: str
+    adapter: AdapterConfig  # Pluggable intelligence configuration
 
 class AgentAction(BaseModel):
     agent_id: str
@@ -457,25 +566,24 @@ class AgentAction(BaseModel):
 
 @app.post("/agents/register")
 async def register_agent(registration: AgentRegistration):
-    """Register a new agent with PDA creation"""
-    
+    """Register a new agent with PDA creation - adapter agnostic"""
+
     # Create PDA on-chain
-    # This would call your Anchor program
     pda_address = await create_agent_pda(
         registration.name,
         registration.owner_address,
         registration.initial_stake
     )
-    
-    # Store in database
+
+    # Store in database with adapter config
     async with asyncpg.create_pool(DATABASE_URL) as pool:
         async with pool.acquire() as conn:
             agent_id = await conn.fetchval(
                 """
                 INSERT INTO agents (
                     pda_address, owner_address, name, agent_type,
-                    stake_amount, claude_api_key_encrypted
-                ) VALUES ($1, $2, $3, $4, $5, $6)
+                    stake_amount, adapter_type, adapter_config_encrypted
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id
                 """,
                 pda_address,
@@ -483,70 +591,101 @@ async def register_agent(registration: AgentRegistration):
                 registration.name,
                 registration.agent_type,
                 registration.initial_stake,
-                encrypt(registration.anthropic_api_key)  # Implement encryption
+                registration.adapter.type,
+                encrypt(json.dumps(registration.adapter.config))
             )
-    
+
     return {
         "agent_id": agent_id,
         "pda_address": pda_address,
         "name": registration.name,
+        "adapter_type": registration.adapter.type,
         "status": "active"
     }
 
 @app.post("/agents/{agent_id}/think")
 async def agent_think(agent_id: str, prompt: str):
-    """Have an agent process a prompt using Claude"""
-    
+    """Have an agent process a prompt using its configured adapter"""
+
     agent = await load_agent(agent_id)
-    claude_agent = SolanaClaudeAgent(
+
+    # Load the appropriate adapter based on agent config
+    adapter = load_adapter(
+        agent["adapter_type"],
+        decrypt(agent["adapter_config_encrypted"])
+    )
+
+    kagami_agent = KagamiAgent(
         agent["name"],
         agent["pda_address"],
-        decrypt(agent["claude_api_key_encrypted"])
+        adapter
     )
-    
-    response = await claude_agent.think(prompt, {
+
+    response = await kagami_agent.think(prompt, {
         "reputation_score": agent["reputation_score"],
         "capabilities": agent["capabilities"]
     })
-    
+
     return {"response": response}
 
 @app.post("/agents/{agent_id}/execute")
 async def execute_agent_action(agent_id: str, action: AgentAction):
-    """Execute an action through an agent"""
-    
+    """Execute an action through an agent using its configured adapter"""
+
     agent = await load_agent(agent_id)
-    claude_agent = SolanaClaudeAgent(
+
+    adapter = load_adapter(
+        agent["adapter_type"],
+        decrypt(agent["adapter_config_encrypted"])
+    )
+
+    kagami_agent = KagamiAgent(
         agent["name"],
         agent["pda_address"],
-        decrypt(agent["claude_api_key_encrypted"])
+        adapter
     )
-    
+
     # Test in Surfpool if requested
     if action.test_first:
-        test_result = await claude_agent.test_strategy_surfpool({
+        test_result = await kagami_agent.test_strategy_surfpool({
             "action": action.action,
             "params": action.params
         })
-        
+
         if not test_result["would_execute_mainnet"]:
             return {
                 "executed": False,
                 "reason": "Failed test",
                 "test_result": test_result
             }
-    
-    # Execute action
-    result = await claude_agent.execute_action(
+
+    result = await kagami_agent.execute_action(
         action.action,
         action.params
     )
-    
-    # Update reputation based on success
+
     if result.get("executed", False):
         await update_reputation(agent_id, 1)
-    
+
     return result
+
+# Adapter factory
+def load_adapter(adapter_type: str, config: Dict[str, Any]):
+    """Factory function to instantiate the appropriate adapter"""
+    if adapter_type == "anthropic":
+        from adapters.anthropic import AnthropicAdapter
+        return AnthropicAdapter(config["api_key"], config.get("model"))
+    elif adapter_type == "openai":
+        from adapters.openai import OpenAIAdapter
+        return OpenAIAdapter(config["api_key"], config.get("model"))
+    elif adapter_type == "webhook":
+        from adapters.webhook import WebhookAdapter
+        return WebhookAdapter(config["url"], config.get("headers", {}))
+    elif adapter_type == "custom":
+        from adapters.custom import CustomLogicAdapter
+        return CustomLogicAdapter(config.get("rules", []))
+    else:
+        raise ValueError(f"Unknown adapter type: {adapter_type}")
 
 # Reuse KAMIYO's manifest verification
 @app.post("/agents/{agent_id}/verify-forward")
@@ -556,7 +695,6 @@ async def verify_forward(
     target_agent: str
 ):
     """Verify forward safety using KAMIYO's proven algorithm"""
-    # Implement using KAMIYO's forward verification logic
     pass
 ```
 
@@ -814,7 +952,7 @@ export class KagamiSDK {
         name: string,
         type: 'Trading' | 'Service' | 'Oracle' | 'Custom',
         initialStake: number,
-        anthropicApiKey: string
+        adapter: AdapterConfig  // Pluggable intelligence config
     ): Promise<Agent> {
         // Create PDA
         const [agentPda, bump] = PublicKey.findProgramAddressSync(
@@ -825,7 +963,7 @@ export class KagamiSDK {
             ],
             this.program.programId
         );
-        
+
         // Create on-chain account
         const tx = await this.program.methods
             .createAgent(name, type, new anchor.BN(initialStake))
@@ -835,24 +973,45 @@ export class KagamiSDK {
                 systemProgram: anchor.web3.SystemProgram.programId
             })
             .rpc();
-        
-        // Register with API
+
+        // Register with API - adapter agnostic
         const response = await axios.post(`${this.apiUrl}/agents/register`, {
             name,
             owner_address: this.wallet.publicKey.toString(),
             agent_type: type,
             initial_stake: initialStake,
-            anthropic_api_key: anthropicApiKey
+            adapter: adapter  // Any adapter config
         });
-        
+
         return {
             id: response.data.agent_id,
             pda: agentPda,
             name,
             type,
+            adapterType: adapter.type,
             reputation: 0
         };
     }
+
+    // Helper to create adapter configs
+    static adapters = {
+        anthropic: (apiKey: string, model?: string): AdapterConfig => ({
+            type: 'anthropic',
+            config: { api_key: apiKey, model: model || 'claude-3-5-sonnet-20241022' }
+        }),
+        openai: (apiKey: string, model?: string): AdapterConfig => ({
+            type: 'openai',
+            config: { api_key: apiKey, model: model || 'gpt-4-turbo' }
+        }),
+        webhook: (url: string, headers?: Record<string, string>): AdapterConfig => ({
+            type: 'webhook',
+            config: { url, headers: headers || {} }
+        }),
+        custom: (rules: DecisionRule[]): AdapterConfig => ({
+            type: 'custom',
+            config: { rules }
+        })
+    };
     
     async testAgentStrategy(
         agentId: string,
@@ -1092,25 +1251,31 @@ def cli():
               default='Trading', help='Agent type')
 @click.option('--stake', type=int, default=1000000000,
               help='Initial stake in lamports')
-@click.option('--api-key', envvar='ANTHROPIC_API_KEY',
-              help='Anthropic API key')
-def create(name, type, stake, api_key):
-    """Create a new agent"""
-    
+@click.option('--adapter', type=click.Choice(['anthropic', 'openai', 'webhook', 'custom']),
+              default='custom', help='Intelligence adapter type')
+@click.option('--adapter-config', type=str, default='{}',
+              help='Adapter config as JSON (e.g., {"api_key": "sk-..."})')
+def create(name, type, stake, adapter, adapter_config):
+    """Create a new agent with any intelligence adapter"""
+
     async def _create():
         client = KagamiClient()
         agent = await client.create_agent(
             name=name,
             agent_type=type,
             initial_stake=stake,
-            anthropic_api_key=api_key
+            adapter={
+                "type": adapter,
+                "config": json.loads(adapter_config)
+            }
         )
-        
-        click.echo(f"✅ Agent created!")
+
+        click.echo(f"Agent created!")
         click.echo(f"ID: {agent['id']}")
         click.echo(f"PDA: {agent['pda_address']}")
         click.echo(f"Name: {agent['name']}")
-    
+        click.echo(f"Adapter: {agent['adapter_type']}")
+
     asyncio.run(_create())
 
 @cli.command()
@@ -1170,9 +1335,14 @@ if __name__ == '__main__':
 ## Installation
 
 ```bash
-# Install dependencies
+# Install core (no AI dependencies)
 npm install @kamiyo/kagami
 pip install kagami
+
+# Optional: Install with specific adapter support
+pip install kagami[anthropic]  # For Claude
+pip install kagami[openai]     # For GPT
+pip install kagami[all]        # All adapters
 
 # Start Surfpool for testing
 surfpool start
@@ -1183,6 +1353,7 @@ anchor deploy --provider.cluster devnet
 
 ## Create Your First Agent
 
+### Option 1: With Claude (Anthropic)
 ```typescript
 import { KagamiSDK } from '@kamiyo/kagami';
 
@@ -1191,44 +1362,74 @@ const sdk = new KagamiSDK(
     'https://api.kamiyo.ai'
 );
 
-// Create an agent
 const agent = await sdk.createAgent({
     name: 'MyTradingBot',
     type: 'Trading',
-    initialStake: 1_000_000_000, // 1 SOL
-    anthropicApiKey: process.env.ANTHROPIC_KEY
+    initialStake: 1_000_000_000,
+    adapter: KagamiSDK.adapters.anthropic(process.env.ANTHROPIC_KEY)
 });
+```
 
-// Test a strategy
+### Option 2: With GPT (OpenAI)
+```typescript
+const agent = await sdk.createAgent({
+    name: 'MyTradingBot',
+    type: 'Trading',
+    initialStake: 1_000_000_000,
+    adapter: KagamiSDK.adapters.openai(process.env.OPENAI_KEY, 'gpt-4-turbo')
+});
+```
+
+### Option 3: With Custom Webhook (Your Own Model)
+```typescript
+const agent = await sdk.createAgent({
+    name: 'MyTradingBot',
+    type: 'Trading',
+    initialStake: 1_000_000_000,
+    adapter: KagamiSDK.adapters.webhook('https://your-api.com/decide', {
+        'Authorization': 'Bearer your-token'
+    })
+});
+```
+
+### Option 4: Pure Algorithmic (No AI)
+```typescript
+const agent = await sdk.createAgent({
+    name: 'MyTradingBot',
+    type: 'Trading',
+    initialStake: 1_000_000_000,
+    adapter: KagamiSDK.adapters.custom([
+        { condition: 'pnl > 0.05', action: 'execute' },
+        { condition: 'risk_score < 0.3', action: 'execute' },
+        { condition: 'default', action: 'reject' }
+    ])
+});
+```
+
+## Test Strategy in Surfpool
+```typescript
 const testResult = await sdk.testAgentStrategy(
     agent.id,
     {
         action: 'swap',
-        params: {
-            from: 'SOL',
-            to: 'USDC',
-            amount: 100
-        }
+        params: { from: 'SOL', to: 'USDC', amount: 100 }
     }
 );
 
 if (testResult.profitable) {
-    // Execute on mainnet
-    const result = await sdk.executeAgentAction(
-        agent.id,
-        'swap',
-        testResult.params
-    );
+    const result = await sdk.executeAgentAction(agent.id, 'swap', testResult.params);
 }
 ```
 
-## Agent Capabilities
+## Framework Capabilities
 
-- **Autonomous Decision Making**: Claude Sonnet 4.5 powered reasoning
+- **Agent-Agnostic**: Works with any AI provider, custom ML models, or pure algorithmic logic
+- **Pluggable Intelligence**: Swap adapters without changing agent identity
 - **Safe Testing**: Surfpool integration for risk-free strategy testing
 - **Time Travel**: Validate strategies against historical data
 - **MEV Protection**: Built-in protections against sandwich attacks
 - **Reputation System**: On-chain reputation tracking
+- **Webhook Support**: Integrate your own inference endpoints
 ```
 
 ---
@@ -1330,10 +1531,11 @@ contract RevenueModel {
 
 ### Competitive Advantages
 1. **First to market** with Surfpool integration
-2. **Claude Sonnet 4.5** for superior reasoning
+2. **Agent-agnostic** - not locked to any AI provider
 3. **Time-travel testing** unique feature
 4. **Native Solana** approach vs. ported Ethereum standards
 5. **Immediate revenue** model vs. token speculation
+6. **Pluggable architecture** - bring your own model or use pure algorithms
 
 ## **Next Steps**
 
@@ -1348,4 +1550,11 @@ contract RevenueModel {
 - **KAMIYO Core** = Production platform that uses Kagami + proprietary infrastructure
 - **Development Pattern** = Build in monorepo, sync to standalone repo for open source, import in KAMIYO
 
-This plan builds Kagami as a reusable package that leverages KAMIYO's proven MEV protection and manifest verification while creating a completely Solana-native solution that's immediately usable and revenue-generating.
+**Agent-Agnostic Design Principles:**
+- Intelligence layer is a pluggable interface, not a hardcoded dependency
+- Core framework provides: identity (PDA), reputation, testing (Surfpool), execution
+- Adapters provide: decision-making logic (AI, ML, algorithmic, webhook)
+- Users can swap intelligence providers without changing agent identity or reputation
+- Support for self-hosted models, custom inference endpoints, or no AI at all
+
+This plan builds Kagami as a reusable, agent-agnostic package that leverages KAMIYO's proven MEV protection and manifest verification while creating a completely Solana-native solution that works with any intelligence backend.
