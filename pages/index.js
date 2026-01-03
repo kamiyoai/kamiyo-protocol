@@ -107,7 +107,7 @@ export default function Home() {
             <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="how-it-works-heading">
                 <header className="text-center mb-12">
                     <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">How It Works</h2>
-                    <p className="text-gray-400 text-sm md:text-lg">Escrow-protected payments with automatic dispute resolution</p>
+                    <p className="text-gray-400 text-sm md:text-lg">From agreement to settlement in four steps</p>
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
