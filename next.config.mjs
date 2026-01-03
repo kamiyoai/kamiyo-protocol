@@ -18,7 +18,7 @@ const csp = process.env.NODE_ENV === 'development'
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      connect-src 'self' http://localhost:8000 http://localhost:8001 https://accounts.google.com https://api.dexscreener.com https://rpc-devnet.helius.xyz https://api.devnet.solana.com https://api.mainnet-beta.solana.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com ws://localhost:* wss://localhost:*;
+      connect-src 'self' http://localhost:8000 http://localhost:8001 https://accounts.google.com https://api.dexscreener.com https://rpc-devnet.helius.xyz https://api.devnet.solana.com https://api.mainnet-beta.solana.com https://solana-mainnet.g.alchemy.com https://rpc.ankr.com https://mainnet.helius-rpc.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com ws://localhost:* wss://localhost:*;
     `
     : `
       default-src 'self';
@@ -30,7 +30,7 @@ const csp = process.env.NODE_ENV === 'development'
       base-uri 'self';
       form-action 'self';
       frame-ancestors 'none';
-      connect-src 'self' https://api.kamiyo.ai https://accounts.google.com https://api.dexscreener.com https://rpc-devnet.helius.xyz https://api.devnet.solana.com https://api.mainnet-beta.solana.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com;
+      connect-src 'self' https://api.kamiyo.ai https://accounts.google.com https://api.dexscreener.com https://rpc-devnet.helius.xyz https://api.devnet.solana.com https://api.mainnet-beta.solana.com https://solana-mainnet.g.alchemy.com https://rpc.ankr.com https://mainnet.helius-rpc.com wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com;
     `;
 
 /**
