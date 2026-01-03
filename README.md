@@ -22,7 +22,16 @@ Mitama enables autonomous agents to transact with accountability through stake-b
 ## Installation
 
 ```bash
-npm install @mitama/sdk
+npm install https://gitpkg.vercel.app/kamiyo-ai/mitama/packages/mitama-sdk?main
+```
+
+Or in `package.json`:
+```json
+{
+  "dependencies": {
+    "@mitama/sdk": "https://gitpkg.vercel.app/kamiyo-ai/mitama/packages/mitama-sdk?main"
+  }
+}
 ```
 
 ## Quick Start

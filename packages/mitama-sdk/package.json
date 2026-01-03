@@ -7,10 +7,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/mitama.git"
+    "url": "https://github.com/kamiyo-ai/mitama.git",
+    "directory": "packages/mitama-sdk"
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "test": "jest",
     "lint": "eslint src/**/*.ts"
   },
@@ -27,7 +29,8 @@
     "ts-jest": "^29.0.0"
   },
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "src/**/*"
   ],
   "keywords": [
     "solana",
