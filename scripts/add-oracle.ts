@@ -123,7 +123,7 @@ async function main() {
     console.log("");
 
     // Verify
-    const registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
+    const registry = await (program.account as any).oracleRegistry.fetch(oracleRegistryPDA);
     console.log("Registry now has", registry.oracles.length, "oracle(s)");
 
   } catch (err: any) {

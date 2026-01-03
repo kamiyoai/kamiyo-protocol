@@ -40,3 +40,4 @@ scripts/faucet.log
 .keys/
 backup/
 test-ledger/
+oracles/simple/*.json
