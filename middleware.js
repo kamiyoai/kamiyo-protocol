@@ -21,9 +21,17 @@ export function middleware(request) {
     return NextResponse.rewrite(new URL('/x402resolve/index.html', request.url));
   }
 
-  // Handle mitama subdomain
+  // Handle mitama subdomain (legacy)
   if (hostname === 'mitama.kamiyo.ai' && pathname === '/') {
     return NextResponse.rewrite(new URL('/mitama/index.html', request.url));
+  }
+
+  // Handle protocol subdomain
+  if (hostname === 'protocol.kamiyo.ai') {
+    if (pathname === '/') {
+      return NextResponse.rewrite(new URL('/mitama/index.html', request.url));
+    }
+    return NextResponse.rewrite(new URL(`/mitama${pathname}`, request.url));
   }
 
   // Apply only to x402 API routes
@@ -63,6 +71,7 @@ export function middleware(request) {
 export const config = {
   matcher: [
     '/',
+    '/:path*',
     '/api/v1/x402/:path*',
   ],
 };
