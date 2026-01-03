@@ -109,19 +109,14 @@ impl OracleVoteCircuit {
 /// Configuration for the oracle vote circuit
 #[derive(Clone, Debug)]
 pub struct OracleVoteConfig {
-    /// Advice column for score
     score: Column<Advice>,
-    /// Advice column for blinding
     blinding: Column<Advice>,
-    /// Advice column for intermediate values
+    #[allow(dead_code)]
     intermediate: Column<Advice>,
-    /// Instance column for public commitment
     instance: Column<Instance>,
-    /// Lookup table for valid scores [0, 100]
     score_table: TableColumn,
-    /// Selector for range check lookup
     s_range: Selector,
-    /// Selector for commitment check
+    #[allow(dead_code)]
     s_commit: Selector,
 }
 

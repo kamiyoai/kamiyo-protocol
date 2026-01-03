@@ -345,7 +345,7 @@ dependencies = [
  "bitvec",
  "ff",
  "group",
- "halo2_proofs 0.3.0 (git+https://github.com/zcash/halo2?tag=halo2_gadgets-0.3.0)",
+ "halo2_proofs",
  "lazy_static",
  "pasta_curves",
  "rand",
@@ -357,20 +357,6 @@ dependencies = [
 name = "halo2_proofs"
 version = "0.3.0"
 source = "git+https://github.com/zcash/halo2?tag=halo2_gadgets-0.3.0#263356784042d7d4c1c17d357c94c1acaeb75ab5"
-dependencies = [
- "blake2b_simd",
- "ff",
- "group",
- "maybe-rayon",
- "pasta_curves",
- "rand_core",
- "tracing",
-]
-
-[[package]]
-name = "halo2_proofs"
-version = "0.3.0"
-source = "git+https://github.com/zcash/halo2?tag=halo2_proofs-0.3.0#263356784042d7d4c1c17d357c94c1acaeb75ab5"
 dependencies = [
  "blake2b_simd",
  "ff",
@@ -471,13 +457,34 @@ dependencies = [
  "getrandom",
  "group",
  "halo2_gadgets",
- "halo2_proofs 0.3.0 (git+https://github.com/zcash/halo2?tag=halo2_proofs-0.3.0)",
+ "halo2_proofs",
+ "num-bigint",
  "pasta_curves",
  "rand",
  "rand_core",
  "serde",
+ "serde_json",
  "sha2",
  "thiserror",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-integer"
+version = "0.1.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

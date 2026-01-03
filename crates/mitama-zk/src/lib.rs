@@ -47,17 +47,21 @@
 //! └─────────────────────────────────────────────────────────────┘
 //! ```
 
+pub mod bridge;
 pub mod circuits;
 pub mod commitment;
 pub mod error;
 pub mod poseidon;
+pub mod prover;
 pub mod solana;
 pub mod utils;
 
+pub use bridge::{CircomInputs, SolanaVerificationData, parse_snarkjs_proof};
 pub use circuits::oracle_vote::{OracleVoteCircuit, MAX_SCORE, MIN_SCORE};
 pub use commitment::VoteCommitment;
 pub use error::ZkError;
 pub use poseidon::{hash_two, vote_commitment};
+pub use prover::{Halo2Proof, OracleVoteProver, K as CIRCUIT_K};
 pub use solana::{Groth16Proof, OracleVotePublicInputs, SolanaProof, verify_commitment};
 
 /// Re-export Halo2 types for downstream users

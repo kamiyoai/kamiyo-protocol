@@ -4,6 +4,7 @@
   "description": "Circom circuits for Mitama - Groth16 proofs verifiable on Solana",
   "private": true,
   "scripts": {
+    "install:circom": "bash scripts/install-circom.sh",
     "setup": "npm run compile && npm run setup:ptau && npm run setup:zkey",
     "compile": "circom oracle-vote/oracle_vote.circom --r1cs --wasm --sym -o build",
     "setup:ptau": "snarkjs powersoftau new bn128 14 build/pot14_0000.ptau -v && snarkjs powersoftau contribute build/pot14_0000.ptau build/pot14_0001.ptau --name='Mitama contribution' -v && snarkjs powersoftau prepare phase2 build/pot14_0001.ptau build/pot14_final.ptau -v",

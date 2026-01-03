@@ -58,7 +58,7 @@ impl VoteCommitment {
         oracle: &[u8; 32],
     ) -> [u8; 32] {
         let mut hasher = Blake2b512::new();
-        hasher.update(&[score]);
+        hasher.update([score]);
         hasher.update(blinding);
         hasher.update(escrow_id);
         hasher.update(oracle);

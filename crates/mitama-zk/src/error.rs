@@ -8,6 +8,9 @@ pub enum ZkError {
     #[error("Invalid score: must be in range [0, 100], got {0}")]
     InvalidScore(u8),
 
+    #[error("Invalid proof: {0}")]
+    InvalidProof(String),
+
     #[error("Commitment mismatch: proof does not match public commitment")]
     CommitmentMismatch,
 

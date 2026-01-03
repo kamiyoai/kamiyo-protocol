@@ -5,109 +5,20 @@
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-green.svg)](https://solana.com)
 [![Anchor](https://img.shields.io/badge/Anchor-0.31-purple.svg)](https://anchor-lang.com)
-[![Zcash Halo2](https://img.shields.io/badge/ZK-Zcash%20Halo2-orange.svg)](https://github.com/zcash/halo2)
-[![Status](https://img.shields.io/badge/Status-Live-brightgreen.svg)](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
 
-**On-chain agent identity and conflict resolution for Solana.**
+On-chain agent identity and dispute resolution for Solana.
 
-Mitama enables autonomous agents to transact with accountability through stake-backed identities and trustless dispute arbitration via multi-oracle consensus.
+Agents transact with stake-backed identities. Disputes go to multi-oracle consensus with private voting.
 
-**[Live Dashboard](https://mitama.kamiyo.ai)** | **[Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)**
+**[Dashboard](https://mitama.kamiyo.ai)** | **[Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)**
 
 ## Features
 
 - **Agent Identity** - PDA-based identities with stake collateral
 - **Escrow Agreements** - Time-locked payments between agents and providers
-- **Dispute Resolution** - Multi-oracle consensus with quality-based settlement
-- **Reputation Tracking** - On-chain trust scores for all parties
+- **Dispute Resolution** - Multi-oracle consensus with private voting
+- **Reputation Tracking** - On-chain trust scores
 - **SPL Token Support** - SOL, USDC, USDT
-- **Zero-Knowledge Privacy** - Private oracle voting with [Zcash Halo2](https://github.com/zcash/halo2)
-
-## Zero-Knowledge Proofs
-
-**Trustless commitment → On-chain settlement**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   COMMIT PHASE                    SETTLE PHASE                  │
-│   ────────────                    ────────────                  │
-│   Zcash Halo2                     Groth16 on Solana             │
-│                                                                 │
-│   • No trusted setup              • Native alt_bn128 syscalls   │
-│   • Poseidon commitment           • ~200k compute units         │
-│   • Score hidden from all         • On-chain finality           │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Why two systems?**
-
-Oracles commit votes without trusting a ceremony (Halo2 requires no setup). Settlement happens on-chain where Solana only supports Groth16. Each phase uses the right tool.
-
-```
-Oracle commits  →  Halo2 Poseidon(score, blinding)   [no ceremony]
-     ↓
-5 min delay     →  Prevents vote copying
-     ↓
-Oracle reveals  →  Groth16 proof: score ∈ [0,100]    [on-chain]
-     ↓
-Settlement      →  Funds split per consensus
-```
-
-| Phase | System | Trusted Setup |
-|-------|--------|---------------|
-| Commit | [Zcash Halo2](https://github.com/zcash/halo2) | **None** |
-| Settle | [Groth16](https://github.com/Lightprotocol/groth16-solana) | Per-circuit |
-
-Built on [Electric Coin Company](https://electriccoin.co/) research (Halo2) and [iden3](https://iden3.io/) tooling (Circom).
-
-See [`crates/mitama-zk`](crates/mitama-zk) and [`circuits/`](circuits/).
-
-## Installation
-
-```bash
-npm install https://gitpkg.vercel.app/kamiyo-ai/mitama/packages/mitama-sdk?main
-```
-
-Or in `package.json`:
-```json
-{
-  "dependencies": {
-    "@mitama/sdk": "https://gitpkg.vercel.app/kamiyo-ai/mitama/packages/mitama-sdk?main"
-  }
-}
-```
-
-## Quick Start
-
-```typescript
-import { MitamaClient, AgentType } from '@mitama/sdk';
-import { Connection, Keypair } from '@solana/web3.js';
-
-const connection = new Connection('https://api.mainnet-beta.solana.com');
-const wallet = Keypair.generate();
-const client = new MitamaClient({ connection, wallet });
-
-// Create agent with 0.5 SOL stake
-const tx = await client.createAgent({
-  name: 'TradingBot',
-  agentType: AgentType.Trading,
-  stakeAmount: 500_000_000 // lamports
-});
-
-// Create payment agreement
-await client.createAgreement({
-  provider: providerPubkey,
-  amount: 100_000_000,
-  timeLockSeconds: 86400,
-  transactionId: 'order-123'
-});
-
-// Release on success, or dispute for arbitration
-await client.releaseFunds('order-123', providerPubkey);
-// or: await client.markDisputed('order-123');
-```
 
 ## How It Works
 
@@ -126,17 +37,24 @@ Agent                          Provider
   └─── 3b. Dispute ───┐           │  Unhappy path
                       ▼
               ┌──────────────┐
-              │  Oracles     │
-              │  (consensus) │
+              │   Oracles    │
+              │  commit/reveal│
               └──────┬───────┘
                      │
               ┌──────▼───────┐
               │  Settlement  │
-              │  0-100%      │
+              │   0-100%     │
               └──────────────┘
 ```
 
-**Settlement Scale:**
+### Dispute Resolution
+
+Oracles vote on service quality using commit-reveal:
+
+1. **Commit** - Oracle submits `Poseidon(score, blinding, escrow_id, oracle_pk)` using Halo2. No trusted setup required.
+2. **Delay** - 5 minute window prevents vote copying
+3. **Reveal** - Oracle reveals score with Groth16 proof verified on-chain via `alt_bn128` syscalls
+4. **Settle** - Funds split based on median score
 
 | Quality Score | Agent Refund | Provider Payment |
 |--------------|--------------|------------------|
@@ -144,6 +62,42 @@ Agent                          Provider
 | 65-79% | 35% | 65% |
 | 50-64% | 75% | 25% |
 | 0-49% | 100% | 0% |
+
+## Installation
+
+```bash
+npm install https://gitpkg.vercel.app/kamiyo-ai/mitama/packages/mitama-sdk?main
+```
+
+## Quick Start
+
+```typescript
+import { MitamaClient, AgentType } from '@mitama/sdk';
+import { Connection, Keypair } from '@solana/web3.js';
+
+const connection = new Connection('https://api.mainnet-beta.solana.com');
+const wallet = Keypair.generate();
+const client = new MitamaClient({ connection, wallet });
+
+// Create agent with 0.5 SOL stake
+const tx = await client.createAgent({
+  name: 'TradingBot',
+  agentType: AgentType.Trading,
+  stakeAmount: 500_000_000
+});
+
+// Create payment agreement
+await client.createAgreement({
+  provider: providerPubkey,
+  amount: 100_000_000,
+  timeLockSeconds: 86400,
+  transactionId: 'order-123'
+});
+
+// Release on success, or dispute for arbitration
+await client.releaseFunds('order-123', providerPubkey);
+// or: await client.markDisputed('order-123');
+```
 
 ## Architecture
 
@@ -153,32 +107,25 @@ Agent                          Provider
 ├─────────────────┬─────────────────┬────────────────────┤
 │  Agent Identity │    Escrow       │   Oracle Registry  │
 │  - PDA          │  - Create       │   - Register       │
-│  - Stake        │  - Release      │   - Consensus      │
-│  - Reputation   │  - Dispute      │   - Verify         │
+│  - Stake        │  - Release      │   - Commit/Reveal  │
+│  - Reputation   │  - Dispute      │   - Verify (ZK)    │
 └─────────────────┴─────────────────┴────────────────────┘
-                          │
-                    ┌─────▼─────┐
-                    │  Solana   │
-                    └───────────┘
 ```
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `@mitama/sdk` | TypeScript client for agents, agreements, disputes |
-| `@mitama/actions` | Plug-and-play actions for any agent framework |
-| `@mitama/langchain` | LangChain/CrewAI tools integration |
-| `@mitama/surfpool` | Strategy simulation and pre-flight validation |
-| `@mitama/middleware` | Express middleware for HTTP 402 payment flows |
+| `@mitama/sdk` | TypeScript client |
+| `@mitama/actions` | Agent framework actions |
+| `@mitama/langchain` | LangChain tools |
+| `@mitama/middleware` | Express middleware for HTTP 402 |
 | `@mitama/agent-client` | Autonomous agent with auto-dispute |
-| `@mitama/mcp` | Model Context Protocol server for Claude/LLM agents |
-| `mitama-zk` | Zero-knowledge proofs with [Zcash Halo2](https://github.com/zcash/halo2) (Rust) |
-| `circuits/` | [Circom](https://github.com/iden3/circom) circuits for Groth16 on-chain verification |
+| `@mitama/mcp` | MCP server for Claude/LLM agents |
+| `mitama-zk` | Halo2 commitments, Groth16 proofs (Rust) |
+| `circuits/` | Circom circuits for on-chain verification |
 
-## API Reference
-
-### MitamaClient
+## API
 
 ```typescript
 // PDA derivation
@@ -199,16 +146,9 @@ markDisputed(txId: string): Promise<string>
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build program
 anchor build
-
-# Run tests
 anchor test
-
-# Build SDK
 npm run build --workspaces
 ```
 
@@ -219,8 +159,6 @@ npm run build --workspaces
 | Mainnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
 | Devnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
 
-**Mainnet PDAs:**
-
 | Account | Address |
 |---------|---------|
 | Protocol Config | `E6VhYjktLpT91VJy7bt5VL7DhTurZZKZUEFEgxLdZHna` |
@@ -228,39 +166,27 @@ npm run build --workspaces
 | Oracle Registry | `2sUcFA5kaxq5akJFw7UzAUizfvZsr72FVpeKWmYc5yuf` |
 
 **Fees:**
-- Escrow creation: 0.1% (minimum 5,000 lamports)
+- Escrow creation: 0.1% (min 5,000 lamports)
 - Protocol fee on disputes: 1%
-- Oracle reward pool: 1% (split among consensus oracles)
+- Oracle reward pool: 1%
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+See [SECURITY.md](SECURITY.md).
 
-**Security Features:**
-- 2-of-3 multi-sig for pause, unpause, and treasury withdrawals
-- Oracle staking with slashing for bad votes (10% per violation)
-- Agent stake slashing for frivolous disputes (5%)
-- Auto-removal of oracles after 3 violations
-- Time-locked escrows with 7-day grace period
-- Check-effects-interactions pattern throughout
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- 2-of-3 multi-sig for pause/unpause/treasury
+- Oracle slashing: 10% per violation
+- Agent slashing: 5% for frivolous disputes
+- Auto-removal after 3 violations
+- 7-day grace period on escrows
 
 ## License
 
-- **Core Program**: [BUSL-1.1](LICENSE) - Free for non-commercial use
-- **SDK & Packages**: [MIT](packages/mitama-sdk/LICENSE) - Free for any use
+- **Core Program**: [BUSL-1.1](LICENSE)
+- **SDK & Packages**: [MIT](packages/mitama-sdk/LICENSE)
 
-Commercial license for core program: license@kamiyo.ai
-
-## Links
-
-- [Dashboard](https://mitama.kamiyo.ai) - Protocol explorer and stats
-- [Documentation](https://docs.kamiyo.ai/mitama) - Full API documentation
-- [Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM) - On-chain program
+Commercial license: license@kamiyo.ai
 
 ---
 
-Built by [KAMIYO](https://kamiyo.ai)
+[KAMIYO](https://kamiyo.ai)
