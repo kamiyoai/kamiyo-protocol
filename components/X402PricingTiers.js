@@ -126,7 +126,7 @@ export default function X402PricingTiers({ showTitle = true }) {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {tiers.map((plan, index) => {
-                    const isHighlighted = plan.tier === 'starter';
+                    const isHighlighted = false;
 
                     return (
                         <div
