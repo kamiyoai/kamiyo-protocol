@@ -1,7 +1,7 @@
 {
-  "name": "@mitama/switchboard-function",
+  "name": "@kamiyo/switchboard-function",
   "version": "1.0.0",
-  "description": "Switchboard On-Demand function for quality scoring in Mitama dispute resolution",
+  "description": "Switchboard On-Demand function for quality scoring in KAMIYO dispute resolution",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -16,7 +16,7 @@
     "solana",
     "oracle",
     "quality-scoring",
-    "mitama",
+    "kamiyo",
     "dispute-resolution"
   ],
   "author": "KAMIYO",

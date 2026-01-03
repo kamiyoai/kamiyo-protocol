@@ -1,15 +1,15 @@
 {
-  "name": "@mitama/mcp-server",
+  "name": "@kamiyo/mcp-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "MCP server for Mitama agent identity and conflict resolution",
+  "description": "MCP server for KAMIYO agent identity and conflict resolution",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "mitama-mcp": "./dist/cli.js"
+    "kamiyo-mcp": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && cp src/idl/mitama.json dist/idl/mitama.json 2>/dev/null || true",
+    "build": "tsc && cp src/idl/kamiyo.json dist/idl/kamiyo.json 2>/dev/null || true",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "npm run test:integration",
@@ -24,7 +24,7 @@
     "model-context-protocol",
     "solana",
     "anchor",
-    "mitama",
+    "kamiyo",
     "agent-identity",
     "conflict-resolution"
   ],

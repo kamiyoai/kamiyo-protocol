@@ -1,12 +1,12 @@
 {
-  "name": "@mitama/middleware",
+  "name": "@kamiyo/middleware",
   "version": "0.1.0",
-  "description": "HTTP 402 Payment Required middleware for Mitama conflict resolution",
+  "description": "HTTP 402 Payment Required middleware for KAMIYO conflict resolution",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/mitama.git"
+    "url": "https://github.com/kamiyo-ai/kamiyo.git"
   },
   "files": [
     "dist/**/*"
@@ -17,7 +17,7 @@
     "test:watch": "jest --watch"
   },
   "keywords": [
-    "mitama",
+    "kamiyo",
     "http-402",
     "payment-required",
     "middleware",
@@ -28,7 +28,7 @@
   "author": "KAMIYO <dev@kamiyo.ai>",
   "license": "MIT",
   "dependencies": {
-    "@mitama/sdk": "^0.1.0",
+    "@kamiyo/sdk": "^0.1.0",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.8"
   },

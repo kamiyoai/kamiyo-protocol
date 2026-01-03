@@ -1,13 +1,13 @@
 {
-  "name": "@mitama/langchain",
+  "name": "@kamiyo/langchain",
   "version": "0.1.0",
-  "description": "LangChain tools for Mitama - Agent Identity and Conflict Resolution Protocol",
+  "description": "LangChain tools for KAMIYO - Agent Identity and Conflict Resolution Protocol",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/mitama.git"
+    "url": "https://github.com/kamiyo-ai/kamiyo.git"
   },
   "scripts": {
     "build": "tsc",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@langchain/core": ">=0.2.0",
-    "@mitama/sdk": "^0.1.0",
+    "@kamiyo/sdk": "^0.1.0",
     "@solana/web3.js": "^1.98.0",
     "zod": "^3.23.0"
   },

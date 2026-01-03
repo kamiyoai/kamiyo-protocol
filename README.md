@@ -1,4 +1,4 @@
-# Mitama
+# KAMIYO
 
 ![mitama](assets/mitama.gif)
 
@@ -10,7 +10,7 @@ On-chain agent identity and dispute resolution for Solana.
 
 Agents transact with stake-backed identities. Disputes go to multi-oracle consensus with private voting.
 
-**[Dashboard](https://mitama.kamiyo.ai)** | **[Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)**
+**[Dashboard](https://protocol.kamiyo.ai)** | **[Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)**
 
 ## Features
 
@@ -72,12 +72,12 @@ npm install https://gitpkg.vercel.app/kamiyo-ai/mitama/packages/mitama-sdk?main
 ## Quick Start
 
 ```typescript
-import { MitamaClient, AgentType } from '@mitama/sdk';
+import { KAMIYOClient, AgentType } from '@kamiyo/sdk';
 import { Connection, Keypair } from '@solana/web3.js';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 const wallet = Keypair.generate();
-const client = new MitamaClient({ connection, wallet });
+const client = new KAMIYOClient({ connection, wallet });
 
 // Create agent with 0.5 SOL stake
 const tx = await client.createAgent({
@@ -103,7 +103,7 @@ await client.releaseFunds('order-123', providerPubkey);
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Mitama Program                       │
+│                    KAMIYO Program                       │
 ├─────────────────┬─────────────────┬────────────────────┤
 │  Agent Identity │    Escrow       │   Oracle Registry  │
 │  - PDA          │  - Create       │   - Register       │
@@ -116,24 +116,24 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
-| `@mitama/sdk` | TypeScript client |
-| `@mitama/x402-client` | x402 payment client with escrow protection |
-| `@mitama/actions` | Agent framework actions |
-| `@mitama/langchain` | LangChain tools |
-| `@mitama/middleware` | Express middleware for HTTP 402 |
-| `@mitama/agent-client` | Autonomous agent with auto-dispute |
-| `@mitama/mcp` | MCP server for Claude/LLM agents |
+| `@kamiyo/sdk` | TypeScript client |
+| `@kamiyo/x402-client` | x402 payment client with escrow protection |
+| `@kamiyo/actions` | Agent framework actions |
+| `@kamiyo/langchain` | LangChain tools |
+| `@kamiyo/middleware` | Express middleware for HTTP 402 |
+| `@kamiyo/agent-client` | Autonomous agent with auto-dispute |
+| `@kamiyo/mcp` | MCP server for Claude/LLM agents |
 | `mitama-zk` | Halo2 commitments, Groth16 proofs (Rust) |
 | `circuits/` | Circom circuits for on-chain verification |
 
 ## x402 Integration
 
-Mitama provides the trust layer for [x402](https://www.x402.org/) payments:
+KAMIYO provides the trust layer for [x402](https://www.x402.org/) payments:
 
 ```typescript
-import { X402MitamaClient } from '@mitama/x402-client';
+import { X402KAMIYOClient } from '@kamiyo/x402-client';
 
-const client = new X402MitamaClient({
+const client = new X402KAMIYOClient({
   connection,
   wallet,
   programId: MITAMA_PROGRAM_ID,
@@ -153,7 +153,7 @@ if (!response.slaResult?.passed) {
 }
 ```
 
-x402 handles payments. Mitama ensures they were earned.
+x402 handles payments. KAMIYO ensures they were earned.
 
 ## API
 
