@@ -46,9 +46,13 @@ num-bigint = "0.4"
 blake2 = "0.10"
 sha2 = "0.10"
 
+# Constant-time operations (prevents timing attacks)
+subtle = "2.5"
+
 # Randomness
 rand = "0.8"
 rand_core = "0.6"
+rand_chacha = "0.3"
 getrandom = "0.2"
 
 # Error handling
@@ -65,3 +69,4 @@ criterion = "0.5"
 [features]
 default = ["multicore"]
 multicore = ["halo2_proofs/multicore"]
+deterministic = []

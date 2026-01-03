@@ -31,6 +31,7 @@
 //! - [Solana alt_bn128](https://www.helius.dev/blog/zero-knowledge-proofs-its-applications-on-solana)
 
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq;
 
 /// A proof that can be submitted to Solana
 ///
@@ -80,9 +81,7 @@ impl SolanaProof {
 }
 
 /// Verify a commitment matches the revealed values
-///
-/// This is the on-chain verification logic (simplified for Rust).
-/// The actual Solana program would implement this in the instruction handler.
+/// Uses constant-time comparison to prevent timing attacks
 pub fn verify_commitment(
     commitment: &[u8; 32],
     score: u8,
@@ -93,7 +92,7 @@ pub fn verify_commitment(
     use crate::commitment::VoteCommitment;
 
     let computed = VoteCommitment::compute_hash(score, blinding, escrow_id, oracle);
-    computed == *commitment
+    computed.ct_eq(commitment).into()
 }
 
 /// Groth16 proof for native Solana verification

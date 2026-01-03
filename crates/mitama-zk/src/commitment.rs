@@ -5,6 +5,7 @@
 
 use blake2::{Blake2b512, Digest};
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq;
 
 /// A commitment to an oracle vote
 ///
@@ -70,9 +71,10 @@ impl VoteCommitment {
     }
 
     /// Verify that a revealed score matches this commitment
+    /// Uses constant-time comparison to prevent timing attacks
     pub fn verify(&self, score: u8, blinding: &[u8; 32]) -> bool {
         let computed = Self::compute_hash(score, blinding, &self.escrow_id, &self.oracle);
-        computed == self.hash
+        computed.ct_eq(&self.hash).into()
     }
 
     /// Serialize the commitment for on-chain storage
@@ -86,13 +88,33 @@ impl VoteCommitment {
     }
 }
 
-/// Blinding factor for commitments
+/// Generate a secure blinding factor for commitments
 ///
-/// This should be generated securely and kept private until reveal
-pub fn generate_blinding() -> [u8; 32] {
+/// Returns a cryptographically random 32-byte blinding factor.
+/// Verifies the result is not all zeros (which would break hiding).
+pub fn generate_blinding() -> Result<[u8; 32], crate::ZkError> {
     let mut blinding = [0u8; 32];
-    getrandom::getrandom(&mut blinding).expect("random generation failed");
-    blinding
+    getrandom::getrandom(&mut blinding)
+        .map_err(|e| crate::ZkError::ProofGenerationFailed(format!("RNG failed: {}", e)))?;
+
+    // Reject all-zero blinding (astronomically unlikely but critical)
+    if blinding.iter().all(|&b| b == 0) {
+        return Err(crate::ZkError::ProofGenerationFailed(
+            "Generated zero blinding factor".into(),
+        ));
+    }
+
+    Ok(blinding)
+}
+
+/// Validate that a blinding factor is safe to use
+pub fn validate_blinding(blinding: &[u8; 32]) -> Result<(), crate::ZkError> {
+    if blinding.iter().all(|&b| b == 0) {
+        return Err(crate::ZkError::InvalidProof(
+            "Blinding factor cannot be all zeros".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

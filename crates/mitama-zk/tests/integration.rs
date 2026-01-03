@@ -18,7 +18,7 @@ fn test_halo2_full_flow() {
 
     // Oracle's vote parameters
     let score = 75u8;
-    let blinding = generate_blinding();
+    let blinding = generate_blinding().expect("RNG should work");
     let escrow_id = [0x42u8; 32]; // Example escrow ID
     let oracle_pk = [0x13u8; 32]; // Example oracle public key
 
@@ -161,7 +161,7 @@ fn test_offchain_commitment_verification() {
 #[test]
 fn test_score_boundaries() {
     let prover = OracleVoteProver::setup().expect("Prover setup");
-    let blinding = generate_blinding();
+    let blinding = generate_blinding().expect("RNG");
     let escrow_id = [0x55u8; 32];
     let oracle_pk = [0x66u8; 32];
 
@@ -194,7 +194,7 @@ fn test_multiple_votes() {
     let scores = [0, 25, 50, 75, 100];
 
     for score in scores {
-        let blinding = generate_blinding();
+        let blinding = generate_blinding().expect("RNG");
         let commitment = prover
             .commit(score, &blinding, escrow_id, oracle_pk)
             .expect("Commitment");
@@ -238,7 +238,7 @@ fn test_commitment_binding() {
     let prover = OracleVoteProver::setup().expect("Prover setup");
 
     let original_score = 75u8;
-    let blinding = generate_blinding();
+    let blinding = generate_blinding().expect("RNG");
     let escrow_id = [0xBBu8; 32];
     let oracle_pk = [0xCCu8; 32];
 

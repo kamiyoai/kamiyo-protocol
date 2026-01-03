@@ -109,7 +109,7 @@ pub const ORACLE_VOTE_VK: Groth16Verifyingkey = Groth16Verifyingkey {
 
     vk_beta_g2: ${formatRustBytes(beta_g2)},
 
-    vk_gamme_g2: ${formatRustBytes(gamma_g2)},
+    vk_gamma_g2: ${formatRustBytes(gamma_g2)},
 
     vk_delta_g2: ${formatRustBytes(delta_g2)},
 

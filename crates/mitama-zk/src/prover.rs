@@ -33,6 +33,10 @@ use halo2_proofs::{
 };
 use pasta_curves::{pallas, vesta};
 use rand::rngs::OsRng;
+#[cfg(any(test, feature = "deterministic"))]
+use rand::SeedableRng;
+#[cfg(any(test, feature = "deterministic"))]
+use rand_chacha::ChaCha20Rng;
 
 /// Circuit size parameter (2^K rows)
 /// K=8 gives 256 rows, enough for our lookup table
@@ -65,15 +69,22 @@ impl Halo2Proof {
 
     /// Deserialize from bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self, ZkError> {
+        const MAX_PROOF_SIZE: usize = 10 * 1024 * 1024; // 10MB limit
+
         if data.len() < 8 {
             return Err(ZkError::InvalidProof("Data too short".into()));
+        }
+        if data.len() > MAX_PROOF_SIZE {
+            return Err(ZkError::InvalidProof("Proof data too large".into()));
         }
 
         let mut offset = 0;
 
         // Read proof bytes length
-        let proof_len =
-            u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        let len_bytes: [u8; 4] = data[offset..offset + 4]
+            .try_into()
+            .map_err(|_| ZkError::InvalidProof("Invalid length prefix".into()))?;
+        let proof_len = u32::from_le_bytes(len_bytes) as usize;
         offset += 4;
 
         if data.len() < offset + proof_len + 4 {
@@ -84,22 +95,30 @@ impl Halo2Proof {
         offset += proof_len;
 
         // Read public inputs count
-        let inputs_count =
-            u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        let count_bytes: [u8; 4] = data[offset..offset + 4]
+            .try_into()
+            .map_err(|_| ZkError::InvalidProof("Invalid input count".into()))?;
+        let inputs_count = u32::from_le_bytes(count_bytes) as usize;
         offset += 4;
+
+        // Sanity check on input count
+        if inputs_count > 1000 {
+            return Err(ZkError::InvalidProof("Too many public inputs".into()));
+        }
 
         if data.len() < offset + inputs_count * 32 {
             return Err(ZkError::InvalidProof("Data too short for inputs".into()));
         }
 
         let mut public_inputs = Vec::with_capacity(inputs_count);
-        for _ in 0..inputs_count {
-            let bytes: [u8; 32] = data[offset..offset + 32].try_into().unwrap();
-            let field = pallas::Base::from_repr(bytes);
-            if field.is_none().into() {
-                return Err(ZkError::InvalidProof("Invalid field element".into()));
-            }
-            public_inputs.push(field.unwrap());
+        for i in 0..inputs_count {
+            let field_bytes: [u8; 32] = data[offset..offset + 32]
+                .try_into()
+                .map_err(|_| ZkError::InvalidProof(format!("Invalid field bytes at {}", i)))?;
+            let field = pallas::Base::from_repr(field_bytes)
+                .into_option()
+                .ok_or_else(|| ZkError::InvalidProof(format!("Invalid field element at {}", i)))?;
+            public_inputs.push(field);
             offset += 32;
         }
 
@@ -153,6 +172,8 @@ impl OracleVoteProver {
         escrow_id: [u8; 32],
         oracle_pk: [u8; 32],
     ) -> Result<VoteCommitment, ZkError> {
+        // Validate inputs
+        crate::commitment::validate_blinding(blinding)?;
         if score > crate::circuits::oracle_vote::MAX_SCORE {
             return Err(ZkError::InvalidScore(score));
         }
@@ -171,7 +192,8 @@ impl OracleVoteProver {
         blinding: &[u8; 32],
         commitment: &VoteCommitment,
     ) -> Result<Halo2Proof, ZkError> {
-        // Validate score
+        // Validate inputs
+        crate::commitment::validate_blinding(blinding)?;
         if score > crate::circuits::oracle_vote::MAX_SCORE {
             return Err(ZkError::InvalidScore(score));
         }
@@ -191,6 +213,46 @@ impl OracleVoteProver {
             &[circuit],
             &[&[&public_inputs]],
             OsRng,
+            &mut transcript,
+        )
+        .map_err(|e| ZkError::ProofGenerationFailed(format!("{:?}", e)))?;
+
+        let proof_bytes = transcript.finalize();
+
+        Ok(Halo2Proof {
+            bytes: proof_bytes,
+            public_inputs,
+        })
+    }
+
+    /// Generate a deterministic proof (for testing)
+    ///
+    /// Uses a seeded RNG for reproducible proofs. NOT for production use.
+    #[cfg(any(test, feature = "deterministic"))]
+    pub fn prove_deterministic(
+        &self,
+        score: u8,
+        blinding: &[u8; 32],
+        commitment: &VoteCommitment,
+        seed: [u8; 32],
+    ) -> Result<Halo2Proof, ZkError> {
+        crate::commitment::validate_blinding(blinding)?;
+        if score > crate::circuits::oracle_vote::MAX_SCORE {
+            return Err(ZkError::InvalidScore(score));
+        }
+
+        let circuit = OracleVoteCircuit::new(score, *blinding, commitment.hash);
+        let public_inputs = vec![pallas::Base::from(score as u64)];
+
+        let mut transcript = Blake2bWrite::<_, vesta::Affine, Challenge255<_>>::init(vec![]);
+        let rng = ChaCha20Rng::from_seed(seed);
+
+        create_proof(
+            &self.params,
+            &self.pk,
+            &[circuit],
+            &[&[&public_inputs]],
+            rng,
             &mut transcript,
         )
         .map_err(|e| ZkError::ProofGenerationFailed(format!("{:?}", e)))?;
@@ -323,5 +385,62 @@ mod tests {
 
         assert_eq!(proof.bytes, recovered.bytes);
         assert_eq!(proof.public_inputs, recovered.public_inputs);
+    }
+
+    #[test]
+    fn test_deterministic_proof_reproducibility() {
+        let prover = OracleVoteProver::setup().unwrap();
+
+        let score = 42u8;
+        let blinding = [5u8; 32];
+        let escrow_id = [6u8; 32];
+        let oracle_pk = [7u8; 32];
+        let seed = [0xABu8; 32];
+
+        let commitment = prover.commit(score, &blinding, escrow_id, oracle_pk).unwrap();
+
+        // Same seed should produce identical proofs
+        let proof1 = prover.prove_deterministic(score, &blinding, &commitment, seed).unwrap();
+        let proof2 = prover.prove_deterministic(score, &blinding, &commitment, seed).unwrap();
+
+        assert_eq!(proof1.bytes, proof2.bytes, "Deterministic proofs should be identical");
+
+        // Different seeds should produce different proofs
+        let different_seed = [0xCDu8; 32];
+        let proof3 = prover.prove_deterministic(score, &blinding, &commitment, different_seed).unwrap();
+
+        assert_ne!(proof1.bytes, proof3.bytes, "Different seeds should produce different proofs");
+
+        // Both should still verify
+        assert!(prover.verify(&proof1, &commitment).unwrap());
+        assert!(prover.verify(&proof3, &commitment).unwrap());
+    }
+
+    #[test]
+    fn test_commit_rejects_zero_blinding() {
+        let prover = OracleVoteProver::setup().unwrap();
+        let escrow_id = [1u8; 32];
+        let oracle_pk = [2u8; 32];
+
+        // Zero blinding should be rejected
+        let zero_blinding = [0u8; 32];
+        let result = prover.commit(50, &zero_blinding, escrow_id, oracle_pk);
+        assert!(result.is_err(), "Zero blinding should be rejected");
+    }
+
+    #[test]
+    fn test_prove_rejects_zero_blinding() {
+        let prover = OracleVoteProver::setup().unwrap();
+        let escrow_id = [1u8; 32];
+        let oracle_pk = [2u8; 32];
+        let blinding = [1u8; 32];
+
+        // Create valid commitment first
+        let commitment = prover.commit(50, &blinding, escrow_id, oracle_pk).unwrap();
+
+        // Trying to prove with zero blinding should fail
+        let zero_blinding = [0u8; 32];
+        let result = prover.prove(50, &zero_blinding, &commitment);
+        assert!(result.is_err(), "Zero blinding should be rejected in prove");
     }
 }

@@ -184,18 +184,21 @@ fn parse_g1_point(coords: &[String]) -> Result<Vec<u8>, ZkError> {
 
     let mut result = Vec::with_capacity(64);
 
-    for coord in &coords[..2] {
+    for (i, coord) in coords[..2].iter().enumerate() {
         let value = num_bigint::BigUint::parse_bytes(coord.as_bytes(), 10)
-            .ok_or_else(|| ZkError::InvalidProof("Invalid coordinate".into()))?;
+            .ok_or_else(|| ZkError::InvalidProof(format!("Invalid G1 coordinate at {}", i)))?;
 
-        let mut bytes = value.to_bytes_be();
-        // Pad to 32 bytes
-        while bytes.len() < 32 {
-            bytes.insert(0, 0);
-        }
+        let bytes = value.to_bytes_be();
         if bytes.len() > 32 {
-            bytes = bytes[bytes.len() - 32..].to_vec();
+            return Err(ZkError::InvalidProof(format!(
+                "G1 coordinate {} overflow: {} bytes",
+                i,
+                bytes.len()
+            )));
         }
+        // Pad to 32 bytes
+        let padding = 32 - bytes.len();
+        result.extend(std::iter::repeat_n(0u8, padding));
         result.extend_from_slice(&bytes);
     }
 
@@ -211,19 +214,23 @@ fn parse_g2_point(coords: &[Vec<String>]) -> Result<Vec<u8>, ZkError> {
 
     // G2 point in snarkjs: [[x0, x1], [y0, y1]]
     // Need to convert to bytes: x1, x0, y1, y0 (reversed order for each pair)
-    for pair in coords.iter().take(2) {
-        // Reverse order for each coordinate pair
-        for coord in pair.iter().rev().take(2) {
+    for (pair_idx, pair) in coords.iter().take(2).enumerate() {
+        for (coord_idx, coord) in pair.iter().rev().take(2).enumerate() {
             let value = num_bigint::BigUint::parse_bytes(coord.as_bytes(), 10)
-                .ok_or_else(|| ZkError::InvalidProof("Invalid coordinate".into()))?;
+                .ok_or_else(|| {
+                    ZkError::InvalidProof(format!("Invalid G2 coordinate at [{},{}]", pair_idx, coord_idx))
+                })?;
 
-            let mut bytes = value.to_bytes_be();
-            while bytes.len() < 32 {
-                bytes.insert(0, 0);
-            }
+            let bytes = value.to_bytes_be();
             if bytes.len() > 32 {
-                bytes = bytes[bytes.len() - 32..].to_vec();
+                return Err(ZkError::InvalidProof(format!(
+                    "G2 coordinate [{},{}] overflow: {} bytes",
+                    pair_idx, coord_idx, bytes.len()
+                )));
             }
+            // Pad to 32 bytes
+            let padding = 32 - bytes.len();
+            result.extend(std::iter::repeat_n(0u8, padding));
             result.extend_from_slice(&bytes);
         }
     }

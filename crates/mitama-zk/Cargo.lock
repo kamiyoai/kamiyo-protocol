@@ -461,10 +461,12 @@ dependencies = [
  "num-bigint",
  "pasta_curves",
  "rand",
+ "rand_chacha",
  "rand_core",
  "serde",
  "serde_json",
  "sha2",
+ "subtle",
  "thiserror",
 ]
 

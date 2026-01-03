@@ -421,4 +421,80 @@ mod tests {
         let prover = MockProver::run(K, &circuit, vec![public_inputs]).unwrap();
         prover.assert_satisfied();
     }
+
+    // ==================== Security Tests ====================
+
+    #[test]
+    fn test_public_input_mismatch_rejected() {
+        // Circuit has score 75, but we claim 50 in public input
+        // This should fail because the constraint binds the circuit score to the public input
+        let actual_score = 75u8;
+        let claimed_score = 50u8;
+        let blinding = [1u8; 32];
+        let commitment = [2u8; 32];
+
+        let circuit = OracleVoteCircuit::new(actual_score, blinding, commitment);
+        let public_inputs = vec![pallas::Base::from(claimed_score as u64)];
+
+        let prover = MockProver::run(K, &circuit, vec![public_inputs]).unwrap();
+        assert!(
+            prover.verify().is_err(),
+            "Public input mismatch should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_empty_public_inputs_rejected() {
+        let score = 50u8;
+        let blinding = [1u8; 32];
+        let commitment = [2u8; 32];
+
+        let circuit = OracleVoteCircuit::new(score, blinding, commitment);
+        let public_inputs: Vec<pallas::Base> = vec![];
+
+        let prover = MockProver::run(K, &circuit, vec![public_inputs]).unwrap();
+        assert!(prover.verify().is_err(), "Empty public inputs should be rejected");
+    }
+
+    #[test]
+    fn test_all_valid_scores_accepted() {
+        // Test every valid score to ensure table is complete
+        for score in 0..=100u8 {
+            let blinding = [score; 32];
+            let commitment = [score.wrapping_add(1); 32];
+
+            let circuit = OracleVoteCircuit::new(score, blinding, commitment);
+            let public_inputs = vec![pallas::Base::from(score as u64)];
+
+            let prover = MockProver::run(K, &circuit, vec![public_inputs]).unwrap();
+            assert!(
+                prover.verify().is_ok(),
+                "Score {} should be valid",
+                score
+            );
+        }
+    }
+
+    #[test]
+    fn test_diverse_blinding_values() {
+        let score = 50u8;
+
+        // Test with pattern blinding values
+        let test_blindings: [[u8; 32]; 4] = [
+            [0xAA; 32],                                                 // alternating bits
+            [0x55; 32],                                                 // alternating bits inverted
+            *b"deterministic_test_blinding_vals",                       // text pattern
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+             17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32], // sequential
+        ];
+
+        for blinding in &test_blindings {
+            let commitment = [0u8; 32];
+            let circuit = OracleVoteCircuit::new(score, *blinding, commitment);
+            let public_inputs = vec![pallas::Base::from(score as u64)];
+
+            let prover = MockProver::run(K, &circuit, vec![public_inputs]).unwrap();
+            prover.assert_satisfied();
+        }
+    }
 }
