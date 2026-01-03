@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Mitama - Agent Identity and Conflict Resolution Protocol for Solana"
 edition = "2021"
 license = "BUSL-1.1"
-repository = "https://github.com/kamiyo-ai/mitama"
+repository = "https://github.com/kamiyo-ai/kamiyo-protocol"
 resolver = "2"
 
 [lib]

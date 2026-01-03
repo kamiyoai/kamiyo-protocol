@@ -36,7 +36,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/mitama.git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
     "directory": "circuits"
   },
   "license": "MIT"

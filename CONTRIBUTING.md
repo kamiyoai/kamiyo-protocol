@@ -1,4 +1,4 @@
-# Contributing to Mitama
+# Contributing to KAMIYO Protocol
 
 ## Development Setup
 
@@ -13,8 +13,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/kamiyo-ai/mitama.git
-cd mitama
+git clone https://github.com/kamiyo-ai/kamiyo-protocol.git
+cd kamiyo-protocol
 
 # Install dependencies
 npm install
