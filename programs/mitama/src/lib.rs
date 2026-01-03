@@ -105,8 +105,9 @@ const MIN_ESCROW_AMOUNT: u64 = 1_000_000;           // 0.001 SOL
 const BASE_DISPUTE_COST: u64 = 1_000_000;           // 0.001 SOL
 
 // Multi-oracle consensus constants
-const MAX_ORACLES: usize = 5;
-const MIN_CONSENSUS_ORACLES: u8 = 2;
+const MAX_ORACLES: usize = 7;
+const MIN_CONSENSUS_ORACLES: u8 = 3;                 // Minimum 3-of-N for collusion resistance
+const ORACLE_REVEAL_DELAY: i64 = 300;                // 5 minute delay before scores visible
 #[allow(dead_code)]
 const MAX_SCORE_DEVIATION: u8 = 15;
 
@@ -115,10 +116,14 @@ const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
 const MAX_AGENT_NAME_LENGTH: usize = 32;
 
 // Oracle incentive constants
-const MIN_ORACLE_STAKE: u64 = 500_000_000;          // 0.5 SOL minimum oracle stake
+const MIN_ORACLE_STAKE: u64 = 1_000_000_000;        // 1 SOL minimum oracle stake (raised)
 const ORACLE_SLASH_PERCENT: u8 = 10;                // 10% slash for voting against consensus
 const ORACLE_REWARD_PERCENT: u8 = 1;                // 1% of escrow amount as oracle reward
 const MAX_ORACLE_SLASH_VIOLATIONS: u8 = 3;          // Max violations before removal
+
+// Tiered escrow thresholds (require more oracles for larger amounts)
+const TIER2_ESCROW_THRESHOLD: u64 = 10_000_000_000;  // 10 SOL - requires 4 oracles
+const TIER3_ESCROW_THRESHOLD: u64 = 100_000_000_000; // 100 SOL - requires 5 oracles
 
 // Agent slashing constants
 const AGENT_DISPUTE_LOSS_SLASH_PERCENT: u8 = 5;     // 5% stake slash when losing dispute
@@ -414,6 +419,20 @@ fn calculate_refund_from_quality(quality_score: u8) -> u8 {
         65..=79 => 35,
         80..=100 => 0,
         _ => 0,
+    }
+}
+
+/// Calculate required oracle count based on escrow amount (tiered for collusion resistance)
+/// Tier 1: < 10 SOL = 3 oracles
+/// Tier 2: 10-100 SOL = 4 oracles
+/// Tier 3: > 100 SOL = 5 oracles
+fn required_oracle_count(escrow_amount: u64) -> u8 {
+    if escrow_amount >= TIER3_ESCROW_THRESHOLD {
+        5
+    } else if escrow_amount >= TIER2_ESCROW_THRESHOLD {
+        4
+    } else {
+        MIN_CONSENSUS_ORACLES
     }
 }
 
@@ -1629,7 +1648,7 @@ pub mod mitama {
         let oracle_registry = &ctx.accounts.oracle_registry;
 
         // Extract values needed for calculations
-        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores, token_mint, bump, agent_key) = {
+        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores, token_mint, bump, agent_key, first_submission_time) = {
             let escrow = &ctx.accounts.escrow;
             let individual_scores: Vec<u8> = escrow.oracle_submissions.iter().map(|s| s.quality_score).collect();
             let oracles: Vec<Pubkey> = escrow.oracle_submissions.iter().map(|s| s.oracle).collect();
@@ -1644,6 +1663,7 @@ pub mod mitama {
                         .map(|o| (submission.quality_score, o.weight))
                 })
                 .collect();
+            let first_submission = escrow.oracle_submissions.iter().map(|s| s.submitted_at).min().unwrap_or(0);
             (
                 escrow.status,
                 escrow.amount,
@@ -1655,13 +1675,25 @@ pub mod mitama {
                 escrow.token_mint,
                 escrow.bump,
                 escrow.agent,
+                first_submission,
             )
         };
 
         require!(status == EscrowStatus::Disputed, MitamaError::InvalidStatus);
+
+        // Tiered oracle requirement: larger escrows need more oracles for collusion resistance
+        let required_oracles = required_oracle_count(amount);
         require!(
-            oracles.len() >= oracle_registry.min_consensus as usize,
+            oracles.len() >= required_oracles as usize,
             MitamaError::InsufficientOracleConsensus
+        );
+
+        // Reveal delay: prevent oracles from seeing others' votes before committing
+        // Must wait ORACLE_REVEAL_DELAY seconds after first submission
+        let clock = Clock::get()?;
+        require!(
+            clock.unix_timestamp >= first_submission_time.saturating_add(ORACLE_REVEAL_DELAY),
+            MitamaError::RevealDelayNotMet
         );
 
         // Calculate consensus
@@ -2711,7 +2743,7 @@ pub struct Treasury {
 #[derive(InitSpace)]
 pub struct OracleRegistry {
     pub admin: Pubkey,
-    #[max_len(5)]
+    #[max_len(7)]
     pub oracles: Vec<OracleConfig>,
     pub min_consensus: u8,
     pub max_score_deviation: u8,
@@ -2931,4 +2963,7 @@ pub enum MitamaError {
 
     #[msg("Insufficient treasury balance")]
     InsufficientTreasuryBalance,
+
+    #[msg("Reveal delay not met - wait 5 minutes after first oracle submission")]
+    RevealDelayNotMet,
 }
