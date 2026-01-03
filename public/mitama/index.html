@@ -1293,8 +1293,8 @@
                     </a>
                 </div>
                 <div class="header-center">
-                    <h1 class="mb-10 font-semibold">Mitama</h1>
-                    <p class="mb-0">Quality-verified HTTP 402 payments with sliding-scale refunds on Solana</p>
+                    <p class="font-light text-sm mb-2"><span style="letter-spacing: normal;">ミタマプロトコル</span> <span class="gradient-text" style="letter-spacing: 5px;">MITAMA</span></p>
+                    <div class="mb-4"><span id="glitchLabel" class="text-white text-xs font-medium tracking-widest uppercase">testing</span></div>
                 </div>
                 <div class="header-right">
                     <button id="walletBtn" class="wallet-connect-btn" onclick="connectWallet()">
@@ -1700,6 +1700,7 @@ pub mod mitama {
 
             initializeCharts();
             highlightSyntax();
+            initGlitchLabel();
 
             // Load real on-chain data after a short delay
             setTimeout(loadRecentDisputeData, 2000);
@@ -1707,6 +1708,53 @@ pub mod mitama {
             // Preload analytics data in background
             setTimeout(loadAnalytics, 2000);
         });
+
+        // Glitch label effect
+        function initGlitchLabel() {
+            const label = document.getElementById('glitchLabel');
+            if (!label) return;
+
+            const text = 'testing';
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+            function scramble() {
+                let iterations = 0;
+                const maxIterations = text.length * 4;
+                const interval = setInterval(() => {
+                    iterations++;
+                    if (iterations >= maxIterations) {
+                        clearInterval(interval);
+                        label.textContent = text;
+                        return;
+                    }
+                    const revealPoint = Math.floor(iterations / 4);
+                    label.textContent = text
+                        .split('')
+                        .map((char, index) =>
+                            index < revealPoint
+                                ? text[index]
+                                : chars[Math.floor(Math.random() * chars.length)]
+                        )
+                        .join('');
+                }, 80);
+            }
+
+            function runCycle() {
+                scramble();
+                setTimeout(() => {
+                    label.textContent = text;
+                    setTimeout(() => {
+                        scramble();
+                        setTimeout(() => {
+                            label.textContent = text;
+                        }, 1200);
+                    }, 4000);
+                }, 1200);
+            }
+
+            runCycle();
+            setInterval(runCycle, 12000);
+        }
 
         // Tab switching
         let analyticsLoaded = false;
