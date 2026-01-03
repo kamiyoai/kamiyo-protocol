@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mitama Demo Video</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <video id="demoVideo" controls autoplay playsinline>
+        <source id="videoSource" src="/demo-video.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+
+    <script>
+        (function() {
+            const video = document.getElementById('demoVideo');
+            const source = document.getElementById('videoSource');
+
+            // Detect connection speed
+            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+            if (connection) {
+                const effectiveType = connection.effectiveType;
+                const downlink = connection.downlink; // Mbps
+
+                // Use HD version for 4G connections or downlink > 5 Mbps
+                if (effectiveType === '4g' || downlink > 5) {
+                    source.src = '/demo-video-hd.mp4';
+                    video.load();
+                }
+            }
+
+            // Fallback: Test download speed on first frame load
+            video.addEventListener('loadedmetadata', function() {
+                if (!connection || !connection.effectiveType) {
+                    // If we loaded 1k version quickly, upgrade to HD
+                    const loadTime = performance.now();
+                    if (loadTime < 1000) { // Loaded in under 1 second
+                        source.src = '/demo-video-hd.mp4';
+                        video.load();
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
