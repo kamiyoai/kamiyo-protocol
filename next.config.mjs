@@ -272,6 +272,24 @@ const nextConfig = {
     // ========================================================================
     async redirects() {
         return [
+            // Redirect mitama.kamiyo.ai to protocol.kamiyo.ai
+            {
+                source: '/:path*',
+                destination: 'https://protocol.kamiyo.ai/:path*',
+                permanent: true,
+                has: [
+                    {
+                        type: 'host',
+                        value: 'mitama.kamiyo.ai',
+                    },
+                ],
+            },
+            // Redirect /mitama to /protocol
+            {
+                source: '/mitama',
+                destination: '/protocol',
+                permanent: true,
+            },
             // Redirect main domain /dashboard to dashboard subdomain
             {
                 source: '/dashboard',
@@ -355,30 +373,30 @@ const nextConfig = {
                     },
                 ],
             },
-            // Rewrite /mitama to serve the static HTML
+            // Rewrite /protocol to serve the static HTML
             {
-                source: '/mitama',
+                source: '/protocol',
                 destination: '/mitama/index.html',
             },
-            // Serve mitama at root when accessed via mitama.kamiyo.ai subdomain
+            // Serve protocol at root when accessed via protocol.kamiyo.ai subdomain
             {
                 source: '/',
                 destination: '/mitama/index.html',
                 has: [
                     {
                         type: 'host',
-                        value: 'mitama.kamiyo.ai',
+                        value: 'protocol.kamiyo.ai',
                     },
                 ],
             },
-            // Serve all mitama assets when accessed via subdomain
+            // Serve all protocol assets when accessed via subdomain
             {
                 source: '/:path*',
                 destination: '/mitama/:path*',
                 has: [
                     {
                         type: 'host',
-                        value: 'mitama.kamiyo.ai',
+                        value: 'protocol.kamiyo.ai',
                     },
                 ],
             },
