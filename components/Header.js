@@ -70,27 +70,27 @@ export default function Header({ children }) {
             {/* Sticky header container */}
             <header className={`w-full text-white transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"}`}>
                 <div className="w-full px-5 mx-auto py-3 flex items-center justify-between" style={{ maxWidth: '1400px' }}>
-                    <div className="flex items-center gap-8">
-                        <Link href="/" className="flex items-center flex-shrink-0">
-                            {/* Mobile logo */}
-                            <img
-                                src="/media/KAMIYO_logomark.png"
-                                alt="Kamiyo.ai"
-                                width="240"
-                                height="64"
-                                className="md:hidden object-contain h-10 sm:h-12 w-auto"
-                            />
-                            {/* Desktop logo */}
-                            <img
-                                src="/media/KAMIYO_logomark.png"
-                                alt="Kamiyo.ai"
-                                width="240"
-                                height="64"
-                                className="hidden md:block object-contain h-14 w-auto"
-                            />
-                        </Link>
+                    <Link href="/" className="flex items-center flex-shrink-0">
+                        {/* Mobile logo */}
+                        <img
+                            src="/media/KAMIYO_logomark.png"
+                            alt="Kamiyo.ai"
+                            width="240"
+                            height="64"
+                            className="md:hidden object-contain h-10 sm:h-12 w-auto"
+                        />
+                        {/* Desktop logo */}
+                        <img
+                            src="/media/KAMIYO_logomark.png"
+                            alt="Kamiyo.ai"
+                            width="240"
+                            height="64"
+                            className="hidden md:block object-contain h-14 w-auto"
+                        />
+                    </Link>
+                    <div className="flex items-center gap-6">
                         {/* Header navigation links */}
-                        <nav className="hidden md:flex items-center gap-6">
+                        <nav className="hidden md:flex items-center gap-5">
                             <Link
                                 href="/about"
                                 className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
@@ -109,17 +109,15 @@ export default function Header({ children }) {
                             >
                                 Inquiries
                             </Link>
+                            {session && (
+                                <Link
+                                    href="/dashboard"
+                                    className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                                >
+                                    Dashboard
+                                </Link>
+                            )}
                         </nav>
-                    </div>
-                    <div className="flex items-center gap-8">
-                        {session && (
-                            <Link
-                                href="/dashboard"
-                                className="hidden md:block text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
-                            >
-                                Dashboard
-                            </Link>
-                        )}
                         <button
                             onClick={() => setMenuOpen(!isMenuOpen)}
                             className={`focus:outline-none transform transition-transform duration-300`}
@@ -222,31 +220,7 @@ export default function Header({ children }) {
                                         </Link>
                                     </nav>
                                 )}
-                                <nav className="flex flex-col items-center space-y-4 py-6 pb-6">
-                                    <Link
-                                        href="/about"
-                                        onClick={closeMenu}
-                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
-                                    >
-                                        About
-                                    </Link>
-                                    <Link href="/pricing"
-                                          rel="noopener noreferrer"
-                                          onClick={closeMenu}
-                                          className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
-                                    >
-                                        Pricing
-                                    </Link>
-                                    <Link href="/inquiries"
-                                          rel="noopener noreferrer"
-                                          onClick={closeMenu}
-                                          className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
-                                    >
-                                        Inquiries
-                                    </Link>
-                                </nav>
-
-                                    <nav className="flex flex-col items-center space-y-4 py-6 border-t border-gray-500 border-opacity-25">
+                                    <nav className="flex flex-col items-center space-y-4 py-6">
                                         <Link
                                             href="/api-docs"
                                             onClick={closeMenu}
