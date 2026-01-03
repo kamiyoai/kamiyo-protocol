@@ -4,7 +4,12 @@
  */
 
 const PROGRAM_ID = 'E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n';
-const DEVNET_RPC = 'https://api.mainnet-beta.solana.com';
+const RPC_ENDPOINTS = [
+    'https://mainnet.helius-rpc.com/?api-key=c4a9b21c-8650-451d-9572-8c8a3543a0be',
+    'https://rpc.ankr.com/solana',
+    'https://api.mainnet-beta.solana.com'
+];
+const DEVNET_RPC = RPC_ENDPOINTS[0];
 
 // Browser-compatible Buffer replacement
 class BufferPolyfill {
