@@ -117,6 +117,7 @@ await client.releaseFunds('order-123', providerPubkey);
 | Package | Description |
 |---------|-------------|
 | `@mitama/sdk` | TypeScript client |
+| `@mitama/x402-client` | x402 payment client with escrow protection |
 | `@mitama/actions` | Agent framework actions |
 | `@mitama/langchain` | LangChain tools |
 | `@mitama/middleware` | Express middleware for HTTP 402 |
@@ -124,6 +125,35 @@ await client.releaseFunds('order-123', providerPubkey);
 | `@mitama/mcp` | MCP server for Claude/LLM agents |
 | `mitama-zk` | Halo2 commitments, Groth16 proofs (Rust) |
 | `circuits/` | Circom circuits for on-chain verification |
+
+## x402 Integration
+
+Mitama provides the trust layer for [x402](https://www.x402.org/) payments:
+
+```typescript
+import { X402MitamaClient } from '@mitama/x402-client';
+
+const client = new X402MitamaClient({
+  connection,
+  wallet,
+  programId: MITAMA_PROGRAM_ID,
+  qualityThreshold: 70,  // Auto-dispute below this
+  maxPricePerRequest: 0.1,
+});
+
+// Request with automatic payment + escrow protection
+const response = await client.request('https://api.provider.com/data', {
+  useEscrow: true,
+  sla: { maxLatencyMs: 5000 },
+});
+
+// SLA violation triggers automatic dispute
+if (!response.slaResult?.passed) {
+  // Funds held in escrow, oracle consensus determines settlement
+}
+```
+
+x402 handles payments. Mitama ensures they were earned.
 
 ## API
 
