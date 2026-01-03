@@ -31,6 +31,8 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
   let escrowBump: number;
   let reputationPDA: PublicKey;
   let reputationBump: number;
+  let protocolConfigPDA: PublicKey;
+  let oracleRegistryPDA: PublicKey;
 
   const transactionId = `test-${Date.now()}`;
 
@@ -63,6 +65,30 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       [Buffer.from("reputation"), owner.publicKey.toBuffer()],
       program.programId
     );
+
+    [protocolConfigPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("protocol_config")],
+      program.programId
+    );
+
+    [oracleRegistryPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("oracle_registry")],
+      program.programId
+    );
+
+    // Initialize protocol config (required for escrows)
+    try {
+      await program.methods
+        .initializeProtocol(provider2.publicKey, owner.publicKey)
+        .accounts({
+          protocolConfig: protocolConfigPDA,
+          authority: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    } catch (e) {
+      // Already initialized
+    }
   });
 
   // ============================================================================
@@ -167,6 +193,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, transactionId, false)
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: escrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -203,6 +230,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
         await program.methods
           .initializeEscrow(amount, invalidTimeLock, newTxId, false)
           .accounts({
+            protocolConfig: protocolConfigPDA,
             escrow: newEscrowPDA,
             agent: owner.publicKey,
             api: provider2.publicKey,
@@ -235,6 +263,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, releaseTxId, false)
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: releaseEscrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -319,6 +348,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, disputeTxId, false)
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: disputeEscrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -365,6 +395,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, releasedTxId, false)
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: releasedEscrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -659,6 +690,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, splTxId, true) // use_spl_token = true
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: splEscrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -702,6 +734,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, releaseTxId, true)
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: releaseEscrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -761,6 +794,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .initializeEscrow(amount, timeLock, disputeTxId, true)
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: disputeEscrowPDA,
           agent: owner.publicKey,
           api: provider2.publicKey,
@@ -805,6 +839,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
         await program.methods
           .initializeEscrow(amount, timeLock, noAccountTxId, true) // use_spl_token = true
           .accounts({
+            protocolConfig: protocolConfigPDA,
             escrow: noAccountEscrowPDA,
             agent: owner.publicKey,
             api: provider2.publicKey,
@@ -845,6 +880,7 @@ describe("Mitama - Agent Identity & Conflict Resolution", () => {
         await program.methods
           .initializeEscrow(amount, timeLock, txId, true)
           .accounts({
+            protocolConfig: protocolConfigPDA,
             escrow: escrowPDA,
             agent: owner.publicKey,
             api: provider2.publicKey,

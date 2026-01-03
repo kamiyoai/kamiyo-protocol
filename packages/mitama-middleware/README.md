@@ -30,7 +30,7 @@ const connection = new Connection('https://api.mainnet-beta.solana.com');
 
 app.use('/api/premium', MitamaPaymentMiddleware({
   realm: 'my-api',
-  programId: new PublicKey('8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC'),
+  programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
   connection,
   price: 0.001,
   qualityGuarantee: true
@@ -53,7 +53,7 @@ const app = express();
 // Mount Solana Actions endpoints
 app.use(createActionsRouter({
   baseUrl: 'https://api.example.com',
-  programId: new PublicKey('8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC'),
+  programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
   connection: new Connection('https://api.mainnet-beta.solana.com'),
   providerWallet: new PublicKey('YOUR_WALLET'),
   title: 'Premium API Access',
@@ -89,7 +89,7 @@ import { X402Client } from '@mitama/sdk';
 const client = new X402Client({
   connection: new Connection('https://api.mainnet-beta.solana.com'),
   wallet: Keypair.generate(),
-  programId: new PublicKey('8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC'),
+  programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
   qualityThreshold: 70,
   maxPricePerRequest: 0.1,
 });

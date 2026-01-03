@@ -10,7 +10,7 @@ import { BN } from "@coral-xyz/anchor";
 import { SurfpoolClient, PreflightValidator } from "@mitama/surfpool";
 
 const SURFPOOL_ENDPOINT = process.env.SURFPOOL_URL || "http://localhost:8899";
-const MITAMA_PROGRAM_ID = new PublicKey("8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC");
+const MITAMA_PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 
 async function main() {
   // Initialize Surfpool client

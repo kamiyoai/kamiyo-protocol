@@ -11,3 +11,14 @@ export type {
   ActionPostRequest,
   ActionPostResponse,
 } from './actions';
+
+export {
+  x402Middleware,
+  createPaymentReceipt,
+  formatPaymentHeader,
+} from './x402';
+export type {
+  X402Config,
+  X402PaymentReceipt,
+  X402Request as X402ProtocolRequest,
+} from './x402';

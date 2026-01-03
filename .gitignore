@@ -37,3 +37,6 @@ Thumbs.db
 
 # Scripts
 scripts/faucet.log
+.keys/
+backup/
+test-ledger/

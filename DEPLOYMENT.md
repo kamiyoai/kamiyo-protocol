@@ -1,5 +1,17 @@
 # Mitama Mainnet Deployment Runbook
 
+## Deployment Status
+
+**Mainnet: Live**
+
+| Component | Address |
+|-----------|---------|
+| Program | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
+| Protocol Config | `E6VhYjktLpT91VJy7bt5VL7DhTurZZKZUEFEgxLdZHna` |
+| Oracle Registry | `2sUcFA5kaxq5akJFw7UzAUizfvZsr72FVpeKWmYc5yuf` |
+
+---
+
 ## Pre-Deployment Checklist
 
 ### 1. Code Verification
@@ -62,12 +74,12 @@ export ANCHOR_WALLET=./mitama-keypair.json
 anchor deploy --provider.cluster mainnet
 
 # Verify deployment
-solana program show 8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC
+solana program show 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
 ```
 
 Expected output:
 ```
-Program Id: 8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC
+Program Id: 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
 Owner: BPFLoaderUpgradeab1e11111111111111111111111
 ProgramData Address: <PDA>
 Authority: <DEPLOYER_PUBKEY>
@@ -302,7 +314,7 @@ If critical issues are discovered post-deployment:
    ```bash
    # Deploy new version
    anchor upgrade target/deploy/mitama.so \
-     --program-id 8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC \
+     --program-id 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM \
      --provider.cluster mainnet
    ```
 5. **Verify upgrade** and unpause protocol

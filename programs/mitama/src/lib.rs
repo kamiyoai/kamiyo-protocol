@@ -17,6 +17,45 @@
 //! - Agreement: A payment agreement between agent and provider (formerly escrow)
 //! - Conflict: A disputed agreement requiring oracle arbitration
 //! - Resolution: The outcome of conflict arbitration with quality-based settlement
+//!
+//! ## Access Control Summary
+//!
+//! | Instruction              | Who Can Call                                    | Additional Requirements |
+//! |--------------------------|------------------------------------------------|-------------------------|
+//! | create_agent             | Anyone                                          | Must stake MIN_STAKE    |
+//! | deactivate_agent         | Agent owner only                               | Agent must be active    |
+//! | update_agent_rep         | Agent owner OR registered oracle               | -                       |
+//! | initialize_escrow        | Anyone                                          | Protocol not paused     |
+//! | release_funds            | Agent (anytime) OR API (after timelock)        | Escrow must be Active   |
+//! | mark_disputed            | Agent (escrow owner) only                      | Before expiry           |
+//! | resolve_dispute          | Registered oracle (with valid signature)       | Oracle in registry      |
+//! | submit_oracle_score      | Registered oracle (with valid signature)       | Oracle in registry      |
+//! | finalize_multi_oracle_dispute | Anyone (permissionless)                   | Min consensus reached   |
+//! | claim_expired_escrow     | Anyone (permissionless)                        | 7 days post-expiry      |
+//! | initialize_oracle_registry | Admin (one-time)                             | -                       |
+//! | add_oracle               | Registry admin only                            | Oracle stakes collateral|
+//! | remove_oracle            | Registry admin only                            | -                       |
+//! | transfer_admin           | Current registry admin only                    | -                       |
+//! | initialize_protocol      | Anyone (one-time)                              | Sets up 2-of-3 multisig |
+//! | pause_protocol           | 2-of-3 multisig authorities                    | Protocol not paused     |
+//! | unpause_protocol         | 2-of-3 multisig authorities                    | Protocol paused         |
+//! | transfer_protocol_authority | 2-of-3 multisig authorities                 | -                       |
+//!
+//! ## Emergency Pause Mechanism
+//!
+//! The protocol implements a 2-of-3 multi-sig emergency pause:
+//!
+//! 1. **Initialization**: `initialize_protocol` sets up 3 distinct authority addresses
+//! 2. **Pause Activation**: `pause_protocol` requires signatures from any 2 of 3 authorities
+//! 3. **Pause Effect**: When paused, `initialize_escrow` is blocked (new escrows)
+//! 4. **Existing Escrows**: Can still be released/disputed/resolved (protects user funds)
+//! 5. **Resume**: `unpause_protocol` requires 2-of-3 multi-sig to resume operations
+//!
+//! ## Slashing Mechanisms
+//!
+//! 1. **Agent Slashing**: 5% of stake slashed for frivolous disputes (quality >= 80)
+//! 2. **Oracle Slashing**: 10% of stake slashed for voting against consensus (future)
+//! 3. **Oracle Removal**: After 3 violations, oracle can be removed from registry
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
@@ -29,7 +68,7 @@ use anchor_lang::solana_program::{
 use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC");
+declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 
 // ============================================================================
 // Constants
@@ -65,6 +104,15 @@ const MAX_SCORE_DEVIATION: u8 = 15;
 // Agent constants
 const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
 const MAX_AGENT_NAME_LENGTH: usize = 32;
+
+// Oracle incentive constants
+const MIN_ORACLE_STAKE: u64 = 500_000_000;          // 0.5 SOL minimum oracle stake
+const ORACLE_SLASH_PERCENT: u8 = 10;                // 10% slash for voting against consensus
+const ORACLE_REWARD_PERCENT: u8 = 1;                // 1% of escrow amount as oracle reward
+const MAX_ORACLE_SLASH_VIOLATIONS: u8 = 3;          // Max violations before removal
+
+// Agent slashing constants
+const AGENT_DISPUTE_LOSS_SLASH_PERCENT: u8 = 5;     // 5% stake slash when losing dispute
 
 // Protocol version for upgrade tracking
 const PROTOCOL_VERSION: u8 = 1;
@@ -200,6 +248,36 @@ pub struct MultiOracleDisputeResolved {
     pub payment_amount: u64,
 }
 
+#[event]
+pub struct OracleSlashed {
+    pub oracle: Pubkey,
+    pub slash_amount: u64,
+    pub violation_count: u8,
+    pub reason: String,
+}
+
+#[event]
+pub struct OracleRewarded {
+    pub oracle: Pubkey,
+    pub reward_amount: u64,
+    pub escrow: Pubkey,
+}
+
+#[event]
+pub struct AgentSlashed {
+    pub agent: Pubkey,
+    pub slash_amount: u64,
+    pub reason: String,
+}
+
+#[event]
+pub struct ExpiredEscrowClaimed {
+    pub escrow: Pubkey,
+    pub claimer: Pubkey,
+    pub amount: u64,
+    pub claim_type: String,
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -242,6 +320,8 @@ pub fn verify_ed25519_signature(
 
 /// Calculate weighted consensus score from oracle submissions
 /// Uses weighted average for scores within deviation threshold of median
+/// Tie-breaking: If scores are exactly split, uses median as tiebreaker
+/// For boundary cases (e.g., 64.5 rounds to 65), uses ceiling to favor agent refunds
 fn calculate_weighted_consensus(
     scores: &[(u8, u16)], // (score, weight) pairs
     max_deviation: u8,
@@ -252,7 +332,17 @@ fn calculate_weighted_consensus(
     let mut sorted_scores: Vec<u8> = scores.iter().map(|(s, _)| *s).collect();
     sorted_scores.sort_unstable();
 
-    let median = sorted_scores[sorted_scores.len() / 2];
+    // Calculate median with tie-breaking for even number of scores
+    // For even counts, average the two middle values (ceiling for agent-favorable rounding)
+    let len = sorted_scores.len();
+    let median = if len % 2 == 0 {
+        let mid_low = sorted_scores[len / 2 - 1];
+        let mid_high = sorted_scores[len / 2];
+        // Use ceiling division to favor agent in ties
+        (mid_low as u16 + mid_high as u16 + 1) / 2
+    } else {
+        sorted_scores[len / 2] as u16
+    } as u8;
 
     // Filter scores within deviation threshold and calculate weighted average
     let mut weighted_sum: u64 = 0;
@@ -261,13 +351,16 @@ fn calculate_weighted_consensus(
     for (score, weight) in scores {
         let diff = (*score).abs_diff(median);
         if diff <= max_deviation {
-            weighted_sum += (*score as u64) * (*weight as u64);
-            total_weight += *weight as u64;
+            weighted_sum = weighted_sum.saturating_add((*score as u64).saturating_mul(*weight as u64));
+            total_weight = total_weight.saturating_add(*weight as u64);
         }
     }
 
     require!(total_weight > 0, MitamaError::NoConsensusReached);
-    Ok((weighted_sum / total_weight) as u8)
+
+    // Use ceiling division for tie-breaking (favors agent refunds in boundary cases)
+    let consensus = (weighted_sum + total_weight - 1) / total_weight;
+    Ok(consensus.min(100) as u8)
 }
 
 /// Calculate refund percentage based on quality score
@@ -285,7 +378,11 @@ fn calculate_dispute_cost(reputation: &EntityReputation) -> u64 {
     if reputation.total_transactions == 0 {
         return BASE_DISPUTE_COST;
     }
-    let dispute_rate = (reputation.disputes_filed * 100) / reputation.total_transactions;
+    // Use saturating_mul to prevent overflow
+    let dispute_rate = reputation.disputes_filed
+        .saturating_mul(100)
+        .checked_div(reputation.total_transactions)
+        .unwrap_or(0);
     let multiplier = match dispute_rate {
         0..=20 => 1,
         21..=40 => 2,
@@ -299,15 +396,19 @@ fn calculate_reputation_score(reputation: &EntityReputation) -> u16 {
     if reputation.total_transactions == 0 {
         return 500;
     }
-    let tx_score = reputation.total_transactions.min(100) as u16 * 5;
+    // Use saturating arithmetic to prevent overflow
+    let tx_score = (reputation.total_transactions.min(100) as u16).saturating_mul(5);
     let dispute_score = if reputation.disputes_filed > 0 {
-        let win_rate = (reputation.disputes_won * 100) / reputation.disputes_filed;
-        (win_rate as u16 * 3).min(300)
+        let win_rate = reputation.disputes_won
+            .saturating_mul(100)
+            .checked_div(reputation.disputes_filed)
+            .unwrap_or(0);
+        ((win_rate as u16).saturating_mul(3)).min(300)
     } else {
         150
     };
-    let quality_score = (reputation.average_quality_received as u16 * 2).min(200);
-    (tx_score + dispute_score + quality_score).min(1000)
+    let quality_score = ((reputation.average_quality_received as u16).saturating_mul(2)).min(200);
+    tx_score.saturating_add(dispute_score).saturating_add(quality_score).min(1000)
 }
 
 /// Get rate limits based on verification level
@@ -642,10 +743,11 @@ pub mod mitama {
 
     /// Release funds to API (happy path)
     /// Only the agent can release early, API can release after timelock expires
+    /// Uses check-effects-interactions pattern for reentrancy safety
     pub fn release_funds(ctx: Context<ReleaseFunds>) -> Result<()> {
         let clock = Clock::get()?;
 
-        let (status, agent_key, api_key, expires_at, transfer_amount, transaction_id, bump, token_mint) = {
+        let (status, agent_key, api_key, expires_at, transfer_amount, transaction_id, bump, token_mint, escrow_key) = {
             let escrow = &ctx.accounts.escrow;
             (
                 escrow.status,
@@ -656,6 +758,7 @@ pub mod mitama {
                 escrow.transaction_id.clone(),
                 escrow.bump,
                 escrow.token_mint,
+                escrow.key(),
             )
         };
 
@@ -672,6 +775,15 @@ pub mod mitama {
             MitamaError::Unauthorized
         );
 
+        // ====================================================================
+        // Check-Effects-Interactions: Update state BEFORE transfers (effects)
+        // ====================================================================
+        {
+            let escrow = &mut ctx.accounts.escrow;
+            escrow.status = EscrowStatus::Released;
+        }
+
+        // Now perform transfers (interactions)
         let seeds = &[b"escrow".as_ref(), agent_key.as_ref(), transaction_id.as_bytes(), &[bump]];
         let signer = &[&seeds[..]];
 
@@ -706,14 +818,11 @@ pub mod mitama {
             anchor_lang::system_program::transfer(cpi_context, transfer_amount)?;
         }
 
-        let escrow = &mut ctx.accounts.escrow;
-        escrow.status = EscrowStatus::Released;
-
         emit!(FundsReleased {
-            escrow: escrow.key(),
-            transaction_id: escrow.transaction_id.clone(),
-            amount: escrow.amount,
-            api: escrow.api,
+            escrow: escrow_key,
+            transaction_id,
+            amount: transfer_amount,
+            api: api_key,
             timestamp: clock.unix_timestamp,
         });
 
@@ -751,20 +860,25 @@ pub mod mitama {
     }
 
     /// Resolve dispute with verifier oracle signature
+    /// Uses check-effects-interactions pattern for reentrancy safety
+    /// Supports both SOL and SPL token escrows
     pub fn resolve_dispute(
         ctx: Context<ResolveDispute>,
         quality_score: u8,
         refund_percentage: u8,
         signature: [u8; 64],
     ) -> Result<()> {
-        // Extract values we need before mutating
-        let (status, transaction_id, amount, escrow_key) = {
+        // Extract values we need before mutating (checks)
+        let (status, transaction_id, amount, escrow_key, token_mint, bump, agent_key) = {
             let escrow = &ctx.accounts.escrow;
             (
                 escrow.status,
                 escrow.transaction_id.clone(),
                 escrow.amount,
                 escrow.key(),
+                escrow.token_mint,
+                escrow.bump,
+                escrow.agent,
             )
         };
 
@@ -791,34 +905,88 @@ pub mod mitama {
             .ok_or(MitamaError::ArithmeticOverflow)? as u64;
         let payment_amount = amount.saturating_sub(refund_amount);
 
-        // Transfer funds using account info directly
-        if refund_amount > 0 {
-            **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
-            **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += refund_amount;
-        }
+        // ====================================================================
+        // Check-Effects-Interactions: Update state BEFORE transfers (effects)
+        // ====================================================================
+        let clock = Clock::get()?;
+        let verifier_key = ctx.accounts.verifier.key();
 
-        if payment_amount > 0 {
-            **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= payment_amount;
-            **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += payment_amount;
+        // Update escrow state first
+        {
+            let escrow = &mut ctx.accounts.escrow;
+            escrow.status = EscrowStatus::Resolved;
+            escrow.quality_score = Some(quality_score);
+            escrow.refund_percentage = Some(refund_percentage);
         }
-
-        // Now we can mutate the escrow account state
-        let escrow = &mut ctx.accounts.escrow;
-        escrow.status = EscrowStatus::Resolved;
-        escrow.quality_score = Some(quality_score);
-        escrow.refund_percentage = Some(refund_percentage);
 
         // Update reputations
-        let clock = Clock::get()?;
-        let agent_reputation = &mut ctx.accounts.agent_reputation;
-        agent_reputation.total_transactions = agent_reputation.total_transactions.saturating_add(1);
-        agent_reputation.reputation_score = calculate_reputation_score(agent_reputation);
-        agent_reputation.last_updated = clock.unix_timestamp;
+        {
+            let agent_reputation = &mut ctx.accounts.agent_reputation;
+            agent_reputation.total_transactions = agent_reputation.total_transactions.saturating_add(1);
+            agent_reputation.reputation_score = calculate_reputation_score(agent_reputation);
+            agent_reputation.last_updated = clock.unix_timestamp;
+        }
+        {
+            let api_reputation = &mut ctx.accounts.api_reputation;
+            api_reputation.total_transactions = api_reputation.total_transactions.saturating_add(1);
+            api_reputation.reputation_score = calculate_reputation_score(api_reputation);
+            api_reputation.last_updated = clock.unix_timestamp;
+        }
 
-        let api_reputation = &mut ctx.accounts.api_reputation;
-        api_reputation.total_transactions = api_reputation.total_transactions.saturating_add(1);
-        api_reputation.reputation_score = calculate_reputation_score(api_reputation);
-        api_reputation.last_updated = clock.unix_timestamp;
+        // Now perform transfers (interactions) - handle both SOL and SPL tokens
+        let seeds = &[b"escrow".as_ref(), agent_key.as_ref(), transaction_id.as_bytes(), &[bump]];
+        let signer = &[&seeds[..]];
+
+        if token_mint.is_some() {
+            // SPL Token transfer
+            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(MitamaError::MissingTokenAccount)?;
+            let token_program = ctx.accounts.token_program.as_ref()
+                .ok_or(MitamaError::MissingTokenProgram)?;
+
+            if refund_amount > 0 {
+                let agent_token_account = ctx.accounts.agent_token_account.as_ref()
+                    .ok_or(MitamaError::MissingTokenAccount)?;
+                let cpi_accounts = SplTransfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: agent_token_account.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                );
+                token::transfer(cpi_ctx, refund_amount)?;
+            }
+
+            if payment_amount > 0 {
+                let api_token_account = ctx.accounts.api_token_account.as_ref()
+                    .ok_or(MitamaError::MissingTokenAccount)?;
+                let cpi_accounts = SplTransfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: api_token_account.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                );
+                token::transfer(cpi_ctx, payment_amount)?;
+            }
+        } else {
+            // SOL transfer
+            if refund_amount > 0 {
+                **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
+                **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += refund_amount;
+            }
+
+            if payment_amount > 0 {
+                **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= payment_amount;
+                **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += payment_amount;
+            }
+        }
 
         emit!(DisputeResolved {
             escrow: escrow_key,
@@ -827,7 +995,7 @@ pub mod mitama {
             refund_percentage,
             refund_amount,
             payment_amount,
-            verifier: ctx.accounts.verifier.key(),
+            verifier: verifier_key,
         });
 
         Ok(())
@@ -869,26 +1037,48 @@ pub mod mitama {
     }
 
     /// Add an oracle to the registry
+    /// Requires oracle to stake MIN_ORACLE_STAKE as collateral (slashable for bad behavior)
     pub fn add_oracle(
-        ctx: Context<ManageOracle>,
+        ctx: Context<AddOracle>,
         oracle_pubkey: Pubkey,
         oracle_type: OracleType,
         weight: u16,
+        stake_amount: u64,
     ) -> Result<()> {
         let registry = &mut ctx.accounts.oracle_registry;
 
         require!(ctx.accounts.admin.key() == registry.admin, MitamaError::Unauthorized);
+        // SECURITY: Validate oracle_pubkey matches the signer to prevent impersonation
+        require!(oracle_pubkey == ctx.accounts.oracle_signer.key(), MitamaError::OraclePubkeyMismatch);
         require!(registry.oracles.len() < MAX_ORACLES, MitamaError::MaxOraclesReached);
         require!(weight > 0, MitamaError::InvalidOracleWeight);
+        require!(stake_amount >= MIN_ORACLE_STAKE, MitamaError::InsufficientOracleStake);
         require!(
             !registry.oracles.iter().any(|o| o.pubkey == oracle_pubkey),
             MitamaError::DuplicateOracleSubmission
         );
 
+        // Transfer stake from oracle to registry PDA
+        let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &ctx.accounts.oracle_signer.key(),
+            &registry.key(),
+            stake_amount,
+        );
+        anchor_lang::solana_program::program::invoke(
+            &transfer_ix,
+            &[
+                ctx.accounts.oracle_signer.to_account_info(),
+                registry.to_account_info(),
+            ],
+        )?;
+
         registry.oracles.push(OracleConfig {
             pubkey: oracle_pubkey,
             oracle_type,
             weight,
+            stake_amount,
+            violation_count: 0,
+            total_rewards: 0,
         });
 
         let clock = Clock::get()?;
@@ -908,19 +1098,30 @@ pub mod mitama {
         Ok(())
     }
 
-    /// Remove an oracle from the registry
+    /// Remove an oracle from the registry and return staked SOL
     pub fn remove_oracle(
-        ctx: Context<ManageOracle>,
+        ctx: Context<RemoveOracle>,
         oracle_pubkey: Pubkey,
     ) -> Result<()> {
         let registry = &mut ctx.accounts.oracle_registry;
 
         require!(ctx.accounts.admin.key() == registry.admin, MitamaError::Unauthorized);
+        require!(ctx.accounts.oracle_wallet.key() == oracle_pubkey, MitamaError::OraclePubkeyMismatch);
 
-        let initial_len = registry.oracles.len();
-        registry.oracles.retain(|o| o.pubkey != oracle_pubkey);
+        // Find and remove the oracle, capturing the stake amount
+        let oracle_index = registry.oracles
+            .iter()
+            .position(|o| o.pubkey == oracle_pubkey)
+            .ok_or(MitamaError::OracleNotFound)?;
 
-        require!(registry.oracles.len() < initial_len, MitamaError::OracleNotFound);
+        let stake_amount = registry.oracles[oracle_index].stake_amount;
+        registry.oracles.remove(oracle_index);
+
+        // Return stake to oracle wallet
+        if stake_amount > 0 {
+            **registry.to_account_info().try_borrow_mut_lamports()? -= stake_amount;
+            **ctx.accounts.oracle_wallet.try_borrow_mut_lamports()? += stake_amount;
+        }
 
         let clock = Clock::get()?;
         registry.updated_at = clock.unix_timestamp;
@@ -1195,11 +1396,13 @@ pub mod mitama {
 
     /// Finalize multi-oracle dispute resolution
     /// Calculates consensus from submitted oracle scores and distributes funds
+    /// Includes agent stake slashing for frivolous disputes (quality >= 80)
+    /// Supports both SOL and SPL token escrows
     pub fn finalize_multi_oracle_dispute(ctx: Context<FinalizeMultiOracleDispute>) -> Result<()> {
         let oracle_registry = &ctx.accounts.oracle_registry;
 
         // Extract values needed for calculations
-        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores) = {
+        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores, token_mint, bump, agent_key) = {
             let escrow = &ctx.accounts.escrow;
             let individual_scores: Vec<u8> = escrow.oracle_submissions.iter().map(|s| s.quality_score).collect();
             let oracles: Vec<Pubkey> = escrow.oracle_submissions.iter().map(|s| s.oracle).collect();
@@ -1222,6 +1425,9 @@ pub mod mitama {
                 individual_scores,
                 oracles,
                 weighted_scores,
+                escrow.token_mint,
+                escrow.bump,
+                escrow.agent,
             )
         };
 
@@ -1247,22 +1453,99 @@ pub mod mitama {
             .ok_or(MitamaError::ArithmeticOverflow)? as u64;
         let payment_amount = amount.saturating_sub(refund_amount);
 
-        // Transfer funds
-        if refund_amount > 0 {
-            **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
-            **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += refund_amount;
+        // ====================================================================
+        // Check-Effects-Interactions Pattern: Update state BEFORE transfers
+        // ====================================================================
+
+        // Update escrow state first (effects)
+        {
+            let escrow = &mut ctx.accounts.escrow;
+            escrow.status = EscrowStatus::Resolved;
+            escrow.quality_score = Some(consensus_score);
+            escrow.refund_percentage = Some(refund_percentage);
         }
 
-        if payment_amount > 0 {
-            **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= payment_amount;
-            **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += payment_amount;
+        // Agent stake slashing for frivolous disputes (quality >= 80 = 0% refund)
+        // If agent filed dispute but provider delivered quality work, slash agent stake
+        if refund_percentage == 0 && ctx.accounts.agent_identity.is_some() {
+            let agent_identity = ctx.accounts.agent_identity.as_mut().unwrap();
+            let slash_amount = (agent_identity.stake_amount as u128)
+                .checked_mul(AGENT_DISPUTE_LOSS_SLASH_PERCENT as u128)
+                .ok_or(MitamaError::ArithmeticOverflow)?
+                .checked_div(100)
+                .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+
+            if slash_amount > 0 && agent_identity.stake_amount >= slash_amount {
+                agent_identity.stake_amount = agent_identity.stake_amount.saturating_sub(slash_amount);
+                agent_identity.disputed_escrows = agent_identity.disputed_escrows.saturating_add(1);
+
+                // Transfer slashed amount to protocol (could be treasury in future)
+                **agent_identity.to_account_info().try_borrow_mut_lamports()? -= slash_amount;
+                **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += slash_amount;
+
+                emit!(AgentSlashed {
+                    agent: agent_identity.key(),
+                    slash_amount,
+                    reason: "Frivolous dispute - provider delivered quality work".to_string(),
+                });
+            }
         }
 
-        // Update escrow state
-        let escrow = &mut ctx.accounts.escrow;
-        escrow.status = EscrowStatus::Resolved;
-        escrow.quality_score = Some(consensus_score);
-        escrow.refund_percentage = Some(refund_percentage);
+        // Transfer escrow funds (interactions - after state updates)
+        // Handle both SOL and SPL tokens
+        let seeds = &[b"escrow".as_ref(), agent_key.as_ref(), transaction_id.as_bytes(), &[bump]];
+        let signer = &[&seeds[..]];
+
+        if token_mint.is_some() {
+            // SPL Token transfer
+            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(MitamaError::MissingTokenAccount)?;
+            let token_program = ctx.accounts.token_program.as_ref()
+                .ok_or(MitamaError::MissingTokenProgram)?;
+
+            if refund_amount > 0 {
+                let agent_token_account = ctx.accounts.agent_token_account.as_ref()
+                    .ok_or(MitamaError::MissingTokenAccount)?;
+                let cpi_accounts = SplTransfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: agent_token_account.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                );
+                token::transfer(cpi_ctx, refund_amount)?;
+            }
+
+            if payment_amount > 0 {
+                let api_token_account = ctx.accounts.api_token_account.as_ref()
+                    .ok_or(MitamaError::MissingTokenAccount)?;
+                let cpi_accounts = SplTransfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: api_token_account.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                );
+                token::transfer(cpi_ctx, payment_amount)?;
+            }
+        } else {
+            // SOL transfer
+            if refund_amount > 0 {
+                **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
+                **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += refund_amount;
+            }
+
+            if payment_amount > 0 {
+                **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= payment_amount;
+                **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += payment_amount;
+            }
+        }
 
         emit!(MultiOracleDisputeResolved {
             escrow: escrow_key,
@@ -1274,6 +1557,124 @@ pub mod mitama {
             refund_percentage,
             refund_amount,
             payment_amount,
+        });
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // Expired Escrow Handling
+    // ========================================================================
+
+    /// Claim expired escrow funds
+    /// After expiration + grace period (7 days), anyone can trigger this to return funds
+    /// - If escrow is Active: funds return to agent (API failed to deliver)
+    /// - If escrow is Disputed but unresolved: funds split 50/50 (no oracle consensus reached)
+    /// Supports both SOL and SPL token escrows
+    pub fn claim_expired_escrow(ctx: Context<ClaimExpiredEscrow>) -> Result<()> {
+        let clock = Clock::get()?;
+        let escrow = &ctx.accounts.escrow;
+
+        // Must be expired + 7 day grace period (604800 seconds)
+        let grace_period = 604800i64;
+        let claim_time = escrow.expires_at.saturating_add(grace_period);
+        require!(clock.unix_timestamp >= claim_time, MitamaError::EscrowNotExpired);
+
+        // Can only claim Active or Disputed (unresolved) escrows
+        require!(
+            escrow.status == EscrowStatus::Active || escrow.status == EscrowStatus::Disputed,
+            MitamaError::EscrowAlreadyClaimed
+        );
+
+        let amount = escrow.amount;
+        let escrow_key = escrow.key();
+        let status = escrow.status;
+        let token_mint = escrow.token_mint;
+        let bump = escrow.bump;
+        let agent_key = escrow.agent;
+        let transaction_id = escrow.transaction_id.clone();
+
+        // Determine distribution based on status
+        let (agent_amount, api_amount, claim_type) = match status {
+            EscrowStatus::Active => {
+                // API never delivered, full refund to agent
+                (amount, 0u64, "full_refund_to_agent")
+            }
+            EscrowStatus::Disputed => {
+                // No resolution reached, split 50/50
+                let half = amount / 2;
+                (half, amount.saturating_sub(half), "disputed_split")
+            }
+            _ => return Err(MitamaError::EscrowAlreadyClaimed.into()),
+        };
+
+        // Mark as resolved first (check-effects-interactions)
+        {
+            let escrow = &mut ctx.accounts.escrow;
+            escrow.status = EscrowStatus::Resolved;
+            escrow.quality_score = Some(50); // Neutral score for expired claims
+            escrow.refund_percentage = Some(if agent_amount == amount { 100 } else { 50 });
+        }
+
+        // Transfer funds - handle both SOL and SPL tokens
+        let seeds = &[b"escrow".as_ref(), agent_key.as_ref(), transaction_id.as_bytes(), &[bump]];
+        let signer = &[&seeds[..]];
+
+        if token_mint.is_some() {
+            // SPL Token transfer
+            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(MitamaError::MissingTokenAccount)?;
+            let token_program = ctx.accounts.token_program.as_ref()
+                .ok_or(MitamaError::MissingTokenProgram)?;
+
+            if agent_amount > 0 {
+                let agent_token_account = ctx.accounts.agent_token_account.as_ref()
+                    .ok_or(MitamaError::MissingTokenAccount)?;
+                let cpi_accounts = SplTransfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: agent_token_account.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                );
+                token::transfer(cpi_ctx, agent_amount)?;
+            }
+
+            if api_amount > 0 {
+                let api_token_account = ctx.accounts.api_token_account.as_ref()
+                    .ok_or(MitamaError::MissingTokenAccount)?;
+                let cpi_accounts = SplTransfer {
+                    from: escrow_token_account.to_account_info(),
+                    to: api_token_account.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                };
+                let cpi_ctx = CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    cpi_accounts,
+                    signer,
+                );
+                token::transfer(cpi_ctx, api_amount)?;
+            }
+        } else {
+            // SOL transfer
+            if agent_amount > 0 {
+                **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= agent_amount;
+                **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += agent_amount;
+            }
+            if api_amount > 0 {
+                **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= api_amount;
+                **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += api_amount;
+            }
+        }
+
+        emit!(ExpiredEscrowClaimed {
+            escrow: escrow_key,
+            claimer: ctx.accounts.caller.key(),
+            amount,
+            claim_type: claim_type.to_string(),
         });
 
         Ok(())
@@ -1437,11 +1838,12 @@ pub struct ResolveDispute<'info> {
     )]
     pub escrow: Account<'info, Escrow>,
 
-    #[account(mut)]
+    /// Agent wallet - MUST match escrow.agent to prevent fund theft
+    #[account(mut, constraint = agent.key() == escrow.agent @ MitamaError::Unauthorized)]
     pub agent: SystemAccount<'info>,
 
-    /// CHECK: API wallet address
-    #[account(mut)]
+    /// CHECK: API wallet - MUST match escrow.api to prevent fund theft
+    #[account(mut, constraint = api.key() == escrow.api @ MitamaError::Unauthorized)]
     pub api: AccountInfo<'info>,
 
     /// Oracle registry to validate the verifier is registered
@@ -1475,6 +1877,18 @@ pub struct ResolveDispute<'info> {
     pub api_reputation: Account<'info, EntityReputation>,
 
     pub system_program: Program<'info, System>,
+
+    // Optional SPL token accounts for token escrows
+    #[account(mut)]
+    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub agent_token_account: Option<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub api_token_account: Option<Account<'info, TokenAccount>>,
+
+    pub token_program: Option<Program<'info, Token>>,
 }
 
 #[derive(Accounts)]
@@ -1495,6 +1909,24 @@ pub struct InitializeOracleRegistry<'info> {
 }
 
 #[derive(Accounts)]
+pub struct AddOracle<'info> {
+    #[account(
+        mut,
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    pub admin: Signer<'info>,
+
+    /// Oracle must sign to authorize stake deposit
+    #[account(mut)]
+    pub oracle_signer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct ManageOracle<'info> {
     #[account(
         mut,
@@ -1504,6 +1936,22 @@ pub struct ManageOracle<'info> {
     pub oracle_registry: Account<'info, OracleRegistry>,
 
     pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RemoveOracle<'info> {
+    #[account(
+        mut,
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    pub admin: Signer<'info>,
+
+    /// CHECK: Oracle wallet to receive stake refund - must match oracle_pubkey
+    #[account(mut)]
+    pub oracle_wallet: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -1610,16 +2058,70 @@ pub struct FinalizeMultiOracleDispute<'info> {
     )]
     pub oracle_registry: Account<'info, OracleRegistry>,
 
-    /// CHECK: Agent wallet to receive refund
-    #[account(mut)]
+    /// CHECK: Agent wallet to receive refund - MUST match escrow.agent
+    #[account(mut, constraint = agent.key() == escrow.agent @ MitamaError::Unauthorized)]
     pub agent: AccountInfo<'info>,
 
-    /// CHECK: API wallet to receive payment
-    #[account(mut)]
+    /// CHECK: API wallet to receive payment - MUST match escrow.api
+    #[account(mut, constraint = api.key() == escrow.api @ MitamaError::Unauthorized)]
     pub api: AccountInfo<'info>,
+
+    /// Optional: Agent identity for stake slashing on frivolous disputes
+    /// If provided, stake will be slashed if agent loses dispute
+    #[account(
+        mut,
+        seeds = [b"agent", agent.key().as_ref()],
+        bump = agent_identity.bump
+    )]
+    pub agent_identity: Option<Account<'info, AgentIdentity>>,
 
     /// Anyone can call finalize once enough oracles have submitted
     pub caller: Signer<'info>,
+
+    // Optional SPL token accounts for token escrows
+    #[account(mut)]
+    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub agent_token_account: Option<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub api_token_account: Option<Account<'info, TokenAccount>>,
+
+    pub token_program: Option<Program<'info, Token>>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimExpiredEscrow<'info> {
+    #[account(
+        mut,
+        seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
+        bump = escrow.bump
+    )]
+    pub escrow: Account<'info, Escrow>,
+
+    /// CHECK: Agent wallet to receive refund
+    #[account(mut, constraint = agent.key() == escrow.agent @ MitamaError::Unauthorized)]
+    pub agent: AccountInfo<'info>,
+
+    /// CHECK: API wallet to receive payment (if applicable)
+    #[account(mut, constraint = api.key() == escrow.api @ MitamaError::Unauthorized)]
+    pub api: AccountInfo<'info>,
+
+    /// Anyone can trigger expired escrow claim (incentivizes cleanup)
+    pub caller: Signer<'info>,
+
+    // Optional SPL token accounts for token escrows
+    #[account(mut)]
+    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub agent_token_account: Option<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub api_token_account: Option<Account<'info, TokenAccount>>,
+
+    pub token_program: Option<Program<'info, Token>>,
 }
 
 // ============================================================================
@@ -1694,6 +2196,12 @@ pub struct OracleConfig {
     pub pubkey: Pubkey,
     pub oracle_type: OracleType,
     pub weight: u16,
+    /// Amount staked by oracle (slashable)
+    pub stake_amount: u64,
+    /// Count of consensus violations (for removal threshold)
+    pub violation_count: u8,
+    /// Total rewards earned
+    pub total_rewards: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -1876,4 +2384,16 @@ pub enum MitamaError {
 
     #[msg("Invalid multi-sig signer")]
     InvalidMultiSigSigner,
+
+    #[msg("Insufficient oracle stake")]
+    InsufficientOracleStake,
+
+    #[msg("Escrow not expired")]
+    EscrowNotExpired,
+
+    #[msg("Escrow already claimed")]
+    EscrowAlreadyClaimed,
+
+    #[msg("Oracle pubkey must match signer")]
+    OraclePubkeyMismatch,
 }

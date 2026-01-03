@@ -7,7 +7,7 @@ import { BN } from "@coral-xyz/anchor";
 
 // Program ID
 export const MITAMA_PROGRAM_ID = new PublicKey(
-  "8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC"
+  "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 );
 
 // Agent Types

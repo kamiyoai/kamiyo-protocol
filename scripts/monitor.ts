@@ -11,7 +11,7 @@ import { Keypair } from '@solana/web3.js';
 
 // Configuration from environment
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-const PROGRAM_ID = new PublicKey(process.env.MITAMA_PROGRAM_ID || '8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC');
+const PROGRAM_ID = new PublicKey(process.env.MITAMA_PROGRAM_ID || '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
 const WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL;
 
 // Alert thresholds

@@ -117,13 +117,20 @@ export class X402Client {
       const programHeader = response.headers.get('X-Program-Id');
       const qualityHeader = response.headers.get('X-Quality-Guarantee');
 
-      const body = await response.json().catch(() => ({}));
+      const body = await response.json().catch(() => ({})) as {
+        amount?: string;
+        currency?: string;
+        provider?: string;
+        escrow_program?: string;
+        quality_guarantee?: boolean;
+        actions_url?: string;
+      };
 
       return {
         required: true,
         amount: parseFloat(priceHeader?.split(' ')[0] || body.amount || '0'),
         currency: (priceHeader?.split(' ')[1] as any) || body.currency || 'SOL',
-        provider: new PublicKey(body.provider || body.escrow_program),
+        provider: new PublicKey(body.provider || body.escrow_program || this.programId),
         programId: new PublicKey(programHeader || body.escrow_program || this.programId),
         qualityGuarantee: qualityHeader === 'true' || body.quality_guarantee === true,
         actionsUrl: body.actions_url,
@@ -141,13 +148,13 @@ export class X402Client {
       // Try actions.json first
       const rulesResponse = await fetch(`${baseUrl}/actions.json`);
       if (rulesResponse.ok) {
-        const rules = await rulesResponse.json();
+        const rules = await rulesResponse.json() as { rules?: Array<{ apiPath?: string }> };
         // Use first API path
         if (rules.rules?.[0]?.apiPath) {
           const actionPath = rules.rules[0].apiPath.replace('/**', '');
           const actionResponse = await fetch(`${baseUrl}${actionPath}`);
           if (actionResponse.ok) {
-            return await actionResponse.json();
+            return await actionResponse.json() as ActionMetadata;
           }
         }
       }
@@ -155,7 +162,7 @@ export class X402Client {
       // Try direct /api/actions/pay
       const directResponse = await fetch(`${baseUrl}/api/actions/pay`);
       if (directResponse.ok) {
-        return await directResponse.json();
+        return await directResponse.json() as ActionMetadata;
       }
 
       return null;
@@ -194,11 +201,12 @@ export class X402Client {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        return { success: false, error: error.error || error.message };
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string; message?: string };
+        return { success: false, error: errorData.error || errorData.message || 'Unknown error' };
       }
 
-      const { transaction: txBase64, message } = await response.json();
+      const responseData = await response.json() as { transaction: string; message: string };
+      const { transaction: txBase64, message } = responseData;
 
       // Deserialize and sign
       const transaction = Transaction.from(Buffer.from(txBase64, 'base64'));

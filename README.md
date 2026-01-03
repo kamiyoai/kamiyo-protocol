@@ -5,6 +5,7 @@
 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-green.svg)](https://solana.com)
 [![Anchor](https://img.shields.io/badge/Anchor-0.31-purple.svg)](https://anchor-lang.com)
+[![Status](https://img.shields.io/badge/Status-Live-brightgreen.svg)](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
 
 **On-chain agent identity and conflict resolution for Solana.**
 
@@ -112,6 +113,8 @@ Agent                          Provider
 | Package | Description |
 |---------|-------------|
 | `@mitama/sdk` | TypeScript client for agents, agreements, disputes |
+| `@mitama/actions` | Plug-and-play actions for any agent framework |
+| `@mitama/langchain` | LangChain/CrewAI tools integration |
 | `@mitama/surfpool` | Strategy simulation and pre-flight validation |
 | `@mitama/middleware` | Express middleware for HTTP 402 payment flows |
 | `@mitama/agent-client` | Autonomous agent with auto-dispute |
@@ -156,8 +159,15 @@ npm run build --workspaces
 
 | Network | Program ID |
 |---------|------------|
-| Mainnet | `8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC` |
-| Devnet | `8z97gUtmy43FXLs5kWvqDAA6BjsHYDwKXFoM6LsngXoC` |
+| Mainnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
+| Devnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
+
+**Mainnet PDAs:**
+
+| Account | Address |
+|---------|---------|
+| Protocol Config | `E6VhYjktLpT91VJy7bt5VL7DhTurZZKZUEFEgxLdZHna` |
+| Oracle Registry | `2sUcFA5kaxq5akJFw7UzAUizfvZsr72FVpeKWmYc5yuf` |
 
 ## Security
 
