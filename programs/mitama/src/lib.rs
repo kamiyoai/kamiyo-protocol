@@ -835,6 +835,10 @@ pub mod mitama {
     /// Only the agent can release early, API can release after timelock expires
     /// Uses check-effects-interactions pattern for reentrancy safety
     pub fn release_funds(ctx: Context<ReleaseFunds>) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            MitamaError::ProtocolPaused
+        );
         let clock = Clock::get()?;
 
         let (status, agent_key, api_key, expires_at, transfer_amount, transaction_id, bump, token_mint, escrow_key) = {
@@ -925,6 +929,10 @@ pub mod mitama {
 
     /// Mark escrow as disputed
     pub fn mark_disputed(ctx: Context<MarkDisputed>) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            MitamaError::ProtocolPaused
+        );
         let escrow = &mut ctx.accounts.escrow;
         let reputation = &mut ctx.accounts.reputation;
 
@@ -962,6 +970,10 @@ pub mod mitama {
         refund_percentage: u8,
         signature: [u8; 64],
     ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            MitamaError::ProtocolPaused
+        );
         // Extract values we need before mutating (checks)
         let (status, transaction_id, amount, escrow_key, token_mint, bump, agent_key) = {
             let escrow = &ctx.accounts.escrow;
@@ -1543,6 +1555,10 @@ pub mod mitama {
         quality_score: u8,
         signature: [u8; 64],
     ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            MitamaError::ProtocolPaused
+        );
         let escrow = &mut ctx.accounts.escrow;
         let oracle_registry = &ctx.accounts.oracle_registry;
 
@@ -1598,6 +1614,10 @@ pub mod mitama {
     /// Includes agent stake slashing for frivolous disputes (quality >= 80)
     /// Supports both SOL and SPL token escrows
     pub fn finalize_multi_oracle_dispute(ctx: Context<FinalizeMultiOracleDispute>) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            MitamaError::ProtocolPaused
+        );
         let oracle_registry = &ctx.accounts.oracle_registry;
 
         // Extract values needed for calculations
@@ -1902,6 +1922,10 @@ pub mod mitama {
     /// - If escrow is Disputed but unresolved: funds split 50/50 (no oracle consensus reached)
     /// Supports both SOL and SPL token escrows
     pub fn claim_expired_escrow(ctx: Context<ClaimExpiredEscrow>) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            MitamaError::ProtocolPaused
+        );
         let clock = Clock::get()?;
         let escrow = &ctx.accounts.escrow;
 
@@ -2130,6 +2154,12 @@ pub struct InitializeEscrow<'info> {
 #[derive(Accounts)]
 pub struct ReleaseFunds<'info> {
     #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
         bump = escrow.bump,
@@ -2161,6 +2191,12 @@ pub struct ReleaseFunds<'info> {
 #[derive(Accounts)]
 pub struct MarkDisputed<'info> {
     #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
         bump = escrow.bump
@@ -2180,6 +2216,12 @@ pub struct MarkDisputed<'info> {
 
 #[derive(Accounts)]
 pub struct ResolveDispute<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
     #[account(
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
@@ -2427,6 +2469,12 @@ pub struct InitReputation<'info> {
 #[derive(Accounts)]
 pub struct SubmitOracleScore<'info> {
     #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
         bump = escrow.bump
@@ -2449,6 +2497,12 @@ pub struct SubmitOracleScore<'info> {
 
 #[derive(Accounts)]
 pub struct FinalizeMultiOracleDispute<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
     #[account(
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
@@ -2509,6 +2563,12 @@ pub struct FinalizeMultiOracleDispute<'info> {
 
 #[derive(Accounts)]
 pub struct ClaimExpiredEscrow<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
     #[account(
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
