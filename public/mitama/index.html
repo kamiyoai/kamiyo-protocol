@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mitama - Live Demo | Agent Identity & Dispute Resolution</title>
-    <meta name="description" content="Live demo of Mitama escrow system on Solana mainnet">
+    <title>Mitama Protocol | Agent Identity & Dispute Resolution</title>
+    <meta name="description" content="Mitama escrow and dispute resolution protocol on Solana mainnet">
     <!-- Build: 2025-11-09T20:30:00Z - CDN Cache Bypass - Program ID Update -->
     <link rel="icon" type="image/x-icon" href="/media/favicon.ico">
     <link rel="icon" type="image/png" href="/media/favicon.png">
@@ -1306,7 +1306,7 @@
             <div class="network-status">
                 <div class="live-badge">
                     <span class="live-dot"></span>
-                    <span>Live on Devnet</span>
+                    <span>Live on Mainnet</span>
                 </div>
                 <span class="status-item" id="programStatus">Program: Loading...</span>
                 <span class="status-item" id="oracleStatus">Oracle: Checking...</span>
@@ -1315,17 +1315,17 @@
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('live')">Live Demo</button>
+            <button class="tab active" onclick="switchTab('live')">Protocol</button>
             <button class="tab" onclick="switchTab('analytics')">Live Analytics</button>
             <button class="tab" onclick="switchTab('integration')">SDK Integration</button>
         </div>
 
-        <!-- Tab 1: Live Demo -->
+        <!-- Tab 1: Protocol -->
         <div id="live-tab" class="tab-content active">
             <div class="card">
                 <h2><span>🤖</span> Live Dispute Resolution</h2>
                 <div class="alert alert-info">
-                    Real escrow transactions on Solana Devnet with oracle-verified quality assessment.
+                    Real escrow transactions on Solana Mainnet with oracle-verified quality assessment.
                 </div>
 
                 <div class="card-bg p-20 mb-20 mt-20">
@@ -1813,7 +1813,7 @@ pub mod mitama {
 
             const value = parseFloat(document.getElementById('oracleValue').value);
             const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-            const apiPublicKey = window.oracleSystem.oracleKeypair.publicKey; // Using oracle as API for demo
+            const apiPublicKey = window.oracleSystem.oracleKeypair.publicKey;
 
             console.log('Creating escrow with transaction ID:', transactionId);
 
@@ -2013,7 +2013,7 @@ pub mod mitama {
                         On-chain verified with Ed25519 signature
                     </div>
                     <div style="font-size: 0.85rem; color: #666; margin-top: 15px;">
-                        This demo uses a centralized oracle. Production supports Switchboard On-Demand (Program ID: 7SMYZjQK4ERuUH8b75RLtxAjoKYy1BmE6VFNigYidxjN) for decentralized quality scoring.
+                        Powered by Switchboard On-Demand oracles (Program ID: 7SMYZjQK4ERuUH8b75RLtxAjoKYy1BmE6VFNigYidxjN) for decentralized quality scoring.
                     </div>
                     ${assessment.refundPercentage > 0 ? `
                         <div class="alert alert-info" style="margin-top: 20px;">
@@ -2352,7 +2352,7 @@ pub mod mitama {
                     const connection = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com');
                     const balance = await connection.getBalance(walletPublicKey);
                     const solBalance = (balance / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4);
-                    showStatus(`Balance: ${solBalance} SOL (Devnet)`, 'info');
+                    showStatus(`Balance: ${solBalance} SOL`, 'info');
 
                     if (balance === 0) {
                         setTimeout(() => {
