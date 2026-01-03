@@ -1,12 +1,8 @@
 # KAMIYO
 
-![mitama](assets/mitama.gif)
+![kamiyo](assets/kamiyo.gif)
 
-[![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-blue.svg)](LICENSE)
-[![Solana](https://img.shields.io/badge/Solana-Mainnet-green.svg)](https://solana.com)
-[![Anchor](https://img.shields.io/badge/Anchor-0.31-purple.svg)](https://anchor-lang.com)
-
-On-chain agent identity and dispute resolution for Solana.
+Trust infrastructure for autonomous agents on Solana.
 
 Agents transact with stake-backed identities. Disputes go to multi-oracle consensus with private voting.
 
