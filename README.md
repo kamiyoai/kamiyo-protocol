@@ -167,7 +167,11 @@ npm run build --workspaces
 | Account | Address |
 |---------|---------|
 | Protocol Config | `E6VhYjktLpT91VJy7bt5VL7DhTurZZKZUEFEgxLdZHna` |
+| Treasury | `8xi4TJcPmLqxmhsbCtNoBcu7b8Lfnubr3GY1bkhjuNJF` |
 | Oracle Registry | `2sUcFA5kaxq5akJFw7UzAUizfvZsr72FVpeKWmYc5yuf` |
+
+**Fees:**
+- Escrow creation: 0.1% (minimum 5,000 lamports)
 
 ## Security
 
