@@ -1,9 +1,0 @@
-{
-  "protocol": "Neutron",
-  "ecosystem": "Cosmos/CosmWasm",
-  "scanned_files": 0,
-  "vulnerabilities": [],
-  "risk_score": 0,
-  "risk_level": "LOW",
-  "summary": {}
-}
