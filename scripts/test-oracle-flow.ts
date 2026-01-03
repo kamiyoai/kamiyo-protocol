@@ -72,6 +72,10 @@ async function main() {
     [Buffer.from("oracle_registry")],
     PROGRAM_ID
   );
+  const [treasuryPDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("treasury")],
+    PROGRAM_ID
+  );
 
   const transactionId = `test-${Date.now()}`;
   const [escrowPDA] = PublicKey.findProgramAddressSync(
@@ -91,6 +95,7 @@ async function main() {
       .initializeEscrow(amount, timeLock, transactionId, false)
       .accountsPartial({
         protocolConfig: protocolConfigPDA,
+        treasury: treasuryPDA,
         escrow: escrowPDA,
         agent: agent.publicKey,
         api: provider.publicKey,

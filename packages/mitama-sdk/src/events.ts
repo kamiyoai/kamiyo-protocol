@@ -37,6 +37,7 @@ export interface AgreementInitializedEvent {
   transactionId: string;
   isToken: boolean;
   tokenMint: PublicKey | null;
+  creationFee: BN;
 }
 
 /**
@@ -99,6 +100,63 @@ export interface OracleAddedEvent {
 export interface OracleRemovedEvent {
   registry: PublicKey;
   oracle: PublicKey;
+  reason: string;
+  violationCount: number;
+}
+
+/**
+ * Oracle Slashed Event
+ */
+export interface OracleSlashedEvent {
+  oracle: PublicKey;
+  slashAmount: BN;
+  violationCount: number;
+  reason: string;
+}
+
+/**
+ * Oracle Rewarded Event
+ */
+export interface OracleRewardedEvent {
+  oracle: PublicKey;
+  rewardAmount: BN;
+  escrow: PublicKey;
+}
+
+/**
+ * Oracle Rewards Claimed Event
+ */
+export interface OracleRewardsClaimedEvent {
+  oracle: PublicKey;
+  amount: BN;
+}
+
+/**
+ * Agent Slashed Event
+ */
+export interface AgentSlashedEvent {
+  agent: PublicKey;
+  slashAmount: BN;
+  reason: string;
+}
+
+/**
+ * Treasury Deposit Event
+ */
+export interface TreasuryDepositEvent {
+  amount: BN;
+  source: string;
+  escrow: PublicKey;
+}
+
+/**
+ * Expired Escrow Claimed Event
+ */
+export interface ExpiredEscrowClaimedEvent {
+  escrow: PublicKey;
+  claimer: PublicKey;
+  amount: BN;
+  claimType: string;
 }
 
 /**
@@ -122,14 +180,20 @@ export interface MultiOracleDisputeResolvedEvent {
 export interface MitamaEventCallbacks {
   onAgentCreated?: (event: AgentCreatedEvent) => void;
   onAgentDeactivated?: (event: AgentDeactivatedEvent) => void;
+  onAgentSlashed?: (event: AgentSlashedEvent) => void;
   onAgreementInitialized?: (event: AgreementInitializedEvent) => void;
   onDisputeMarked?: (event: DisputeMarkedEvent) => void;
   onDisputeResolved?: (event: DisputeResolvedEvent) => void;
   onFundsReleased?: (event: FundsReleasedEvent) => void;
+  onExpiredEscrowClaimed?: (event: ExpiredEscrowClaimedEvent) => void;
   onOracleRegistryInitialized?: (event: OracleRegistryInitializedEvent) => void;
   onOracleAdded?: (event: OracleAddedEvent) => void;
   onOracleRemoved?: (event: OracleRemovedEvent) => void;
+  onOracleSlashed?: (event: OracleSlashedEvent) => void;
+  onOracleRewarded?: (event: OracleRewardedEvent) => void;
+  onOracleRewardsClaimed?: (event: OracleRewardsClaimedEvent) => void;
   onMultiOracleDisputeResolved?: (event: MultiOracleDisputeResolvedEvent) => void;
+  onTreasuryDeposit?: (event: TreasuryDepositEvent) => void;
 }
 
 /**
@@ -215,6 +279,48 @@ export class MitamaEventListener {
         this.program.addEventListener(
           "MultiOracleDisputeResolved",
           callbacks.onMultiOracleDisputeResolved
+        )
+      );
+    }
+
+    if (callbacks.onAgentSlashed) {
+      this.listeners.push(
+        this.program.addEventListener("AgentSlashed", callbacks.onAgentSlashed)
+      );
+    }
+
+    if (callbacks.onOracleSlashed) {
+      this.listeners.push(
+        this.program.addEventListener("OracleSlashed", callbacks.onOracleSlashed)
+      );
+    }
+
+    if (callbacks.onOracleRewarded) {
+      this.listeners.push(
+        this.program.addEventListener("OracleRewarded", callbacks.onOracleRewarded)
+      );
+    }
+
+    if (callbacks.onOracleRewardsClaimed) {
+      this.listeners.push(
+        this.program.addEventListener(
+          "OracleRewardsClaimed",
+          callbacks.onOracleRewardsClaimed
+        )
+      );
+    }
+
+    if (callbacks.onTreasuryDeposit) {
+      this.listeners.push(
+        this.program.addEventListener("TreasuryDeposit", callbacks.onTreasuryDeposit)
+      );
+    }
+
+    if (callbacks.onExpiredEscrowClaimed) {
+      this.listeners.push(
+        this.program.addEventListener(
+          "ExpiredEscrowClaimed",
+          callbacks.onExpiredEscrowClaimed
         )
       );
     }

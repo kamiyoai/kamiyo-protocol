@@ -5,6 +5,7 @@
 # Run with: nohup ./scripts/devnet-faucet.sh &
 
 WALLET=$(solana address 2>/dev/null)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="${SCRIPT_DIR}/faucet.log"
 INTERVAL=$((12 * 60 * 60))  # 12 hours in seconds
 
