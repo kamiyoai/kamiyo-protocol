@@ -355,6 +355,33 @@ const nextConfig = {
                     },
                 ],
             },
+            // Rewrite /mitama to serve the static HTML
+            {
+                source: '/mitama',
+                destination: '/mitama/index.html',
+            },
+            // Serve mitama at root when accessed via mitama.kamiyo.ai subdomain
+            {
+                source: '/',
+                destination: '/mitama/index.html',
+                has: [
+                    {
+                        type: 'host',
+                        value: 'mitama.kamiyo.ai',
+                    },
+                ],
+            },
+            // Serve all mitama assets when accessed via subdomain
+            {
+                source: '/:path*',
+                destination: '/mitama/:path*',
+                has: [
+                    {
+                        type: 'host',
+                        value: 'mitama.kamiyo.ai',
+                    },
+                ],
+            },
             // Serve dashboard at root when accessed via dashboard.kamiyo.ai subdomain
             {
                 source: '/',
