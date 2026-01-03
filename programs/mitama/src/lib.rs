@@ -40,6 +40,7 @@
 //! | pause_protocol           | 2-of-3 multisig authorities                    | Protocol not paused     |
 //! | unpause_protocol         | 2-of-3 multisig authorities                    | Protocol paused         |
 //! | transfer_protocol_authority | 2-of-3 multisig authorities                 | -                       |
+//! | withdraw_treasury        | 2-of-3 multisig authorities                    | -                       |
 //!
 //! ## Emergency Pause Mechanism
 //!
@@ -1403,17 +1404,23 @@ pub mod mitama {
     }
 
     /// Withdraw funds from treasury
-    /// Admin-only operation to withdraw accumulated fees
+    /// Requires 2-of-3 multi-sig authorization (same authorities as protocol pause)
     pub fn withdraw_treasury(ctx: Context<WithdrawTreasury>, amount: u64) -> Result<()> {
         // Validate amount is non-zero
         require!(amount > 0, MitamaError::InvalidAmount);
 
+        let config = &ctx.accounts.protocol_config;
         let treasury = &mut ctx.accounts.treasury;
 
-        // Verify admin authorization
+        // Validate 2-of-3 multi-sig: both signers must be from the authority set
+        let signer_one = ctx.accounts.signer_one.key();
+        let signer_two = ctx.accounts.signer_two.key();
+        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+
+        let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
         require!(
-            ctx.accounts.admin.key() == treasury.admin,
-            MitamaError::Unauthorized
+            valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
+            MitamaError::InvalidMultiSigSigner
         );
 
         // Calculate maximum withdrawable (preserve rent-exempt balance)
@@ -1427,18 +1434,19 @@ pub mod mitama {
         treasury.total_withdrawn = treasury.total_withdrawn.saturating_add(amount);
         treasury.updated_at = Clock::get()?.unix_timestamp;
 
-        // Transfer funds
+        // Transfer funds to recipient
         **treasury.to_account_info().try_borrow_mut_lamports()? -= amount;
-        **ctx.accounts.admin.to_account_info().try_borrow_mut_lamports()? += amount;
+        **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += amount;
 
         emit!(TreasuryWithdrawal {
             treasury: treasury.key(),
-            admin: ctx.accounts.admin.key(),
+            admin: signer_one,
             amount,
             remaining_balance: treasury_balance.saturating_sub(amount),
         });
 
-        msg!("Treasury withdrawal: {} lamports to {}", amount, ctx.accounts.admin.key());
+        msg!("Treasury withdrawal: {} lamports to {} (multi-sig: {}, {})",
+            amount, ctx.accounts.recipient.key(), signer_one, signer_two);
 
         Ok(())
     }
@@ -1737,6 +1745,7 @@ pub mod mitama {
 
         // Oracle stake slashing for voting against consensus + reward tracking + auto-removal
         let mut oracles_to_remove: Vec<Pubkey> = Vec::new();
+        let mut forfeited_oracle_stake: u64 = 0;
         {
             let oracle_registry = &mut ctx.accounts.oracle_registry;
             let max_deviation = oracle_registry.max_score_deviation;
@@ -1789,10 +1798,20 @@ pub mod mitama {
                 }
             }
 
-            // Remove oracles with too many violations
+            // Remove oracles with too many violations and transfer remaining stake to treasury
             for oracle_pubkey in oracles_to_remove.iter() {
                 if let Some(pos) = oracle_registry.oracles.iter().position(|o| o.pubkey == *oracle_pubkey) {
                     let removed = oracle_registry.oracles.remove(pos);
+
+                    // Transfer remaining stake from registry to treasury
+                    if removed.stake_amount > 0 {
+                        if let Some(ref treasury) = ctx.accounts.treasury {
+                            **oracle_registry.to_account_info().try_borrow_mut_lamports()? -= removed.stake_amount;
+                            **treasury.to_account_info().try_borrow_mut_lamports()? += removed.stake_amount;
+                            forfeited_oracle_stake = forfeited_oracle_stake.saturating_add(removed.stake_amount);
+                        }
+                    }
+
                     emit!(OracleRemoved {
                         registry: oracle_registry.key(),
                         oracle: *oracle_pubkey,
@@ -1806,8 +1825,9 @@ pub mod mitama {
         // Update treasury if provided
         if let Some(ref mut treasury) = ctx.accounts.treasury {
             treasury.total_fees_collected = treasury.total_fees_collected.saturating_add(protocol_fee);
-            if agent_slash_amount > 0 {
-                treasury.total_slashed_collected = treasury.total_slashed_collected.saturating_add(agent_slash_amount);
+            let total_slashed = agent_slash_amount.saturating_add(forfeited_oracle_stake);
+            if total_slashed > 0 {
+                treasury.total_slashed_collected = treasury.total_slashed_collected.saturating_add(total_slashed);
             }
             treasury.updated_at = Clock::get()?.unix_timestamp;
         }
@@ -2434,6 +2454,13 @@ pub struct ClaimOracleRewards<'info> {
 
 #[derive(Accounts)]
 pub struct WithdrawTreasury<'info> {
+    /// Protocol config for multi-sig validation
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
     #[account(
         mut,
         seeds = [b"treasury"],
@@ -2441,9 +2468,15 @@ pub struct WithdrawTreasury<'info> {
     )]
     pub treasury: Account<'info, Treasury>,
 
-    /// Admin must match treasury.admin
+    /// Primary signer (must be one of the multi-sig authorities)
+    pub signer_one: Signer<'info>,
+
+    /// Secondary signer (must be one of the multi-sig authorities)
+    pub signer_two: Signer<'info>,
+
+    /// CHECK: Recipient wallet for withdrawn funds
     #[account(mut)]
-    pub admin: Signer<'info>,
+    pub recipient: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
