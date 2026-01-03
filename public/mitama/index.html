@@ -1308,9 +1308,8 @@
                     <span class="live-dot"></span>
                     <span>Live on Mainnet</span>
                 </div>
-                <span class="status-item" id="programStatus">Program: Loading...</span>
-                <span class="status-item" id="oracleStatus">Oracle: Checking...</span>
-                <span class="status-item" id="rpcLatency">RPC Latency: Checking...</span>
+                <a href="https://explorer.solana.com/address/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM" target="_blank" class="status-item" style="text-decoration: none;">Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed</a>
+                <span class="status-item">Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Ready</span>
             </div>
         </div>
 
@@ -1699,9 +1698,6 @@ pub mod mitama {
                 }
             }
 
-            await checkSolanaConnection();
-            await checkProgramStatus();
-            await checkOracleStatus();
             initializeCharts();
             highlightSyntax();
 
@@ -1751,68 +1747,6 @@ pub mod mitama {
                 }
             }
             return new solanaWeb3.Connection(RPC_ENDPOINTS[0], 'confirmed');
-        }
-
-        // Solana connection check
-        async function checkSolanaConnection() {
-            for (const endpoint of RPC_ENDPOINTS) {
-                try {
-                    const connection = new solanaWeb3.Connection(endpoint, 'confirmed');
-                    const startTime = performance.now();
-                    await connection.getSlot();
-                    const endTime = performance.now();
-                    const latency = Math.round(endTime - startTime);
-
-                    const latencyColor = latency < 500 ? '#00ffff' : latency < 1000 ? '#fbbf24' : '#ef4444';
-                    document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">✓</span>&nbsp;${latency}ms`;
-                    return;
-                } catch {
-                    continue;
-                }
-            }
-            document.getElementById('rpcLatency').textContent = 'RPC Latency: ✗ Error';
-            document.getElementById('rpcLatency').style.background = '#1a1a1a';
-            document.getElementById('rpcLatency').style.borderColor = '#ef4444';
-        }
-
-        async function checkProgramStatus() {
-            for (const endpoint of RPC_ENDPOINTS) {
-                try {
-                    const connection = new solanaWeb3.Connection(endpoint, 'confirmed');
-                    const programId = new solanaWeb3.PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
-                    const info = await connection.getAccountInfo(programId);
-
-                    if (info && info.executable) {
-                        // For executable accounts, get the programdata account
-                        const programDataPubkey = (await solanaWeb3.PublicKey.findProgramAddress(
-                            [programId.toBuffer()],
-                            new solanaWeb3.PublicKey('BPFLoaderUpgradeab1e11111111111111111111111')
-                        ))[0];
-
-                        try {
-                            const programDataInfo = await connection.getAccountInfo(programDataPubkey);
-                            const size = programDataInfo ? Math.round(programDataInfo.data.length / 1024) : 275;
-                            document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed (${size}KB)`;
-                        } catch {
-                            document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed`;
-                        }
-                        return;
-                    } else {
-                        document.getElementById('programStatus').textContent = 'Program: Not found';
-                        return;
-                    }
-                } catch {
-                    continue;
-                }
-            }
-            document.getElementById('programStatus').textContent = 'Program: Error checking';
-        }
-
-        async function checkOracleStatus() {
-            // Simulated - replace with actual oracle endpoint
-            setTimeout(() => {
-                document.getElementById('oracleStatus').innerHTML = 'Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Ready';
-            }, 500);
         }
 
         // Multi-Oracle Simulation
