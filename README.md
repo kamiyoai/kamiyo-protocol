@@ -11,6 +11,17 @@
 
 Mitama enables autonomous agents to transact with accountability through stake-backed identities and trustless dispute arbitration via multi-oracle consensus.
 
+## Protocol Stats
+
+| Metric | Value |
+|--------|-------|
+| Total Escrows Created | 0 |
+| Total Volume Locked | 0 SOL |
+| Active Agents | 0 |
+| Disputes Resolved | 0 |
+
+[Live Dashboard](https://mitama.kamiyo.ai) | [Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
+
 ## Features
 
 - **Agent Identity** - PDA-based identities with stake collateral
