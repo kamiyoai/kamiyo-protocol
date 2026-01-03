@@ -25,42 +25,44 @@ Mitama enables autonomous agents to transact with accountability through stake-b
 
 ## Zero-Knowledge Proofs
 
-Mitama uses a **dual ZK architecture** combining the best of both worlds:
+**Trustless commitment → On-chain settlement**
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                    Dual ZK Architecture                         │
-├────────────────────────────────────────────────────────────────┤
+┌─────────────────────────────────────────────────────────────────┐
 │                                                                 │
-│   Zcash Halo2                    iden3 Circom/Groth16          │
-│   ───────────                    ───────────────────           │
-│   • No trusted setup             • Native Solana verification  │
-│   • Commitment hiding            • ~200k compute units         │
-│   • PLONK arithmetization        • Battle-tested tooling       │
+│   COMMIT PHASE                    SETTLE PHASE                  │
+│   ────────────                    ────────────                  │
+│   Zcash Halo2                     Groth16 on Solana             │
 │                                                                 │
-│   Use: Privacy guarantees        Use: On-chain finality        │
+│   • No trusted setup              • Native alt_bn128 syscalls   │
+│   • Poseidon commitment           • ~200k compute units         │
+│   • Score hidden from all         • On-chain finality           │
 │                                                                 │
-└────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Oracle Voting Flow:**
+**Why two systems?**
+
+Oracles commit votes without trusting a ceremony (Halo2 requires no setup). Settlement happens on-chain where Solana only supports Groth16. Each phase uses the right tool.
+
 ```
-1. Commit Phase  → Halo2 Poseidon commitment (trustless)
-2. Reveal Phase  → Circom proof generation
-3. On-chain      → Groth16 verification via alt_bn128 syscalls
+Oracle commits  →  Halo2 Poseidon(score, blinding)   [no ceremony]
+     ↓
+5 min delay     →  Prevents vote copying
+     ↓
+Oracle reveals  →  Groth16 proof: score ∈ [0,100]    [on-chain]
+     ↓
+Settlement      →  Funds split per consensus
 ```
 
-| System | Purpose | Trusted Setup |
-|--------|---------|---------------|
-| [Zcash Halo2](https://github.com/zcash/halo2) | Off-chain privacy | None |
-| [iden3 Circom](https://github.com/iden3/circom) | On-chain verification | Per-circuit |
-| [groth16-solana](https://github.com/Lightprotocol/groth16-solana) | Solana verifier | Audited |
+| Phase | System | Trusted Setup |
+|-------|--------|---------------|
+| Commit | [Zcash Halo2](https://github.com/zcash/halo2) | **None** |
+| Settle | [Groth16](https://github.com/Lightprotocol/groth16-solana) | Per-circuit |
 
-Built on research from:
-- [Halo Paper](https://eprint.iacr.org/2019/1021) - Sean Bowe, Jack Grigg, Daira Hopwood (ECC)
-- [Groth16](https://eprint.iacr.org/2016/260) - Jens Groth
+Built on [Electric Coin Company](https://electriccoin.co/) research (Halo2) and [iden3](https://iden3.io/) tooling (Circom).
 
-See [`crates/mitama-zk`](crates/mitama-zk) (Halo2) and [`circuits/`](circuits/) (Circom).
+See [`crates/mitama-zk`](crates/mitama-zk) and [`circuits/`](circuits/).
 
 ## Installation
 

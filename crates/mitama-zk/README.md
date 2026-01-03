@@ -1,25 +1,34 @@
 # mitama-zk
 
-Zero-knowledge proofs for Mitama using **[Zcash's Halo2](https://github.com/zcash/halo2)** proving system.
+**Trustless commitment phase** for Mitama oracle voting using **[Zcash's Halo2](https://github.com/zcash/halo2)**.
+
+## Role in Two-Phase ZK Architecture
+
+```
+COMMIT PHASE (this crate)        SETTLE PHASE (circuits/)
+────────────────────────         ────────────────────────
+Zcash Halo2                      Groth16 on Solana
+No trusted setup                 Native alt_bn128 syscalls
+Poseidon commitments             On-chain verification
+```
+
+Oracles commit votes using Halo2 (no ceremony needed). Settlement uses Groth16 for on-chain finality. See [`circuits/`](../../circuits/) for the settlement phase.
+
+## Why Halo2 for Commitments?
+
+| Feature | Benefit |
+|---------|---------|
+| **No trusted setup** | Oracles don't trust a ceremony to hide votes |
+| Poseidon hash | ZK-friendly, collision-resistant |
+| Lookup tables | Efficient [0-100] range validation |
+| Production-ready | Powers Zcash mainnet |
 
 ## Acknowledgments
 
-This crate is built on the groundbreaking cryptographic research from the **Electric Coin Company** (Zcash):
+Built on research from the **Electric Coin Company**:
 
-- **[Halo2](https://github.com/zcash/halo2)** - PLONK-based proving system with no trusted setup
-- **[Halo Paper](https://eprint.iacr.org/2019/1021)** - "Recursive Proof Composition without a Trusted Setup" by Sean Bowe, Jack Grigg, Daira Hopwood
-
-Halo2 enables efficient zero-knowledge proofs without the security concerns of trusted setup ceremonies, making it ideal for decentralized systems.
-
-## Why Halo2?
-
-| Feature | Benefit for Mitama |
-|---------|-------------------|
-| No trusted setup | Fully trustless oracle voting |
-| PLONK arithmetization | Efficient range proofs |
-| Lookup tables | Fast [0-100] score validation |
-| Recursion-friendly | Future: aggregate multiple votes |
-| Production-ready | Powers Zcash mainnet |
+- **[Halo2](https://github.com/zcash/halo2)** - PLONK-based proving system
+- **[Halo Paper](https://eprint.iacr.org/2019/1021)** - Sean Bowe, Jack Grigg, Daira Hopwood
 
 ## Use Cases
 
