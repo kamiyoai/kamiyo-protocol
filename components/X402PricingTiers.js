@@ -126,7 +126,7 @@ export default function X402PricingTiers({ showTitle = true }) {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {tiers.map((plan, index) => {
-                    const isHighlighted = false;
+                    const isHighlighted = plan.tier === 'starter';
 
                     return (
                         <div
@@ -141,7 +141,12 @@ export default function X402PricingTiers({ showTitle = true }) {
                             <div className="p-6 flex flex-col flex-grow">
                                 {isHighlighted && (
                                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                                        <span className="bg-gradient-to-r from-cyan to-magenta text-white text-xs uppercase tracking-wider px-3 py-1 rounded-full">
+                                        <span
+                                            className="text-gray-300 text-xs uppercase tracking-wider px-3 py-1 rounded-full border border-transparent"
+                                            style={{
+                                                background: 'linear-gradient(#000, #000) padding-box, linear-gradient(90deg, #00f0ff, #ff44f5) border-box'
+                                            }}
+                                        >
                                             Most Popular
                                         </span>
                                     </div>
