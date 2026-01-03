@@ -60,7 +60,7 @@ export default function Home() {
                                 </div>
                                 <div className="pt-[0.15rem] md:pl-16">
                                     <LinkButton
-                                        href="https://github.com/kamiyo-ai/kamiyo"
+                                        href="https://github.com/kamiyo-ai/kamiyo-protocol"
                                         title="View KAMIYO on GitHub"
                                         aria-label="View on GitHub"
                                     >
