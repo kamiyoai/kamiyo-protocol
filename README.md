@@ -127,6 +127,7 @@ Agent                          Provider
 | `@mitama/surfpool` | Strategy simulation and pre-flight validation |
 | `@mitama/middleware` | Express middleware for HTTP 402 payment flows |
 | `@mitama/agent-client` | Autonomous agent with auto-dispute |
+| `@mitama/mcp` | Model Context Protocol server for Claude/LLM agents |
 
 ## API Reference
 
@@ -181,16 +182,20 @@ npm run build --workspaces
 
 **Fees:**
 - Escrow creation: 0.1% (minimum 5,000 lamports)
+- Protocol fee on disputes: 1%
+- Oracle reward pool: 1% (split among consensus oracles)
 
 ## Security
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 **Security Features:**
-- Emergency pause mechanism for protocol-wide halts
-- Oracle registry with admin controls
-- Stake-backed accountability
-- Time-locked escrows with expiration
+- 2-of-3 multi-sig for pause, unpause, and treasury withdrawals
+- Oracle staking with slashing for bad votes (10% per violation)
+- Agent stake slashing for frivolous disputes (5%)
+- Auto-removal of oracles after 3 violations
+- Time-locked escrows with 7-day grace period
+- Check-effects-interactions pattern throughout
 
 ## Contributing
 
@@ -199,6 +204,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## License
 
 [BUSL-1.1](LICENSE) - Free for non-commercial use. Commercial license: license@kamiyo.ai
+
+## Links
+
+- [Dashboard](https://mitama.kamiyo.ai) - Protocol explorer and stats
+- [Documentation](https://docs.kamiyo.ai/mitama) - Full API documentation
+- [Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM) - On-chain program
 
 ---
 
