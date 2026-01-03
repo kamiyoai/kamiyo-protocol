@@ -142,7 +142,7 @@ export default function X402PricingTiers({ showTitle = true }) {
                                 {isHighlighted && (
                                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                                         <span
-                                            className="text-gray-300 text-xs uppercase tracking-wider px-3 py-1 rounded-full border border-transparent"
+                                            className="text-gray-300 text-xs uppercase tracking-wider px-4 py-1.5 rounded-full border border-transparent"
                                             style={{
                                                 background: 'linear-gradient(#000, #000) padding-box, linear-gradient(90deg, #00f0ff, #ff44f5) border-box'
                                             }}
