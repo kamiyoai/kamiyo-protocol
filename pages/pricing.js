@@ -15,7 +15,7 @@ export default function PricingPage() {
             {/* x402 Infrastructure Pricing */}
             <div className="w-full mb-16">
                 <div className="w-full flex flex-col items-start subheading-border mb-12 pb-6">
-                    <p className="font-light text-left text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;料金プラン</p>
+                    <p className="font-light text-left text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;Pricing 料金プラン</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light text-left leading-[1.25]">Pricing</h1>
                     <h4 className="text-xl md:text-2xl mt-4 text-cyan">Multi-Chain Payment Verification</h4>
                 </div>

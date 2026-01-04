@@ -15,7 +15,7 @@ export default function BrandPage() {
                 {/* Hero Section */}
                 <header className="mb-16">
                     <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">
-                        — &nbsp;ブランドスタイルガイド
+                        — &nbsp;Brand ブランド
                     </p>
                     <h1 className="text-4xl md:text-5xl font-light mb-6 leading-tight text-white">
                         KAMIYO Brand Guidelines

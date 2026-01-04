@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
 
             <section className="py-10 px-5 md:px-1 mx-auto max-w-[1400px]">
                 <div className="subheading-border mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;プライバシーポリシー</p>
+                    <p className="font-light text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;Privacy プライバシー</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Privacy Policy</h1>
                 </div>
 

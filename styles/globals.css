@@ -208,7 +208,7 @@ ol li {
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
-    animation: GradientMove 3s linear infinite;
+    animation: gradientMove 3s linear infinite;
 }
 
 @keyframes opacityGlitch {
