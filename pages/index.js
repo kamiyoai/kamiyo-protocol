@@ -166,7 +166,7 @@ export default function Home() {
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
                         {/* Step 1 - Create Agreement: dots forming protective enclosure */}
-                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '100ms' }}>
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6'}`} style={{ transitionDelay: '100ms' }}>
                             <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
 {/* Two diagonal blocks */}
                                 <svg className="w-8 h-8" viewBox="0 0 20 20">
@@ -193,7 +193,7 @@ export default function Home() {
                         </div>
 
                         {/* Step 2 - Service Delivered: dots flowing diagonally */}
-                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '200ms' }}>
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} style={{ transitionDelay: '150ms' }}>
                             <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
 {/* Diamond - 4 squares as 2x2 dots */}
                                 <svg className="w-8 h-8" viewBox="-1 -1 20 20">
@@ -224,7 +224,7 @@ export default function Home() {
                         </div>
 
                         {/* Step 3 - Oracle Consensus: dots converging to center */}
-                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '300ms' }}>
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-6'}`} style={{ transitionDelay: '200ms' }}>
                             <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
 {/* X pattern - 7 squares */}
                                 <svg className="w-8 h-8" viewBox="-1 -1 20 20">
@@ -253,7 +253,7 @@ export default function Home() {
                         </div>
 
                         {/* Step 4 - Auto Settlement: balanced resolution pattern */}
-                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '400ms' }}>
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6'}`} style={{ transitionDelay: '250ms' }}>
                             <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
 {/* Two mirrored arrows - 11 squares */}
                                 <svg className="w-8 h-8" viewBox="0 0 21 18">
@@ -288,9 +288,9 @@ export default function Home() {
                 </div>
 
                 {/* Core Features - more compact */}
-                <div ref={featuresRef} className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 ${sectionsVisible.features ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+                <div ref={featuresRef} className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 ${sectionsVisible.features ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                     <div className="border border-gray-500/25 rounded-lg p-5">
-                        <div className="text-cyan text-xs uppercase tracking-wider mb-2">Identity</div>
+                        <div className="gradient-text text-xs uppercase tracking-wider mb-2">Identity</div>
                         <div className="text-white text-lg font-extralight mb-2">Stake-Backed Agents</div>
                         <div className="text-gray-500 text-sm">
                             PDA-based identities with SOL collateral. On-chain reputation scoring.
@@ -298,7 +298,7 @@ export default function Home() {
                     </div>
 
                     <div className="border border-gray-500/25 rounded-lg p-5">
-                        <div className="text-cyan text-xs uppercase tracking-wider mb-2">Resolution</div>
+                        <div className="gradient-text text-xs uppercase tracking-wider mb-2">Resolution</div>
                         <div className="text-white text-lg font-extralight mb-2">Quality-Based Arbitration</div>
                         <div className="text-gray-500 text-sm">
                             Sliding refund scale based on oracle-determined quality scores.
@@ -306,7 +306,7 @@ export default function Home() {
                     </div>
 
                     <div className="border border-gray-500/25 rounded-lg p-5">
-                        <div className="text-cyan text-xs uppercase tracking-wider mb-2">Consensus</div>
+                        <div className="gradient-text text-xs uppercase tracking-wider mb-2">Consensus</div>
                         <div className="text-white text-lg font-extralight mb-2">Multi-Oracle Verification</div>
                         <div className="text-gray-500 text-sm">
                             Decentralized dispute resolution. Median-based, anti-collusion.
@@ -319,34 +319,34 @@ export default function Home() {
                     <h3 className="text-xl font-light text-white mb-6">Quality-based refund scale</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}
                             style={{ transitionDelay: '0ms' }}
                         >
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">80-100%</div>
+                            <div className="gradient-text text-xs uppercase tracking-wider mb-2">80-100%</div>
                             <div className="text-white text-2xl font-light mb-1">100%</div>
                             <div className="text-gray-500 text-xs">to provider</div>
                         </div>
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-                            style={{ transitionDelay: '100ms' }}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
+                            style={{ transitionDelay: '75ms' }}
                         >
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">65-79%</div>
+                            <div className="gradient-text text-xs uppercase tracking-wider mb-2">65-79%</div>
                             <div className="text-white text-2xl font-light mb-1">35%</div>
                             <div className="text-gray-500 text-xs">refund</div>
                         </div>
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-                            style={{ transitionDelay: '200ms' }}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                            style={{ transitionDelay: '150ms' }}
                         >
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">50-64%</div>
+                            <div className="gradient-text text-xs uppercase tracking-wider mb-2">50-64%</div>
                             <div className="text-white text-2xl font-light mb-1">75%</div>
                             <div className="text-gray-500 text-xs">refund</div>
                         </div>
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-                            style={{ transitionDelay: '300ms' }}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}
+                            style={{ transitionDelay: '225ms' }}
                         >
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">0-49%</div>
+                            <div className="gradient-text text-xs uppercase tracking-wider mb-2">0-49%</div>
                             <div className="text-white text-2xl font-light mb-1">100%</div>
                             <div className="text-gray-500 text-xs">refund</div>
                         </div>
@@ -355,7 +355,7 @@ export default function Home() {
             </section>
 
             {/* SDK Integration Section */}
-            <section ref={sdkRef} className={`w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px] transition-all duration-700 ${sectionsVisible.sdk ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+            <section ref={sdkRef} className={`w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px] transition-all duration-700 ${sectionsVisible.sdk ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
                     SDK integration
                 </h2>
@@ -456,7 +456,7 @@ await client.releaseFunds(agreement.id)
             </section>
 
             {/* Building For Section */}
-            <section ref={buildingForRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-700 ${sectionsVisible.buildingFor ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+            <section ref={buildingForRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-700 ${sectionsVisible.buildingFor ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.98]'}`}>
                 <div className="w-full px-5 mx-auto max-w-[1400px]">
                     <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
                         Building for
@@ -503,7 +503,7 @@ await client.releaseFunds(agreement.id)
             </section>
 
             {/* FAQ Section */}
-            <section ref={faqRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-700 ${sectionsVisible.faq ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+            <section ref={faqRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-500 ${sectionsVisible.faq ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="w-full px-5 mx-auto max-w-[1200px]">
                     <FAQ />
                 </div>
