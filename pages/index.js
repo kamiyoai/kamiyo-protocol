@@ -106,7 +106,7 @@ export default function Home() {
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Get Started"
-                                        onClickOverride={() => window.open('https://protocol.kamiyo.ai', '_self')}
+                                        onClickOverride={() => window.open('/docs', '_self')}
                                     />
                                 </div>
                                 <div className="pt-[0.15rem] md:pl-16">
