@@ -122,34 +122,35 @@ export default function Header({ children }) {
                         </nav>
                         <button
                             onClick={() => setMenuOpen(!isMenuOpen)}
-                            className={`focus:outline-none transform transition-transform duration-300`}
+                            className={`focus:outline-none transform transition-transform duration-300 group`}
                             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                         >
                             <svg
-                                className="overflow-visible w-6 h-6 text-white"
+                                className="overflow-visible w-6 h-6 text-gray-500 group-hover:text-white transition-colors duration-300"
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
-                                {/* Top line */}
+                                {/* Top line - short, right-aligned */}
                                 <line
-                                    x1="1"
-                                    y1="6"
-                                    x2="23"
-                                    y2="6"
+                                    x1={isMenuOpen ? "4" : "10"}
+                                    y1="7"
+                                    x2="20"
+                                    y2="7"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
                                         transform: isMenuOpen
-                                            ? "scale(0.9) rotate(45deg) translateY(6px)"
+                                            ? "rotate(45deg)"
                                             : "none",
+                                        transformOrigin: "center",
                                     }}
-                                    className="transition-all duration-300 origin-center"
+                                    className="transition-all duration-300"
                                 />
-                                {/* Middle line */}
+                                {/* Middle line - full width */}
                                 <line
-                                    x1="1"
+                                    x1="4"
                                     y1="12"
-                                    x2="23"
+                                    x2="20"
                                     y2="12"
                                     stroke="currentColor"
                                     strokeWidth="1"
@@ -157,20 +158,21 @@ export default function Header({ children }) {
                                         isMenuOpen ? "opacity-0" : "opacity-100"
                                     }`}
                                 />
-                                {/* Bottom line */}
+                                {/* Bottom line - medium, right-aligned */}
                                 <line
-                                    x1="1"
-                                    y1="18"
-                                    x2="23"
-                                    y2="18"
+                                    x1={isMenuOpen ? "4" : "7"}
+                                    y1="17"
+                                    x2="20"
+                                    y2="17"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
                                         transform: isMenuOpen
-                                            ? "scale(0.9) rotate(-45deg) translateY(-6px)"
+                                            ? "rotate(-45deg)"
                                             : "none",
+                                        transformOrigin: "center",
                                     }}
-                                    className="transition-all duration-300 origin-center"
+                                    className="transition-all duration-300"
                                 />
                             </svg>
                         </button>
