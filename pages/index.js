@@ -106,16 +106,16 @@ export default function Home() {
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Get Started"
-                                        onClickOverride={() => window.open('/docs', '_self')}
+                                        onClickOverride={() => window.open('https://protocol.kamiyo.ai', '_self')}
                                     />
                                 </div>
                                 <div className="pt-[0.15rem] md:pl-16">
                                     <LinkButton
-                                        href="https://protocol.kamiyo.ai"
-                                        title="View Protocol"
-                                        aria-label="View Protocol"
+                                        href="/docs"
+                                        title="View Documentation"
+                                        aria-label="View Documentation"
                                     >
-                                        View protocol →
+                                        View docs →
                                     </LinkButton>
                                 </div>
                             </div>
