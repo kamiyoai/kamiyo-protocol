@@ -119,7 +119,7 @@ await client.releaseFunds('order-123', providerPubkey);
 | `@kamiyo/middleware` | Express middleware for HTTP 402 |
 | `@kamiyo/agent-client` | Autonomous agent with auto-dispute |
 | `@kamiyo/mcp` | MCP server for Claude/LLM agents |
-| `mitama-zk` | Halo2 commitments, Groth16 proofs (Rust) |
+| `kamiyo-zk` | Halo2 commitments, Groth16 proofs (Rust) |
 | `circuits/` | Circom circuits for on-chain verification |
 
 ## x402 Integration
@@ -132,7 +132,7 @@ import { X402KAMIYOClient } from '@kamiyo/x402-client';
 const client = new X402KAMIYOClient({
   connection,
   wallet,
-  programId: MITAMA_PROGRAM_ID,
+  programId: KAMIYO_PROGRAM_ID,
   qualityThreshold: 70,  // Auto-dispute below this
   maxPricePerRequest: 0.1,
 });
@@ -209,7 +209,7 @@ See [SECURITY.md](SECURITY.md).
 ## License
 
 - **Core Program**: [BUSL-1.1](LICENSE)
-- **SDK & Packages**: [MIT](packages/mitama-sdk/LICENSE)
+- **SDK & Packages**: [MIT](packages/kamiyo-sdk/LICENSE)
 
 Commercial license: license@kamiyo.ai
 
