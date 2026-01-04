@@ -203,12 +203,10 @@ ol li {
  }
 .gradient-text {
     background: linear-gradient(90deg, #4fe9ea, #ff44f5);
-    background-size: 200% 100%;
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
-    animation: gradientMove 3s linear infinite;
 }
 
 @keyframes opacityGlitch {
