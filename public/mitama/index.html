@@ -2278,20 +2278,25 @@ pub mod mitama {
 
                 showStatus('Connecting to wallet...', 'info');
 
-                // Connect to wallet with retry logic
-                let resp;
-                let retries = 2;
-                while (retries > 0) {
-                    try {
-                        resp = await walletProvider.connect();
-                        break;
-                    } catch (e) {
-                        retries--;
-                        if (retries === 0) throw e;
-                        await new Promise(r => setTimeout(r, 500));
+                // Check if wallet is already connected from previous session
+                if (walletProvider.isConnected && walletProvider.publicKey) {
+                    walletPublicKey = walletProvider.publicKey;
+                } else {
+                    // Connect to wallet with retry logic
+                    let resp;
+                    let retries = 2;
+                    while (retries > 0) {
+                        try {
+                            resp = await walletProvider.connect();
+                            break;
+                        } catch (e) {
+                            retries--;
+                            if (retries === 0) throw e;
+                            await new Promise(r => setTimeout(r, 500));
+                        }
                     }
+                    walletPublicKey = resp.publicKey;
                 }
-                walletPublicKey = resp.publicKey;
                 walletConnected = true;
 
                 // Update button UI
@@ -2326,6 +2331,9 @@ pub mod mitama {
                     showStatus('Wallet connection rejected', 'error');
                 } else if (err.code === 4001 || err.code === -32603 || err.code === 4100) {
                     showStatus('Wallet connection cancelled', 'error');
+                } else if (err.message && err.message.includes('Unexpected error')) {
+                    // Phantom minified error - usually means wallet is locked or stale connection
+                    showStatus('Please unlock your wallet and try again', 'error');
                 } else {
                     showStatus('Failed to connect wallet. Please refresh and try again.', 'error');
                 }
