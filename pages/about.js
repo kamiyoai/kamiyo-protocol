@@ -1,6 +1,54 @@
 import SEO from '../components/SEO';
+import { useEffect, useState, useRef } from 'react';
+import Script from 'next/script';
 
 export default function About() {
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const chartRef = useRef(null);
+    const chartInstance = useRef(null);
+
+    useEffect(() => {
+        fetch('/api/protocol-stats')
+            .then(res => res.json())
+            .then(data => {
+                setStats(data);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        if (stats?.distribution && chartRef.current && window.Chart) {
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+            }
+            chartInstance.current = new window.Chart(chartRef.current.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
+                    datasets: [{
+                        label: 'Quality Score Distribution',
+                        data: stats.distribution,
+                        borderColor: 'rgb(79, 233, 234)',
+                        backgroundColor: 'rgba(79, 233, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#222' }, ticks: { color: '#888' } },
+                        y: { grid: { color: '#222' }, ticks: { color: '#888' } }
+                    }
+                }
+            });
+        }
+    }, [stats]);
+
     return (
         <div className="min-h-screen bg-black text-white">
             <SEO
@@ -112,8 +160,93 @@ export default function About() {
                     </div>
                 </div>
 
+                {/* Live Protocol Stats */}
+                <div className="border-t border-gray-800 pt-12 mt-12">
+                    <div className="flex items-center justify-between mb-8">
+                        <h4 className="text-xl md:text-2xl font-light">Live Protocol Analytics</h4>
+                        <a
+                            href="https://protocol.kamiyo.ai"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-gray-500 hover:text-cyan transition-colors"
+                        >
+                            View Full Dashboard →
+                        </a>
+                    </div>
+
+                    {loading ? (
+                        <div className="text-center py-12 text-gray-500">Loading protocol data...</div>
+                    ) : stats ? (
+                        <>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                <div className="text-center p-6 bg-[#0a0a0a] rounded-lg border border-gray-800">
+                                    <div className="text-gray-500 text-xs uppercase tracking-wider mb-2">Total Assessments</div>
+                                    <div className="text-3xl font-light gradient-text">{stats.totalAssessments}</div>
+                                </div>
+                                <div className="text-center p-6 bg-[#0a0a0a] rounded-lg border border-gray-800">
+                                    <div className="text-gray-500 text-xs uppercase tracking-wider mb-2">Completed</div>
+                                    <div className="text-3xl font-light gradient-text">{stats.completed}</div>
+                                </div>
+                                <div className="text-center p-6 bg-[#0a0a0a] rounded-lg border border-gray-800">
+                                    <div className="text-gray-500 text-xs uppercase tracking-wider mb-2">Avg Quality</div>
+                                    <div className="text-3xl font-light gradient-text">{stats.avgQuality}</div>
+                                </div>
+                                <div className="text-center p-6 bg-[#0a0a0a] rounded-lg border border-gray-800">
+                                    <div className="text-gray-500 text-xs uppercase tracking-wider mb-2">Total Refunded</div>
+                                    <div className="text-3xl font-light gradient-text">{stats.totalRefunded} SOL</div>
+                                </div>
+                            </div>
+
+                            <div className="bg-[#0a0a0a] rounded-lg border border-gray-800 p-6">
+                                <h5 className="text-sm text-gray-500 uppercase tracking-wider mb-4">Quality Score Distribution</h5>
+                                <div className="h-64">
+                                    <canvas ref={chartRef}></canvas>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center py-12 text-gray-500">
+                            Unable to load protocol data.{' '}
+                            <a href="https://protocol.kamiyo.ai" className="text-cyan hover:underline">
+                                View live dashboard
+                            </a>
+                        </div>
+                    )}
+                </div>
+
             </section>
 
+            <Script
+                src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+                strategy="afterInteractive"
+                onLoad={() => {
+                    if (stats?.distribution && chartRef.current) {
+                        chartInstance.current = new window.Chart(chartRef.current.getContext('2d'), {
+                            type: 'line',
+                            data: {
+                                labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
+                                datasets: [{
+                                    label: 'Quality Score Distribution',
+                                    data: stats.distribution,
+                                    borderColor: 'rgb(79, 233, 234)',
+                                    backgroundColor: 'rgba(79, 233, 234, 0.1)',
+                                    tension: 0.4,
+                                    fill: true
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { grid: { color: '#222' }, ticks: { color: '#888' } },
+                                    y: { grid: { color: '#222' }, ticks: { color: '#888' } }
+                                }
+                            }
+                        });
+                    }
+                }}
+            />
         </div>
     );
 }
