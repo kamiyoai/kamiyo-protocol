@@ -23,9 +23,9 @@ export default function Home() {
     const buildingForRef = useRef(null);
     const faqRef = useRef(null);
 
-    // Logo animation on page load (1 second delay)
+    // Logo animation on page load
     useEffect(() => {
-        setTimeout(() => setLogoLoaded(true), 1000);
+        setLogoLoaded(true);
     }, []);
 
     // Scroll animations for sections
