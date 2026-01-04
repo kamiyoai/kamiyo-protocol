@@ -97,6 +97,14 @@ export default function Header({ children }) {
                             >
                                 About
                             </Link>
+                            <a
+                                href="https://protocol.kamiyo.ai"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                            >
+                                Protocol
+                            </a>
                             <Link
                                 href="/inquiries"
                                 className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
@@ -215,6 +223,15 @@ export default function Header({ children }) {
                                     </nav>
                                 )}
                                     <nav className="flex flex-col items-center space-y-4 py-6">
+                                        <a
+                                            href="https://protocol.kamiyo.ai"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            Protocol
+                                        </a>
                                         <Link
                                             href="/api-docs"
                                             onClick={closeMenu}
