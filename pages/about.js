@@ -190,8 +190,8 @@ export default function About() {
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-3 px-4 font-medium text-white">Speed Advantage</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ 75x Faster</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Slow</td>
+                                    <td className="py-3 px-4 text-cyan">75x Faster</td>
+                                    <td className="py-3 px-4 text-gray-500">Slow</td>
                                 </tr>
                                 <tr className="border-b border-gray-800 bg-[#0a0a0a]">
                                     <td className="py-3 px-4 font-medium text-white">Cost per Dispute</td>
@@ -200,52 +200,46 @@ export default function About() {
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-3 px-4 font-medium text-white">Cost Savings</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ 88% Cheaper</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Expensive</td>
+                                    <td className="py-3 px-4 text-cyan">88% Cheaper</td>
+                                    <td className="py-3 px-4 text-gray-500">Expensive</td>
                                 </tr>
                                 <tr className="border-b border-gray-800 bg-[#0a0a0a]">
                                     <td className="py-3 px-4 font-medium text-white">Outcome Type</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ Sliding Scale (0-100%)</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Binary (All or Nothing)</td>
+                                    <td className="py-3 px-4 text-cyan">Sliding Scale (0-100%)</td>
+                                    <td className="py-3 px-4 text-gray-500">Binary (All or Nothing)</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-3 px-4 font-medium text-white">Automation</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ Fully Autonomous</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Human Required</td>
+                                    <td className="py-3 px-4 text-cyan">Fully Autonomous</td>
+                                    <td className="py-3 px-4 text-gray-500">Human Required</td>
                                 </tr>
                                 <tr className="border-b border-gray-800 bg-[#0a0a0a]">
                                     <td className="py-3 px-4 font-medium text-white">Transparency</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ On-chain & Verifiable</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Opaque & Centralized</td>
+                                    <td className="py-3 px-4 text-cyan">On-chain & Verifiable</td>
+                                    <td className="py-3 px-4 text-gray-500">Opaque & Centralized</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-3 px-4 font-medium text-white">Network</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ Solana Blockchain</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Traditional Rails</td>
+                                    <td className="py-3 px-4 text-cyan">Solana Blockchain</td>
+                                    <td className="py-3 px-4 text-gray-500">Traditional Rails</td>
                                 </tr>
                                 <tr className="border-b border-gray-800 bg-[#0a0a0a]">
                                     <td className="py-3 px-4 font-medium text-white">Agent-Ready</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ Built for AI Agents</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Not Designed for Agents</td>
+                                    <td className="py-3 px-4 text-cyan">Built for AI Agents</td>
+                                    <td className="py-3 px-4 text-gray-500">Not Designed for Agents</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-3 px-4 font-medium text-white">Quality Assessment</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ Multi-Oracle Consensus</td>
-                                    <td className="py-3 px-4 text-red-400">✗ Manual Review</td>
+                                    <td className="py-3 px-4 text-cyan">Multi-Oracle Consensus</td>
+                                    <td className="py-3 px-4 text-gray-500">Manual Review</td>
                                 </tr>
                                 <tr className="border-b border-gray-800 bg-[#0a0a0a]">
                                     <td className="py-3 px-4 font-medium text-white">Settlement Speed</td>
-                                    <td className="py-3 px-4 text-emerald-400">✓ Real-time On-chain</td>
-                                    <td className="py-3 px-4 text-red-400">✗ 30-90 Day Wait</td>
+                                    <td className="py-3 px-4 text-cyan">Real-time On-chain</td>
+                                    <td className="py-3 px-4 text-gray-500">30-90 Day Wait</td>
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
-
-                    <div className="mt-6 p-4 border border-cyan/30 rounded-lg bg-cyan/5 text-center">
-                        <p className="text-gray-300 text-sm">
-                            <span className="text-cyan font-medium">Key Takeaway:</span> KAMIYO is 75x faster, 88% cheaper, and purpose-built for autonomous AI agents
-                        </p>
                     </div>
                 </div>
 
