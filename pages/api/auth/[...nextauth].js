@@ -3,7 +3,6 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import prisma from '../../../lib/prisma';
-import { createDefaultApiKey } from '../../../lib/apiKeyUtils';
 import bcrypt from 'bcryptjs';
 
 export const authOptions = {
@@ -82,21 +81,9 @@ export const authOptions = {
                     isNewUser,
                     provider: account?.provider
                 });
-
-                // Auto-generate API key for new users
-                if (isNewUser) {
-                    try {
-                        await createDefaultApiKey(user.id);
-                        console.log(`Auto-generated API key for new user: ${user.email}`);
-                    } catch (error) {
-                        console.error(`Failed to auto-generate API key for ${user.email}:`, error);
-                        // Don't block signup if key generation fails
-                    }
-                }
                 return true;
             } catch (error) {
                 console.error('SignIn callback error:', error);
-                // Still allow sign-in to prevent redirect loop
                 return true;
             }
         },

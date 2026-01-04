@@ -8,19 +8,14 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
+  id            String    @id @default(uuid())
+  email         String    @unique
   emailVerified DateTime?
   name          String?
   image         String?
   passwordHash  String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
-  webhooks      Webhook[]
-  watchlists    Watchlist[]
-  apiRequests   ApiRequest[]
-  apiKeys       ApiKey[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
 }
@@ -58,160 +53,4 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-model Subscription {
-  id        String   @id @default(uuid())
-  userId    String
-  tier      String
-  status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Webhook {
-  id          String   @id @default(uuid())
-  userId      String
-  url         String
-  name        String?
-  description String?
-  chains      String?  // JSON array of chain filters
-  minAmount   Float?   // Minimum exploit amount to trigger
-  status      String   @default("active")  // active, paused, failed
-  lastTrigger DateTime?
-  failCount   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Watchlist {
-  id          String   @id @default(uuid())
-  userId      String
-  protocol    String
-  chain       String?
-  alertOnNew  Boolean  @default(true)
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, protocol, chain])
-}
-
-model ApiRequest {
-  id        String   @id @default(uuid())
-  userId    String
-  endpoint  String
-  timestamp DateTime @default(now())
-  date      String   // Format: YYYY-MM-DD for efficient daily counting
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, date])
-}
-
-model ApiKey {
-  id          String   @id @default(uuid())
-  userId      String
-  key         String   @unique
-  name        String?  // User-friendly name for the key
-  status      String   @default("active")  // active, revoked
-  lastUsedAt  DateTime?
-  createdAt   DateTime @default(now())
-  revokedAt   DateTime?
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([key])
-}
-
-// x402 SaaS Multi-Tenancy Models
-
-model X402Tenant {
-  id                   String   @id @default(cuid())
-  email                String   @unique
-  companyName          String?
-  tier                 String   @default("free")  // free, starter, pro, enterprise
-  status               String   @default("active")  // active, suspended, cancelled
-
-  // Payment addresses (tenant-specific)
-  solanaPaymentAddress   String   @unique
-  basePaymentAddress     String   @unique
-  ethereumPaymentAddress String   @unique
-
-  // Quotas
-  monthlyVerificationLimit Int      @default(1000)
-  monthlyVerificationsUsed Int      @default(0)
-  quotaResetDate           DateTime?
-
-  // Features (JSON arrays/objects)
-  enabledChains    String   @default("[\"solana\",\"base\"]")  // JSON array
-  payaiEnabled     Boolean  @default(false)
-  customBranding   Boolean  @default(false)
-  webhooksEnabled  Boolean  @default(false)
-
-  // Billing
-  stripeCustomerId      String?  @unique
-  stripeSubscriptionId  String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relationships
-  apiKeys       X402ApiKey[]
-  verifications X402Verification[]
-
-  @@index([email])
-  @@index([tier])
-  @@index([status])
-}
-
-model X402ApiKey {
-  id          String   @id @default(cuid())
-  tenantId    String
-
-  keyHash     String   @unique  // SHA256 hash of API key
-  name        String?
-  environment String   @default("live")  // live, test
-  scopes      String   @default("[\"verify\",\"settle\",\"analytics\"]")  // JSON array
-
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  lastUsedAt  DateTime?
-  revokedAt   DateTime?
-
-  tenant      X402Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([keyHash])
-  @@index([isActive])
-}
-
-model X402Verification {
-  id             Int      @id @default(autoincrement())
-  tenantId       String
-
-  txHash         String
-  chain          String
-  success        Boolean
-  amountUsdc     Decimal? @db.Decimal(18, 6)
-  errorCode      String?
-  errorMessage   String?
-
-  // Metadata
-  apiKeyId       String?
-  ipAddress      String?
-  responseTimeMs Int?
-
-  createdAt      DateTime @default(now())
-
-  tenant         X402Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([createdAt], map: "X402Verification_createdAt_idx")
-  @@index([tenantId, createdAt])
-  @@index([chain], map: "X402Verification_chain_idx")
-  @@index([success])
-  @@index([txHash])
 }

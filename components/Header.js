@@ -1,17 +1,14 @@
 // components/Header.js
 import { useMenu } from "../context/MenuContext";
 import Link from "next/link";
-import Image from "next/image";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { hasMinimumTier, TierName } from "../lib/tiers";
 
 export default function Header({ children }) {
     const { isMenuOpen, setMenuOpen } = useMenu();
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
     const { data: session } = useSession();
-    const [userTier, setUserTier] = useState(null);
     const menuRef = useRef(null);
 
     // Used to ensure the portal renders only on the client
@@ -19,18 +16,6 @@ export default function Header({ children }) {
     useEffect(() => {
         setMounted(true);
     }, []);
-
-    // Fetch user's subscription tier
-    useEffect(() => {
-        if (session?.user?.email) {
-            fetch(`/api/subscription/status?email=${session.user.email}`)
-                .then(res => res.json())
-                .then(data => {
-                    setUserTier(data.tier);
-                })
-                .catch(err => console.error('Error fetching subscription:', err));
-        }
-    }, [session]);
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -61,9 +46,6 @@ export default function Header({ children }) {
     const toggleUserDropdown = () => {
         setUserDropdownOpen((prev) => !prev);
     };
-
-    // Check if user has access to Fork Analysis (team or enterprise tier)
-    const hasForkAnalysisAccess = userTier && hasMinimumTier(userTier, TierName.TEAM);
 
     return (
         <>
@@ -111,14 +93,6 @@ export default function Header({ children }) {
                             >
                                 Inquiries
                             </Link>
-                            {session && (
-                                <Link
-                                    href="/dashboard"
-                                    className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
-                                >
-                                    Dashboard
-                                </Link>
-                            )}
                         </nav>
                         <button
                             onClick={() => setMenuOpen(!isMenuOpen)}
@@ -241,15 +215,6 @@ export default function Header({ children }) {
                                     >
                                         Inquiries
                                     </Link>
-                                    {session && (
-                                        <Link
-                                            href="/dashboard"
-                                            onClick={closeMenu}
-                                            className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
-                                        >
-                                            Dashboard
-                                        </Link>
-                                    )}
                                 </nav>
                                     <nav className="flex flex-col items-center space-y-4 py-6">
                                         <Link
