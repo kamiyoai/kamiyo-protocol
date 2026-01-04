@@ -10,8 +10,8 @@
 # ----------------------------------------------------------------------------
 User-agent: Googlebot
 Allow: /
-Allow: /api-docs
-Allow: /api-docs/
+Allow: /docs
+Allow: /docs/
 Allow: /api/docs
 Allow: /docs/
 Allow: /media/
@@ -52,8 +52,8 @@ Disallow: /dashboard/
 # ----------------------------------------------------------------------------
 User-agent: Bingbot
 Allow: /
-Allow: /api-docs
-Allow: /api-docs/
+Allow: /docs
+Allow: /docs/
 Allow: /api/docs
 Allow: /docs/
 Allow: /media/
@@ -75,7 +75,7 @@ Crawl-delay: 2
 # Yandex - Russian search engine
 User-agent: Yandex
 Allow: /
-Allow: /api-docs
+Allow: /docs
 Allow: /media/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -85,7 +85,7 @@ Crawl-delay: 3
 # DuckDuckGo Bot - Privacy-focused search
 User-agent: DuckDuckBot
 Allow: /
-Allow: /api-docs
+Allow: /docs
 Allow: /media/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -109,8 +109,8 @@ Crawl-delay: 3
 # OpenAI GPTBot - ChatGPT web browsing
 User-agent: GPTBot
 Allow: /
-Allow: /api-docs
-Allow: /api-docs/
+Allow: /docs
+Allow: /docs/
 Allow: /docs/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -120,8 +120,8 @@ Crawl-delay: 5
 # ChatGPT User Agent
 User-agent: ChatGPT-User
 Allow: /
-Allow: /api-docs
-Allow: /api-docs/
+Allow: /docs
+Allow: /docs/
 Allow: /docs/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -131,7 +131,7 @@ Crawl-delay: 5
 # Google Bard / Gemini
 User-agent: Google-Extended
 Allow: /
-Allow: /api-docs
+Allow: /docs
 Allow: /docs/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -140,7 +140,7 @@ Disallow: /api/*
 # Anthropic Claude Web Crawler
 User-agent: anthropic-ai
 Allow: /
-Allow: /api-docs
+Allow: /docs
 Allow: /docs/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -157,7 +157,7 @@ Crawl-delay: 5
 # Perplexity AI
 User-agent: PerplexityBot
 Allow: /
-Allow: /api-docs
+Allow: /docs
 Allow: /docs/
 Disallow: /auth/
 Disallow: /dashboard/
@@ -256,8 +256,8 @@ Disallow: /
 # ----------------------------------------------------------------------------
 User-agent: *
 Allow: /
-Allow: /api-docs
-Allow: /api-docs/
+Allow: /docs
+Allow: /docs/
 Allow: /docs/
 Allow: /media/
 

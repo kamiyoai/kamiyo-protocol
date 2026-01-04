@@ -107,14 +107,14 @@ export default function Home() {
                                     <PayButton
                                         textOverride="Get Started"
                                         onClickOverride={() => {
-                                            window.location.href = '/api-docs';
+                                            window.location.href = '/docs';
                                         }}
                                     />
                                 </div>
                                 <div className="pt-[0.15rem] md:pl-16">
                                     <LinkButton
-                                        href="/api-docs"
-                                        title="View API Documentation"
+                                        href="/docs"
+                                        title="View Documentation"
                                         aria-label="View Documentation"
                                     >
                                         View docs →

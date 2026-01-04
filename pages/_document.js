@@ -4,8 +4,8 @@ import { Html, Head, Main, NextScript } from 'next/document';
 export default function Document() {
     const csp =
         process.env.NODE_ENV === 'development'
-            ? "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://accounts.google.com;"
-            : "script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com;";
+            ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://accounts.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' http://localhost:* https://accounts.google.com https://api.dexscreener.com https://rpc-devnet.helius.xyz https://api.devnet.solana.com https://api.mainnet-beta.solana.com https://solana-mainnet.g.alchemy.com https://rpc.ankr.com https://mainnet.helius-rpc.com https://cdn.jsdelivr.net wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com ws://localhost:* wss://localhost:*;"
+            : "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://accounts.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.kamiyo.ai https://accounts.google.com https://api.dexscreener.com https://rpc-devnet.helius.xyz https://api.devnet.solana.com https://api.mainnet-beta.solana.com https://solana-mainnet.g.alchemy.com https://rpc.ankr.com https://mainnet.helius-rpc.com https://cdn.jsdelivr.net wss://api.devnet.solana.com wss://api.mainnet-beta.solana.com;";
 
     const structuredData = {
         "@context": "https://schema.org",
@@ -44,7 +44,7 @@ export default function Document() {
                     "@type": "SearchAction",
                     "target": {
                         "@type": "EntryPoint",
-                        "urlTemplate": "https://kamiyo.ai/api-docs?q={search_term_string}"
+                        "urlTemplate": "https://kamiyo.ai/docs?q={search_term_string}"
                     },
                     "query-input": "required name=search_term_string"
                 },
@@ -73,9 +73,9 @@ export default function Document() {
                     {
                         "@type": "SiteNavigationElement",
                         "position": 3,
-                        "name": "API Documentation",
-                        "description": "KAMIYO protocol API documentation",
-                        "url": "https://kamiyo.ai/api-docs"
+                        "name": "Documentation",
+                        "description": "KAMIYO protocol documentation",
+                        "url": "https://kamiyo.ai/docs"
                     },
                     {
                         "@type": "SiteNavigationElement",
@@ -92,6 +92,11 @@ export default function Document() {
     return (
         <Html lang="en">
             <Head>
+                {/* Google Fonts */}
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
                 {/* Favicon */}
                 <link rel="icon" type="image/png" href="/favicon.png" />
 
