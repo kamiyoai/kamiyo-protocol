@@ -2290,40 +2290,12 @@ pub mod mitama {
 
                 showStatus('Connecting to wallet...', 'info');
 
-                // Check if wallet is already connected from previous session
-                let useExistingConnection = false;
-                if (walletProvider.isConnected) {
-                    try {
-                        if (walletProvider.publicKey) {
-                            walletPublicKey = walletProvider.publicKey;
-                            useExistingConnection = true;
-                        }
-                    } catch (_) {
-                        // Stale connection, will reconnect below
-                        try { await walletProvider.disconnect(); } catch (_) {}
-                    }
-                }
+                // Always disconnect first to clear any stale connection state
+                try { await walletProvider.disconnect(); } catch (_) {}
 
-                if (!useExistingConnection) {
-                    // Connect to wallet with retry logic
-                    let resp;
-                    let retries = 2;
-                    while (retries > 0) {
-                        try {
-                            resp = await walletProvider.connect();
-                            break;
-                        } catch (e) {
-                            retries--;
-                            if (retries === 0) throw e;
-                            // Disconnect stale connection before retry
-                            try {
-                                await walletProvider.disconnect();
-                            } catch (_) {}
-                            await new Promise(r => setTimeout(r, 500));
-                        }
-                    }
-                    walletPublicKey = resp.publicKey;
-                }
+                // Connect fresh
+                const resp = await walletProvider.connect();
+                walletPublicKey = resp.publicKey;
                 walletConnected = true;
 
                 // Update button UI
@@ -2355,14 +2327,14 @@ pub mod mitama {
             } catch (err) {
                 console.error('Wallet connection failed:', err);
                 if (err.message && (err.message.includes('User rejected') || err.message.includes('rejected') || err.message.includes('User cancelled'))) {
-                    showStatus('Wallet connection rejected', 'error');
-                } else if (err.code === 4001 || err.code === -32603 || err.code === 4100) {
-                    showStatus('Wallet connection cancelled', 'error');
+                    showStatus('Connection rejected by user', 'error');
+                } else if (err.code === 4001) {
+                    showStatus('Connection rejected by user', 'error');
                 } else if (err.message && err.message.includes('Unexpected error')) {
-                    // Phantom minified error - usually means wallet is locked or stale connection
-                    showStatus('Please unlock your wallet and try again', 'error');
+                    // Phantom minified error - wallet locked or needs restart
+                    showStatus('Unlock Phantom or restart your browser', 'error');
                 } else {
-                    showStatus('Failed to connect wallet. Please refresh and try again.', 'error');
+                    showStatus('Connection failed. Refresh page and try again.', 'error');
                 }
                 btn.innerHTML = '<img src="/media/phantom-logo.svg" alt="Phantom">Connect Wallet';
                 walletConnected = false;
