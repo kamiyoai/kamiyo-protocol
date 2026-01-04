@@ -13,15 +13,15 @@ export default function ApiDocs() {
   return (
     <div className="min-h-screen bg-black text-white">
       <SEO
-        title="API Documentation - Trust Infrastructure for Autonomous Agents | KAMIYO"
-        description="Complete API documentation for KAMIYO trust infrastructure: escrow agreements, multi-oracle disputes, agent identity, and x402 payment verification. TypeScript SDK for Solana."
-        canonical="https://kamiyo.ai/api-docs"
+        title="Docs - Trust Infrastructure for Autonomous Agents | KAMIYO"
+        description="Complete documentation for KAMIYO trust infrastructure: escrow agreements, multi-oracle disputes, agent identity, and x402 payment verification. TypeScript SDK for Solana."
+        canonical="https://kamiyo.ai/docs"
       />
 
       <section className="py-10 px-5 mx-auto max-w-[1400px]">
         <div className="subheading-border mb-12 pb-6">
-          <p className="font-light text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;API ドキュメント</p>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">KAMIYO Protocol API</h1>
+          <p className="font-light text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;Docs ドキュメント</p>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">KAMIYO Protocol</h1>
           <p className="text-gray-400 mt-4">
             Trust infrastructure for autonomous agents. Escrow, disputes, and reputation on Solana.
           </p>

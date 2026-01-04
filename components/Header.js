@@ -239,7 +239,7 @@ export default function Header({ children }) {
                                             Protocol
                                         </a>
                                         <Link
-                                            href="/api-docs"
+                                            href="/docs"
                                             onClick={closeMenu}
                                             className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
                                         >

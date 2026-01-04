@@ -1,10 +1,11 @@
 import SEO from '../components/SEO';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Script from 'next/script';
 
 export default function About() {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [chartReady, setChartReady] = useState(false);
     const chartRef = useRef(null);
     const chartInstance = useRef(null);
 
@@ -18,20 +19,35 @@ export default function About() {
             .catch(() => setLoading(false));
     }, []);
 
-    useEffect(() => {
-        if (stats?.distribution && chartRef.current && window.Chart) {
+    const initChart = useCallback(() => {
+        // Chart.js UMD exposes Chart globally
+        const ChartJS = typeof window !== 'undefined' ? window.Chart : null;
+        if (stats?.distribution && chartRef.current && ChartJS) {
             if (chartInstance.current) {
                 chartInstance.current.destroy();
             }
-            chartInstance.current = new window.Chart(chartRef.current.getContext('2d'), {
+            const ctx = chartRef.current.getContext('2d');
+            if (!ctx) return;
+
+            // Create gradient for line
+            const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, 0);
+            gradient.addColorStop(0, '#ff44f5');
+            gradient.addColorStop(1, '#4fe9ea');
+
+            // Create gradient for fill
+            const fillGradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, 0);
+            fillGradient.addColorStop(0, 'rgba(255, 68, 245, 0.1)');
+            fillGradient.addColorStop(1, 'rgba(79, 233, 234, 0.1)');
+
+            chartInstance.current = new ChartJS(ctx, {
                 type: 'line',
                 data: {
                     labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
                     datasets: [{
                         label: 'Quality Score Distribution',
                         data: stats.distribution,
-                        borderColor: 'rgb(79, 233, 234)',
-                        backgroundColor: 'rgba(79, 233, 234, 0.1)',
+                        borderColor: gradient,
+                        backgroundColor: fillGradient,
                         tension: 0.4,
                         fill: true
                     }]
@@ -48,6 +64,16 @@ export default function About() {
             });
         }
     }, [stats]);
+
+    useEffect(() => {
+        if (chartReady && stats?.distribution) {
+            // Give React time to render the canvas before initializing Chart.js
+            const timeoutId = setTimeout(() => {
+                initChart();
+            }, 100);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [chartReady, stats, initChart]);
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -219,33 +245,7 @@ export default function About() {
             <Script
                 src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
                 strategy="afterInteractive"
-                onLoad={() => {
-                    if (stats?.distribution && chartRef.current) {
-                        chartInstance.current = new window.Chart(chartRef.current.getContext('2d'), {
-                            type: 'line',
-                            data: {
-                                labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
-                                datasets: [{
-                                    label: 'Quality Score Distribution',
-                                    data: stats.distribution,
-                                    borderColor: 'rgb(79, 233, 234)',
-                                    backgroundColor: 'rgba(79, 233, 234, 0.1)',
-                                    tension: 0.4,
-                                    fill: true
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
-                                scales: {
-                                    x: { grid: { color: '#222' }, ticks: { color: '#888' } },
-                                    y: { grid: { color: '#222' }, ticks: { color: '#888' } }
-                                }
-                            }
-                        });
-                    }
-                }}
+                onLoad={() => setChartReady(true)}
             />
         </div>
     );
