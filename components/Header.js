@@ -98,12 +98,6 @@ export default function Header({ children }) {
                                 About
                             </Link>
                             <Link
-                                href="/pricing"
-                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
-                            >
-                                Pricing
-                            </Link>
-                            <Link
                                 href="/inquiries"
                                 className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
                             >
@@ -226,7 +220,7 @@ export default function Header({ children }) {
                                             onClick={closeMenu}
                                             className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
                                         >
-                                            API Docs
+                                            Docs
                                         </Link>
                                         <Link
                                             href="/privacy-policy"
