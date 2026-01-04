@@ -91,12 +91,6 @@ export default function Header({ children }) {
                     <div className="flex items-center gap-6">
                         {/* Header navigation links */}
                         <nav className="hidden md:flex items-center gap-5">
-                            <Link
-                                href="/about"
-                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
-                            >
-                                About
-                            </Link>
                             <a
                                 href="https://protocol.kamiyo.ai"
                                 target="_blank"
@@ -105,6 +99,12 @@ export default function Header({ children }) {
                             >
                                 Protocol
                             </a>
+                            <Link
+                                href="/about"
+                                className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
+                            >
+                                About
+                            </Link>
                             <Link
                                 href="/inquiries"
                                 className="text-sm text-gray-500 hover:text-gray-300 transition-colors duration-300 uppercase tracking-wider"
