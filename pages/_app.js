@@ -11,12 +11,24 @@ function LoadingWrapper({ children }) {
     const { status } = useSession();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [sessionTimeout, setSessionTimeout] = useState(false);
+
+    // Timeout for session loading - don't block UI forever
+    useEffect(() => {
+        if (status === "loading") {
+            const timeout = setTimeout(() => {
+                setSessionTimeout(true);
+            }, 3000); // 3 second max wait for session
+            return () => clearTimeout(timeout);
+        } else {
+            setSessionTimeout(false);
+        }
+    }, [status]);
 
     useEffect(() => {
         let timeout;
         const handleStart = () => setLoading(true);
         const handleComplete = () => {
-            // Minimum 400ms display time
             timeout = setTimeout(() => setLoading(false), 400);
         };
 
@@ -39,10 +51,13 @@ function LoadingWrapper({ children }) {
         }
     }, [status, router]);
 
+    // Show spinner for route changes, but not indefinitely for session loading
+    const showSpinner = loading || (status === "loading" && !sessionTimeout);
+
     return (
         <>
             {children}
-            {(status === "loading" || loading) && <LoadingSpinner />}
+            {showSpinner && <LoadingSpinner />}
         </>
     );
 }
