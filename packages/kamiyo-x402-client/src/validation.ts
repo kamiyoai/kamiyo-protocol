@@ -1,5 +1,5 @@
 /**
- * Input validation for @mitama/x402-client
+ * Input validation for @kamiyo/x402-client
  */
 
 import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -305,7 +305,7 @@ export function sanitizeTransactionId(id: string): string {
 /**
  * Generate a unique transaction ID
  */
-export function generateTransactionId(prefix: string = 'mitama'): string {
+export function generateTransactionId(prefix: string = 'kamiyo'): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 10);
   return `${prefix}-${timestamp}-${random}`;

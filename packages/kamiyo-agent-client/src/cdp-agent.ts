@@ -86,12 +86,12 @@ export class CDPAutonomousAgent {
     });
   }
 
-  // Discover Mitama-enabled APIs
+  // Discover Kamiyo-enabled APIs
   async discoverAPIs(): Promise<ToolCall[]> {
-    console.log('[CDP Agent] Discovering Mitama-enabled APIs...');
+    console.log('[CDP Agent] Discovering Kamiyo-enabled APIs...');
 
     const discoveryEndpoints = [
-      'https://mitama.kamiyo.ai',
+      'https://kamiyo.kamiyo.ai',
       'https://api.example.com',
     ];
 
@@ -208,7 +208,7 @@ export class CDPAutonomousAgent {
     console.log('='.repeat(60));
 
     const availableTools = await this.discoverAPIs();
-    console.log(`\n[CDP Agent] Discovered ${availableTools.length} Mitama APIs`);
+    console.log(`\n[CDP Agent] Discovered ${availableTools.length} Kamiyo APIs`);
 
     const reasoning = await this.reasonOverToolCalls(
       JSON.stringify(query),

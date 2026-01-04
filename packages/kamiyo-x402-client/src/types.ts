@@ -1,5 +1,5 @@
 /**
- * Types for @mitama/x402-client
+ * Types for @kamiyo/x402-client
  */
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
@@ -13,7 +13,7 @@ export interface X402ClientConfig {
   connection: Connection;
   /** Agent keypair for signing */
   wallet: Keypair;
-  /** Mitama program ID */
+  /** Kamiyo program ID */
   programId: PublicKey;
   /** Auto-dispute if quality falls below threshold (0-100) */
   qualityThreshold?: number;
@@ -94,15 +94,15 @@ export interface X402PaymentHeader {
 }
 
 // ============================================================================
-// Mitama Extension Types
+// Kamiyo Extension Types
 // ============================================================================
 
 /**
- * Extended payment requirement with Mitama escrow support
+ * Extended payment requirement with Kamiyo escrow support
  */
-export interface MitamaPaymentRequirement extends X402PaymentRequirement {
-  /** Mitama-specific extensions */
-  mitama?: {
+export interface KamiyoPaymentRequirement extends X402PaymentRequirement {
+  /** Kamiyo-specific extensions */
+  kamiyo?: {
     /** Whether escrow is required */
     escrowRequired: boolean;
     /** Minimum stake required */
@@ -192,7 +192,7 @@ export interface X402RequestOptions {
   headers?: Record<string, string>;
   /** Request body */
   body?: string;
-  /** Use Mitama escrow for payment */
+  /** Use Kamiyo escrow for payment */
   useEscrow?: boolean;
   /** Custom transaction ID */
   transactionId?: string;

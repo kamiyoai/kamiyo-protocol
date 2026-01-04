@@ -79,7 +79,7 @@ export interface EntityReputationAccount {
 }
 
 /**
- * Wrapper for Mitama Anchor program
+ * Wrapper for Kamiyo Anchor program
  * Provides type-safe methods for all program instructions
  */
 export class X402Program {

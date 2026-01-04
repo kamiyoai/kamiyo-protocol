@@ -196,10 +196,10 @@ export class EconomicDashboard {
       qualityPremium: number;
     };
   } {
-    const mitamaCost = escrowAmount * 0.01;
+    const kamiyoCost = escrowAmount * 0.01;
     const refundAmount = escrowAmount * ((100 - qualityScore) / 100);
 
-    const costSavings = traditionalCost - mitamaCost + refundAmount;
+    const costSavings = traditionalCost - kamiyoCost + refundAmount;
     const timeSavingsValue = (timeSaved / 3600) * 50;
     const qualityPremium = qualityScore > 80 ? escrowAmount * 0.1 : 0;
 

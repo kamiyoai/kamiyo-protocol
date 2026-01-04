@@ -1,17 +1,17 @@
-# @mitama/actions
+# @kamiyo/actions
 
-Plug-and-play actions for Mitama Protocol. Simple, standalone functions for integrating agent payments into any framework.
+Plug-and-play actions for Kamiyo Protocol. Simple, standalone functions for integrating agent payments into any framework.
 
 ## Installation
 
 ```bash
-npm install @mitama/actions
+npm install @kamiyo/actions
 ```
 
 ## Quick Start
 
 ```typescript
-import { createEscrow, releaseFunds, disputeEscrow } from '@mitama/actions';
+import { createEscrow, releaseFunds, disputeEscrow } from '@kamiyo/actions';
 import { Connection, Keypair } from '@solana/web3.js';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');

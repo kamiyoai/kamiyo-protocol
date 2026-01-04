@@ -1,6 +1,6 @@
-# Security Considerations for Mitama ZK
+# Security Considerations for Kamiyo ZK
 
-This document outlines security properties, threat models, and audit considerations for the Mitama ZK implementation.
+This document outlines security properties, threat models, and audit considerations for the Kamiyo ZK implementation.
 
 ## Cryptographic Foundations
 

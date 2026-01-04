@@ -1,14 +1,14 @@
 /**
- * Utility functions for Mitama SDK
+ * Utility functions for Kamiyo SDK
  */
 
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 /**
- * Validation utilities for Mitama protocol
+ * Validation utilities for Kamiyo protocol
  */
-export class MitamaValidator {
+export class KamiyoValidator {
   static readonly MIN_AMOUNT = 1_000_000; // 0.001 SOL
   static readonly MAX_AMOUNT = 1_000_000_000_000; // 1000 SOL
   static readonly MIN_TIME_LOCK = 3600; // 1 hour
@@ -138,9 +138,9 @@ export class MitamaValidator {
 }
 
 /**
- * Utility functions for Mitama protocol
+ * Utility functions for Kamiyo protocol
  */
-export class MitamaUtils {
+export class KamiyoUtils {
   /**
    * Convert SOL to lamports
    */
@@ -214,7 +214,7 @@ export class MitamaUtils {
   /**
    * Generate unique transaction ID
    */
-  static generateTransactionId(prefix: string = "mitama"): string {
+  static generateTransactionId(prefix: string = "kamiyo"): string {
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substring(2, 10);
     return `${prefix}_${timestamp}_${random}`;

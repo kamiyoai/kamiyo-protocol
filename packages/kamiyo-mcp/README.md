@@ -1,4 +1,4 @@
-# Mitama MCP Server
+# Kamiyo MCP Server
 
 Production-ready Model Context Protocol server for HTTP 402 payments with quality-verified refunds on Solana.
 
@@ -49,7 +49,7 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "mitama": {
+    "kamiyo": {
       "command": "node",
       "args": ["/absolute/path/to/packages/mcp-server/dist/index.js"],
       "env": {

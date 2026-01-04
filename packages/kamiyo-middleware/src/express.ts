@@ -75,7 +75,7 @@ function parseEscrowData(data: Buffer): {
  *
  * Usage:
  * ```typescript
- * app.use('/api/*', MitamaPaymentMiddleware({
+ * app.use('/api/*', KamiyoPaymentMiddleware({
  *   realm: 'my-api',
  *   programId: ESCROW_PROGRAM_ID,
  *   connection: new Connection('https://api.devnet.solana.com'),
@@ -85,7 +85,7 @@ function parseEscrowData(data: Buffer): {
  * }));
  * ```
  */
-export function MitamaPaymentMiddleware(options: X402Options) {
+export function KamiyoPaymentMiddleware(options: X402Options) {
   const rateLimit = options.rateLimit ?? 100;
   const rateLimitWindow = options.rateLimitWindow ?? 60000;
   const priceInLamports = BigInt(Math.floor(options.price * 1e9));

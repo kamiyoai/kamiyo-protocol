@@ -4,14 +4,14 @@
 
 import { PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
-import { MitamaClient } from "./client";
+import { KamiyoClient } from "./client";
 import { AgentIdentity, AgentType, CreateAgentParams } from "./types";
 
 /**
  * Agent Manager - High-level agent identity operations
  */
 export class AgentManager {
-  constructor(private client: MitamaClient) {}
+  constructor(private client: KamiyoClient) {}
 
   /**
    * Create a new agent identity

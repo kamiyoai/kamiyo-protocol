@@ -1,17 +1,17 @@
-# Mitama Circom Circuits
+# Kamiyo Circom Circuits
 
 Groth16 zero-knowledge circuits for on-chain verification on Solana.
 
 ## Overview
 
-This directory contains Circom circuits that complement the Halo2 implementation in `crates/mitama-zk`. While Halo2 provides trustless commitments (no ceremony), Circom/Groth16 enables **native on-chain verification** using Solana's `alt_bn128` syscalls.
+This directory contains Circom circuits that complement the Halo2 implementation in `crates/kamiyo-zk`. While Halo2 provides trustless commitments (no ceremony), Circom/Groth16 enables **native on-chain verification** using Solana's `alt_bn128` syscalls.
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │                    Dual ZK Architecture                         │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│   Halo2 (crates/mitama-zk)     Circom (circuits/)              │
+│   Halo2 (crates/kamiyo-zk)     Circom (circuits/)              │
 │   ────────────────────────     ───────────────────             │
 │   • No trusted setup           • Native Solana verification    │
 │   • Commitment hiding          • ~200k compute units           │

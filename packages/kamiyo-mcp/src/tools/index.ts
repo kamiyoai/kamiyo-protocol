@@ -1,7 +1,7 @@
 /**
  * MCP Tools Registry
  *
- * This module exports all MCP tools for the Mitama server.
+ * This module exports all MCP tools for the Kamiyo server.
  */
 
 // Escrow tools

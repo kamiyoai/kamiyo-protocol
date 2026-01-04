@@ -4,7 +4,7 @@
 
 import { PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
-import { MitamaClient } from "./client";
+import { KamiyoClient } from "./client";
 import {
   Agreement,
   AgreementStatus,
@@ -19,7 +19,7 @@ import {
  * Agreement Manager - High-level agreement/escrow operations
  */
 export class AgreementManager {
-  constructor(private client: MitamaClient) {}
+  constructor(private client: KamiyoClient) {}
 
   /**
    * Create a new agreement between agent and provider

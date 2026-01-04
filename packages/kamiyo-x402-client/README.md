@@ -1,15 +1,15 @@
-# @mitama/x402-client
+# @kamiyo/x402-client
 
-x402 payment client with Mitama escrow protection and SLA enforcement.
+x402 payment client with Kamiyo escrow protection and SLA enforcement.
 
 ## Overview
 
-This package extends the [x402 protocol](https://www.x402.org/) with Mitama's escrow-backed dispute resolution. When an API fails to meet service expectations, agents can automatically file disputes and receive graduated refunds based on oracle-assessed quality scores.
+This package extends the [x402 protocol](https://www.x402.org/) with Kamiyo's escrow-backed dispute resolution. When an API fails to meet service expectations, agents can automatically file disputes and receive graduated refunds based on oracle-assessed quality scores.
 
 ## Installation
 
 ```bash
-npm install @mitama/x402-client @solana/web3.js
+npm install @kamiyo/x402-client @solana/web3.js
 ```
 
 ## Usage
@@ -18,13 +18,13 @@ npm install @mitama/x402-client @solana/web3.js
 
 ```typescript
 import { Connection, Keypair } from '@solana/web3.js';
-import { createX402MitamaClient } from '@mitama/x402-client';
+import { createX402KamiyoClient } from '@kamiyo/x402-client';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 const wallet = Keypair.fromSecretKey(/* agent keypair */);
 const programId = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
 
-const client = createX402MitamaClient(connection, wallet, programId, {
+const client = createX402KamiyoClient(connection, wallet, programId, {
   maxPricePerRequest: 0.01, // Max 0.01 SOL per request
   qualityThreshold: 70,      // Auto-dispute if quality < 70
 });
@@ -102,7 +102,7 @@ if (disputeResult.success) {
 |--------|------|---------|-------------|
 | `connection` | Connection | required | Solana RPC connection |
 | `wallet` | Keypair | required | Agent keypair for signing |
-| `programId` | PublicKey | required | Mitama program ID |
+| `programId` | PublicKey | required | Kamiyo program ID |
 | `qualityThreshold` | number | 70 | Auto-dispute if quality below this |
 | `maxPricePerRequest` | number | 0.1 | Max SOL per request |
 | `defaultTimeLock` | number | 3600 | Escrow time lock in seconds |
@@ -126,16 +126,16 @@ This client implements the [x402 specification](https://github.com/coinbase/x402
 - Parses `402 Payment Required` responses
 - Supports `X-Payment` header format
 - Compatible with x402 facilitators
-- Adds `X-Mitama-*` headers for escrow integration
+- Adds `X-Kamiyo-*` headers for escrow integration
 
 ## Server Integration
 
-For servers accepting Mitama-protected payments, use `@mitama/middleware`:
+For servers accepting Kamiyo-protected payments, use `@kamiyo/middleware`:
 
 ```typescript
-import { x402MitamaMiddleware } from '@mitama/middleware';
+import { x402KamiyoMiddleware } from '@kamiyo/middleware';
 
-app.use('/api', x402MitamaMiddleware({
+app.use('/api', x402KamiyoMiddleware({
   connection,
   programId,
   price: 0.001,

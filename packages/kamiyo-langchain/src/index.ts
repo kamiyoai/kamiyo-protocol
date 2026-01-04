@@ -1,5 +1,5 @@
 /**
- * @mitama/langchain - LangChain Tools for Mitama Protocol
+ * @kamiyo/langchain - LangChain Tools for Kamiyo Protocol
  *
  * Provides LangChain-compatible tools for autonomous agents to:
  * - Create payment agreements with providers
@@ -9,11 +9,11 @@
  *
  * @example
  * ```typescript
- * import { createMitamaTools } from '@mitama/langchain';
+ * import { createKamiyoTools } from '@kamiyo/langchain';
  * import { ChatOpenAI } from '@langchain/openai';
  * import { AgentExecutor, createOpenAIToolsAgent } from 'langchain/agents';
  *
- * const tools = createMitamaTools({ connection, wallet });
+ * const tools = createKamiyoTools({ connection, wallet });
  * const agent = createOpenAIToolsAgent({ llm, tools, prompt });
  * const executor = AgentExecutor.fromAgentAndTools({ agent, tools });
  *
@@ -23,5 +23,5 @@
  * ```
  */
 
-export { createMitamaTools, createMitamaToolsFromEnv } from "./tools";
-export type { MitamaToolsConfig } from "./tools";
+export { createKamiyoTools, createKamiyoToolsFromEnv } from "./tools";
+export type { KamiyoToolsConfig } from "./tools";

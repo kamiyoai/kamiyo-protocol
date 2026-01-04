@@ -1,5 +1,5 @@
 /**
- * LangChain Tools for Mitama Protocol
+ * LangChain Tools for Kamiyo Protocol
  *
  * Provides LangChain-compatible tools for:
  * - Creating payment agreements (escrows)
@@ -11,7 +11,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { Connection, PublicKey, Keypair, Transaction } from "@solana/web3.js";
-import { MitamaClient } from "@mitama/sdk";
+import { KamiyoClient } from "@kamiyo/sdk";
 
 // Simple wallet interface compatible with Anchor
 interface SimpleWallet {
@@ -20,7 +20,7 @@ interface SimpleWallet {
   signAllTransactions: <T extends Transaction>(txs: T[]) => Promise<T[]>;
 }
 
-export interface MitamaToolsConfig {
+export interface KamiyoToolsConfig {
   connection: Connection;
   wallet: SimpleWallet;
   programId?: PublicKey;
@@ -56,10 +56,10 @@ type DisputeAgreementInput = z.infer<typeof DisputeAgreementSchema>;
 type GetAgreementStatusInput = z.infer<typeof GetAgreementStatusSchema>;
 
 /**
- * Create all Mitama tools for use with LangChain agents
+ * Create all Kamiyo tools for use with LangChain agents
  */
-export function createMitamaTools(config: MitamaToolsConfig) {
-  const client = new MitamaClient({
+export function createKamiyoTools(config: KamiyoToolsConfig) {
+  const client = new KamiyoClient({
     connection: config.connection,
     wallet: config.wallet as any,
     programId: config.programId,
@@ -67,7 +67,7 @@ export function createMitamaTools(config: MitamaToolsConfig) {
 
   // Use explicit any typing to avoid deep type instantiation issues with DynamicStructuredTool
   const createAgreementTool = new (DynamicStructuredTool as any)({
-    name: "mitama_create_agreement",
+    name: "kamiyo_create_agreement",
     description:
       "Create a payment agreement (escrow) with a service provider. Funds are locked until released or disputed. Use this when you need to pay for a service with protection.",
     schema: CreateAgreementSchema as z.ZodObject<any>,
@@ -107,7 +107,7 @@ export function createMitamaTools(config: MitamaToolsConfig) {
   });
 
   const releaseFundsTool = new (DynamicStructuredTool as any)({
-    name: "mitama_release_funds",
+    name: "kamiyo_release_funds",
     description:
       "Release escrowed funds to the service provider. Use this when the service was delivered satisfactorily.",
     schema: ReleaseFundsSchema as z.ZodObject<any>,
@@ -134,7 +134,7 @@ export function createMitamaTools(config: MitamaToolsConfig) {
   });
 
   const disputeAgreementTool = new (DynamicStructuredTool as any)({
-    name: "mitama_dispute_agreement",
+    name: "kamiyo_dispute_agreement",
     description:
       "Dispute an agreement and request oracle arbitration. Use this when the service was not delivered as promised. Oracles will evaluate and determine fair settlement.",
     schema: DisputeAgreementSchema as z.ZodObject<any>,
@@ -160,7 +160,7 @@ export function createMitamaTools(config: MitamaToolsConfig) {
   });
 
   const getAgreementStatusTool = new (DynamicStructuredTool as any)({
-    name: "mitama_get_agreement_status",
+    name: "kamiyo_get_agreement_status",
     description:
       "Check the current status of a payment agreement. Returns details about the escrow including amount, status, and parties involved.",
     schema: GetAgreementStatusSchema as z.ZodObject<any>,
@@ -201,7 +201,7 @@ export function createMitamaTools(config: MitamaToolsConfig) {
   });
 
   const getBalanceTool = new (DynamicStructuredTool as any)({
-    name: "mitama_get_balance",
+    name: "kamiyo_get_balance",
     description: "Get the SOL balance of the current wallet.",
     schema: GetBalanceSchema as z.ZodObject<any>,
     func: async (_input: Record<string, any>): Promise<string> => {
@@ -236,13 +236,13 @@ export function createMitamaTools(config: MitamaToolsConfig) {
  * IMPORTANT: Defaults to devnet for safety. Set RPC_URL env var for mainnet:
  * RPC_URL=https://api.mainnet-beta.solana.com
  */
-export function createMitamaToolsFromEnv(secretKey: Uint8Array) {
+export function createKamiyoToolsFromEnv(secretKey: Uint8Array) {
   const connection = new Connection(
     process.env.RPC_URL || "https://api.devnet.solana.com"
   );
   const keypair = Keypair.fromSecretKey(secretKey);
 
-  return createMitamaTools({
+  return createKamiyoTools({
     connection,
     wallet: {
       publicKey: keypair.publicKey,

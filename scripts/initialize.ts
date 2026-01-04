@@ -1,5 +1,5 @@
 /**
- * Mitama Protocol Initialization
+ * Kamiyo Protocol Initialization
  *
  * Initializes protocol config and oracle registry.
  *
@@ -91,7 +91,7 @@ async function main() {
   anchor.setProvider(provider);
 
   // Load IDL and create program with explicit program ID
-  const idlPath = path.join(__dirname, "../target/idl/mitama.json");
+  const idlPath = path.join(__dirname, "../target/idl/kamiyo.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
 
   // For Anchor 0.30+, need to pass provider then program ID

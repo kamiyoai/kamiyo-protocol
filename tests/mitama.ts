@@ -12,15 +12,15 @@ import {
 import { expect } from "chai";
 
 // Import IDL (will be generated after build)
-// import { Mitama } from "../target/types/mitama";
+// import { Kamiyo } from "../target/types/kamiyo";
 
-describe("Mitama - Agent Identity & Conflict Resolution", () => {
+describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
   // Configure the client
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
   // Load program
-  const program = anchor.workspace.Mitama as Program<any>;
+  const program = anchor.workspace.Kamiyo as Program<any>;
 
   // Test accounts
   const owner = Keypair.generate();

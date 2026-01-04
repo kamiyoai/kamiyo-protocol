@@ -1,5 +1,5 @@
 /**
- * Pre-flight Validation - Test Mitama operations before mainnet execution
+ * Pre-flight Validation - Test Kamiyo operations before mainnet execution
  *
  * Validates agent creation, escrow initialization, and dispute resolution
  * in simulation before committing real funds.
@@ -65,7 +65,7 @@ export interface ReleaseParams {
 }
 
 /**
- * Pre-flight validator for Mitama operations
+ * Pre-flight validator for Kamiyo operations
  */
 export class PreflightValidator {
   private surfpool: SurfpoolClient;

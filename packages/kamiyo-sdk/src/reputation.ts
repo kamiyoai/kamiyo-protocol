@@ -3,14 +3,14 @@
  */
 
 import { PublicKey } from "@solana/web3.js";
-import { MitamaClient } from "./client";
+import { KamiyoClient } from "./client";
 import { EntityReputation, EntityType } from "./types";
 
 /**
  * Reputation Manager - Track and query entity reputation
  */
 export class ReputationManager {
-  constructor(private client: MitamaClient) {}
+  constructor(private client: KamiyoClient) {}
 
   /**
    * Get reputation for an entity

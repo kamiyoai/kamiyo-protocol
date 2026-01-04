@@ -335,7 +335,7 @@ describe('generateTransactionId', () => {
 
   it('uses default prefix', () => {
     const id = generateTransactionId();
-    expect(id).toMatch(/^mitama-/);
+    expect(id).toMatch(/^kamiyo-/);
   });
 
   it('generates valid transaction IDs', () => {

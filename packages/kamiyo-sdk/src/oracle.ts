@@ -3,7 +3,7 @@
  */
 
 import { PublicKey } from "@solana/web3.js";
-import { MitamaClient } from "./client";
+import { KamiyoClient } from "./client";
 import {
   OracleRegistry,
   OracleConfig,
@@ -17,7 +17,7 @@ import {
  * Oracle Manager - Manage oracle registry and consensus
  */
 export class OracleManager {
-  constructor(private client: MitamaClient) {}
+  constructor(private client: KamiyoClient) {}
 
   /**
    * Get the oracle registry

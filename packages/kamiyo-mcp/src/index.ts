@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * KAMIYO Mitama MCP Server
+ * KAMIYO Kamiyo MCP Server
  *
- * Model Context Protocol server for Mitama Solana escrow program.
+ * Model Context Protocol server for Kamiyo Solana escrow program.
  * Provides AI agents (like Claude) with tools to create protected API payments,
  * assess quality, and file disputes with automatic refunds.
  */
@@ -218,7 +218,7 @@ class KamiyoMCPServer {
     // Initialize MCP server
     this.server = new Server(
       {
-        name: 'kamiyo-mitama',
+        name: 'kamiyo-kamiyo',
         version: '1.0.0',
       },
       {
@@ -380,7 +380,7 @@ class KamiyoMCPServer {
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('KAMIYO Mitama MCP Server running on stdio');
+    console.error('KAMIYO Kamiyo MCP Server running on stdio');
     console.error(`Agent wallet: ${this.solanaClient.publicKey.toBase58()}`);
   }
 }

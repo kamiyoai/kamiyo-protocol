@@ -1,13 +1,13 @@
 /**
  * Pre-flight Validation Example
  *
- * Demonstrates how to validate Mitama operations before
+ * Demonstrates how to validate Kamiyo operations before
  * executing them on mainnet.
  */
 
 import { Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
-import { SurfpoolClient, PreflightValidator } from "@mitama/surfpool";
+import { SurfpoolClient, PreflightValidator } from "@kamiyo/surfpool";
 
 const SURFPOOL_ENDPOINT = process.env.SURFPOOL_URL || "http://localhost:8899";
 const MITAMA_PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");

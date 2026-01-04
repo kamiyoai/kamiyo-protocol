@@ -1,4 +1,4 @@
-# Mitama Mainnet Deployment Runbook
+# Kamiyo Mainnet Deployment Runbook
 
 ## Deployment Status
 
@@ -17,11 +17,11 @@
 ### 1. Code Verification
 - [ ] All tests pass: `anchor test`
 - [ ] Build succeeds: `anchor build`
-- [ ] IDL generated: `target/idl/mitama.json`
+- [ ] IDL generated: `target/idl/kamiyo.json`
 - [ ] No critical warnings in build output
 
 ### 2. Multi-Sig Setup
-Mitama uses 2-of-3 multi-sig for protocol management. Prepare three distinct keypairs:
+Kamiyo uses 2-of-3 multi-sig for protocol management. Prepare three distinct keypairs:
 
 ```bash
 # Generate keypairs (store securely!)
@@ -68,7 +68,7 @@ solana transfer <AUTHORITY_3_PUBKEY> 0.1
 ### Step 1: Deploy Program
 ```bash
 # Ensure correct keypair
-export ANCHOR_WALLET=./mitama-keypair.json
+export ANCHOR_WALLET=./kamiyo-keypair.json
 
 # Deploy to mainnet
 anchor deploy --provider.cluster mainnet
@@ -91,7 +91,7 @@ Data Length: <SIZE>
 ```typescript
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { Program, AnchorProvider } from '@coral-xyz/anchor';
-import { Mitama } from '../target/types/mitama';
+import { Kamiyo } from '../target/types/kamiyo';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 const primaryAuthority = Keypair.fromSecretKey(/* authority-1.json */);
@@ -99,7 +99,7 @@ const secondarySigner = new PublicKey('SECONDARY_PUBKEY');
 const tertiarySigner = new PublicKey('TERTIARY_PUBKEY');
 
 const provider = new AnchorProvider(connection, primaryAuthority, {});
-const program = new Program<Mitama>(IDL, PROGRAM_ID, provider);
+const program = new Program<Kamiyo>(IDL, PROGRAM_ID, provider);
 
 // Initialize protocol with 2-of-3 multi-sig
 await program.methods
@@ -313,7 +313,7 @@ If critical issues are discovered post-deployment:
 4. **If upgrade needed:**
    ```bash
    # Deploy new version
-   anchor upgrade target/deploy/mitama.so \
+   anchor upgrade target/deploy/kamiyo.so \
      --program-id 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM \
      --provider.cluster mainnet
    ```

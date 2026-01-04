@@ -1,5 +1,5 @@
 /**
- * Custom error types for @mitama/x402-client
+ * Custom error types for @kamiyo/x402-client
  */
 
 export type X402ErrorCode =

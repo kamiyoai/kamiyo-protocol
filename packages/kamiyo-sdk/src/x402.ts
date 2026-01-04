@@ -21,7 +21,7 @@ export interface X402ClientConfig {
   connection: Connection;
   /** Agent keypair for signing transactions */
   wallet: Keypair;
-  /** Mitama program ID */
+  /** Kamiyo program ID */
   programId: PublicKey;
   /** Auto-dispute threshold (0-100, dispute if quality below this) */
   qualityThreshold?: number;
@@ -340,7 +340,7 @@ export class X402Client {
   }
 
   /**
-   * Create escrow directly using Mitama SDK
+   * Create escrow directly using Kamiyo SDK
    */
   private async createDirectEscrow(
     provider: PublicKey,
@@ -358,7 +358,7 @@ export class X402Client {
         this.programId
       );
 
-      // This would use the full MitamaClient for actual escrow creation
+      // This would use the full KamiyoClient for actual escrow creation
       // For now, return the PDA info
       return {
         success: true,

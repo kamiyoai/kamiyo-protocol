@@ -1,8 +1,8 @@
 /**
- * Mitama Quality Scoring Function
+ * Kamiyo Quality Scoring Function
  *
  * Switchboard On-Demand function for computing data quality scores
- * in Mitama dispute resolution protocol.
+ * in Kamiyo dispute resolution protocol.
  *
  * Algorithm:
  * - Semantic Similarity: 40% (query vs data relevance)

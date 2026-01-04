@@ -265,7 +265,7 @@ async function testCarbonTracking(): Promise<void> {
 
 async function main(): Promise<void> {
   console.log('╔════════════════════════════════════════════════════════════════╗');
-  console.log('║   Mitama - Advanced Features E2E Test Suite             ║');
+  console.log('║   Kamiyo - Advanced Features E2E Test Suite             ║');
   console.log('║   Testing production-ready implementations                     ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
 

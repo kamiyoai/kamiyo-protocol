@@ -6,7 +6,7 @@
  */
 
 import { Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { SurfpoolClient, StrategySimulator, Strategy } from "@mitama/surfpool";
+import { SurfpoolClient, StrategySimulator, Strategy } from "@kamiyo/surfpool";
 
 const SURFPOOL_ENDPOINT = process.env.SURFPOOL_URL || "http://localhost:8899";
 

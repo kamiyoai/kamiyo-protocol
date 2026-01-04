@@ -1,5 +1,5 @@
 {
-  "name": "mitama",
+  "name": "kamiyo",
   "version": "0.1.0",
   "description": "Agent Identity and Conflict Resolution Protocol for Solana",
   "keywords": [
@@ -25,10 +25,10 @@
   "scripts": {
     "build": "anchor build && npm run build:sdk",
     "build:program": "anchor build",
-    "build:sdk": "cd packages/mitama-sdk && npm run build",
-    "clean": "rm -rf target && cd packages/mitama-sdk && rm -rf dist",
+    "build:sdk": "cd packages/kamiyo-sdk && npm run build",
+    "clean": "rm -rf target && cd packages/kamiyo-sdk && rm -rf dist",
     "test": "anchor test",
-    "test:sdk": "cd packages/mitama-sdk && npm test",
+    "test:sdk": "cd packages/kamiyo-sdk && npm test",
     "monitor": "npx ts-node scripts/monitor.ts",
     "setup:mainnet": "./scripts/setup-mainnet.sh"
   },

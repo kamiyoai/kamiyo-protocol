@@ -1,5 +1,5 @@
 /**
- * Escrow integration with Mitama program
+ * Escrow integration with Kamiyo program
  */
 
 import {
@@ -16,7 +16,7 @@ import { BN } from '@coral-xyz/anchor';
 import { X402Error } from './errors';
 import { validatePublicKey, validateAmountLamports, validateTransactionId, assertValid } from './validation';
 
-// Instruction discriminators from Mitama program
+// Instruction discriminators from Kamiyo program
 const DISCRIMINATORS = {
   INITIALIZE_ESCROW: Buffer.from([0x3d, 0x2c, 0x1e, 0x4f, 0x5a, 0x6b, 0x7c, 0x8d]),
   RELEASE_FUNDS: Buffer.from([0x8a, 0x9b, 0xac, 0xbd, 0xce, 0xdf, 0xe0, 0xf1]),
@@ -44,7 +44,7 @@ export interface EscrowResult {
 }
 
 /**
- * Escrow handler for Mitama program integration
+ * Escrow handler for Kamiyo program integration
  */
 export class EscrowHandler {
   private readonly connection: Connection;

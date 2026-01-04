@@ -1,8 +1,8 @@
-# Mitama Protocol Integration Guide
+# Kamiyo Protocol Integration Guide
 
 ## Overview
 
-Mitama Protocol provides trustless payment escrows for AI agent-to-API transactions on Solana. This guide covers integrating Mitama into your AI agent framework or API service.
+Kamiyo Protocol provides trustless payment escrows for AI agent-to-API transactions on Solana. This guide covers integrating Kamiyo into your AI agent framework or API service.
 
 **Program ID (Mainnet):** `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM`
 
@@ -11,17 +11,17 @@ Mitama Protocol provides trustless payment escrows for AI agent-to-API transacti
 ### For AI Agent Developers
 
 ```bash
-npm install @mitama/sdk @solana/web3.js
+npm install @kamiyo/sdk @solana/web3.js
 ```
 
 ```typescript
-import { MitamaClient } from '@mitama/sdk';
+import { KamiyoClient } from '@kamiyo/sdk';
 import { Connection, Keypair } from '@solana/web3.js';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 const wallet = Keypair.fromSecretKey(/* your agent keypair */);
 
-const client = new MitamaClient({
+const client = new KamiyoClient({
   connection,
   wallet: {
     publicKey: wallet.publicKey,
@@ -42,17 +42,17 @@ const signature = await client.createAgreement({
 ### For API Providers
 
 ```bash
-npm install @mitama/middleware express
+npm install @kamiyo/middleware express
 ```
 
 ```typescript
 import express from 'express';
-import { createMitamaMiddleware } from '@mitama/middleware';
+import { createKamiyoMiddleware } from '@kamiyo/middleware';
 import { PublicKey } from '@solana/web3.js';
 
 const app = express();
 
-app.use('/api', createMitamaMiddleware({
+app.use('/api', createKamiyoMiddleware({
   rpcUrl: 'https://api.mainnet-beta.solana.com',
   providerWallet: new PublicKey('YOUR_WALLET_ADDRESS'),
   priceInLamports: 10_000_000, // 0.01 SOL
@@ -70,10 +70,10 @@ app.post('/api/data', (req, res) => {
 
 | Package | Description | Install |
 |---------|-------------|---------|
-| `@mitama/sdk` | Core SDK for escrow operations | `npm i @mitama/sdk` |
-| `@mitama/middleware` | Express middleware for API protection | `npm i @mitama/middleware` |
-| `@mitama/actions` | Standalone action functions | `npm i @mitama/actions` |
-| `@mitama/langchain` | LangChain tool integration | `npm i @mitama/langchain` |
+| `@kamiyo/sdk` | Core SDK for escrow operations | `npm i @kamiyo/sdk` |
+| `@kamiyo/middleware` | Express middleware for API protection | `npm i @kamiyo/middleware` |
+| `@kamiyo/actions` | Standalone action functions | `npm i @kamiyo/actions` |
+| `@kamiyo/langchain` | LangChain tool integration | `npm i @kamiyo/langchain` |
 
 ## Core Concepts
 
@@ -105,7 +105,7 @@ app.post('/api/data', (req, res) => {
 
 ## SDK Methods
 
-### MitamaClient
+### KamiyoClient
 
 ```typescript
 // Create escrow
@@ -130,7 +130,7 @@ const agreement = await client.getAgreement(agreementPDA);
 ### Middleware Options
 
 ```typescript
-interface MitamaMiddlewareOptions {
+interface KamiyoMiddlewareOptions {
   rpcUrl: string;
   providerWallet: PublicKey;
   priceInLamports: number;
@@ -142,29 +142,29 @@ interface MitamaMiddlewareOptions {
 ## LangChain Integration
 
 ```typescript
-import { createMitamaTools } from '@mitama/langchain';
+import { createKamiyoTools } from '@kamiyo/langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor, createOpenAIFunctionsAgent } from 'langchain/agents';
 
-const tools = createMitamaTools({
+const tools = createKamiyoTools({
   connection,
   wallet,
 });
 
 // Available tools:
-// - mitama_create_agreement
-// - mitama_release_funds
-// - mitama_dispute_agreement
-// - mitama_get_agreement_status
-// - mitama_get_balance
+// - kamiyo_create_agreement
+// - kamiyo_release_funds
+// - kamiyo_dispute_agreement
+// - kamiyo_get_agreement_status
+// - kamiyo_get_balance
 ```
 
 ## SPL Token Support
 
-Mitama supports USDC and other SPL tokens:
+Kamiyo supports USDC and other SPL tokens:
 
 ```typescript
-import { USDC_MINT } from '@mitama/sdk';
+import { USDC_MINT } from '@kamiyo/sdk';
 
 await client.createAgreement({
   provider: apiProvider,
@@ -193,12 +193,12 @@ When an escrow is disputed, registered oracles evaluate service quality:
 ## Error Handling
 
 ```typescript
-import { MitamaError } from '@mitama/sdk';
+import { KamiyoError } from '@kamiyo/sdk';
 
 try {
   await client.createAgreement(params);
 } catch (error) {
-  if (error instanceof MitamaError) {
+  if (error instanceof KamiyoError) {
     switch (error.code) {
       case 'InsufficientFunds':
         // Handle insufficient balance
@@ -241,7 +241,7 @@ Run integration tests on devnet:
 export SOLANA_RPC_URL=https://api.devnet.solana.com
 
 # Run tests
-cd packages/mitama-sdk
+cd packages/kamiyo-sdk
 npm test
 ```
 
@@ -256,5 +256,5 @@ npx ts-node scripts/monitor.ts
 
 ## Support
 
-- GitHub Issues: https://github.com/mitama-labs/mitama/issues
-- Documentation: https://docs.mitama.io
+- GitHub Issues: https://github.com/kamiyo-labs/kamiyo/issues
+- Documentation: https://docs.kamiyo.io

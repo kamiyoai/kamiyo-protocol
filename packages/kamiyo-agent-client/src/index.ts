@@ -1,6 +1,6 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { MitamaClient, MitamaUtils } from '@mitama/sdk';
+import { KamiyoClient, KamiyoUtils } from '@kamiyo/sdk';
 
 const MITAMA_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
 
@@ -28,11 +28,11 @@ export interface ConsumeResult<T> {
 }
 
 export class AutonomousServiceAgent {
-  private mitamaClient: MitamaClient;
+  private kamiyoClient: KamiyoClient;
 
   constructor(private config: AgentConfig) {
     const wallet = new anchor.Wallet(this.config.keypair);
-    this.mitamaClient = new MitamaClient({
+    this.kamiyoClient = new KamiyoClient({
       programId: this.config.programId || MITAMA_PROGRAM_ID,
       connection: this.config.connection,
       wallet
@@ -62,12 +62,12 @@ export class AutonomousServiceAgent {
 
       console.log(`[Agent] Creating agreement for ${price} SOL`);
 
-      const transactionId = MitamaUtils.generateTransactionId('agent');
-      const [agreementPubkey] = this.mitamaClient.deriveAgreementAddress(transactionId);
+      const transactionId = KamiyoUtils.generateTransactionId('agent');
+      const [agreementPubkey] = this.kamiyoClient.deriveAgreementAddress(transactionId);
 
-      await this.mitamaClient.createAgreement({
-        amount: MitamaUtils.solToLamports(price),
-        timeLockSeconds: MitamaUtils.hoursToSeconds(24),
+      await this.kamiyoClient.createAgreement({
+        amount: KamiyoUtils.solToLamports(price),
+        timeLockSeconds: KamiyoUtils.hoursToSeconds(24),
         transactionId,
         provider: providerPubkey
       });

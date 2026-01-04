@@ -212,7 +212,7 @@ describe('signing', () => {
 
       const header = createEscrowProofHeader(escrowPda, transactionId, wallet);
 
-      expect(header).toMatch(/^mitama:escrow:/);
+      expect(header).toMatch(/^kamiyo:escrow:/);
     });
 
     it('contains escrow info', () => {
@@ -254,7 +254,7 @@ describe('signing', () => {
 
         const header = signer.signEscrowProof(escrowPda, 'tx-123');
 
-        expect(header).toMatch(/^mitama:escrow:/);
+        expect(header).toMatch(/^kamiyo:escrow:/);
       });
     });
   });

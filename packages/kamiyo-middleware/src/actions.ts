@@ -1,5 +1,5 @@
 /**
- * Solana Actions (Blinks) Integration for Mitama
+ * Solana Actions (Blinks) Integration for Kamiyo
  *
  * Implements the Solana Actions specification for discoverable,
  * metadata-rich payment links that AI agents can consume programmatically.
@@ -29,7 +29,7 @@ const USDT_MAINNET = new PublicKey('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
 export interface ActionConfig {
   /** Base URL for the action endpoints */
   baseUrl: string;
-  /** Mitama program ID */
+  /** Kamiyo program ID */
   programId: PublicKey;
   /** RPC connection */
   connection: Connection;
@@ -94,7 +94,7 @@ export interface ActionPostResponse {
 }
 
 /**
- * Create Solana Actions router for Mitama payments
+ * Create Solana Actions router for Kamiyo payments
  */
 export function createActionsRouter(config: ActionConfig): Router {
   const router = Router();
@@ -213,7 +213,7 @@ export function createActionsRouter(config: ActionConfig): Router {
     const metadata: ActionMetadata = {
       icon: config.icon || `${config.baseUrl}/icon.png`,
       title: `${config.title} (Protected)`,
-      description: `${config.description} - With Mitama dispute protection`,
+      description: `${config.description} - With Kamiyo dispute protection`,
       label: 'Create Escrow',
       links: {
         actions: config.pricing.map((tier) => ({
@@ -326,7 +326,7 @@ async function buildPaymentTransaction(
 }
 
 /**
- * Build an escrow creation transaction via Mitama program
+ * Build an escrow creation transaction via Kamiyo program
  */
 async function buildEscrowTransaction(
   connection: Connection,

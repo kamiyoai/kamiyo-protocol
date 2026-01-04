@@ -1,5 +1,5 @@
 /**
- * Mitama SDK - Agent Identity and Conflict Resolution Protocol
+ * Kamiyo SDK - Agent Identity and Conflict Resolution Protocol
  *
  * @packageDocumentation
  */

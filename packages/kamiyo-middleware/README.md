@@ -1,18 +1,18 @@
-# @mitama/middleware
+# @kamiyo/middleware
 
 HTTP 402 Payment Required middleware with Solana Actions (Blinks) integration for agentic payments.
 
 ## Installation
 
 ```bash
-npm install @mitama/middleware
+npm install @kamiyo/middleware
 ```
 
 ## Features
 
 - **HTTP 402 Compliant**: Implements RFC 9110 Section 15.5.3
 - **Solana Actions**: Full Blinks support for discoverable payment links
-- **Escrow Protection**: Mitama dispute resolution for quality guarantees
+- **Escrow Protection**: Kamiyo dispute resolution for quality guarantees
 - **SPL Token Support**: SOL, USDC, USDT payments
 - **Agent-Ready**: Programmatic payment discovery and execution
 
@@ -23,12 +23,12 @@ npm install @mitama/middleware
 ```typescript
 import express from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { MitamaPaymentMiddleware } from '@mitama/middleware';
+import { KamiyoPaymentMiddleware } from '@kamiyo/middleware';
 
 const app = express();
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 
-app.use('/api/premium', MitamaPaymentMiddleware({
+app.use('/api/premium', KamiyoPaymentMiddleware({
   realm: 'my-api',
   programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
   connection,
@@ -46,7 +46,7 @@ app.get('/api/premium/data', (req, res) => {
 ```typescript
 import express from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
-import { createActionsRouter } from '@mitama/middleware';
+import { createActionsRouter } from '@kamiyo/middleware';
 
 const app = express();
 
@@ -84,7 +84,7 @@ This creates the following endpoints:
 
 ```typescript
 import { Connection, Keypair } from '@solana/web3.js';
-import { X402Client } from '@mitama/sdk';
+import { X402Client } from '@kamiyo/sdk';
 
 const client = new X402Client({
   connection: new Connection('https://api.mainnet-beta.solana.com'),
@@ -108,14 +108,14 @@ if (response.success) {
 
 ## API Reference
 
-### MitamaPaymentMiddleware(options)
+### KamiyoPaymentMiddleware(options)
 
 Express middleware for HTTP 402 payment verification.
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `realm` | string | API realm identifier |
-| `programId` | PublicKey | Mitama program ID |
+| `programId` | PublicKey | Kamiyo program ID |
 | `connection` | Connection | Solana RPC connection |
 | `price` | number | Price in SOL |
 | `qualityGuarantee` | boolean | Enable dispute protection |
@@ -127,7 +127,7 @@ Creates Express router with Solana Actions endpoints.
 | Option | Type | Description |
 |--------|------|-------------|
 | `baseUrl` | string | Base URL for action endpoints |
-| `programId` | PublicKey | Mitama program ID |
+| `programId` | PublicKey | Kamiyo program ID |
 | `connection` | Connection | Solana RPC connection |
 | `providerWallet` | PublicKey | Wallet to receive payments |
 | `title` | string | Action title |

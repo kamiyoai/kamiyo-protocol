@@ -1,7 +1,7 @@
 /**
- * Mitama Actions - Plug-and-play functions for agent payments
+ * Kamiyo Actions - Plug-and-play functions for agent payments
  *
- * Simple, standalone functions for integrating Mitama into any agent framework.
+ * Simple, standalone functions for integrating Kamiyo into any agent framework.
  * No complex setup required - just pass connection and keypair.
  *
  * Features:
@@ -162,16 +162,16 @@ function getProvider(config: ActionConfig): AnchorProvider {
 }
 
 function loadIdl() {
-  const idlPath = path.join(__dirname, "../../mitama-sdk/idl/mitama.json");
+  const idlPath = path.join(__dirname, "../../kamiyo-sdk/idl/kamiyo.json");
   if (fs.existsSync(idlPath)) {
     return JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   }
   // Fallback: try relative to node_modules
-  const fallbackPath = path.join(__dirname, "../../../target/idl/mitama.json");
+  const fallbackPath = path.join(__dirname, "../../../target/idl/kamiyo.json");
   if (fs.existsSync(fallbackPath)) {
     return JSON.parse(fs.readFileSync(fallbackPath, "utf-8"));
   }
-  throw new Error("IDL not found. Ensure @mitama/sdk is installed or IDL is available.");
+  throw new Error("IDL not found. Ensure @kamiyo/sdk is installed or IDL is available.");
 }
 
 function deriveEscrowPDA(agent: PublicKey, transactionId: string): [PublicKey, number] {

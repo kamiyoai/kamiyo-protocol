@@ -38,7 +38,7 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 }
 
 async function main() {
-  console.log('🚀 KAMIYO Mitama MCP Server - Tool Functionality Tests\n');
+  console.log('🚀 KAMIYO Kamiyo MCP Server - Tool Functionality Tests\n');
 
   // Setup
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';

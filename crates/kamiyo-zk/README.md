@@ -1,6 +1,6 @@
 # kamiyo-zk
 
-Commit-reveal voting for Mitama oracle consensus.
+Commit-reveal voting for Kamiyo oracle consensus.
 
 ## Architecture
 

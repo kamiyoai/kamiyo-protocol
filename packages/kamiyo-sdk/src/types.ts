@@ -1,5 +1,5 @@
 /**
- * Type definitions for Mitama Protocol
+ * Type definitions for Kamiyo Protocol
  */
 
 import { PublicKey } from "@solana/web3.js";

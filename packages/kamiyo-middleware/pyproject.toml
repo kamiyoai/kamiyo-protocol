@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mitama-middleware"
+name = "kamiyo-middleware"
 version = "1.0.0"
-description = "HTTP 402 payment middleware for Mitama protocol"
+description = "HTTP 402 payment middleware for Kamiyo protocol"
 readme = "README.md"
 license = {text = "BUSL-1.1"}
 authors = [

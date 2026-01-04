@@ -1,10 +1,10 @@
-# @mitama/surfpool
+# @kamiyo/surfpool
 
-Surfpool integration for Mitama - Strategy simulation and pre-flight validation on Solana.
+Surfpool integration for Kamiyo - Strategy simulation and pre-flight validation on Solana.
 
 ## Overview
 
-Test agent strategies and validate Mitama operations in a simulated environment before committing real funds on mainnet.
+Test agent strategies and validate Kamiyo operations in a simulated environment before committing real funds on mainnet.
 
 **Features:**
 
@@ -17,7 +17,7 @@ Test agent strategies and validate Mitama operations in a simulated environment 
 ## Installation
 
 ```bash
-npm install @mitama/surfpool
+npm install @kamiyo/surfpool
 ```
 
 ## Quick Start
@@ -25,7 +25,7 @@ npm install @mitama/surfpool
 ### Strategy Simulation
 
 ```typescript
-import { SurfpoolClient, StrategySimulator } from '@mitama/surfpool';
+import { SurfpoolClient, StrategySimulator } from '@kamiyo/surfpool';
 import { Keypair } from '@solana/web3.js';
 
 const surfpool = new SurfpoolClient({
@@ -60,7 +60,7 @@ console.log(`Success: ${result.success}`);
 ### Pre-flight Validation
 
 ```typescript
-import { SurfpoolClient, PreflightValidator } from '@mitama/surfpool';
+import { SurfpoolClient, PreflightValidator } from '@kamiyo/surfpool';
 import { BN } from '@coral-xyz/anchor';
 
 const surfpool = new SurfpoolClient({ endpoint: SURFPOOL_URL });

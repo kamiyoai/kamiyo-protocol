@@ -1,20 +1,20 @@
-# @kamiyo/mitama-agent-client
+# @kamiyo/kamiyo-agent-client
 
-Autonomous agent SDK for Mitama payment and quality verification.
+Autonomous agent SDK for Kamiyo payment and quality verification.
 
 Enables AI agents to transact end-to-end without human intervention with built-in quality guarantees and automatic dispute resolution.
 
 ## Installation
 
 ```bash
-npm install @kamiyo/mitama-agent-client
+npm install @kamiyo/kamiyo-agent-client
 ```
 
 ## Quick Start
 
 ```typescript
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import { AutonomousServiceAgent } from '@kamiyo/mitama-agent-client';
+import { AutonomousServiceAgent } from '@kamiyo/kamiyo-agent-client';
 
 const agent = new AutonomousServiceAgent({
   keypair: agentKeypair,
@@ -89,7 +89,7 @@ const securityAgent = new AutonomousServiceAgent({
 });
 
 const exploits = await securityAgent.consumeAPI(
-  'https://api.kamiyo.ai/mitama/exploits/latest',
+  'https://api.kamiyo.ai/kamiyo/exploits/latest',
   { chain: 'ethereum', severity: 'critical' },
   {
     exploit_id: '',
@@ -112,7 +112,7 @@ const riskAgent = new AutonomousServiceAgent({
 });
 
 const assessment = await riskAgent.consumeAPI(
-  'https://api.kamiyo.ai/mitama/protocol/assess-risk',
+  'https://api.kamiyo.ai/kamiyo/protocol/assess-risk',
   { protocol_address: '0x...', chain: 'ethereum' },
   {
     risk_score: 0,
@@ -152,9 +152,9 @@ try {
 
 See `/examples/autonomous-agent-demo/` for complete implementation.
 
-## Integration with Mitama
+## Integration with Kamiyo
 
-Agent automatically integrates with Mitama dispute resolution:
+Agent automatically integrates with Kamiyo dispute resolution:
 
 1. Payment via Solana escrow
 2. Quality verification on response

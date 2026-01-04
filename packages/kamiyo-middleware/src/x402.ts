@@ -126,7 +126,7 @@ function markSignatureUsed(signature: string): void {
  *
  * @example
  * ```typescript
- * import { x402Middleware } from '@mitama/middleware';
+ * import { x402Middleware } from '@kamiyo/middleware';
  *
  * app.use('/api/premium', x402Middleware({
  *   connection: new Connection('https://api.mainnet-beta.solana.com'),

@@ -1,5 +1,5 @@
 /**
- * X402MitamaClient - Production-ready x402 payments with Mitama escrow protection
+ * X402KamiyoClient - Production-ready x402 payments with Kamiyo escrow protection
  *
  * Features:
  * - x402 protocol v1/v2 compatibility
@@ -46,7 +46,7 @@ export interface X402ClientConfig {
   connection: Connection;
   /** Agent keypair for signing */
   wallet: Keypair;
-  /** Mitama program ID */
+  /** Kamiyo program ID */
   programId: PublicKey;
   /** Auto-dispute if quality falls below threshold (0-100) */
   qualityThreshold?: number;
@@ -87,7 +87,7 @@ export interface X402RequestOptions {
   headers?: Record<string, string>;
   /** Request body */
   body?: string;
-  /** Use Mitama escrow for payment */
+  /** Use Kamiyo escrow for payment */
   useEscrow?: boolean;
   /** Custom transaction ID */
   transactionId?: string;
@@ -147,7 +147,7 @@ interface X402PaymentRequirement {
     payTo: string;
     description?: string;
   }>;
-  mitama?: {
+  kamiyo?: {
     escrowRequired: boolean;
     minStake?: string;
     programId?: string;
@@ -158,7 +158,7 @@ interface X402PaymentRequirement {
 // Client Implementation
 // ============================================================================
 
-export class X402MitamaClient {
+export class X402KamiyoClient {
   private readonly connection: Connection;
   private readonly wallet: Keypair;
   private readonly programId: PublicKey;
@@ -274,7 +274,7 @@ export class X402MitamaClient {
           }
 
           // Execute payment
-          const useEscrow = options.useEscrow ?? requirement.mitama?.escrowRequired ?? false;
+          const useEscrow = options.useEscrow ?? requirement.kamiyo?.escrowRequired ?? false;
           const paymentResult = await this.pay(requirement, transactionId, useEscrow);
 
           if (!paymentResult.success) {
@@ -287,8 +287,8 @@ export class X402MitamaClient {
             headers: {
               ...options.headers,
               'X-Payment': this.createPaymentHeader(paymentResult.signature || ''),
-              'X-Mitama-Escrow': paymentResult.escrowPda?.toBase58() || '',
-              'X-Mitama-Transaction-Id': transactionId,
+              'X-Kamiyo-Escrow': paymentResult.escrowPda?.toBase58() || '',
+              'X-Kamiyo-Transaction-Id': transactionId,
             },
           }, timeoutMs);
         }
@@ -595,18 +595,18 @@ export class X402MitamaClient {
         resource: response.url,
         payTo,
       }],
-      mitama: this.parseMitamaHeaders(response),
+      kamiyo: this.parseKamiyoHeaders(response),
     };
   }
 
-  private parseMitamaHeaders(response: Response): X402PaymentRequirement['mitama'] | undefined {
-    const escrowRequired = response.headers.get('X-Mitama-Escrow-Required');
+  private parseKamiyoHeaders(response: Response): X402PaymentRequirement['kamiyo'] | undefined {
+    const escrowRequired = response.headers.get('X-Kamiyo-Escrow-Required');
     if (!escrowRequired) return undefined;
 
     return {
       escrowRequired: escrowRequired === 'true',
-      minStake: response.headers.get('X-Mitama-Min-Stake') || undefined,
-      programId: response.headers.get('X-Mitama-Program-Id') || undefined,
+      minStake: response.headers.get('X-Kamiyo-Min-Stake') || undefined,
+      programId: response.headers.get('X-Kamiyo-Program-Id') || undefined,
     };
   }
 
@@ -651,7 +651,7 @@ export class X402MitamaClient {
 
   private async queueDispute(escrow: EscrowInfo, slaResult: SlaValidationResult): Promise<void> {
     this.log(`Filing dispute for ${escrow.transactionId}: score ${slaResult.qualityScore}`);
-    // In production, this would call the Mitama dispute instruction
+    // In production, this would call the Kamiyo dispute instruction
     // The oracle network evaluates and returns a quality score
   }
 
@@ -688,7 +688,7 @@ export class X402MitamaClient {
 
   private log(message: string): void {
     if (this.debug) {
-      console.log(`[X402MitamaClient] ${message}`);
+      console.log(`[X402KamiyoClient] ${message}`);
     }
   }
 
@@ -706,15 +706,15 @@ export class X402MitamaClient {
 }
 
 /**
- * Create x402 client with Mitama protection
+ * Create x402 client with Kamiyo protection
  */
-export function createX402MitamaClient(
+export function createX402KamiyoClient(
   connection: Connection,
   wallet: Keypair,
   programId: PublicKey,
   options?: Partial<X402ClientConfig>
-): X402MitamaClient {
-  return new X402MitamaClient({
+): X402KamiyoClient {
+  return new X402KamiyoClient({
     connection,
     wallet,
     programId,

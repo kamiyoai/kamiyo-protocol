@@ -1,12 +1,12 @@
 {
-  "name": "@mitama/switchboard-oracle",
+  "name": "@kamiyo/switchboard-oracle",
   "version": "0.1.0",
-  "description": "Switchboard oracle function for Mitama dispute resolution",
+  "description": "Switchboard oracle function for Kamiyo dispute resolution",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "build": "docker build -t mitama-oracle .",
-    "deploy": "sb solana function create --container mitama-oracle"
+    "build": "docker build -t kamiyo-oracle .",
+    "deploy": "sb solana function create --container kamiyo-oracle"
   },
   "dependencies": {
     "@switchboard-xyz/solana.js": "^3.0.0",

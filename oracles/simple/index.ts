@@ -1,5 +1,5 @@
 /**
- * Simple Ed25519 Oracle for Mitama
+ * Simple Ed25519 Oracle for Kamiyo
  *
  * Self-hosted oracle that evaluates disputes and submits scores.
  * Run with: npx ts-node oracles/simple/index.ts
@@ -115,7 +115,7 @@ async function findDisputedEscrows(connection: Connection): Promise<DisputedEscr
 
 async function main() {
   console.log('========================================');
-  console.log('  Mitama Simple Oracle');
+  console.log('  Kamiyo Simple Oracle');
   console.log('========================================');
   console.log(`RPC: ${RPC_URL}`);
   console.log(`Poll Interval: ${POLL_INTERVAL_MS}ms`);
@@ -131,7 +131,7 @@ async function main() {
   const provider = new AnchorProvider(connection, wallet, {});
 
   // Load program
-  const idlPath = path.join(__dirname, '../../target/idl/mitama.json');
+  const idlPath = path.join(__dirname, '../../target/idl/kamiyo.json');
   const idl = JSON.parse(fs.readFileSync(idlPath, 'utf-8'));
   const program = new Program(idl, provider);
 

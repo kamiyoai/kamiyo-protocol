@@ -27,7 +27,7 @@ async function main() {
   );
   anchor.setProvider(provider);
 
-  const idlPath = path.join(__dirname, "../target/idl/mitama.json");
+  const idlPath = path.join(__dirname, "../target/idl/kamiyo.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   
   console.log("IDL address:", idl.address);

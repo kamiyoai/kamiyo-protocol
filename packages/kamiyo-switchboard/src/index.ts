@@ -1,5 +1,5 @@
 /**
- * Mitama Switchboard Quality Scoring Function
+ * Kamiyo Switchboard Quality Scoring Function
  * Entry point for Switchboard On-Demand
  */
 

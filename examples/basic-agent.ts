@@ -2,10 +2,10 @@
  * Copyright (c) 2025 KAMIYO
  * SPDX-License-Identifier: MIT
  *
- * Basic example of creating a Mitama agent
+ * Basic example of creating a Kamiyo agent
  */
 
-import { MitamaSDK, AgentType } from '@mitama/sdk';
+import { KamiyoSDK, AgentType } from '@kamiyo/sdk';
 import { Keypair } from '@solana/web3.js';
 
 async function createBasicAgent() {
@@ -14,8 +14,8 @@ async function createBasicAgent() {
 
   console.log('Wallet created:', wallet.publicKey.toString());
 
-  // Initialize the Mitama SDK
-  const sdk = new MitamaSDK({
+  // Initialize the Kamiyo SDK
+  const sdk = new KamiyoSDK({
     solanaRpc: 'https://api.devnet.solana.com',
     wallet
   });

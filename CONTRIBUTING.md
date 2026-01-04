@@ -33,7 +33,7 @@ anchor test
 npm run build --workspaces
 
 # Build specific package
-cd packages/mitama-sdk && npm run build
+cd packages/kamiyo-sdk && npm run build
 ```
 
 ## Code Standards
@@ -98,10 +98,10 @@ anchor test -- --grep "agent identity"
 
 ```bash
 # Run SDK tests
-cd packages/mitama-sdk && npm test
+cd packages/kamiyo-sdk && npm test
 
 # Run middleware tests
-cd packages/mitama-middleware && npm test
+cd packages/kamiyo-middleware && npm test
 ```
 
 ## Security

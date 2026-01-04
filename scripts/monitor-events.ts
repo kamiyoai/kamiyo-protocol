@@ -1,5 +1,5 @@
 /**
- * Monitor Mitama Protocol Events
+ * Monitor Kamiyo Protocol Events
  *
  * Usage:
  *   RPC_URL=<rpc> npx ts-node scripts/monitor-events.ts
@@ -31,7 +31,7 @@ async function main() {
   });
   anchor.setProvider(provider);
 
-  const idlPath = path.join(__dirname, "../target/idl/mitama.json");
+  const idlPath = path.join(__dirname, "../target/idl/kamiyo.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   const program = new Program(idl, provider);
 

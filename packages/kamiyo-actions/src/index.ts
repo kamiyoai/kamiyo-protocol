@@ -1,5 +1,5 @@
 /**
- * @mitama/actions - Plug-and-play actions for Mitama Protocol
+ * @kamiyo/actions - Plug-and-play actions for Kamiyo Protocol
  *
  * Simple, standalone functions for agent payments:
  * - createEscrow: Lock funds in payment agreement
@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { createEscrow, releaseFunds } from '@mitama/actions';
+ * import { createEscrow, releaseFunds } from '@kamiyo/actions';
  * import { Connection, Keypair } from '@solana/web3.js';
  *
  * const connection = new Connection('https://api.mainnet-beta.solana.com');

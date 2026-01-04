@@ -1,5 +1,5 @@
 /**
- * Type definitions for Mitama Quality Scoring Function
+ * Type definitions for Kamiyo Quality Scoring Function
  */
 
 /**

@@ -1,10 +1,10 @@
-# Mitama Narrative and Messaging
+# Kamiyo Narrative and Messaging
 
 ## Core Positioning
 
 ### The Trust Layer for the Agentic Economy
 
-In an era where AI agents handle trillions in autonomous transactions, Mitama provides the decentralized framework to ensure fair outcomes and reliable enforcement in machine-to-machine interactions.
+In an era where AI agents handle trillions in autonomous transactions, Kamiyo provides the decentralized framework to ensure fair outcomes and reliable enforcement in machine-to-machine interactions.
 
 ---
 
@@ -24,17 +24,17 @@ Traditional dispute resolution assumes human involvement: customer support, char
 
 ## The Solution
 
-Mitama is decentralized SLA enforcement for machine-to-machine commerce.
+Kamiyo is decentralized SLA enforcement for machine-to-machine commerce.
 
 **How it works:**
 
-1. Agent pays for API access through Mitama escrow
+1. Agent pays for API access through Kamiyo escrow
 2. Service delivers (or fails to deliver)
 3. If SLA violated: automatic dispute triggered
 4. Oracle network evaluates quality (0-100 score)
 5. Graduated settlement: partial refund based on actual service quality
 
-**Not binary.** Real services are rarely perfect or complete failures. Mitama's quality-based arbitration enables proportional outcomes.
+**Not binary.** Real services are rarely perfect or complete failures. Kamiyo's quality-based arbitration enables proportional outcomes.
 
 ---
 
@@ -46,10 +46,10 @@ Mitama is decentralized SLA enforcement for machine-to-machine commerce.
 > Decentralized SLA enforcement with ZK-private oracle voting and graduated settlement.
 
 **Elevator pitch:**
-> Mitama extends x402 payments with escrow protection. When an agent pays for an API and gets garbage data, our oracle network evaluates quality and triggers graduated refunds. Privacy-preserving commit-reveal voting prevents oracle collusion. All verified on-chain via Groth16 proofs.
+> Kamiyo extends x402 payments with escrow protection. When an agent pays for an API and gets garbage data, our oracle network evaluates quality and triggers graduated refunds. Privacy-preserving commit-reveal voting prevents oracle collusion. All verified on-chain via Groth16 proofs.
 
 **Technical hook:**
-> x402 handles the payment. Mitama ensures it was earned.
+> x402 handles the payment. Kamiyo ensures it was earned.
 
 ---
 
@@ -59,7 +59,7 @@ Mitama is decentralized SLA enforcement for machine-to-machine commerce.
 > The accountability layer that makes autonomous commerce trustworthy.
 
 **Elevator pitch:**
-> As AI agents gain economic autonomy, Mitama provides the infrastructure for reliable, fair outcomes—without centralized intermediaries. Think of it as programmable SLA enforcement: agents specify their requirements, pay into escrow, and receive automatic protection if services fail to deliver.
+> As AI agents gain economic autonomy, Kamiyo provides the infrastructure for reliable, fair outcomes—without centralized intermediaries. Think of it as programmable SLA enforcement: agents specify their requirements, pay into escrow, and receive automatic protection if services fail to deliver.
 
 **Business hook:**
 > Payments flow instantly. Accountability follows.
@@ -72,16 +72,16 @@ Mitama is decentralized SLA enforcement for machine-to-machine commerce.
 > Economic accountability infrastructure for autonomous systems.
 
 **Elevator pitch:**
-> Mitama addresses a critical gap in AI deployment: when agents transact autonomously, how do we ensure reliable outcomes? Our protocol provides cryptographic guarantees and economic incentives that align agent, provider, and oracle behavior—enabling trust without requiring trust.
+> Kamiyo addresses a critical gap in AI deployment: when agents transact autonomously, how do we ensure reliable outcomes? Our protocol provides cryptographic guarantees and economic incentives that align agent, provider, and oracle behavior—enabling trust without requiring trust.
 
 **Safety hook:**
-> AI agents with economic autonomy need economic accountability. Mitama provides both.
+> AI agents with economic autonomy need economic accountability. Kamiyo provides both.
 
 ---
 
 ## Differentiators
 
-| Feature | Traditional | x402 | Mitama |
+| Feature | Traditional | x402 | Kamiyo |
 |---------|-------------|------|--------|
 | Payment | Manual/invoiced | Instant | Escrowed |
 | Disputes | Customer support | None | Automatic |
@@ -96,22 +96,22 @@ Mitama is decentralized SLA enforcement for machine-to-machine commerce.
 
 ### API Data Quality
 
-> An autonomous trading agent pays $0.10 for real-time market data. The API returns stale prices from 30 seconds ago—useless for high-frequency decisions. Without Mitama, the agent just lost $0.10. With Mitama, SLA monitoring detects the staleness, oracles score the quality at 35/100, and the agent receives a 75% refund automatically.
+> An autonomous trading agent pays $0.10 for real-time market data. The API returns stale prices from 30 seconds ago—useless for high-frequency decisions. Without Kamiyo, the agent just lost $0.10. With Kamiyo, SLA monitoring detects the staleness, oracles score the quality at 35/100, and the agent receives a 75% refund automatically.
 
 ### Compute Services
 
-> An ML inference agent requests GPU time for model training. The provider throttles compute after 60% completion. Traditional payment: agent pays full price, gets 60% service. With Mitama escrow: oracle network verifies partial delivery, agent receives proportional refund.
+> An ML inference agent requests GPU time for model training. The provider throttles compute after 60% completion. Traditional payment: agent pays full price, gets 60% service. With Kamiyo escrow: oracle network verifies partial delivery, agent receives proportional refund.
 
 ### Multi-Agent Coordination
 
-> A swarm of agents coordinates complex tasks, each paying for specialized services. One provider fails. Cascading disputes would freeze the entire workflow. Mitama's graduated settlement keeps funds flowing—partial quality gets partial payment—while flagging bad actors for reputation damage.
+> A swarm of agents coordinates complex tasks, each paying for specialized services. One provider fails. Cascading disputes would freeze the entire workflow. Kamiyo's graduated settlement keeps funds flowing—partial quality gets partial payment—while flagging bad actors for reputation damage.
 
 ---
 
 ## Objection Handling
 
 **"Isn't this just insurance?"**
-> No. Insurance pools risk and pays out after the fact. Mitama prevents bad outcomes by holding funds until quality is verified. It's enforcement, not compensation.
+> No. Insurance pools risk and pays out after the fact. Kamiyo prevents bad outcomes by holding funds until quality is verified. It's enforcement, not compensation.
 
 **"What about oracle collusion?"**
 > ZK commit-reveal voting prevents oracles from copying each other. Economic stake (slashing for deviation) makes collusion expensive. Minimum 3 oracles with tiered thresholds for high-value escrows.
@@ -132,7 +132,7 @@ Mitama is decentralized SLA enforcement for machine-to-machine commerce.
 
 ### Technical
 
-> x402 handles payments. Mitama handles justice.
+> x402 handles payments. Kamiyo handles justice.
 
 > Decentralized SLA enforcement for machine-to-machine commerce.
 
@@ -159,42 +159,42 @@ Mitama is decentralized SLA enforcement for machine-to-machine commerce.
 ## Social Proof Framing
 
 **x402 Integration:**
-> Compatible with x402—the payment standard backed by Coinbase, Cloudflare, and Visa. Mitama adds the accountability layer.
+> Compatible with x402—the payment standard backed by Coinbase, Cloudflare, and Visa. Kamiyo adds the accountability layer.
 
 **Infrastructure Alignment:**
 > Built on Solana for speed. Uses Zcash's Halo2 for privacy. Verified via Groth16 for on-chain finality.
 
 **Enterprise Context:**
-> As AI agents enter enterprise workflows, Mitama provides the audit trail and enforcement layer that compliance requires.
+> As AI agents enter enterprise workflows, Kamiyo provides the audit trail and enforcement layer that compliance requires.
 
 ---
 
 ## Comparison Positioning
 
 **vs. Traditional Arbitration:**
-> Courts and mediators require human involvement and take weeks. Mitama resolves disputes in minutes through automated oracle consensus.
+> Courts and mediators require human involvement and take weeks. Kamiyo resolves disputes in minutes through automated oracle consensus.
 
 **vs. Escrow Services:**
-> Traditional escrow is binary: release or refund. Mitama scores quality (0-100) and calculates proportional settlement.
+> Traditional escrow is binary: release or refund. Kamiyo scores quality (0-100) and calculates proportional settlement.
 
 **vs. Insurance:**
-> Insurance compensates after damage. Mitama prevents damage by holding funds until delivery is verified.
+> Insurance compensates after damage. Kamiyo prevents damage by holding funds until delivery is verified.
 
 **vs. Reputation Systems:**
-> Reputation informs future decisions. Mitama affects current transactions. Both matter—we integrate reputation tracking alongside dispute resolution.
+> Reputation informs future decisions. Kamiyo affects current transactions. Both matter—we integrate reputation tracking alongside dispute resolution.
 
 ---
 
 ## Call to Action (CTAs)
 
 **For Developers:**
-> Add Mitama protection to your agent: `npm install @mitama/x402-client`
+> Add Kamiyo protection to your agent: `npm install @kamiyo/x402-client`
 
 **For API Providers:**
-> Offer guaranteed SLAs with Mitama escrow. Differentiate from competitors.
+> Offer guaranteed SLAs with Kamiyo escrow. Differentiate from competitors.
 
 **For Infrastructure:**
-> Partner with Mitama to extend x402 with dispute resolution. Contact: partnerships@kamiyo.ai
+> Partner with Kamiyo to extend x402 with dispute resolution. Contact: partnerships@kamiyo.ai
 
 **For Enterprise:**
 > Audit-ready agent transactions. Compliance-friendly dispute resolution. Contact: enterprise@kamiyo.ai

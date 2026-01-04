@@ -1,14 +1,14 @@
 /**
- * @mitama/x402-client
+ * @kamiyo/x402-client
  *
- * x402 payment client with Mitama escrow protection and SLA enforcement.
+ * x402 payment client with Kamiyo escrow protection and SLA enforcement.
  * Enables autonomous agents to make protected payments with dispute resolution.
  */
 
 // Client
 export {
-  X402MitamaClient,
-  createX402MitamaClient,
+  X402KamiyoClient,
+  createX402KamiyoClient,
   EscrowStatus,
 } from './client';
 export type {

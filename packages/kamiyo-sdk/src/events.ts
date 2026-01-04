@@ -1,5 +1,5 @@
 /**
- * Event handling for Mitama protocol
+ * Event handling for Kamiyo protocol
  */
 
 import { PublicKey } from "@solana/web3.js";
@@ -177,7 +177,7 @@ export interface MultiOracleDisputeResolvedEvent {
 /**
  * Event callbacks interface
  */
-export interface MitamaEventCallbacks {
+export interface KamiyoEventCallbacks {
   onAgentCreated?: (event: AgentCreatedEvent) => void;
   onAgentDeactivated?: (event: AgentDeactivatedEvent) => void;
   onAgentSlashed?: (event: AgentSlashedEvent) => void;
@@ -197,17 +197,17 @@ export interface MitamaEventCallbacks {
 }
 
 /**
- * Event listener for Mitama protocol events
+ * Event listener for Kamiyo protocol events
  */
-export class MitamaEventListener {
+export class KamiyoEventListener {
   private listeners: number[] = [];
 
   constructor(private program: Program<any>) {}
 
   /**
-   * Subscribe to Mitama events
+   * Subscribe to Kamiyo events
    */
-  subscribe(callbacks: MitamaEventCallbacks): void {
+  subscribe(callbacks: KamiyoEventCallbacks): void {
     if (callbacks.onAgentCreated) {
       this.listeners.push(
         this.program.addEventListener("AgentCreated", callbacks.onAgentCreated)

@@ -1,4 +1,4 @@
-# Mitama Switchboard Oracle
+# Kamiyo Switchboard Oracle
 
 Evaluates service quality for disputed escrows using Switchboard TEE.
 
@@ -9,17 +9,17 @@ Evaluates service quality for disputed escrows using Switchboard TEE.
 npm install -g @switchboard-xyz/cli
 
 # Build container
-docker build -t mitama-oracle .
+docker build -t kamiyo-oracle .
 
 # Create function on Solana
 sb solana function create \
-  --name "mitama-quality-oracle" \
-  --container mitama-oracle \
+  --name "kamiyo-quality-oracle" \
+  --container kamiyo-oracle \
   --keypair ~/.config/solana/id.json \
   --cluster mainnet-beta
 ```
 
-## Register with Mitama
+## Register with Kamiyo
 
 After creating the function, register its pubkey:
 

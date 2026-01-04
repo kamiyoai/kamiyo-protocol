@@ -1,5 +1,5 @@
 /**
- * Mitama Client - Main entry point for SDK
+ * Kamiyo Client - Main entry point for SDK
  */
 
 import {
@@ -25,22 +25,22 @@ import {
   AgentType,
 } from "./types";
 
-export interface MitamaClientConfig {
+export interface KamiyoClientConfig {
   connection: Connection;
   wallet: Wallet;
   programId?: PublicKey;
 }
 
 /**
- * Mitama Client - Interact with the Mitama protocol
+ * Kamiyo Client - Interact with the Kamiyo protocol
  */
-export class MitamaClient {
+export class KamiyoClient {
   public readonly connection: Connection;
   public readonly wallet: Wallet;
   public readonly programId: PublicKey;
   private provider: AnchorProvider;
 
-  constructor(config: MitamaClientConfig) {
+  constructor(config: KamiyoClientConfig) {
     this.connection = config.connection;
     this.wallet = config.wallet;
     this.programId = config.programId ?? MITAMA_PROGRAM_ID;

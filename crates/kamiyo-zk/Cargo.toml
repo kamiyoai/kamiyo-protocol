@@ -3,7 +3,7 @@ name = "kamiyo-zk"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Zero-knowledge proof system for Mitama using Zcash's Halo2"
+description = "Zero-knowledge proof system for Kamiyo using Zcash's Halo2"
 repository = "https://github.com/kamiyo-ai/kamiyo-protocol"
 keywords = ["zk", "halo2", "zcash", "solana", "privacy"]
 

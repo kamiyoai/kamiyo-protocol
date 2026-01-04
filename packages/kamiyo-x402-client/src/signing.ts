@@ -194,7 +194,7 @@ export function isPaymentFresh(payment: SignedPayment, maxAgeMs: number = 300_00
 }
 
 /**
- * Create Mitama-specific escrow proof header
+ * Create Kamiyo-specific escrow proof header
  */
 export function createEscrowProofHeader(
   escrowPda: PublicKey,
@@ -202,7 +202,7 @@ export function createEscrowProofHeader(
   wallet: Keypair
 ): string {
   const message = new TextEncoder().encode(
-    `mitama:escrow:${escrowPda.toBase58()}:${transactionId}:${Date.now()}`
+    `kamiyo:escrow:${escrowPda.toBase58()}:${transactionId}:${Date.now()}`
   );
   const signature = signPaymentMessage(wallet, message);
 
@@ -214,7 +214,7 @@ export function createEscrowProofHeader(
     agent: wallet.publicKey.toBase58(),
   };
 
-  return `mitama:escrow:${Buffer.from(JSON.stringify(payload)).toString('base64')}`;
+  return `kamiyo:escrow:${Buffer.from(JSON.stringify(payload)).toString('base64')}`;
 }
 
 /**

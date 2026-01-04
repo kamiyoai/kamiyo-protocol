@@ -1,5 +1,5 @@
 /**
- * Mitama Protocol Monitor
+ * Kamiyo Protocol Monitor
  *
  * Monitors protocol events and sends alerts for critical conditions.
  * Run with: npx ts-node scripts/monitor.ts
@@ -55,11 +55,11 @@ async function sendAlert(title: string, message: string, severity: 'info' | 'war
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           embeds: [{
-            title: `[Mitama] ${title}`,
+            title: `[Kamiyo] ${title}`,
             description: message,
             color: parseInt(color.replace('#', ''), 16),
             timestamp,
-            footer: { text: 'Mitama Protocol Monitor' },
+            footer: { text: 'Kamiyo Protocol Monitor' },
           }],
         }),
       });
@@ -93,7 +93,7 @@ function printStats(): void {
     ? ((stats.disputedEscrows / stats.totalEscrows) * 100).toFixed(1)
     : '0.0';
 
-  console.log('\n=== Mitama Protocol Stats ===');
+  console.log('\n=== Kamiyo Protocol Stats ===');
   console.log(`Total Escrows: ${stats.totalEscrows}`);
   console.log(`Active: ${stats.activeEscrows} | Disputed: ${stats.disputedEscrows} | Released: ${stats.releasedEscrows}`);
   console.log(`Dispute Rate: ${disputeRate}%`);
@@ -106,7 +106,7 @@ function printStats(): void {
  * Main monitoring loop
  */
 async function main(): Promise<void> {
-  console.log('Starting Mitama Protocol Monitor...');
+  console.log('Starting Kamiyo Protocol Monitor...');
   console.log(`RPC: ${RPC_URL}`);
   console.log(`Program ID: ${PROGRAM_ID.toBase58()}`);
   console.log(`Webhook: ${WEBHOOK_URL ? 'Configured' : 'Not configured'}`);
@@ -172,7 +172,7 @@ async function main(): Promise<void> {
         if (log.includes('Program log: Instruction: PauseProtocol')) {
           sendAlert(
             'Protocol Paused',
-            'The Mitama protocol has been paused by multi-sig authority',
+            'The Kamiyo protocol has been paused by multi-sig authority',
             'critical'
           );
         }
@@ -180,7 +180,7 @@ async function main(): Promise<void> {
         if (log.includes('Program log: Instruction: UnpauseProtocol')) {
           sendAlert(
             'Protocol Unpaused',
-            'The Mitama protocol has been unpaused by multi-sig authority',
+            'The Kamiyo protocol has been unpaused by multi-sig authority',
             'info'
           );
         }
@@ -203,7 +203,7 @@ async function main(): Promise<void> {
   );
 
   console.log(`Subscribed to program logs (subscription ID: ${subscriptionId})`);
-  sendAlert('Monitor Started', `Mitama Protocol Monitor is now running on ${RPC_URL}`, 'info');
+  sendAlert('Monitor Started', `Kamiyo Protocol Monitor is now running on ${RPC_URL}`, 'info');
 
   // Print stats every minute
   setInterval(printStats, 60000);

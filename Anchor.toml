@@ -6,13 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-mitama = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 
 [programs.devnet]
-mitama = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 
 [programs.mainnet]
-mitama = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 
 [registry]
 url = "https://api.apr.dev"

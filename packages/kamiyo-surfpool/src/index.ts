@@ -1,12 +1,12 @@
 /**
- * Mitama Surfpool Integration
+ * Kamiyo Surfpool Integration
  *
- * Provides simulation and pre-flight validation for Mitama operations
+ * Provides simulation and pre-flight validation for Kamiyo operations
  * using Surfpool's Solana fork environment.
  *
  * @example
  * ```typescript
- * import { SurfpoolClient, StrategySimulator, PreflightValidator } from '@mitama/surfpool';
+ * import { SurfpoolClient, StrategySimulator, PreflightValidator } from '@kamiyo/surfpool';
  *
  * // Create Surfpool client
  * const surfpool = new SurfpoolClient({

@@ -47,7 +47,7 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 }
 
 async function main() {
-  console.log('🚀 KAMIYO Mitama MCP Server - E2E Integration Tests\n');
+  console.log('🚀 KAMIYO Kamiyo MCP Server - E2E Integration Tests\n');
   console.log('Network: Solana Devnet');
   console.log('Program ID: E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n\n');
 

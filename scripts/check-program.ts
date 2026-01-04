@@ -7,7 +7,7 @@ const PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM")
 
 async function main() {
   const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-  const idlPath = path.join(__dirname, "../target/idl/mitama.json");
+  const idlPath = path.join(__dirname, "../target/idl/kamiyo.json");
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
   
   console.log("IDL has", idl.instructions.length, "instructions:");
