@@ -59,7 +59,7 @@ export default function About() {
 
             <section className="py-10 px-5 mx-auto max-w-[1400px]">
                 <div className="subheading-border mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;About</p>
+                    <p className="font-light text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;About</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Trust infrastructure for autonomous commerce</h1>
                 </div>
 

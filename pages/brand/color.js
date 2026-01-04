@@ -102,7 +102,7 @@ animation: gradientMove 3s linear infinite;
             <BrandLayout>
                 {/* Page Header */}
                 <header className="mb-12">
-                    <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">
+                    <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">
                         — &nbsp;カラーパレット
                     </p>
                     <h1 className="text-4xl font-light mb-4">Color</h1>
