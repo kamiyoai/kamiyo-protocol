@@ -13,14 +13,19 @@ function LoadingWrapper({ children }) {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        let timeout;
         const handleStart = () => setLoading(true);
-        const handleComplete = () => setLoading(false);
+        const handleComplete = () => {
+            // Minimum 400ms display time
+            timeout = setTimeout(() => setLoading(false), 400);
+        };
 
         router.events.on("routeChangeStart", handleStart);
         router.events.on("routeChangeComplete", handleComplete);
         router.events.on("routeChangeError", handleComplete);
 
         return () => {
+            clearTimeout(timeout);
             router.events.off("routeChangeStart", handleStart);
             router.events.off("routeChangeComplete", handleComplete);
             router.events.off("routeChangeError", handleComplete);
