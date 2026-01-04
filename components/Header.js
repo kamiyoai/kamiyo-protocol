@@ -130,12 +130,12 @@ export default function Header({ children }) {
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
-                                {/* Line 1 - longest */}
+                                {/* Line 1 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "4"}
-                                    y1="5"
+                                    x1={isMenuOpen ? "4" : "10"}
+                                    y1="6"
                                     x2="20"
-                                    y2="5"
+                                    y2="6"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
@@ -144,9 +144,9 @@ export default function Header({ children }) {
                                     }}
                                     className="transition-all duration-300"
                                 />
-                                {/* Line 2 - medium */}
+                                {/* Line 2 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "8"}
+                                    x1={isMenuOpen ? "4" : "7"}
                                     y1="10"
                                     x2="20"
                                     y2="10"
@@ -154,22 +154,22 @@ export default function Header({ children }) {
                                     strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
-                                {/* Line 3 - short */}
+                                {/* Line 3 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "12"}
-                                    y1="15"
+                                    x1={isMenuOpen ? "4" : "4"}
+                                    y1="14"
                                     x2="20"
-                                    y2="15"
+                                    y2="14"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
-                                {/* Line 4 - shortest */}
+                                {/* Line 4 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "16"}
-                                    y1="20"
+                                    x1={isMenuOpen ? "4" : "7"}
+                                    y1="18"
                                     x2="20"
-                                    y2="20"
+                                    y2="18"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
