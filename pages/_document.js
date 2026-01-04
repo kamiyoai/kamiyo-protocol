@@ -2,8 +2,6 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
 export default function Document() {
-    // In development, allow 'unsafe-eval' for hot reloading.
-    // In production, remove 'unsafe-eval' to improve security.
     const csp =
         process.env.NODE_ENV === 'development'
             ? "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' https://accounts.google.com;"
@@ -17,35 +15,28 @@ export default function Document() {
                 "@id": "https://kamiyo.ai/#organization",
                 "name": "KAMIYO",
                 "legalName": "KAMIYO",
-                "description": "x402 Infrastructure - Multi-chain USDC payment verification API. Verify payments across Solana, Base, Ethereum and more. 99.9% uptime, responses under 500ms.",
+                "description": "Trust infrastructure for autonomous agents. Decentralized escrow and multi-oracle dispute resolution for machine-to-machine commerce.",
                 "url": "https://kamiyo.ai",
                 "logo": "https://kamiyo.ai/favicon.png",
                 "foundingDate": "2024",
                 "sameAs": [
-                    "https://twitter.com/KAMIYO",
-                    "https://github.com/kamiyo-ai"
+                    "https://twitter.com/KamiyoAI",
+                    "https://github.com/kamiyo-ai/kamiyo-protocol",
+                    "https://discord.gg/6yX8kd2UpC"
                 ],
                 "contactPoint": {
                     "@type": "ContactPoint",
                     "contactType": "Customer Support",
                     "email": "support@kamiyo.ai",
                     "url": "https://kamiyo.ai"
-                },
-                "offers": {
-                    "@type": "AggregateOffer",
-                    "description": "Multi-chain USDC payment verification API with pricing from free tier (1,000 verifications/month) to Enterprise (unlimited verifications)",
-                    "lowPrice": "0",
-                    "highPrice": "999",
-                    "priceCurrency": "USD",
-                    "offerCount": "4"
                 }
             },
             {
                 "@type": "WebSite",
                 "@id": "https://kamiyo.ai/#website",
-                "name": "KAMIYO x402 Infrastructure",
+                "name": "KAMIYO - Trust Layer for the Agentic Economy",
                 "url": "https://kamiyo.ai",
-                "description": "Multi-chain USDC payment verification API for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism and more",
+                "description": "Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution.",
                 "publisher": {
                     "@id": "https://kamiyo.ai/#organization"
                 },
@@ -63,35 +54,35 @@ export default function Document() {
                 "@type": "ItemList",
                 "@id": "https://kamiyo.ai/#sitenavigatation",
                 "name": "KAMIYO Site Navigation",
-                "description": "Main navigation for x402 payment verification infrastructure",
+                "description": "Main navigation for KAMIYO trust infrastructure",
                 "itemListElement": [
                     {
                         "@type": "SiteNavigationElement",
                         "position": 1,
-                        "name": "Features",
-                        "description": "Multi-chain USDC payment verification features",
-                        "url": "https://kamiyo.ai/features"
+                        "name": "About",
+                        "description": "Learn about KAMIYO trust infrastructure for autonomous agents",
+                        "url": "https://kamiyo.ai/about"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 2,
                         "name": "Pricing",
-                        "description": "x402 pricing plans from free tier to Enterprise",
+                        "description": "KAMIYO pricing plans for escrow and dispute resolution",
                         "url": "https://kamiyo.ai/pricing"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 3,
                         "name": "API Documentation",
-                        "description": "x402 payment verification API documentation",
+                        "description": "KAMIYO protocol API documentation",
                         "url": "https://kamiyo.ai/api-docs"
                     },
                     {
                         "@type": "SiteNavigationElement",
                         "position": 4,
-                        "name": "About",
-                        "description": "Learn about x402 payment verification infrastructure",
-                        "url": "https://kamiyo.ai/about"
+                        "name": "Protocol",
+                        "description": "KAMIYO on-chain escrow and dispute resolution protocol",
+                        "url": "https://protocol.kamiyo.ai"
                     }
                 ]
             }
@@ -113,7 +104,7 @@ export default function Document() {
                 {/* Primary Meta Tags */}
                 <meta name="author" content="KAMIYO" />
                 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-                <meta name="keywords" content="USDC payment verification, crypto payment API, blockchain payment verification, multi-chain payment API, Solana payment verification, Base payment verification, Ethereum payment verification, crypto micropayments, API monetization, pay per use API, blockchain transaction verification, USDC API, crypto payment infrastructure, payment verification service, AI agent payments, ERC-8004 payments, x402 API, transaction verification API, crypto payment gateway, blockchain payment confirmation" />
+                <meta name="keywords" content="AI agent trust infrastructure, decentralized escrow, multi-oracle dispute resolution, machine-to-machine commerce, agentic economy, SLA enforcement, quality-based settlement, autonomous agent accountability, on-chain escrow, oracle consensus, AI agent disputes, stake-backed agents, Solana escrow protocol, agent reputation, x402 payments, crypto escrow API, automated dispute resolution" />
 
                 {/* Mobile Optimization */}
                 <meta name="theme-color" content="#000000" />
@@ -122,8 +113,8 @@ export default function Document() {
                 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
-                <meta property="og:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
-                <meta property="og:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
+                <meta property="og:title" content="Trust Layer for the Agentic Economy | KAMIYO" />
+                <meta property="og:description" content="Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution." />
                 <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
                 <meta property="og:url" content="https://kamiyo.ai" />
                 <meta property="og:type" content="website" />
@@ -132,11 +123,11 @@ export default function Document() {
 
                 {/* Twitter Card */}
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
-                <meta name="twitter:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
+                <meta name="twitter:title" content="Trust Layer for the Agentic Economy | KAMIYO" />
+                <meta name="twitter:description" content="Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution." />
                 <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
-                <meta name="twitter:site" content="@KAMIYO" />
-                <meta name="twitter:creator" content="@KAMIYO" />
+                <meta name="twitter:site" content="@KamiyoAI" />
+                <meta name="twitter:creator" content="@KamiyoAI" />
 
                 {/* JSON-LD Structured Data */}
                 <script
