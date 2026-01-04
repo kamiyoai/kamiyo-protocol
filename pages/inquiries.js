@@ -48,11 +48,11 @@ export default function ContactPage() {
     };
 
     return (
-        <div className="text-white bg-black min-h-[calc(100vh-140px)]">
+        <div className="text-white bg-black min-h-[calc(100vh-140px)] flex items-center">
             <Head>
                 <title>Inquiries</title>
             </Head>
-            <div className="py-10 px-5 mx-auto grid grid-cols-1 md:grid-cols-2 max-w-[1400px] gap-16">
+            <div className="py-10 px-5 mx-auto grid grid-cols-1 md:grid-cols-2 max-w-[1400px] gap-16 w-full">
 
                 {/* Left Section - Contact Info */}
                 <div className="flex flex-col justify-between">
