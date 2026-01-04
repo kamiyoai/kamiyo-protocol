@@ -71,13 +71,13 @@ export default function ContactPage() {
 
                     <div className="justify-end space-y-6 mt-12">
                         <div>
-                            <p className="text-sm gradient-text uppercase tracking-widest mb-1">General</p>
+                            <p className="text-sm text-gray-500 uppercase tracking-widest mb-1">General</p>
                             <a href="mailto:kamiyo@kamiyo.ai" className="mb-0 text-sm text-magenta hover:text-white font-light">
                                 kamiyo@kamiyo.ai
                             </a>
                         </div>
                         <div>
-                            <p className="text-sm gradient-text uppercase tracking-widest mb-1">Partnerships</p>
+                            <p className="text-sm text-gray-500 uppercase tracking-widest mb-1">Partnerships</p>
                             <a href="mailto:partnerships@kamiyo.ai" className="mb-0 text-sm text-magenta hover:text-white font-light">
                                 partnerships@kamiyo.ai
                             </a>
