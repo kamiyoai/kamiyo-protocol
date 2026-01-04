@@ -14,7 +14,7 @@ export default function BrandPage() {
             <BrandLayout>
                 {/* Hero Section */}
                 <header className="mb-16">
-                    <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">
+                    <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">
                         — &nbsp;ブランドスタイルガイド
                     </p>
                     <h1 className="text-4xl md:text-5xl font-light mb-6 leading-tight text-white">

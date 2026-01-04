@@ -182,7 +182,7 @@ export default function SubscriptionPage() {
 
                 {/* Header */}
                 <div className="subheading-border mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;サブスクリプション</p>
+                    <p className="font-light text-sm uppercase tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;サブスクリプション</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Manage Subscription</h1>
                     <p className="text-gray-400 mt-4">
                         Current Tier: <span className="text-white">{subscription?.tier?.charAt(0).toUpperCase() + subscription?.tier?.slice(1) || 'Free'}</span>

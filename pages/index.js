@@ -76,7 +76,7 @@ export default function Home() {
                         <article className="space-y-8">
                             {/* Heading */}
                             <header>
-                                <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;自律エージェント信頼基盤</p>
+                                <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">— &nbsp;自律エージェント信頼基盤</p>
                                 <h2 className="text-[2.2rem] md:text-[3.1rem] font-light mb-4 leading-tight text-white">
                                     Trust layer for the agentic economy
                                 </h2>

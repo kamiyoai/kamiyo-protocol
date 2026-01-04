@@ -14,7 +14,7 @@ export default function LogoPage() {
             <BrandLayout>
                 {/* Page Header */}
                 <header className="mb-12">
-                    <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">
+                    <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">
                         — &nbsp;ロゴとアイデンティティ
                     </p>
                     <h1 className="text-4xl font-light mb-4">Logo & Identity</h1>
