@@ -103,11 +103,6 @@ ol li {
     50% { opacity: 1; }
     100% { opacity: 0; }
 }
-@keyframes gradientMove {
-    0% { background-position: 0 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0 50%; }
-}
 @keyframes slide {
     0% {
         transform: translateX(-100%);
@@ -198,8 +193,6 @@ ol li {
      mask: linear-gradient(#fff, #fff) padding-box, linear-gradient(#fff, #fff) border-box;
      mask-composite: exclude;
      opacity: 1;
-     background-size: 200% 100%;
-     animation: gradientMove 3s linear infinite;
  }
 .gradient-text {
     background: linear-gradient(90deg, #4fe9ea, #ff44f5);
