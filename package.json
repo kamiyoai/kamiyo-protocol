@@ -6,12 +6,7 @@
     "dev": "node server.mjs",
     "build": "next build",
     "start": "node server.mjs",
-    "lint": "next lint",
-    "deploy:tee": "cd tee-cloud-cli && bun tsup && bun run dist/index.js deploy ../tee-test/worker.js -n kami-test -c ../tee-test/docker-compose.yml",
-    "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "jest tests/x402-saas/unit --passWithNoTests",
-    "test:integration": "bash tests/x402-saas/test-integration.sh",
-    "test:watch": "jest tests/x402-saas/unit --watch"
+    "lint": "next lint"
   },
   "dependencies": {
     "@elizaos/adapter-pglite": "0.25.6-alpha.1",
@@ -55,7 +50,6 @@
     "react-hook-form": "^7.54.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "stripe": "^17.6.0",
     "three": "^0.173.0",
     "three-mesh-bvh": "^0.8.0",
     "web-vitals": "^5.1.0",

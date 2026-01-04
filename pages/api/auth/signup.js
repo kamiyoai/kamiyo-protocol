@@ -1,6 +1,5 @@
 import prisma from '../../../lib/prisma';
 import bcrypt from 'bcryptjs';
-import { createDefaultApiKey } from '../../../lib/apiKeyUtils';
 
 /**
  * Signup API endpoint
@@ -11,7 +10,6 @@ import { createDefaultApiKey } from '../../../lib/apiKeyUtils';
  * - Email validation
  * - Password strength requirements
  * - Generic error messages to prevent user enumeration
- * - Auto-generates API key for new users
  */
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -78,18 +76,9 @@ export default async function handler(req, res) {
                 email: normalizedEmail,
                 name: name || null,
                 passwordHash,
-                emailVerified: null // Set to null initially, can implement email verification later
+                emailVerified: null
             }
         });
-
-        // Auto-generate API key for new user
-        try {
-            await createDefaultApiKey(user.id);
-            console.log(`Auto-generated API key for new user: ${user.email}`);
-        } catch (error) {
-            console.error(`Failed to auto-generate API key for ${user.email}:`, error);
-            // Don't block signup if key generation fails
-        }
 
         // Return success (without sensitive data)
         return res.status(201).json({
