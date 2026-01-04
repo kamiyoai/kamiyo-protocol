@@ -103,7 +103,7 @@ animation: gradientMove 3s linear infinite;
                 {/* Page Header */}
                 <header className="mb-12">
                     <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">
-                        — &nbsp;カラーパレット
+                        — &nbsp;Color カラー
                     </p>
                     <h1 className="text-4xl font-light mb-4">Color</h1>
                     <p className="text-gray-400 text-lg leading-relaxed">

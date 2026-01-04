@@ -45,7 +45,7 @@ p {
                 {/* Page Header */}
                 <header className="mb-12">
                     <p className="font-light text-sm tracking-widest gradient-text mb-4 md:mb-8">
-                        — &nbsp;タイポグラフィ
+                        — &nbsp;Typography タイポグラフィ
                     </p>
                     <h1 className="text-4xl font-light mb-4">Typography</h1>
                     <p className="text-gray-400 text-lg leading-relaxed">
