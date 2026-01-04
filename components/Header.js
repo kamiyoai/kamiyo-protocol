@@ -130,46 +130,50 @@ export default function Header({ children }) {
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
-                                {/* Top line - short, right-aligned */}
+                                {/* Line 1 - longest */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "10"}
-                                    y1="7"
+                                    x1={isMenuOpen ? "4" : "4"}
+                                    y1="5"
                                     x2="20"
-                                    y2="7"
+                                    y2="5"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
-                                        transform: isMenuOpen
-                                            ? "rotate(45deg)"
-                                            : "none",
+                                        transform: isMenuOpen ? "rotate(45deg)" : "none",
                                         transformOrigin: "center",
                                     }}
                                     className="transition-all duration-300"
                                 />
-                                {/* Middle line - full width */}
+                                {/* Line 2 - medium */}
                                 <line
-                                    x1="4"
-                                    y1="12"
+                                    x1={isMenuOpen ? "4" : "8"}
+                                    y1="10"
                                     x2="20"
-                                    y2="12"
+                                    y2="10"
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    className={`transition-all duration-300 ${
-                                        isMenuOpen ? "opacity-0" : "opacity-100"
-                                    }`}
+                                    className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
-                                {/* Bottom line - medium, right-aligned */}
+                                {/* Line 3 - short */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "7"}
-                                    y1="17"
+                                    x1={isMenuOpen ? "4" : "12"}
+                                    y1="15"
                                     x2="20"
-                                    y2="17"
+                                    y2="15"
+                                    stroke="currentColor"
+                                    strokeWidth="1"
+                                    className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
+                                />
+                                {/* Line 4 - shortest */}
+                                <line
+                                    x1={isMenuOpen ? "4" : "16"}
+                                    y1="20"
+                                    x2="20"
+                                    y2="20"
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
-                                        transform: isMenuOpen
-                                            ? "rotate(-45deg)"
-                                            : "none",
+                                        transform: isMenuOpen ? "rotate(-45deg)" : "none",
                                         transformOrigin: "center",
                                     }}
                                     className="transition-all duration-300"
