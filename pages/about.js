@@ -170,73 +170,62 @@ export default function About() {
 
                 {/* Comprehensive Comparison */}
                 <div className="border-t border-gray-800 pt-12">
-                    <h4 className="text-xl md:text-2xl mb-2 font-light text-center">KAMIYO vs Traditional Chargebacks</h4>
-                    <p className="text-gray-500 text-sm text-center mb-8">Competitive Analysis Comparison</p>
+                    <h4 className="text-xl md:text-2xl mb-8 font-light text-center">KAMIYO vs Traditional Chargebacks</h4>
 
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm text-gray-400">
                             <thead>
-                                <tr className="bg-[#1a2e35]">
-                                    <th className="text-left py-3 px-4 text-white font-medium">Feature</th>
-                                    <th className="text-left py-3 px-4 text-white font-medium">KAMIYO Protocol</th>
-                                    <th className="text-left py-3 px-4 text-white font-medium">Traditional Chargebacks</th>
+                                <tr className="border-b border-gray-700">
+                                    <th className="text-left py-2 text-white font-light"></th>
+                                    <th className="text-left py-2 text-white font-light">Traditional</th>
+                                    <th className="text-left py-2 text-white font-light">KAMIYO</th>
                                 </tr>
                             </thead>
-                            <tbody className="text-gray-300">
-                                <tr className="border-b border-gray-800 bg-[#0a0a0a]">
-                                    <td className="py-3 px-4 font-medium text-white">Resolution Time</td>
-                                    <td className="py-3 px-4">2-48 hours</td>
-                                    <td className="py-3 px-4">30-90 days</td>
+                            <tbody>
+                                <tr className="border-b border-gray-800">
+                                    <td className="py-2">Resolution Time</td>
+                                    <td className="py-2">30-90 days</td>
+                                    <td className="py-2 text-cyan">2-48 hours</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-3 px-4 font-medium text-white">Speed Advantage</td>
-                                    <td className="py-3 px-4 text-cyan">75x Faster</td>
-                                    <td className="py-3 px-4 text-gray-500">Slow</td>
-                                </tr>
-                                <tr className="border-b border-gray-800 bg-[#0a0a0a]">
-                                    <td className="py-3 px-4 font-medium text-white">Cost per Dispute</td>
-                                    <td className="py-3 px-4">$2-8</td>
-                                    <td className="py-3 px-4">$35-50</td>
+                                    <td className="py-2">Cost per Dispute</td>
+                                    <td className="py-2">$35-50</td>
+                                    <td className="py-2 text-cyan">$2-8</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-3 px-4 font-medium text-white">Cost Savings</td>
-                                    <td className="py-3 px-4 text-cyan">88% Cheaper</td>
-                                    <td className="py-3 px-4 text-gray-500">Expensive</td>
-                                </tr>
-                                <tr className="border-b border-gray-800 bg-[#0a0a0a]">
-                                    <td className="py-3 px-4 font-medium text-white">Outcome Type</td>
-                                    <td className="py-3 px-4 text-cyan">Sliding Scale (0-100%)</td>
-                                    <td className="py-3 px-4 text-gray-500">Binary (All or Nothing)</td>
+                                    <td className="py-2">Outcome Type</td>
+                                    <td className="py-2">Binary</td>
+                                    <td className="py-2 text-cyan">Sliding Scale (0-100%)</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-3 px-4 font-medium text-white">Automation</td>
-                                    <td className="py-3 px-4 text-cyan">Fully Autonomous</td>
-                                    <td className="py-3 px-4 text-gray-500">Human Required</td>
-                                </tr>
-                                <tr className="border-b border-gray-800 bg-[#0a0a0a]">
-                                    <td className="py-3 px-4 font-medium text-white">Transparency</td>
-                                    <td className="py-3 px-4 text-cyan">On-chain & Verifiable</td>
-                                    <td className="py-3 px-4 text-gray-500">Opaque & Centralized</td>
+                                    <td className="py-2">Automation</td>
+                                    <td className="py-2">Human Required</td>
+                                    <td className="py-2 text-cyan">Fully Autonomous</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-3 px-4 font-medium text-white">Network</td>
-                                    <td className="py-3 px-4 text-cyan">Solana Blockchain</td>
-                                    <td className="py-3 px-4 text-gray-500">Traditional Rails</td>
-                                </tr>
-                                <tr className="border-b border-gray-800 bg-[#0a0a0a]">
-                                    <td className="py-3 px-4 font-medium text-white">Agent-Ready</td>
-                                    <td className="py-3 px-4 text-cyan">Built for AI Agents</td>
-                                    <td className="py-3 px-4 text-gray-500">Not Designed for Agents</td>
+                                    <td className="py-2">Transparency</td>
+                                    <td className="py-2">Opaque</td>
+                                    <td className="py-2 text-cyan">On-chain & Verifiable</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-3 px-4 font-medium text-white">Quality Assessment</td>
-                                    <td className="py-3 px-4 text-cyan">Multi-Oracle Consensus</td>
-                                    <td className="py-3 px-4 text-gray-500">Manual Review</td>
+                                    <td className="py-2">Network</td>
+                                    <td className="py-2">Traditional Rails</td>
+                                    <td className="py-2 text-cyan">Solana Blockchain</td>
                                 </tr>
-                                <tr className="border-b border-gray-800 bg-[#0a0a0a]">
-                                    <td className="py-3 px-4 font-medium text-white">Settlement Speed</td>
-                                    <td className="py-3 px-4 text-cyan">Real-time On-chain</td>
-                                    <td className="py-3 px-4 text-gray-500">30-90 Day Wait</td>
+                                <tr className="border-b border-gray-800">
+                                    <td className="py-2">Agent-Ready</td>
+                                    <td className="py-2">No</td>
+                                    <td className="py-2 text-cyan">Built for AI Agents</td>
+                                </tr>
+                                <tr className="border-b border-gray-800">
+                                    <td className="py-2">Quality Assessment</td>
+                                    <td className="py-2">Manual Review</td>
+                                    <td className="py-2 text-cyan">Multi-Oracle Consensus</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2">Settlement</td>
+                                    <td className="py-2">30-90 Day Wait</td>
+                                    <td className="py-2 text-cyan">Real-time On-chain</td>
                                 </tr>
                             </tbody>
                         </table>
