@@ -13,7 +13,7 @@ export default function Layout({ children }) {
                 <Header />
             </div>
             {/* Ensure content scrolls properly */}
-            <main className={`flex-1 overflow-y-auto pt-[80px] transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"} relative`}>
+            <main className={`flex-1 pt-[80px] transition-transform duration-300 ${isMenuOpen ? "-translate-x-72" : "translate-x-0"} relative`}>
                 {children}
             </main>
             <Footer />

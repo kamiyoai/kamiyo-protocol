@@ -10,84 +10,83 @@ export default function About() {
             />
 
             <section className="py-10 px-5 mx-auto max-w-[1400px]">
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
-                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;私たちについて</p>
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">The trust layer for the agentic economy</h1>
-                    <h4 className="text-xl md:text-2xl mt-4 text-cyan">Decentralized SLA enforcement</h4>
+                <div className="subheading-border mb-12 pb-6">
+                    <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;About</p>
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Trust infrastructure for autonomous commerce</h1>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-20">
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4 font-light">The problem</h4>
-                        <p className="mb-4 text-gray-400">AI agents are transacting autonomously at unprecedented scale. $15 trillion in B2B purchases are projected to be commanded by AI agents by 2028.</p>
+                        <h4 className="text-xl md:text-2xl mb-4 font-light">The challenge</h4>
+                        <p className="mb-4 text-gray-400">Autonomous agents are executing transactions at machine speed. By 2028, AI-driven systems will manage an estimated $15 trillion in B2B commerce.</p>
 
-                        <p className="mb-4 text-gray-400">But when something goes wrong—bad data, failed API calls, degraded service—there's no recourse. Payments happen instantly. Quality verification doesn't.</p>
+                        <p className="mb-4 text-gray-400">Current payment infrastructure assumes human oversight. When a service degrades or an API fails, there's no automated path to resolution. Funds transfer instantly while quality verification remains manual.</p>
 
-                        <p className="mb-4 text-gray-400">Traditional dispute resolution assumes human involvement: customer support, chargebacks, legal proceedings. None of this works for autonomous systems making thousands of decisions per second.</p>
+                        <p className="mb-4 text-gray-400">Existing dispute mechanisms—support tickets, chargebacks, arbitration—require human intervention at every step. This breaks down when systems process thousands of transactions per second.</p>
 
-                        <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">The solution</h4>
-                        <p className="mb-4 text-gray-400">KAMIYO is decentralized SLA enforcement for machine-to-machine commerce.</p>
+                        <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Our approach</h4>
+                        <p className="mb-4 text-gray-400">KAMIYO provides programmatic SLA enforcement for machine-to-machine transactions.</p>
                         <ol className="space-y-3 text-gray-400 list-decimal list-inside">
-                            <li>Agent pays for API access through KAMIYO escrow</li>
-                            <li>Service delivers (or fails to deliver)</li>
-                            <li>If SLA violated: automatic dispute triggered</li>
-                            <li>Oracle network evaluates quality (0-100 score)</li>
-                            <li>Graduated settlement: partial refund based on actual service quality</li>
+                            <li>Payment held in escrow until delivery verification</li>
+                            <li>Service execution with defined quality parameters</li>
+                            <li>Automatic dispute initiation on SLA violation</li>
+                            <li>Decentralized oracle network scores delivery quality</li>
+                            <li>Proportional settlement based on verified performance</li>
                         </ol>
-                        <p className="mt-4 text-gray-400">Real services are rarely perfect or complete failures. KAMIYO's quality-based arbitration enables proportional outcomes.</p>
+                        <p className="mt-4 text-gray-400">Services exist on a spectrum. KAMIYO enables settlement that reflects actual delivery quality rather than binary pass/fail outcomes.</p>
                     </div>
                     <div>
-                        <h4 className="text-xl md:text-2xl mb-4 font-light">How it works</h4>
+                        <h4 className="text-xl md:text-2xl mb-4 font-light">Core components</h4>
                         <ul className="space-y-4 text-gray-400">
                             <li>
-                                <p><strong className="text-white">Escrowed Payments:</strong><br/>Funds held until service delivery is verified. Not binary release—graduated based on quality.</p>
+                                <p><strong className="text-white">Escrow Protocol</strong><br/>Funds secured until service delivery is verified. Settlement graduated based on quality score.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Automatic Disputes:</strong><br/>SLA violations trigger disputes without human intervention. Oracle network evaluates evidence.</p>
+                                <p><strong className="text-white">Dispute Engine</strong><br/>SLA violations trigger automated disputes. Evidence submitted to oracle network for evaluation.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Quality Scoring:</strong><br/>Oracles score service quality 0-100. Partial delivery means partial payment.</p>
+                                <p><strong className="text-white">Quality Scoring</strong><br/>Oracle consensus determines service quality on a 0-100 scale. Partial delivery results in proportional payment.</p>
                             </li>
                             <li>
-                                <p><strong className="text-white">Privacy-Preserving:</strong><br/>ZK commit-reveal voting prevents oracle collusion. Votes verified on-chain.</p>
+                                <p><strong className="text-white">Collusion Resistance</strong><br/>ZK commit-reveal voting with stake-weighted consensus. All votes verified on-chain.</p>
                             </li>
                         </ul>
 
-                        <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Key differentiators</h4>
+                        <h4 className="pt-6 text-xl md:text-2xl mb-4 font-light">Comparison</h4>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-gray-400">
                                 <thead>
                                     <tr className="border-b border-gray-700">
-                                        <th className="text-left py-2 text-white font-light">Feature</th>
-                                        <th className="text-left py-2 text-white font-light">Traditional</th>
+                                        <th className="text-left py-2 text-white font-light"></th>
+                                        <th className="text-left py-2 text-white font-light">Legacy</th>
                                         <th className="text-left py-2 text-white font-light">KAMIYO</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr className="border-b border-gray-800">
                                         <td className="py-2">Payment</td>
-                                        <td className="py-2">Instant</td>
+                                        <td className="py-2">Immediate</td>
                                         <td className="py-2 text-cyan">Escrowed</td>
                                     </tr>
                                     <tr className="border-b border-gray-800">
                                         <td className="py-2">Disputes</td>
-                                        <td className="py-2">Customer support</td>
-                                        <td className="py-2 text-cyan">Automatic</td>
+                                        <td className="py-2">Manual</td>
+                                        <td className="py-2 text-cyan">Programmatic</td>
                                     </tr>
                                     <tr className="border-b border-gray-800">
-                                        <td className="py-2">Outcomes</td>
+                                        <td className="py-2">Resolution</td>
                                         <td className="py-2">Binary</td>
-                                        <td className="py-2 text-cyan">Graduated (0-100)</td>
+                                        <td className="py-2 text-cyan">Graduated</td>
                                     </tr>
                                     <tr className="border-b border-gray-800">
                                         <td className="py-2">Arbitration</td>
                                         <td className="py-2">Centralized</td>
-                                        <td className="py-2 text-cyan">Oracle network</td>
+                                        <td className="py-2 text-cyan">Decentralized</td>
                                     </tr>
                                     <tr>
-                                        <td className="py-2">Settlement</td>
-                                        <td className="py-2">Weeks</td>
-                                        <td className="py-2 text-cyan">Quality-based</td>
+                                        <td className="py-2">Timeline</td>
+                                        <td className="py-2">Days to weeks</td>
+                                        <td className="py-2 text-cyan">Seconds</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -96,19 +95,19 @@ export default function About() {
                 </div>
 
                 <div className="border-t border-gray-800 pt-12">
-                    <h4 className="text-xl md:text-2xl mb-6 font-light text-center">Use cases</h4>
+                    <h4 className="text-xl md:text-2xl mb-6 font-light text-center">Applications</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="border border-gray-500/25 rounded-lg p-6">
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">API Data Quality</div>
-                            <p className="text-gray-400 text-sm">Trading agent pays for market data. API returns stale prices. Oracles score quality at 35/100. Agent receives 75% refund automatically.</p>
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">Data Services</div>
+                            <p className="text-gray-400 text-sm">Agent purchases market data feed. Provider delivers stale prices. Oracle network scores quality at 35/100. Proportional refund issued automatically.</p>
                         </div>
                         <div className="border border-gray-500/25 rounded-lg p-6">
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">Compute Services</div>
-                            <p className="text-gray-400 text-sm">ML agent requests GPU time. Provider throttles after 60% completion. Oracle verifies partial delivery. Agent receives proportional refund.</p>
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">Compute</div>
+                            <p className="text-gray-400 text-sm">Agent provisions GPU resources. Provider throttles at 60% completion. Partial delivery verified. Settlement reflects actual usage.</p>
                         </div>
                         <div className="border border-gray-500/25 rounded-lg p-6">
-                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">Multi-Agent Coordination</div>
-                            <p className="text-gray-400 text-sm">Agent swarm coordinates tasks. One provider fails. Graduated settlement keeps funds flowing. Bad actors flagged for reputation damage.</p>
+                            <div className="text-cyan text-xs uppercase tracking-wider mb-2">Agent Networks</div>
+                            <p className="text-gray-400 text-sm">Multi-agent system coordinates task execution. Provider fails delivery. Graduated settlement maintains network flow. Reputation updated on-chain.</p>
                         </div>
                     </div>
                 </div>

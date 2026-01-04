@@ -7,7 +7,6 @@ import { LinkButton } from "../components/Button";
 
 export default function Home() {
     const [logoLoaded, setLogoLoaded] = useState(false);
-    const [heroVisible, setHeroVisible] = useState(false);
     const [sectionsVisible, setSectionsVisible] = useState({
         howItWorks: false,
         features: false,
@@ -24,10 +23,9 @@ export default function Home() {
     const buildingForRef = useRef(null);
     const faqRef = useRef(null);
 
-    // Logo animation on page load
+    // Logo animation on page load (1 second delay)
     useEffect(() => {
-        setTimeout(() => setLogoLoaded(true), 100);
-        setTimeout(() => setHeroVisible(true), 300);
+        setTimeout(() => setLogoLoaded(true), 1000);
     }, []);
 
     // Scroll animations for sections
@@ -66,26 +64,16 @@ export default function Home() {
         <>
             <SEO />
             <div className="text-white bg-black min-h-screen">
-                {/* SVG Gradient Definition */}
-                <svg width="0" height="0" className="absolute">
-                    <defs>
-                        <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#00f0ff" />
-                            <stop offset="100%" stopColor="#ff44f5" />
-                        </linearGradient>
-                    </defs>
-                </svg>
-
                 {/* Hero Section */}
                 <section className="w-full min-h-[calc(100vh-80px)] flex items-center border-b border-gray-500/25 bg-black">
-                <div className="w-full px-5 mx-auto py-16 max-w-[1400px]">
+                <div className="w-full px-5 mx-auto max-w-[1400px] -mt-16">
                     {/* SEO-friendly H1 (visually hidden) */}
                     <h1 className="sr-only leading-[1.25]">KAMIYO: Trust Infrastructure for Autonomous Agents | Escrow & Dispute Resolution</h1>
 
                     {/* Two-column layout */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                         {/* Left column: Content */}
-                        <article className={`space-y-8 transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                        <article className="space-y-8">
                             {/* Heading */}
                             <header>
                                 <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;自律エージェント信頼基盤</p>
@@ -137,8 +125,16 @@ export default function Home() {
                         </article>
 
                         {/* Right column: Video (hidden on mobile) */}
-                        <div className={`hidden md:flex justify-center md:justify-end transition-all duration-1000 delay-200 ${logoLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+                        <div
+                            className="hidden md:flex justify-center md:justify-end"
+                            style={{ perspective: '1000px' }}
+                        >
                             <video
+                                style={{
+                                    transform: logoLoaded ? 'scale(1) rotateX(0deg) rotateY(0deg)' : 'scale(0.3) rotateX(45deg) rotateY(180deg)',
+                                    opacity: logoLoaded ? 1 : 0,
+                                    transition: 'all 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                                }}
                                 autoPlay
                                 loop
                                 muted
@@ -159,8 +155,8 @@ export default function Home() {
             {/* How It Works Section */}
             <section ref={howItWorksRef} className={`w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px] transition-all duration-700 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`} aria-labelledby="how-it-works-heading">
                 <header className="text-center mb-16">
-                    <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">How it works</h2>
-                    <p className="text-gray-400 text-sm md:text-lg">From agreement to settlement in four steps</p>
+                    <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">The KAMIYO Protocol</h2>
+                    <p className="text-gray-400 text-sm md:text-lg">Trustless settlement for autonomous transactions</p>
                 </header>
 
                 {/* Timeline with connecting line */}
@@ -171,19 +167,28 @@ export default function Home() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
                         {/* Step 1 - Create Agreement: dots forming protective enclosure */}
                         <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '100ms' }}>
-                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
-                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
-                                    <circle cx="12" cy="6" r="1.5" />
-                                    <circle cx="7" cy="9" r="1.5" />
-                                    <circle cx="17" cy="9" r="1.5" />
-                                    <circle cx="5" cy="14" r="1.5" />
-                                    <circle cx="19" cy="14" r="1.5" />
-                                    <circle cx="8" cy="18" r="1.5" />
-                                    <circle cx="16" cy="18" r="1.5" />
-                                    <circle cx="12" cy="12" r="2" opacity="0.5" />
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
+{/* Two 2x3 blocks diagonal */}
+                                <svg className="w-8 h-8" viewBox="0 0 20 20">
+                                    <defs>
+                                        <linearGradient id="iconGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor="#00f0ff" />
+                                            <stop offset="100%" stopColor="#ff44f5" />
+                                        </linearGradient>
+                                    </defs>
+                                    {/* Top-left block: 2 rows x 3 cols */}
+                                    <rect x="1.4" y="2.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="3.4" y="2.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="5.4" y="2.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="7.4" y="2.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="2.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="2.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    <rect x="1.4" y="4.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="3.4" y="4.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="5.4" y="4.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="7.4" y="4.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="4.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="4.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    <rect x="1.4" y="6.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="3.4" y="6.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="5.4" y="6.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="7.4" y="6.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="6.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="6.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    <rect x="1.4" y="8.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="3.4" y="8.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="5.4" y="8.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="7.4" y="8.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="8.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="8.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    {/* Bottom-right block: 2 rows x 3 cols */}
+                                    <rect x="7.4" y="10.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="10.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="10.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="13.4" y="10.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="15.4" y="10.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="17.4" y="10.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    <rect x="7.4" y="12.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="12.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="12.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="13.4" y="12.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="15.4" y="12.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="17.4" y="12.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    <rect x="7.4" y="14.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="14.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="14.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="13.4" y="14.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="15.4" y="14.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="17.4" y="14.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
+                                    <rect x="7.4" y="16.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="9.4" y="16.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="11.4" y="16.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="13.4" y="16.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="15.4" y="16.4" width="1.2" height="1.2" fill="url(#iconGradient1)" /><rect x="17.4" y="16.4" width="1.2" height="1.2" fill="url(#iconGradient1)" />
                                 </svg>
                             </div>
-                            <div className="text-white text-lg font-light mb-2">Create Agreement</div>
+                            <div className="text-white text-lg font-extralight mb-2">Create Agreement</div>
                             <div className="text-gray-500 text-sm">
                                 Funds locked in escrow PDA with configurable time-lock
                             </div>
@@ -191,19 +196,30 @@ export default function Home() {
 
                         {/* Step 2 - Service Delivered: dots flowing diagonally */}
                         <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '200ms' }}>
-                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
-                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
-                                    <circle cx="4" cy="4" r="1.2" opacity="0.4" />
-                                    <circle cx="7" cy="7" r="1.4" opacity="0.5" />
-                                    <circle cx="10" cy="10" r="1.5" opacity="0.7" />
-                                    <circle cx="13" cy="13" r="1.6" opacity="0.85" />
-                                    <circle cx="17" cy="17" r="1.8" />
-                                    <circle cx="20" cy="20" r="1.5" />
-                                    <circle cx="8" cy="16" r="1" opacity="0.3" />
-                                    <circle cx="16" cy="8" r="1" opacity="0.3" />
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
+{/* Diamond - 4 squares as 2x2 dots */}
+                                <svg className="w-8 h-8" viewBox="-1 -1 20 20">
+                                    <defs>
+                                        <linearGradient id="iconGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor="#00f0ff" />
+                                            <stop offset="100%" stopColor="#ff44f5" />
+                                        </linearGradient>
+                                    </defs>
+                                    {/* Top center */}
+                                    <rect x="7.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="9.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    <rect x="7.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="9.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    {/* Middle left */}
+                                    <rect x="3.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="5.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    <rect x="3.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="5.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    {/* Middle right */}
+                                    <rect x="11.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="13.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    <rect x="11.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="13.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    {/* Bottom center */}
+                                    <rect x="7.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="9.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
+                                    <rect x="7.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient2)" /><rect x="9.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient2)" />
                                 </svg>
                             </div>
-                            <div className="text-white text-lg font-light mb-2">Service Delivered</div>
+                            <div className="text-white text-lg font-extralight mb-2">Service Delivered</div>
                             <div className="text-gray-500 text-sm">
                                 Provider delivers, agent evaluates quality
                             </div>
@@ -211,20 +227,28 @@ export default function Home() {
 
                         {/* Step 3 - Oracle Consensus: dots converging to center */}
                         <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '300ms' }}>
-                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
-                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
-                                    <circle cx="12" cy="12" r="2.5" />
-                                    <circle cx="4" cy="6" r="1.5" opacity="0.7" />
-                                    <circle cx="20" cy="6" r="1.5" opacity="0.7" />
-                                    <circle cx="4" cy="18" r="1.5" opacity="0.7" />
-                                    <circle cx="20" cy="18" r="1.5" opacity="0.7" />
-                                    <circle cx="7" cy="9" r="1" opacity="0.4" />
-                                    <circle cx="17" cy="9" r="1" opacity="0.4" />
-                                    <circle cx="7" cy="15" r="1" opacity="0.4" />
-                                    <circle cx="17" cy="15" r="1" opacity="0.4" />
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
+{/* X pattern - 7 squares */}
+                                <svg className="w-8 h-8" viewBox="-1 -1 20 20">
+                                    <defs>
+                                        <linearGradient id="iconGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor="#00f0ff" />
+                                            <stop offset="100%" stopColor="#ff44f5" />
+                                        </linearGradient>
+                                    </defs>
+                                    {/* Row 0: col 1, col 3 */}
+                                    <rect x="5.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="7.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="5.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="7.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
+                                    <rect x="11.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="13.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="11.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="13.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
+                                    {/* Row 1: col 0, col 2, col 4 */}
+                                    <rect x="2.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="4.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="2.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="4.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
+                                    <rect x="8.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="10.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="8.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="10.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
+                                    <rect x="14.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="16.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="14.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="16.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
+                                    {/* Row 2: col 1, col 3 */}
+                                    <rect x="5.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="7.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="5.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="7.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
+                                    <rect x="11.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="13.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="11.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient3)" /><rect x="13.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient3)" />
                                 </svg>
                             </div>
-                            <div className="text-white text-lg font-light mb-2">Oracle Consensus</div>
+                            <div className="text-white text-lg font-extralight mb-2">Oracle Consensus</div>
                             <div className="text-gray-500 text-sm">
                                 Multi-oracle panel scores quality (0-100)
                             </div>
@@ -232,20 +256,32 @@ export default function Home() {
 
                         {/* Step 4 - Auto Settlement: balanced resolution pattern */}
                         <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '400ms' }}>
-                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
-                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
-                                    <circle cx="12" cy="12" r="2" />
-                                    <circle cx="12" cy="5" r="1.5" />
-                                    <circle cx="12" cy="19" r="1.5" />
-                                    <circle cx="5" cy="12" r="1.5" />
-                                    <circle cx="19" cy="12" r="1.5" />
-                                    <circle cx="7" cy="7" r="1" opacity="0.5" />
-                                    <circle cx="17" cy="7" r="1" opacity="0.5" />
-                                    <circle cx="7" cy="17" r="1" opacity="0.5" />
-                                    <circle cx="17" cy="17" r="1" opacity="0.5" />
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10">
+{/* Two mirrored arrows - 11 squares */}
+                                <svg className="w-8 h-8" viewBox="0 0 21 18">
+                                    <defs>
+                                        <linearGradient id="iconGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stopColor="#00f0ff" />
+                                            <stop offset="100%" stopColor="#ff44f5" />
+                                        </linearGradient>
+                                    </defs>
+                                    {/* Row 0: left pair, right pair */}
+                                    <rect x="3.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="5.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="3.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="5.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="7.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="9.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="7.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="9.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="11.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="13.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="11.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="13.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="15.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="17.4" y="3.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="15.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="17.4" y="5.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    {/* Row 1: left, center, right */}
+                                    <rect x="1.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="3.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="1.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="3.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="9.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="11.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="9.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="11.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="17.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="19.4" y="7.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="17.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="19.4" y="9.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    {/* Row 2: left pair, right pair */}
+                                    <rect x="3.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="5.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="3.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="5.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="7.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="9.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="7.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="9.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="11.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="13.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="11.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="13.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
+                                    <rect x="15.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="17.4" y="11.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="15.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" /><rect x="17.4" y="13.4" width="1.2" height="1.2" fill="url(#iconGradient4)" />
                                 </svg>
                             </div>
-                            <div className="text-white text-lg font-light mb-2">Auto Settlement</div>
+                            <div className="text-white text-lg font-extralight mb-2">Auto Settlement</div>
                             <div className="text-gray-500 text-sm">
                                 Funds distributed, reputations updated on-chain
                             </div>
@@ -257,7 +293,7 @@ export default function Home() {
                 <div ref={featuresRef} className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 ${sectionsVisible.features ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                     <div className="border border-gray-500/25 rounded-lg p-5">
                         <div className="text-cyan text-xs uppercase tracking-wider mb-2">Identity</div>
-                        <div className="text-white text-lg font-light mb-2">Stake-Backed Agents</div>
+                        <div className="text-white text-lg font-extralight mb-2">Stake-Backed Agents</div>
                         <div className="text-gray-500 text-sm">
                             PDA-based identities with SOL collateral. On-chain reputation scoring.
                         </div>
@@ -265,7 +301,7 @@ export default function Home() {
 
                     <div className="border border-gray-500/25 rounded-lg p-5">
                         <div className="text-cyan text-xs uppercase tracking-wider mb-2">Resolution</div>
-                        <div className="text-white text-lg font-light mb-2">Quality-Based Arbitration</div>
+                        <div className="text-white text-lg font-extralight mb-2">Quality-Based Arbitration</div>
                         <div className="text-gray-500 text-sm">
                             Sliding refund scale based on oracle-determined quality scores.
                         </div>
@@ -273,7 +309,7 @@ export default function Home() {
 
                     <div className="border border-gray-500/25 rounded-lg p-5">
                         <div className="text-cyan text-xs uppercase tracking-wider mb-2">Consensus</div>
-                        <div className="text-white text-lg font-light mb-2">Multi-Oracle Verification</div>
+                        <div className="text-white text-lg font-extralight mb-2">Multi-Oracle Verification</div>
                         <div className="text-gray-500 text-sm">
                             Decentralized dispute resolution. Median-based, anti-collusion.
                         </div>

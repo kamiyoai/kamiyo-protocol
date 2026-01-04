@@ -7,7 +7,7 @@
 html,
 body,
 #__next {
-    height: 100%;
+    min-height: 100%;
 }
 
 html, body, main {
@@ -262,6 +262,31 @@ ol li {
     border-image-slice: 1;
     border-image-source: linear-gradient(to right, magenta, cyan);
     animation: gradientBorder 2s linear infinite;
+}
+
+/* Subheading dotted border */
+.subheading-border {
+    position: relative;
+    border-bottom: none;
+}
+.subheading-border::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, #00f0ff, #ff44f5);
+    mask: repeating-linear-gradient(
+        90deg,
+        #000 0px, #000 1px,
+        transparent 1px, transparent 2.5px
+    );
+    -webkit-mask: repeating-linear-gradient(
+        90deg,
+        #000 0px, #000 1px,
+        transparent 1px, transparent 2.5px
+    );
 }
 
 /* Screen reader only (for SEO) */

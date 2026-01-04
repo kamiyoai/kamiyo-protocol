@@ -181,7 +181,7 @@ export default function SubscriptionPage() {
                 </div>
 
                 {/* Header */}
-                <div className="border-dotted border-b border-cyan mb-12 pb-6">
+                <div className="subheading-border mb-12 pb-6">
                     <p className="font-light text-sm uppercase tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;サブスクリプション</p>
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-light leading-[1.25]">Manage Subscription</h1>
                     <p className="text-gray-400 mt-4">
