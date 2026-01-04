@@ -183,49 +183,49 @@ export default function About() {
                             </thead>
                             <tbody>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-2">Resolution Time</td>
+                                    <td className="py-2">Resolution time</td>
                                     <td className="py-2">30-90 days</td>
                                     <td className="py-2 text-cyan">2-48 hours</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-2">Cost per Dispute</td>
+                                    <td className="py-2">Cost per dispute</td>
                                     <td className="py-2">$35-50</td>
                                     <td className="py-2 text-cyan">$2-8</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-2">Outcome Type</td>
+                                    <td className="py-2">Outcome type</td>
                                     <td className="py-2">Binary</td>
-                                    <td className="py-2 text-cyan">Sliding Scale (0-100%)</td>
+                                    <td className="py-2 text-cyan">Sliding scale (0-100%)</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-2">Automation</td>
-                                    <td className="py-2">Human Required</td>
-                                    <td className="py-2 text-cyan">Fully Autonomous</td>
+                                    <td className="py-2">Human required</td>
+                                    <td className="py-2 text-cyan">Fully autonomous</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-2">Transparency</td>
                                     <td className="py-2">Opaque</td>
-                                    <td className="py-2 text-cyan">On-chain & Verifiable</td>
+                                    <td className="py-2 text-cyan">On-chain & verifiable</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
                                     <td className="py-2">Network</td>
-                                    <td className="py-2">Traditional Rails</td>
-                                    <td className="py-2 text-cyan">Solana Blockchain</td>
+                                    <td className="py-2">Traditional rails</td>
+                                    <td className="py-2 text-cyan">Solana blockchain</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-2">Agent-Ready</td>
+                                    <td className="py-2">Agent-ready</td>
                                     <td className="py-2">No</td>
-                                    <td className="py-2 text-cyan">Built for AI Agents</td>
+                                    <td className="py-2 text-cyan">Built for AI agents</td>
                                 </tr>
                                 <tr className="border-b border-gray-800">
-                                    <td className="py-2">Quality Assessment</td>
-                                    <td className="py-2">Manual Review</td>
-                                    <td className="py-2 text-cyan">Multi-Oracle Consensus</td>
+                                    <td className="py-2">Quality assessment</td>
+                                    <td className="py-2">Manual review</td>
+                                    <td className="py-2 text-cyan">Multi-oracle consensus</td>
                                 </tr>
                                 <tr>
                                     <td className="py-2">Settlement</td>
-                                    <td className="py-2">30-90 Day Wait</td>
-                                    <td className="py-2 text-cyan">Real-time On-chain</td>
+                                    <td className="py-2">30-90 day wait</td>
+                                    <td className="py-2 text-cyan">Real-time on-chain</td>
                                 </tr>
                             </tbody>
                         </table>
