@@ -132,7 +132,7 @@ export default function Header({ children }) {
                             >
                                 {/* Line 1 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "4"}
+                                    x1={isMenuOpen ? "4" : "10"}
                                     y1="6"
                                     x2="20"
                                     y2="6"
@@ -146,7 +146,7 @@ export default function Header({ children }) {
                                 />
                                 {/* Line 2 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "8"}
+                                    x1={isMenuOpen ? "4" : "7"}
                                     y1="10"
                                     x2="20"
                                     y2="10"
@@ -156,7 +156,7 @@ export default function Header({ children }) {
                                 />
                                 {/* Line 3 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "8"}
+                                    x1={isMenuOpen ? "4" : "4"}
                                     y1="14"
                                     x2="20"
                                     y2="14"
@@ -166,7 +166,7 @@ export default function Header({ children }) {
                                 />
                                 {/* Line 4 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "4"}
+                                    x1={isMenuOpen ? "4" : "7"}
                                     y1="18"
                                     x2="20"
                                     y2="18"
