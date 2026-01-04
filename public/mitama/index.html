@@ -2291,9 +2291,20 @@ pub mod mitama {
                 showStatus('Connecting to wallet...', 'info');
 
                 // Check if wallet is already connected from previous session
-                if (walletProvider.isConnected && walletProvider.publicKey) {
-                    walletPublicKey = walletProvider.publicKey;
-                } else {
+                let useExistingConnection = false;
+                if (walletProvider.isConnected) {
+                    try {
+                        if (walletProvider.publicKey) {
+                            walletPublicKey = walletProvider.publicKey;
+                            useExistingConnection = true;
+                        }
+                    } catch (_) {
+                        // Stale connection, will reconnect below
+                        try { await walletProvider.disconnect(); } catch (_) {}
+                    }
+                }
+
+                if (!useExistingConnection) {
                     // Connect to wallet with retry logic
                     let resp;
                     let retries = 2;
@@ -2304,6 +2315,10 @@ pub mod mitama {
                         } catch (e) {
                             retries--;
                             if (retries === 0) throw e;
+                            // Disconnect stale connection before retry
+                            try {
+                                await walletProvider.disconnect();
+                            } catch (_) {}
                             await new Promise(r => setTimeout(r, 500));
                         }
                     }
