@@ -69,7 +69,7 @@ export default function ContactPage() {
                         </p>
                     </div>
 
-                    <div className="justify-end space-y-3 mt-12">
+                    <div className="justify-end space-y-6 mt-12">
                         <div>
                             <p className="text-sm gradient-text uppercase tracking-widest">General</p>
                             <a href="mailto:kamiyo@kamiyo.ai" className="mb-0 text-sm text-magenta hover:text-white font-light">
