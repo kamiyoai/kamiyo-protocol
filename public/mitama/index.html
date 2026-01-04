@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
-    <script src="/oracle-transactions.js?v=20251111b" defer></script>
+    <script src="oracle-transactions.js?v=20260104a" defer></script>
     <style>
         /* ========================================
            CSS CUSTOM PROPERTIES (VARIABLES)
@@ -1727,12 +1727,7 @@ pub mod mitama {
             }
         }
 
-        // RPC endpoints with fallbacks
-        const RPC_ENDPOINTS = [
-            'https://mainnet.helius-rpc.com/?api-key=c4a9b21c-8650-451d-9572-8c8a3543a0be',
-            'https://rpc.ankr.com/solana'
-        ];
-
+        // getWorkingConnection uses RPC_ENDPOINTS from oracle-transactions.js
         async function getWorkingConnection() {
             for (const endpoint of RPC_ENDPOINTS) {
                 try {

@@ -11,7 +11,6 @@ function LoadingWrapper({ children }) {
     const { status } = useSession();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [initialLoad, setInitialLoad] = useState(true);
 
     useEffect(() => {
         const handleStart = () => setLoading(true);
@@ -35,33 +34,10 @@ function LoadingWrapper({ children }) {
         }
     }, [status, router]);
 
-    useEffect(() => {
-        if (initialLoad) {
-            // Show spinner for minimum 1.5s, then wait for load event
-            const minDisplayTimer = setTimeout(() => {
-                if (document.readyState === "complete") {
-                    setInitialLoad(false);
-                } else {
-                    const handleLoad = () => setInitialLoad(false);
-                    window.addEventListener("load", handleLoad);
-                    return () => window.removeEventListener("load", handleLoad);
-                }
-            }, 1500);
-
-            // Fallback: always hide after 4s
-            const fallbackTimer = setTimeout(() => setInitialLoad(false), 4000);
-
-            return () => {
-                clearTimeout(minDisplayTimer);
-                clearTimeout(fallbackTimer);
-            };
-        }
-    }, [initialLoad]);
-
     return (
         <>
             {children}
-            {(status === "loading" || loading || initialLoad) && <LoadingSpinner />}
+            {(status === "loading" || loading) && <LoadingSpinner />}
         </>
     );
 }
