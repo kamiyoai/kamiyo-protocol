@@ -102,7 +102,7 @@ export default function Home() {
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-col md:flex-row gap-6 items-center mt-8">
+                            <div className="flex flex-col md:flex-row gap-6 items-center pt-4">
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Get Started"
