@@ -217,8 +217,31 @@ export default function Header({ children }) {
                                         className="object-contain w-48 h-auto"
                                     />
                                 </Link>
-                                {session && (
-                                    <nav className="md:hidden flex flex-col items-center space-y-4 py-6 border-b border-gray-500 border-opacity-25">
+                                <nav className="md:hidden flex flex-col items-center space-y-4 py-6 border-b border-gray-500 border-opacity-25">
+                                    <a
+                                        href="https://protocol.kamiyo.ai"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={closeMenu}
+                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                    >
+                                        Protocol
+                                    </a>
+                                    <Link
+                                        href="/about"
+                                        onClick={closeMenu}
+                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                    >
+                                        About
+                                    </Link>
+                                    <Link
+                                        href="/inquiries"
+                                        onClick={closeMenu}
+                                        className="transition-colors duration-300 text-sm text-gray-500 hover:text-gray-300 uppercase"
+                                    >
+                                        Inquiries
+                                    </Link>
+                                    {session && (
                                         <Link
                                             href="/dashboard"
                                             onClick={closeMenu}
@@ -226,8 +249,8 @@ export default function Header({ children }) {
                                         >
                                             Dashboard
                                         </Link>
-                                    </nav>
-                                )}
+                                    )}
+                                </nav>
                                     <nav className="flex flex-col items-center space-y-4 py-6">
                                         <Link
                                             href="/docs"
