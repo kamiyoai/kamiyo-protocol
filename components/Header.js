@@ -229,15 +229,6 @@ export default function Header({ children }) {
                                     </nav>
                                 )}
                                     <nav className="flex flex-col items-center space-y-4 py-6">
-                                        <a
-                                            href="https://protocol.kamiyo.ai"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={closeMenu}
-                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
-                                        >
-                                            Protocol
-                                        </a>
                                         <Link
                                             href="/docs"
                                             onClick={closeMenu}
@@ -288,6 +279,15 @@ export default function Header({ children }) {
                                             className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
                                         >
                                             Discord
+                                        </a>
+                                        <a
+                                            href="https://github.com/kamiyo-ai/kamiyo-protocol"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={closeMenu}
+                                            className="transition-colors duration-300 text-xs text-gray-500 hover:text-gray-300"
+                                        >
+                                            GitHub
                                         </a>
                                     </nav>
                             </div>
