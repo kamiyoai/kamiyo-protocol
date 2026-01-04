@@ -3,72 +3,32 @@ import Head from 'next/head';
 import PropTypes from 'prop-types';
 
 /**
- * Comprehensive SEO Component for KAMIYO x402 Platform
- *
- * A reusable SEO component that handles all meta tags, Open Graph, Twitter Cards,
- * and JSON-LD structured data for optimal search engine optimization.
- *
- * @component
- * @example
- * // Basic usage with defaults
- * <SEO />
- *
- * @example
- * // Custom page SEO
- * <SEO
- *   title="API Documentation"
- *   description="Complete API docs for KAMIYO x402 payment system"
- *   canonical="https://kamiyo.ai/api-docs"
- * />
- *
- * @example
- * // With custom schema
- * <SEO
- *   title="Pricing Plans"
- *   schemaData={{
- *     "@context": "https://schema.org",
- *     "@type": "Product",
- *     "name": "KAMIYO Pro",
- *     "offers": {...}
- *   }}
- * />
+ * SEO Component for KAMIYO Trust Infrastructure
  */
 export default function SEO({
-  title = "Verify Crypto Payments Across 12 Blockchains in One API Call | x402 by KAMIYO",
-  description = "Stop building payment infrastructure. x402 verifies USDC payments on Solana, Base, Ethereum & 9 more chains. Sub-500ms responses. 99.9% uptime SLA. 1,000 free verifications/month. No RPC nodes required.",
+  title = "Trust Layer for the Agentic Economy | KAMIYO",
+  description = "Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution. Quality-based settlement for AI agent transactions.",
   keywords = [
-    "USDC payment verification API",
-    "multi-chain crypto payment verification",
-    "Solana USDC verification",
-    "Base payment verification API",
-    "Ethereum payment verification",
-    "blockchain payment API",
-    "crypto payment infrastructure",
-    "verify crypto transactions",
-    "USDC transaction verification",
-    "payment verification service",
-    "crypto payment gateway API",
-    "blockchain transaction confirmation",
-    "multi-chain payment API",
-    "crypto micropayments API",
-    "AI agent payment verification",
-    "ERC-8004 payment protocol",
-    "autonomous crypto payments",
-    "pay-per-use API monetization",
-    "crypto payment processing",
-    "blockchain payment integration",
-    "USDC API verification",
-    "crypto payment developer tools",
-    "payment verification SDK",
-    "Polygon payment verification",
-    "Arbitrum payment verification",
-    "Optimism payment verification",
-    "AI agent identity verification",
-    "agent dispute resolution",
+    "AI agent trust infrastructure",
+    "decentralized escrow",
+    "multi-oracle dispute resolution",
+    "machine-to-machine commerce",
+    "agentic economy",
+    "SLA enforcement",
+    "quality-based settlement",
+    "autonomous agent accountability",
+    "on-chain escrow",
+    "oracle consensus",
+    "AI agent disputes",
+    "stake-backed agents",
     "Solana escrow protocol",
-    "multi-oracle consensus",
-    "stake-backed agent accountability",
-    "AI agent conflict resolution"
+    "agent reputation",
+    "x402 payments",
+    "crypto escrow API",
+    "automated dispute resolution",
+    "agent identity verification",
+    "decentralized arbitration",
+    "smart contract escrow"
   ],
   canonical = "https://kamiyo.ai",
   ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
@@ -92,15 +52,17 @@ export default function SEO({
           "height": 630
         },
         "sameAs": [
-          "https://github.com/kamiyo-ai",
-          "https://twitter.com/KAMIYO"
-        ]
+          "https://github.com/kamiyo-ai/kamiyo-protocol",
+          "https://twitter.com/KamiyoAI",
+          "https://discord.gg/6yX8kd2UpC"
+        ],
+        "description": "Trust infrastructure for autonomous agents. Decentralized escrow and dispute resolution for machine-to-machine commerce."
       },
       {
         "@type": "WebSite",
         "@id": "https://kamiyo.ai/#website",
         "url": "https://kamiyo.ai",
-        "name": "KAMIYO x402 Infrastructure",
+        "name": "KAMIYO - Trust Layer for the Agentic Economy",
         "publisher": {
           "@id": "https://kamiyo.ai/#organization"
         },
@@ -113,89 +75,56 @@ export default function SEO({
       {
         "@type": "SoftwareApplication",
         "@id": "https://kamiyo.ai/#product",
-        "name": "x402 Infrastructure",
+        "name": "KAMIYO Protocol",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Web",
-        "description": "Multi-chain USDC payment verification API for developers. Verify crypto payments on Solana, Base, Ethereum and 9+ blockchains with one API call.",
+        "description": "Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution and quality-based settlement.",
         "url": "https://kamiyo.ai",
         "offers": [
           {
             "@type": "Offer",
-            "name": "Free Tier",
+            "name": "Protocol",
             "price": "0",
             "priceCurrency": "USD",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "description": "1,000 payment verifications per month, 2 blockchain networks",
+            "description": "0.1% per escrow. Unlimited agreements, multi-oracle disputes, on-chain reputation.",
             "seller": {
               "@id": "https://kamiyo.ai/#organization"
             }
           },
           {
             "@type": "Offer",
-            "name": "Starter",
-            "price": "99",
+            "name": "Dashboard",
+            "price": "49",
             "priceCurrency": "USD",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "description": "50,000 verifications per month, 3 chains, email support",
+            "description": "Real-time escrow monitoring, dispute analytics, agent reputation insights.",
             "seller": {
               "@id": "https://kamiyo.ai/#organization"
             }
           },
           {
             "@type": "Offer",
-            "name": "Pro",
-            "price": "299",
+            "name": "Team",
+            "price": "199",
             "priceCurrency": "USD",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "description": "500,000 verifications per month, 6 chains, priority support, risk scoring",
-            "seller": {
-              "@id": "https://kamiyo.ai/#organization"
-            }
-          },
-          {
-            "@type": "Offer",
-            "name": "Enterprise",
-            "price": "999",
-            "priceCurrency": "USD",
-            "priceValidUntil": "2026-12-31",
-            "availability": "https://schema.org/InStock",
-            "description": "Unlimited verifications, all chains, dedicated support, custom SLA",
+            "description": "Multi-agent management, custom oracle panels, API access for analytics.",
             "seller": {
               "@id": "https://kamiyo.ai/#organization"
             }
           }
         ],
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.8",
-          "ratingCount": "127",
-          "bestRating": "5",
-          "worstRating": "1"
-        },
         "featureList": [
-          "Multi-chain USDC payment verification",
-          "Support for Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Celo, Gnosis, Moonbeam, Aurora",
-          "99.9% uptime SLA",
-          "Sub-500ms response times",
-          "Python SDK with type hints",
-          "JavaScript/TypeScript SDK",
-          "Transaction risk scoring",
-          "ERC-8004 AI agent payment support",
-          "Real-time payment confirmation",
-          "Usage analytics dashboard",
-          "Fraud detection and prevention",
-          "API key management with scopes",
-          "Webhook support for events",
-          "Multi-tenant architecture",
-          "Mitama agent identity protocol",
-          "On-chain dispute resolution",
-          "Multi-oracle consensus system"
+          "On-chain escrow with PDA-based agreements",
+          "Multi-oracle dispute resolution",
+          "Quality-based refund scale (0-100)",
+          "Stake-backed agent identity",
+          "On-chain reputation tracking",
+          "ZK commit-reveal oracle voting",
+          "Automated SLA enforcement",
+          "x402 payment compatibility",
+          "Solana-native performance",
+          "Open source SDK"
         ],
-        "softwareVersion": "1.0.0",
-        "releaseNotes": "Production-ready multi-chain payment verification API"
+        "softwareVersion": "1.0.0"
       },
       {
         "@type": "FAQPage",
@@ -203,42 +132,34 @@ export default function SEO({
         "mainEntity": [
           {
             "@type": "Question",
-            "name": "What is x402 Infrastructure?",
+            "name": "What is KAMIYO?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "x402 Infrastructure is a multi-chain USDC payment verification API that allows developers to verify crypto payments across 12+ blockchains with a single API call. It eliminates the need to manage RPC nodes, parse transactions, or handle chain-specific logic."
+              "text": "KAMIYO is decentralized SLA enforcement for machine-to-machine commerce. When AI agents transact autonomously, KAMIYO provides escrow protection and multi-oracle dispute resolution to ensure fair outcomes."
             }
           },
           {
             "@type": "Question",
-            "name": "Which blockchains does x402 support?",
+            "name": "How does dispute resolution work?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "x402 supports Solana, Base, Ethereum, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Celo, Gnosis, Moonbeam, and Aurora. More chains are added regularly based on demand."
+              "text": "When a dispute is raised, a panel of oracles evaluates service quality on a 0-100 scale. The median score determines the refund percentage. ZK commit-reveal voting prevents oracle collusion."
             }
           },
           {
             "@type": "Question",
-            "name": "How fast are payment verifications?",
+            "name": "What is quality-based settlement?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "x402 provides sub-500ms response times with a 99.9% uptime SLA. Most verifications complete in under 300ms."
+              "text": "Unlike binary outcomes (full payment or full refund), KAMIYO uses graduated settlement. If oracles score quality at 65%, the provider receives 65% and the agent receives a 35% refund."
             }
           },
           {
             "@type": "Question",
-            "name": "Do I need to manage RPC nodes?",
+            "name": "What blockchains does KAMIYO support?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. x402 handles all blockchain infrastructure, RPC endpoints, and transaction parsing. You only need to make a single API call with the transaction hash."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What is the pricing model?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "x402 offers four tiers: Free (1,000 verifications/month, $0), Starter (50,000 verifications/month, $99), Pro (500,000 verifications/month, $299), and Enterprise (unlimited, $999)."
+              "text": "KAMIYO is built on Solana for high throughput and low fees. The protocol is designed for the speed requirements of autonomous agent transactions."
             }
           }
         ]
@@ -246,10 +167,8 @@ export default function SEO({
     ]
   };
 
-  // Use custom schema or default
   const structuredData = schemaData || defaultSchema;
 
-  // Process keywords - handle both array and string formats
   const keywordsString = Array.isArray(keywords)
     ? keywords.join(", ")
     : keywords;
@@ -298,8 +217,8 @@ export default function SEO({
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
       <meta name="twitter:image:alt" content={title} />
-      <meta name="twitter:site" content="@KAMIYO" />
-      <meta name="twitter:creator" content="@KAMIYO" />
+      <meta name="twitter:site" content="@KamiyoAI" />
+      <meta name="twitter:creator" content="@KamiyoAI" />
 
       {/* Additional SEO Meta Tags */}
       <meta name="format-detection" content="telephone=no" />
@@ -326,7 +245,6 @@ export default function SEO({
   );
 }
 
-// PropTypes validation for type checking and documentation
 SEO.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string,
