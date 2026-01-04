@@ -6,23 +6,58 @@ import SEO from "../components/SEO";
 import { LinkButton } from "../components/Button";
 
 export default function Home() {
-    const [scaleVisible, setScaleVisible] = useState(false);
+    const [logoLoaded, setLogoLoaded] = useState(false);
+    const [heroVisible, setHeroVisible] = useState(false);
+    const [sectionsVisible, setSectionsVisible] = useState({
+        howItWorks: false,
+        features: false,
+        scale: false,
+        sdk: false,
+        buildingFor: false,
+        faq: false
+    });
+
+    const howItWorksRef = useRef(null);
+    const featuresRef = useRef(null);
     const scaleRef = useRef(null);
+    const sdkRef = useRef(null);
+    const buildingForRef = useRef(null);
+    const faqRef = useRef(null);
 
+    // Logo animation on page load
     useEffect(() => {
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setScaleVisible(true);
-                    observer.disconnect();
-                }
-            },
-            { threshold: 0.2 }
-        );
+        setTimeout(() => setLogoLoaded(true), 100);
+        setTimeout(() => setHeroVisible(true), 300);
+    }, []);
 
-        if (scaleRef.current) {
-            observer.observe(scaleRef.current);
-        }
+    // Scroll animations for sections
+    useEffect(() => {
+        const observerCallback = (entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.dataset.section;
+                    setSectionsVisible(prev => ({ ...prev, [id]: true }));
+                }
+            });
+        };
+
+        const observer = new IntersectionObserver(observerCallback, { threshold: 0.15 });
+
+        const refs = [
+            { ref: howItWorksRef, id: 'howItWorks' },
+            { ref: featuresRef, id: 'features' },
+            { ref: scaleRef, id: 'scale' },
+            { ref: sdkRef, id: 'sdk' },
+            { ref: buildingForRef, id: 'buildingFor' },
+            { ref: faqRef, id: 'faq' }
+        ];
+
+        refs.forEach(({ ref, id }) => {
+            if (ref.current) {
+                ref.current.dataset.section = id;
+                observer.observe(ref.current);
+            }
+        });
 
         return () => observer.disconnect();
     }, []);
@@ -31,24 +66,34 @@ export default function Home() {
         <>
             <SEO />
             <div className="text-white bg-black min-h-screen">
+                {/* SVG Gradient Definition */}
+                <svg width="0" height="0" className="absolute">
+                    <defs>
+                        <linearGradient id="icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#00f0ff" />
+                            <stop offset="100%" stopColor="#ff44f5" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+
                 {/* Hero Section */}
-                <section className="w-full border-b border-gray-500/25 bg-black">
-                <div className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 max-w-[1400px]">
+                <section className="w-full min-h-[calc(100vh-80px)] flex items-center border-b border-gray-500/25 bg-black">
+                <div className="w-full px-5 mx-auto py-16 max-w-[1400px]">
                     {/* SEO-friendly H1 (visually hidden) */}
                     <h1 className="sr-only leading-[1.25]">KAMIYO: Trust Infrastructure for Autonomous Agents | Escrow & Dispute Resolution</h1>
 
                     {/* Two-column layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-16">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                         {/* Left column: Content */}
-                        <article className="space-y-8">
+                        <article className={`space-y-8 transition-all duration-1000 ${heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                             {/* Heading */}
                             <header>
                                 <p className="font-light text-sm tracking-widest text-cyan mb-4 md:mb-8">— &nbsp;自律エージェント信頼基盤</p>
                                 <h2 className="text-[2.2rem] md:text-[3.1rem] font-light mb-4 leading-tight text-white">
-                                    Trust infrastructure for autonomous agents
+                                    Trust layer for the agentic economy
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    Escrow-protected payments with on-chain dispute resolution. Multi-oracle consensus settles conflicts automatically.
+                                    In an era where AI agents handle trillions in autonomous transactions, KAMIYO provides the decentralized framework to ensure fair outcomes and reliable enforcement in machine-to-machine interactions.
                                 </p>
                             </header>
 
@@ -69,7 +114,7 @@ export default function Home() {
                             </div>
 
                             {/* CTA Buttons */}
-                            <div className="flex flex-col md:flex-row gap-6 items-center">
+                            <div className="flex flex-col md:flex-row gap-6 items-center mt-4">
                                 <div className="scale-110 md:origin-left md:ml-8">
                                     <PayButton
                                         textOverride="Get Started"
@@ -92,7 +137,7 @@ export default function Home() {
                         </article>
 
                         {/* Right column: Video (hidden on mobile) */}
-                        <div className="hidden md:flex justify-center md:justify-end">
+                        <div className={`hidden md:flex justify-center md:justify-end transition-all duration-1000 delay-200 ${logoLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                             <video
                                 autoPlay
                                 loop
@@ -112,9 +157,9 @@ export default function Home() {
             </section>
 
             {/* How It Works Section */}
-            <section className="w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px]" aria-labelledby="how-it-works-heading">
+            <section ref={howItWorksRef} className={`w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px] transition-all duration-700 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`} aria-labelledby="how-it-works-heading">
                 <header className="text-center mb-16">
-                    <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">How It Works</h2>
+                    <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">How it works</h2>
                     <p className="text-gray-400 text-sm md:text-lg">From agreement to settlement in four steps</p>
                 </header>
 
@@ -124,11 +169,18 @@ export default function Home() {
                     <div className="hidden md:block absolute top-8 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent" style={{ left: '12.5%', right: '12.5%' }}></div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
-                        {/* Step 1 */}
-                        <div className="relative flex flex-col items-center text-center">
-                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
-                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        {/* Step 1 - Create Agreement: dots forming protective enclosure */}
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '100ms' }}>
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
+                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
+                                    <circle cx="12" cy="6" r="1.5" />
+                                    <circle cx="7" cy="9" r="1.5" />
+                                    <circle cx="17" cy="9" r="1.5" />
+                                    <circle cx="5" cy="14" r="1.5" />
+                                    <circle cx="19" cy="14" r="1.5" />
+                                    <circle cx="8" cy="18" r="1.5" />
+                                    <circle cx="16" cy="18" r="1.5" />
+                                    <circle cx="12" cy="12" r="2" opacity="0.5" />
                                 </svg>
                             </div>
                             <div className="text-white text-lg font-light mb-2">Create Agreement</div>
@@ -137,11 +189,18 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* Step 2 */}
-                        <div className="relative flex flex-col items-center text-center">
-                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
-                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        {/* Step 2 - Service Delivered: dots flowing diagonally */}
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '200ms' }}>
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
+                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
+                                    <circle cx="4" cy="4" r="1.2" opacity="0.4" />
+                                    <circle cx="7" cy="7" r="1.4" opacity="0.5" />
+                                    <circle cx="10" cy="10" r="1.5" opacity="0.7" />
+                                    <circle cx="13" cy="13" r="1.6" opacity="0.85" />
+                                    <circle cx="17" cy="17" r="1.8" />
+                                    <circle cx="20" cy="20" r="1.5" />
+                                    <circle cx="8" cy="16" r="1" opacity="0.3" />
+                                    <circle cx="16" cy="8" r="1" opacity="0.3" />
                                 </svg>
                             </div>
                             <div className="text-white text-lg font-light mb-2">Service Delivered</div>
@@ -150,11 +209,19 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* Step 3 */}
-                        <div className="relative flex flex-col items-center text-center">
-                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
-                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        {/* Step 3 - Oracle Consensus: dots converging to center */}
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '300ms' }}>
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
+                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
+                                    <circle cx="12" cy="12" r="2.5" />
+                                    <circle cx="4" cy="6" r="1.5" opacity="0.7" />
+                                    <circle cx="20" cy="6" r="1.5" opacity="0.7" />
+                                    <circle cx="4" cy="18" r="1.5" opacity="0.7" />
+                                    <circle cx="20" cy="18" r="1.5" opacity="0.7" />
+                                    <circle cx="7" cy="9" r="1" opacity="0.4" />
+                                    <circle cx="17" cy="9" r="1" opacity="0.4" />
+                                    <circle cx="7" cy="15" r="1" opacity="0.4" />
+                                    <circle cx="17" cy="15" r="1" opacity="0.4" />
                                 </svg>
                             </div>
                             <div className="text-white text-lg font-light mb-2">Oracle Consensus</div>
@@ -163,11 +230,19 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* Step 4 */}
-                        <div className="relative flex flex-col items-center text-center">
-                            <div className="w-16 h-16 rounded-full border-2 border-cyan bg-black flex items-center justify-center mb-4 relative z-10">
-                                <svg className="w-7 h-7 text-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        {/* Step 4 - Auto Settlement: balanced resolution pattern */}
+                        <div className={`relative flex flex-col items-center text-center transition-all duration-500 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: '400ms' }}>
+                            <div className="w-16 h-16 rounded-full bg-black flex items-center justify-center mb-4 relative z-10" style={{ background: 'linear-gradient(#000, #000) padding-box, linear-gradient(135deg, #00f0ff, #ff44f5) border-box', border: '2px solid transparent' }}>
+                                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="url(#icon-gradient)">
+                                    <circle cx="12" cy="12" r="2" />
+                                    <circle cx="12" cy="5" r="1.5" />
+                                    <circle cx="12" cy="19" r="1.5" />
+                                    <circle cx="5" cy="12" r="1.5" />
+                                    <circle cx="19" cy="12" r="1.5" />
+                                    <circle cx="7" cy="7" r="1" opacity="0.5" />
+                                    <circle cx="17" cy="7" r="1" opacity="0.5" />
+                                    <circle cx="7" cy="17" r="1" opacity="0.5" />
+                                    <circle cx="17" cy="17" r="1" opacity="0.5" />
                                 </svg>
                             </div>
                             <div className="text-white text-lg font-light mb-2">Auto Settlement</div>
@@ -179,7 +254,7 @@ export default function Home() {
                 </div>
 
                 {/* Core Features - more compact */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div ref={featuresRef} className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-700 ${sectionsVisible.features ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                     <div className="border border-gray-500/25 rounded-lg p-5">
                         <div className="text-cyan text-xs uppercase tracking-wider mb-2">Identity</div>
                         <div className="text-white text-lg font-light mb-2">Stake-Backed Agents</div>
@@ -210,7 +285,7 @@ export default function Home() {
                     <h3 className="text-xl font-light text-white mb-6">Quality-based refund scale</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                             style={{ transitionDelay: '0ms' }}
                         >
                             <div className="text-cyan text-xs uppercase tracking-wider mb-2">80-100%</div>
@@ -218,7 +293,7 @@ export default function Home() {
                             <div className="text-gray-500 text-xs">to provider</div>
                         </div>
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                             style={{ transitionDelay: '100ms' }}
                         >
                             <div className="text-cyan text-xs uppercase tracking-wider mb-2">65-79%</div>
@@ -226,7 +301,7 @@ export default function Home() {
                             <div className="text-gray-500 text-xs">refund</div>
                         </div>
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                             style={{ transitionDelay: '200ms' }}
                         >
                             <div className="text-cyan text-xs uppercase tracking-wider mb-2">50-64%</div>
@@ -234,7 +309,7 @@ export default function Home() {
                             <div className="text-gray-500 text-xs">refund</div>
                         </div>
                         <div
-                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${scaleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                            className={`bg-black border border-gray-500/25 rounded-lg p-5 text-center transition-all duration-500 ${sectionsVisible.scale ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                             style={{ transitionDelay: '300ms' }}
                         >
                             <div className="text-cyan text-xs uppercase tracking-wider mb-2">0-49%</div>
@@ -246,9 +321,9 @@ export default function Home() {
             </section>
 
             {/* SDK Integration Section */}
-            <section className="w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px]">
+            <section ref={sdkRef} className={`w-full px-5 mx-auto pt-16 pb-16 max-w-[1400px] transition-all duration-700 ${sectionsVisible.sdk ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                 <h2 className="text-3xl md:text-4xl font-light text-center mb-4">
-                    SDK Integration
+                    SDK integration
                 </h2>
                 <p className="text-gray-400 text-center mb-12">Three lines to protect your first transaction</p>
 
@@ -347,7 +422,7 @@ await client.releaseFunds(agreement.id)
             </section>
 
             {/* Building For Section */}
-            <section className="w-full border-t border-gray-500/25 py-16">
+            <section ref={buildingForRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-700 ${sectionsVisible.buildingFor ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                 <div className="w-full px-5 mx-auto max-w-[1400px]">
                     <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
                         Building for
@@ -394,7 +469,7 @@ await client.releaseFunds(agreement.id)
             </section>
 
             {/* FAQ Section */}
-            <section className="w-full border-t border-gray-500/25 py-16">
+            <section ref={faqRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-700 ${sectionsVisible.faq ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
                 <div className="w-full px-5 mx-auto max-w-[1200px]">
                     <FAQ />
                 </div>
