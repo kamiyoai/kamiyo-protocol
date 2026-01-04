@@ -107,7 +107,7 @@ pub fn verify_commitment(
 ///
 /// ## Usage
 /// ```ignore
-/// use mitama_zk::solana::Groth16Proof;
+/// use kamiyo_zk::solana::Groth16Proof;
 ///
 /// // From snarkjs proof JSON
 /// let proof = Groth16Proof::from_snarkjs(&proof_json)?;

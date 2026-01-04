@@ -6,7 +6,7 @@
 //! ## Usage
 //!
 //! ```ignore
-//! use mitama_zk::{OracleVoteProver, VoteCommitment};
+//! use kamiyo_zk::{OracleVoteProver, VoteCommitment};
 //!
 //! // Setup (one-time)
 //! let prover = OracleVoteProver::setup()?;
@@ -297,7 +297,7 @@ impl OracleVoteProver {
         // custom implementation as halo2 doesn't expose it directly
         let mut bytes = Vec::new();
         // Include circuit hash for identification
-        bytes.extend_from_slice(b"mitama-zk-vk-v1");
+        bytes.extend_from_slice(b"kamiyo-zk-vk-v1");
         bytes.extend_from_slice(&[K as u8]);
         bytes
     }

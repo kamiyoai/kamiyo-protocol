@@ -1,4 +1,4 @@
-# mitama-zk
+# kamiyo-zk
 
 Commit-reveal voting for Mitama oracle consensus.
 
@@ -16,7 +16,7 @@ Oracles commit votes with Halo2 (no ceremony). Settlement uses Groth16 for on-ch
 ## Usage
 
 ```rust
-use mitama_zk::{OracleVoteProver, VoteCommitment};
+use kamiyo_zk::{OracleVoteProver, VoteCommitment};
 
 // Setup (once)
 let prover = OracleVoteProver::setup()?;
@@ -43,8 +43,8 @@ assert!(prover.verify(&proof, &commitment)?);
 ## Development
 
 ```bash
-cargo test -p mitama-zk
-cargo clippy -p mitama-zk
+cargo test -p kamiyo-zk
+cargo clippy -p kamiyo-zk
 ```
 
 ## References

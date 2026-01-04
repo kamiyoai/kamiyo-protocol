@@ -2,7 +2,7 @@
 //!
 //! Tests the complete commit → prove → verify flow for oracle voting.
 
-use mitama_zk::{
+use kamiyo_zk::{
     bridge::{CircomInputs, SolanaVerificationData},
     commitment::{generate_blinding, VoteCommitment},
     prover::OracleVoteProver,
@@ -51,7 +51,7 @@ fn test_halo2_full_flow() {
     // Test proof serialization roundtrip
     let proof_bytes = proof.to_bytes();
     let recovered_proof =
-        mitama_zk::prover::Halo2Proof::from_bytes(&proof_bytes).expect("Proof deserialization");
+        kamiyo_zk::prover::Halo2Proof::from_bytes(&proof_bytes).expect("Proof deserialization");
     assert_eq!(proof.bytes, recovered_proof.bytes);
 }
 

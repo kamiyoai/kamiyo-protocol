@@ -1,5 +1,5 @@
 [package]
-name = "mitama"
+name = "kamiyo"
 version = "0.1.0"
 description = "Mitama - Agent Identity and Conflict Resolution Protocol for Solana"
 edition = "2021"
@@ -9,7 +9,7 @@ resolver = "2"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "mitama"
+name = "kamiyo"
 
 [features]
 no-entrypoint = []

@@ -78,7 +78,7 @@ pub mod halo2 {
 /// # Example
 ///
 /// ```ignore
-/// use mitama_zk::{OracleVoteCircuit, VoteCommitment};
+/// use kamiyo_zk::{OracleVoteCircuit, VoteCommitment};
 ///
 /// // Oracle commits to a quality score
 /// let score = 75u8;

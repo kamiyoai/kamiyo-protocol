@@ -18,7 +18,7 @@ use halo2_gadgets::poseidon::primitives::{self as poseidon, ConstantLength, P128
 use pasta_curves::pallas;
 
 /// Domain separator for oracle vote commitments
-pub const VOTE_DOMAIN: &str = "mitama:vote";
+pub const VOTE_DOMAIN: &str = "kamiyo:vote";
 
 /// Hash rate for our Poseidon configuration
 pub const RATE: usize = 2;

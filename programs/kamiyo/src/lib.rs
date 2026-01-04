@@ -1,6 +1,6 @@
 //! Mitama - Agent Identity and Conflict Resolution Protocol
 //!
-//! 魂 (mitama) - The soul/spirit that persists through conflict
+//! 魂 (kamiyo) - The soul/spirit that persists through conflict
 //!
 //! Copyright (c) 2025 KAMIYO
 //! SPDX-License-Identifier: BUSL-1.1
@@ -548,7 +548,7 @@ fn update_api_reputation(
 // ============================================================================
 
 #[program]
-pub mod mitama {
+pub mod kamiyo {
     use super::*;
 
     // ========================================================================

@@ -85,7 +85,7 @@ leq.out === 1;
 
 ## Audit Checklist
 
-### Halo2 (crates/mitama-zk)
+### Halo2 (crates/kamiyo-zk)
 - [x] All witness values constrained
 - [x] Lookup table correctly loaded
 - [x] Public inputs properly exposed
