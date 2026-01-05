@@ -26,10 +26,17 @@ function LoadingWrapper({ children }) {
     }, [status]);
 
     useEffect(() => {
-        let timeout;
-        const handleStart = () => setLoading(true);
+        let completeTimeout;
+        let maxTimeout;
+
+        const handleStart = () => {
+            setLoading(true);
+            // Max 5 seconds for any route change
+            maxTimeout = setTimeout(() => setLoading(false), 5000);
+        };
         const handleComplete = () => {
-            timeout = setTimeout(() => setLoading(false), 400);
+            clearTimeout(maxTimeout);
+            completeTimeout = setTimeout(() => setLoading(false), 400);
         };
 
         router.events.on("routeChangeStart", handleStart);
@@ -37,7 +44,8 @@ function LoadingWrapper({ children }) {
         router.events.on("routeChangeError", handleComplete);
 
         return () => {
-            clearTimeout(timeout);
+            clearTimeout(completeTimeout);
+            clearTimeout(maxTimeout);
             router.events.off("routeChangeStart", handleStart);
             router.events.off("routeChangeComplete", handleComplete);
             router.events.off("routeChangeError", handleComplete);
@@ -63,6 +71,13 @@ function LoadingWrapper({ children }) {
 }
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
+  // Use page-specific layout if defined, otherwise use default Layout
+  const getLayout = Component.getLayout || ((page) => (
+    <LoadingWrapper>
+      <Layout>{page}</Layout>
+    </LoadingWrapper>
+  ));
+
   return (
     <>
       <SessionProvider session={session}>
@@ -89,11 +104,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
             <meta name="twitter:site" content="@KAMIYO" />
             <meta name="twitter:creator" content="@KAMIYO" />
           </Head>
-          <LoadingWrapper>
-            <Layout>
-              <Component {...pageProps} />
-            </Layout>
-          </LoadingWrapper>
+          {getLayout(<Component {...pageProps} />)}
         </MenuProvider>
       </SessionProvider>
     </>
