@@ -8,7 +8,6 @@ import { createPortal } from "react-dom";
 export default function Header({ children }) {
     const { isMenuOpen, setMenuOpen } = useMenu();
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
-    const [isMenuHovered, setMenuHovered] = useState(false);
     const { data: session } = useSession();
     const menuRef = useRef(null);
 
@@ -97,45 +96,37 @@ export default function Header({ children }) {
                         </nav>
                         <button
                             onClick={() => setMenuOpen(!isMenuOpen)}
-                            onMouseEnter={() => setMenuHovered(true)}
-                            onMouseLeave={() => setMenuHovered(false)}
-                            className={`focus:outline-none transform transition-transform duration-300 group`}
+                            className="focus:outline-none transform transition-transform duration-300 group"
                             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                         >
                             <svg
-                                className="overflow-visible w-6 h-6"
+                                className="overflow-visible w-6 h-6 text-gray-500 group-hover:text-white transition-colors duration-300"
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
-                                {/* Line 1 - staggered from right */}
+                                {/* Line 1 */}
                                 <line
-                                    x1="4"
+                                    x1={isMenuOpen ? "4" : "10"}
                                     y1="6"
                                     x2="20"
                                     y2="6"
-                                    stroke="#6b7280"
+                                    stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
-                                        transform: isMenuOpen
-                                            ? "rotate(45deg)"
-                                            : `translateX(${isMenuHovered ? 0 : 6}px)`,
+                                        transform: isMenuOpen ? "rotate(45deg)" : "none",
                                         transformOrigin: "center",
-                                        transition: "all 0.3s ease",
                                     }}
+                                    className="transition-all duration-300"
                                 />
                                 {/* Line 2 */}
                                 <line
-                                    x1="4"
+                                    x1={isMenuOpen ? "4" : "7"}
                                     y1="10"
                                     x2="20"
                                     y2="10"
-                                    stroke="#6b7280"
+                                    stroke="currentColor"
                                     strokeWidth="1"
-                                    style={{
-                                        transform: `translateX(${isMenuHovered ? 0 : 3}px)`,
-                                        opacity: isMenuOpen ? 0 : 1,
-                                        transition: "all 0.3s ease",
-                                    }}
+                                    className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 3 */}
                                 <line
@@ -143,28 +134,23 @@ export default function Header({ children }) {
                                     y1="14"
                                     x2="20"
                                     y2="14"
-                                    stroke="#6b7280"
+                                    stroke="currentColor"
                                     strokeWidth="1"
-                                    style={{
-                                        opacity: isMenuOpen ? 0 : 1,
-                                        transition: "all 0.3s ease",
-                                    }}
+                                    className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
-                                {/* Line 4 - staggered from right */}
+                                {/* Line 4 */}
                                 <line
-                                    x1="4"
+                                    x1={isMenuOpen ? "4" : "7"}
                                     y1="18"
                                     x2="20"
                                     y2="18"
-                                    stroke="#6b7280"
+                                    stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
-                                        transform: isMenuOpen
-                                            ? "rotate(-45deg)"
-                                            : `translateX(${isMenuHovered ? 0 : 3}px)`,
+                                        transform: isMenuOpen ? "rotate(-45deg)" : "none",
                                         transformOrigin: "center",
-                                        transition: "all 0.3s ease",
                                     }}
+                                    className="transition-all duration-300"
                                 />
                             </svg>
                         </button>
