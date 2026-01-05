@@ -6,9 +6,12 @@ import { PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 
 // Program ID
-export const MITAMA_PROGRAM_ID = new PublicKey(
+export const KAMIYO_PROGRAM_ID = new PublicKey(
   "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 );
+
+/** @deprecated Use KAMIYO_PROGRAM_ID instead */
+export const MITAMA_PROGRAM_ID = KAMIYO_PROGRAM_ID;
 
 // Agent Types
 export enum AgentType {

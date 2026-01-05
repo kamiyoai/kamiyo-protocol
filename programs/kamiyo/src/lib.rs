@@ -414,7 +414,7 @@ fn calculate_weighted_consensus(
         let mid_low = sorted_scores[len / 2 - 1];
         let mid_high = sorted_scores[len / 2];
         // Use ceiling division to favor agent in ties
-        (mid_low as u16 + mid_high as u16 + 1) / 2
+        (mid_low as u16 + mid_high as u16).div_ceil(2)
     } else {
         sorted_scores[len / 2] as u16
     } as u8;

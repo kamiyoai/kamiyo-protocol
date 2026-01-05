@@ -13,7 +13,7 @@ import {
 } from "@solana/web3.js";
 import { Program, AnchorProvider, BN, Wallet } from "@coral-xyz/anchor";
 import {
-  MITAMA_PROGRAM_ID,
+  KAMIYO_PROGRAM_ID,
   AgentIdentity,
   Agreement,
   OracleRegistry,
@@ -43,7 +43,7 @@ export class KamiyoClient {
   constructor(config: KamiyoClientConfig) {
     this.connection = config.connection;
     this.wallet = config.wallet;
-    this.programId = config.programId ?? MITAMA_PROGRAM_ID;
+    this.programId = config.programId ?? KAMIYO_PROGRAM_ID;
     this.provider = new AnchorProvider(this.connection, this.wallet, {
       commitment: "confirmed",
     });
