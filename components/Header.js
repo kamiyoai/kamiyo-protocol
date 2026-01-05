@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 export default function Header({ children }) {
     const { isMenuOpen, setMenuOpen } = useMenu();
     const [isUserDropdownOpen, setUserDropdownOpen] = useState(false);
+    const [isMenuHovered, setMenuHovered] = useState(false);
     const { data: session } = useSession();
     const menuRef = useRef(null);
 
@@ -96,21 +97,29 @@ export default function Header({ children }) {
                         </nav>
                         <button
                             onClick={() => setMenuOpen(!isMenuOpen)}
+                            onMouseEnter={() => setMenuHovered(true)}
+                            onMouseLeave={() => setMenuHovered(false)}
                             className={`focus:outline-none transform transition-transform duration-300 group`}
                             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                         >
                             <svg
-                                className="overflow-visible w-6 h-6 text-gray-500 group-hover:text-white transition-colors duration-300"
+                                className="overflow-visible w-6 h-6"
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
+                                <defs>
+                                    <linearGradient id="menuGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stopColor="#00f0ff" />
+                                        <stop offset="100%" stopColor="#ff44f5" />
+                                    </linearGradient>
+                                </defs>
                                 {/* Line 1 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "10"}
+                                    x1={isMenuOpen ? "4" : (isMenuHovered ? "4" : "10")}
                                     y1="6"
                                     x2="20"
                                     y2="6"
-                                    stroke="currentColor"
+                                    stroke="url(#menuGradient)"
                                     strokeWidth="1"
                                     style={{
                                         transform: isMenuOpen ? "rotate(45deg)" : "none",
@@ -120,31 +129,31 @@ export default function Header({ children }) {
                                 />
                                 {/* Line 2 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "7"}
+                                    x1={isMenuOpen ? "4" : (isMenuHovered ? "4" : "7")}
                                     y1="10"
                                     x2="20"
                                     y2="10"
-                                    stroke="currentColor"
+                                    stroke="url(#menuGradient)"
                                     strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 3 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "4"}
+                                    x1="4"
                                     y1="14"
                                     x2="20"
                                     y2="14"
-                                    stroke="currentColor"
+                                    stroke="url(#menuGradient)"
                                     strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 4 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "7"}
+                                    x1={isMenuOpen ? "4" : (isMenuHovered ? "4" : "7")}
                                     y1="18"
                                     x2="20"
                                     y2="18"
-                                    stroke="currentColor"
+                                    stroke="url(#menuGradient)"
                                     strokeWidth="1"
                                     style={{
                                         transform: isMenuOpen ? "rotate(-45deg)" : "none",

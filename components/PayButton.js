@@ -45,9 +45,9 @@ export default function PayButton({
             </span>
 
             {/* Borders with conditional hover effects */}
-            <span className={`absolute inset-0 border border-dotted cta-gradient skew-x-[-45deg] translate-x-4 transition-all duration-300 ${isEnabled ? "" : ""}`} />
-            <span className={`absolute inset-0 border-r border-dotted cta-gradient-border-right skew-x-[-45deg] translate-x-4 transition-all duration-300 ${isEnabled ? "" : ""}`} />
-            <span className={`absolute bottom-0 left-[-4px] w-full border-b border-dotted cta-gradient-border-bottom transition-all duration-300 ${isEnabled ? "" : ""}`} />
+            <span className={`pointer-events-none absolute inset-0 border border-dotted cta-gradient skew-x-[-45deg] translate-x-4 transition-all duration-300 ${isEnabled ? "" : ""}`} />
+            <span className={`pointer-events-none absolute inset-0 border-r border-dotted cta-gradient-border-right skew-x-[-45deg] translate-x-4 transition-all duration-300 ${isEnabled ? "" : ""}`} />
+            <span className={`pointer-events-none absolute bottom-0 left-[-4px] w-full border-b border-dotted cta-gradient-border-bottom transition-all duration-300 ${isEnabled ? "" : ""}`} />
         </button>
     );
 }
