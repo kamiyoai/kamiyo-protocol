@@ -62,7 +62,7 @@ Oracles vote on service quality using commit-reveal:
 ## Installation
 
 ```bash
-npm install https://gitpkg.vercel.app/kamiyo-ai/kamiyo-new/packages/kamiyo-sdk?main
+npm install https://gitpkg.vercel.app/kamiyo-ai/kamiyo-protocol/packages/kamiyo-sdk?main
 ```
 
 ## Quick Start

@@ -11,10 +11,10 @@
     "oracle",
     "web3"
   ],
-  "homepage": "https://github.com/kamiyo-ai/kamiyo-new",
+  "homepage": "https://github.com/kamiyo-ai/kamiyo-protocol",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/kamiyo-new.git"
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git"
   },
   "license": "BUSL-1.1",
   "author": "KAMIYO <susumu@kamiyo.ai>",
