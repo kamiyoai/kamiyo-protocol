@@ -107,20 +107,14 @@ export default function Header({ children }) {
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
-                                <defs>
-                                    <linearGradient id="menuGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor="#00f0ff" />
-                                        <stop offset="100%" stopColor="#ff44f5" />
-                                    </linearGradient>
-                                </defs>
                                 {/* Line 1 */}
                                 <line
                                     x1={isMenuOpen ? "4" : (isMenuHovered ? "4" : "10")}
                                     y1="6"
                                     x2="20"
                                     y2="6"
-                                    stroke="url(#menuGradient)"
-                                    strokeWidth="2"
+                                    stroke="#6b7280"
+                                    strokeWidth="1"
                                     style={{
                                         transform: isMenuOpen ? "rotate(45deg)" : "none",
                                         transformOrigin: "center",
@@ -133,8 +127,8 @@ export default function Header({ children }) {
                                     y1="10"
                                     x2="20"
                                     y2="10"
-                                    stroke="url(#menuGradient)"
-                                    strokeWidth="2"
+                                    stroke="#6b7280"
+                                    strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 3 */}
@@ -143,8 +137,8 @@ export default function Header({ children }) {
                                     y1="14"
                                     x2="20"
                                     y2="14"
-                                    stroke="url(#menuGradient)"
-                                    strokeWidth="2"
+                                    stroke="#6b7280"
+                                    strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 4 */}
@@ -153,8 +147,8 @@ export default function Header({ children }) {
                                     y1="18"
                                     x2="20"
                                     y2="18"
-                                    stroke="url(#menuGradient)"
-                                    strokeWidth="2"
+                                    stroke="#6b7280"
+                                    strokeWidth="1"
                                     style={{
                                         transform: isMenuOpen ? "rotate(-45deg)" : "none",
                                         transformOrigin: "center",
