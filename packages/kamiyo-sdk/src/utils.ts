@@ -4,6 +4,7 @@
 
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { randomUUID } from "crypto";
 
 /**
  * Validation utilities for Kamiyo protocol
@@ -212,12 +213,12 @@ export class KamiyoUtils {
   }
 
   /**
-   * Generate unique transaction ID
+   * Generate unique transaction ID using cryptographically secure randomness
    */
   static generateTransactionId(prefix: string = "kamiyo"): string {
     const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 10);
-    return `${prefix}_${timestamp}_${random}`;
+    const uuid = randomUUID().replace(/-/g, "").substring(0, 12);
+    return `${prefix}_${timestamp}_${uuid}`;
   }
 
   /**

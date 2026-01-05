@@ -27,7 +27,7 @@ Production-ready Model Context Protocol server for HTTP 402 payments with qualit
 ## Installation
 
 ```bash
-cd packages/mcp-server
+cd packages/kamiyo-mcp
 npm install
 npm run build
 ```

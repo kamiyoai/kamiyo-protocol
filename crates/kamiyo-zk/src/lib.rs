@@ -60,7 +60,7 @@ pub use bridge::{CircomInputs, SolanaVerificationData, parse_snarkjs_proof};
 pub use circuits::oracle_vote::{OracleVoteCircuit, MAX_SCORE, MIN_SCORE};
 pub use commitment::{VoteCommitment, generate_blinding, validate_blinding};
 pub use error::ZkError;
-pub use poseidon::{hash_two, vote_commitment};
+pub use poseidon::{hash_two, vote_commitment, vote_commitment_with_domain};
 pub use prover::{Halo2Proof, OracleVoteProver, K as CIRCUIT_K};
 pub use solana::{Groth16Proof, OracleVotePublicInputs, SolanaProof, verify_commitment};
 

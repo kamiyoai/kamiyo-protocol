@@ -256,5 +256,5 @@ npx ts-node scripts/monitor.ts
 
 ## Support
 
-- GitHub Issues: https://github.com/kamiyo-labs/kamiyo/issues
+- GitHub Issues: https://github.com/kamiyo-ai/kamiyo-protocol/issues
 - Documentation: https://docs.kamiyo.io

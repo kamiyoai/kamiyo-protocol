@@ -324,40 +324,73 @@ pub struct OracleRewardsClaimed {
 // Helper Functions
 // ============================================================================
 
+/// Find Ed25519 precompile instruction in the transaction
+/// Iterates through all instructions to find one matching the Ed25519 program ID
+fn find_ed25519_instruction(
+    instructions_sysvar: &AccountInfo,
+    signature: &[u8; 64],
+    verifier_pubkey: &Pubkey,
+    message: &[u8],
+) -> Result<()> {
+    // Iterate through instructions to find Ed25519 precompile
+    // Maximum reasonable number of instructions to check
+    const MAX_INSTRUCTIONS: usize = 16;
+
+    for idx in 0..MAX_INSTRUCTIONS {
+        let ix = match load_instruction_at_checked(idx, instructions_sysvar) {
+            Ok(ix) => ix,
+            Err(_) => break, // No more instructions
+        };
+
+        // Skip if not Ed25519 program
+        if ix.program_id != ed25519_program::ID {
+            continue;
+        }
+
+        // Validate Ed25519 instruction format
+        if ix.data.len() < 16 || ix.data[0] != 1 {
+            continue;
+        }
+
+        let sig_offset = u16::from_le_bytes([ix.data[2], ix.data[3]]) as usize;
+        let pubkey_offset = u16::from_le_bytes([ix.data[6], ix.data[7]]) as usize;
+        let message_offset = u16::from_le_bytes([ix.data[10], ix.data[11]]) as usize;
+        let message_size = u16::from_le_bytes([ix.data[12], ix.data[13]]) as usize;
+
+        // Bounds check
+        if sig_offset + 64 > ix.data.len()
+            || pubkey_offset + 32 > ix.data.len()
+            || message_offset + message_size > ix.data.len()
+        {
+            continue;
+        }
+
+        let ix_signature = &ix.data[sig_offset..sig_offset + 64];
+        let ix_pubkey = &ix.data[pubkey_offset..pubkey_offset + 32];
+        let ix_message = &ix.data[message_offset..message_offset + message_size];
+
+        // Check if this instruction matches our expected signature
+        if ix_signature == signature
+            && ix_pubkey == verifier_pubkey.as_ref()
+            && ix_message == message
+        {
+            return Ok(());
+        }
+    }
+
+    Err(error!(MitamaError::InvalidSignature))
+}
+
 /// Verify Ed25519 signature instruction
+/// Searches for matching Ed25519 precompile instruction in the transaction
 pub fn verify_ed25519_signature(
     instructions_sysvar: &AccountInfo,
     signature: &[u8; 64],
     verifier_pubkey: &Pubkey,
     message: &[u8],
-    instruction_index: u16,
+    _instruction_index: u16, // Deprecated: kept for API compatibility
 ) -> Result<()> {
-    let ix = load_instruction_at_checked(instruction_index as usize, instructions_sysvar)
-        .map_err(|_| error!(MitamaError::InvalidSignature))?;
-
-    require!(
-        ix.program_id == ed25519_program::ID,
-        MitamaError::InvalidSignature
-    );
-
-    require!(ix.data.len() >= 16, MitamaError::InvalidSignature);
-    require!(ix.data[0] == 1, MitamaError::InvalidSignature);
-
-    let sig_offset = u16::from_le_bytes([ix.data[2], ix.data[3]]) as usize;
-    let pubkey_offset = u16::from_le_bytes([ix.data[6], ix.data[7]]) as usize;
-    let message_offset = u16::from_le_bytes([ix.data[10], ix.data[11]]) as usize;
-    let message_size = u16::from_le_bytes([ix.data[12], ix.data[13]]) as usize;
-
-    let ix_signature = &ix.data[sig_offset..sig_offset + 64];
-    require!(ix_signature == signature, MitamaError::InvalidSignature);
-
-    let ix_pubkey = &ix.data[pubkey_offset..pubkey_offset + 32];
-    require!(ix_pubkey == verifier_pubkey.as_ref(), MitamaError::InvalidSignature);
-
-    let ix_message = &ix.data[message_offset..message_offset + message_size];
-    require!(ix_message == message, MitamaError::InvalidSignature);
-
-    Ok(())
+    find_ed25519_instruction(instructions_sysvar, signature, verifier_pubkey, message)
 }
 
 /// Calculate weighted consensus score from oracle submissions
@@ -911,6 +944,7 @@ pub mod kamiyo {
 
             // Validate token accounts
             require!(escrow_token_account.mint == mint, MitamaError::TokenMintMismatch);
+            require!(api_token_account.mint == mint, MitamaError::TokenMintMismatch);
             require!(api_token_account.owner == api_key, MitamaError::Unauthorized);
 
             let cpi_accounts = SplTransfer {
@@ -1111,7 +1145,16 @@ pub mod kamiyo {
                 token::transfer(cpi_ctx, payment_amount)?;
             }
         } else {
-            // SOL transfer
+            // SOL transfer with rent exemption check
+            let rent = Rent::get()?;
+            let escrow_min_rent = rent.minimum_balance(ctx.accounts.escrow.to_account_info().data_len());
+            let escrow_lamports = ctx.accounts.escrow.to_account_info().lamports();
+            let max_transferable = escrow_lamports.saturating_sub(escrow_min_rent);
+
+            // Ensure we don't transfer more than available after rent
+            let total_transfer = refund_amount.saturating_add(payment_amount);
+            require!(total_transfer <= max_transferable, MitamaError::InsufficientDisputeFunds);
+
             if refund_amount > 0 {
                 **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
                 **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += refund_amount;
@@ -1870,7 +1913,7 @@ pub mod kamiyo {
         let signer = &[&seeds[..]];
 
         if let Some(mint) = token_mint {
-            // SPL Token transfer
+            // SPL Token transfer with protocol fee
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
                 .ok_or(MitamaError::MissingTokenAccount)?;
             let token_program = ctx.accounts.token_program.as_ref()
@@ -1879,10 +1922,14 @@ pub mod kamiyo {
             // Validate escrow token account mint
             require!(escrow_token_account.mint == mint, MitamaError::TokenMintMismatch);
 
+            // Deduct protocol fee from payment amount (API pays the fee)
+            let adjusted_payment = payment_amount.saturating_sub(protocol_fee);
+
             if refund_amount > 0 {
                 let agent_token_account = ctx.accounts.agent_token_account.as_ref()
                     .ok_or(MitamaError::MissingTokenAccount)?;
-                // Validate agent token account ownership
+                // Validate agent token account
+                require!(agent_token_account.mint == mint, MitamaError::TokenMintMismatch);
                 require!(agent_token_account.owner == agent_key, MitamaError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
@@ -1898,10 +1945,11 @@ pub mod kamiyo {
                 token::transfer(cpi_ctx, refund_amount)?;
             }
 
-            if payment_amount > 0 {
+            if adjusted_payment > 0 {
                 let api_token_account = ctx.accounts.api_token_account.as_ref()
                     .ok_or(MitamaError::MissingTokenAccount)?;
-                // Validate api token account ownership
+                // Validate api token account
+                require!(api_token_account.mint == mint, MitamaError::TokenMintMismatch);
                 require!(api_token_account.owner == ctx.accounts.api.key(), MitamaError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
@@ -1914,12 +1962,63 @@ pub mod kamiyo {
                     cpi_accounts,
                     signer,
                 );
-                token::transfer(cpi_ctx, payment_amount)?;
+                token::transfer(cpi_ctx, adjusted_payment)?;
+            }
+
+            // Transfer protocol fee to treasury token account if available
+            if protocol_fee > 0 {
+                if let Some(ref treasury_token_account) = ctx.accounts.treasury_token_account {
+                    // Validate treasury token account
+                    require!(treasury_token_account.mint == mint, MitamaError::TokenMintMismatch);
+
+                    let cpi_accounts = SplTransfer {
+                        from: escrow_token_account.to_account_info(),
+                        to: treasury_token_account.to_account_info(),
+                        authority: ctx.accounts.escrow.to_account_info(),
+                    };
+                    let cpi_ctx = CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        cpi_accounts,
+                        signer,
+                    );
+                    token::transfer(cpi_ctx, protocol_fee)?;
+
+                    emit!(TreasuryDeposit {
+                        amount: protocol_fee,
+                        source: "protocol_fee_token".to_string(),
+                        escrow: escrow_key,
+                    });
+                } else {
+                    // No treasury token account, fee goes to API
+                    let api_token_account = ctx.accounts.api_token_account.as_ref()
+                        .ok_or(MitamaError::MissingTokenAccount)?;
+
+                    let cpi_accounts = SplTransfer {
+                        from: escrow_token_account.to_account_info(),
+                        to: api_token_account.to_account_info(),
+                        authority: ctx.accounts.escrow.to_account_info(),
+                    };
+                    let cpi_ctx = CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        cpi_accounts,
+                        signer,
+                    );
+                    token::transfer(cpi_ctx, protocol_fee)?;
+                }
             }
         } else {
-            // SOL transfer
+            // SOL transfer with rent exemption check
             // Deduct protocol fee from payment amount (API pays the fee)
             let adjusted_payment = payment_amount.saturating_sub(protocol_fee);
+
+            let rent = Rent::get()?;
+            let escrow_min_rent = rent.minimum_balance(ctx.accounts.escrow.to_account_info().data_len());
+            let escrow_lamports = ctx.accounts.escrow.to_account_info().lamports();
+            let max_transferable = escrow_lamports.saturating_sub(escrow_min_rent);
+
+            // Ensure we don't transfer more than available after rent
+            let total_transfer = refund_amount.saturating_add(adjusted_payment).saturating_add(protocol_fee);
+            require!(total_transfer <= max_transferable, MitamaError::InsufficientDisputeFunds);
 
             if refund_amount > 0 {
                 **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
@@ -2074,7 +2173,16 @@ pub mod kamiyo {
                 token::transfer(cpi_ctx, api_amount)?;
             }
         } else {
-            // SOL transfer
+            // SOL transfer with rent exemption check
+            let rent = Rent::get()?;
+            let escrow_min_rent = rent.minimum_balance(ctx.accounts.escrow.to_account_info().data_len());
+            let escrow_lamports = ctx.accounts.escrow.to_account_info().lamports();
+            let max_transferable = escrow_lamports.saturating_sub(escrow_min_rent);
+
+            // Ensure we don't transfer more than available after rent
+            let total_transfer = agent_amount.saturating_add(api_amount);
+            require!(total_transfer <= max_transferable, MitamaError::InsufficientDisputeFunds);
+
             if agent_amount > 0 {
                 **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= agent_amount;
                 **ctx.accounts.agent.to_account_info().try_borrow_mut_lamports()? += agent_amount;
@@ -2622,6 +2730,10 @@ pub struct FinalizeMultiOracleDispute<'info> {
     /// API token account - validated in instruction
     #[account(mut)]
     pub api_token_account: Option<Account<'info, TokenAccount>>,
+
+    /// Treasury token account for SPL token protocol fees - validated in instruction
+    #[account(mut)]
+    pub treasury_token_account: Option<Account<'info, TokenAccount>>,
 
     pub token_program: Option<Program<'info, Token>>,
 }

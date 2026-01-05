@@ -678,8 +678,9 @@ export class X402KamiyoClient {
   private parseAmount(amount: string): number {
     const cleaned = amount.replace(/[^0-9.]/g, '');
     const value = parseFloat(cleaned);
-    // If > 1000, assume lamports; otherwise assume SOL
-    return value > 1000 ? Math.floor(value) : Math.floor(value * LAMPORTS_PER_SOL);
+    // If contains decimal point, treat as SOL; otherwise treat as lamports
+    const hasDecimal = cleaned.includes('.');
+    return hasDecimal ? Math.floor(value * LAMPORTS_PER_SOL) : Math.floor(value);
   }
 
   private errorResponse<T>(error: X402Error): X402Response<T> {

@@ -68,18 +68,26 @@ npm install https://gitpkg.vercel.app/kamiyo-ai/kamiyo-protocol/packages/kamiyo-
 ## Quick Start
 
 ```typescript
-import { KAMIYOClient, AgentType } from '@kamiyo/sdk';
+import { KamiyoClient, AgentType } from '@kamiyo/sdk';
 import { Connection, Keypair } from '@solana/web3.js';
+import BN from 'bn.js';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 const wallet = Keypair.generate();
-const client = new KAMIYOClient({ connection, wallet });
+const client = new KamiyoClient({
+  connection,
+  wallet: {
+    publicKey: wallet.publicKey,
+    signTransaction: async (tx) => { tx.sign(wallet); return tx; },
+    signAllTransactions: async (txs) => { txs.forEach(tx => tx.sign(wallet)); return txs; },
+  }
+});
 
 // Create agent with 0.5 SOL stake
 const tx = await client.createAgent({
   name: 'TradingBot',
   agentType: AgentType.Trading,
-  stakeAmount: 500_000_000
+  stakeAmount: new BN(500_000_000)
 });
 
 // Create payment agreement

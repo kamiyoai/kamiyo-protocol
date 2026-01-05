@@ -1004,6 +1004,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kamiyo"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "switchboard-on-demand",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1164,15 +1173,6 @@ dependencies = [
  "keccak",
  "rand_core 0.6.4",
  "zeroize",
-]
-
-[[package]]
-name = "kamiyo"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "switchboard-on-demand",
 ]
 
 [[package]]

@@ -133,7 +133,8 @@ export class KamiyoClient {
       if (!accountInfo) return null;
       // Deserialize account data (simplified - in production use IDL)
       return this.deserializeAgent(accountInfo.data);
-    } catch {
+    } catch (error) {
+      console.error(`Failed to fetch agent at ${agentPDA.toBase58()}:`, error);
       return null;
     }
   }
@@ -154,7 +155,8 @@ export class KamiyoClient {
       const accountInfo = await this.connection.getAccountInfo(agreementPDA);
       if (!accountInfo) return null;
       return this.deserializeAgreement(accountInfo.data);
-    } catch {
+    } catch (error) {
+      console.error(`Failed to fetch agreement at ${agreementPDA.toBase58()}:`, error);
       return null;
     }
   }
@@ -179,7 +181,8 @@ export class KamiyoClient {
       const accountInfo = await this.connection.getAccountInfo(reputationPDA);
       if (!accountInfo) return null;
       return this.deserializeReputation(accountInfo.data);
-    } catch {
+    } catch (error) {
+      console.error(`Failed to fetch reputation for ${entity.toBase58()}:`, error);
       return null;
     }
   }
@@ -193,7 +196,8 @@ export class KamiyoClient {
       const accountInfo = await this.connection.getAccountInfo(registryPDA);
       if (!accountInfo) return null;
       return this.deserializeOracleRegistry(accountInfo.data);
-    } catch {
+    } catch (error) {
+      console.error("Failed to fetch oracle registry:", error);
       return null;
     }
   }
@@ -207,7 +211,8 @@ export class KamiyoClient {
       const accountInfo = await this.connection.getAccountInfo(configPDA);
       if (!accountInfo) return null;
       return this.deserializeProtocolConfig(accountInfo.data);
-    } catch {
+    } catch (error) {
+      console.error("Failed to fetch protocol config:", error);
       return null;
     }
   }
@@ -500,6 +505,12 @@ export class KamiyoClient {
   // ========================================================================
 
   private deserializeAgent(data: Buffer): AgentIdentity {
+    // Minimum size: 8 (discriminator) + 32 (owner) + 4 (name len) = 44 bytes
+    const MIN_AGENT_SIZE = 44;
+    if (data.length < MIN_AGENT_SIZE) {
+      throw new Error(`Agent data too short: ${data.length} bytes, expected at least ${MIN_AGENT_SIZE}`);
+    }
+
     // Skip 8-byte discriminator
     let offset = 8;
 
@@ -508,8 +519,19 @@ export class KamiyoClient {
 
     const nameLen = data.readUInt32LE(offset);
     offset += 4;
+
+    // Validate name length before reading
+    if (offset + nameLen > data.length) {
+      throw new Error(`Agent name length ${nameLen} exceeds buffer bounds at offset ${offset}`);
+    }
     const name = data.slice(offset, offset + nameLen).toString();
     offset += nameLen;
+
+    // Remaining fixed fields: 1 + 8 + 8 + 1 + 8 + 8 + 8 + 8 + 8 + 1 = 59 bytes
+    const REMAINING_SIZE = 59;
+    if (offset + REMAINING_SIZE > data.length) {
+      throw new Error(`Agent data truncated: need ${offset + REMAINING_SIZE} bytes, have ${data.length}`);
+    }
 
     const agentType = data[offset] as AgentType;
     offset += 1;
@@ -557,6 +579,13 @@ export class KamiyoClient {
   }
 
   private deserializeAgreement(data: Buffer): Agreement {
+    // Minimum size: 8 (discriminator) + 32 (agent) + 32 (api) + 8 (amount) + 1 (status) +
+    // 8 (createdAt) + 8 (expiresAt) + 4 (txId len) = 101 bytes
+    const MIN_AGREEMENT_SIZE = 101;
+    if (data.length < MIN_AGREEMENT_SIZE) {
+      throw new Error(`Agreement data too short: ${data.length} bytes, expected at least ${MIN_AGREEMENT_SIZE}`);
+    }
+
     // Simplified deserialization - in production use generated IDL types
     let offset = 8;
 
@@ -580,20 +609,49 @@ export class KamiyoClient {
 
     const transactionIdLen = data.readUInt32LE(offset);
     offset += 4;
+
+    // Validate transaction ID length before reading
+    if (offset + transactionIdLen > data.length) {
+      throw new Error(`Transaction ID length ${transactionIdLen} exceeds buffer bounds at offset ${offset}`);
+    }
     const transactionId = data.slice(offset, offset + transactionIdLen).toString();
     offset += transactionIdLen;
+
+    // Remaining fields: bump (1) + hasQualityScore (1) + optional qualityScore (1) +
+    // hasRefundPercentage (1) + optional refundPercentage (1)
+    // Minimum remaining: 3 bytes (bump + hasQuality + hasRefund)
+    if (offset + 3 > data.length) {
+      throw new Error(`Agreement data truncated: need ${offset + 3} bytes, have ${data.length}`);
+    }
 
     const bump = data[offset];
     offset += 1;
 
     const hasQualityScore = data[offset] === 1;
     offset += 1;
-    const qualityScore = hasQualityScore ? data[offset] : null;
-    if (hasQualityScore) offset += 1;
 
+    let qualityScore: number | null = null;
+    if (hasQualityScore) {
+      if (offset >= data.length) {
+        throw new Error(`Quality score missing at offset ${offset}`);
+      }
+      qualityScore = data[offset];
+      offset += 1;
+    }
+
+    if (offset >= data.length) {
+      throw new Error(`Refund percentage flag missing at offset ${offset}`);
+    }
     const hasRefundPercentage = data[offset] === 1;
     offset += 1;
-    const refundPercentage = hasRefundPercentage ? data[offset] : null;
+
+    let refundPercentage: number | null = null;
+    if (hasRefundPercentage) {
+      if (offset >= data.length) {
+        throw new Error(`Refund percentage missing at offset ${offset}`);
+      }
+      refundPercentage = data[offset];
+    }
 
     return {
       agent,

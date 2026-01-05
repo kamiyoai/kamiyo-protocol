@@ -5,8 +5,9 @@
  * Basic example of creating a Kamiyo agent
  */
 
-import { KamiyoSDK, AgentType } from '@kamiyo/sdk';
-import { Keypair } from '@solana/web3.js';
+import { KamiyoClient, AgentType } from '@kamiyo/sdk';
+import { Connection, Keypair } from '@solana/web3.js';
+import BN from 'bn.js';
 
 async function createBasicAgent() {
   // Generate a new wallet for the agent owner
@@ -14,32 +15,31 @@ async function createBasicAgent() {
 
   console.log('Wallet created:', wallet.publicKey.toString());
 
-  // Initialize the Kamiyo SDK
-  const sdk = new KamiyoSDK({
-    solanaRpc: 'https://api.devnet.solana.com',
-    wallet
+  // Initialize the Kamiyo client
+  const connection = new Connection('https://api.devnet.solana.com');
+  const client = new KamiyoClient({
+    connection,
+    wallet: {
+      publicKey: wallet.publicKey,
+      signTransaction: async (tx) => { tx.sign(wallet); return tx; },
+      signAllTransactions: async (txs) => { txs.forEach(tx => tx.sign(wallet)); return txs; },
+    }
   });
 
   // Create a trading agent with 1 SOL initial stake
-  const agent = await sdk.createAgent(
-    wallet.publicKey,
-    'BasicTradingBot',
-    AgentType.Trading,
-    1_000_000_000  // 1 SOL in lamports
-  );
+  const signature = await client.createAgent({
+    name: 'BasicTradingBot',
+    agentType: AgentType.Trading,
+    stakeAmount: new BN(1_000_000_000)  // 1 SOL in lamports
+  });
 
   console.log('Agent created successfully:');
-  console.log('  PDA:', agent.pda.toString());
-  console.log('  Name:', agent.name);
-  console.log('  Type:', agent.type);
-  console.log('  Owner:', agent.owner.toString());
-  console.log('  Reputation:', agent.reputation.toString());
-  console.log('  Stake:', agent.stakeAmount.toString());
-  console.log('  Active:', agent.isActive);
+  console.log('  Transaction signature:', signature);
 
   // Retrieve the agent to verify
-  const retrieved = await sdk.getAgent(agent.pda);
-  console.log('\nAgent retrieved:', retrieved.name);
+  const [agentPDA] = client.getAgentPDA(wallet.publicKey);
+  const agent = await client.getAgent(agentPDA);
+  console.log('\nAgent retrieved:', agent?.name);
 }
 
 // Run the example

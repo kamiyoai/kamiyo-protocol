@@ -49,6 +49,12 @@ function parseEscrowData(data: Buffer): {
   amount: bigint;
   status: number;
 } {
+  // Minimum size: 8 (discriminator) + 32 (agent) + 32 (api) + 8 (amount) + 1 (status) = 81 bytes
+  const MIN_ESCROW_SIZE = 81;
+  if (data.length < MIN_ESCROW_SIZE) {
+    throw new Error(`Escrow data too short: ${data.length} bytes, expected at least ${MIN_ESCROW_SIZE}`);
+  }
+
   // Skip 8-byte discriminator
   const offset = 8;
 
