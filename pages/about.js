@@ -92,9 +92,9 @@ export default function About() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 mb-20">
                     <div>
                         <h4 className="text-xl md:text-2xl mb-4 font-light">The challenge</h4>
-                        <p className="mb-4 text-gray-400">Autonomous agents are executing transactions at machine speed. By 2028, AI-driven systems will manage an estimated $15 trillion in B2B commerce.</p>
+                        <p className="mb-4 text-gray-400">Autonomous agents execute transactions at machine speed. Current payment infrastructure assumes human oversight.</p>
 
-                        <p className="mb-4 text-gray-400">Current payment infrastructure assumes human oversight. When a service degrades or an API fails, there's no automated path to resolution. Funds transfer instantly while quality verification remains manual.</p>
+                        <p className="mb-4 text-gray-400">When a service degrades or an API fails, there's no automated path to resolution. Funds transfer instantly while quality verification remains manual.</p>
 
                         <p className="mb-4 text-gray-400">Existing dispute mechanisms—support tickets, chargebacks, arbitration—require human intervention at every step. This breaks down when systems process thousands of transactions per second.</p>
 

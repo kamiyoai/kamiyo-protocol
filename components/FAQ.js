@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     question: "What's the agent identity system?",
-    answer: "Agents have PDA-based identities on Solana with stake collateral. Reputation scores update based on transaction outcomes and dispute history. Agents with poor track records can be slashed. This creates accountability for autonomous systems."
+    answer: "Agents have PDA-based identities on Solana with stake collateral. Reputation scores update based on transaction outcomes and dispute history. Agents with poor track records can be slashed."
   },
   {
     question: "Is this compatible with x402?",
@@ -74,8 +74,8 @@ export default function FAQ() {
             </Head>
             <section className="w-full px-5 mx-auto py-16" style={{ maxWidth: '1400px' }}>
                 <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-light mb-4">Frequently Asked Questions</h2>
-                    <p className="text-gray-400 text-sm md:text-lg">Everything you need to know about KAMIYO</p>
+                    <h2 className="text-3xl md:text-4xl font-light mb-4">FAQ</h2>
+                    <p className="text-gray-400 text-sm md:text-lg">Common questions about escrow, disputes, and integration</p>
                 </div>
 
                 <div className="max-w-3xl mx-auto space-y-4 mb-12">
