@@ -100,27 +100,23 @@ export default function Header({ children }) {
                             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                         >
                             <svg
-                                className="overflow-visible w-6 h-6 text-gray-500 group-hover:text-white transition-colors duration-300"
+                                className="w-6 h-6 text-gray-500 group-hover:text-white transition-colors duration-300"
                                 viewBox="0 0 24 24"
                                 xmlns="http://www.w3.org/2000/svg"
                             >
-                                {/* Line 1 */}
+                                {/* Line 1 - becomes \ of X */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "10"}
-                                    y1="6"
-                                    x2="20"
-                                    y2="6"
+                                    x1={isMenuOpen ? "6" : "10"}
+                                    y1={isMenuOpen ? "6" : "6"}
+                                    x2={isMenuOpen ? "18" : "20"}
+                                    y2={isMenuOpen ? "18" : "6"}
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    style={{
-                                        transform: isMenuOpen ? "rotate(45deg)" : "none",
-                                        transformOrigin: "center",
-                                    }}
                                     className="transition-all duration-300"
                                 />
                                 {/* Line 2 */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "7"}
+                                    x1="7"
                                     y1="10"
                                     x2="20"
                                     y2="10"
@@ -138,18 +134,14 @@ export default function Header({ children }) {
                                     strokeWidth="1"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
-                                {/* Line 4 */}
+                                {/* Line 4 - becomes / of X */}
                                 <line
-                                    x1={isMenuOpen ? "4" : "7"}
-                                    y1="18"
-                                    x2="20"
-                                    y2="18"
+                                    x1={isMenuOpen ? "6" : "7"}
+                                    y1={isMenuOpen ? "18" : "18"}
+                                    x2={isMenuOpen ? "18" : "20"}
+                                    y2={isMenuOpen ? "6" : "18"}
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    style={{
-                                        transform: isMenuOpen ? "rotate(-45deg)" : "none",
-                                        transformOrigin: "center",
-                                    }}
                                     className="transition-all duration-300"
                                 />
                             </svg>
