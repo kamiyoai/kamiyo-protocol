@@ -39,12 +39,12 @@ function SignIn() {
     };
 
     return (
-        <>
+        <div className="min-h-[100dvh] h-full bg-black">
             <Head>
                 <title>Sign In - KAMIYO</title>
             </Head>
-            <div className="min-h-screen bg-black text-white flex items-center justify-center px-4 py-8">
-                <div className="max-w-md w-full space-y-6 p-6 sm:p-8 border border-gray-500/25 rounded-lg">
+            <div className="min-h-[100dvh] text-white flex items-center justify-center px-4 py-8">
+                <div className="max-w-md w-full space-y-6 p-6 sm:p-8 border border-gray-500/25 rounded-lg bg-black">
                     <div>
                         <h2 className="text-3xl font-light text-center mb-2">Sign in to KAMIYO</h2>
                         <p className="text-gray-400 text-center text-sm">
@@ -152,7 +152,7 @@ function SignIn() {
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     );
 }
 
