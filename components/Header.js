@@ -120,7 +120,7 @@ export default function Header({ children }) {
                                     x2="20"
                                     y2="6"
                                     stroke="url(#menuGradient)"
-                                    strokeWidth="1"
+                                    strokeWidth="2"
                                     style={{
                                         transform: isMenuOpen ? "rotate(45deg)" : "none",
                                         transformOrigin: "center",
@@ -134,7 +134,7 @@ export default function Header({ children }) {
                                     x2="20"
                                     y2="10"
                                     stroke="url(#menuGradient)"
-                                    strokeWidth="1"
+                                    strokeWidth="2"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 3 */}
@@ -144,7 +144,7 @@ export default function Header({ children }) {
                                     x2="20"
                                     y2="14"
                                     stroke="url(#menuGradient)"
-                                    strokeWidth="1"
+                                    strokeWidth="2"
                                     className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
                                 />
                                 {/* Line 4 */}
@@ -154,7 +154,7 @@ export default function Header({ children }) {
                                     x2="20"
                                     y2="18"
                                     stroke="url(#menuGradient)"
-                                    strokeWidth="1"
+                                    strokeWidth="2"
                                     style={{
                                         transform: isMenuOpen ? "rotate(-45deg)" : "none",
                                         transformOrigin: "center",
