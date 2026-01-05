@@ -11,10 +11,10 @@
     "oracle",
     "web3"
   ],
-  "homepage": "https://github.com/kamiyo-ai/kamiyo-protocol",
+  "homepage": "https://github.com/kamiyo-ai/kamiyo-new",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git"
+    "url": "https://github.com/kamiyo-ai/kamiyo-new.git"
   },
   "license": "BUSL-1.1",
   "author": "KAMIYO <susumu@kamiyo.ai>",
@@ -28,9 +28,7 @@
     "build:sdk": "cd packages/kamiyo-sdk && npm run build",
     "clean": "rm -rf target && cd packages/kamiyo-sdk && rm -rf dist",
     "test": "anchor test",
-    "test:sdk": "cd packages/kamiyo-sdk && npm test",
-    "monitor": "npx ts-node scripts/monitor.ts",
-    "setup:mainnet": "./scripts/setup-mainnet.sh"
+    "test:sdk": "cd packages/kamiyo-sdk && npm test"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
