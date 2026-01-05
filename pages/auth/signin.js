@@ -4,7 +4,7 @@ import Head from 'next/head';
 import { useState } from 'react';
 import { ScrambleButton } from '../../components/ScrambleButton';
 
-export default function SignIn() {
+function SignIn() {
     const router = useRouter();
     const { callbackUrl } = router.query;
     const [email, setEmail] = useState('');
@@ -155,3 +155,7 @@ export default function SignIn() {
         </>
     );
 }
+
+SignIn.getLayout = (page) => page;
+
+export default SignIn;
