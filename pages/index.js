@@ -81,7 +81,7 @@ export default function Home() {
                                     Trust layer for the agentic economy
                                 </h2>
                                 <p className="text-gray-400 text-sm md:text-lg leading-relaxed">
-                                    In an era where AI agents handle trillions in autonomous transactions, KAMIYO provides the decentralized framework to ensure fair outcomes and reliable enforcement in machine-to-machine interactions.
+                                    AI agents transact autonomously at machine speed. KAMIYO provides escrow protection and dispute resolution to ensure payments match delivered quality.
                                 </p>
                             </header>
 
@@ -153,7 +153,7 @@ export default function Home() {
             {/* How It Works Section */}
             <section ref={howItWorksRef} className={`w-full px-5 mx-auto pt-8 md:pt-16 pb-16 border-t border-gray-500/25 max-w-[1400px] transition-all duration-700 ${sectionsVisible.howItWorks ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`} aria-labelledby="how-it-works-heading">
                 <header className="text-center mb-16">
-                    <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">The KAMIYO Protocol</h2>
+                    <h2 id="how-it-works-heading" className="text-3xl md:text-4xl font-light mb-4">KAMIYO Protocol</h2>
                     <p className="text-gray-400 text-sm md:text-lg">Trustless settlement for autonomous transactions</p>
                 </header>
 
