@@ -213,6 +213,10 @@ See [SECURITY.md](SECURITY.md).
 - Agent slashing: 5% for frivolous disputes
 - Auto-removal after 3 violations
 - 7-day grace period on escrows
+- Rent exemption checks on all SOL transfers
+- Ed25519 signature verification with instruction iteration
+- Token mint validation for SPL escrows
+- Protocol fees for both SOL and SPL token disputes
 
 ## License
 
