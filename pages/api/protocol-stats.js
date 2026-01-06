@@ -1,4 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js';
+import { getSimulatedStats, isEmptyStats } from '../../lib/simulated-stats';
 
 const PROGRAM_ID = 'E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n';
 const RPC_ENDPOINTS = [
@@ -17,7 +18,73 @@ async function getWorkingConnection() {
             continue;
         }
     }
-    throw new Error('All RPC endpoints failed');
+    return null;
+}
+
+async function fetchRealStats() {
+    const connection = await getWorkingConnection();
+    if (!connection) return null;
+
+    const programId = new PublicKey(PROGRAM_ID);
+    const signatures = await connection.getSignaturesForAddress(programId, { limit: 50 });
+
+    let totalAssessments = 0;
+    let completed = 0;
+    let qualityScores = [];
+    let totalRefunded = 0;
+
+    for (const sig of signatures) {
+        try {
+            const tx = await connection.getTransaction(sig.signature, {
+                maxSupportedTransactionVersion: 0
+            });
+
+            if (tx?.meta?.logMessages) {
+                const logs = tx.meta.logMessages;
+
+                if (logs.some(l => l.includes('Dispute') || l.includes('Quality'))) {
+                    totalAssessments++;
+                }
+
+                const qualityLog = logs.find(l => l.includes('Quality Score:'));
+                if (qualityLog) {
+                    const match = qualityLog.match(/Quality Score: (\d+)/);
+                    if (match) {
+                        qualityScores.push(parseInt(match[1]));
+                        completed++;
+                    }
+                }
+
+                const refundLog = logs.find(l => l.includes('Refund to Agent:'));
+                if (refundLog) {
+                    const match = refundLog.match(/Refund to Agent: ([\d.]+)/);
+                    if (match) {
+                        totalRefunded += parseFloat(match[1]);
+                    }
+                }
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+
+    let distribution = [0, 0, 0, 0, 0];
+    qualityScores.forEach(score => {
+        const bucket = Math.min(Math.floor(score / 20), 4);
+        distribution[bucket]++;
+    });
+
+    const avgQuality = qualityScores.length > 0
+        ? (qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length).toFixed(1)
+        : '0';
+
+    return {
+        totalAssessments,
+        completed,
+        avgQuality,
+        totalRefunded: totalRefunded.toFixed(2),
+        distribution
+    };
 }
 
 export default async function handler(req, res) {
@@ -26,90 +93,21 @@ export default async function handler(req, res) {
     }
 
     try {
-        const connection = await getWorkingConnection();
-        const programId = new PublicKey(PROGRAM_ID);
+        const realStats = await fetchRealStats();
 
-        // Fetch recent program transactions
-        const signatures = await connection.getSignaturesForAddress(programId, { limit: 50 });
-
-        let totalAssessments = 0;
-        let completed = 0;
-        let qualityScores = [];
-        let totalRefunded = 0;
-
-        // Parse transaction logs for stats
-        for (const sig of signatures) {
-            try {
-                const tx = await connection.getTransaction(sig.signature, {
-                    maxSupportedTransactionVersion: 0
-                });
-
-                if (tx?.meta?.logMessages) {
-                    const logs = tx.meta.logMessages;
-
-                    // Check for dispute/assessment transactions
-                    if (logs.some(l => l.includes('Dispute') || l.includes('Quality'))) {
-                        totalAssessments++;
-                    }
-
-                    // Extract quality scores
-                    const qualityLog = logs.find(l => l.includes('Quality Score:'));
-                    if (qualityLog) {
-                        const match = qualityLog.match(/Quality Score: (\d+)/);
-                        if (match) {
-                            qualityScores.push(parseInt(match[1]));
-                            completed++;
-                        }
-                    }
-
-                    // Extract refund amounts
-                    const refundLog = logs.find(l => l.includes('Refund to Agent:'));
-                    if (refundLog) {
-                        const match = refundLog.match(/Refund to Agent: ([\d.]+)/);
-                        if (match) {
-                            totalRefunded += parseFloat(match[1]);
-                        }
-                    }
-                }
-            } catch (e) {
-                continue;
-            }
-        }
-
-        const avgQuality = qualityScores.length > 0
-            ? (qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length).toFixed(1)
-            : '78.5';
-
-        // Calculate quality distribution for chart
-        let distribution = [0, 0, 0, 0, 0]; // 0-20, 20-40, 40-60, 60-80, 80-100
-        qualityScores.forEach(score => {
-            const bucket = Math.min(Math.floor(score / 20), 4);
-            distribution[bucket]++;
-        });
-
-        // Use demo data if no real data found
-        if (distribution.every(d => d === 0)) {
-            distribution = [2, 5, 12, 28, 45];
+        // Use simulated stats if real stats are empty
+        if (isEmptyStats(realStats)) {
+            return res.status(200).json(getSimulatedStats());
         }
 
         res.status(200).json({
-            totalAssessments: Math.max(totalAssessments, signatures.length) || 147,
-            completed: completed || 142,
-            avgQuality,
-            totalRefunded: totalRefunded > 0 ? totalRefunded.toFixed(2) : '12.45',
-            distribution,
+            ...realStats,
+            isSimulated: false,
             lastUpdated: new Date().toISOString()
         });
     } catch (error) {
         console.error('Protocol stats error:', error);
-        // Return demo data on error
-        res.status(200).json({
-            totalAssessments: 147,
-            completed: 142,
-            avgQuality: '78.5',
-            totalRefunded: '12.45',
-            distribution: [2, 5, 12, 28, 45],
-            lastUpdated: new Date().toISOString()
-        });
+        // Return simulated data on error
+        res.status(200).json(getSimulatedStats());
     }
 }
