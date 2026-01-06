@@ -1,0 +1,8 @@
+src/
+tests/
+.eslintrc*
+tsconfig.json
+vitest.config.ts
+.gitignore
+*.log
+coverage/
