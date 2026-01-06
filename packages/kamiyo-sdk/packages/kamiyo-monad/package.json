@@ -1,0 +1,77 @@
+{
+  "name": "@kamiyo/monad",
+  "version": "0.1.0",
+  "description": "Monad parallel execution adapter for KAMIYO agent identity framework",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./swarm": {
+      "import": "./dist/swarm.mjs",
+      "require": "./dist/swarm.js",
+      "types": "./dist/swarm.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/swarm.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts src/swarm.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.0",
+    "vitest": "^1.1.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/parser": "^6.18.0",
+    "@typescript-eslint/eslint-plugin": "^6.18.0"
+  },
+  "peerDependencies": {
+    "ethers": ">=6.0.0",
+    "@solana/web3.js": ">=1.87.0"
+  },
+  "peerDependenciesMeta": {
+    "@solana/web3.js": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "kamiyo",
+    "monad",
+    "solana",
+    "evm",
+    "parallel-execution",
+    "pda-emulation",
+    "cross-chain",
+    "ai-agents",
+    "swarm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-monad"
+  },
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
