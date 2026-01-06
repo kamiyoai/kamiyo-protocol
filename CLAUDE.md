@@ -18,6 +18,19 @@ Write like a human senior engineer:
 - No phrases like "revolutionary", "game-changing", "cutting-edge"
 - No self-references or meta-commentary
 
+### Git Remotes
+
+This is the **protocol** repo, separate from the website repo:
+
+- `kamiyo-protocol` -> `kamiyo-ai/kamiyo-protocol.git` (use this)
+- `origin` -> `kamiyo-ai/kamiyo.git` (website repo, ignore)
+
+Always push to the `kamiyo-protocol` remote:
+
+```bash
+git push kamiyo-protocol branch-name:main
+```
+
 ### Git Identity
 
 All commits must use the KAMIYO identity. Before committing, ensure git config is set:
