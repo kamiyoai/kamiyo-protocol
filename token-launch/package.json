@@ -1,0 +1,29 @@
+{
+  "name": "kamiyo-token-launch",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "generate-wallets": "node scripts/generate-wallets.js",
+    "check-balances": "node scripts/check-balances.js",
+    "fund-wallets": "node scripts/fund-wallets.js",
+    "launch": "node scripts/launch.js",
+    "buy": "node scripts/buy.js",
+    "buy-personal-jito": "node scripts/buy-personal-jito.js",
+    "auto-buy": "node scripts/auto-buy-bot.js",
+    "lock": "node scripts/lock-streamflow.js",
+    "monitor": "node scripts/monitor-sell.js",
+    "monitor-dry": "node scripts/monitor-sell.js --dry-run",
+    "test-launch": "node scripts/test-launch.js"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "@streamflow/stream": "^10.0.3",
+    "bn.js": "^5.2.1",
+    "bs58": "^6.0.0",
+    "form-data": "^4.0.0",
+    "jito-ts": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * KAMIYO Helius Adapter - Main Client
- * Production-ready Helius RPC client for escrow operations
+ * Helius RPC client for escrow operations
  */
 
 import { PublicKey, Connection } from '@solana/web3.js';
