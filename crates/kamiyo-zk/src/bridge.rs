@@ -3,7 +3,7 @@
 //! This module provides utilities for converting between the two ZK systems:
 //!
 //! - Halo2 (Zcash): Used for trustless commitment phase (no ceremony)
-//! - Groth16 (Circom): Used for on-chain settlement (native Solana support)
+//! - Groth16 (Circom): Used for on-chain settlement (Solana and Monad)
 //!
 //! ## Flow
 //!
@@ -14,8 +14,9 @@
 //! 2. After reveal delay, oracle generates Groth16 proof
 //!    └── Uses same score/blinding as Halo2 commitment
 //!
-//! 3. Solana program verifies Groth16 proof
-//!    └── Uses groth16-solana with alt_bn128 syscalls
+//! 3. On-chain verification
+//!    └── Solana: groth16-solana with alt_bn128 syscalls
+//!    └── Monad: EVM alt_bn128 precompiles (0x06, 0x07, 0x08)
 //! ```
 //!
 //! ## Important: Field Compatibility
@@ -24,6 +25,12 @@
 //! The commitment hash must be computed the same way in both systems:
 //! - Poseidon hash with matching parameters
 //! - Field elements must be reduced to fit BN254's scalar field
+//!
+//! ## Monad Integration
+//!
+//! Monad uses the same alt_bn128 curve as Ethereum, making Groth16 proofs
+//! directly verifiable via precompiles. The MonadVerificationData struct
+//! provides ABI-encoded proof data for EVM contract verification.
 
 use crate::commitment::VoteCommitment;
 use crate::error::ZkError;
@@ -236,6 +243,157 @@ fn parse_g2_point(coords: &[Vec<String>]) -> Result<Vec<u8>, ZkError> {
     }
 
     Ok(result)
+}
+
+/// Proof data formatted for Monad EVM verification
+///
+/// Contains proof components in the format expected by Solidity contracts
+/// using alt_bn128 precompiles (ecAdd: 0x06, ecMul: 0x07, pairing: 0x08).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MonadVerificationData {
+    /// G1 point A: [x, y] as 256-bit integers
+    pub proof_a: [[u8; 32]; 2],
+    /// G2 point B: [[x0, x1], [y0, y1]] as 256-bit integers
+    pub proof_b: [[[u8; 32]; 2]; 2],
+    /// G1 point C: [x, y] as 256-bit integers
+    pub proof_c: [[u8; 32]; 2],
+    /// Public inputs as 256-bit integers
+    pub public_inputs: Vec<[u8; 32]>,
+    /// Entity hash for cross-chain reference
+    pub entity_hash: [u8; 32],
+    /// Reputation score being attested
+    pub reputation_score: u16,
+    /// Timestamp of attestation
+    pub timestamp: u64,
+}
+
+impl MonadVerificationData {
+    /// Create Monad verification data from Groth16 proof
+    pub fn from_groth16(
+        proof: &Groth16Proof,
+        entity: &[u8; 32],
+        reputation_score: u16,
+    ) -> Result<Self, ZkError> {
+        let proof_a = parse_g1_to_array(&proof.proof_a)?;
+        let proof_b = parse_g2_to_array(&proof.proof_b)?;
+        let proof_c = parse_g1_to_array(&proof.proof_c)?;
+
+        let public_inputs: Vec<[u8; 32]> = proof
+            .public_inputs
+            .iter()
+            .map(|p| {
+                let mut arr = [0u8; 32];
+                let len = p.len().min(32);
+                arr[32 - len..].copy_from_slice(&p[..len]);
+                arr
+            })
+            .collect();
+
+        Ok(Self {
+            proof_a,
+            proof_b,
+            proof_c,
+            public_inputs,
+            entity_hash: *entity,
+            reputation_score,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        })
+    }
+
+    /// Encode for Solidity contract call
+    ///
+    /// Format: abi.encode(proof_a, proof_b, proof_c, publicInputs)
+    pub fn to_abi_encoded(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+
+        // proof_a: uint256[2]
+        for coord in &self.proof_a {
+            result.extend_from_slice(coord);
+        }
+
+        // proof_b: uint256[2][2]
+        for pair in &self.proof_b {
+            for coord in pair {
+                result.extend_from_slice(coord);
+            }
+        }
+
+        // proof_c: uint256[2]
+        for coord in &self.proof_c {
+            result.extend_from_slice(coord);
+        }
+
+        // public_inputs: dynamic array
+        // First, the offset to dynamic data (will be at position after static data)
+        let static_size = 64 + 128 + 64; // proof_a + proof_b + proof_c
+        let mut offset_bytes = [0u8; 32];
+        offset_bytes[31] = (static_size + 32) as u8; // +32 for this offset itself
+        result.extend_from_slice(&offset_bytes);
+
+        // Array length
+        let mut len_bytes = [0u8; 32];
+        len_bytes[31] = self.public_inputs.len() as u8;
+        result.extend_from_slice(&len_bytes);
+
+        // Array elements
+        for input in &self.public_inputs {
+            result.extend_from_slice(input);
+        }
+
+        result
+    }
+
+    /// Create entity hash from Solana pubkey bytes
+    pub fn hash_entity(pubkey: &[u8]) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(pubkey);
+        hasher.finalize().into()
+    }
+}
+
+fn parse_g1_to_array(bytes: &[u8]) -> Result<[[u8; 32]; 2], ZkError> {
+    if bytes.len() < 64 {
+        return Err(ZkError::InvalidProof(format!(
+            "G1 point too short: {} bytes",
+            bytes.len()
+        )));
+    }
+
+    let mut x = [0u8; 32];
+    let mut y = [0u8; 32];
+    x.copy_from_slice(&bytes[0..32]);
+    y.copy_from_slice(&bytes[32..64]);
+
+    Ok([x, y])
+}
+
+fn parse_g2_to_array(bytes: &[u8]) -> Result<[[[u8; 32]; 2]; 2], ZkError> {
+    if bytes.len() < 128 {
+        return Err(ZkError::InvalidProof(format!(
+            "G2 point too short: {} bytes",
+            bytes.len()
+        )));
+    }
+
+    let mut result = [[[0u8; 32]; 2]; 2];
+    result[0][0].copy_from_slice(&bytes[0..32]);
+    result[0][1].copy_from_slice(&bytes[32..64]);
+    result[1][0].copy_from_slice(&bytes[64..96]);
+    result[1][1].copy_from_slice(&bytes[96..128]);
+
+    Ok(result)
+}
+
+/// Convert Solana verification data to Monad format
+pub fn solana_to_monad(
+    solana_data: &SolanaVerificationData,
+    entity: &[u8; 32],
+) -> Result<MonadVerificationData, ZkError> {
+    MonadVerificationData::from_groth16(&solana_data.proof, entity, solana_data.score as u16)
 }
 
 #[cfg(test)]
