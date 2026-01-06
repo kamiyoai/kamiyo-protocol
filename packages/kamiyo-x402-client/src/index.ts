@@ -97,4 +97,4 @@ export {
 
 // PayAI Network facilitator
 export { PayAIFacilitator, PayAIError, createPayAIFacilitator, NETWORKS as PAYAI_NETWORKS } from './payai';
-export type { PayAIConfig, PayAINetwork, PayAIErrorCode, NetworkConfig, PaymentRequirement, VerifyResult, SettleResult, X402Response } from './payai';
+export type { PayAIConfig, PayAINetwork, PayAIErrorCode, NetworkConfig, PaymentRequirement, VerifyResult, SettleResult, PayAI402Response } from './payai';
