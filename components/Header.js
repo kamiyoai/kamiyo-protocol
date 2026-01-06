@@ -107,7 +107,7 @@ export default function Header({ children }) {
                                     y2={isMenuOpen ? "18" : "6"}
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    style={{ transition: 'all 0.3s ease' }}
+                                    style={{ transition: 'x1 0.6s ease, y1 0.6s ease, x2 0.6s ease, y2 0.6s ease' }}
                                 />
                                 {/* Line 2 */}
                                 <line
@@ -118,7 +118,7 @@ export default function Header({ children }) {
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
-                                        transition: 'all 0.3s ease',
+                                        transition: 'x1 0.6s ease, opacity 0.3s ease',
                                         opacity: isMenuOpen ? 0 : 1
                                     }}
                                 />
@@ -131,7 +131,7 @@ export default function Header({ children }) {
                                     stroke="currentColor"
                                     strokeWidth="1"
                                     style={{
-                                        transition: 'all 0.3s ease',
+                                        transition: 'opacity 0.3s ease',
                                         opacity: isMenuOpen ? 0 : 1
                                     }}
                                 />
@@ -143,7 +143,7 @@ export default function Header({ children }) {
                                     y2={isMenuOpen ? "6" : "18"}
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    style={{ transition: 'all 0.3s ease' }}
+                                    style={{ transition: 'x1 0.6s ease, y1 0.6s ease, x2 0.6s ease, y2 0.6s ease' }}
                                 />
                             </svg>
                         </button>
