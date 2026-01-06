@@ -1,0 +1,36 @@
+{
+  "name": "@kamiyo/actions",
+  "version": "0.1.0",
+  "description": "Plug-and-play actions for KAMIYO Protocol - Agent payments, disputes, and resolution",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.27",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "keywords": [
+    "solana",
+    "agent",
+    "actions",
+    "escrow",
+    "payments",
+    "ai-agent"
+  ]
+}
