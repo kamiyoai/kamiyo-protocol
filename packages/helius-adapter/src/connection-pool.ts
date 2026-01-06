@@ -24,6 +24,8 @@ export class ConnectionPool {
     private readonly apiKey: string;
     private readonly cluster: 'mainnet-beta' | 'devnet';
     private readonly commitment: Commitment;
+    private initialized = false;
+    private initializing = false;
 
     constructor(
         apiKey: string,
@@ -45,33 +47,68 @@ export class ConnectionPool {
      * Initialize the connection pool
      */
     async init(): Promise<void> {
-        const baseEndpoint = HELIUS_ENDPOINTS[this.cluster];
-        const endpoints = this.generateEndpoints(baseEndpoint);
-
-        for (const endpoint of endpoints) {
-            const connection = new Connection(endpoint, {
-                commitment: this.commitment,
-                confirmTransactionInitialTimeout: this.config.connectionTimeoutMs
-            });
-
-            this.connections.push({
-                connection,
-                endpoint,
-                healthy: false,
-                lastCheck: 0,
-                latency: Infinity,
-                errorCount: 0
-            });
+        if (this.initialized) {
+            return;
         }
 
-        // Initial health check
-        await this.performHealthChecks();
+        if (this.initializing) {
+            throw new ConnectionError('Pool initialization already in progress');
+        }
 
-        // Start periodic health checks
-        this.healthCheckInterval = setInterval(
-            () => this.performHealthChecks(),
-            this.config.healthCheckIntervalMs
-        );
+        this.initializing = true;
+
+        try {
+            const baseEndpoint = HELIUS_ENDPOINTS[this.cluster];
+            const endpoints = this.generateEndpoints(baseEndpoint);
+
+            for (const endpoint of endpoints) {
+                const connection = new Connection(endpoint, {
+                    commitment: this.commitment,
+                    confirmTransactionInitialTimeout: this.config.connectionTimeoutMs
+                });
+
+                this.connections.push({
+                    connection,
+                    endpoint,
+                    healthy: false,
+                    lastCheck: 0,
+                    latency: Infinity,
+                    errorCount: 0
+                });
+            }
+
+            // Initial health check
+            await this.performHealthChecks();
+
+            // Verify at least one connection is healthy
+            const healthyCount = this.connections.filter(c => c.healthy).length;
+            if (healthyCount === 0) {
+                throw new ConnectionError('No healthy connections available after initialization');
+            }
+
+            // Start periodic health checks
+            this.healthCheckInterval = setInterval(
+                () => this.performHealthChecks(),
+                this.config.healthCheckIntervalMs
+            );
+
+            this.initialized = true;
+        } catch (error) {
+            // Cleanup on failure
+            this.connections = [];
+            if (this.healthCheckInterval) {
+                clearInterval(this.healthCheckInterval);
+                this.healthCheckInterval = null;
+            }
+            throw error instanceof ConnectionError
+                ? error
+                : new ConnectionError(
+                    `Pool initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+                    error instanceof Error ? error : undefined
+                );
+        } finally {
+            this.initializing = false;
+        }
     }
 
     /**
@@ -141,6 +178,10 @@ export class ConnectionPool {
      * Get the best available connection
      */
     getConnection(): Connection {
+        if (!this.initialized) {
+            throw new ConnectionError('Pool not initialized. Call init() first.');
+        }
+
         const healthy = this.connections.filter(c => c.healthy);
 
         if (healthy.length === 0) {
@@ -252,6 +293,13 @@ export class ConnectionPool {
     }
 
     /**
+     * Check if pool is initialized
+     */
+    isInitialized(): boolean {
+        return this.initialized;
+    }
+
+    /**
      * Shutdown the connection pool
      */
     shutdown(): void {
@@ -260,6 +308,8 @@ export class ConnectionPool {
             this.healthCheckInterval = null;
         }
         this.connections = [];
+        this.initialized = false;
+        this.currentIndex = 0;
     }
 
     private delay(ms: number): Promise<void> {

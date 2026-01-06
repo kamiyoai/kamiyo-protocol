@@ -89,6 +89,21 @@ export const DEFAULTS = {
     WEBHOOK_SIGNATURE_HEADER: 'x-helius-signature'
 } as const;
 
+// Input validation limits
+export const LIMITS = {
+    MAX_API_KEY_LENGTH: 256,
+    MAX_TRANSACTION_ID_LENGTH: 256,
+    MAX_SIGNATURES_BATCH: 100,
+    MAX_ACCOUNTS_BATCH: 100,
+    MAX_ESCROW_PDAS_BATCH: 100,
+    MIN_TIMEOUT_MS: 1000,
+    MAX_TIMEOUT_MS: 120_000,
+    MIN_RETRIES: 1,
+    MAX_RETRIES: 10,
+    MIN_RATE_LIMIT: 1,
+    MAX_RATE_LIMIT: 100
+} as const;
+
 // Escrow status byte mapping
 export const STATUS_MAP: Record<number, string> = {
     0: 'active',

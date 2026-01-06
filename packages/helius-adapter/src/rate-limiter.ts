@@ -6,22 +6,29 @@
 import { RateLimitError } from './types';
 import { DEFAULTS } from './constants';
 
+const MAX_QUEUE_SIZE = 100;
+
 interface RateLimiterConfig {
     maxTokens: number;
     refillRate: number; // tokens per second
     refillInterval?: number; // ms
+    maxQueueSize?: number;
+}
+
+interface QueueEntry {
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timestamp: number;
+    timeoutId: ReturnType<typeof setTimeout> | null;
 }
 
 export class RateLimiter {
     private tokens: number;
     private readonly maxTokens: number;
     private readonly refillRate: number;
+    private readonly maxQueueSize: number;
     private lastRefill: number;
-    private queue: Array<{
-        resolve: () => void;
-        reject: (error: Error) => void;
-        timestamp: number;
-    }> = [];
+    private queue: QueueEntry[] = [];
     private processing = false;
 
     constructor(config: RateLimiterConfig = {
@@ -30,6 +37,7 @@ export class RateLimiter {
     }) {
         this.maxTokens = config.maxTokens;
         this.refillRate = config.refillRate;
+        this.maxQueueSize = config.maxQueueSize ?? MAX_QUEUE_SIZE;
         this.tokens = this.maxTokens;
         this.lastRefill = Date.now();
     }
@@ -68,22 +76,47 @@ export class RateLimiter {
             return;
         }
 
+        // Reject immediately if queue is full
+        if (this.queue.length >= this.maxQueueSize) {
+            throw new RateLimitError(this.getWaitTime());
+        }
+
         return new Promise((resolve, reject) => {
-            const entry = {
-                resolve,
-                reject,
-                timestamp: Date.now()
+            const entry: QueueEntry = {
+                resolve: () => {},
+                reject: () => {},
+                timestamp: Date.now(),
+                timeoutId: null
+            };
+
+            // Wrap resolve to clear timeout
+            entry.resolve = () => {
+                if (entry.timeoutId) {
+                    clearTimeout(entry.timeoutId);
+                    entry.timeoutId = null;
+                }
+                resolve();
+            };
+
+            // Wrap reject to clear timeout
+            entry.reject = (error: Error) => {
+                if (entry.timeoutId) {
+                    clearTimeout(entry.timeoutId);
+                    entry.timeoutId = null;
+                }
+                reject(error);
             };
 
             this.queue.push(entry);
 
             // Set timeout
-            setTimeout(() => {
+            entry.timeoutId = setTimeout(() => {
                 const index = this.queue.indexOf(entry);
                 if (index !== -1) {
                     this.queue.splice(index, 1);
                     reject(new RateLimitError(this.getWaitTime()));
                 }
+                entry.timeoutId = null;
             }, timeoutMs);
 
             this.processQueue();
@@ -164,6 +197,10 @@ export class RateLimiter {
     clear(): void {
         const error = new RateLimitError(0);
         for (const entry of this.queue) {
+            if (entry.timeoutId) {
+                clearTimeout(entry.timeoutId);
+                entry.timeoutId = null;
+            }
             entry.reject(error);
         }
         this.queue = [];
