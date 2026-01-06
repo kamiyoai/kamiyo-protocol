@@ -1,7 +1,0 @@
-<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
-  <rect width="800" height="600" fill="#000000"/>
-  <rect x="250" y="200" width="300" height="60" rx="8" fill="#ff00ff"/>
-  <text x="400" y="240" font-family="monospace" font-size="18" fill="#ffffff" text-anchor="middle">Primary Button</text>
-  <rect x="250" y="300" width="300" height="60" rx="8" fill="none" stroke="#ff00ff" stroke-width="2"/>
-  <text x="400" y="340" font-family="monospace" font-size="18" fill="#ff00ff" text-anchor="middle">Secondary Button</text>
-</svg>
