@@ -45,11 +45,7 @@ function LoadingWrapper({ children }) {
 }
 
 function MyApp({ Component, pageProps }) {
-  const getLayout = Component.getLayout || ((page) => (
-    <LoadingWrapper>
-      <Layout>{page}</Layout>
-    </LoadingWrapper>
-  ));
+  const getLayout = Component.getLayout || ((page) => <Layout>{page}</Layout>);
 
   return (
     <MenuProvider>
@@ -70,7 +66,9 @@ function MyApp({ Component, pageProps }) {
         <meta name="twitter:site" content="@KamiyoAI" />
         <meta name="twitter:creator" content="@KamiyoAI" />
       </Head>
-      {getLayout(<Component {...pageProps} />)}
+      <LoadingWrapper>
+        {getLayout(<Component {...pageProps} />)}
+      </LoadingWrapper>
     </MenuProvider>
   );
 }
