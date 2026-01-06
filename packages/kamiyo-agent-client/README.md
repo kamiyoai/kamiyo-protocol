@@ -1,8 +1,6 @@
-# @kamiyo/kamiyo-agent-client
+# @kamiyo/agent-client
 
-Autonomous agent SDK for Kamiyo payment and quality verification.
-
-Enables AI agents to transact end-to-end without human intervention with built-in quality guarantees and automatic dispute resolution.
+Agent SDK for Kamiyo. Handles payments, quality assessment, and automatic disputes.
 
 ## Installation
 

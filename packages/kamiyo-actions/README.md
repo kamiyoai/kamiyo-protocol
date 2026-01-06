@@ -1,6 +1,6 @@
 # @kamiyo/actions
 
-Plug-and-play actions for Kamiyo Protocol. Simple, standalone functions for integrating agent payments into any framework.
+Standalone functions for Kamiyo escrow operations. Works with any agent framework.
 
 ## Installation
 

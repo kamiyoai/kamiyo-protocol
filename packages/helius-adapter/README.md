@@ -1,6 +1,6 @@
 # @kamiyo/helius-adapter
 
-Production-ready Helius RPC adapter for KAMIYO Protocol. Provides connection pooling, rate limiting, priority fee estimation, transaction parsing, and real-time webhook handling.
+Helius RPC integration. Connection pooling, rate limiting, priority fees, transaction parsing, webhooks.
 
 ## Installation
 
