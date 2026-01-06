@@ -120,7 +120,7 @@ export default function Document() {
                 {/* Open Graph (Facebook, LinkedIn, etc.) */}
                 <meta property="og:title" content="Trust Layer for the Agentic Economy | KAMIYO" />
                 <meta property="og:description" content="Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution." />
-                <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+                <meta property="og:image" content="https://kamiyo.ai/media/kamiyo_open-graph.png" />
                 <meta property="og:url" content="https://kamiyo.ai" />
                 <meta property="og:type" content="website" />
                 <meta property="og:site_name" content="KAMIYO" />
@@ -130,7 +130,7 @@ export default function Document() {
                 <meta name="twitter:card" content="summary_large_image" />
                 <meta name="twitter:title" content="Trust Layer for the Agentic Economy | KAMIYO" />
                 <meta name="twitter:description" content="Decentralized SLA enforcement for machine-to-machine commerce. Escrow-protected payments with multi-oracle dispute resolution." />
-                <meta name="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+                <meta name="twitter:image" content="https://kamiyo.ai/media/kamiyo_open-graph.png" />
                 <meta name="twitter:site" content="@KamiyoAI" />
                 <meta name="twitter:creator" content="@KamiyoAI" />
 

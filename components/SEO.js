@@ -31,7 +31,7 @@ export default function SEO({
     "smart contract escrow"
   ],
   canonical = "https://kamiyo.ai",
-  ogImage = "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
+  ogImage = "https://kamiyo.ai/media/kamiyo_open-graph.png",
   ogType = "website",
   schemaData = null,
   noindex = false,
@@ -47,7 +47,7 @@ export default function SEO({
         "url": "https://kamiyo.ai",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png",
+          "url": "https://kamiyo.ai/media/kamiyo_open-graph.png",
           "width": 1200,
           "height": 630
         },

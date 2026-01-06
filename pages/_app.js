@@ -86,14 +86,14 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
             <meta property="og:url" content="https://kamiyo.ai/" />
             <meta property="og:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
             <meta property="og:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
-            <meta property="og:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+            <meta property="og:image" content="https://kamiyo.ai/media/kamiyo_open-graph.png" />
 
             {/* Twitter */}
             <meta property="twitter:card" content="summary_large_image" />
             <meta property="twitter:url" content="https://kamiyo.ai/" />
             <meta property="twitter:title" content="x402 Infrastructure - Multi-Chain USDC Payment Verification" />
             <meta property="twitter:description" content="Verify USDC payments across Solana, Base, Ethereum and more. Simple API for payment verification. 99.9% uptime, responses under 500ms." />
-            <meta property="twitter:image" content="https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png" />
+            <meta property="twitter:image" content="https://kamiyo.ai/media/kamiyo_open-graph.png" />
             <meta name="twitter:site" content="@KAMIYO" />
             <meta name="twitter:creator" content="@KAMIYO" />
           </Head>
