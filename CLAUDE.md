@@ -34,6 +34,9 @@ This sets BOTH author and committer. Do NOT use `--author` flag alone as it leav
 - Imperative mood: "Add feature" not "Added feature"
 - Describe what and why, not how
 - No emojis or decorative elements
+- No "Generated with Claude Code" attribution
+- No "Co-Authored-By" lines
+- No AI tool references
 
 ### Code Comments
 - Explain why, not what
