@@ -23,7 +23,7 @@ const results: TestResult[] = [];
 
 function logTest(name: string, passed: boolean, error?: string) {
   results.push({ name, passed, error });
-  const status = passed ? '✅ PASS' : '❌ FAIL';
+  const status = passed ? 'PASS' : 'FAIL';
   console.log(`${status}: ${name}`);
   if (error) console.error(`  Error: ${error}`);
 }
@@ -38,7 +38,7 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 }
 
 async function main() {
-  console.log('🚀 KAMIYO Kamiyo MCP Server - Tool Functionality Tests\n');
+  console.log('KAMIYO MCP Server - Tool Functionality Tests\n');
 
   // Setup
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
@@ -47,12 +47,12 @@ async function main() {
   const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
   if (!programIdStr) {
-    console.error('❌ Missing MITAMA_PROGRAM_ID environment variable');
+    console.error('Error: Missing MITAMA_PROGRAM_ID environment variable');
     process.exit(1);
   }
 
   if (!agentPrivateKey && !agentKeypairPath) {
-    console.error('❌ Missing AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH');
+    console.error('Error: Missing AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH');
     process.exit(1);
   }
 
@@ -308,7 +308,7 @@ async function main() {
 
   // Print summary
   console.log('\n' + '='.repeat(60));
-  console.log('📊 Test Summary');
+  console.log('Test Summary');
   console.log('='.repeat(60));
 
   const passed = results.filter((r) => r.passed).length;
@@ -316,8 +316,8 @@ async function main() {
   const total = results.length;
 
   console.log(`Total Tests: ${total}`);
-  console.log(`✅ Passed: ${passed}`);
-  console.log(`❌ Failed: ${failed}`);
+  console.log(`Passed: ${passed}`);
+  console.log(`Failed: ${failed}`);
   console.log(`Success Rate: ${((passed / total) * 100).toFixed(1)}%`);
 
   if (failed > 0) {
@@ -330,31 +330,31 @@ async function main() {
   }
 
   console.log('\n' + '='.repeat(60));
-  console.log('📋 MCP Server Status');
+  console.log('MCP Server Status');
   console.log('='.repeat(60));
-  console.log('✅ Core Solana Client: Working');
-  console.log('✅ PDA Derivation: Working');
-  console.log('✅ Quality Assessment: Working');
-  console.log('✅ Refund Estimation: Working');
-  console.log('✅ Input Validation: Working');
-  console.log('✅ Helper Functions: Working');
-  console.log('⚠️  On-chain Transactions: Requires Anchor setup');
-  console.log('\n📦 MCP Server is production-ready for:');
+  console.log('Core Solana Client: Working');
+  console.log('PDA Derivation: Working');
+  console.log('Quality Assessment: Working');
+  console.log('Refund Estimation: Working');
+  console.log('Input Validation: Working');
+  console.log('Helper Functions: Working');
+  console.log('On-chain Transactions: Requires Anchor setup');
+  console.log('\nMCP Server verified for:');
   console.log('  - Quality assessment (off-chain)');
   console.log('  - Refund estimation');
   console.log('  - PDA derivation');
   console.log('  - Wallet management');
 
   if (failed === 0) {
-    console.log('\n🎉 All core tests passed!');
+    console.log('\nAll core tests passed.');
     process.exit(0);
   } else {
-    console.log('\n⚠️  Some tests failed. Review above.');
+    console.log('\nSome tests failed. Review above.');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  console.error('\n💥 Fatal error:', error);
+  console.error('\nFatal error:', error);
   process.exit(1);
 });

@@ -13,10 +13,10 @@ let testsFailed = 0;
 
 function assert(condition: boolean, message: string): void {
   if (condition) {
-    console.log(`✓ ${message}`);
+    console.log(`[PASS] ${message}`);
     testsPassed++;
   } else {
-    console.log(`✗ ${message}`);
+    console.log(`[FAIL] ${message}`);
     testsFailed++;
   }
 }
@@ -266,7 +266,7 @@ async function testCarbonTracking(): Promise<void> {
 async function main(): Promise<void> {
   console.log('╔════════════════════════════════════════════════════════════════╗');
   console.log('║   Kamiyo - Advanced Features E2E Test Suite             ║');
-  console.log('║   Testing production-ready implementations                     ║');
+  console.log('║   Testing advanced implementations                             ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
 
   try {
@@ -277,7 +277,7 @@ async function main(): Promise<void> {
     await testReputationNFT();
     await testCarbonTracking();
   } catch (error: any) {
-    console.error('\n✗ Test suite error:', error.message);
+    console.error('\nTest suite error:', error.message);
     testsFailed++;
   }
 
@@ -289,10 +289,10 @@ async function main(): Promise<void> {
   console.log(`  Success rate: ${((testsPassed / (testsPassed + testsFailed)) * 100).toFixed(1)}%`);
 
   if (testsFailed === 0) {
-    console.log('\n✓ All advanced features are production-ready!\n');
+    console.log('\nAll advanced feature tests passed.\n');
     process.exit(0);
   } else {
-    console.log('\n✗ Some tests failed - review output above\n');
+    console.log('\nSome tests failed - review output above\n');
     process.exit(1);
   }
 }

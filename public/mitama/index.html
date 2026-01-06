@@ -1212,7 +1212,7 @@
         }
 
         .verification-badge::before {
-            content: "✓";
+            content: "OK";
             font-size: var(--font-size-lg);
             font-weight: var(--font-weight-bold);
         }
@@ -1306,8 +1306,8 @@
                     <span class="live-dot"></span>
                     <span>Live on Mainnet</span>
                 </div>
-                <a href="https://explorer.solana.com/address/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM" target="_blank" class="status-item" style="text-decoration: none;">Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed</a>
-                <span class="status-item">Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Ready</span>
+                <a href="https://explorer.solana.com/address/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM" target="_blank" class="status-item" style="text-decoration: none;">Program:&nbsp;&nbsp;<span style="color: #00ffff;">OK</span>&nbsp;Deployed</a>
+                <span class="status-item">Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">OK</span>&nbsp;Ready</span>
             </div>
         </div>
 
@@ -2002,7 +2002,7 @@ pub mod mitama {
                             </a>
                         </div>
                     ` : `<div style="margin-top: 20px; font-size: 1.2rem;">
-                        ✓ No refund needed (quality ≥ 80)<br>
+                        No refund needed (quality >= 80)<br>
                         <a href="https://explorer.solana.com/tx/${resolveSig}" target="_blank" style="color: #ff44f5; text-decoration: underline; margin-top: 10px; display: inline-block;">
                             View Transaction on Explorer →
                         </a>
@@ -2343,7 +2343,7 @@ pub mod mitama {
                                     walletPublicKey.toString().substring(walletPublicKey.toString().length - 4);
 
                 const walletName = walletProvider.isPhantom ? 'Phantom' : walletProvider.isSolflare ? 'Solflare' : 'Wallet';
-                btn.innerHTML = `<img src="/media/phantom-logo.svg" alt="${walletName}">✓ ${shortAddress}`;
+                btn.innerHTML = `<img src="/media/phantom-logo.svg" alt="${walletName}">${shortAddress}`;
                 btn.classList.add('wallet-connected');
 
                 showStatus(`${walletName} connected: ${shortAddress}`, 'success');
@@ -2468,7 +2468,7 @@ pub mod mitama {
 
                 <div style="text-align: center; margin: 15px 0;">
                     <div style="display: inline-flex; align-items: center; gap: 6px; padding: 0; background: transparent; border: none; color: #fff; font-size: 11px;">
-                        <span style="color: #00ffff; font-size: 14px;">✓</span>
+                        <span style="color: #00ffff; font-size: 14px;">OK</span>
                         <span>Ed25519 Verified On-Chain</span>
                     </div>
                 </div>

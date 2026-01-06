@@ -906,7 +906,7 @@
     function updateThemeIcon(theme) {
       const themeToggle = document.querySelector('.theme-toggle');
       if (themeToggle) {
-        themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+        themeToggle.textContent = theme === 'dark' ? 'Light' : 'Dark';
       }
     }
 
@@ -1082,7 +1082,7 @@
           <h1>x402 Facilitators</h1>
           <p class="subtitle">Discover payment facilitators for the x402 protocol</p>
         </div>
-        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">Dark</button>
       </div>
 
       <div class="stats">
@@ -3451,7 +3451,7 @@ const resources = await listAllFacilitatorResources(coinbaseDiscovery);</code></
     </div>
 
     <footer>
-      <p>Built with ❤️ for the x402 community</p>
+      <p>Built for the x402 community</p>
       <p><a href="https://github.com/Swader/x402facilitators" target="_blank">View on GitHub</a></p>
     </footer>
   </div>

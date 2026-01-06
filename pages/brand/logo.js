@@ -124,11 +124,11 @@ export default function LogoPage() {
                                 Do
                             </h3>
                             <ul className="space-y-3 text-sm text-gray-400">
-                                <li>✓ Use on black or dark backgrounds</li>
-                                <li>✓ Maintain aspect ratio</li>
-                                <li>✓ Use provided files only</li>
-                                <li>✓ Ensure adequate clear space</li>
-                                <li>✓ Scale proportionally</li>
+                                <li>Use on black or dark backgrounds</li>
+                                <li>Maintain aspect ratio</li>
+                                <li>Use provided files only</li>
+                                <li>Ensure adequate clear space</li>
+                                <li>Scale proportionally</li>
                             </ul>
                         </div>
 
@@ -141,11 +141,11 @@ export default function LogoPage() {
                                 Don't
                             </h3>
                             <ul className="space-y-3 text-sm text-gray-400">
-                                <li>✗ Don't rotate or skew the logo</li>
-                                <li>✗ Don't apply effects or filters</li>
-                                <li>✗ Don't change colors</li>
-                                <li>✗ Don't use on light backgrounds</li>
-                                <li>✗ Don't recreate or redraw</li>
+                                <li>Do not rotate or skew the logo</li>
+                                <li>Do not apply effects or filters</li>
+                                <li>Do not change colors</li>
+                                <li>Do not use on light backgrounds</li>
+                                <li>Do not recreate or redraw</li>
                             </ul>
                         </div>
                     </div>

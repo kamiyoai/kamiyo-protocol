@@ -1,8 +1,21 @@
 /**
  * @kamiyo/x402-client
  *
- * x402 payment client with Kamiyo escrow protection and SLA enforcement.
- * Enables autonomous agents to make protected payments with dispute resolution.
+ * x402 payment client for AI agents with multiple payment backends:
+ *
+ * 1. Kamiyo Escrow (Solana)
+ *    - On-chain escrow with dispute resolution
+ *    - SLA monitoring and automatic refunds
+ *    - Quality-based graduated refunds
+ *
+ * 2. PayAI Network Facilitator
+ *    - Cross-chain USDC payments
+ *    - Networks: Base, Solana, Polygon, Arbitrum, Optimism
+ *    - Payment intents with verification caching
+ *    - Batch operations and retry logic
+ *
+ * @see https://kamiyo.ai
+ * @see https://payai.network
  */
 
 // Client
@@ -81,3 +94,7 @@ export {
   MAX_TIME_LOCK_SECONDS,
   QUALITY_REFUND_SCALE,
 } from './types';
+
+// PayAI Network facilitator
+export { PayAIFacilitator, PayAIError, createPayAIFacilitator, NETWORKS as PAYAI_NETWORKS } from './payai';
+export type { PayAIConfig, PayAINetwork, PayAIErrorCode, NetworkConfig, PaymentRequirement, VerifyResult, SettleResult, X402Response } from './payai';

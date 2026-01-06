@@ -44,7 +44,7 @@ function sleep(ms) {
 }
 
 async function testWalletBalance() {
-    console.log('\n📊 TEST 1: Wallet Balance Check');
+    console.log('\nTEST 1: Wallet Balance Check');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -79,7 +79,7 @@ async function testWalletBalance() {
 }
 
 async function testProgramDeployment() {
-    console.log('\n🔍 TEST 2: Program Deployment Verification');
+    console.log('\nTEST 2: Program Deployment Verification');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -107,7 +107,7 @@ async function testProgramDeployment() {
 }
 
 async function testPDADerivation() {
-    console.log('\n🔑 TEST 3: PDA Derivation');
+    console.log('\nTEST 3: PDA Derivation');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -137,7 +137,7 @@ async function testPDADerivation() {
 }
 
 async function testEd25519Signature() {
-    console.log('\n🔐 TEST 4: Ed25519 Signature Generation');
+    console.log('\nTEST 4: Ed25519 Signature Generation');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -171,7 +171,7 @@ async function testEd25519Signature() {
 }
 
 async function testRPCConnection() {
-    console.log('\n🌐 TEST 5: RPC Connection Health');
+    console.log('\nTEST 5: RPC Connection Health');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -193,7 +193,7 @@ async function testRPCConnection() {
 }
 
 async function testInstructionEncoding() {
-    console.log('\n📦 TEST 6: Instruction Encoding');
+    console.log('\nTEST 6: Instruction Encoding');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -297,7 +297,7 @@ async function testTransactionSerialization() {
 }
 
 async function testRefundCalculation() {
-    console.log('\n🧮 TEST 8: Refund Calculation Logic');
+    console.log('\nTEST 8: Refund Calculation Logic');
     console.log('═══════════════════════════════════════════════════════');
 
     try {
@@ -352,7 +352,7 @@ async function runFullTestSuite() {
         await testRefundCalculation();
 
     } catch (error) {
-        console.error('\n💥 Critical test failure:', error);
+        console.error('\nCritical test failure:', error);
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -368,10 +368,10 @@ async function runFullTestSuite() {
     console.log('═══════════════════════════════════════════════════════');
 
     if (results.failed === 0) {
-        console.log('\nALL TESTS PASSED - PRODUCTION READY 🎉\n');
+        console.log('\nAll tests passed.\n');
         return true;
     } else {
-        console.log('\nWARNING: SOME TESTS FAILED - REVIEW REQUIRED ⚠️\n');
+        console.log('\nTest failures detected. Review required.\n');
         console.log('Failed tests:');
         results.tests.filter(t => !t.passed).forEach(t => {
             console.log(`  - ${t.name}: ${t.message}`);
