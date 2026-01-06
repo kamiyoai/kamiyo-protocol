@@ -1,5 +1,5 @@
 /**
- * X402KamiyoClient - Production-ready x402 payments with Kamiyo escrow protection
+ * X402KamiyoClient - x402 payments with Kamiyo escrow protection
  *
  * Features:
  * - x402 protocol v1/v2 compatibility
@@ -8,6 +8,9 @@
  * - Retry with exponential backoff
  * - Circuit breaker for fault tolerance
  * - Quality-based graduated refunds
+ *
+ * For cross-chain USDC payments, use the PayAIFacilitator class
+ * which integrates with PayAI Network (https://facilitator.payai.network)
  */
 
 import {

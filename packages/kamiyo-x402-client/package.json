@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/x402-client",
   "version": "0.1.0",
-  "description": "x402 payment client with KAMIYO escrow protection and SLA enforcement",
+  "description": "x402 payment client with KAMIYO escrow protection, PayAI Network facilitator support, and SLA enforcement",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
@@ -16,7 +16,11 @@
     "payments",
     "escrow",
     "ai-agents",
-    "dispute-resolution"
+    "dispute-resolution",
+    "payai",
+    "usdc",
+    "facilitator",
+    "cross-chain"
   ],
   "scripts": {
     "build": "tsc",

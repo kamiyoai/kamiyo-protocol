@@ -58,19 +58,19 @@ export default function useChat({ propMessages, propSetMessages, greeting = {} }
     useEffect(() => {
         // Establish WebSocket connection with automatic reconnection
         const connectWebSocket = () => {
-            console.log("🔌 Connecting to WebSocket...");
+            console.log("Connecting to WebSocket...");
             socketRef.current = io("/", { path: "/api/socket", reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 2000 });
 
             socketRef.current.on("connect", () => {
-                console.log("✅ WebSocket connected:", socketRef.current.id);
+                console.log("WebSocket connected:", socketRef.current.id);
             });
 
             socketRef.current.on("disconnect", () => {
-                console.warn("❌ WebSocket disconnected. Attempting to reconnect...");
+                console.warn("WebSocket disconnected. Attempting to reconnect...");
             });
 
             socketRef.current.on("response", (chunk) => {
-                console.log("📩 Received chunk:", chunk);
+                console.log("Received chunk:", chunk);
                 setMessages((prev) => {
                     const lastMessage = prev.length ? prev[prev.length - 1] : { type: "eliza", text: "" };
                     const updatedMessage = { ...lastMessage, text: lastMessage.text + " " + chunk };
@@ -80,12 +80,12 @@ export default function useChat({ propMessages, propSetMessages, greeting = {} }
             });
 
             socketRef.current.on("response_end", () => {
-                console.log("✅ Streaming complete.");
+                console.log("Streaming complete.");
                 setIsThinking(false);
             });
 
             socketRef.current.on("error", (err) => {
-                console.error("🚨 WebSocket error:", err);
+                console.error("WebSocket error:", err);
                 setMessages((prev) => [
                     ...prev,
                     { type: "eliza", text: "Error: Unable to connect to agent..." }
@@ -98,7 +98,7 @@ export default function useChat({ propMessages, propSetMessages, greeting = {} }
 
         return () => {
             if (socketRef.current) {
-                console.log("🔌 Disconnecting WebSocket...");
+                console.log("Disconnecting WebSocket...");
                 socketRef.current.disconnect();
             }
         };
@@ -121,10 +121,10 @@ export default function useChat({ propMessages, propSetMessages, greeting = {} }
         setMessages((prev) => [...prev, { type: "eliza", text: "", isThinking: true }]);
 
         if (socketRef.current?.connected) {
-            console.log("📤 Sending message:", userMessage);
+            console.log("Sending message:", userMessage);
             socketRef.current.emit("message", userMessage);
         } else {
-            console.error("❌ WebSocket is not connected. Cannot send message.");
+            console.error("WebSocket is not connected. Cannot send message.");
             setMessages((prev) => [
                 ...prev,
                 { type: "eliza", text: "Error: WebSocket is disconnected. Try refreshing the page." }

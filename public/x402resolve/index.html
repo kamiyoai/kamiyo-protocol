@@ -1212,7 +1212,7 @@
         }
 
         .verification-badge::before {
-            content: "✓";
+            content: "OK";
             font-size: var(--font-size-lg);
             font-weight: var(--font-weight-bold);
         }
@@ -1743,9 +1743,9 @@ pub mod x402_escrow {
                 const latency = Math.round(endTime - startTime);
 
                 const latencyColor = latency < 500 ? '#00ffff' : latency < 1000 ? '#fbbf24' : '#ef4444';
-                document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">✓</span>&nbsp;${latency}ms`;
+                document.getElementById('rpcLatency').innerHTML = `RPC Latency:&nbsp;&nbsp;<span style="color: ${latencyColor};">OK</span>&nbsp;${latency}ms`;
             } catch (error) {
-                document.getElementById('rpcLatency').textContent = 'RPC Latency: ✗ Error';
+                document.getElementById('rpcLatency').textContent = 'RPC Latency: Error';
                 document.getElementById('rpcLatency').style.background = '#1a1a1a';
                 document.getElementById('rpcLatency').style.borderColor = '#ef4444';
             }
@@ -1767,9 +1767,9 @@ pub mod x402_escrow {
                     try {
                         const programDataInfo = await connection.getAccountInfo(programDataPubkey);
                         const size = programDataInfo ? Math.round(programDataInfo.data.length / 1024) : 275;
-                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed (${size}KB)`;
+                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">OK</span>&nbsp;Deployed (${size}KB)`;
                     } catch {
-                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Deployed`;
+                        document.getElementById('programStatus').innerHTML = `Program:&nbsp;&nbsp;<span style="color: #00ffff;">OK</span>&nbsp;Deployed`;
                     }
                 } else {
                     document.getElementById('programStatus').textContent = 'Program: Not found';
@@ -1782,7 +1782,7 @@ pub mod x402_escrow {
         async function checkOracleStatus() {
             // Simulated - replace with actual oracle endpoint
             setTimeout(() => {
-                document.getElementById('oracleStatus').innerHTML = 'Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">✓</span>&nbsp;Ready';
+                document.getElementById('oracleStatus').innerHTML = 'Oracle:&nbsp;&nbsp;<span style="color: #00ffff;">OK</span>&nbsp;Ready';
             }, 500);
         }
 
@@ -2024,7 +2024,7 @@ pub mod x402_escrow {
                             </a>
                         </div>
                     ` : `<div style="margin-top: 20px; font-size: 1.2rem;">
-                        ✓ No refund needed (quality ≥ 80)<br>
+                        No refund needed (quality >= 80)<br>
                         <a href="https://explorer.solana.com/tx/${resolveSig}?cluster=devnet" target="_blank" style="color: #ff44f5; text-decoration: underline; margin-top: 10px; display: inline-block;">
                             View Transaction on Explorer →
                         </a>
@@ -2342,7 +2342,7 @@ pub mod x402_escrow {
                                     walletPublicKey.toString().substring(walletPublicKey.toString().length - 4);
 
                 const walletName = walletProvider.isPhantom ? 'Phantom' : walletProvider.isSolflare ? 'Solflare' : 'Wallet';
-                btn.innerHTML = `<img src="/x402resolve/media/phantom-logo.svg" alt="${walletName}">✓ ${shortAddress}`;
+                btn.innerHTML = `<img src="/x402resolve/media/phantom-logo.svg" alt="${walletName}">${shortAddress}`;
                 btn.classList.add('wallet-connected');
 
                 showStatus(`${walletName} connected: ${shortAddress}`, 'success');
@@ -2464,7 +2464,7 @@ pub mod x402_escrow {
 
                 <div style="text-align: center; margin: 15px 0;">
                     <div style="display: inline-flex; align-items: center; gap: 6px; padding: 0; background: transparent; border: none; color: #fff; font-size: 11px;">
-                        <span style="color: #00ffff; font-size: 14px;">✓</span>
+                        <span style="color: #00ffff; font-size: 14px;">OK</span>
                         <span>Ed25519 Verified On-Chain</span>
                     </div>
                 </div>

@@ -30,7 +30,7 @@ const results: TestResult[] = [];
 
 function logTest(name: string, passed: boolean, error?: string, duration?: number) {
   results.push({ name, passed, error, duration });
-  const status = passed ? '✅ PASS' : '❌ FAIL';
+  const status = passed ? 'PASS' : 'FAIL';
   const timing = duration ? ` (${duration}ms)` : '';
   console.log(`${status}: ${name}${timing}`);
   if (error) console.error(`  Error: ${error}`);
@@ -47,7 +47,7 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 }
 
 async function main() {
-  console.log('🚀 KAMIYO Kamiyo MCP Server - E2E Integration Tests\n');
+  console.log('KAMIYO MCP Server - E2E Integration Tests\n');
   console.log('Network: Solana Devnet');
   console.log('Program ID: E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n\n');
 
@@ -57,7 +57,7 @@ async function main() {
   const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
 
   if (!programIdStr || !agentPrivateKey) {
-    console.error('❌ Missing environment variables. Please set:');
+    console.error('Error: Missing environment variables. Please set:');
     console.error('  - MITAMA_PROGRAM_ID');
     console.error('  - AGENT_PRIVATE_KEY');
     process.exit(1);
@@ -143,7 +143,7 @@ async function main() {
   });
 
   // Wait for transaction confirmation
-  console.log('\n⏳ Waiting for transaction confirmation...');
+  console.log('\nWaiting for transaction confirmation...');
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Test 6: Check escrow status
@@ -345,7 +345,7 @@ async function main() {
 
   // Print summary
   console.log('\n' + '='.repeat(60));
-  console.log('📊 Test Summary');
+  console.log('Test Summary');
   console.log('='.repeat(60));
 
   const passed = results.filter((r) => r.passed).length;
@@ -353,8 +353,8 @@ async function main() {
   const total = results.length;
 
   console.log(`Total Tests: ${total}`);
-  console.log(`✅ Passed: ${passed}`);
-  console.log(`❌ Failed: ${failed}`);
+  console.log(`Passed: ${passed}`);
+  console.log(`Failed: ${failed}`);
   console.log(`Success Rate: ${((passed / total) * 100).toFixed(1)}%`);
 
   if (failed > 0) {
@@ -369,15 +369,15 @@ async function main() {
   console.log('\n' + '='.repeat(60));
 
   if (failed === 0) {
-    console.log('🎉 All tests passed! MCP server is production-ready.');
+    console.log('All tests passed.');
     process.exit(0);
   } else {
-    console.log('⚠️  Some tests failed. Please review and fix issues.');
+    console.log('Some tests failed. Please review and fix issues.');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  console.error('\n💥 Fatal error:', error);
+  console.error('\nFatal error:', error);
   process.exit(1);
 });
