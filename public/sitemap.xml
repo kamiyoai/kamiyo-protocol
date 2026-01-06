@@ -18,7 +18,7 @@
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
     <image:image>
-      <image:loc>https://kamiyo.ai/media/KAMIYO_OpenGraphImage.png</image:loc>
+      <image:loc>https://kamiyo.ai/media/kamiyo_open-graph.png</image:loc>
       <image:title>KAMIYO x402 Infrastructure</image:title>
     </image:image>
   </url>
