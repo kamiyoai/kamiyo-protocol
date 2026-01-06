@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 
 export default function Header({ children }) {
     const { isMenuOpen, setMenuOpen } = useMenu();
+    const [isHovered, setIsHovered] = useState(false);
     const menuRef = useRef(null);
 
     // Used to ensure the portal renders only on the client
@@ -88,6 +89,8 @@ export default function Header({ children }) {
                         </nav>
                         <button
                             onClick={() => setMenuOpen(!isMenuOpen)}
+                            onMouseEnter={() => setIsHovered(true)}
+                            onMouseLeave={() => setIsHovered(false)}
                             className="focus:outline-none transform transition-transform duration-300 group"
                             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                         >
@@ -98,23 +101,26 @@ export default function Header({ children }) {
                             >
                                 {/* Line 1 - becomes \ of X */}
                                 <line
-                                    x1={isMenuOpen ? "6" : "10"}
+                                    x1={isMenuOpen ? "6" : (isHovered ? "4" : "10")}
                                     y1={isMenuOpen ? "6" : "6"}
                                     x2={isMenuOpen ? "18" : "20"}
                                     y2={isMenuOpen ? "18" : "6"}
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    className="transition-all duration-300"
+                                    style={{ transition: 'all 0.3s ease' }}
                                 />
                                 {/* Line 2 */}
                                 <line
-                                    x1="7"
+                                    x1={isHovered ? "4" : "7"}
                                     y1="10"
                                     x2="20"
                                     y2="10"
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
+                                    style={{
+                                        transition: 'all 0.3s ease',
+                                        opacity: isMenuOpen ? 0 : 1
+                                    }}
                                 />
                                 {/* Line 3 */}
                                 <line
@@ -124,17 +130,20 @@ export default function Header({ children }) {
                                     y2="14"
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    className={`transition-all duration-300 ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
+                                    style={{
+                                        transition: 'all 0.3s ease',
+                                        opacity: isMenuOpen ? 0 : 1
+                                    }}
                                 />
                                 {/* Line 4 - becomes / of X */}
                                 <line
-                                    x1={isMenuOpen ? "6" : "7"}
+                                    x1={isMenuOpen ? "6" : (isHovered ? "4" : "7")}
                                     y1={isMenuOpen ? "18" : "18"}
                                     x2={isMenuOpen ? "18" : "20"}
                                     y2={isMenuOpen ? "6" : "18"}
                                     stroke="currentColor"
                                     strokeWidth="1"
-                                    className="transition-all duration-300"
+                                    style={{ transition: 'all 0.3s ease' }}
                                 />
                             </svg>
                         </button>
