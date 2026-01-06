@@ -2,9 +2,14 @@
   "name": "kamiyo-ai",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "node server.mjs",
     "build": "next build",
+    "build:packages": "pnpm --filter '@kamiyo/*' build",
+    "test:packages": "pnpm --filter '@kamiyo/*' test",
     "start": "node server.mjs",
     "lint": "next lint"
   },
