@@ -18,20 +18,25 @@ interface FeeCache {
     timestamp: number;
 }
 
+const MAX_CACHE_SIZE = 1000;
+
 export class PriorityFeeCalculator {
     private readonly apiKey: string;
     private readonly cluster: 'mainnet-beta' | 'devnet';
     private cache: Map<string, FeeCache> = new Map();
     private readonly cacheTtlMs: number;
+    private readonly timeoutMs: number;
 
     constructor(
         apiKey: string,
         cluster: 'mainnet-beta' | 'devnet' = 'mainnet-beta',
-        cacheTtlMs: number = DEFAULTS.FEE_CACHE_TTL_MS
+        cacheTtlMs: number = DEFAULTS.FEE_CACHE_TTL_MS,
+        timeoutMs: number = DEFAULTS.CONNECTION_TIMEOUT_MS
     ) {
         this.apiKey = apiKey;
         this.cluster = cluster;
         this.cacheTtlMs = cacheTtlMs;
+        this.timeoutMs = timeoutMs;
     }
 
     /**
@@ -47,60 +52,82 @@ export class PriorityFeeCalculator {
 
         const endpoint = `${HELIUS_ENDPOINTS[this.cluster]}/?api-key=${this.apiKey}`;
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: 'priority-fee-estimate',
-                method: 'getPriorityFeeEstimate',
-                params: [{
-                    accountKeys: accounts.map(a => a.toBase58()),
-                    options: {
-                        includeAllPriorityFeeLevels: true,
-                        recommended: true,
-                        evaluateEmptySlotAsZero: true
-                    }
-                }]
-            })
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
-        if (!response.ok) {
-            throw new HeliusAdapterError(
-                `Helius API error: ${response.status} ${response.statusText}`,
-                'API_ERROR'
-            );
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 'priority-fee-estimate',
+                    method: 'getPriorityFeeEstimate',
+                    params: [{
+                        accountKeys: accounts.map(a => a.toBase58()),
+                        options: {
+                            includeAllPriorityFeeLevels: true,
+                            recommended: true,
+                            evaluateEmptySlotAsZero: true
+                        }
+                    }]
+                }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new HeliusAdapterError(
+                    `Helius API error: ${response.status} ${response.statusText}`,
+                    'API_ERROR'
+                );
+            }
+
+            const data = await response.json() as HeliusPriorityFeeResponse;
+
+            if (data.error) {
+                throw new HeliusAdapterError(
+                    `Helius API error: ${data.error.message}`,
+                    'API_ERROR'
+                );
+            }
+
+            const result = data.result;
+            const levels: PriorityFeeLevels = result.priorityFeeLevels ?? {
+                min: 0,
+                low: Math.floor(result.priorityFeeEstimate * 0.5),
+                medium: result.priorityFeeEstimate,
+                high: Math.floor(result.priorityFeeEstimate * 1.5),
+                veryHigh: Math.floor(result.priorityFeeEstimate * 2.5),
+                unsafeMax: Math.floor(result.priorityFeeEstimate * 5)
+            };
+
+            const estimate: PriorityFeeEstimate = {
+                levels,
+                recommended: result.priorityFeeEstimate,
+                percentiles: result.percentiles ?? {},
+                timestamp: Date.now()
+            };
+
+            // Evict oldest entries if cache is full
+            if (this.cache.size >= MAX_CACHE_SIZE) {
+                const oldestKey = this.cache.keys().next().value;
+                if (oldestKey) this.cache.delete(oldestKey);
+            }
+
+            this.cache.set(cacheKey, { estimate, timestamp: Date.now() });
+
+            return estimate;
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                throw new HeliusAdapterError(
+                    `Request timeout after ${this.timeoutMs}ms`,
+                    'TIMEOUT'
+                );
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
-
-        const data = await response.json() as HeliusPriorityFeeResponse;
-
-        if (data.error) {
-            throw new HeliusAdapterError(
-                `Helius API error: ${data.error.message}`,
-                'API_ERROR'
-            );
-        }
-
-        const result = data.result;
-        const levels: PriorityFeeLevels = result.priorityFeeLevels ?? {
-            min: 0,
-            low: Math.floor(result.priorityFeeEstimate * 0.5),
-            medium: result.priorityFeeEstimate,
-            high: Math.floor(result.priorityFeeEstimate * 1.5),
-            veryHigh: Math.floor(result.priorityFeeEstimate * 2.5),
-            unsafeMax: Math.floor(result.priorityFeeEstimate * 5)
-        };
-
-        const estimate: PriorityFeeEstimate = {
-            levels,
-            recommended: result.priorityFeeEstimate,
-            percentiles: result.percentiles ?? {},
-            timestamp: Date.now()
-        };
-
-        this.cache.set(cacheKey, { estimate, timestamp: Date.now() });
-
-        return estimate;
     }
 
     /**
@@ -187,12 +214,14 @@ export class PriorityFeeCalculator {
         min: number;
         max: number;
         samples: number;
+        errors: number;
     }> {
         const signatures = await connection.getSignaturesForAddress(programId, {
             limit: sampleSize
         });
 
         const fees: number[] = [];
+        let errorCount = 0;
 
         for (const sig of signatures) {
             try {
@@ -209,12 +238,13 @@ export class PriorityFeeCalculator {
                     }
                 }
             } catch {
+                errorCount++;
                 continue;
             }
         }
 
         if (fees.length === 0) {
-            return { average: 1000, median: 1000, min: 0, max: 0, samples: 0 };
+            return { average: 1000, median: 1000, min: 0, max: 0, samples: 0, errors: errorCount };
         }
 
         const sorted = fees.sort((a, b) => a - b);
@@ -225,7 +255,8 @@ export class PriorityFeeCalculator {
             median: sorted[Math.floor(sorted.length / 2)],
             min: sorted[0],
             max: sorted[sorted.length - 1],
-            samples: fees.length
+            samples: fees.length,
+            errors: errorCount
         };
     }
 

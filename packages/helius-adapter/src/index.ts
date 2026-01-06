@@ -38,6 +38,15 @@
 
 // Main client
 export { KamiyoHeliusClient } from './client';
+export type { ClientOptions } from './client';
+
+// Logging
+export {
+    nullLogger,
+    createConsoleLogger,
+    createScopedLogger
+} from './logger';
+export type { Logger, LogLevel } from './logger';
 
 // Connection management
 export { ConnectionPool } from './connection-pool';
@@ -70,8 +79,23 @@ export {
     COMPUTE_UNITS,
     DEFAULTS,
     STATUS_MAP,
-    LOG_PATTERNS
+    LOG_PATTERNS,
+    LIMITS
 } from './constants';
+
+// Validation
+export {
+    ValidationError,
+    validateApiKey,
+    validateTransactionId,
+    validateSignature,
+    validateSignatures,
+    validatePublicKey,
+    validatePublicKeys,
+    validateNumber,
+    validatePositiveInteger,
+    validateConfig
+} from './validation';
 
 // Types
 export type {

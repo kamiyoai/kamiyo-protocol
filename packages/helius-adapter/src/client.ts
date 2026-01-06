@@ -32,8 +32,23 @@ import {
     DEFAULTS,
     HELIUS_API_ENDPOINTS,
     PDA_SEEDS,
-    COMPUTE_UNITS
+    COMPUTE_UNITS,
+    LIMITS
 } from './constants';
+import {
+    validateConfig,
+    validateTransactionId,
+    validateSignature,
+    validateSignatures,
+    validatePublicKey,
+    validatePublicKeys,
+    validatePositiveInteger
+} from './validation';
+import { Logger, nullLogger, createScopedLogger } from './logger';
+
+export interface ClientOptions {
+    logger?: Logger;
+}
 
 export class KamiyoHeliusClient {
     private readonly config: Required<HeliusConfig>;
@@ -41,10 +56,18 @@ export class KamiyoHeliusClient {
     private readonly rateLimiter: RateLimiter;
     private readonly feeCalculator: PriorityFeeCalculator;
     private readonly programId: PublicKey;
+    private readonly logger: Logger;
     private subscriptions: Map<number, Subscription> = new Map();
     private initialized = false;
 
-    constructor(config: HeliusConfig, poolConfig?: ConnectionPoolConfig) {
+    constructor(config: HeliusConfig, poolConfig?: ConnectionPoolConfig, options?: ClientOptions) {
+        // Validate configuration
+        validateConfig(config);
+
+        this.logger = options?.logger
+            ? createScopedLogger(options.logger, 'KamiyoHeliusClient')
+            : nullLogger;
+
         this.config = {
             apiKey: config.apiKey,
             cluster: config.cluster ?? 'mainnet-beta',
@@ -54,6 +77,12 @@ export class KamiyoHeliusClient {
             rateLimitRps: config.rateLimitRps ?? DEFAULTS.RATE_LIMIT_RPS,
             enableWebsocket: config.enableWebsocket ?? true
         };
+
+        this.logger.debug('Creating client', {
+            cluster: this.config.cluster,
+            commitment: this.config.commitment,
+            rateLimitRps: this.config.rateLimitRps
+        });
 
         this.pool = new ConnectionPool(
             this.config.apiKey,
@@ -79,10 +108,17 @@ export class KamiyoHeliusClient {
      * Initialize the client
      */
     async init(): Promise<void> {
-        if (this.initialized) return;
+        if (this.initialized) {
+            this.logger.debug('Client already initialized');
+            return;
+        }
 
+        this.logger.info('Initializing client');
         await this.pool.init();
         this.initialized = true;
+        this.logger.info('Client initialized successfully', {
+            poolStats: this.pool.getStats()
+        });
     }
 
     /**
@@ -97,6 +133,8 @@ export class KamiyoHeliusClient {
      * Derive escrow PDA
      */
     deriveEscrowPDA(transactionId: string): { pda: PublicKey; bump: number } {
+        validateTransactionId(transactionId);
+
         const [pda, bump] = PublicKey.findProgramAddressSync(
             [Buffer.from(PDA_SEEDS.ESCROW), Buffer.from(transactionId)],
             this.programId
@@ -119,6 +157,7 @@ export class KamiyoHeliusClient {
      * Get escrow state
      */
     async getEscrowState(escrowPda: PublicKey): Promise<EscrowState | null> {
+        validatePublicKey(escrowPda, 'escrowPda');
         this.ensureInitialized();
         await this.rateLimiter.acquire();
 
@@ -134,6 +173,10 @@ export class KamiyoHeliusClient {
      * Get multiple escrow states
      */
     async getEscrowStates(escrowPdas: PublicKey[]): Promise<Map<string, EscrowState | null>> {
+        if (escrowPdas.length > LIMITS.MAX_ESCROW_PDAS_BATCH) {
+            throw new Error(`Batch size exceeds maximum of ${LIMITS.MAX_ESCROW_PDAS_BATCH}`);
+        }
+        validatePublicKeys(escrowPdas, 'escrowPdas');
         this.ensureInitialized();
 
         const results = new Map<string, EscrowState | null>();
@@ -154,7 +197,11 @@ export class KamiyoHeliusClient {
                 if (accountInfo) {
                     try {
                         results.set(pda.toBase58(), parseEscrowState(accountInfo.data, pda));
-                    } catch {
+                    } catch (error) {
+                        this.logger.warn('Failed to parse escrow state', {
+                            pda: pda.toBase58(),
+                            error: error instanceof Error ? error.message : String(error)
+                        });
                         results.set(pda.toBase58(), null);
                     }
                 } else {
@@ -206,7 +253,11 @@ export class KamiyoHeliusClient {
                     if (this.matchesFilter(parsed, filter)) {
                         transactions.push(parsed);
                     }
-                } catch {
+                } catch (error) {
+                    this.logger.warn('Failed to fetch/parse transaction', {
+                        signature: sig.signature,
+                        error: error instanceof Error ? error.message : String(error)
+                    });
                     continue;
                 }
             }
@@ -219,6 +270,7 @@ export class KamiyoHeliusClient {
      * Get transaction by signature
      */
     async getTransaction(signature: string): Promise<ParsedTransaction | null> {
+        validateSignature(signature);
         this.ensureInitialized();
         await this.rateLimiter.acquire();
 
@@ -242,6 +294,7 @@ export class KamiyoHeliusClient {
         transactions: ParsedTransaction[];
         lifecycle: ReturnType<typeof calculateEscrowLifecycle>;
     }> {
+        validateTransactionId(transactionId);
         const { pda } = this.deriveEscrowPDA(transactionId);
 
         // Get all transactions involving this escrow
@@ -258,6 +311,7 @@ export class KamiyoHeliusClient {
      * Get priority fee estimate
      */
     async getPriorityFee(accounts: PublicKey[]): Promise<PriorityFeeEstimate> {
+        validatePublicKeys(accounts, 'accounts');
         return this.feeCalculator.getEstimate(accounts);
     }
 
@@ -273,6 +327,7 @@ export class KamiyoHeliusClient {
         computeUnits: number;
         totalFee: number;
     }> {
+        validatePublicKey(escrowPda, 'escrowPda');
         return this.feeCalculator.getOperationFee(operation, escrowPda, [], strategy);
     }
 
@@ -283,17 +338,30 @@ export class KamiyoHeliusClient {
         escrowPda: PublicKey,
         options: SubscriptionOptions
     ): Promise<Subscription> {
+        validatePublicKey(escrowPda, 'escrowPda');
         this.ensureInitialized();
 
         const connection = this.pool.getConnection();
+
+        this.logger.debug('Subscribing to escrow', {
+            escrowPda: escrowPda.toBase58()
+        });
 
         const subscriptionId = connection.onAccountChange(
             escrowPda,
             async (accountInfo) => {
                 try {
                     const state = parseEscrowState(accountInfo.data, escrowPda);
+                    this.logger.debug('Escrow state changed', {
+                        escrowPda: escrowPda.toBase58(),
+                        status: state.status
+                    });
                     options.onStateChange(state);
                 } catch (error) {
+                    this.logger.error('Error parsing escrow state', {
+                        escrowPda: escrowPda.toBase58(),
+                        error: error instanceof Error ? error.message : String(error)
+                    });
                     if (options.onError) {
                         options.onError(error instanceof Error ? error : new Error(String(error)));
                     }
@@ -306,12 +374,20 @@ export class KamiyoHeliusClient {
             id: subscriptionId,
             escrowPda,
             unsubscribe: async () => {
+                this.logger.debug('Unsubscribing from escrow', {
+                    escrowPda: escrowPda.toBase58(),
+                    subscriptionId
+                });
                 await connection.removeAccountChangeListener(subscriptionId);
                 this.subscriptions.delete(subscriptionId);
             }
         };
 
         this.subscriptions.set(subscriptionId, subscription);
+        this.logger.info('Subscribed to escrow', {
+            escrowPda: escrowPda.toBase58(),
+            subscriptionId
+        });
         return subscription;
     }
 
@@ -330,23 +406,52 @@ export class KamiyoHeliusClient {
      * Fetch using Helius Enhanced API
      */
     async fetchEnhancedTransactions(signatures: string[]): Promise<HeliusEnhancedTransaction[]> {
+        validateSignatures(signatures);
         await this.rateLimiter.acquire();
 
         const endpoint = `${HELIUS_API_ENDPOINTS[this.config.cluster]}/transactions`;
-        const response = await fetch(`${endpoint}?api-key=${this.config.apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transactions: signatures })
-        });
 
-        if (!response.ok) {
-            throw new HeliusAdapterError(
-                `Helius API error: ${response.status} ${response.statusText}`,
-                'API_ERROR'
-            );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), DEFAULTS.CONNECTION_TIMEOUT_MS);
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.config.apiKey}`
+                },
+                body: JSON.stringify({ transactions: signatures }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new HeliusAdapterError(
+                    `Helius API error: ${response.status} ${response.statusText}`,
+                    'API_ERROR'
+                );
+            }
+
+            const data = await response.json();
+            return data as HeliusEnhancedTransaction[];
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                this.logger.warn('Helius API request timeout', {
+                    timeout: DEFAULTS.CONNECTION_TIMEOUT_MS,
+                    signatureCount: signatures.length
+                });
+                throw new HeliusAdapterError(
+                    `Request timeout after ${DEFAULTS.CONNECTION_TIMEOUT_MS}ms`,
+                    'TIMEOUT'
+                );
+            }
+            this.logger.error('Helius API request failed', {
+                error: error instanceof Error ? error.message : String(error)
+            });
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
-
-        return response.json() as Promise<HeliusEnhancedTransaction[]>;
     }
 
     /**
@@ -360,7 +465,8 @@ export class KamiyoHeliusClient {
         averageQualityScore: number | null;
         totalVolume: bigint;
     }> {
-        const transactions = await this.getRecentTransactions({ limit: sampleSize });
+        validatePositiveInteger(sampleSize, 'sampleSize');
+        const transactions = await this.getRecentTransactions({ limit: Math.min(sampleSize, 100) });
         const grouped = groupByEscrow(transactions);
 
         let activeCount = 0;
@@ -421,11 +527,13 @@ export class KamiyoHeliusClient {
      * Shutdown the client
      */
     async shutdown(): Promise<void> {
+        this.logger.info('Shutting down client');
         await this.unsubscribeAll();
         this.pool.shutdown();
         this.rateLimiter.clear();
         this.feeCalculator.clearCache();
         this.initialized = false;
+        this.logger.info('Client shutdown complete');
     }
 
     // Private methods
