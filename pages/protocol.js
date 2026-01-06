@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Script from 'next/script';
 import Head from 'next/head';
-import { DEFAULT_STATS, fetchProtocolStats, getOracleSystem } from '../lib/oracle';
+import { getDefaultStats, fetchProtocolStats, getOracleSystem } from '../lib/oracle';
 
 const PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
 const EXPLORER_URL = `https://explorer.solana.com/address/${PROGRAM_ID}`;
@@ -18,7 +18,7 @@ export default function Protocol() {
     const [walletConnected, setWalletConnected] = useState(false);
     const [walletAddress, setWalletAddress] = useState('');
     const [walletProvider, setWalletProvider] = useState(null);
-    const [stats, setStats] = useState(DEFAULT_STATS);
+    const [stats, setStats] = useState(() => getDefaultStats());
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [amount, setAmount] = useState('0.1');
@@ -121,7 +121,7 @@ export default function Protocol() {
             }
         } catch (error) {
             console.error('Failed to load analytics:', error);
-            setStats(DEFAULT_STATS);
+            setStats(getDefaultStats());
         } finally {
             setLoading(false);
         }
@@ -152,7 +152,7 @@ export default function Protocol() {
                 labels: ['0-20', '20-40', '40-60', '60-80', '80-100'],
                 datasets: [{
                     label: 'Quality Score Distribution',
-                    data: stats.distribution || DEFAULT_STATS.distribution,
+                    data: stats.distribution || getDefaultStats().distribution,
                     borderColor: gradient,
                     backgroundColor: fillGradient,
                     tension: 0.4,
