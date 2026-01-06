@@ -1,6 +1,6 @@
 /**
  * @kamiyo/helius-adapter
- * Production-ready Helius RPC adapter for KAMIYO Protocol
+ * Helius RPC adapter for KAMIYO Protocol
  *
  * Features:
  * - Connection pooling with health checks and failover

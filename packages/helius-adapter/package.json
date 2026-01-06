@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/helius-adapter",
   "version": "1.0.0",
-  "description": "Production-ready Helius RPC adapter for KAMIYO Protocol",
+  "description": "Helius RPC adapter for KAMIYO Protocol",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
