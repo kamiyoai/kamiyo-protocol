@@ -121,6 +121,7 @@ await client.releaseFunds('order-123', providerPubkey);
 | Package | Description |
 |---------|-------------|
 | `@kamiyo/sdk` | TypeScript client |
+| `@kamiyo/helius-adapter` | Helius RPC adapter with connection pooling and rate limiting |
 | `@kamiyo/x402-client` | x402 payment client with escrow protection |
 | `@kamiyo/actions` | Agent framework actions |
 | `@kamiyo/langchain` | LangChain tools |
