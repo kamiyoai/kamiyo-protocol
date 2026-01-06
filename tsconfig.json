@@ -1,44 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./sdk",
     "strict": true,
-    "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": ["./*"]
-    }
+    "moduleResolution": "node"
   },
-  "include": [
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    "pages/**/*.ts",
-    "pages/**/*.tsx",
-    "components/**/*.ts",
-    "components/**/*.tsx",
-    "lib/**/*.ts",
-    "lib/**/*.tsx",
-    "utils/**/*.ts",
-    "utils/**/*.tsx",
-    "hooks/**/*.ts",
-    "hooks/**/*.tsx",
-    "context/**/*.ts",
-    "context/**/*.tsx",
-    "styles/**/*.ts",
-    "styles/**/*.tsx"
-  ],
-  "exclude": ["node_modules", "frontend", "_frontend_backup", "tests", "website", "solana-programs", "blockchain", "services"]
+  "include": ["sdk/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

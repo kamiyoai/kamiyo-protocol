@@ -1,0 +1,49 @@
+{
+  "name": "@kamiyo/middleware",
+  "version": "0.1.0",
+  "description": "HTTP 402 Payment Required middleware for KAMIYO conflict resolution",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo.git"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "kamiyo",
+    "http-402",
+    "payment-required",
+    "middleware",
+    "express",
+    "solana",
+    "conflict-resolution"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "MIT",
+  "dependencies": {
+    "@kamiyo/sdk": "^0.1.0",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.8"
+  },
+  "devDependencies": {
+    "@types/bs58": "^5.0.0",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.10",
+    "express": "^4.19.2",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.2",
+    "typescript": "^5.5.3"
+  },
+  "peerDependencies": {
+    "express": "^4.0.0"
+  }
+}

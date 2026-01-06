@@ -1,0 +1,33 @@
+[package]
+name = "kamiyo"
+version = "0.1.0"
+description = "Kamiyo - Agent Identity and Conflict Resolution Protocol for Solana"
+edition = "2021"
+license = "BUSL-1.1"
+repository = "https://github.com/kamiyo-ai/kamiyo-protocol"
+resolver = "2"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kamiyo"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = "0.31.1"
+anchor-spl = { version = "0.31.1", features = ["default"] }
+switchboard-on-demand = "0.10.5"
+
+# Optimize for size to reduce deployment costs
+[profile.release]
+opt-level = "z"          # Optimize for size
+lto = true               # Link-time optimization
+codegen-units = 1        # Better optimization, slower compile
+panic = "abort"          # Smaller binary, no unwinding
+strip = true             # Strip symbols

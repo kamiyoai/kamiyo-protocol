@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLANA_VERSION: 1.18.26
+  ANCHOR_VERSION: 0.31.1
+
+jobs:
+  rust-checks:
+    name: Rust Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: cargo-zk-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting (ZK crate)
+        run: cd crates/kamiyo-zk && cargo fmt --check
+
+      - name: Clippy (ZK crate)
+        run: cd crates/kamiyo-zk && cargo clippy -- -D warnings
+
+      - name: Test (ZK crate)
+        run: cd crates/kamiyo-zk && cargo test
+
+  solana-program:
+    name: Solana Program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: cargo-solana-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Solana
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+
+      - name: Build program
+        run: anchor build
+
+      - name: Run tests
+        run: anchor test
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript compile check
+        run: |
+          cd packages/kamiyo-sdk && npx tsc --noEmit
+          cd ../kamiyo-x402-client && npx tsc --noEmit
+          cd ../kamiyo-middleware && npx tsc --noEmit
+
+      - name: Build SDK
+        run: npm run build:sdk
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Audit Rust dependencies
+        run: |
+          cd crates/kamiyo-zk && cargo audit
+          cd ../../programs/kamiyo && cargo audit
+        continue-on-error: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: true
