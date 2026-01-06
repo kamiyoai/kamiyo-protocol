@@ -11,16 +11,18 @@ function LoadingWrapper({ children }) {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        let completeTimeout;
-        let maxTimeout;
+        let timeout;
 
-        const handleStart = () => {
-            setLoading(true);
-            maxTimeout = setTimeout(() => setLoading(false), 5000);
+        const handleStart = (url) => {
+            if (url !== router.asPath) {
+                setLoading(true);
+                timeout = setTimeout(() => setLoading(false), 3000);
+            }
         };
+
         const handleComplete = () => {
-            clearTimeout(maxTimeout);
-            completeTimeout = setTimeout(() => setLoading(false), 400);
+            clearTimeout(timeout);
+            setLoading(false);
         };
 
         router.events.on("routeChangeStart", handleStart);
@@ -28,8 +30,7 @@ function LoadingWrapper({ children }) {
         router.events.on("routeChangeError", handleComplete);
 
         return () => {
-            clearTimeout(completeTimeout);
-            clearTimeout(maxTimeout);
+            clearTimeout(timeout);
             router.events.off("routeChangeStart", handleStart);
             router.events.off("routeChangeComplete", handleComplete);
             router.events.off("routeChangeError", handleComplete);
