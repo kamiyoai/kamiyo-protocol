@@ -1,5 +1,4 @@
 // components/PayButton.js
-import { useState } from "react";
 import { useRouter } from "next/router";
 import { useScrambleText } from "../hooks/useScrambleText";
 
@@ -9,24 +8,20 @@ export default function PayButton({
                                       disabled = false
                                   }) {
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
 
-    // Default: Go to MCP pricing page
     const defaultText = "Add to Claude Desktop";
     const defaultAction = () => router.push('/pricing');
 
     const text = textOverride || defaultText;
     const action = onClickOverride || defaultAction;
 
-    const isEnabled = !disabled && !loading;
-    const displayText = loading ? "Processing..." : text;
-    const { text: scrambledText, setIsHovering } = useScrambleText(displayText, isEnabled);
+    const isEnabled = !disabled;
+    const { text: scrambledText, setIsHovering } = useScrambleText(text, isEnabled);
 
-    const handlePayment = async () => {
+    const handlePayment = (e) => {
+        e.preventDefault();
         if (isEnabled) {
-            setLoading(true);
-            await action();
-            setLoading(false);
+            action();
         }
     };
 
