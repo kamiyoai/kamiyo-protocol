@@ -24,10 +24,3 @@ anchor-lang = "0.31.1"
 anchor-spl = { version = "0.31.1", features = ["default"] }
 switchboard-on-demand = "0.10.5"
 
-# Optimize for size to reduce deployment costs
-[profile.release]
-opt-level = "z"          # Optimize for size
-lto = true               # Link-time optimization
-codegen-units = 1        # Better optimization, slower compile
-panic = "abort"          # Smaller binary, no unwinding
-strip = true             # Strip symbols

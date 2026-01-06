@@ -1,18 +1,53 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import { Program, AnchorError } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
   createMint,
   createAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   mintTo,
   getAccount,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { expect } from "chai";
+import BN from "bn.js";
 
 // Import IDL (will be generated after build)
 // import { Kamiyo } from "../target/types/kamiyo";
+
+// Helper to extract error code from Anchor errors
+function getErrorCode(err: any): string | null {
+  // Direct AnchorError
+  if (err instanceof AnchorError) {
+    return err.error?.errorCode?.code || null;
+  }
+  // Nested error object
+  if (err?.error?.errorCode?.code) {
+    return err.error.errorCode.code;
+  }
+  // Check logs for error code
+  if (err?.logs) {
+    for (const log of err.logs) {
+      const match = log.match(/Error Code: (\w+)/);
+      if (match) return match[1];
+    }
+  }
+  // Try message
+  if (err?.message) {
+    const match = err.message.match(/Error Code: (\w+)/);
+    if (match) return match[1];
+  }
+  // Check for constraint violation (ConstraintHasOne becomes "Unauthorized" type errors)
+  if (err?.message?.includes('ConstraintHasOne') || err?.message?.includes('has_one')) {
+    return "Unauthorized";
+  }
+  // Check for raw error in error object
+  if (err?.error?.errorMessage) {
+    return err.error.errorCode?.code || null;
+  }
+  return null;
+}
 
 describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
   // Configure the client
@@ -119,7 +154,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
     it("Creates an agent with stake", async () => {
       const name = "TestAgent";
       const agentType = { trading: {} }; // AgentType::Trading
-      const stakeAmount = new anchor.BN(0.5 * LAMPORTS_PER_SOL);
+      const stakeAmount = new BN(0.5 * LAMPORTS_PER_SOL);
 
       await program.methods
         .createAgent(name, agentType, stakeAmount)
@@ -153,7 +188,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const insufficientStake = new anchor.BN(0.01 * LAMPORTS_PER_SOL); // Below 0.1 SOL minimum
+      const insufficientStake = new BN(0.01 * LAMPORTS_PER_SOL); // Below 0.1 SOL minimum
 
       try {
         await program.methods
@@ -167,7 +202,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           .rpc();
         expect.fail("Should have thrown InsufficientStake error");
       } catch (err: any) {
-        expect(err.error.errorCode.code).to.equal("InsufficientStake");
+        expect(getErrorCode(err)).to.equal("InsufficientStake");
       }
     });
 
@@ -186,7 +221,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
 
       try {
         await program.methods
-          .createAgent("", { trading: {} }, new anchor.BN(0.5 * LAMPORTS_PER_SOL))
+          .createAgent("", { trading: {} }, new BN(0.5 * LAMPORTS_PER_SOL))
           .accounts({
             agent: agent3PDA,
             owner: owner3.publicKey,
@@ -196,7 +231,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           .rpc();
         expect.fail("Should have thrown InvalidAgentName error");
       } catch (err: any) {
-        expect(err.error.errorCode.code).to.equal("InvalidAgentName");
+        expect(getErrorCode(err)).to.equal("InvalidAgentName");
       }
     });
   });
@@ -207,8 +242,8 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
 
   describe("Agreements (Escrow)", () => {
     it("Initializes an escrow agreement", async () => {
-      const amount = new anchor.BN(0.1 * LAMPORTS_PER_SOL);
-      const timeLock = new anchor.BN(3600); // 1 hour
+      const amount = new BN(0.1 * LAMPORTS_PER_SOL);
+      const timeLock = new BN(3600); // 1 hour
 
       await program.methods
         .initializeEscrow(amount, timeLock, transactionId, false)
@@ -244,8 +279,8 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const amount = new anchor.BN(0.1 * LAMPORTS_PER_SOL);
-      const invalidTimeLock = new anchor.BN(60); // Only 60 seconds - below 1 hour minimum
+      const amount = new BN(0.1 * LAMPORTS_PER_SOL);
+      const invalidTimeLock = new BN(60); // Only 60 seconds - below 1 hour minimum
 
       try {
         await program.methods
@@ -279,8 +314,8 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const amount = new anchor.BN(0.05 * LAMPORTS_PER_SOL);
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(0.05 * LAMPORTS_PER_SOL);
+      const timeLock = new BN(3600);
 
       await program.methods
         .initializeEscrow(amount, timeLock, releaseTxId, false)
@@ -306,8 +341,9 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .releaseFunds()
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: releaseEscrowPDA,
-          agent: owner.publicKey,
+          caller: owner.publicKey,
           api: provider2.publicKey,
           systemProgram: SystemProgram.programId,
           escrowTokenAccount: null,
@@ -364,8 +400,8 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const amount = new anchor.BN(0.05 * LAMPORTS_PER_SOL);
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(0.05 * LAMPORTS_PER_SOL);
+      const timeLock = new BN(3600);
 
       // Initialize escrow
       await program.methods
@@ -413,8 +449,8 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const amount = new anchor.BN(0.02 * LAMPORTS_PER_SOL);
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(0.02 * LAMPORTS_PER_SOL);
+      const timeLock = new BN(3600);
 
       await program.methods
         .initializeEscrow(amount, timeLock, releasedTxId, false)
@@ -438,8 +474,9 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .releaseFunds()
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: releasedEscrowPDA,
-          agent: owner.publicKey,
+          caller: owner.publicKey,
           api: provider2.publicKey,
           systemProgram: SystemProgram.programId,
           escrowTokenAccount: null,
@@ -462,7 +499,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           .rpc();
         expect.fail("Should have thrown InvalidStatus error");
       } catch (err: any) {
-        expect(err.error.errorCode.code).to.equal("InvalidStatus");
+        expect(getErrorCode(err)).to.equal("InvalidStatus");
       }
     });
   });
@@ -474,13 +511,28 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
   describe("Oracle Registry", () => {
     let oracleRegistryPDA: PublicKey;
     const admin = Keypair.generate();
+    const oracle1 = Keypair.generate();
+    const oracle2 = Keypair.generate();
 
     before(async () => {
+      // Fund admin and oracles
       const airdropSig = await provider.connection.requestAirdrop(
         admin.publicKey,
-        2 * LAMPORTS_PER_SOL
+        5 * LAMPORTS_PER_SOL
       );
       await provider.connection.confirmTransaction(airdropSig);
+
+      const airdropSig2 = await provider.connection.requestAirdrop(
+        oracle1.publicKey,
+        3 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig2);
+
+      const airdropSig3 = await provider.connection.requestAirdrop(
+        oracle2.publicKey,
+        3 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig3);
 
       [oracleRegistryPDA] = PublicKey.findProgramAddressSync(
         [Buffer.from("oracle_registry")],
@@ -489,7 +541,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
     });
 
     it("Initializes oracle registry", async () => {
-      const minConsensus = 2;
+      const minConsensus = 3; // MIN_CONSENSUS_ORACLES = 3
       const maxScoreDeviation = 15;
 
       await program.methods
@@ -510,46 +562,51 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
     });
 
     it("Adds an oracle to registry", async () => {
-      const oraclePubkey = Keypair.generate().publicKey;
       const oracleType = { ed25519: {} };
       const weight = 100;
+      const stakeAmount = new BN(1 * LAMPORTS_PER_SOL); // MIN_ORACLE_STAKE = 1 SOL
 
       await program.methods
-        .addOracle(oraclePubkey, oracleType, weight)
+        .addOracle(oracle1.publicKey, oracleType, weight, stakeAmount)
         .accounts({
           oracleRegistry: oracleRegistryPDA,
           admin: admin.publicKey,
+          oracleSigner: oracle1.publicKey,
+          systemProgram: SystemProgram.programId,
         })
-        .signers([admin])
+        .signers([admin, oracle1])
         .rpc();
 
       const registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
       expect(registry.oracles.length).to.equal(1);
-      expect(registry.oracles[0].pubkey.toString()).to.equal(oraclePubkey.toString());
+      expect(registry.oracles[0].pubkey.toString()).to.equal(oracle1.publicKey.toString());
       expect(registry.oracles[0].weight).to.equal(weight);
     });
 
     it("Removes an oracle from registry", async () => {
       // First add another oracle
-      const oraclePubkey = Keypair.generate().publicKey;
+      const stakeAmount = new BN(1 * LAMPORTS_PER_SOL);
       await program.methods
-        .addOracle(oraclePubkey, { ed25519: {} }, 50)
+        .addOracle(oracle2.publicKey, { ed25519: {} }, 50, stakeAmount)
         .accounts({
           oracleRegistry: oracleRegistryPDA,
           admin: admin.publicKey,
+          oracleSigner: oracle2.publicKey,
+          systemProgram: SystemProgram.programId,
         })
-        .signers([admin])
+        .signers([admin, oracle2])
         .rpc();
 
       let registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
       const initialCount = registry.oracles.length;
 
-      // Remove it
+      // Remove oracle2
       await program.methods
-        .removeOracle(oraclePubkey)
+        .removeOracle(oracle2.publicKey)
         .accounts({
           oracleRegistry: oracleRegistryPDA,
           admin: admin.publicKey,
+          oracleWallet: oracle2.publicKey,
         })
         .signers([admin])
         .rpc();
@@ -560,24 +617,32 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
 
     it("Non-admin cannot add oracle", async () => {
       const nonAdmin = Keypair.generate();
+      const fakeOracle = Keypair.generate();
       const airdropSig = await provider.connection.requestAirdrop(
         nonAdmin.publicKey,
-        1 * LAMPORTS_PER_SOL
+        2 * LAMPORTS_PER_SOL
       );
       await provider.connection.confirmTransaction(airdropSig);
+      const airdropSig2 = await provider.connection.requestAirdrop(
+        fakeOracle.publicKey,
+        2 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig2);
 
       try {
         await program.methods
-          .addOracle(Keypair.generate().publicKey, { ed25519: {} }, 100)
+          .addOracle(fakeOracle.publicKey, { ed25519: {} }, 100, new BN(1 * LAMPORTS_PER_SOL))
           .accounts({
             oracleRegistry: oracleRegistryPDA,
             admin: nonAdmin.publicKey,
+            oracleSigner: fakeOracle.publicKey,
+            systemProgram: SystemProgram.programId,
           })
-          .signers([nonAdmin])
+          .signers([nonAdmin, fakeOracle])
           .rpc();
         expect.fail("Should have thrown Unauthorized error");
       } catch (err: any) {
-        expect(err.error.errorCode.code).to.equal("Unauthorized");
+        expect(getErrorCode(err)).to.equal("Unauthorized");
       }
     });
   });
@@ -601,7 +666,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const stakeAmount = new anchor.BN(0.5 * LAMPORTS_PER_SOL);
+      const stakeAmount = new BN(0.5 * LAMPORTS_PER_SOL);
 
       // Create agent
       await program.methods
@@ -700,14 +765,15 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      // Create escrow token account PDA
-      const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow_token"), splEscrowPDA.toBuffer()],
-        program.programId
+      // Get the ATA for the escrow PDA (program will create it)
+      const escrowATA = await getAssociatedTokenAddress(
+        tokenMint,
+        splEscrowPDA,
+        true // allowOwnerOffCurve for PDAs
       );
 
-      const amount = new anchor.BN(100 * 10 ** TOKEN_DECIMALS); // 100 tokens
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(100 * 10 ** TOKEN_DECIMALS); // 100 tokens
+      const timeLock = new BN(3600);
 
       // Get agent token balance before
       const agentBalanceBefore = await getAccount(provider.connection, agentTokenAccount);
@@ -722,7 +788,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           api: provider2.publicKey,
           systemProgram: SystemProgram.programId,
           tokenMint: tokenMint,
-          escrowTokenAccount: escrowTokenAccountPDA,
+          escrowTokenAccount: escrowATA,
           agentTokenAccount: agentTokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -748,13 +814,14 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow_token"), releaseEscrowPDA.toBuffer()],
-        program.programId
+      const escrowATA = await getAssociatedTokenAddress(
+        tokenMint,
+        releaseEscrowPDA,
+        true
       );
 
-      const amount = new anchor.BN(50 * 10 ** TOKEN_DECIMALS); // 50 tokens
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(50 * 10 ** TOKEN_DECIMALS); // 50 tokens
+      const timeLock = new BN(3600);
 
       // Initialize escrow
       await program.methods
@@ -767,7 +834,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           api: provider2.publicKey,
           systemProgram: SystemProgram.programId,
           tokenMint: tokenMint,
-          escrowTokenAccount: escrowTokenAccountPDA,
+          escrowTokenAccount: escrowATA,
           agentTokenAccount: agentTokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -782,11 +849,12 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .releaseFunds()
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: releaseEscrowPDA,
-          agent: owner.publicKey,
+          caller: owner.publicKey,
           api: provider2.publicKey,
           systemProgram: SystemProgram.programId,
-          escrowTokenAccount: escrowTokenAccountPDA,
+          escrowTokenAccount: escrowATA,
           apiTokenAccount: providerTokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
         })
@@ -809,13 +877,14 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow_token"), disputeEscrowPDA.toBuffer()],
-        program.programId
+      const escrowATA = await getAssociatedTokenAddress(
+        tokenMint,
+        disputeEscrowPDA,
+        true
       );
 
-      const amount = new anchor.BN(25 * 10 ** TOKEN_DECIMALS); // 25 tokens
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(25 * 10 ** TOKEN_DECIMALS); // 25 tokens
+      const timeLock = new BN(3600);
 
       // Initialize escrow
       await program.methods
@@ -828,7 +897,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           api: provider2.publicKey,
           systemProgram: SystemProgram.programId,
           tokenMint: tokenMint,
-          escrowTokenAccount: escrowTokenAccountPDA,
+          escrowTokenAccount: escrowATA,
           agentTokenAccount: agentTokenAccount,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -840,6 +909,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
       await program.methods
         .markDisputed()
         .accounts({
+          protocolConfig: protocolConfigPDA,
           escrow: disputeEscrowPDA,
           reputation: reputationPDA,
           agent: owner.publicKey,
@@ -860,8 +930,8 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
         program.programId
       );
 
-      const amount = new anchor.BN(10 * 10 ** TOKEN_DECIMALS);
-      const timeLock = new anchor.BN(3600);
+      const amount = new BN(10 * 10 ** TOKEN_DECIMALS);
+      const timeLock = new BN(3600);
 
       try {
         await program.methods
@@ -883,7 +953,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           .rpc();
         expect.fail("Should have thrown MissingTokenAccount error");
       } catch (err: any) {
-        expect(err.error?.errorCode?.code || err.message).to.include("MissingTokenAccount");
+        expect(err.error?.errorCode?.code || err.message).to.include("MissingToken");
       }
     });
 
@@ -898,13 +968,14 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
           program.programId
         );
 
-        const [escrowTokenAccountPDA] = PublicKey.findProgramAddressSync(
-          [Buffer.from("escrow_token"), escrowPDA.toBuffer()],
-          program.programId
+        const escrowATA = await getAssociatedTokenAddress(
+          tokenMint,
+          escrowPDA,
+          true
         );
 
-        const amount = new anchor.BN((i + 1) * 10 * 10 ** TOKEN_DECIMALS);
-        const timeLock = new anchor.BN(3600);
+        const amount = new BN((i + 1) * 10 * 10 ** TOKEN_DECIMALS);
+        const timeLock = new BN(3600);
 
         await program.methods
           .initializeEscrow(amount, timeLock, txId, true)
@@ -916,7 +987,7 @@ describe("Kamiyo - Agent Identity & Conflict Resolution", () => {
             api: provider2.publicKey,
             systemProgram: SystemProgram.programId,
             tokenMint: tokenMint,
-            escrowTokenAccount: escrowTokenAccountPDA,
+            escrowTokenAccount: escrowATA,
             agentTokenAccount: agentTokenAccount,
             tokenProgram: TOKEN_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,

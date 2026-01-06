@@ -1,11 +1,11 @@
-//! Mitama - Agent Identity and Conflict Resolution Protocol
+//! Kamiyo - Agent Identity and Conflict Resolution Protocol
 //!
 //! 魂 (kamiyo) - The soul/spirit that persists through conflict
 //!
 //! Copyright (c) 2025 KAMIYO
 //! SPDX-License-Identifier: BUSL-1.1
 //!
-//! Mitama provides autonomous agents with:
+//! Kamiyo provides autonomous agents with:
 //! - PDA-based agent identities with stake-backed accountability
 //! - Trustless conflict resolution via multi-oracle consensus
 //! - Quality-based arbitration for fair dispute outcomes
@@ -378,7 +378,7 @@ fn find_ed25519_instruction(
         }
     }
 
-    Err(error!(MitamaError::InvalidSignature))
+    Err(error!(KamiyoError::InvalidSignature))
 }
 
 /// Verify Ed25519 signature instruction
@@ -401,7 +401,7 @@ fn calculate_weighted_consensus(
     scores: &[(u8, u16)], // (score, weight) pairs
     max_deviation: u8,
 ) -> Result<u8> {
-    require!(scores.len() >= 2, MitamaError::InsufficientOracleConsensus);
+    require!(scores.len() >= 2, KamiyoError::InsufficientOracleConsensus);
 
     // Extract just scores for median calculation
     let mut sorted_scores: Vec<u8> = scores.iter().map(|(s, _)| *s).collect();
@@ -431,16 +431,16 @@ fn calculate_weighted_consensus(
         }
     }
 
-    require!(total_weight > 0, MitamaError::NoConsensusReached);
+    require!(total_weight > 0, KamiyoError::NoConsensusReached);
 
     // Use ceiling division for tie-breaking (favors agent refunds in boundary cases)
     // Safe: weighted_sum is max 100 * u16::MAX * 5 oracles = ~32M, fits in u64
     let consensus = weighted_sum
         .checked_add(total_weight)
-        .ok_or(MitamaError::ArithmeticOverflow)?
+        .ok_or(KamiyoError::ArithmeticOverflow)?
         .saturating_sub(1)
         .checked_div(total_weight)
-        .ok_or(MitamaError::ArithmeticOverflow)?;
+        .ok_or(KamiyoError::ArithmeticOverflow)?;
     Ok(consensus.min(100) as u8)
 }
 
@@ -597,11 +597,11 @@ pub mod kamiyo {
     ) -> Result<()> {
         require!(
             !name.is_empty() && name.len() <= MAX_AGENT_NAME_LENGTH,
-            MitamaError::InvalidAgentName
+            KamiyoError::InvalidAgentName
         );
         require!(
             stake_amount >= MIN_STAKE_AMOUNT,
-            MitamaError::InsufficientStake
+            KamiyoError::InsufficientStake
         );
 
         let clock = Clock::get()?;
@@ -654,9 +654,9 @@ pub mod kamiyo {
 
         require!(
             ctx.accounts.owner.key() == agent.owner,
-            MitamaError::Unauthorized
+            KamiyoError::Unauthorized
         );
-        require!(agent.is_active, MitamaError::AgentNotActive);
+        require!(agent.is_active, KamiyoError::AgentNotActive);
 
         let stake_to_return = agent.stake_amount;
         let agent_pda = agent.key();
@@ -732,21 +732,21 @@ pub mod kamiyo {
         // Check protocol is not paused
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
 
         // Validate amount within allowed range
         require!(
             (MIN_ESCROW_AMOUNT..=MAX_ESCROW_AMOUNT).contains(&amount),
-            MitamaError::InvalidAmount
+            KamiyoError::InvalidAmount
         );
         require!(
             (MIN_TIME_LOCK..=MAX_TIME_LOCK).contains(&time_lock),
-            MitamaError::InvalidTimeLock
+            KamiyoError::InvalidTimeLock
         );
         require!(
             !transaction_id.is_empty() && transaction_id.len() <= 64,
-            MitamaError::InvalidTransactionId
+            KamiyoError::InvalidTransactionId
         );
 
         let clock = Clock::get()?;
@@ -761,9 +761,9 @@ pub mod kamiyo {
             // 0.1% for SOL escrows, minimum 5000 lamports
             let creation_fee = (amount as u128)
                 .checked_mul(ESCROW_CREATION_FEE_BPS as u128)
-                .ok_or(MitamaError::ArithmeticOverflow)?
+                .ok_or(KamiyoError::ArithmeticOverflow)?
                 .checked_div(10_000)
-                .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+                .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
             creation_fee.max(5000)
         };
 
@@ -797,7 +797,7 @@ pub mod kamiyo {
         escrow.created_at = clock.unix_timestamp;
         escrow.expires_at = clock.unix_timestamp
             .checked_add(time_lock)
-            .ok_or(MitamaError::ArithmeticOverflow)?;
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
         escrow.transaction_id = transaction_id.clone();
         escrow.bump = ctx.bumps.escrow;
         escrow.quality_score = None;
@@ -806,42 +806,57 @@ pub mod kamiyo {
 
         if use_spl_token {
             let token_mint = ctx.accounts.token_mint.as_ref()
-                .ok_or(MitamaError::MissingTokenMint)?;
-            let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenMint)?;
+            let escrow_token_account_info = ctx.accounts.escrow_token_account.as_ref()
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let agent_token_account = ctx.accounts.agent_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let token_program = ctx.accounts.token_program.as_ref()
-                .ok_or(MitamaError::MissingTokenProgram)?;
+                .ok_or(KamiyoError::MissingTokenProgram)?;
+            let associated_token_program = ctx.accounts.associated_token_program.as_ref()
+                .ok_or(KamiyoError::MissingTokenProgram)?;
 
-            // Validate token account mints match
-            require!(
-                escrow_token_account.mint == token_mint.key(),
-                MitamaError::TokenMintMismatch
-            );
+            // Validate agent token account
             require!(
                 agent_token_account.mint == token_mint.key(),
-                MitamaError::TokenMintMismatch
+                KamiyoError::TokenMintMismatch
             );
-            // Validate agent owns the source token account
             require!(
                 agent_token_account.owner == ctx.accounts.agent.key(),
-                MitamaError::Unauthorized
-            );
-            // Validate escrow token account is owned by the escrow PDA
-            // This ensures the escrow can sign for token transfers later
-            require!(
-                escrow_token_account.owner == escrow.key(),
-                MitamaError::Unauthorized
+                KamiyoError::Unauthorized
             );
 
+            // Create ATA for escrow PDA if it doesn't exist
+            let escrow_key = escrow.key();
+            if escrow_token_account_info.data_is_empty() {
+                let create_ata_ix = anchor_spl::associated_token::spl_associated_token_account::instruction::create_associated_token_account(
+                    &ctx.accounts.agent.key(),
+                    &escrow_key,
+                    &token_mint.key(),
+                    &token_program.key(),
+                );
+                anchor_lang::solana_program::program::invoke(
+                    &create_ata_ix,
+                    &[
+                        ctx.accounts.agent.to_account_info(),
+                        escrow_token_account_info.to_account_info(),
+                        escrow.to_account_info(),
+                        token_mint.to_account_info(),
+                        ctx.accounts.system_program.to_account_info(),
+                        token_program.to_account_info(),
+                        associated_token_program.to_account_info(),
+                    ],
+                )?;
+                msg!("Created ATA for escrow PDA");
+            }
+
             escrow.token_mint = Some(token_mint.key());
-            escrow.escrow_token_account = Some(escrow_token_account.key());
+            escrow.escrow_token_account = Some(escrow_token_account_info.key());
             escrow.token_decimals = token_mint.decimals;
 
             let cpi_accounts = SplTransfer {
                 from: agent_token_account.to_account_info(),
-                to: escrow_token_account.to_account_info(),
+                to: escrow_token_account_info.to_account_info(),
                 authority: ctx.accounts.agent.to_account_info(),
             };
             let cpi_ctx = CpiContext::new(token_program.to_account_info(), cpi_accounts);
@@ -890,7 +905,7 @@ pub mod kamiyo {
     pub fn release_funds(ctx: Context<ReleaseFunds>) -> Result<()> {
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
         let clock = Clock::get()?;
 
@@ -909,7 +924,7 @@ pub mod kamiyo {
             )
         };
 
-        require!(status == EscrowStatus::Active, MitamaError::InvalidStatus);
+        require!(status == EscrowStatus::Active, KamiyoError::InvalidStatus);
 
         let caller_key = ctx.accounts.caller.key();
         let is_agent = caller_key == agent_key;
@@ -919,7 +934,7 @@ pub mod kamiyo {
         // Only agent can release before timelock, agent or API can release after
         require!(
             is_agent || (is_api && time_lock_expired),
-            MitamaError::Unauthorized
+            KamiyoError::Unauthorized
         );
 
         // ====================================================================
@@ -936,16 +951,16 @@ pub mod kamiyo {
 
         if let Some(mint) = token_mint {
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let api_token_account = ctx.accounts.api_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let token_program = ctx.accounts.token_program.as_ref()
-                .ok_or(MitamaError::MissingTokenProgram)?;
+                .ok_or(KamiyoError::MissingTokenProgram)?;
 
             // Validate token accounts
-            require!(escrow_token_account.mint == mint, MitamaError::TokenMintMismatch);
-            require!(api_token_account.mint == mint, MitamaError::TokenMintMismatch);
-            require!(api_token_account.owner == api_key, MitamaError::Unauthorized);
+            require!(escrow_token_account.mint == mint, KamiyoError::TokenMintMismatch);
+            require!(api_token_account.mint == mint, KamiyoError::TokenMintMismatch);
+            require!(api_token_account.owner == api_key, KamiyoError::Unauthorized);
 
             let cpi_accounts = SplTransfer {
                 from: escrow_token_account.to_account_info(),
@@ -959,15 +974,19 @@ pub mod kamiyo {
             );
             token::transfer(cpi_ctx, transfer_amount)?;
         } else {
-            let cpi_context = CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
-                anchor_lang::system_program::Transfer {
-                    from: ctx.accounts.escrow.to_account_info(),
-                    to: ctx.accounts.api.to_account_info(),
-                },
-                signer,
-            );
-            anchor_lang::system_program::transfer(cpi_context, transfer_amount)?;
+            // Transfer SOL by directly manipulating lamports
+            // System program transfer doesn't work for accounts with data
+            let escrow_info = ctx.accounts.escrow.to_account_info();
+            let api_info = ctx.accounts.api.to_account_info();
+
+            **escrow_info.try_borrow_mut_lamports()? = escrow_info
+                .lamports()
+                .checked_sub(transfer_amount)
+                .ok_or(KamiyoError::ArithmeticOverflow)?;
+            **api_info.try_borrow_mut_lamports()? = api_info
+                .lamports()
+                .checked_add(transfer_amount)
+                .ok_or(KamiyoError::ArithmeticOverflow)?;
         }
 
         emit!(FundsReleased {
@@ -985,21 +1004,21 @@ pub mod kamiyo {
     pub fn mark_disputed(ctx: Context<MarkDisputed>) -> Result<()> {
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
         let escrow = &mut ctx.accounts.escrow;
         let reputation = &mut ctx.accounts.reputation;
 
-        require!(escrow.status == EscrowStatus::Active, MitamaError::InvalidStatus);
-        require!(ctx.accounts.agent.key() == escrow.agent, MitamaError::Unauthorized);
+        require!(escrow.status == EscrowStatus::Active, KamiyoError::InvalidStatus);
+        require!(ctx.accounts.agent.key() == escrow.agent, KamiyoError::Unauthorized);
 
         let clock = Clock::get()?;
-        require!(clock.unix_timestamp < escrow.expires_at, MitamaError::DisputeWindowExpired);
+        require!(clock.unix_timestamp < escrow.expires_at, KamiyoError::DisputeWindowExpired);
 
         let dispute_cost = calculate_dispute_cost(reputation);
         require!(
             ctx.accounts.agent.lamports() >= dispute_cost,
-            MitamaError::InsufficientDisputeFunds
+            KamiyoError::InsufficientDisputeFunds
         );
 
         reputation.disputes_filed = reputation.disputes_filed.saturating_add(1);
@@ -1026,7 +1045,7 @@ pub mod kamiyo {
     ) -> Result<()> {
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
         // Extract values we need before mutating (checks)
         let (status, transaction_id, amount, escrow_key, token_mint, bump, agent_key) = {
@@ -1044,10 +1063,10 @@ pub mod kamiyo {
 
         require!(
             status == EscrowStatus::Active || status == EscrowStatus::Disputed,
-            MitamaError::InvalidStatus
+            KamiyoError::InvalidStatus
         );
-        require!(quality_score <= 100, MitamaError::InvalidQualityScore);
-        require!(refund_percentage <= 100, MitamaError::InvalidRefundPercentage);
+        require!(quality_score <= 100, KamiyoError::InvalidQualityScore);
+        require!(refund_percentage <= 100, KamiyoError::InvalidRefundPercentage);
 
         let message = format!("{}:{}", transaction_id, quality_score);
         verify_ed25519_signature(
@@ -1060,9 +1079,9 @@ pub mod kamiyo {
 
         let refund_amount = (amount as u128)
             .checked_mul(refund_percentage as u128)
-            .ok_or(MitamaError::ArithmeticOverflow)?
+            .ok_or(KamiyoError::ArithmeticOverflow)?
             .checked_div(100)
-            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
         let payment_amount = amount.saturating_sub(refund_amount);
 
         // ====================================================================
@@ -1100,18 +1119,18 @@ pub mod kamiyo {
         if let Some(mint) = token_mint {
             // SPL Token transfer
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let token_program = ctx.accounts.token_program.as_ref()
-                .ok_or(MitamaError::MissingTokenProgram)?;
+                .ok_or(KamiyoError::MissingTokenProgram)?;
 
             // Validate escrow token account mint
-            require!(escrow_token_account.mint == mint, MitamaError::TokenMintMismatch);
+            require!(escrow_token_account.mint == mint, KamiyoError::TokenMintMismatch);
 
             if refund_amount > 0 {
                 let agent_token_account = ctx.accounts.agent_token_account.as_ref()
-                    .ok_or(MitamaError::MissingTokenAccount)?;
+                    .ok_or(KamiyoError::MissingTokenAccount)?;
                 // Validate agent token account ownership
-                require!(agent_token_account.owner == agent_key, MitamaError::Unauthorized);
+                require!(agent_token_account.owner == agent_key, KamiyoError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
                     from: escrow_token_account.to_account_info(),
@@ -1128,9 +1147,9 @@ pub mod kamiyo {
 
             if payment_amount > 0 {
                 let api_token_account = ctx.accounts.api_token_account.as_ref()
-                    .ok_or(MitamaError::MissingTokenAccount)?;
+                    .ok_or(KamiyoError::MissingTokenAccount)?;
                 // Validate api token account ownership
-                require!(api_token_account.owner == ctx.accounts.api.key(), MitamaError::Unauthorized);
+                require!(api_token_account.owner == ctx.accounts.api.key(), KamiyoError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
                     from: escrow_token_account.to_account_info(),
@@ -1153,7 +1172,7 @@ pub mod kamiyo {
 
             // Ensure we don't transfer more than available after rent
             let total_transfer = refund_amount.saturating_add(payment_amount);
-            require!(total_transfer <= max_transferable, MitamaError::InsufficientDisputeFunds);
+            require!(total_transfer <= max_transferable, KamiyoError::InsufficientDisputeFunds);
 
             if refund_amount > 0 {
                 **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
@@ -1191,8 +1210,8 @@ pub mod kamiyo {
     ) -> Result<()> {
         let registry = &mut ctx.accounts.oracle_registry;
 
-        require!(min_consensus >= MIN_CONSENSUS_ORACLES, MitamaError::InsufficientOracleConsensus);
-        require!(max_score_deviation <= 50, MitamaError::InvalidQualityScore);
+        require!(min_consensus >= MIN_CONSENSUS_ORACLES, KamiyoError::InsufficientOracleConsensus);
+        require!(max_score_deviation <= 50, KamiyoError::InvalidQualityScore);
 
         let clock = Clock::get()?;
 
@@ -1225,15 +1244,15 @@ pub mod kamiyo {
     ) -> Result<()> {
         let registry = &mut ctx.accounts.oracle_registry;
 
-        require!(ctx.accounts.admin.key() == registry.admin, MitamaError::Unauthorized);
+        require!(ctx.accounts.admin.key() == registry.admin, KamiyoError::Unauthorized);
         // SECURITY: Validate oracle_pubkey matches the signer to prevent impersonation
-        require!(oracle_pubkey == ctx.accounts.oracle_signer.key(), MitamaError::OraclePubkeyMismatch);
-        require!(registry.oracles.len() < MAX_ORACLES, MitamaError::MaxOraclesReached);
-        require!(weight > 0, MitamaError::InvalidOracleWeight);
-        require!(stake_amount >= MIN_ORACLE_STAKE, MitamaError::InsufficientOracleStake);
+        require!(oracle_pubkey == ctx.accounts.oracle_signer.key(), KamiyoError::OraclePubkeyMismatch);
+        require!(registry.oracles.len() < MAX_ORACLES, KamiyoError::MaxOraclesReached);
+        require!(weight > 0, KamiyoError::InvalidOracleWeight);
+        require!(stake_amount >= MIN_ORACLE_STAKE, KamiyoError::InsufficientOracleStake);
         require!(
             !registry.oracles.iter().any(|o| o.pubkey == oracle_pubkey),
-            MitamaError::DuplicateOracleSubmission
+            KamiyoError::DuplicateOracleSubmission
         );
 
         // Transfer stake from oracle to registry PDA
@@ -1283,14 +1302,14 @@ pub mod kamiyo {
     ) -> Result<()> {
         let registry = &mut ctx.accounts.oracle_registry;
 
-        require!(ctx.accounts.admin.key() == registry.admin, MitamaError::Unauthorized);
-        require!(ctx.accounts.oracle_wallet.key() == oracle_pubkey, MitamaError::OraclePubkeyMismatch);
+        require!(ctx.accounts.admin.key() == registry.admin, KamiyoError::Unauthorized);
+        require!(ctx.accounts.oracle_wallet.key() == oracle_pubkey, KamiyoError::OraclePubkeyMismatch);
 
         // Find and remove the oracle, capturing the stake amount
         let oracle_index = registry.oracles
             .iter()
             .position(|o| o.pubkey == oracle_pubkey)
-            .ok_or(MitamaError::OracleNotFound)?;
+            .ok_or(KamiyoError::OracleNotFound)?;
 
         let stake_amount = registry.oracles[oracle_index].stake_amount;
         registry.oracles.remove(oracle_index);
@@ -1322,8 +1341,8 @@ pub mod kamiyo {
         let registry = &mut ctx.accounts.oracle_registry;
         let old_admin = registry.admin;
 
-        require!(ctx.accounts.admin.key() == registry.admin, MitamaError::Unauthorized);
-        require!(new_admin != Pubkey::default(), MitamaError::InvalidAmount); // Reuse error for invalid input
+        require!(ctx.accounts.admin.key() == registry.admin, KamiyoError::Unauthorized);
+        require!(new_admin != Pubkey::default(), KamiyoError::InvalidAmount); // Reuse error for invalid input
 
         registry.admin = new_admin;
 
@@ -1384,11 +1403,11 @@ pub mod kamiyo {
             primary != secondary_signer
                 && primary != tertiary_signer
                 && secondary_signer != tertiary_signer,
-            MitamaError::DuplicateMultiSigSigner
+            KamiyoError::DuplicateMultiSigSigner
         );
         require!(
             secondary_signer != Pubkey::default() && tertiary_signer != Pubkey::default(),
-            MitamaError::InvalidAuthority
+            KamiyoError::InvalidAuthority
         );
 
         config.authority = primary;
@@ -1442,14 +1461,14 @@ pub mod kamiyo {
             .oracles
             .iter_mut()
             .find(|o| o.pubkey == oracle_key)
-            .ok_or(MitamaError::UnregisteredOracle)?;
+            .ok_or(KamiyoError::UnregisteredOracle)?;
 
         let reward_amount = oracle.total_rewards;
-        require!(reward_amount > 0, MitamaError::NoRewardsToClaim);
+        require!(reward_amount > 0, KamiyoError::NoRewardsToClaim);
 
         // Check treasury has enough balance
         let treasury_balance = treasury.to_account_info().lamports();
-        require!(treasury_balance >= reward_amount, MitamaError::InsufficientTreasuryBalance);
+        require!(treasury_balance >= reward_amount, KamiyoError::InsufficientTreasuryBalance);
 
         // Reset oracle rewards and transfer
         oracle.total_rewards = 0;
@@ -1469,7 +1488,7 @@ pub mod kamiyo {
     /// Requires 2-of-3 multi-sig authorization (same authorities as protocol pause)
     pub fn withdraw_treasury(ctx: Context<WithdrawTreasury>, amount: u64) -> Result<()> {
         // Validate amount is non-zero
-        require!(amount > 0, MitamaError::InvalidAmount);
+        require!(amount > 0, KamiyoError::InvalidAmount);
 
         let config = &ctx.accounts.protocol_config;
         let treasury = &mut ctx.accounts.treasury;
@@ -1477,12 +1496,12 @@ pub mod kamiyo {
         // Validate 2-of-3 multi-sig: both signers must be from the authority set
         let signer_one = ctx.accounts.signer_one.key();
         let signer_two = ctx.accounts.signer_two.key();
-        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+        require!(signer_one != signer_two, KamiyoError::DuplicateMultiSigSigner);
 
         let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
         require!(
             valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
-            MitamaError::InvalidMultiSigSigner
+            KamiyoError::InvalidMultiSigSigner
         );
 
         // Calculate maximum withdrawable (preserve rent-exempt balance)
@@ -1490,7 +1509,7 @@ pub mod kamiyo {
         let min_rent = Rent::get()?.minimum_balance(treasury.to_account_info().data_len());
         let max_withdrawable = treasury_balance.saturating_sub(min_rent);
 
-        require!(amount <= max_withdrawable, MitamaError::InsufficientTreasuryBalance);
+        require!(amount <= max_withdrawable, KamiyoError::InsufficientTreasuryBalance);
 
         // Update accounting before transfer (CEI pattern)
         treasury.total_withdrawn = treasury.total_withdrawn.saturating_add(amount);
@@ -1517,17 +1536,17 @@ pub mod kamiyo {
     /// Requires 2-of-3 multi-sig authorization
     pub fn pause_protocol(ctx: Context<ManageProtocol>) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
-        require!(!config.paused, MitamaError::ProtocolAlreadyPaused);
+        require!(!config.paused, KamiyoError::ProtocolAlreadyPaused);
 
         // Validate 2-of-3 multi-sig: both signers must be from the authority set
         let signer_one = ctx.accounts.signer_one.key();
         let signer_two = ctx.accounts.signer_two.key();
-        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+        require!(signer_one != signer_two, KamiyoError::DuplicateMultiSigSigner);
 
         let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
         require!(
             valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
-            MitamaError::InvalidMultiSigSigner
+            KamiyoError::InvalidMultiSigSigner
         );
 
         let clock = Clock::get()?;
@@ -1547,17 +1566,17 @@ pub mod kamiyo {
     /// Requires 2-of-3 multi-sig authorization
     pub fn unpause_protocol(ctx: Context<ManageProtocol>) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
-        require!(config.paused, MitamaError::ProtocolNotPaused);
+        require!(config.paused, KamiyoError::ProtocolNotPaused);
 
         // Validate 2-of-3 multi-sig
         let signer_one = ctx.accounts.signer_one.key();
         let signer_two = ctx.accounts.signer_two.key();
-        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+        require!(signer_one != signer_two, KamiyoError::DuplicateMultiSigSigner);
 
         let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
         require!(
             valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
-            MitamaError::InvalidMultiSigSigner
+            KamiyoError::InvalidMultiSigSigner
         );
 
         let clock = Clock::get()?;
@@ -1581,21 +1600,21 @@ pub mod kamiyo {
         new_signer: Pubkey,
     ) -> Result<()> {
         let config = &mut ctx.accounts.protocol_config;
-        require!(new_signer != Pubkey::default(), MitamaError::InvalidAuthority);
+        require!(new_signer != Pubkey::default(), KamiyoError::InvalidAuthority);
 
         // Validate 2-of-3 multi-sig
         let signer_one = ctx.accounts.signer_one.key();
         let signer_two = ctx.accounts.signer_two.key();
-        require!(signer_one != signer_two, MitamaError::DuplicateMultiSigSigner);
+        require!(signer_one != signer_two, KamiyoError::DuplicateMultiSigSigner);
 
         let valid_signers = [config.authority, config.secondary_signer, config.tertiary_signer];
         require!(
             valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
-            MitamaError::InvalidMultiSigSigner
+            KamiyoError::InvalidMultiSigSigner
         );
 
         // Ensure new signer is not already in the set
-        require!(!valid_signers.contains(&new_signer), MitamaError::DuplicateMultiSigSigner);
+        require!(!valid_signers.contains(&new_signer), KamiyoError::DuplicateMultiSigSigner);
 
         // Replace the specified signer
         let clock = Clock::get()?;
@@ -1606,7 +1625,7 @@ pub mod kamiyo {
         } else if signer_to_replace == config.tertiary_signer {
             config.tertiary_signer = new_signer;
         } else {
-            return Err(MitamaError::InvalidAuthority.into());
+            return Err(KamiyoError::InvalidAuthority.into());
         }
 
         config.updated_at = clock.unix_timestamp;
@@ -1627,22 +1646,22 @@ pub mod kamiyo {
     ) -> Result<()> {
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
         let escrow = &mut ctx.accounts.escrow;
         let oracle_registry = &ctx.accounts.oracle_registry;
 
         require!(
             escrow.status == EscrowStatus::Disputed,
-            MitamaError::InvalidStatus
+            KamiyoError::InvalidStatus
         );
-        require!(quality_score <= 100, MitamaError::InvalidQualityScore);
+        require!(quality_score <= 100, KamiyoError::InvalidQualityScore);
 
         // Verify oracle is registered
         let oracle_key = ctx.accounts.oracle.key();
         require!(
             oracle_registry.oracles.iter().any(|o| o.pubkey == oracle_key),
-            MitamaError::UnregisteredOracle
+            KamiyoError::UnregisteredOracle
         );
 
         // Verify signature
@@ -1658,7 +1677,7 @@ pub mod kamiyo {
         // Check for duplicate submission
         require!(
             !escrow.oracle_submissions.iter().any(|s| s.oracle == oracle_key),
-            MitamaError::DuplicateOracleSubmission
+            KamiyoError::DuplicateOracleSubmission
         );
 
         // Add submission
@@ -1686,7 +1705,7 @@ pub mod kamiyo {
     pub fn finalize_multi_oracle_dispute(ctx: Context<FinalizeMultiOracleDispute>) -> Result<()> {
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
         let oracle_registry = &ctx.accounts.oracle_registry;
 
@@ -1722,13 +1741,13 @@ pub mod kamiyo {
             )
         };
 
-        require!(status == EscrowStatus::Disputed, MitamaError::InvalidStatus);
+        require!(status == EscrowStatus::Disputed, KamiyoError::InvalidStatus);
 
         // Tiered oracle requirement: larger escrows need more oracles for collusion resistance
         let required_oracles = required_oracle_count(amount);
         require!(
             oracles.len() >= required_oracles as usize,
-            MitamaError::InsufficientOracleConsensus
+            KamiyoError::InsufficientOracleConsensus
         );
 
         // Reveal delay: prevent oracles from seeing others' votes before committing
@@ -1736,7 +1755,7 @@ pub mod kamiyo {
         let clock = Clock::get()?;
         require!(
             clock.unix_timestamp >= first_submission_time.saturating_add(ORACLE_REVEAL_DELAY),
-            MitamaError::RevealDelayNotMet
+            KamiyoError::RevealDelayNotMet
         );
 
         // Calculate consensus
@@ -1750,9 +1769,9 @@ pub mod kamiyo {
 
         let refund_amount = (amount as u128)
             .checked_mul(refund_percentage as u128)
-            .ok_or(MitamaError::ArithmeticOverflow)?
+            .ok_or(KamiyoError::ArithmeticOverflow)?
             .checked_div(100)
-            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
         let payment_amount = amount.saturating_sub(refund_amount);
 
         // ====================================================================
@@ -1770,17 +1789,17 @@ pub mod kamiyo {
         // Calculate protocol fee (1% of escrow amount)
         let protocol_fee = (amount as u128)
             .checked_mul(PROTOCOL_FEE_PERCENT as u128)
-            .ok_or(MitamaError::ArithmeticOverflow)?
+            .ok_or(KamiyoError::ArithmeticOverflow)?
             .checked_div(100)
-            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
 
         // Calculate oracle reward pool (1% of escrow amount, split among participating oracles)
         let oracle_count = oracles.len() as u64;
         let total_oracle_reward = (amount as u128)
             .checked_mul(ORACLE_REWARD_PERCENT as u128)
-            .ok_or(MitamaError::ArithmeticOverflow)?
+            .ok_or(KamiyoError::ArithmeticOverflow)?
             .checked_div(100)
-            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
         let reward_per_oracle = if oracle_count > 0 {
             total_oracle_reward / oracle_count
         } else {
@@ -1794,9 +1813,9 @@ pub mod kamiyo {
             let agent_identity = ctx.accounts.agent_identity.as_mut().unwrap();
             agent_slash_amount = (agent_identity.stake_amount as u128)
                 .checked_mul(AGENT_DISPUTE_LOSS_SLASH_PERCENT as u128)
-                .ok_or(MitamaError::ArithmeticOverflow)?
+                .ok_or(KamiyoError::ArithmeticOverflow)?
                 .checked_div(100)
-                .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+                .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
 
             if agent_slash_amount > 0 && agent_identity.stake_amount >= agent_slash_amount {
                 agent_identity.stake_amount = agent_identity.stake_amount.saturating_sub(agent_slash_amount);
@@ -1843,9 +1862,9 @@ pub mod kamiyo {
                     if score_diff > max_deviation {
                         let slash_amount = (oracle.stake_amount as u128)
                             .checked_mul(ORACLE_SLASH_PERCENT as u128)
-                            .ok_or(MitamaError::ArithmeticOverflow)?
+                            .ok_or(KamiyoError::ArithmeticOverflow)?
                             .checked_div(100)
-                            .ok_or(MitamaError::ArithmeticOverflow)? as u64;
+                            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
 
                         if slash_amount > 0 && oracle.stake_amount >= slash_amount {
                             oracle.stake_amount = oracle.stake_amount.saturating_sub(slash_amount);
@@ -1915,22 +1934,22 @@ pub mod kamiyo {
         if let Some(mint) = token_mint {
             // SPL Token transfer with protocol fee
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let token_program = ctx.accounts.token_program.as_ref()
-                .ok_or(MitamaError::MissingTokenProgram)?;
+                .ok_or(KamiyoError::MissingTokenProgram)?;
 
             // Validate escrow token account mint
-            require!(escrow_token_account.mint == mint, MitamaError::TokenMintMismatch);
+            require!(escrow_token_account.mint == mint, KamiyoError::TokenMintMismatch);
 
             // Deduct protocol fee from payment amount (API pays the fee)
             let adjusted_payment = payment_amount.saturating_sub(protocol_fee);
 
             if refund_amount > 0 {
                 let agent_token_account = ctx.accounts.agent_token_account.as_ref()
-                    .ok_or(MitamaError::MissingTokenAccount)?;
+                    .ok_or(KamiyoError::MissingTokenAccount)?;
                 // Validate agent token account
-                require!(agent_token_account.mint == mint, MitamaError::TokenMintMismatch);
-                require!(agent_token_account.owner == agent_key, MitamaError::Unauthorized);
+                require!(agent_token_account.mint == mint, KamiyoError::TokenMintMismatch);
+                require!(agent_token_account.owner == agent_key, KamiyoError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
                     from: escrow_token_account.to_account_info(),
@@ -1947,10 +1966,10 @@ pub mod kamiyo {
 
             if adjusted_payment > 0 {
                 let api_token_account = ctx.accounts.api_token_account.as_ref()
-                    .ok_or(MitamaError::MissingTokenAccount)?;
+                    .ok_or(KamiyoError::MissingTokenAccount)?;
                 // Validate api token account
-                require!(api_token_account.mint == mint, MitamaError::TokenMintMismatch);
-                require!(api_token_account.owner == ctx.accounts.api.key(), MitamaError::Unauthorized);
+                require!(api_token_account.mint == mint, KamiyoError::TokenMintMismatch);
+                require!(api_token_account.owner == ctx.accounts.api.key(), KamiyoError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
                     from: escrow_token_account.to_account_info(),
@@ -1969,7 +1988,7 @@ pub mod kamiyo {
             if protocol_fee > 0 {
                 if let Some(ref treasury_token_account) = ctx.accounts.treasury_token_account {
                     // Validate treasury token account
-                    require!(treasury_token_account.mint == mint, MitamaError::TokenMintMismatch);
+                    require!(treasury_token_account.mint == mint, KamiyoError::TokenMintMismatch);
 
                     let cpi_accounts = SplTransfer {
                         from: escrow_token_account.to_account_info(),
@@ -1991,7 +2010,7 @@ pub mod kamiyo {
                 } else {
                     // No treasury token account, fee goes to API
                     let api_token_account = ctx.accounts.api_token_account.as_ref()
-                        .ok_or(MitamaError::MissingTokenAccount)?;
+                        .ok_or(KamiyoError::MissingTokenAccount)?;
 
                     let cpi_accounts = SplTransfer {
                         from: escrow_token_account.to_account_info(),
@@ -2018,7 +2037,7 @@ pub mod kamiyo {
 
             // Ensure we don't transfer more than available after rent
             let total_transfer = refund_amount.saturating_add(adjusted_payment).saturating_add(protocol_fee);
-            require!(total_transfer <= max_transferable, MitamaError::InsufficientDisputeFunds);
+            require!(total_transfer <= max_transferable, KamiyoError::InsufficientDisputeFunds);
 
             if refund_amount > 0 {
                 **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
@@ -2075,7 +2094,7 @@ pub mod kamiyo {
     pub fn claim_expired_escrow(ctx: Context<ClaimExpiredEscrow>) -> Result<()> {
         require!(
             !ctx.accounts.protocol_config.paused,
-            MitamaError::ProtocolPaused
+            KamiyoError::ProtocolPaused
         );
         let clock = Clock::get()?;
         let escrow = &ctx.accounts.escrow;
@@ -2083,12 +2102,12 @@ pub mod kamiyo {
         // Must be expired + 7 day grace period (604800 seconds)
         let grace_period = 604800i64;
         let claim_time = escrow.expires_at.saturating_add(grace_period);
-        require!(clock.unix_timestamp >= claim_time, MitamaError::EscrowNotExpired);
+        require!(clock.unix_timestamp >= claim_time, KamiyoError::EscrowNotExpired);
 
         // Can only claim Active or Disputed (unresolved) escrows
         require!(
             escrow.status == EscrowStatus::Active || escrow.status == EscrowStatus::Disputed,
-            MitamaError::EscrowAlreadyClaimed
+            KamiyoError::EscrowAlreadyClaimed
         );
 
         let amount = escrow.amount;
@@ -2110,7 +2129,7 @@ pub mod kamiyo {
                 let half = amount / 2;
                 (half, amount.saturating_sub(half), "disputed_split")
             }
-            _ => return Err(MitamaError::EscrowAlreadyClaimed.into()),
+            _ => return Err(KamiyoError::EscrowAlreadyClaimed.into()),
         };
 
         // Mark as resolved first (check-effects-interactions)
@@ -2128,18 +2147,18 @@ pub mod kamiyo {
         if let Some(mint) = token_mint {
             // SPL Token transfer
             let escrow_token_account = ctx.accounts.escrow_token_account.as_ref()
-                .ok_or(MitamaError::MissingTokenAccount)?;
+                .ok_or(KamiyoError::MissingTokenAccount)?;
             let token_program = ctx.accounts.token_program.as_ref()
-                .ok_or(MitamaError::MissingTokenProgram)?;
+                .ok_or(KamiyoError::MissingTokenProgram)?;
 
             // Validate escrow token account mint
-            require!(escrow_token_account.mint == mint, MitamaError::TokenMintMismatch);
+            require!(escrow_token_account.mint == mint, KamiyoError::TokenMintMismatch);
 
             if agent_amount > 0 {
                 let agent_token_account = ctx.accounts.agent_token_account.as_ref()
-                    .ok_or(MitamaError::MissingTokenAccount)?;
+                    .ok_or(KamiyoError::MissingTokenAccount)?;
                 // Validate agent token account ownership
-                require!(agent_token_account.owner == agent_key, MitamaError::Unauthorized);
+                require!(agent_token_account.owner == agent_key, KamiyoError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
                     from: escrow_token_account.to_account_info(),
@@ -2156,9 +2175,9 @@ pub mod kamiyo {
 
             if api_amount > 0 {
                 let api_token_account = ctx.accounts.api_token_account.as_ref()
-                    .ok_or(MitamaError::MissingTokenAccount)?;
+                    .ok_or(KamiyoError::MissingTokenAccount)?;
                 // Validate api token account ownership
-                require!(api_token_account.owner == ctx.accounts.api.key(), MitamaError::Unauthorized);
+                require!(api_token_account.owner == ctx.accounts.api.key(), KamiyoError::Unauthorized);
 
                 let cpi_accounts = SplTransfer {
                     from: escrow_token_account.to_account_info(),
@@ -2181,7 +2200,7 @@ pub mod kamiyo {
 
             // Ensure we don't transfer more than available after rent
             let total_transfer = agent_amount.saturating_add(api_amount);
-            require!(total_transfer <= max_transferable, MitamaError::InsufficientDisputeFunds);
+            require!(total_transfer <= max_transferable, KamiyoError::InsufficientDisputeFunds);
 
             if agent_amount > 0 {
                 **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= agent_amount;
@@ -2259,7 +2278,7 @@ pub struct UpdateAgentRep<'info> {
     #[account(
         constraint = authority.key() == agent.owner
             || oracle_registry.oracles.iter().any(|o| o.pubkey == authority.key())
-            @ MitamaError::Unauthorized
+            @ KamiyoError::Unauthorized
     )]
     pub authority: Signer<'info>,
 }
@@ -2301,8 +2320,9 @@ pub struct InitializeEscrow<'info> {
 
     pub token_mint: Option<Account<'info, Mint>>,
 
+    /// CHECK: Escrow token account - created via CPI if needed, validated in instruction
     #[account(mut)]
-    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
+    pub escrow_token_account: Option<UncheckedAccount<'info>>,
 
     #[account(mut)]
     pub agent_token_account: Option<Account<'info, TokenAccount>>,
@@ -2323,7 +2343,7 @@ pub struct ReleaseFunds<'info> {
         mut,
         seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
         bump = escrow.bump,
-        constraint = api.key() == escrow.api @ MitamaError::Unauthorized
+        constraint = api.key() == escrow.api @ KamiyoError::Unauthorized
     )]
     pub escrow: Account<'info, Escrow>,
 
@@ -2390,11 +2410,11 @@ pub struct ResolveDispute<'info> {
     pub escrow: Account<'info, Escrow>,
 
     /// Agent wallet - MUST match escrow.agent to prevent fund theft
-    #[account(mut, constraint = agent.key() == escrow.agent @ MitamaError::Unauthorized)]
+    #[account(mut, constraint = agent.key() == escrow.agent @ KamiyoError::Unauthorized)]
     pub agent: SystemAccount<'info>,
 
     /// CHECK: API wallet - MUST match escrow.api to prevent fund theft
-    #[account(mut, constraint = api.key() == escrow.api @ MitamaError::Unauthorized)]
+    #[account(mut, constraint = api.key() == escrow.api @ KamiyoError::Unauthorized)]
     pub api: AccountInfo<'info>,
 
     /// Oracle registry to validate the verifier is registered
@@ -2402,7 +2422,7 @@ pub struct ResolveDispute<'info> {
         seeds = [b"oracle_registry"],
         bump = oracle_registry.bump,
         constraint = oracle_registry.oracles.iter().any(|o| o.pubkey == verifier.key())
-            @ MitamaError::UnregisteredOracle
+            @ KamiyoError::UnregisteredOracle
     )]
     pub oracle_registry: Account<'info, OracleRegistry>,
 
@@ -2514,7 +2534,7 @@ pub struct TransferAdmin<'info> {
         mut,
         seeds = [b"oracle_registry"],
         bump = oracle_registry.bump,
-        constraint = oracle_registry.admin == admin.key() @ MitamaError::Unauthorized
+        constraint = oracle_registry.admin == admin.key() @ KamiyoError::Unauthorized
     )]
     pub oracle_registry: Account<'info, OracleRegistry>,
 
@@ -2691,11 +2711,11 @@ pub struct FinalizeMultiOracleDispute<'info> {
     pub oracle_registry: Account<'info, OracleRegistry>,
 
     /// CHECK: Agent wallet to receive refund - MUST match escrow.agent
-    #[account(mut, constraint = agent.key() == escrow.agent @ MitamaError::Unauthorized)]
+    #[account(mut, constraint = agent.key() == escrow.agent @ KamiyoError::Unauthorized)]
     pub agent: AccountInfo<'info>,
 
     /// CHECK: API wallet to receive payment - MUST match escrow.api
-    #[account(mut, constraint = api.key() == escrow.api @ MitamaError::Unauthorized)]
+    #[account(mut, constraint = api.key() == escrow.api @ KamiyoError::Unauthorized)]
     pub api: AccountInfo<'info>,
 
     /// Optional: Agent identity for stake slashing on frivolous disputes
@@ -2754,11 +2774,11 @@ pub struct ClaimExpiredEscrow<'info> {
     pub escrow: Account<'info, Escrow>,
 
     /// CHECK: Agent wallet to receive refund
-    #[account(mut, constraint = agent.key() == escrow.agent @ MitamaError::Unauthorized)]
+    #[account(mut, constraint = agent.key() == escrow.agent @ KamiyoError::Unauthorized)]
     pub agent: AccountInfo<'info>,
 
     /// CHECK: API wallet to receive payment (if applicable)
-    #[account(mut, constraint = api.key() == escrow.api @ MitamaError::Unauthorized)]
+    #[account(mut, constraint = api.key() == escrow.api @ KamiyoError::Unauthorized)]
     pub api: AccountInfo<'info>,
 
     /// Anyone can trigger expired escrow claim (incentivizes cleanup)
@@ -2961,7 +2981,7 @@ pub enum VerificationLevel {
 // ============================================================================
 
 #[error_code]
-pub enum MitamaError {
+pub enum KamiyoError {
     #[msg("Invalid escrow status for this operation")]
     InvalidStatus,
 
