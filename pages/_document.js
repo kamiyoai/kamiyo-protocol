@@ -95,7 +95,7 @@ export default function Document() {
                 {/* Google Fonts */}
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-                <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;700&display=swap" rel="stylesheet" />
+                <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@300;400;700&display=swap" rel="stylesheet" />
 
                 {/* Favicon */}
                 <link rel="icon" type="image/png" href="/favicon.png" />
