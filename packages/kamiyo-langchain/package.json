@@ -1,0 +1,42 @@
+{
+  "name": "@kamiyo/langchain",
+  "version": "0.1.0",
+  "description": "LangChain tools for KAMIYO - Agent Identity and Conflict Resolution Protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@langchain/core": ">=0.2.0",
+    "@kamiyo/sdk": "^0.1.0",
+    "@solana/web3.js": "^1.98.0",
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.27",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "keywords": [
+    "langchain",
+    "solana",
+    "agent",
+    "ai",
+    "tools",
+    "escrow",
+    "dispute"
+  ]
+}
