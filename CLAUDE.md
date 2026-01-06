@@ -20,16 +20,12 @@ Write like a human senior engineer:
 
 ### Git Remotes
 
-This is the **protocol** repo, separate from the website repo:
+Two separate repos:
 
-- `kamiyo-protocol` -> `kamiyo-ai/kamiyo-protocol.git` (use this)
-- `origin` -> `kamiyo-ai/kamiyo.git` (website repo, ignore)
+- `kamiyo-protocol/` -> `origin` -> `kamiyo-ai/kamiyo-protocol.git`
+- `kamiyo-website/` -> `origin` -> `kamiyo-ai/kamiyo.git`
 
-Always push to the `kamiyo-protocol` remote:
-
-```bash
-git push kamiyo-protocol branch-name:main
-```
+Push normally with `git push origin main`.
 
 ### Git Identity
 
