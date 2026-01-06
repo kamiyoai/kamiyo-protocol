@@ -82,7 +82,7 @@ export interface SettleResult {
   error?: string;
 }
 
-export interface X402Response {
+export interface PayAI402Response {
   x402Version: 1;
   accepts: PaymentRequirement[];
   error: string;
@@ -178,7 +178,7 @@ export class PayAIFacilitator {
     return (networks || PayAIFacilitator.mainnets()).map((n) => this.requirement(resource, usdc, desc, { network: n }));
   }
 
-  response402(resource: string, usdc: number, desc: string, networks?: PayAINetwork[]): X402Response {
+  response402(resource: string, usdc: number, desc: string, networks?: PayAINetwork[]): PayAI402Response {
     return {
       x402Version: 1,
       accepts: this.requirements(resource, usdc, desc, networks),
