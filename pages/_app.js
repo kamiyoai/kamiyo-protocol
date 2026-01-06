@@ -27,9 +27,17 @@ function LoadingWrapper({ children }) {
 
     useEffect(() => {
         let timeout;
-        const handleStart = () => setLoading(true);
+
+        const handleStart = (url) => {
+            if (url !== router.asPath) {
+                setLoading(true);
+                timeout = setTimeout(() => setLoading(false), 3000);
+            }
+        };
+
         const handleComplete = () => {
-            timeout = setTimeout(() => setLoading(false), 400);
+            clearTimeout(timeout);
+            setLoading(false);
         };
 
         router.events.on("routeChangeStart", handleStart);

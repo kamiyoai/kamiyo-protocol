@@ -12,7 +12,6 @@ export default function Home() {
         features: false,
         scale: false,
         sdk: false,
-        buildingFor: false,
         faq: false
     });
 
@@ -20,7 +19,6 @@ export default function Home() {
     const featuresRef = useRef(null);
     const scaleRef = useRef(null);
     const sdkRef = useRef(null);
-    const buildingForRef = useRef(null);
     const faqRef = useRef(null);
 
     // Logo animation on page load
@@ -46,7 +44,6 @@ export default function Home() {
             { ref: featuresRef, id: 'features' },
             { ref: scaleRef, id: 'scale' },
             { ref: sdkRef, id: 'sdk' },
-            { ref: buildingForRef, id: 'buildingFor' },
             { ref: faqRef, id: 'faq' }
         ];
 
@@ -449,53 +446,6 @@ await client.releaseFunds(agreement.id)
                     <div className="p-4 border border-gray-500/20 rounded-lg text-center hover:border-cyan/50 transition-colors">
                         <div className="font-mono text-cyan text-xs mb-1">@kamiyo/x402-client</div>
                         <div className="text-gray-500 text-xs">x402 escrow</div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Building For Section */}
-            <section ref={buildingForRef} className={`w-full border-t border-gray-500/25 py-16 transition-all duration-700 ${sectionsVisible.buildingFor ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.98]'}`}>
-                <div className="w-full px-5 mx-auto max-w-[1400px]">
-                    <h2 className="text-3xl md:text-4xl font-light text-center mb-12">
-                        Building for
-                    </h2>
-                    <div className="flex flex-wrap items-center justify-center gap-12 md:gap-16 lg:gap-20">
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
-                            <img
-                                src="/media/monad.png"
-                                alt="Monad"
-                                className="h-6 w-auto"
-                            />
-                        </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
-                            <img
-                                src="/media/payai.svg"
-                                alt="PayAI"
-                                className="h-32 w-auto"
-                            />
-                        </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
-                            <img
-                                src="/media/hyperliquid.svg"
-                                alt="Hyperliquid"
-                                className="h-8 w-auto"
-                            />
-                        </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
-                            <img
-                                src="/media/daydreams.png"
-                                alt="Daydreams"
-                                className="h-12 w-auto"
-                            />
-                        </div>
-                        <div className="grayscale hover:grayscale-0 transition-all duration-300 opacity-60 hover:opacity-100 flex items-center">
-                            <img
-                                src="/media/solana.svg"
-                                alt="Solana"
-                                style={{ height: '1.65rem' }}
-                                className="w-auto"
-                            />
-                        </div>
                     </div>
                 </div>
             </section>

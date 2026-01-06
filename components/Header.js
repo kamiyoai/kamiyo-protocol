@@ -125,7 +125,7 @@ export default function Header({ children }) {
                                         transform: isMenuOpen ? "rotate(45deg)" : "none",
                                         transformOrigin: "center",
                                     }}
-                                    className="transition-all duration-300"
+                                    className="transition-all duration-[600ms]"
                                 />
                                 {/* Line 2 */}
                                 <line
@@ -159,7 +159,7 @@ export default function Header({ children }) {
                                         transform: isMenuOpen ? "rotate(-45deg)" : "none",
                                         transformOrigin: "center",
                                     }}
-                                    className="transition-all duration-300"
+                                    className="transition-all duration-[600ms]"
                                 />
                             </svg>
                         </button>
