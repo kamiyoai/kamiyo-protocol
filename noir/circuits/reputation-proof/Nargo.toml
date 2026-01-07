@@ -1,0 +1,7 @@
+[package]
+name = "reputation_proof"
+type = "bin"
+authors = ["KAMIYO <dev@kamiyo.ai>"]
+compiler_version = ">=1.0.0-beta.13"
+
+[dependencies]
