@@ -19,9 +19,6 @@ export interface SmtExclusionProof {
   };
 }
 
-/**
- * Sparse Merkle Tree for oracle blacklist management
- */
 export class SparseMerkleTree {
   private nodes: Map<string, bigint>;
   private root: bigint;
@@ -55,26 +52,20 @@ export class SparseMerkleTree {
     return this.root;
   }
 
-  /**
-   * Add a key to the tree (blacklist an oracle)
-   */
   insert(key: bigint): void {
     let index = 0n;
-    const path: { level: number; index: bigint; isRight: boolean }[] = [];
+    const nodePath: { level: number; index: bigint; isRight: boolean }[] = [];
 
-    // Traverse down to find insertion point
     for (let level = 0; level < TREE_DEPTH; level++) {
       const isRight = this.getBit(key, level);
-      path.push({ level, index, isRight });
+      nodePath.push({ level, index, isRight });
       index = index * 2n + (isRight ? 1n : 0n);
     }
 
-    // Set leaf to 1 (present)
     this.nodes.set(this.getNodeKey(TREE_DEPTH, index), 1n);
 
-    // Update path back to root
-    for (let i = path.length - 1; i >= 0; i--) {
-      const { level, index: parentIndex, isRight } = path[i];
+    for (let i = nodePath.length - 1; i >= 0; i--) {
+      const { level, index: parentIndex } = nodePath[i];
       const leftChild = this.nodes.get(this.getNodeKey(level + 1, parentIndex * 2n)) || 0n;
       const rightChild = this.nodes.get(this.getNodeKey(level + 1, parentIndex * 2n + 1n)) || 0n;
       const hash = this.hashPair(leftChild, rightChild);
@@ -86,9 +77,6 @@ export class SparseMerkleTree {
     }
   }
 
-  /**
-   * Check if a key is in the tree
-   */
   contains(key: bigint): boolean {
     let index = 0n;
     for (let level = 0; level < TREE_DEPTH; level++) {
@@ -98,9 +86,6 @@ export class SparseMerkleTree {
     return (this.nodes.get(this.getNodeKey(TREE_DEPTH, index)) || 0n) !== 0n;
   }
 
-  /**
-   * Get siblings for exclusion proof
-   */
   getSiblings(key: bigint): bigint[] {
     const siblings: bigint[] = new Array(TREE_DEPTH).fill(0n);
     let index = 0n;
@@ -115,12 +100,9 @@ export class SparseMerkleTree {
     return siblings;
   }
 
-  /**
-   * Create input for exclusion proof
-   */
   createExclusionInput(oraclePk: bigint): SmtExclusionInput {
     if (this.contains(oraclePk)) {
-      throw new Error('Oracle is blacklisted - cannot create exclusion proof');
+      throw new Error('Oracle is blacklisted');
     }
 
     return {
@@ -140,15 +122,11 @@ export class SmtExclusionProver {
     this.artifactsPath = path.join(this.circuitPath, 'target');
   }
 
-  /**
-   * Generate a proof that oracle is not blacklisted
-   */
   async generateProof(input: SmtExclusionInput): Promise<SmtExclusionProof> {
     if (input.siblings.length !== TREE_DEPTH) {
-      throw new Error(`Expected ${TREE_DEPTH} siblings, got ${input.siblings.length}`);
+      throw new Error(`Expected ${TREE_DEPTH} siblings`);
     }
 
-    // Write Prover.toml
     const siblingsArray = input.siblings.map(s => `"${fieldToHex(s)}"`).join(', ');
     const proverToml = `
 root = "${fieldToHex(input.root)}"
@@ -181,14 +159,10 @@ siblings = [${siblingsArray}]
     }
   }
 
-  /**
-   * Format proof for Solana instruction data
-   */
   formatForSolana(proof: SmtExclusionProof): Uint8Array {
     const publicInputs = Buffer.alloc(64);
     publicInputs.writeBigUInt64BE(proof.publicInputs.root, 0);
     publicInputs.writeBigUInt64BE(proof.publicInputs.oraclePk, 32);
-
     return new Uint8Array([...proof.proof, ...publicInputs]);
   }
 }

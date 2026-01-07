@@ -19,9 +19,6 @@ export interface VerifierConfig {
   payer: Keypair;
 }
 
-/**
- * Client for submitting Noir proofs to Solana for on-chain verification
- */
 export class SolanaVerifier {
   private connection: Connection;
   private verifierProgramId: PublicKey;
@@ -33,23 +30,18 @@ export class SolanaVerifier {
     this.payer = config.payer;
   }
 
-  /**
-   * Submit proof to Solana verifier program
-   * Proof bytes + public inputs are passed as instruction data
-   */
   async verify(proofWithInputs: Uint8Array): Promise<VerificationResult> {
     try {
-      const instruction = new TransactionInstruction({
+      const ix = new TransactionInstruction({
         keys: [],
         programId: this.verifierProgramId,
         data: Buffer.from(proofWithInputs)
       });
 
-      const transaction = new Transaction().add(instruction);
-
+      const tx = new Transaction().add(ix);
       const signature = await sendAndConfirmTransaction(
         this.connection,
-        transaction,
+        tx,
         [this.payer],
         { commitment: 'confirmed' }
       );
@@ -63,16 +55,13 @@ export class SolanaVerifier {
     }
   }
 
-  /**
-   * Verify oracle vote proof on-chain
-   */
   async verifyOracleVote(
     proofData: Uint8Array,
     escrowAccount: PublicKey,
     oracleAccount: PublicKey
   ): Promise<VerificationResult> {
     try {
-      const instruction = new TransactionInstruction({
+      const ix = new TransactionInstruction({
         keys: [
           { pubkey: escrowAccount, isSigner: false, isWritable: true },
           { pubkey: oracleAccount, isSigner: false, isWritable: false }
@@ -81,11 +70,10 @@ export class SolanaVerifier {
         data: Buffer.from(proofData)
       });
 
-      const transaction = new Transaction().add(instruction);
-
+      const tx = new Transaction().add(ix);
       const signature = await sendAndConfirmTransaction(
         this.connection,
-        transaction,
+        tx,
         [this.payer],
         { commitment: 'confirmed' }
       );
@@ -99,16 +87,13 @@ export class SolanaVerifier {
     }
   }
 
-  /**
-   * Verify SMT exclusion proof (oracle not blacklisted)
-   */
   async verifyExclusion(
     proofData: Uint8Array,
     blacklistAccount: PublicKey,
     oracleAccount: PublicKey
   ): Promise<VerificationResult> {
     try {
-      const instruction = new TransactionInstruction({
+      const ix = new TransactionInstruction({
         keys: [
           { pubkey: blacklistAccount, isSigner: false, isWritable: false },
           { pubkey: oracleAccount, isSigner: false, isWritable: false }
@@ -117,11 +102,10 @@ export class SolanaVerifier {
         data: Buffer.from(proofData)
       });
 
-      const transaction = new Transaction().add(instruction);
-
+      const tx = new Transaction().add(ix);
       const signature = await sendAndConfirmTransaction(
         this.connection,
-        transaction,
+        tx,
         [this.payer],
         { commitment: 'confirmed' }
       );
@@ -135,16 +119,11 @@ export class SolanaVerifier {
     }
   }
 
-  /**
-   * Get the current blacklist SMT root from on-chain account
-   */
   async getBlacklistRoot(blacklistAccount: PublicKey): Promise<bigint> {
     const accountInfo = await this.connection.getAccountInfo(blacklistAccount);
     if (!accountInfo) {
       throw new Error('Blacklist account not found');
     }
-
-    // First 32 bytes are the SMT root
     const rootBytes = accountInfo.data.slice(0, 32);
     return BigInt('0x' + Buffer.from(rootBytes).toString('hex'));
   }
