@@ -40,9 +40,7 @@ import {
   LIMITS,
 } from './validation';
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export interface X402ClientConfig {
   /** Solana RPC connection */
@@ -157,9 +155,7 @@ interface X402PaymentRequirement {
   };
 }
 
-// ============================================================================
 // Client Implementation
-// ============================================================================
 
 export class X402KamiyoClient {
   private readonly connection: Connection;
@@ -223,9 +219,7 @@ export class X402KamiyoClient {
     this.startSignatureCleanup();
   }
 
-  // ==========================================================================
   // Public API
-  // ==========================================================================
 
   /**
    * Make HTTP request with automatic x402 payment handling
@@ -509,9 +503,7 @@ export class X402KamiyoClient {
     this.executor.resetCircuit();
   }
 
-  // ==========================================================================
   // Private Methods
-  // ==========================================================================
 
   private async pay(
     requirement: X402PaymentRequirement,
