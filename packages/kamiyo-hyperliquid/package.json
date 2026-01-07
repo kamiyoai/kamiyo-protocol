@@ -1,0 +1,30 @@
+{
+  "name": "@kamiyo/hyperliquid",
+  "version": "0.1.0",
+  "description": "Kamiyo copy trading integration for Hyperliquid",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "echo 'No tests yet'"
+  },
+  "dependencies": {
+    "ethers": "^6.9.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "kamiyo",
+    "hyperliquid",
+    "copy-trading",
+    "escrow",
+    "agents"
+  ],
+  "license": "BUSL-1.1"
+}
