@@ -118,16 +118,48 @@ await client.releaseFunds('order-123', providerPubkey);
 
 ## Packages
 
+### Core
+
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/sdk` | TypeScript client |
-| `@kamiyo/x402-client` | x402 payment client with escrow protection |
-| `@kamiyo/actions` | Agent framework actions |
-| `@kamiyo/langchain` | LangChain tools |
+| `@kamiyo/sdk` | TypeScript SDK for agent identity and escrow |
+| `@kamiyo/actions` | Plug-and-play actions for payments and disputes |
 | `@kamiyo/middleware` | Express middleware for HTTP 402 |
-| `@kamiyo/agent-client` | Autonomous agent with auto-dispute |
-| `@kamiyo/mcp` | MCP server for Claude/LLM agents |
-| `kamiyo-zk` | Halo2 commitments, Groth16 proofs (Rust) |
+
+### Agent Frameworks
+
+| Package | Description |
+|---------|-------------|
+| `@kamiyo/agent-client` | Daydreams agent integration with MCP tools |
+| `@kamiyo/langchain` | LangChain tools for escrow and disputes |
+| `@kamiyo/mcp-server` | MCP server for Claude and LLM agents |
+
+### Payments
+
+| Package | Description |
+|---------|-------------|
+| `@kamiyo/x402-client` | PayAI Network x402 client (20 chains, USDC) |
+
+### Chain Adapters
+
+| Package | Description |
+|---------|-------------|
+| `@kamiyo/helius-adapter` | Helius RPC adapter with webhooks |
+| `@kamiyo/monad` | Monad parallel execution and PDA emulation |
+| `@kamiyo/hyperliquid` | Hyperliquid copy trading integration |
+
+### Infrastructure
+
+| Package | Description |
+|---------|-------------|
+| `@kamiyo/surfpool` | Surfpool simulation and pre-flight validation |
+| `@kamiyo/switchboard-function` | Switchboard oracle for quality scoring |
+
+### ZK (Rust)
+
+| Package | Description |
+|---------|-------------|
+| `kamiyo-zk` | Halo2 commitments, Groth16 proofs |
 | `circuits/` | Circom circuits for on-chain verification |
 
 ## x402 Integration
