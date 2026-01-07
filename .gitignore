@@ -189,3 +189,11 @@ LAUNCH_CONFIGURATION.md
 marketing/oracle-business-model.md
 # Force rebuild - recharts removed
 CLAUDE.md
+
+# Local launch scripts
+token-launch/
+
+# Foundry
+contracts/monad/cache/
+contracts/monad/out/
+contracts/monad/foundry.lock
