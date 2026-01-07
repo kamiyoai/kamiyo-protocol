@@ -1,0 +1,90 @@
+# Kamiyo Noir Circuits
+# Requires: nargo >= 1.0.0-beta.13, sunspot, node >= 18
+
+set dotenv-load
+
+# Default recipe
+default:
+    @just --list
+
+# Install dependencies
+install-all:
+    cd lib && npm install
+
+# Compile all circuits
+compile-all:
+    nargo compile --package oracle_vote
+    nargo compile --package smt_exclusion
+
+# Test all circuits
+test-all:
+    nargo test --package oracle_vote
+    nargo test --package smt_exclusion
+
+# Build TypeScript library
+build-lib:
+    cd lib && npm run build
+
+# Run all tests
+test: test-all
+    cd lib && npm test
+
+# Generate proving artifacts with sunspot
+setup circuit:
+    cd circuits/{{circuit}} && sunspot setup
+
+# Setup all circuits
+setup-all:
+    just setup oracle-vote
+    just setup smt-exclusion
+
+# Generate proof for oracle vote
+prove-oracle-vote:
+    cd circuits/oracle-vote && nargo execute && sunspot prove
+
+# Generate proof for smt exclusion
+prove-smt-exclusion:
+    cd circuits/smt-exclusion && nargo execute && sunspot prove
+
+# Verify oracle vote proof locally
+verify-oracle-vote:
+    cd circuits/oracle-vote && sunspot verify
+
+# Verify smt exclusion proof locally
+verify-smt-exclusion:
+    cd circuits/smt-exclusion && sunspot verify
+
+# Build Solana verifier programs
+build-verifiers:
+    cd circuits/oracle-vote && sunspot build-verifier
+    cd circuits/smt-exclusion && sunspot build-verifier
+
+# Deploy verifier to Solana devnet
+deploy-devnet circuit keypair:
+    solana program deploy \
+        --keypair {{keypair}} \
+        --url devnet \
+        circuits/{{circuit}}/target/verifier.so
+
+# Clean all build artifacts
+clean:
+    rm -rf circuits/oracle-vote/target
+    rm -rf circuits/smt-exclusion/target
+    rm -rf lib/dist
+    rm -f circuits/*/Prover.toml
+
+# Format Noir code
+fmt:
+    nargo fmt --package oracle_vote
+    nargo fmt --package smt_exclusion
+
+# Check Noir code
+check:
+    nargo check --package oracle_vote
+    nargo check --package smt_exclusion
+
+# Full build pipeline
+build: compile-all build-lib
+
+# CI pipeline
+ci: check test-all build-lib
