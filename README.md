@@ -155,11 +155,12 @@ await client.releaseFunds('order-123', providerPubkey);
 | `@kamiyo/surfpool` | Surfpool simulation and pre-flight validation |
 | `@kamiyo/switchboard-function` | Switchboard oracle for quality scoring |
 
-### ZK (Rust)
+### ZK
 
 | Package | Description |
 |---------|-------------|
-| `kamiyo-zk` | Halo2 commitments, Groth16 proofs |
+| `@kamiyo/noir` | Noir circuits with Sunspot (oracle vote, SMT exclusion) |
+| `kamiyo-zk` | Halo2 commitments, Groth16 proofs (Rust) |
 | `circuits/` | Circom circuits for on-chain verification |
 
 ## x402 Integration
