@@ -1,90 +1,89 @@
 # Kamiyo Noir Circuits
-# Requires: nargo >= 1.0.0-beta.13, sunspot, node >= 18
 
 set dotenv-load
 
-# Default recipe
 default:
     @just --list
 
 # Install dependencies
-install-all:
+install:
     cd lib && npm install
 
 # Compile all circuits
 compile-all:
     nargo compile --package oracle_vote
     nargo compile --package smt_exclusion
+    nargo compile --package aggregate_vote
+    nargo compile --package reputation_proof
 
 # Test all circuits
 test-all:
     nargo test --package oracle_vote
     nargo test --package smt_exclusion
+    nargo test --package aggregate_vote
+    nargo test --package reputation_proof
 
 # Build TypeScript library
 build-lib:
     cd lib && npm run build
 
-# Run all tests
-test: test-all
-    cd lib && npm test
+# Build Solana program
+build-program:
+    cd programs/noir-verifier && cargo build-sbf
 
-# Generate proving artifacts with sunspot
+# Full build
+build: compile-all build-lib
+
+# Setup proving keys
 setup circuit:
     cd circuits/{{circuit}} && sunspot setup
 
-# Setup all circuits
 setup-all:
     just setup oracle-vote
     just setup smt-exclusion
+    just setup aggregate-vote
+    just setup reputation-proof
 
-# Generate proof for oracle vote
-prove-oracle-vote:
-    cd circuits/oracle-vote && nargo execute && sunspot prove
+# Generate proofs
+prove circuit:
+    cd circuits/{{circuit}} && nargo execute && sunspot prove
 
-# Generate proof for smt exclusion
-prove-smt-exclusion:
-    cd circuits/smt-exclusion && nargo execute && sunspot prove
+# Verify proofs
+verify circuit:
+    cd circuits/{{circuit}} && sunspot verify
 
-# Verify oracle vote proof locally
-verify-oracle-vote:
-    cd circuits/oracle-vote && sunspot verify
-
-# Verify smt exclusion proof locally
-verify-smt-exclusion:
-    cd circuits/smt-exclusion && sunspot verify
-
-# Build Solana verifier programs
+# Build verifier programs for deployment
 build-verifiers:
     cd circuits/oracle-vote && sunspot build-verifier
     cd circuits/smt-exclusion && sunspot build-verifier
+    cd circuits/aggregate-vote && sunspot build-verifier
+    cd circuits/reputation-proof && sunspot build-verifier
 
-# Deploy verifier to Solana devnet
-deploy-devnet circuit keypair:
+# Deploy to devnet
+deploy-devnet keypair:
     solana program deploy \
         --keypair {{keypair}} \
         --url devnet \
-        circuits/{{circuit}}/target/verifier.so
+        programs/noir-verifier/target/deploy/noir_verifier.so
 
-# Clean all build artifacts
+# Run example
+run-example:
+    cd examples && npx ts-node dispute-resolution.ts
+
+# Clean
 clean:
-    rm -rf circuits/oracle-vote/target
-    rm -rf circuits/smt-exclusion/target
+    rm -rf circuits/*/target
     rm -rf lib/dist
+    rm -rf programs/noir-verifier/target
     rm -f circuits/*/Prover.toml
 
-# Format Noir code
+# Format
 fmt:
-    nargo fmt --package oracle_vote
-    nargo fmt --package smt_exclusion
+    nargo fmt
 
-# Check Noir code
+# Check
 check:
-    nargo check --package oracle_vote
-    nargo check --package smt_exclusion
+    nargo check
 
-# Full build pipeline
-build: compile-all build-lib
-
-# CI pipeline
-ci: check test-all build-lib
+# CI
+ci: check test-all build
