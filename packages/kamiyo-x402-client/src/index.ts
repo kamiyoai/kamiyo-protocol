@@ -1,21 +1,25 @@
 /**
  * @kamiyo/x402-client
  *
- * x402 payment client for AI agents with multiple payment backends:
+ * x402 payment protocol client for AI agent micropayments.
  *
- * 1. Kamiyo Escrow (Solana)
+ * Payment Backends:
+ *
+ * 1. PayAI Network Facilitator (https://facilitator.payai.network)
+ *    - Cross-chain USDC payments via x402 protocol
+ *    - EVM: Base, Polygon, Arbitrum, Optimism, Avalanche, Sei, IoTeX, Peaq, XLayer
+ *    - Non-EVM: Solana
+ *    - EIP-712 signatures, verification caching, batch operations
+ *    - Express/Next.js middleware for payment gating
+ *
+ * 2. Kamiyo Escrow (Solana)
  *    - On-chain escrow with dispute resolution
- *    - SLA monitoring and automatic refunds
- *    - Quality-based graduated refunds
- *
- * 2. PayAI Network Facilitator
- *    - Cross-chain USDC payments
- *    - Networks: Base, Solana, Polygon, Arbitrum, Optimism
- *    - Payment intents with verification caching
- *    - Batch operations and retry logic
+ *    - SLA monitoring with automatic refunds
+ *    - Quality-based graduated refund calculations
  *
  * @see https://kamiyo.ai
  * @see https://payai.network
+ * @see https://github.com/coinbase/x402
  */
 
 // Client
@@ -96,5 +100,31 @@ export {
 } from './types';
 
 // PayAI Network facilitator
-export { PayAIFacilitator, PayAIError, createPayAIFacilitator, NETWORKS as PAYAI_NETWORKS } from './payai';
-export type { PayAIConfig, PayAINetwork, PayAIErrorCode, NetworkConfig, PaymentRequirement, VerifyResult, SettleResult, PayAI402Response } from './payai';
+export {
+  PayAIFacilitator,
+  PayAIError,
+  createPayAIFacilitator,
+  NETWORKS as PAYAI_NETWORKS,
+  payaiMiddleware,
+  withPayAI,
+} from './payai';
+export type {
+  PayAIConfig,
+  PayAINetwork,
+  PayAIErrorCode,
+  NetworkConfig,
+  PaymentRequirement,
+  VerifyRequest,
+  SettleRequest,
+  VerifyResult,
+  SettleResult,
+  PayAI402Response,
+  ListResponse,
+  HealthResponse,
+  BatchVerifyResult,
+  BatchSettleResult,
+  PayAIMiddlewareRequest,
+  PayAIMiddlewareResponse,
+  PayAINextFunction,
+  PayAIMiddlewareOptions,
+} from './payai';

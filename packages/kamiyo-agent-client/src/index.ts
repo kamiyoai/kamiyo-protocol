@@ -1,3 +1,30 @@
+/**
+ * @kamiyo/agent-client
+ *
+ * Autonomous agent SDK with payment capabilities and quality verification.
+ *
+ * Integrations:
+ *
+ * 1. Daydreams Agent Framework (https://docs.dreams.fun)
+ *    - Extension pattern for drop-in integration with createDreams()
+ *    - Composable contexts for payment state management
+ *    - MCP server for Model Context Protocol tools
+ *    - Actions: consumeAPI, createEscrow, fileDispute, discoverAPIs
+ *
+ * 2. Coinbase CDP (Coinbase Developer Platform)
+ *    - Wallet management via @coinbase/coinbase-sdk
+ *    - Faucet integration for devnet testing
+ *    - Automated tool discovery and reasoning
+ *
+ * 3. Solana Escrow
+ *    - On-chain escrow with time locks
+ *    - Quality-based sliding-scale refunds
+ *    - Oracle-backed dispute resolution
+ *
+ * @see https://kamiyo.ai
+ * @see https://github.com/daydreamsai/daydreams
+ */
+
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import { KamiyoClient, KamiyoUtils } from '@kamiyo/sdk';
@@ -63,7 +90,7 @@ export class AutonomousServiceAgent {
       console.log(`[Agent] Creating agreement for ${price} SOL`);
 
       const transactionId = KamiyoUtils.generateTransactionId('agent');
-      const [agreementPubkey] = this.kamiyoClient.deriveAgreementAddress(transactionId);
+      const [agreementPubkey] = this.kamiyoClient.deriveAgreementAddress(this.config.keypair.publicKey, transactionId);
 
       await this.kamiyoClient.createAgreement({
         amount: KamiyoUtils.solToLamports(price),
@@ -241,3 +268,67 @@ export class AutonomousServiceAgent {
 }
 
 export { CDPAutonomousAgent, CDPAgentConfig, ToolCall, ReasoningResult } from './cdp-agent';
+
+// Daydreams integration
+export {
+  // Extension
+  kamiyoExtension,
+  createKamiyoExtension,
+  // Contexts
+  kamiyoPaymentContext,
+  kamiyoServiceContext,
+  kamiyoDisputeContext,
+  composeKamiyoContexts,
+  // MCP
+  KAMIYO_MCP_TOOLS,
+  KAMIYO_MCP_SERVER,
+  createKamiyoMCPConfig,
+  createKamiyoSSEConfig,
+  createMCPHandler,
+  KamiyoMCPHandler,
+  // Types & Constants
+  KAMIYO_NETWORKS,
+  DEFAULT_CONFIG,
+  KamiyoError,
+} from './daydreams';
+
+export type {
+  // Memory & Records
+  KamiyoMemory,
+  PaymentRecord,
+  DisputeRecord,
+  DisputeStatus,
+  DisputeResolution,
+  QualityStats,
+  EndpointStats,
+  // Config
+  PaymentContextInput,
+  KamiyoNetwork,
+  KamiyoExtensionConfig,
+  // Actions
+  QualityCheckResult,
+  ConsumeAPIInput,
+  ConsumeAPIOutput,
+  CreateEscrowInput,
+  CreateEscrowOutput,
+  FileDisputeInput,
+  FileDisputeOutput,
+  CheckBalanceInput,
+  CheckBalanceOutput,
+  DiscoverAPIsInput,
+  DiscoverAPIsOutput,
+  DiscoveredAPI,
+  // MCP
+  MCPToolDefinition,
+  MCPServerConfig,
+  MCPTransportConfig,
+  KamiyoMCPConfig,
+  MCPMessage,
+  MCPToolCallRequest,
+  MCPToolCallResponse,
+  // Errors
+  KamiyoErrorCode,
+  // Context
+  ContextDefinition,
+  ServiceProviderMemory,
+} from './daydreams';

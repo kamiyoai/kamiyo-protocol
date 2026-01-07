@@ -1,25 +1,45 @@
 {
   "name": "@kamiyo/agent-client",
   "version": "1.0.0",
-  "description": "Autonomous agent client for KAMIYO conflict resolution protocol",
+  "description": "Autonomous agent SDK for Kamiyo protocol. Integrates with Daydreams agent framework for payment-enabled AI agents with quality verification and dispute resolution.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo.git",
+    "directory": "packages/kamiyo-agent-client"
+  },
+  "bugs": {
+    "url": "https://github.com/kamiyo-ai/kamiyo/issues"
+  },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "mcp-server": "node dist/mcp-server.js"
   },
   "keywords": [
-    "kamiyo",
-    "autonomous-agents",
+    "daydreams",
+    "daydreamsai",
     "ai-agents",
-    "conflict-resolution",
+    "autonomous-agents",
+    "agent-framework",
+    "mcp",
+    "model-context-protocol",
+    "kamiyo",
+    "payments",
+    "micropayments",
+    "x402",
+    "escrow",
     "quality-verification",
+    "dispute-resolution",
     "solana",
-    "dispute-resolution"
+    "coinbase-cdp"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
-  "license": "MIT",
   "dependencies": {
     "@solana/web3.js": "^1.95.8",
     "@coral-xyz/anchor": "^0.31.1",
@@ -32,5 +52,45 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.2",
     "typescript": "^5.5.3"
+  },
+  "peerDependencies": {
+    "@daydreamsai/core": ">=0.1.0",
+    "@coinbase/coinbase-sdk": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@daydreamsai/core": {
+      "optional": true
+    },
+    "@coinbase/coinbase-sdk": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "daydreams": {
+    "extension": "kamiyoExtension",
+    "contexts": [
+      "kamiyoPaymentContext",
+      "kamiyoServiceContext",
+      "kamiyoDisputeContext"
+    ],
+    "actions": [
+      "kamiyo.consumeAPI",
+      "kamiyo.createEscrow",
+      "kamiyo.fileDispute",
+      "kamiyo.discoverAPIs",
+      "kamiyo.checkBalance",
+      "kamiyo.getPaymentHistory",
+      "kamiyo.getQualityStats"
+    ],
+    "mcp": {
+      "tools": 8,
+      "transport": ["stdio", "sse"]
+    }
   }
 }

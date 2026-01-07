@@ -1,26 +1,39 @@
 {
   "name": "@kamiyo/x402-client",
   "version": "0.1.0",
-  "description": "x402 payment client with KAMIYO escrow protection, PayAI Network facilitator support, and SLA enforcement",
+  "description": "x402 payment client for AI agents. Integrates PayAI Network facilitator for cross-chain USDC micropayments with Kamiyo escrow protection and SLA enforcement.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
+  "homepage": "https://kamiyo.ai",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamiyo-ai/kamiyo.git",
     "directory": "packages/kamiyo-x402-client"
   },
+  "bugs": {
+    "url": "https://github.com/kamiyo-ai/kamiyo/issues"
+  },
   "keywords": [
     "x402",
+    "payai",
+    "payai-network",
+    "facilitator",
+    "micropayments",
+    "ai-payments",
+    "ai-agents",
+    "usdc",
+    "cross-chain",
     "solana",
+    "base",
+    "polygon",
+    "arbitrum",
+    "optimism",
+    "avalanche",
     "payments",
     "escrow",
-    "ai-agents",
     "dispute-resolution",
-    "payai",
-    "usdc",
-    "facilitator",
-    "cross-chain"
+    "http-402"
   ],
   "scripts": {
     "build": "tsc",
@@ -51,5 +64,21 @@
   ],
   "engines": {
     "node": ">=18.0.0"
+  },
+  "x402": {
+    "facilitator": "https://facilitator.payai.network",
+    "networks": [
+      "base",
+      "polygon",
+      "arbitrum",
+      "optimism",
+      "avalanche",
+      "sei",
+      "iotex",
+      "peaq",
+      "xlayer",
+      "solana"
+    ],
+    "asset": "USDC"
   }
 }
