@@ -159,8 +159,8 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/noir` | Noir circuits with Sunspot (oracle vote, SMT exclusion) |
-| `kamiyo-zk` | Halo2 commitments, Groth16 proofs (Rust) |
+| `noir/` | Noir circuits + Solana verifier (4 circuits, Groth16) |
+| `kamiyo-zk` | Halo2 commitments, Poseidon hash (Rust) |
 | `circuits/` | Circom circuits for on-chain verification |
 
 ## x402 Integration
