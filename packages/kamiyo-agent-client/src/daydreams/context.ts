@@ -90,27 +90,11 @@ export const kamiyoPaymentContext: ContextDefinition<PaymentContextInput, Kamiyo
     const { payments, disputes, balance, totalSpent, qualityStats } = memory;
     const network = KAMIYO_NETWORKS[input.network || 'devnet'];
 
-    return `
-Kamiyo Payment Context
-━━━━━━━━━━━━━━━━━━━━━━
-Agent: ${input.agentId}
-Network: ${input.network} (${network.rpcUrl})
+    const recentPayments = payments.slice(-5)
+      .map((p) => `${p.endpoint}: ${p.amount} SOL (${p.quality}%${p.disputed ? ' disputed' : ''})`)
+      .join(', ') || 'none';
 
-Balance: ${balance.toFixed(4)} SOL
-Total Spent: ${totalSpent.toFixed(4)} SOL
-Total Refunded: ${memory.totalRefunded.toFixed(4)} SOL
-
-Quality Stats:
-- Total API Calls: ${qualityStats.totalCalls}
-- Average Quality: ${qualityStats.avgQuality.toFixed(1)}%
-- Success Rate: ${(qualityStats.successRate * 100).toFixed(1)}%
-- Dispute Rate: ${(qualityStats.disputeRate * 100).toFixed(1)}%
-
-Recent Payments (last 5):
-${payments.slice(-5).map((p) => `  - ${p.endpoint}: ${p.amount} SOL (Q: ${p.quality}%${p.disputed ? ' DISPUTED' : ''})`).join('\n') || '  None'}
-
-Active Disputes: ${disputes.filter((d) => d.status === 'pending').length}
-`.trim();
+    return `[kamiyo:${input.agentId}] network=${input.network} balance=${balance.toFixed(4)} spent=${totalSpent.toFixed(4)} calls=${qualityStats.totalCalls} avgQuality=${qualityStats.avgQuality.toFixed(1)}% disputes=${disputes.filter((d) => d.status === 'pending').length} recent=[${recentPayments}]`;
   },
 };
 
@@ -152,15 +136,8 @@ export const kamiyoServiceContext: ContextDefinition<ServiceProviderInput, Servi
     avgQuality: 0,
     activeEscrows: [],
   }),
-  render: ({ memory }) => `
-Service Provider Context
-━━━━━━━━━━━━━━━━━━━━━━━━
-Endpoint: ${memory.endpoint}
-Total Earned: ${memory.totalEarned.toFixed(4)} SOL
-Disputes: ${memory.totalDisputes}
-Average Quality: ${memory.avgQuality.toFixed(1)}%
-Active Escrows: ${memory.activeEscrows.length}
-`.trim(),
+  render: ({ memory }) =>
+    `[service:${memory.endpoint}] earned=${memory.totalEarned.toFixed(4)} disputes=${memory.totalDisputes} quality=${memory.avgQuality.toFixed(1)}% escrows=${memory.activeEscrows.length}`,
 };
 
 export interface DisputeResolutionMemory {
@@ -195,14 +172,8 @@ export const kamiyoDisputeContext: ContextDefinition<DisputeContextInput, Disput
     totalRefundsIssued: 0,
     avgResolutionTime: 0,
   }),
-  render: ({ memory }) => `
-Dispute Resolution Context
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-Active Disputes: ${memory.activeDisputes.length}
-Resolved: ${memory.resolvedDisputes.length}
-Total Refunds: ${memory.totalRefundsIssued.toFixed(4)} SOL
-Avg Resolution: ${(memory.avgResolutionTime / 3600000).toFixed(1)} hours
-`.trim(),
+  render: ({ memory }) =>
+    `[disputes] active=${memory.activeDisputes.length} resolved=${memory.resolvedDisputes.length} refunds=${memory.totalRefundsIssued.toFixed(4)} avgTime=${(memory.avgResolutionTime / 3600000).toFixed(1)}h`,
 };
 
 export function composeKamiyoContexts(agentId: string, network: KamiyoNetwork = 'devnet') {

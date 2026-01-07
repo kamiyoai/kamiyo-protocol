@@ -4,9 +4,7 @@
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 
-// ============================================================================
 // Configuration
-// ============================================================================
 
 export interface X402ClientConfig {
   /** Solana RPC connection */
@@ -41,9 +39,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   backoffMultiplier: 2,
 };
 
-// ============================================================================
 // x402 Protocol Types (per spec)
-// ============================================================================
 
 /**
  * x402 payment requirement from 402 response
@@ -93,9 +89,7 @@ export interface X402PaymentHeader {
   payload: string;
 }
 
-// ============================================================================
 // Kamiyo Extension Types
-// ============================================================================
 
 /**
  * Extended payment requirement with Kamiyo escrow support
@@ -137,9 +131,7 @@ export interface SlaValidationResult {
   metrics: Record<string, number>;
 }
 
-// ============================================================================
 // Payment and Escrow Types
-// ============================================================================
 
 export interface PaymentResult {
   success: boolean;
@@ -181,9 +173,7 @@ export enum EscrowStatus {
   Resolved = 3,
 }
 
-// ============================================================================
 // Request/Response Types
-// ============================================================================
 
 export interface X402RequestOptions {
   /** HTTP method */
@@ -236,9 +226,7 @@ export type X402ErrorCode =
   | 'INSUFFICIENT_FUNDS'
   | 'PRICE_EXCEEDED';
 
-// ============================================================================
 // Dispute Types
-// ============================================================================
 
 export interface DisputeParams {
   /** Escrow PDA to dispute */
@@ -265,9 +253,7 @@ export interface DisputeResult {
   error?: string;
 }
 
-// ============================================================================
 // Constants
-// ============================================================================
 
 export const SOLANA_NETWORK_ID = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'; // mainnet
 export const SOLANA_DEVNET_ID = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
