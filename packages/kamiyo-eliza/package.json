@@ -12,8 +12,8 @@
     "directory": "packages/kamiyo-eliza"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "build": "tsc",
+    "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest"
   },
