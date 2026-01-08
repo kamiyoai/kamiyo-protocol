@@ -11,6 +11,45 @@
     "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
     "directory": "packages/kamiyo-eliza"
   },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "KAMIYO_NETWORK": {
+        "type": "string",
+        "description": "Solana network: mainnet, devnet, or localnet",
+        "default": "mainnet"
+      },
+      "SOLANA_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Base64-encoded Solana keypair for signing transactions"
+      },
+      "KAMIYO_QUALITY_THRESHOLD": {
+        "type": "number",
+        "description": "Minimum quality percentage before auto-dispute",
+        "default": 80
+      },
+      "KAMIYO_MAX_PRICE": {
+        "type": "number",
+        "description": "Maximum SOL per API request",
+        "default": 0.01
+      },
+      "KAMIYO_AUTO_DISPUTE": {
+        "type": "boolean",
+        "description": "Auto-file disputes on quality failure",
+        "default": true
+      },
+      "KAMIYO_MIN_REPUTATION": {
+        "type": "number",
+        "description": "Minimum provider reputation to trust",
+        "default": 60
+      },
+      "KAMIYO_MONITOR_INTERVAL": {
+        "type": "number",
+        "description": "Escrow monitoring interval in milliseconds",
+        "default": 60000
+      }
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -33,7 +72,8 @@
   "dependencies": {
     "@kamiyo/sdk": "workspace:*",
     "@solana/web3.js": "^1.95.8",
-    "@coral-xyz/anchor": "^0.31.1"
+    "@coral-xyz/anchor": "^0.31.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
