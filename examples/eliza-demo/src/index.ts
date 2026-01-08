@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import { Keypair } from '@solana/web3.js';
+import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Wallet, BN } from '@coral-xyz/anchor';
 import { kamiyoPlugin } from '@kamiyo/eliza';
-import { Shield, Blacklist, CredentialManager, Voting } from '@kamiyo/sdk';
+import { KamiyoClient, Shield, Blacklist, CredentialManager, Voting } from '@kamiyo/sdk';
 
 const CYAN = '\x1b[36m';
 const GREEN = '\x1b[32m';
@@ -18,6 +19,13 @@ const log = {
   fail: (s: string) => console.log(`  ${RED}✗${RESET} ${s}`),
   dim: (s: string) => console.log(`  ${DIM}${s}${RESET}`),
   header: (s: string) => console.log(`\n${BOLD}${CYAN}━━━ ${s} ━━━${RESET}\n`),
+  tx: (s: string) => console.log(`  ${GREEN}⛓${RESET}  ${DIM}${s}${RESET}`),
+};
+
+const PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const NETWORKS = {
+  mainnet: 'https://api.mainnet-beta.solana.com',
+  devnet: 'https://api.devnet.solana.com',
 };
 
 interface Agent {
@@ -25,6 +33,7 @@ interface Agent {
   keypair: Keypair;
   shield: Shield;
   stats: { successful: number; total: number; disputesWon: number; disputesLost: number };
+  onChainRep?: { score: number; totalTx: number; disputes: number };
 }
 
 interface ServiceRequest {
@@ -34,6 +43,7 @@ interface ServiceRequest {
   amount: number;
   escrowId: string;
   quality: number;
+  txSignature?: string;
 }
 
 class KamiyoOrchestrator {
@@ -42,10 +52,23 @@ class KamiyoOrchestrator {
   private voting = new Voting();
   private escrows = new Map<string, ServiceRequest>();
   private issuer: Keypair;
+  private client: KamiyoClient | null = null;
+  private connection: Connection;
+  private live: boolean;
 
-  constructor() {
+  constructor(network: 'mainnet' | 'devnet', wallet?: Keypair) {
     this.issuer = Keypair.generate();
     this.credentialMgr = new CredentialManager(this.issuer);
+    this.connection = new Connection(NETWORKS[network], 'confirmed');
+    this.live = !!wallet;
+
+    if (wallet) {
+      this.client = new KamiyoClient({
+        connection: this.connection,
+        wallet: new Wallet(wallet),
+        programId: PROGRAM_ID,
+      });
+    }
   }
 
   createAgent(name: string, stats: Agent['stats']): Agent {
@@ -55,10 +78,28 @@ class KamiyoOrchestrator {
     return { name, keypair, shield, stats };
   }
 
+  async fetchOnChainReputation(agent: Agent): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      const rep = await this.client.getReputation(agent.keypair.publicKey);
+      if (rep) {
+        agent.onChainRep = {
+          score: rep.reputationScore,
+          totalTx: rep.totalTransactions.toNumber(),
+          disputes: rep.disputesFiled.toNumber(),
+        };
+      }
+    } catch {
+      // No on-chain reputation yet
+    }
+  }
+
   async runAutonomousLoop(consumer: Agent, providers: Agent[], threshold: number) {
     log.header('AUTONOMOUS AGENT LOOP');
     log.dim(`Consumer: ${consumer.name} | Providers: ${providers.map(p => p.name).join(', ')}`);
     log.dim(`Reputation threshold: ${threshold}%`);
+    log.dim(`Mode: ${this.live ? 'LIVE (on-chain)' : 'SIMULATION'}`);
 
     // Phase 1: Discovery & ZK Verification
     log.step('Phase 1: Provider Discovery with ZK Verification');
@@ -67,13 +108,21 @@ class KamiyoOrchestrator {
     for (const provider of providers) {
       log.dim(`Checking ${provider.name}...`);
 
+      // Fetch on-chain reputation if live
+      if (this.live) {
+        await this.fetchOnChainReputation(provider);
+        if (provider.onChainRep) {
+          log.dim(`  On-chain: score=${provider.onChainRep.score}, tx=${provider.onChainRep.totalTx}`);
+        }
+      }
+
       // Check blacklist with SMT exclusion proof
       if (this.blacklist.contains(provider.keypair.publicKey)) {
         log.fail(`${provider.name}: BLACKLISTED`);
         continue;
       }
       const exclusionProof = this.blacklist.exclusionProof(provider.keypair.publicKey);
-      log.ok(`${provider.name}: Not blacklisted (SMT proof generated)`);
+      log.ok(`${provider.name}: Not blacklisted (SMT proof: ${exclusionProof.siblings.length} siblings)`);
 
       // ZK reputation check
       const rate = provider.shield.successRate();
@@ -84,7 +133,7 @@ class KamiyoOrchestrator {
         continue;
       }
 
-      // Generate ZK proof (proves threshold without revealing exact score)
+      // Generate ZK proof
       const commitment = provider.shield.commitment();
       log.ok(`${provider.name}: Reputation verified via ZK proof`);
       log.dim(`  Commitment: ${commitment.toString(16).slice(0, 16)}...`);
@@ -93,7 +142,7 @@ class KamiyoOrchestrator {
       // Issue credential
       const cred = provider.shield.issue(this.blacklist.getRoot());
       const signed = this.credentialMgr.issue(cred);
-      log.ok(`${provider.name}: Credential issued (expires: ${new Date(cred.expiresAt * 1000).toISOString()})`);
+      log.ok(`${provider.name}: Credential issued (TTL: 24h)`);
 
       eligible.push(provider);
     }
@@ -110,7 +159,7 @@ class KamiyoOrchestrator {
     const requests: ServiceRequest[] = [];
 
     for (const provider of eligible) {
-      const amount = 0.1 + Math.random() * 0.1;
+      const amount = 0.001 + Math.random() * 0.001; // Small amounts for demo
       const escrowId = `escrow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
       const req: ServiceRequest = {
@@ -122,18 +171,33 @@ class KamiyoOrchestrator {
         quality: 0,
       };
 
+      // Create real escrow if live
+      if (this.live && this.client) {
+        try {
+          const sig = await this.client.createAgreement({
+            provider: provider.keypair.publicKey,
+            amount: new BN(Math.floor(amount * LAMPORTS_PER_SOL)),
+            timeLockSeconds: new BN(3600),
+            transactionId: escrowId,
+          });
+          req.txSignature = sig;
+          log.tx(`tx: ${sig.slice(0, 20)}...`);
+        } catch (err: any) {
+          log.warn(`Escrow creation failed: ${err.message}`);
+        }
+      }
+
       this.escrows.set(escrowId, req);
       requests.push(req);
 
-      log.ok(`Escrow ${escrowId.slice(0, 12)}... created`);
-      log.dim(`  ${consumer.name} -> ${provider.name}: ${amount.toFixed(4)} SOL`);
+      log.ok(`Escrow ${escrowId.slice(0, 16)}... created`);
+      log.dim(`  ${consumer.name} -> ${provider.name}: ${amount.toFixed(6)} SOL`);
     }
 
     // Phase 3: Service Consumption & Quality Evaluation
     log.step('Phase 3: Service Consumption & Autonomous Evaluation');
 
     for (const req of requests) {
-      // Simulate service response with random quality
       req.quality = Math.floor(50 + Math.random() * 50);
 
       log.dim(`${req.provider.name} delivered service...`);
@@ -154,36 +218,52 @@ class KamiyoOrchestrator {
     for (const req of requests) {
       if (req.quality >= threshold) {
         // Release escrow
+        if (this.live && this.client) {
+          try {
+            const sig = await this.client.releaseFunds(req.escrowId, req.provider.keypair.publicKey);
+            log.tx(`release tx: ${sig.slice(0, 20)}...`);
+          } catch (err: any) {
+            log.warn(`Release failed: ${err.message}`);
+          }
+        }
+
         req.provider.stats.successful++;
         req.provider.stats.total++;
         released++;
-        log.ok(`Released: ${req.escrowId.slice(0, 12)}... -> ${req.provider.name}`);
+        log.ok(`Released: ${req.escrowId.slice(0, 16)}... -> ${req.provider.name}`);
       } else {
-        // File dispute with evidence
+        // File dispute
+        if (this.live && this.client) {
+          try {
+            const sig = await this.client.markDisputed(req.escrowId);
+            log.tx(`dispute tx: ${sig.slice(0, 20)}...`);
+          } catch (err: any) {
+            log.warn(`Dispute failed: ${err.message}`);
+          }
+        }
+
         req.provider.stats.total++;
         req.consumer.stats.disputesWon++;
         req.provider.stats.disputesLost++;
         disputed++;
-        log.warn(`Disputed: ${req.escrowId.slice(0, 12)}... (quality=${req.quality}%)`);
+        log.warn(`Disputed: ${req.escrowId.slice(0, 16)}... (quality=${req.quality}%)`);
 
-        // Add to blacklist if too many failures
         if (req.provider.stats.disputesLost >= 3) {
           this.blacklist.add(req.provider.keypair.publicKey, 'repeated low quality');
-          log.fail(`${req.provider.name} added to blacklist (${req.provider.stats.disputesLost} disputes)`);
+          log.fail(`${req.provider.name} added to blacklist`);
         }
       }
     }
 
     log.dim(`Released: ${released} | Disputed: ${disputed}`);
 
-    // Phase 5: DAO Governance Vote (if disputes occurred)
+    // Phase 5: DAO Governance Vote
     if (disputed > 0) {
       log.step('Phase 5: DAO Governance Vote on Dispute Policy');
 
       const proposalId = BigInt(Date.now());
-      const proposal = this.voting.create(proposalId, ['Increase threshold', 'Keep current', 'Decrease threshold'], 1, 1);
+      this.voting.create(proposalId, ['Increase threshold', 'Keep current', 'Decrease threshold'], 1, 1);
 
-      // Agents vote based on their experience
       for (const agent of [consumer, ...eligible]) {
         const { vote, commitment } = this.voting.vote(proposalId, agent.stats.disputesLost > 0 ? 0 : 1, agent.keypair.publicKey);
         this.voting.commit(proposalId, vote.voter, commitment);
@@ -191,7 +271,6 @@ class KamiyoOrchestrator {
       }
 
       log.ok('Commit-reveal voting initiated');
-      log.dim('Votes are private until reveal phase');
     }
 
     // Summary
@@ -201,12 +280,14 @@ class KamiyoOrchestrator {
     log.dim(`Escrows created: ${requests.length}`);
     log.dim(`Released: ${released} | Disputed: ${disputed}`);
     log.dim(`Blacklist size: ${this.blacklist.size()}`);
+    if (this.live) {
+      log.dim(`Mode: LIVE - transactions submitted to Solana`);
+    }
   }
 
   async runMultiAgentCoordination() {
     log.header('MULTI-AGENT COORDINATION');
 
-    // Create agents with varying reputations
     const agents = [
       this.createAgent('Alpha', { successful: 95, total: 100, disputesWon: 2, disputesLost: 0 }),
       this.createAgent('Beta', { successful: 82, total: 100, disputesWon: 1, disputesLost: 1 }),
@@ -220,11 +301,9 @@ class KamiyoOrchestrator {
       log.dim(`${a.name}: ${rate}% success | ${a.stats.disputesLost} disputes lost`);
     }
 
-    // Pre-blacklist Delta (too many disputes)
     this.blacklist.add(agents[3].keypair.publicKey, 'excessive disputes');
     log.warn(`${agents[3].name} pre-blacklisted`);
 
-    // Consumer picks providers
     const consumer = agents[0];
     const providers = agents.slice(1);
 
@@ -246,20 +325,44 @@ ${DIM}    Privacy-Preserving Agent Infrastructure${RESET}
 ${DIM}    ElizaOS Integration Demo${RESET}
 `);
 
+  // Check for live mode
+  const network = (process.env.KAMIYO_NETWORK || 'devnet') as 'mainnet' | 'devnet';
+  let wallet: Keypair | undefined;
+
+  if (process.env.SOLANA_PRIVATE_KEY) {
+    try {
+      const key = JSON.parse(process.env.SOLANA_PRIVATE_KEY);
+      wallet = Keypair.fromSecretKey(Uint8Array.from(key));
+      log.header('LIVE MODE');
+      log.ok(`Network: ${network}`);
+      log.ok(`Wallet: ${wallet.publicKey.toBase58().slice(0, 8)}...`);
+
+      const connection = new Connection(NETWORKS[network], 'confirmed');
+      const balance = await connection.getBalance(wallet.publicKey);
+      log.ok(`Balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+
+      if (balance < 0.01 * LAMPORTS_PER_SOL) {
+        log.warn('Low balance - some transactions may fail');
+      }
+    } catch (err) {
+      log.warn('Invalid SOLANA_PRIVATE_KEY, running in simulation mode');
+    }
+  }
+
   log.header('ELIZA PLUGIN CAPABILITIES');
   log.ok(`Plugin: ${kamiyoPlugin.name}`);
   log.dim(`Actions: ${kamiyoPlugin.actions?.map((a: any) => a.name).join(', ') || 'none'}`);
   log.dim(`Providers: ${kamiyoPlugin.providers?.length || 0}`);
   log.dim(`Evaluators: ${kamiyoPlugin.evaluators?.map((e: any) => e.name).join(', ') || 'none'}`);
 
-  const orchestrator = new KamiyoOrchestrator();
+  const orchestrator = new KamiyoOrchestrator(network, wallet);
   await orchestrator.runMultiAgentCoordination();
 
   log.header('WHAT JUST HAPPENED');
   console.log(`
   ${CYAN}1.${RESET} Agents verified each other with ${BOLD}ZK proofs${RESET}
      - Proved reputation >= threshold ${DIM}without revealing actual score${RESET}
-     - Generated SMT exclusion proofs ${DIM}(not on blacklist)${RESET}
+     - Generated SMT exclusion proofs ${DIM}(256-depth Merkle tree)${RESET}
 
   ${CYAN}2.${RESET} Created ${BOLD}escrows${RESET} with ZK-verified providers
      - Funds locked until service delivery
@@ -276,6 +379,15 @@ ${DIM}    ElizaOS Integration Demo${RESET}
   ${DIM}All of this runs without human intervention.${RESET}
   ${DIM}Agents can now transact trustlessly at scale.${RESET}
 `);
+
+  if (!wallet) {
+    console.log(`
+${YELLOW}To run in LIVE mode with real transactions:${RESET}
+  export SOLANA_PRIVATE_KEY='[your keypair array]'
+  export KAMIYO_NETWORK=devnet  # or mainnet
+  npm run dev
+`);
+  }
 }
 
 main().catch(console.error);
