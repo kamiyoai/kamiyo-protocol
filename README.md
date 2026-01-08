@@ -122,7 +122,7 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/sdk` | TypeScript SDK for agent identity and escrow |
+| `@kamiyo/sdk` | TypeScript SDK for identity, escrow, privacy proofs, shield credentials, voting |
 | `@kamiyo/actions` | Plug-and-play actions for payments and disputes |
 | `@kamiyo/middleware` | Express middleware for HTTP 402 |
 
@@ -139,7 +139,7 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/x402-client` | PayAI Network x402 client (20 chains, USDC) |
+| `@kamiyo/x402-client` | x402 client with PaymentWidget, Jupiter swaps, escrow |
 
 ### Chain Adapters
 
