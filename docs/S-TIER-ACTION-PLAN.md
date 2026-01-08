@@ -2,10 +2,11 @@
 
 ## Existing Infrastructure
 
-**Packages (13):**
+**Packages (14):**
 - kamiyo-sdk, kamiyo-x402-client, kamiyo-eliza, kamiyo-langchain
 - kamiyo-mcp, kamiyo-switchboard, kamiyo-hyperliquid, kamiyo-monad
 - helius-adapter, kamiyo-middleware, kamiyo-agent-client, kamiyo-surfpool
+- kamiyo-actions
 
 **Noir ZK Circuits (4):**
 - oracle-vote (private voting, 200k CU)
@@ -15,56 +16,45 @@
 
 ---
 
-## Phase 1: Quick Wins (Ship Now)
+## Phase 1: Quick Wins — COMPLETE
 
-### 1.1 Private Reputation API (Privacy Tech)
-**Effort:** Low - circuit exists
-**Action:** Expose `reputation-proof` circuit as public API
-- Agents prove they meet reputation threshold without revealing score
-- Use case: provider screening, credit-like scoring
-- Endpoint: `POST /api/v1/prove/reputation`
+### 1.1 Private Reputation API (Privacy Tech) — DONE
+- `packages/kamiyo-sdk/src/api/reputation.ts`
+- `packages/kamiyo-sdk/src/api/shield.ts`
+- ZK threshold proofs without revealing score
 
-### 1.2 x402 Payment Widget (DeFi Consumer)
-**Effort:** Low - x402-client exists
-**Action:** Build embeddable payment component
-- One-line integration for any dApp
-- Supports escrow + direct payments
-- Target: AI app developers needing pay-per-use
+### 1.2 x402 Payment Widget (DeFi Consumer) — DONE
+- `packages/kamiyo-x402-client/src/widget.ts`
+- Escrow + direct payments
+- `createPaymentButton()`, `quickPay()` helpers
 
-### 1.3 ElizaOS Showcase (Both)
-**Effort:** Done - just created
-**Action:** Ship demo agent using kamiyo-eliza
-- Auto-dispute, reputation-gated providers, escrow flows
-- Video walkthrough for Solana socials
+### 1.3 ElizaOS Showcase (Both) — DONE
+- `examples/eliza-demo/` with live mainnet support
+- ZK reputation verification, SMT blacklist proofs
+- Autonomous escrow/dispute loop, DAO voting
 
 ---
 
-## Phase 2: 2-Week Sprint
+## Phase 2: Sprint — COMPLETE
 
-### 2.1 Kamiyo Shield MVP (Privacy Tech)
-**Use existing:** reputation-proof, smt-exclusion circuits
-**Build:**
-- Privacy-preserving agent verification
-- Prove: "I have >80% success rate" without revealing stats
-- Prove: "I'm not blacklisted" without revealing identity
+### 2.1 Kamiyo Shield MVP (Privacy Tech) — DONE
+- `packages/kamiyo-sdk/src/shield/`
+- Blacklist (SMT), Credential, Verifier modules
+- Proves reputation threshold + not-blacklisted
 
-### 2.2 Kamiyo Pay Integration (DeFi Consumer)
-**Use existing:** x402-client, helius-adapter
-**Build:**
-- Jupiter integration for any-token payments
+### 2.2 Kamiyo Pay Integration (DeFi Consumer) — DONE
+- `packages/kamiyo-x402-client/src/jupiter.ts`
+- Any-token payments via Jupiter swap
 - Auto-convert to USDC for settlement
-- Agent-to-agent payment rails
 
-### 2.3 Private Voting SDK (Privacy Tech)
-**Use existing:** oracle-vote, aggregate-vote circuits
-**Build:**
-- Generic private voting for DAOs
-- Commit-reveal with ZK proofs
-- 12x gas savings with batching
+### 2.3 Private Voting SDK (Privacy Tech) — DONE
+- `packages/kamiyo-sdk/src/voting/`
+- Commit-reveal with Poseidon2 commitments
+- Batch aggregation support
 
 ---
 
-## Phase 3: Feature Products
+## Phase 3: Feature Products — NEXT
 
 ### 3.1 Kamiyo Escrow (DeFi Consumer)
 - Full escrow-as-a-service
@@ -97,25 +87,34 @@
 
 ## Implementation Order
 
-| Priority | Item | Category | Effort |
+| Priority | Item | Category | Status |
 |----------|------|----------|--------|
-| 1 | Private Reputation API | Privacy | 2 days |
-| 2 | x402 Payment Widget | DeFi | 3 days |
-| 3 | ElizaOS Demo Agent | Both | 1 day |
-| 4 | Kamiyo Shield MVP | Privacy | 1 week |
-| 5 | Jupiter Pay Integration | DeFi | 1 week |
-| 6 | Private Voting SDK | Privacy | 1 week |
+| 1 | Private Reputation API | Privacy | DONE |
+| 2 | x402 Payment Widget | DeFi | DONE |
+| 3 | ElizaOS Demo Agent | Both | DONE |
+| 4 | Kamiyo Shield MVP | Privacy | DONE |
+| 5 | Jupiter Pay Integration | DeFi | DONE |
+| 6 | Private Voting SDK | Privacy | DONE |
+| 7 | Multi-milestone Escrow | DeFi | TODO |
+| 8 | Arbitration Marketplace | DeFi | TODO |
+| 9 | Quadratic Voting | Privacy | TODO |
 
 ---
 
-## Files to Modify
+## Shipped Files
 
 **Phase 1:**
-- `packages/kamiyo-sdk/src/api/reputation.ts` (new)
-- `packages/kamiyo-x402-client/src/widget.tsx` (new)
-- `examples/eliza-demo/` (new directory)
+- `packages/kamiyo-sdk/src/api/reputation.ts`
+- `packages/kamiyo-sdk/src/api/shield.ts`
+- `packages/kamiyo-x402-client/src/widget.ts`
+- `examples/eliza-demo/`
 
 **Phase 2:**
-- `noir/circuits/reputation-proof/` (add SDK bindings)
-- `packages/kamiyo-sdk/src/shield/` (new module)
-- `packages/kamiyo-x402-client/src/jupiter.ts` (new)
+- `packages/kamiyo-sdk/src/shield/*`
+- `packages/kamiyo-sdk/src/voting/*`
+- `packages/kamiyo-x402-client/src/jupiter.ts`
+
+**Phase 3 (planned):**
+- Multi-milestone escrow in Solana program
+- Arbitration oracle marketplace
+- ZK range proofs for quadratic voting
