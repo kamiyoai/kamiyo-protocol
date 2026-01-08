@@ -1,4 +1,4 @@
-import { PublicKey, Connection, TransactionInstruction } from '@solana/web3.js';
+import { PublicKey, Connection, TransactionInstruction, Transaction } from '@solana/web3.js';
 import { poseidon2Hash, generateBlinding, fieldToBytes, bytesToField } from '../utils';
 
 export interface ReputationStats {
@@ -111,8 +111,10 @@ export async function verifyOnChain(
   ]);
 
   const ix = new TransactionInstruction({ keys: [], programId: verifierProgram, data });
-  const { blockhash } = await connection.getLatestBlockhash();
-  const sim = await connection.simulateTransaction({ instructions: [ix], recentBlockhash: blockhash }, { sigVerify: false });
+  const tx = new Transaction().add(ix);
+  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+  tx.feePayer = verifierProgram; // dummy payer for simulation
+  const sim = await connection.simulateTransaction(tx);
 
   return sim.value.err === null;
 }
