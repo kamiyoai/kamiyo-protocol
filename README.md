@@ -130,6 +130,7 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
+| `@kamiyo/eliza` | ElizaOS plugin for autonomous agent payments |
 | `@kamiyo/agent-client` | Daydreams agent integration with MCP tools |
 | `@kamiyo/langchain` | LangChain tools for escrow and disputes |
 | `@kamiyo/mcp-server` | MCP server for Claude and LLM agents |

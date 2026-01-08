@@ -1,0 +1,53 @@
+{
+  "name": "@kamiyo/eliza",
+  "version": "1.0.0",
+  "description": "Kamiyo trust layer plugin for ElizaOS agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-eliza"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "elizaos",
+    "eliza",
+    "ai-agents",
+    "autonomous-agents",
+    "kamiyo",
+    "escrow",
+    "x402",
+    "dispute-resolution",
+    "solana",
+    "trust"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "dependencies": {
+    "@solana/web3.js": "^1.95.8",
+    "@coral-xyz/anchor": "^0.31.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "tsup": "^8.0.2",
+    "typescript": "^5.5.3",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {
+    "@elizaos/core": ">=1.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
