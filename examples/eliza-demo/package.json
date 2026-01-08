@@ -1,0 +1,23 @@
+{
+  "name": "@kamiyo/eliza-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Demo agent using Kamiyo ElizaOS plugin",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@kamiyo/eliza": "workspace:*",
+    "@elizaos/core": "^0.25.0",
+    "@solana/web3.js": "^1.98.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

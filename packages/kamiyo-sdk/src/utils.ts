@@ -4,7 +4,36 @@
 
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash, randomBytes } from "crypto";
+
+/**
+ * ZK-friendly hash (placeholder, use @aztec/bb.js Poseidon2 in production)
+ */
+export function poseidon2Hash(inputs: bigint[]): bigint {
+  const buffer = Buffer.alloc(inputs.length * 32);
+  inputs.forEach((input, i) => {
+    const hex = input.toString(16).padStart(64, '0');
+    Buffer.from(hex, 'hex').copy(buffer, i * 32);
+  });
+  const hash = createHash('sha256').update(buffer).digest();
+  return BigInt('0x' + hash.toString('hex'));
+}
+
+export function generateBlinding(): bigint {
+  return BigInt('0x' + randomBytes(32).toString('hex'));
+}
+
+export function fieldToBytes(value: bigint): Uint8Array {
+  const hex = value.toString(16).padStart(64, '0');
+  return new Uint8Array(Buffer.from(hex, 'hex'));
+}
+
+export function bytesToField(bytes: Uint8Array): bigint {
+  if (bytes.length !== 32) {
+    throw new Error('Expected 32 bytes');
+  }
+  return BigInt('0x' + Buffer.from(bytes).toString('hex'));
+}
 
 /**
  * Validation utilities for Kamiyo protocol
