@@ -13,3 +13,6 @@ export * from "./reputation";
 export * from "./utils";
 export * from "./events";
 export * from "./x402";
+export * from "./privacy";
+export * from "./shield";
+export * from "./voting";

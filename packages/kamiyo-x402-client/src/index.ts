@@ -128,3 +128,11 @@ export type {
   PayAINextFunction,
   PayAIMiddlewareOptions,
 } from './payai';
+
+// Payment Widget
+export { PaymentWidget, createPaymentButton, quickPay } from './widget';
+export type { PaymentWidgetConfig, PaymentState } from './widget';
+
+// Jupiter
+export { JupiterSwap, payWithAnyToken, USDC_MINT, SOL_MINT } from './jupiter';
+export type { JupiterConfig, SwapQuote, SwapResult } from './jupiter';
