@@ -53,7 +53,7 @@ export const checkReputationAction: Action = {
 
       callback?.({
         text: `${address.slice(0, 8)}...: ${reputation.reputation}% rep, ${reputation.totalAgreements} agreements, ${disputes} disputes, ${reputation.stake} SOL staked`,
-        content: { address, ...reputation, disputes },
+        content: { ...reputation, disputes },
       });
 
       return { success: true, reputation };
