@@ -1,5 +1,3 @@
-import type { PublicKey } from '@solana/web3.js';
-
 export interface IAgentRuntime {
   agentId: string;
   getSetting(key: string): string | undefined;

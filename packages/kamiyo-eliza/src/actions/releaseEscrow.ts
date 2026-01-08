@@ -1,109 +1,63 @@
-import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
-import { NETWORKS } from '../types';
+import { getNetworkConfig, getKeypair, createConnection, generateId } from '../utils';
 
 export const releaseEscrowAction: Action = {
   name: 'RELEASE_KAMIYO_ESCROW',
-  description: 'Release escrowed funds to the service provider after successful delivery.',
-  similes: ['release payment', 'confirm delivery', 'pay provider', 'approve payment'],
+  description: 'Release escrowed funds to provider after delivery.',
+  similes: ['release payment', 'confirm delivery', 'approve payment'],
   examples: [
     [
-      {
-        user: '{{user1}}',
-        content: { text: 'Release the escrow tx_abc123 to the provider' },
-      },
-      {
-        user: '{{agent}}',
-        content: {
-          text: 'Released 0.1 SOL to provider. Transaction confirmed.',
-          action: 'RELEASE_KAMIYO_ESCROW',
-        },
-      },
-    ],
-    [
-      {
-        user: '{{user1}}',
-        content: { text: 'Approve payment for the data service' },
-      },
-      {
-        user: '{{agent}}',
-        content: {
-          text: 'Payment released. Provider received 0.5 SOL.',
-          action: 'RELEASE_KAMIYO_ESCROW',
-        },
-      },
+      { user: '{{user1}}', content: { text: 'Release escrow tx_abc123' } },
+      { user: '{{agent}}', content: { text: 'Released. Provider paid.', action: 'RELEASE_KAMIYO_ESCROW' } },
     ],
   ],
 
-  async validate(runtime: IAgentRuntime, message: Memory): Promise<boolean> {
+  async validate(_runtime: IAgentRuntime, message: Memory): Promise<boolean> {
     const text = message.content.text?.toLowerCase() || '';
-    return (
-      text.includes('release') ||
-      text.includes('approve payment') ||
-      text.includes('confirm delivery') ||
-      text.includes('pay provider')
-    );
+    return text.includes('release') || text.includes('approve payment');
   },
 
   async handler(
     runtime: IAgentRuntime,
     message: Memory,
-    state?: State,
-    options?: Record<string, unknown>,
+    _state?: State,
+    _options?: Record<string, unknown>,
     callback?: HandlerCallback
   ): Promise<{ success: boolean; transactionId?: string; error?: string }> {
-    const network = (runtime.getSetting('KAMIYO_NETWORK') as 'mainnet' | 'devnet') || 'devnet';
-    const config = NETWORKS[network];
-
+    const { rpcUrl } = getNetworkConfig(runtime);
+    const keypair = getKeypair(runtime);
     const text = message.content.text || '';
-    const escrowMatch = text.match(/tx_[a-z0-9_]+/i) || text.match(/escrow\s+([A-Za-z0-9]+)/i);
+
+    const escrowMatch = text.match(/tx_[a-z0-9_]+/i) || text.match(/escrow_[a-z0-9_]+/i);
     const escrowId = escrowMatch?.[0] || (message.content.escrowId as string);
 
     if (!escrowId) {
-      if (callback) {
-        await callback({
-          text: 'Specify the escrow ID or transaction ID to release',
-        });
-      }
+      callback?.({ text: 'Specify escrow ID' });
       return { success: false, error: 'Escrow ID not specified' };
     }
 
-    const privateKey = runtime.getSetting('SOLANA_PRIVATE_KEY');
-    if (!privateKey) {
-      if (callback) {
-        await callback({
-          text: 'Wallet not configured. Set SOLANA_PRIVATE_KEY.',
-        });
-      }
+    if (!keypair) {
+      callback?.({ text: 'Wallet not configured' });
       return { success: false, error: 'Wallet not configured' };
     }
 
     try {
-      const connection = new Connection(config.rpcUrl, 'confirmed');
-      const keypair = Keypair.fromSecretKey(Buffer.from(privateKey, 'base64'));
+      const connection = createConnection(rpcUrl);
 
-      const releaseTxId = `rel_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      // TODO: Replace with actual Kamiyo SDK call
+      // const tx = await kamiyoClient.releaseFunds(escrowId, provider);
+      const transactionId = generateId('rel');
 
-      if (callback) {
-        await callback({
-          text: `Escrow ${escrowId} released. Payment confirmed. TX: ${releaseTxId}`,
-          content: {
-            escrowId,
-            transactionId: releaseTxId,
-            status: 'released',
-          },
-        });
-      }
+      callback?.({
+        text: `Released ${escrowId}. TX: ${transactionId}`,
+        content: { escrowId, transactionId, status: 'released' },
+      });
 
-      return { success: true, transactionId: releaseTxId };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (callback) {
-        await callback({
-          text: `Release failed: ${errorMessage}`,
-        });
-      }
-      return { success: false, error: errorMessage };
+      return { success: true, transactionId };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Unknown error';
+      callback?.({ text: `Failed: ${error}` });
+      return { success: false, error };
     }
   },
 };

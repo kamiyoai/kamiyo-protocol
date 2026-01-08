@@ -1,8 +1,8 @@
 # @kamiyo/eliza
 
-Trust layer plugin for ElizaOS agents. Escrow payments, dispute resolution, and reputation tracking on Solana.
+Kamiyo plugin for ElizaOS. Escrow payments, dispute resolution, reputation.
 
-## Installation
+## Install
 
 ```bash
 npm install @kamiyo/eliza
@@ -18,9 +18,6 @@ const agent = new AgentRuntime({
   settings: {
     KAMIYO_NETWORK: 'mainnet',
     SOLANA_PRIVATE_KEY: process.env.SOLANA_PRIVATE_KEY,
-    KAMIYO_QUALITY_THRESHOLD: '80',
-    KAMIYO_MAX_PRICE: '0.01',
-    KAMIYO_AUTO_DISPUTE: 'true',
   },
 });
 ```
@@ -29,50 +26,46 @@ const agent = new AgentRuntime({
 
 | Action | Description |
 |--------|-------------|
-| `CREATE_KAMIYO_ESCROW` | Lock funds in escrow for a provider |
-| `RELEASE_KAMIYO_ESCROW` | Release funds after service delivery |
-| `FILE_KAMIYO_DISPUTE` | File dispute for quality issues |
-| `CONSUME_PAID_API` | Call x402 API with payment and quality verification |
-| `CHECK_KAMIYO_REPUTATION` | Check agent/provider reputation |
+| `CREATE_KAMIYO_ESCROW` | Lock funds for provider |
+| `RELEASE_KAMIYO_ESCROW` | Release after delivery |
+| `FILE_KAMIYO_DISPUTE` | Dispute quality issues |
+| `CONSUME_PAID_API` | x402 API with escrow |
+| `CHECK_KAMIYO_REPUTATION` | Query reputation |
 
 ## Providers
 
 | Provider | Context |
 |----------|---------|
-| `walletProvider` | Wallet balance and active escrows |
-| `escrowProvider` | Active escrow status |
-| `reputationProvider` | Payment history and quality stats |
+| `walletProvider` | Balance, escrow count |
+| `escrowProvider` | Active escrows |
+| `reputationProvider` | Payment history |
 
 ## Evaluators
 
 | Evaluator | Purpose |
 |-----------|---------|
-| `qualityEvaluator` | Triggers disputes when quality < threshold |
-| `trustEvaluator` | Assesses provider risk before payment |
+| `qualityEvaluator` | Auto-dispute below threshold |
+| `trustEvaluator` | Provider risk assessment |
 
-## Configuration
+## Config
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `KAMIYO_NETWORK` | `devnet` | `mainnet`, `devnet`, or `localnet` |
-| `SOLANA_PRIVATE_KEY` | - | Base64-encoded private key |
-| `KAMIYO_QUALITY_THRESHOLD` | `80` | Minimum quality (0-100) |
-| `KAMIYO_MAX_PRICE` | `0.01` | Max price per request in SOL |
-| `KAMIYO_AUTO_DISPUTE` | `true` | Auto-file disputes below threshold |
-| `KAMIYO_MIN_REPUTATION` | `60` | Min provider reputation to trust |
+| `KAMIYO_NETWORK` | `devnet` | Network |
+| `SOLANA_PRIVATE_KEY` | - | Base64 private key |
+| `KAMIYO_QUALITY_THRESHOLD` | `80` | Min quality % |
+| `KAMIYO_MAX_PRICE` | `0.01` | Max SOL per request |
+| `KAMIYO_AUTO_DISPUTE` | `true` | Auto-file disputes |
+| `KAMIYO_MIN_REPUTATION` | `60` | Min provider rep |
 
-## Dispute Resolution
+## Dispute Settlement
 
-When quality falls below threshold:
-
-| Quality | Agent Refund | Provider Payment |
-|---------|--------------|------------------|
-| 80-100% | 0% | 100% |
-| 65-79% | 35% | 65% |
-| 50-64% | 75% | 25% |
-| 0-49% | 100% | 0% |
-
-Oracle consensus determines final settlement.
+| Quality | Agent Refund |
+|---------|--------------|
+| 80-100% | 0% |
+| 65-79% | 35% |
+| 50-64% | 75% |
+| 0-49% | 100% |
 
 ## License
 

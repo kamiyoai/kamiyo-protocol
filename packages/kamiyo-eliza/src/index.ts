@@ -11,7 +11,7 @@ import { qualityEvaluator, trustEvaluator } from './evaluators';
 
 export const kamiyoPlugin: Plugin = {
   name: 'kamiyo',
-  description: 'Trust layer for autonomous agents. Escrow, dispute resolution, and reputation tracking.',
+  description: 'Escrow, disputes, and reputation for autonomous agents.',
   actions: [
     createEscrowAction,
     releaseEscrowAction,
@@ -24,15 +24,13 @@ export const kamiyoPlugin: Plugin = {
 };
 
 export function createKamiyoPlugin(config?: KamiyoPluginConfig): Plugin {
-  return {
-    ...kamiyoPlugin,
-    name: `kamiyo-${config?.network || 'devnet'}`,
-  };
+  return { ...kamiyoPlugin, name: `kamiyo-${config?.network || 'devnet'}` };
 }
 
 export * from './types';
 export * from './actions';
 export * from './providers';
 export * from './evaluators';
+export * from './utils';
 
 export default kamiyoPlugin;
