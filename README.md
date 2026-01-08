@@ -47,9 +47,9 @@ Agent                          Provider
 
 Oracles vote on service quality using commit-reveal:
 
-1. **Commit** - Oracle submits `Poseidon(score, blinding, escrow_id, oracle_pk)` using Halo2. No trusted setup required.
+1. **Commit** - Oracle submits `Poseidon2(score, blinding, escrow_id, oracle_pk)`
 2. **Delay** - 5 minute window prevents vote copying
-3. **Reveal** - Oracle reveals score with Groth16 proof verified on-chain via `alt_bn128` syscalls
+3. **Reveal** - Oracle reveals score, ZK proof verified on-chain via Noir verifier
 4. **Settle** - Funds split based on median score
 
 | Quality Score | Agent Refund | Provider Payment |
@@ -160,18 +160,16 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
-| `noir/` | Noir circuits + Solana verifier (4 circuits, Groth16) |
-| `kamiyo-zk` | Halo2 commitments, Poseidon hash (Rust) |
-| `circuits/` | Circom circuits for on-chain verification |
+| `noir/` | Noir circuits + Solana verifier (4 circuits, UltraPlonk) |
 
 ## x402 Integration
 
 KAMIYO provides the trust layer for [x402](https://www.x402.org/) payments:
 
 ```typescript
-import { X402KAMIYOClient } from '@kamiyo/x402-client';
+import { X402KamiyoClient } from '@kamiyo/x402-client';
 
-const client = new X402KAMIYOClient({
+const client = new X402KamiyoClient({
   connection,
   wallet,
   programId: KAMIYO_PROGRAM_ID,
