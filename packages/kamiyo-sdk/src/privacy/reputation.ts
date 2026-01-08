@@ -102,19 +102,14 @@ export async function verifyOnChain(
   proof: Uint8Array,
   inputs: { agentPk: bigint; commitment: bigint; threshold: number }
 ): Promise<boolean> {
-  const data = Buffer.concat([
-    Buffer.from([0x02]),
-    proof,
-    fieldToBytes(inputs.agentPk),
-    fieldToBytes(inputs.commitment),
-    (() => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(inputs.threshold)); return b; })(),
-  ]);
+  const thresh = Buffer.alloc(8);
+  thresh.writeBigUInt64LE(BigInt(inputs.threshold));
+  const data = Buffer.concat([Buffer.from([0x02]), proof, fieldToBytes(inputs.agentPk), fieldToBytes(inputs.commitment), thresh]);
 
   const ix = new TransactionInstruction({ keys: [], programId: verifierProgram, data });
   const tx = new Transaction().add(ix);
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-  tx.feePayer = verifierProgram; // dummy payer for simulation
+  tx.feePayer = verifierProgram;
   const sim = await connection.simulateTransaction(tx);
-
   return sim.value.err === null;
 }

@@ -1,5 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
-import { Shield, RepData, SmtProof, ShieldProof, Credential } from '../shield';
+import { Shield, RepData, SmtProof, ShieldProof, Credential, serialize } from '../shield';
 
 export interface VerifyAgentRequest {
   agentPubkey: PublicKey;
@@ -64,7 +64,6 @@ export class ShieldAPI {
       const root = BigInt('0x' + req.blacklistRoot);
       const siblings = req.smtSiblings.map(s => BigInt('0x' + s));
       smtProof = Shield.exclusionProof(root, BigInt('0x' + Buffer.from(req.agentPubkey.toBytes()).toString('hex')), siblings);
-      notBlacklisted = true; // proof validity checked on-chain
     }
 
     const proof = shield.prove(req.threshold, smtProof);
@@ -97,7 +96,6 @@ export class ShieldAPI {
     shield.setRep(req.stats);
 
     const cred = shield.issue(BigInt('0x' + req.blacklistRoot), req.ttl);
-    const { serialize } = require('../shield');
     const serialized = Buffer.from(serialize(cred)).toString('hex');
 
     return {
