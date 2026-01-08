@@ -36,16 +36,12 @@ export interface SwapResult {
 }
 
 export class JupiterSwap {
-  private readonly connection: Connection;
-  private readonly wallet: Keypair;
   private readonly slippageBps: number;
   private readonly priorityFee: number;
 
-  constructor(config: JupiterConfig) {
-    this.connection = config.connection;
-    this.wallet = config.wallet;
-    this.slippageBps = config.slippageBps ?? 50;
-    this.priorityFee = config.priorityFee ?? 0;
+  constructor(private connection: Connection, private wallet: Keypair, config?: Partial<JupiterConfig>) {
+    this.slippageBps = config?.slippageBps ?? 50;
+    this.priorityFee = config?.priorityFee ?? 0;
   }
 
   async quote(inputMint: string, outputMint: string, amount: number): Promise<SwapQuote | null> {
@@ -104,14 +100,14 @@ export async function payWithAnyToken(
   inputAmount: number,
   recipient: PublicKey
 ): Promise<SwapResult & { paymentSig?: string }> {
-  const jup = new JupiterSwap(config);
+  const jup = new JupiterSwap(config.connection, config.wallet, config);
   const swap = await jup.toSol(inputMint, inputAmount);
   if (!swap.success) return swap;
 
+  const tx = new Transaction().add(
+    SystemProgram.transfer({ fromPubkey: config.wallet.publicKey, toPubkey: recipient, lamports: swap.outputAmount })
+  );
   try {
-    const tx = new Transaction().add(
-      SystemProgram.transfer({ fromPubkey: config.wallet.publicKey, toPubkey: recipient, lamports: swap.outputAmount })
-    );
     const paymentSig = await sendAndConfirmTransaction(config.connection, tx, [config.wallet], { commitment: 'confirmed' });
     return { ...swap, paymentSig };
   } catch (err) {

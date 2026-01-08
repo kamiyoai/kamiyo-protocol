@@ -26,8 +26,8 @@ describe('JupiterSwap', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  const make = (opts: Partial<{ slippageBps: number; priorityFee: number }> = {}) =>
-    new JupiterSwap({ connection: conn, wallet, ...opts });
+  const make = (opts?: Partial<{ slippageBps: number; priorityFee: number }>) =>
+    new JupiterSwap(conn, wallet, opts);
 
   test('defaults', () => {
     const j = make();
