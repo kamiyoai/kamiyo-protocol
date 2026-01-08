@@ -87,6 +87,39 @@ describe('Shield', () => {
     expect(input.threshold).toBe(70);
     expect(typeof input.blinding).toBe('bigint');
   });
+
+  test('prove without exclusion', () => {
+    s.setRep(rep);
+    const p = s.prove(80);
+    expect(p.reputation.meets).toBe(true);
+    expect(p.reputation.threshold).toBe(80);
+    expect(p.exclusion).toBeNull();
+  });
+
+  test('prove with exclusion', () => {
+    s.setRep(rep);
+    const siblings = Shield.emptySmtSiblings();
+    const root = Shield.emptySmtRoot();
+    const proof = Shield.exclusionProof(root, 123n, siblings);
+    const p = s.prove(80, proof);
+    expect(p.exclusion).not.toBeNull();
+    expect(p.exclusion!.root).toBe(root);
+  });
+
+  test('emptySmtRoot deterministic', () => {
+    expect(Shield.emptySmtRoot()).toBe(Shield.emptySmtRoot());
+  });
+
+  test('emptySmtSiblings length', () => {
+    expect(Shield.emptySmtSiblings()).toHaveLength(256);
+  });
+
+  test('exclusionProof', () => {
+    const p = Shield.exclusionProof(1n, 2n, [3n, 4n]);
+    expect(p.root).toBe(1n);
+    expect(p.key).toBe(2n);
+    expect(p.siblings).toEqual([3n, 4n]);
+  });
 });
 
 describe('verifyCredential', () => {

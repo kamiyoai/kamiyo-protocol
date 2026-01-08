@@ -1,6 +1,8 @@
 import { PublicKey, Connection } from '@solana/web3.js';
 import { poseidon2Hash, generateBlinding, bytesToField, fieldToBytes } from '../utils';
 
+const SMT_DEPTH = 256;
+
 export interface Credential {
   agentPk: bigint;
   repCommitment: bigint;
@@ -14,6 +16,22 @@ export interface RepData {
   total: number;
   disputesWon: number;
   disputesLost: number;
+}
+
+export interface SmtProof {
+  root: bigint;
+  key: bigint;
+  siblings: bigint[];
+}
+
+export interface ShieldProof {
+  reputation: {
+    commitment: bigint;
+    threshold: number;
+    meets: boolean;
+    proverInput: any;
+  };
+  exclusion: SmtProof | null;
 }
 
 export class Shield {
@@ -76,6 +94,41 @@ export class Shield {
   proverInput(threshold: number) {
     if (!this.rep) return null;
     return { ...this.rep, blinding: this.blinding, agentPk: this.agentPk, threshold };
+  }
+
+  prove(threshold: number, smtProof?: SmtProof): ShieldProof {
+    const meets = this.meetsThreshold(threshold);
+    return {
+      reputation: {
+        commitment: this.rep ? this.commitment() : 0n,
+        threshold,
+        meets,
+        proverInput: this.proverInput(threshold),
+      },
+      exclusion: smtProof || null,
+    };
+  }
+
+  static emptySmtSiblings(): bigint[] {
+    const siblings: bigint[] = [];
+    let hash = 0n;
+    for (let i = 0; i < SMT_DEPTH; i++) {
+      siblings.push(hash);
+      hash = poseidon2Hash([hash, hash]);
+    }
+    return siblings;
+  }
+
+  static emptySmtRoot(): bigint {
+    let hash = 0n;
+    for (let i = 0; i < SMT_DEPTH; i++) {
+      hash = poseidon2Hash([hash, hash]);
+    }
+    return hash;
+  }
+
+  static exclusionProof(root: bigint, agentPk: bigint, siblings: bigint[]): SmtProof {
+    return { root, key: agentPk, siblings };
   }
 
   static async fetch(connection: Connection, agent: PublicKey, programId: PublicKey): Promise<Shield> {
