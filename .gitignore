@@ -197,3 +197,4 @@ token-launch/
 contracts/monad/cache/
 contracts/monad/out/
 contracts/monad/foundry.lock
+docs/
