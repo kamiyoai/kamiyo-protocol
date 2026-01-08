@@ -10,7 +10,7 @@ import { BN } from "@coral-xyz/anchor";
 import { SurfpoolClient, PreflightValidator } from "@kamiyo/surfpool";
 
 const SURFPOOL_ENDPOINT = process.env.SURFPOOL_URL || "http://localhost:8899";
-const MITAMA_PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+const KAMIYO_PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 
 async function main() {
   // Initialize Surfpool client
@@ -19,7 +19,7 @@ async function main() {
     commitment: "confirmed",
   });
 
-  const validator = new PreflightValidator(surfpool, MITAMA_PROGRAM_ID);
+  const validator = new PreflightValidator(surfpool, KAMIYO_PROGRAM_ID);
 
   // Generate test keypairs
   const agentKeypair = Keypair.generate();
