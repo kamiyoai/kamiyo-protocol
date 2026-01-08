@@ -31,6 +31,7 @@
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
+    "@kamiyo/sdk": "workspace:*",
     "@solana/web3.js": "^1.95.8",
     "@coral-xyz/anchor": "^0.31.1"
   },
@@ -45,6 +46,7 @@
   },
   "files": [
     "dist",
+    "images",
     "README.md"
   ],
   "engines": {

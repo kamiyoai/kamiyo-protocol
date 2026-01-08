@@ -1,0 +1,10 @@
+{
+  "name": "@kamiyo/eliza",
+  "description": "Escrow payments, dispute resolution, and reputation tracking for autonomous agents on Solana",
+  "author": "KAMIYO",
+  "repository": "https://github.com/kamiyo-ai/kamiyo-protocol",
+  "directory": "packages/kamiyo-eliza",
+  "version": "1.0.0",
+  "keywords": ["escrow", "payments", "disputes", "reputation", "solana", "x402"],
+  "license": "MIT"
+}
