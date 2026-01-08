@@ -32,18 +32,12 @@ export interface PaymentState {
 type StateListener = (state: PaymentState) => void;
 
 export class PaymentWidget {
-  private readonly config: PaymentWidgetConfig;
   private readonly client: X402KamiyoClient;
   private state: PaymentState = { status: 'idle' };
   private listeners: StateListener[] = [];
 
-  constructor(config: PaymentWidgetConfig) {
-    this.config = config;
-    this.client = new X402KamiyoClient({
-      connection: config.connection,
-      wallet: config.wallet,
-      programId: config.programId,
-    });
+  constructor(private readonly config: PaymentWidgetConfig) {
+    this.client = new X402KamiyoClient({ connection: config.connection, wallet: config.wallet, programId: config.programId });
   }
 
   getState(): PaymentState {

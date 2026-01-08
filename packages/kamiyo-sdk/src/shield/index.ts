@@ -24,12 +24,22 @@ export interface SmtProof {
   siblings: bigint[];
 }
 
+export interface ReputationProverInput {
+  successful: number;
+  total: number;
+  disputesWon: number;
+  disputesLost: number;
+  blinding: bigint;
+  agentPk: bigint;
+  threshold: number;
+}
+
 export interface ShieldProof {
   reputation: {
     commitment: bigint;
     threshold: number;
     meets: boolean;
-    proverInput: any;
+    proverInput: ReputationProverInput | null;
   };
   exclusion: SmtProof | null;
 }
@@ -91,7 +101,7 @@ export class Shield {
     return !!this.cred && Math.floor(Date.now() / 1000) < this.cred.expiresAt;
   }
 
-  proverInput(threshold: number) {
+  proverInput(threshold: number): ReputationProverInput | null {
     if (!this.rep) return null;
     return { ...this.rep, blinding: this.blinding, agentPk: this.agentPk, threshold };
   }
