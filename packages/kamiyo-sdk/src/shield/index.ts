@@ -173,3 +173,7 @@ export function deserialize(data: Uint8Array): Credential {
     expiresAt: buf.readUInt32LE(100),
   };
 }
+
+export * from './blacklist';
+export * from './credential';
+export * from './verifier';
