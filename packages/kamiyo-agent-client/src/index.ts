@@ -29,7 +29,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
 import { KamiyoClient, KamiyoUtils } from '@kamiyo/sdk';
 
-const MITAMA_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const KAMIYO_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
 
 export interface AgentConfig {
   keypair: Keypair;
@@ -60,7 +60,7 @@ export class AutonomousServiceAgent {
   constructor(private config: AgentConfig) {
     const wallet = new anchor.Wallet(this.config.keypair);
     this.kamiyoClient = new KamiyoClient({
-      programId: this.config.programId || MITAMA_PROGRAM_ID,
+      programId: this.config.programId || KAMIYO_PROGRAM_ID,
       connection: this.config.connection,
       wallet
     });

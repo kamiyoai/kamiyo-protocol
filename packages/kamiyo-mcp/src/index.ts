@@ -230,12 +230,12 @@ class KamiyoMCPServer {
 
     // Load configuration from environment
     const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-    const programIdStr = process.env.MITAMA_PROGRAM_ID;
+    const programIdStr = process.env.KAMIYO_PROGRAM_ID || process.env.MITAMA_PROGRAM_ID;
     const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
     const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
     if (!programIdStr) {
-      throw new Error('MITAMA_PROGRAM_ID environment variable is required');
+      throw new Error('KAMIYO_PROGRAM_ID environment variable is required');
     }
 
     if (!agentPrivateKey && !agentKeypairPath) {

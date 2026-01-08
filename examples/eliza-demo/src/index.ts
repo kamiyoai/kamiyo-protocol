@@ -135,9 +135,8 @@ class KamiyoOrchestrator {
 
       // Generate ZK proof
       const commitment = provider.shield.commitment();
-      log.ok(`${provider.name}: Reputation verified via ZK proof`);
+      log.ok(`${provider.name}: ZK proof verified (>= ${threshold}%)`);
       log.dim(`  Commitment: ${commitment.toString(16).slice(0, 16)}...`);
-      log.dim(`  Proves: score >= ${threshold}% (actual score hidden)`);
 
       // Issue credential
       const cred = provider.shield.issue(this.blacklist.getRoot());
@@ -321,8 +320,6 @@ ${BOLD}${CYAN}
     ██║  ██╗██║  ██║██║ ╚═╝ ██║██║   ██║   ╚██████╔╝
     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝   ╚═╝    ╚═════╝
 ${RESET}
-${DIM}    Privacy-Preserving Agent Infrastructure${RESET}
-${DIM}    ElizaOS Integration Demo${RESET}
 `);
 
   // Check for live mode
@@ -357,28 +354,6 @@ ${DIM}    ElizaOS Integration Demo${RESET}
 
   const orchestrator = new KamiyoOrchestrator(network, wallet);
   await orchestrator.runMultiAgentCoordination();
-
-  log.header('WHAT JUST HAPPENED');
-  console.log(`
-  ${CYAN}1.${RESET} Agents verified each other with ${BOLD}ZK proofs${RESET}
-     - Proved reputation >= threshold ${DIM}without revealing actual score${RESET}
-     - Generated SMT exclusion proofs ${DIM}(256-depth Merkle tree)${RESET}
-
-  ${CYAN}2.${RESET} Created ${BOLD}escrows${RESET} with ZK-verified providers
-     - Funds locked until service delivery
-     - Automatic quality evaluation
-
-  ${CYAN}3.${RESET} ${BOLD}Autonomous dispute resolution${RESET}
-     - Low-quality service -> automatic refund
-     - Repeat offenders -> blacklisted
-
-  ${CYAN}4.${RESET} ${BOLD}DAO governance${RESET} on policy changes
-     - Commit-reveal voting (votes hidden until reveal)
-     - Privacy-preserving participation
-
-  ${DIM}All of this runs without human intervention.${RESET}
-  ${DIM}Agents can now transact trustlessly at scale.${RESET}
-`);
 
   if (!wallet) {
     console.log(`
