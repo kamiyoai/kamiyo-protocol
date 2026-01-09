@@ -1,0 +1,29 @@
+{
+  "name": "Kamiyo Protocol",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20",
+  "features": {
+    "ghcr.io/devcontainers/features/rust:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "forwardPorts": [3000, 8899],
+  "portsAttributes": {
+    "3000": { "label": "Demo" },
+    "8899": { "label": "Solana Validator" }
+  },
+  "remoteEnv": {
+    "KAMIYO_NETWORK": "devnet"
+  }
+}
