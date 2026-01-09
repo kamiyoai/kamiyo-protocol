@@ -1,35 +1,25 @@
 #!/bin/bash
-set -e
 
-echo "Setting up Kamiyo Protocol..."
+echo "=== Kamiyo Protocol Setup ==="
 
-# Install pnpm
 npm install -g pnpm
 
-# Install Solana CLI
-sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)" || true
-export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-echo 'export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"' >> ~/.bashrc
+# Solana CLI (optional, for live mode)
+if ! command -v solana &> /dev/null; then
+  echo "Installing Solana CLI..."
+  sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)" 2>/dev/null
+  export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+  echo 'export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"' >> ~/.bashrc
+  solana config set --url devnet 2>/dev/null
+fi
 
-# Configure Solana for devnet
-solana config set --url https://api.devnet.solana.com || true
-
-# Install all dependencies via pnpm
+# Install and build
 pnpm install
+pnpm -F @kamiyo/sdk build
+pnpm -F @kamiyo/eliza build
 
-# Build SDK and Eliza
-pnpm --filter @kamiyo/sdk build || true
-pnpm --filter @kamiyo/eliza build || true
-
-# Install demo dependencies
 cd examples/eliza-demo
 pnpm install
 
 echo ""
-echo "========================================="
-echo "Setup complete!"
-echo ""
-echo "Run the demo:"
-echo "  cd examples/eliza-demo"
-echo "  pnpm run dev"
-echo "========================================="
+echo "Done. Run: cd examples/eliza-demo && pnpm dev"
