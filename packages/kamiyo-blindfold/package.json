@@ -1,0 +1,32 @@
+{
+  "name": "@kamiyo/blindfold",
+  "version": "0.1.0",
+  "description": "Blindfold Finance integration for KAMIYO Protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "kamiyo",
+    "blindfold",
+    "solana",
+    "privacy",
+    "zk"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "MIT",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "peerDependencies": {
+    "@kamiyo/sdk": "*"
+  }
+}
