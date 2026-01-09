@@ -54,6 +54,7 @@ export interface DemoConfig {
   oracleCount: number;
   verbose: boolean;
   live: boolean;
+  cleanup: boolean;
 }
 
 export function parseArgs(): DemoConfig {
@@ -66,6 +67,7 @@ export function parseArgs(): DemoConfig {
     oracleCount: 5,
     verbose: false,
     live: false,
+    cleanup: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -82,6 +84,9 @@ export function parseArgs(): DemoConfig {
         break;
       case '--live':
         config.live = true;
+        break;
+      case '--cleanup':
+        config.cleanup = true;
         break;
       case '--agents':
         config.agentCount = parseInt(args[++i], 10) || 4;

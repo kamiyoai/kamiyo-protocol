@@ -21,12 +21,13 @@ async function main(): Promise<void> {
 \x1b[33mLive mode:\x1b[0m
   export SOLANA_PRIVATE_KEY='...'
   export EVM_PRIVATE_KEY='...'
-  pnpm dev
+  pnpm dev --cleanup
 
 \x1b[33mOptions:\x1b[0m
   --mainnet         Use Solana mainnet
   --monad-mainnet   Use Monad mainnet
   --live            Enable live transactions
+  --cleanup         Deactivate agents and recover SOL after demo
   --verbose, -v     Show detailed output
   --agents N        Number of agents (default: 4)
   --oracles N       Number of oracles (default: 5)

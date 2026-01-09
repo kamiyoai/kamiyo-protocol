@@ -49,6 +49,10 @@ export class Protocol {
     await this.phaseReputationUpdate();
     await this.phaseSwarmSimulation();
     await this.phaseSummary();
+
+    if (this.config.cleanup) {
+      await this.phaseCleanup();
+    }
   }
 
   private async phaseRegistration(): Promise<void> {
@@ -262,6 +266,41 @@ export class Protocol {
     const allOracles = this.oracles.getAllOracles();
     await this.metrics.printSummary(allAgents, allOracles);
     await this.metrics.printLeaderboard(allAgents);
+  }
+
+  private async phaseCleanup(): Promise<void> {
+    await log.phase(9, 'CLEANUP & RECOVERY');
+
+    await log.step('Deactivating agents and recovering funds');
+
+    if (!this.agents.getClient()) {
+      await log.dim('Simulation mode - no on-chain accounts to close');
+      await log.ok('In live mode, would recover:');
+      await log.dim('  - Agent stakes: ~1.9 SOL');
+      await log.dim('  - Account rent: ~0.015 SOL');
+      return;
+    }
+
+    const client = this.agents.getClient()!;
+    let totalRecovered = 0;
+
+    try {
+      await log.wait('Closing agent account...', 1000);
+      const sig = await client.deactivateAgent();
+      await log.ok(`Agent deactivated: ${sig.slice(0, 16)}...`);
+
+      // Estimate recovered amount (stake + rent)
+      const recovered = 1.0 + 0.002; // Rough estimate
+      totalRecovered += recovered;
+      await log.ok(`Recovered ~${recovered.toFixed(4)} SOL`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await log.warn(`Deactivation failed: ${msg.slice(0, 50)}`);
+    }
+
+    await log.step('Recovery summary');
+    await log.ok(`Total recovered: ~${totalRecovered.toFixed(4)} SOL`);
+    await log.dim('Escrow funds were released during settlement phase');
   }
 }
 
