@@ -50,7 +50,7 @@ export class AgentRegistry {
       await log.dim(`  success: ${agent.stats.successful}% | disputes: ${agent.stats.disputesLost}`);
     }
 
-    await log.wait('Initializing reputation shields...', 800);
+    await log.wait('Init shields...', 800);
 
     for (const agent of registered) {
       if (agent.stats.disputesLost >= DEFAULTS.reputation.blacklistThreshold) {

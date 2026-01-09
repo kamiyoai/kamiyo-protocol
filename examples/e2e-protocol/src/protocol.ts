@@ -90,7 +90,7 @@ export class Protocol {
       }
     }
 
-    await log.wait('Finalizing cross-chain state...', 1000);
+    await log.wait('Syncing state...', 1000);
   }
 
   private async phaseOracleSetup(): Promise<void> {
@@ -139,7 +139,7 @@ export class Protocol {
       this.metrics.recordEscrow(escrow);
     }
 
-    await log.wait('Locking funds in escrow accounts...', 900);
+    await log.wait('Locking escrow funds...', 900);
   }
 
   private async phaseDelivery(): Promise<void> {
@@ -269,38 +269,27 @@ export class Protocol {
   }
 
   private async phaseCleanup(): Promise<void> {
-    await log.phase(9, 'CLEANUP & RECOVERY');
+    await log.phase(9, 'CLEANUP');
 
-    await log.step('Deactivating agents and recovering funds');
+    await log.step('Closing accounts');
 
     if (!this.agents.getClient()) {
-      await log.dim('Simulation mode - no on-chain accounts to close');
-      await log.ok('In live mode, would recover:');
-      await log.dim('  - Agent stakes: ~1.9 SOL');
-      await log.dim('  - Account rent: ~0.015 SOL');
+      await log.dim('Simulation mode - no accounts to close');
+      await log.dim('Live mode recovers ~1.9 SOL stake + ~0.015 SOL rent');
       return;
     }
 
     const client = this.agents.getClient()!;
-    let totalRecovered = 0;
 
     try {
-      await log.wait('Closing agent account...', 1000);
+      await log.wait('Closing agent PDA...', 1000);
       const sig = await client.deactivateAgent();
-      await log.ok(`Agent deactivated: ${sig.slice(0, 16)}...`);
-
-      // Estimate recovered amount (stake + rent)
-      const recovered = 1.0 + 0.002; // Rough estimate
-      totalRecovered += recovered;
-      await log.ok(`Recovered ~${recovered.toFixed(4)} SOL`);
+      await log.ok(`Closed: ${sig.slice(0, 16)}...`);
+      await log.ok('Stake + rent returned to wallet');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      await log.warn(`Deactivation failed: ${msg.slice(0, 50)}`);
+      await log.warn(`Failed: ${msg.slice(0, 50)}`);
     }
-
-    await log.step('Recovery summary');
-    await log.ok(`Total recovered: ~${totalRecovered.toFixed(4)} SOL`);
-    await log.dim('Escrow funds were released during settlement phase');
   }
 }
 
