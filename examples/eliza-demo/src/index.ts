@@ -4,26 +4,25 @@ import { Wallet, BN } from '@coral-xyz/anchor';
 import { kamiyoPlugin } from '@kamiyo/eliza';
 import { KamiyoClient, Shield, Blacklist, CredentialManager, Voting } from '@kamiyo/sdk';
 
-const CYAN = '\x1b[36m';
-const GREEN = '\x1b[32m';
-const YELLOW = '\x1b[33m';
-const RED = '\x1b[31m';
-const DIM = '\x1b[2m';
-const RESET = '\x1b[0m';
-const BOLD = '\x1b[1m';
+const C = '\x1b[36m';
+const G = '\x1b[32m';
+const Y = '\x1b[33m';
+const R = '\x1b[31m';
+const D = '\x1b[2m';
+const X = '\x1b[0m';
+const B = '\x1b[1m';
 
 const log = {
-  step: (s: string) => console.log(`\n${CYAN}▸${RESET} ${s}`),
-  ok: (s: string) => console.log(`  ${GREEN}✓${RESET} ${s}`),
-  warn: (s: string) => console.log(`  ${YELLOW}⚠${RESET} ${s}`),
-  fail: (s: string) => console.log(`  ${RED}✗${RESET} ${s}`),
-  dim: (s: string) => console.log(`  ${DIM}${s}${RESET}`),
-  header: (s: string) => console.log(`\n${BOLD}${CYAN}━━━ ${s} ━━━${RESET}\n`),
-  tx: (s: string) => console.log(`  ${GREEN}⛓${RESET}  ${DIM}${s}${RESET}`),
+  step: (s: string) => console.log(`\n${C}>${X} ${s}`),
+  ok: (s: string) => console.log(`  ${G}+${X} ${s}`),
+  warn: (s: string) => console.log(`  ${Y}!${X} ${s}`),
+  fail: (s: string) => console.log(`  ${R}x${X} ${s}`),
+  dim: (s: string) => console.log(`  ${D}${s}${X}`),
+  header: (s: string) => console.log(`\n${B}${C}--- ${s} ---${X}\n`),
 };
 
 const PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
-const NETWORKS = {
+const RPC = {
   mainnet: 'https://api.mainnet-beta.solana.com',
   devnet: 'https://api.devnet.solana.com',
 };
@@ -33,38 +32,30 @@ interface Agent {
   keypair: Keypair;
   shield: Shield;
   stats: { successful: number; total: number; disputesWon: number; disputesLost: number };
-  onChainRep?: { score: number; totalTx: number; disputes: number };
 }
 
-interface ServiceRequest {
-  id: string;
+interface Request {
   consumer: Agent;
   provider: Agent;
   amount: number;
   escrowId: string;
   quality: number;
-  txSignature?: string;
 }
 
-class KamiyoOrchestrator {
+class Orchestrator {
   private blacklist = new Blacklist();
-  private credentialMgr: CredentialManager;
+  private creds: CredentialManager;
   private voting = new Voting();
-  private escrows = new Map<string, ServiceRequest>();
-  private issuer: Keypair;
   private client: KamiyoClient | null = null;
-  private connection: Connection;
   private live: boolean;
 
   constructor(network: 'mainnet' | 'devnet', wallet?: Keypair) {
-    this.issuer = Keypair.generate();
-    this.credentialMgr = new CredentialManager(this.issuer);
-    this.connection = new Connection(NETWORKS[network], 'confirmed');
+    this.creds = new CredentialManager(Keypair.generate());
     this.live = !!wallet;
 
     if (wallet) {
       this.client = new KamiyoClient({
-        connection: this.connection,
+        connection: new Connection(RPC[network], 'confirmed'),
         wallet: new Wallet(wallet),
         programId: PROGRAM_ID,
       });
@@ -78,214 +69,133 @@ class KamiyoOrchestrator {
     return { name, keypair, shield, stats };
   }
 
-  async fetchOnChainReputation(agent: Agent): Promise<void> {
-    if (!this.client) return;
-
-    try {
-      const rep = await this.client.getReputation(agent.keypair.publicKey);
-      if (rep) {
-        agent.onChainRep = {
-          score: rep.reputationScore,
-          totalTx: rep.totalTransactions.toNumber(),
-          disputes: rep.disputesFiled.toNumber(),
-        };
-      }
-    } catch {
-      // No on-chain reputation yet
-    }
-  }
-
-  async runAutonomousLoop(consumer: Agent, providers: Agent[], threshold: number) {
+  async run(consumer: Agent, providers: Agent[], threshold: number) {
     log.header('AUTONOMOUS AGENT LOOP');
-    log.dim(`Consumer: ${consumer.name} | Providers: ${providers.map(p => p.name).join(', ')}`);
-    log.dim(`Reputation threshold: ${threshold}%`);
-    log.dim(`Mode: ${this.live ? 'LIVE (on-chain)' : 'SIMULATION'}`);
+    log.dim(`${consumer.name} -> [${providers.map(p => p.name).join(', ')}]`);
+    log.dim(`Threshold: ${threshold}% | Mode: ${this.live ? 'LIVE' : 'SIM'}`);
 
-    // Phase 1: Discovery & ZK Verification
-    log.step('Phase 1: Provider Discovery with ZK Verification');
+    // 1. ZK verification
+    log.step('Provider verification');
     const eligible: Agent[] = [];
 
-    for (const provider of providers) {
-      log.dim(`Checking ${provider.name}...`);
-
-      // Fetch on-chain reputation if live
-      if (this.live) {
-        await this.fetchOnChainReputation(provider);
-        if (provider.onChainRep) {
-          log.dim(`  On-chain: score=${provider.onChainRep.score}, tx=${provider.onChainRep.totalTx}`);
-        }
-      }
-
-      // Check blacklist with SMT exclusion proof
-      if (this.blacklist.contains(provider.keypair.publicKey)) {
-        log.fail(`${provider.name}: BLACKLISTED`);
-        continue;
-      }
-      const exclusionProof = this.blacklist.exclusionProof(provider.keypair.publicKey);
-      log.ok(`${provider.name}: Not blacklisted (SMT proof: ${exclusionProof.siblings.length} siblings)`);
-
-      // ZK reputation check
-      const rate = provider.shield.successRate();
-      const meets = provider.shield.meetsThreshold(threshold);
-
-      if (!meets) {
-        log.warn(`${provider.name}: Below threshold (${rate}% < ${threshold}%)`);
+    for (const p of providers) {
+      if (this.blacklist.contains(p.keypair.publicKey)) {
+        log.fail(`${p.name}: blacklisted`);
         continue;
       }
 
-      // Generate ZK proof
-      const commitment = provider.shield.commitment();
-      log.ok(`${provider.name}: ZK proof verified (>= ${threshold}%)`);
-      log.dim(`  Commitment: ${commitment.toString(16).slice(0, 16)}...`);
+      const proof = this.blacklist.exclusionProof(p.keypair.publicKey);
+      log.ok(`${p.name}: not blacklisted (${proof.siblings.length} siblings)`);
 
-      // Issue credential
-      const cred = provider.shield.issue(this.blacklist.getRoot());
-      const signed = this.credentialMgr.issue(cred);
-      log.ok(`${provider.name}: Credential issued (TTL: 24h)`);
+      const rate = p.shield.successRate();
+      if (!p.shield.meetsThreshold(threshold)) {
+        log.warn(`${p.name}: ${rate}% < ${threshold}%`);
+        continue;
+      }
 
-      eligible.push(provider);
+      const commitment = p.shield.commitment();
+      log.ok(`${p.name}: ZK verified >= ${threshold}%`);
+      log.dim(`  commit: ${commitment.toString(16).slice(0, 16)}...`);
+
+      const cred = p.shield.issue(this.blacklist.getRoot());
+      this.creds.issue(cred);
+      eligible.push(p);
     }
 
-    if (eligible.length === 0) {
-      log.fail('No eligible providers found');
+    if (!eligible.length) {
+      log.fail('No eligible providers');
       return;
     }
 
-    log.ok(`Found ${eligible.length} eligible provider(s)`);
-
-    // Phase 2: Escrow Creation
-    log.step('Phase 2: Multi-Provider Escrow Creation');
-    const requests: ServiceRequest[] = [];
+    // 2. Escrow
+    log.step('Escrow creation');
+    const requests: Request[] = [];
 
     for (const provider of eligible) {
-      const amount = 0.001 + Math.random() * 0.001; // Small amounts for demo
-      const escrowId = `escrow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      const amount = 0.001 + Math.random() * 0.001;
+      const escrowId = `esc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
-      const req: ServiceRequest = {
-        id: `req_${requests.length}`,
-        consumer,
-        provider,
-        amount,
-        escrowId,
-        quality: 0,
-      };
-
-      // Create real escrow if live
       if (this.live && this.client) {
         try {
-          const sig = await this.client.createAgreement({
+          await this.client.createAgreement({
             provider: provider.keypair.publicKey,
             amount: new BN(Math.floor(amount * LAMPORTS_PER_SOL)),
             timeLockSeconds: new BN(3600),
             transactionId: escrowId,
           });
-          req.txSignature = sig;
-          log.tx(`tx: ${sig.slice(0, 20)}...`);
-        } catch (err: any) {
-          log.warn(`Escrow creation failed: ${err.message}`);
+        } catch (e: any) {
+          log.warn(`tx failed: ${e.message}`);
         }
       }
 
-      this.escrows.set(escrowId, req);
-      requests.push(req);
-
-      log.ok(`Escrow ${escrowId.slice(0, 16)}... created`);
-      log.dim(`  ${consumer.name} -> ${provider.name}: ${amount.toFixed(6)} SOL`);
+      requests.push({ consumer, provider, amount, escrowId, quality: 0 });
+      log.ok(`${escrowId.slice(0, 12)}... | ${amount.toFixed(6)} SOL`);
     }
 
-    // Phase 3: Service Consumption & Quality Evaluation
-    log.step('Phase 3: Service Consumption & Autonomous Evaluation');
-
+    // 3. Quality check
+    log.step('Quality evaluation');
     for (const req of requests) {
       req.quality = Math.floor(50 + Math.random() * 50);
-
-      log.dim(`${req.provider.name} delivered service...`);
-
-      if (req.quality >= threshold) {
-        log.ok(`Quality: ${req.quality}% (PASS)`);
-      } else {
-        log.warn(`Quality: ${req.quality}% (FAIL - below ${threshold}%)`);
-      }
+      const pass = req.quality >= threshold;
+      (pass ? log.ok : log.warn)(`${req.provider.name}: ${req.quality}% ${pass ? 'PASS' : 'FAIL'}`);
     }
 
-    // Phase 4: Autonomous Dispute/Release
-    log.step('Phase 4: Autonomous Settlement');
-
-    let released = 0;
-    let disputed = 0;
+    // 4. Settlement
+    log.step('Settlement');
+    let released = 0, disputed = 0;
 
     for (const req of requests) {
       if (req.quality >= threshold) {
-        // Release escrow
         if (this.live && this.client) {
           try {
-            const sig = await this.client.releaseFunds(req.escrowId, req.provider.keypair.publicKey);
-            log.tx(`release tx: ${sig.slice(0, 20)}...`);
-          } catch (err: any) {
-            log.warn(`Release failed: ${err.message}`);
-          }
+            await this.client.releaseFunds(req.escrowId, req.provider.keypair.publicKey);
+          } catch {}
         }
-
         req.provider.stats.successful++;
         req.provider.stats.total++;
         released++;
-        log.ok(`Released: ${req.escrowId.slice(0, 16)}... -> ${req.provider.name}`);
+        log.ok(`released -> ${req.provider.name}`);
       } else {
-        // File dispute
         if (this.live && this.client) {
           try {
-            const sig = await this.client.markDisputed(req.escrowId);
-            log.tx(`dispute tx: ${sig.slice(0, 20)}...`);
-          } catch (err: any) {
-            log.warn(`Dispute failed: ${err.message}`);
-          }
+            await this.client.markDisputed(req.escrowId);
+          } catch {}
         }
-
         req.provider.stats.total++;
-        req.consumer.stats.disputesWon++;
         req.provider.stats.disputesLost++;
         disputed++;
-        log.warn(`Disputed: ${req.escrowId.slice(0, 16)}... (quality=${req.quality}%)`);
+        log.warn(`disputed: ${req.escrowId.slice(0, 12)}...`);
 
         if (req.provider.stats.disputesLost >= 3) {
-          this.blacklist.add(req.provider.keypair.publicKey, 'repeated low quality');
-          log.fail(`${req.provider.name} added to blacklist`);
+          this.blacklist.add(req.provider.keypair.publicKey, 'low quality');
+          log.fail(`${req.provider.name} blacklisted`);
         }
       }
     }
 
-    log.dim(`Released: ${released} | Disputed: ${disputed}`);
+    log.dim(`released: ${released} | disputed: ${disputed}`);
 
-    // Phase 5: DAO Governance Vote
+    // 5. DAO vote (if disputes)
     if (disputed > 0) {
-      log.step('Phase 5: DAO Governance Vote on Dispute Policy');
-
+      log.step('DAO vote');
       const proposalId = BigInt(Date.now());
-      this.voting.create(proposalId, ['Increase threshold', 'Keep current', 'Decrease threshold'], 1, 1);
+      this.voting.create(proposalId, ['raise threshold', 'keep', 'lower'], 1, 1);
 
       for (const agent of [consumer, ...eligible]) {
-        const { vote, commitment } = this.voting.vote(proposalId, agent.stats.disputesLost > 0 ? 0 : 1, agent.keypair.publicKey);
+        const choice = agent.stats.disputesLost > 0 ? 0 : 1;
+        const { vote, commitment } = this.voting.vote(proposalId, choice, agent.keypair.publicKey);
         this.voting.commit(proposalId, vote.voter, commitment);
-        log.dim(`${agent.name} committed vote (hidden until reveal)`);
+        log.dim(`${agent.name} voted (hidden)`);
       }
-
-      log.ok('Commit-reveal voting initiated');
+      log.ok('commit-reveal initiated');
     }
 
-    // Summary
-    log.header('AUTONOMOUS LOOP COMPLETE');
-    log.dim(`Providers vetted: ${providers.length}`);
-    log.dim(`Eligible (ZK verified): ${eligible.length}`);
-    log.dim(`Escrows created: ${requests.length}`);
-    log.dim(`Released: ${released} | Disputed: ${disputed}`);
-    log.dim(`Blacklist size: ${this.blacklist.size()}`);
-    if (this.live) {
-      log.dim(`Mode: LIVE - transactions submitted to Solana`);
-    }
+    log.header('DONE');
+    log.dim(`vetted: ${providers.length} | eligible: ${eligible.length} | escrows: ${requests.length}`);
   }
 
-  async runMultiAgentCoordination() {
-    log.header('MULTI-AGENT COORDINATION');
+  async demo() {
+    log.header('MULTI-AGENT DEMO');
 
     const agents = [
       this.createAgent('Alpha', { successful: 95, total: 100, disputesWon: 2, disputesLost: 0 }),
@@ -294,73 +204,50 @@ class KamiyoOrchestrator {
       this.createAgent('Delta', { successful: 55, total: 100, disputesWon: 0, disputesLost: 5 }),
     ];
 
-    log.step('Agent Registry');
+    log.step('Agents');
     for (const a of agents) {
-      const rate = a.shield.successRate();
-      log.dim(`${a.name}: ${rate}% success | ${a.stats.disputesLost} disputes lost`);
+      log.dim(`${a.name}: ${a.shield.successRate()}% | ${a.stats.disputesLost} disputes`);
     }
 
-    this.blacklist.add(agents[3].keypair.publicKey, 'excessive disputes');
-    log.warn(`${agents[3].name} pre-blacklisted`);
+    this.blacklist.add(agents[3].keypair.publicKey, 'too many disputes');
+    log.warn('Delta pre-blacklisted');
 
-    const consumer = agents[0];
-    const providers = agents.slice(1);
-
-    await this.runAutonomousLoop(consumer, providers, 75);
+    await this.run(agents[0], agents.slice(1), 75);
   }
 }
 
 async function main() {
-  console.log(`
-${BOLD}${CYAN}
-    ██╗  ██╗ █████╗ ███╗   ███╗██╗██╗   ██╗ ██████╗
-    ██║ ██╔╝██╔══██╗████╗ ████║██║╚██╗ ██╔╝██╔═══██╗
-    █████╔╝ ███████║██╔████╔██║██║ ╚████╔╝ ██║   ██║
-    ██╔═██╗ ██╔══██║██║╚██╔╝██║██║  ╚██╔╝  ██║   ██║
-    ██║  ██╗██║  ██║██║ ╚═╝ ██║██║   ██║   ╚██████╔╝
-    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝   ╚═╝    ╚═════╝
-${RESET}
-`);
+  console.log(`${B}${C}
+  KAMIYO
+${X}`);
 
-  // Check for live mode
   const network = (process.env.KAMIYO_NETWORK || 'devnet') as 'mainnet' | 'devnet';
   let wallet: Keypair | undefined;
 
   if (process.env.SOLANA_PRIVATE_KEY) {
     try {
-      const key = JSON.parse(process.env.SOLANA_PRIVATE_KEY);
-      wallet = Keypair.fromSecretKey(Uint8Array.from(key));
+      wallet = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.SOLANA_PRIVATE_KEY)));
+      const conn = new Connection(RPC[network], 'confirmed');
+      const bal = await conn.getBalance(wallet.publicKey);
       log.header('LIVE MODE');
-      log.ok(`Network: ${network}`);
-      log.ok(`Wallet: ${wallet.publicKey.toBase58().slice(0, 8)}...`);
-
-      const connection = new Connection(NETWORKS[network], 'confirmed');
-      const balance = await connection.getBalance(wallet.publicKey);
-      log.ok(`Balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
-
-      if (balance < 0.01 * LAMPORTS_PER_SOL) {
-        log.warn('Low balance - some transactions may fail');
-      }
-    } catch (err) {
-      log.warn('Invalid SOLANA_PRIVATE_KEY, running in simulation mode');
+      log.ok(`${network} | ${wallet.publicKey.toBase58().slice(0, 8)}... | ${(bal / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
+    } catch {
+      log.warn('bad SOLANA_PRIVATE_KEY, running sim');
     }
   }
 
-  log.header('ELIZA PLUGIN CAPABILITIES');
-  log.ok(`Plugin: ${kamiyoPlugin.name}`);
-  log.dim(`Actions: ${kamiyoPlugin.actions?.map((a: any) => a.name).join(', ') || 'none'}`);
-  log.dim(`Providers: ${kamiyoPlugin.providers?.length || 0}`);
-  log.dim(`Evaluators: ${kamiyoPlugin.evaluators?.map((e: any) => e.name).join(', ') || 'none'}`);
+  log.header('ELIZA PLUGIN');
+  log.ok(kamiyoPlugin.name);
+  log.dim(`actions: ${kamiyoPlugin.actions?.map((a: any) => a.name).join(', ')}`);
 
-  const orchestrator = new KamiyoOrchestrator(network, wallet);
-  await orchestrator.runMultiAgentCoordination();
+  const orch = new Orchestrator(network, wallet);
+  await orch.demo();
 
   if (!wallet) {
     console.log(`
-${YELLOW}To run in LIVE mode with real transactions:${RESET}
-  export SOLANA_PRIVATE_KEY='[your keypair array]'
-  export KAMIYO_NETWORK=devnet  # or mainnet
-  npm run dev
+${Y}Live mode:${X}
+  export SOLANA_PRIVATE_KEY='[...]'
+  pnpm dev
 `);
   }
 }
