@@ -18,7 +18,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "inlineSourceMap": true,
-    "inlineSources": true
+    "inlineSources": true,
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
