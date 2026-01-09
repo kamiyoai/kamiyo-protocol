@@ -56,6 +56,8 @@ export class OracleNetwork {
   async commitPhase(escrow: Escrow, oracles: Oracle[]): Promise<OracleVote[]> {
     const votes: OracleVote[] = [];
 
+    await log.wait('Broadcasting dispute to oracle network...', 1200);
+
     for (const oracle of oracles) {
       const score = this.assessQuality(escrow, oracle);
       const blinding = ethers.hexlify(ethers.randomBytes(16));
@@ -73,17 +75,30 @@ export class OracleNetwork {
       };
 
       votes.push(vote);
+
+      // Stagger oracle response times
+      const responseDelay = 200 + Math.random() * 300;
+      await new Promise(r => setTimeout(r, responseDelay));
       await log.ok(`${oracle.id}: committed (${commitment.slice(0, 18)}...)`);
     }
+
+    await log.wait('Verifying commitment hashes on-chain...', 800);
 
     return votes;
   }
 
   async revealPhase(votes: OracleVote[]): Promise<void> {
+    await log.wait('Waiting for reveal window...', 1000);
+
     for (const vote of votes) {
       vote.revealed = true;
+      // Stagger reveals
+      const revealDelay = 150 + Math.random() * 200;
+      await new Promise(r => setTimeout(r, revealDelay));
       await log.ok(`${vote.oracle.id}: revealed score ${vote.score}%`);
     }
+
+    await log.wait('Validating vote signatures...', 600);
   }
 
   calculateSettlement(escrow: Escrow, votes: OracleVote[]): DisputeResolution {

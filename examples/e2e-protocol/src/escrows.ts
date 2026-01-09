@@ -104,11 +104,13 @@ export class EscrowManager {
   async processDelivery(escrow: Escrow, scenario: Scenario): Promise<QualityAssessment> {
     await log.step(`${escrow.provider.name} delivering work`);
 
+    await log.wait('Processing service request...', 800);
     const delivery = this.simulateDelivery(escrow, scenario);
     escrow.delivery = delivery;
 
     await log.ok(`quality: ${delivery.quality}% | latency: ${delivery.latency}ms | uptime: ${delivery.availability}%`);
 
+    await log.wait('Evaluating SLA compliance...', 600);
     const assessment = this.assessQuality(escrow, delivery);
     escrow.assessment = assessment;
 
