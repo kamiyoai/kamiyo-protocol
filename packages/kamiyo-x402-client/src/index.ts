@@ -136,3 +136,7 @@ export type { PaymentWidgetConfig, PaymentState } from './widget';
 // Jupiter
 export { JupiterSwap, payWithAnyToken, USDC_MINT, SOL_MINT } from './jupiter';
 export type { JupiterConfig, SwapQuote, SwapResult } from './jupiter';
+
+// Embeddable Widget
+export { KamiyoPayEmbed, createKamiyoPayWidget } from './embed';
+export type { EmbedConfig, EmbedPaymentResult } from './embed';

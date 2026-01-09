@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "description": "x402 payment client for AI agents. Integrates PayAI Network facilitator for cross-chain USDC micropayments with Kamiyo escrow protection and SLA enforcement.",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
   "license": "MIT",
   "homepage": "https://kamiyo.ai",
   "repository": {
@@ -51,6 +59,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.0"
