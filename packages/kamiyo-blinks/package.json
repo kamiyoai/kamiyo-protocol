@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/blinks",
   "version": "1.0.0",
-  "description": "Solana Actions (Blinks) for Kamiyo escrow protocol",
+  "description": "Solana Actions (Blinks) for KAMIYO escrow protocol",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

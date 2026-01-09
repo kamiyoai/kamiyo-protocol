@@ -66,7 +66,7 @@ export function getDisputeAction(requestUrl: URL): ActionGetResponse {
   return {
     type: 'action',
     icon: ICON_URL,
-    title: 'File Kamiyo Dispute',
+    title: 'File KAMIYO Dispute',
     description: 'File a dispute for oracle arbitration. Refund determined by quality assessment.',
     label: 'File Dispute',
     links: {
