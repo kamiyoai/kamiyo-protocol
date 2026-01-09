@@ -29,7 +29,6 @@ export function getCreateEscrowAction(requestUrl: URL): ActionGetResponse {
 
   const actions: LinkedAction[] = [];
 
-  // Quick amount buttons when provider is known
   if (provider) {
     for (const amount of ESCROW_CONFIG.QUICK_AMOUNTS) {
       actions.push({
@@ -39,7 +38,6 @@ export function getCreateEscrowAction(requestUrl: URL): ActionGetResponse {
       });
     }
 
-    // Custom amount with timelock selection
     actions.push({
       type: 'transaction',
       label: 'Custom Amount',
@@ -69,7 +67,6 @@ export function getCreateEscrowAction(requestUrl: URL): ActionGetResponse {
       ],
     });
   } else {
-    // No provider - show full form
     actions.push({
       type: 'transaction',
       label: 'Create Escrow',

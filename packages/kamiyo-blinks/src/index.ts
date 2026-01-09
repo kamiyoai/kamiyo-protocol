@@ -1,10 +1,3 @@
-/**
- * @kamiyo/blinks - Solana Actions for Kamiyo escrow protocol
- *
- * Create escrows, release funds, file disputes, and check reputation
- * directly from X, Telegram, or any Blink-enabled wallet.
- */
-
 import { ActionPostRequest } from '@solana/actions';
 import { CORS_HEADERS } from './constants';
 import {
@@ -23,9 +16,6 @@ export * from './utils';
 
 export type ActionType = 'create-escrow' | 'release-escrow' | 'dispute' | 'reputation';
 
-/**
- * Handle GET requests - return action metadata
- */
 export async function handleGet(
   action: ActionType,
   requestUrl: URL
@@ -66,9 +56,6 @@ export async function handleGet(
   }
 }
 
-/**
- * Handle POST requests - return transaction to sign
- */
 export async function handlePost(
   action: ActionType,
   request: ActionPostRequest,
@@ -112,17 +99,10 @@ export async function handlePost(
   }
 }
 
-/**
- * Handle OPTIONS requests - CORS preflight
- */
 export function handleOptions(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-/**
- * actions.json manifest for root endpoint
- * Place at /.well-known/actions.json or /actions.json
- */
 export const actionsManifest = {
   rules: [
     { pathPattern: '/api/actions/create-escrow', apiPath: '/api/actions/create-escrow' },
@@ -132,9 +112,6 @@ export const actionsManifest = {
   ],
 };
 
-/**
- * Full request handler for serverless deployment
- */
 export async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/').filter(Boolean);

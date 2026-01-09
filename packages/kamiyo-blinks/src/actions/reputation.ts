@@ -3,28 +3,6 @@ import { PublicKey } from '@solana/web3.js';
 import { ICON_URL, BASE_URL } from '../constants';
 import { shortenAddress, createReadOnlyClient, lamportsToSol } from '../utils';
 
-function getRiskEmoji(risk: string): string {
-  switch (risk) {
-    case 'low': return '';
-    case 'medium': return '';
-    case 'high': return '';
-    default: return '';
-  }
-}
-
-function getRiskDescription(risk: string, score: number): string {
-  switch (risk) {
-    case 'low':
-      return `Strong track record with ${score}% trust score.`;
-    case 'medium':
-      return `Some concerns. Review history before transacting.`;
-    case 'high':
-      return `High risk. Exercise caution.`;
-    default:
-      return `Unable to assess risk.`;
-  }
-}
-
 export async function getReputationAction(requestUrl: URL): Promise<ActionGetResponse> {
   const address = requestUrl.searchParams.get('address');
 
@@ -119,8 +97,8 @@ export async function getReputationAction(requestUrl: URL): Promise<ActionGetRes
     return {
       type: 'action',
       icon: ICON_URL,
-      title: `${shortAddr} - ${score}% Trust ${getRiskEmoji(riskLevel)}`,
-      description: `${getRiskDescription(riskLevel, score)}\n\n${statsLine}`,
+      title: `${shortAddr} - ${score}% Trust`,
+      description: statsLine,
       label: `${riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)} Risk`,
       links: {
         actions: [
