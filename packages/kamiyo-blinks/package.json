@@ -1,0 +1,26 @@
+{
+  "name": "@kamiyo/blinks",
+  "version": "1.0.0",
+  "description": "Solana Actions (Blinks) for Kamiyo escrow protocol",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@kamiyo/sdk": "workspace:*",
+    "@solana/actions": "^1.6.6",
+    "@solana/web3.js": "^1.95.8",
+    "@coral-xyz/anchor": "^0.31.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
+  },
+  "files": [
+    "dist"
+  ]
+}
