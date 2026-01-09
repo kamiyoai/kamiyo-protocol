@@ -237,12 +237,24 @@ ${X}`);
 
   if (process.env.SOLANA_PRIVATE_KEY) {
     try {
-      wallet = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.SOLANA_PRIVATE_KEY)));
+      const key = process.env.SOLANA_PRIVATE_KEY.trim();
+      let secretKey: Uint8Array;
+
+      if (key.startsWith('[')) {
+        // JSON array format
+        secretKey = Uint8Array.from(JSON.parse(key));
+      } else {
+        // Base58 string format
+        const bs58 = await import('bs58');
+        secretKey = bs58.default.decode(key);
+      }
+
+      wallet = Keypair.fromSecretKey(secretKey);
       const conn = new Connection(RPC[network], 'confirmed');
       const bal = await conn.getBalance(wallet.publicKey);
       await log.header('LIVE MODE');
       await log.ok(`${network} | ${wallet.publicKey.toBase58().slice(0, 8)}... | ${(bal / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
-    } catch {
+    } catch (e) {
       await log.warn('bad SOLANA_PRIVATE_KEY, running sim');
     }
   }
