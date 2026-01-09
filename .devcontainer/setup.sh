@@ -14,29 +14,16 @@ echo 'export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"' 
 # Configure Solana for devnet
 solana config set --url https://api.devnet.solana.com || true
 
-# Install root dependencies
+# Install all dependencies via pnpm
 pnpm install
 
-# Build SDK first (eliza depends on it)
-echo "Building @kamiyo/sdk..."
-cd packages/kamiyo-sdk
-pnpm install || true
-pnpm build || echo "SDK build failed, continuing..."
-cd ../..
+# Build SDK and Eliza
+pnpm --filter @kamiyo/sdk build || true
+pnpm --filter @kamiyo/eliza build || true
 
-# Build eliza plugin
-echo "Building @kamiyo/eliza..."
-cd packages/kamiyo-eliza
-pnpm install || true
-pnpm build || echo "Eliza build failed, continuing..."
-cd ../..
-
-# Setup demo
-echo "Setting up demo..."
+# Install demo dependencies
 cd examples/eliza-demo
-cp .env.example .env 2>/dev/null || true
-rm -rf node_modules
-npm install
+pnpm install
 
 echo ""
 echo "========================================="
@@ -44,5 +31,5 @@ echo "Setup complete!"
 echo ""
 echo "Run the demo:"
 echo "  cd examples/eliza-demo"
-echo "  npm run dev"
+echo "  pnpm run dev"
 echo "========================================="
