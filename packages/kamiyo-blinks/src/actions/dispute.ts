@@ -3,32 +3,91 @@ import {
   ActionPostRequest,
   ActionPostResponse,
 } from '@solana/actions';
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
-import { KamiyoClient } from '@kamiyo/sdk';
-import { KAMIYO_PROGRAM_ID, RPC_URL, ICON_URL, CORS_HEADERS, BASE_URL } from '../constants';
+import { ICON_URL, BASE_URL } from '../constants';
+import {
+  validatePublicKey,
+  createReadOnlyClient,
+  getConnection,
+  buildAndSerializeTransaction,
+} from '../utils';
+
+const DISPUTE_REASONS = [
+  { label: 'Did not deliver', value: 'no_delivery' },
+  { label: 'Poor quality', value: 'poor_quality' },
+  { label: 'Incomplete work', value: 'incomplete' },
+  { label: 'Not as described', value: 'misrepresented' },
+  { label: 'Other', value: 'other' },
+] as const;
 
 export function getDisputeAction(requestUrl: URL): ActionGetResponse {
   const escrowId = requestUrl.searchParams.get('escrowId');
+
+  if (escrowId) {
+    return {
+      type: 'action',
+      icon: ICON_URL,
+      title: `Dispute Escrow ${escrowId.slice(0, 12)}...`,
+      description: 'File a dispute for oracle arbitration. Oracles will vote on refund percentage based on evidence.',
+      label: 'File Dispute',
+      links: {
+        actions: [
+          {
+            type: 'transaction',
+            label: 'File Dispute',
+            href: `${BASE_URL}/api/actions/dispute?escrowId=${escrowId}&reason={reason}`,
+            parameters: [
+              {
+                name: 'reason',
+                label: 'Reason for dispute',
+                required: true,
+                type: 'select',
+                options: DISPUTE_REASONS.map(r => ({ label: r.label, value: r.value })),
+              },
+            ],
+          },
+          {
+            type: 'transaction',
+            label: 'Release Instead',
+            href: `${BASE_URL}/api/actions/release-escrow?escrowId=${escrowId}&provider={provider}`,
+            parameters: [
+              {
+                name: 'provider',
+                label: 'Provider address',
+                required: true,
+                type: 'text',
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
 
   return {
     type: 'action',
     icon: ICON_URL,
     title: 'File Kamiyo Dispute',
-    description: 'File a dispute for oracle arbitration. Refund determined by quality score.',
+    description: 'File a dispute for oracle arbitration. Refund determined by quality assessment.',
     label: 'File Dispute',
     links: {
       actions: [
         {
           type: 'transaction',
           label: 'File Dispute',
-          href: `${BASE_URL}/api/actions/dispute?escrowId={escrowId}`,
+          href: `${BASE_URL}/api/actions/dispute?escrowId={escrowId}&reason={reason}`,
           parameters: [
             {
               name: 'escrowId',
               label: 'Escrow ID',
               required: true,
               type: 'text',
-              ...(escrowId && { value: escrowId }),
+            },
+            {
+              name: 'reason',
+              label: 'Reason for dispute',
+              required: true,
+              type: 'select',
+              options: DISPUTE_REASONS.map(r => ({ label: r.label, value: r.value })),
             },
           ],
         },
@@ -42,45 +101,38 @@ export async function postDispute(
   requestUrl: URL
 ): Promise<ActionPostResponse> {
   const escrowId = requestUrl.searchParams.get('escrowId');
+  const reason = requestUrl.searchParams.get('reason') || 'other';
 
   if (!escrowId) {
-    throw new Error('Missing escrowId');
+    throw new Error('Escrow ID is required');
   }
 
-  const payerPubkey = new PublicKey(request.account);
+  const payerPubkey = validatePublicKey(request.account, 'payer');
 
-  const connection = new Connection(RPC_URL, 'confirmed');
-
-  const client = new KamiyoClient({
-    connection,
-    wallet: {
-      publicKey: payerPubkey,
-      signTransaction: async (tx: Transaction) => tx,
-      signAllTransactions: async (txs: Transaction[]) => txs,
-    } as any,
-    programId: KAMIYO_PROGRAM_ID,
-  });
+  const connection = getConnection();
+  const client = createReadOnlyClient(payerPubkey);
 
   const ix = client.buildMarkDisputedInstruction(payerPubkey, escrowId);
+  const transaction = await buildAndSerializeTransaction(connection, payerPubkey, ix);
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-
-  const transaction = new Transaction({
-    feePayer: payerPubkey,
-    blockhash,
-    lastValidBlockHeight,
-  }).add(ix);
-
-  const serialized = transaction.serialize({
-    requireAllSignatures: false,
-    verifySignatures: false,
-  });
+  const reasonLabel = DISPUTE_REASONS.find(r => r.value === reason)?.label || reason;
 
   return {
     type: 'transaction',
-    transaction: Buffer.from(serialized).toString('base64'),
-    message: `Dispute filed for escrow ${escrowId}. Oracles will arbitrate.`,
+    transaction,
+    message: `Dispute filed: ${reasonLabel}. Oracles will arbitrate within 24-48 hours.`,
+    links: {
+      next: {
+        type: 'inline',
+        action: {
+          type: 'action',
+          icon: ICON_URL,
+          title: 'Dispute Filed',
+          description: 'Your dispute has been submitted. Switchboard oracles will vote on the outcome.',
+          label: 'Pending',
+          disabled: true,
+        },
+      },
+    },
   };
 }
-
-export { CORS_HEADERS };

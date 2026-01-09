@@ -3,13 +3,42 @@ import {
   ActionPostRequest,
   ActionPostResponse,
 } from '@solana/actions';
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
-import { KamiyoClient } from '@kamiyo/sdk';
-import { KAMIYO_PROGRAM_ID, RPC_URL, ICON_URL, CORS_HEADERS, BASE_URL } from '../constants';
+import { ICON_URL, BASE_URL } from '../constants';
+import {
+  validatePublicKey,
+  shortenAddress,
+  createReadOnlyClient,
+  getConnection,
+  buildAndSerializeTransaction,
+} from '../utils';
 
 export function getReleaseEscrowAction(requestUrl: URL): ActionGetResponse {
   const escrowId = requestUrl.searchParams.get('escrowId');
   const provider = requestUrl.searchParams.get('provider');
+
+  if (escrowId && provider) {
+    return {
+      type: 'action',
+      icon: ICON_URL,
+      title: `Release to ${shortenAddress(provider)}`,
+      description: `Release escrowed funds for escrow ${escrowId}. This confirms successful delivery.`,
+      label: 'Release Funds',
+      links: {
+        actions: [
+          {
+            type: 'transaction',
+            label: 'Confirm Release',
+            href: `${BASE_URL}/api/actions/release-escrow?escrowId=${escrowId}&provider=${provider}`,
+          },
+          {
+            type: 'transaction',
+            label: 'Dispute Instead',
+            href: `${BASE_URL}/api/actions/dispute?escrowId=${escrowId}`,
+          },
+        ],
+      },
+    };
+  }
 
   return {
     type: 'action',
@@ -26,14 +55,14 @@ export function getReleaseEscrowAction(requestUrl: URL): ActionGetResponse {
           parameters: [
             {
               name: 'escrowId',
-              label: 'Escrow ID',
+              label: 'Escrow ID (e.g., blink_abc123)',
               required: true,
               type: 'text',
               ...(escrowId && { value: escrowId }),
             },
             {
               name: 'provider',
-              label: 'Provider address',
+              label: 'Provider wallet address',
               required: true,
               type: 'text',
               ...(provider && { value: provider }),
@@ -50,47 +79,54 @@ export async function postReleaseEscrow(
   requestUrl: URL
 ): Promise<ActionPostResponse> {
   const escrowId = requestUrl.searchParams.get('escrowId');
-  const provider = requestUrl.searchParams.get('provider');
+  const providerParam = requestUrl.searchParams.get('provider');
 
-  if (!escrowId || !provider) {
-    throw new Error('Missing escrowId or provider');
+  if (!escrowId) {
+    throw new Error('Escrow ID is required');
   }
 
-  const providerPubkey = new PublicKey(provider);
-  const payerPubkey = new PublicKey(request.account);
+  if (!providerParam) {
+    throw new Error('Provider address is required');
+  }
 
-  const connection = new Connection(RPC_URL, 'confirmed');
+  const providerPubkey = validatePublicKey(providerParam, 'provider');
+  const payerPubkey = validatePublicKey(request.account, 'payer');
 
-  const client = new KamiyoClient({
-    connection,
-    wallet: {
-      publicKey: payerPubkey,
-      signTransaction: async (tx: Transaction) => tx,
-      signAllTransactions: async (txs: Transaction[]) => txs,
-    } as any,
-    programId: KAMIYO_PROGRAM_ID,
-  });
+  const connection = getConnection();
+  const client = createReadOnlyClient(payerPubkey);
 
   const ix = client.buildReleaseFundsInstruction(payerPubkey, escrowId, providerPubkey);
-
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-
-  const transaction = new Transaction({
-    feePayer: payerPubkey,
-    blockhash,
-    lastValidBlockHeight,
-  }).add(ix);
-
-  const serialized = transaction.serialize({
-    requireAllSignatures: false,
-    verifySignatures: false,
-  });
+  const transaction = await buildAndSerializeTransaction(connection, payerPubkey, ix);
 
   return {
     type: 'transaction',
-    transaction: Buffer.from(serialized).toString('base64'),
-    message: `Funds released to ${provider.slice(0, 8)}...`,
+    transaction,
+    message: `Funds released to ${shortenAddress(providerParam)}. Transaction complete.`,
+    links: {
+      next: {
+        type: 'inline',
+        action: {
+          type: 'action',
+          icon: ICON_URL,
+          title: 'Payment Complete',
+          description: `You released funds to ${shortenAddress(providerParam)}. Check their updated reputation.`,
+          label: 'Done',
+          links: {
+            actions: [
+              {
+                type: 'external-link',
+                label: 'View Reputation',
+                href: `${BASE_URL}/api/actions/reputation?address=${providerParam}`,
+              },
+              {
+                type: 'transaction',
+                label: 'Create New Escrow',
+                href: `${BASE_URL}/api/actions/create-escrow?provider=${providerParam}`,
+              },
+            ],
+          },
+        },
+      },
+    },
   };
 }
-
-export { CORS_HEADERS };
