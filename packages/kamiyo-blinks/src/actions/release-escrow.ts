@@ -43,7 +43,7 @@ export function getReleaseEscrowAction(requestUrl: URL): ActionGetResponse {
   return {
     type: 'action',
     icon: ICON_URL,
-    title: 'Release Kamiyo Escrow',
+    title: 'Release KAMIYO Escrow',
     description: 'Release escrowed funds to the provider after successful delivery.',
     label: 'Release Funds',
     links: {

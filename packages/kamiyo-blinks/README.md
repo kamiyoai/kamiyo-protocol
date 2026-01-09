@@ -1,6 +1,6 @@
 # @kamiyo/blinks
 
-Solana Actions (Blinks) for Kamiyo escrow protocol. Create escrows, release funds, file disputes, and check reputation directly from X or any Blink-enabled wallet.
+Solana Actions (Blinks) for KAMIYO escrow protocol. Create escrows, release funds, file disputes, and check reputation directly from X or any Blink-enabled wallet.
 
 ## Actions
 
@@ -43,7 +43,7 @@ Displays: `8xYz... - 92% Trust | 150 escrows | 2% disputed | 0.5 SOL staked`
 
 ```html
 <a href="solana-action:https://blinks.kamiyo.ai/api/actions/create-escrow?provider=YOUR_ADDRESS">
-  Pay with Kamiyo Escrow
+  Pay with KAMIYO Escrow
 </a>
 ```
 

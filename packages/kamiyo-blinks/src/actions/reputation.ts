@@ -10,7 +10,7 @@ export async function getReputationAction(requestUrl: URL): Promise<ActionGetRes
     return {
       type: 'action',
       icon: ICON_URL,
-      title: 'Check Kamiyo Reputation',
+      title: 'Check KAMIYO Reputation',
       description: 'Look up on-chain trust score, transaction history, and dispute rate for any Solana address.',
       label: 'Check',
       links: {
@@ -61,7 +61,7 @@ export async function getReputationAction(requestUrl: URL): Promise<ActionGetRes
         type: 'action',
         icon: ICON_URL,
         title: `${shortAddr} - New User`,
-        description: 'No transaction history with Kamiyo protocol. This address has not participated in any escrows.',
+        description: 'No transaction history with KAMIYO. This address has not participated in any escrows.',
         label: 'No History',
         links: {
           actions: [
@@ -120,7 +120,7 @@ export async function getReputationAction(requestUrl: URL): Promise<ActionGetRes
       type: 'action',
       icon: ICON_URL,
       title: `${shortAddr} - Lookup Failed`,
-      description: 'Could not fetch reputation data. The address may not have interacted with Kamiyo.',
+      description: 'Could not fetch reputation data. The address may not have interacted with KAMIYO.',
       label: 'Error',
       links: {
         actions: [

@@ -107,7 +107,7 @@ export function getCreateEscrowAction(requestUrl: URL): ActionGetResponse {
   return {
     type: 'action',
     icon: ICON_URL,
-    title: provider ? `Pay ${shortProvider}` : 'Create Kamiyo Escrow',
+    title: provider ? `Pay ${shortProvider}` : 'Create KAMIYO Escrow',
     description: provider
       ? `Lock SOL in escrow for ${shortProvider}. Release after delivery or dispute for refund.`
       : 'Lock SOL in escrow. Funds are released on delivery or refunded via oracle arbitration.',
