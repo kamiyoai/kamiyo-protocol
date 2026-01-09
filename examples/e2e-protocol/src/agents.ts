@@ -172,4 +172,8 @@ export class AgentRegistry {
   getBlacklist(): Blacklist {
     return this.blacklist;
   }
+
+  getClient(): KamiyoClient | null {
+    return this.client;
+  }
 }

@@ -396,6 +396,28 @@ export class KamiyoClient {
     });
   }
 
+  /**
+   * Build deactivate agent instruction
+   * Returns stake and closes account (rent returned to owner)
+   */
+  buildDeactivateAgentInstruction(owner: PublicKey): TransactionInstruction {
+    const [agentPDA] = this.getAgentPDA(owner);
+
+    // sha256("global:deactivate_agent")[0..8]
+    const discriminator = Buffer.from([
+      0x79, 0x64, 0x04, 0x47, 0x57, 0xd9, 0xd0, 0x8d,
+    ]);
+
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: agentPDA, isSigner: false, isWritable: true },
+        { pubkey: owner, isSigner: true, isWritable: true },
+      ],
+      programId: this.programId,
+      data: discriminator,
+    });
+  }
+
   // ========================================================================
   // High-Level Operations
   // ========================================================================
@@ -483,6 +505,29 @@ export class KamiyoClient {
     const instruction = this.buildMarkDisputedInstruction(
       this.wallet.publicKey,
       transactionId
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
+  }
+
+  /**
+   * Deactivate agent and recover stake + rent
+   */
+  async deactivateAgent(): Promise<string> {
+    const instruction = this.buildDeactivateAgentInstruction(
+      this.wallet.publicKey
     );
 
     const transaction = new Transaction().add(instruction);
