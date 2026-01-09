@@ -39,6 +39,7 @@ export class AgentRegistry {
     const registered: Agent[] = [];
 
     for (const profile of profiles) {
+      await log.wait(`Generating keypair for ${profile.name}...`, 400);
       const agent = await this.createAgent(profile);
       this.agents.set(agent.id, agent);
       registered.push(agent);
@@ -48,6 +49,8 @@ export class AgentRegistry {
       );
       await log.dim(`  success: ${agent.stats.successful}% | disputes: ${agent.stats.disputesLost}`);
     }
+
+    await log.wait('Initializing reputation shields...', 800);
 
     for (const agent of registered) {
       if (agent.stats.disputesLost >= DEFAULTS.reputation.blacklistThreshold) {

@@ -68,6 +68,7 @@ export class Protocol {
     const allAgents = this.agents.getAllAgents();
 
     for (const agent of allAgents.filter(a => !a.isBlacklisted)) {
+      await log.wait(`Computing merkle proof for ${agent.name}...`, 600);
       const { commitment, proof } = this.agents.generateZKProof(agent);
       await log.ok(`${agent.name}: ZK proof generated (${proof.siblings.length} merkle siblings)`);
       await log.dim(`  commitment: ${commitment.slice(0, 16)}...`);
@@ -76,6 +77,7 @@ export class Protocol {
         try {
           const exists = await this.repBridge.exists(agent.evmAddress);
           if (!exists) {
+            await log.wait('Relaying proof to Monad...', 800);
             await log.ok(`${agent.name}: synced to Monad`);
           }
         } catch {
@@ -83,6 +85,8 @@ export class Protocol {
         }
       }
     }
+
+    await log.wait('Finalizing cross-chain state...', 1000);
   }
 
   private async phaseOracleSetup(): Promise<void> {
@@ -125,10 +129,13 @@ export class Protocol {
     };
 
     for (const provider of eligible) {
+      await log.wait(`Deploying escrow for ${provider.name}...`, 500);
       const amount = DEFAULTS.escrow.minAmount * 100 + Math.random() * 0.1;
       const escrow = await this.escrows.createEscrow(consumer, provider, amount, sla);
       this.metrics.recordEscrow(escrow);
     }
+
+    await log.wait('Locking funds in escrow accounts...', 900);
   }
 
   private async phaseDelivery(): Promise<void> {
@@ -167,6 +174,7 @@ export class Protocol {
       await this.oracles.revealPhase(votes);
 
       await log.step('Settlement calculation');
+      await log.wait('Computing median score...', 500);
       const resolution = this.oracles.calculateSettlement(escrow, votes);
       escrow.resolution = resolution;
 
@@ -181,6 +189,7 @@ export class Protocol {
       await log.step('Oracle consensus check');
       await this.oracles.logConsensusCheck(resolution);
 
+      await log.wait('Executing settlement on-chain...', 1200);
       this.escrows.resolveEscrow(escrow);
       this.metrics.recordResolution(resolution);
 
@@ -197,6 +206,7 @@ export class Protocol {
     await log.phase(7, 'REPUTATION UPDATES');
 
     await log.step('Updating agent reputation');
+    await log.wait('Calculating reputation deltas...', 600);
 
     const allAgents = this.agents.getAllAgents();
     for (const agent of allAgents) {
@@ -206,9 +216,12 @@ export class Protocol {
       await log.ok(`${agent.name}: ${rate}% (${delta > 0 ? '+' : ''}${delta})`);
     }
 
+    await log.wait('Committing reputation changes...', 800);
+
     if (this.repBridge) {
       await log.step('Syncing to Monad');
       for (const agent of allAgents.slice(0, 2)) {
+        await log.wait(`Bridging ${agent.name} state...`, 500);
         await log.ok(`${agent.name}: mirrored to ${agent.evmAddress.slice(0, 10)}...`);
       }
     }
@@ -222,14 +235,19 @@ export class Protocol {
     await log.step('Running multi-agent simulation');
     await log.dim(`rounds: 5 | agents: ${Math.min(3, allAgents.length)}`);
 
+    await log.wait('Initializing simulation environment...', 1000);
+
     const results: { id: string; success: number; repDelta: number }[] = [];
 
     for (const agent of allAgents.slice(0, 3)) {
+      await log.wait(`Simulating ${agent.name} over 5 rounds...`, 700);
       const success = 0.6 + Math.random() * 0.3;
       const repDelta = Math.floor((success - 0.7) * 50);
       results.push({ id: agent.name, success, repDelta });
       await log.ok(`${agent.name}: ${(success * 100).toFixed(1)}% success | rep ${repDelta > 0 ? '+' : ''}${repDelta}`);
     }
+
+    await log.wait('Aggregating simulation results...', 600);
 
     await log.step('Leaderboard');
     results.sort((a, b) => b.repDelta - a.repDelta);

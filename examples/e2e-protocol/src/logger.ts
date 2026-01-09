@@ -83,6 +83,35 @@ export class Logger {
     console.log(`\n${COLORS.bold}${COLORS.magenta}[PHASE ${num}]${COLORS.reset} ${COLORS.bold}${title}${COLORS.reset}\n`);
   }
 
+  async wait(message: string, durationMs: number = 1500): Promise<void> {
+    if (!this.animate) {
+      console.log(`  ${COLORS.dim}${message}${COLORS.reset}`);
+      return;
+    }
+
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    const start = Date.now();
+    let i = 0;
+
+    process.stdout.write(`  ${COLORS.dim}${frames[0]} ${message}${COLORS.reset}`);
+
+    while (Date.now() - start < durationMs) {
+      await new Promise(r => setTimeout(r, 80));
+      i = (i + 1) % frames.length;
+      process.stdout.write(`\r  ${COLORS.dim}${frames[i]} ${message}${COLORS.reset}`);
+    }
+
+    process.stdout.write(`\r  ${COLORS.dim}✓ ${message}${COLORS.reset}\n`);
+  }
+
+  async progress(label: string, steps: string[], delayBetween: number = 400): Promise<void> {
+    console.log(`  ${COLORS.dim}${label}${COLORS.reset}`);
+    for (const step of steps) {
+      await this.delay(delayBetween);
+      console.log(`    ${COLORS.dim}→ ${step}${COLORS.reset}`);
+    }
+  }
+
   table(headers: string[], rows: string[][]): void {
     const widths = headers.map((h, i) =>
       Math.max(h.length, ...rows.map(r => (r[i] || '').length))
@@ -107,14 +136,19 @@ export class Logger {
   }
 
   banner(): void {
-    console.log(`${COLORS.bold}${COLORS.cyan}
-    ██╗  ██╗ █████╗ ███╗   ███╗██╗██╗   ██╗ ██████╗
-    ██║ ██╔╝██╔══██╗████╗ ████║██║╚██╗ ██╔╝██╔═══██╗
-    █████╔╝ ███████║██╔████╔██║██║ ╚████╔╝ ██║   ██║
-    ██╔═██╗ ██╔══██║██║╚██╔╝██║██║  ╚██╔╝  ██║   ██║
-    ██║  ██╗██║  ██║██║ ╚═╝ ██║██║   ██║   ╚██████╔╝
-    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝   ╚═╝    ╚═════╝
-${COLORS.reset}`);
+    const c = '\x1b[36m';  // cyan
+    const p = '\x1b[35m';  // magenta/purple
+    const b = '\x1b[94m';  // bright blue
+    const r = '\x1b[0m';   // reset
+
+    console.log(`\x1b[1m
+    ${c}██╗  ██╗${b} █████╗ ${p}███╗   ███╗${c}██╗${b}██╗   ██╗${p} ██████╗${r}
+    ${c}██║ ██╔╝${b}██╔══██╗${p}████╗ ████║${c}██║${b}╚██╗ ██╔╝${p}██╔═══██╗${r}
+    ${c}█████╔╝ ${b}███████║${p}██╔████╔██║${c}██║${b} ╚████╔╝ ${p}██║   ██║${r}
+    ${c}██╔═██╗ ${b}██╔══██║${p}██║╚██╔╝██║${c}██║${b}  ╚██╔╝  ${p}██║   ██║${r}
+    ${c}██║  ██╗${b}██║  ██║${p}██║ ╚═╝ ██║${c}██║${b}   ██║   ${p}╚██████╔╝${r}
+    ${c}╚═╝  ╚═╝${b}╚═╝  ╚═╝${p}╚═╝     ╚═╝${c}╚═╝${b}   ╚═╝    ${p}╚═════╝${r}
+`);
   }
 
   getEntries(): LogEntry[] {
