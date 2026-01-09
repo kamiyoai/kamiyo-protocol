@@ -31,9 +31,9 @@ export const NETWORKS: Record<MonadNetwork, NetworkConfig> = {
     rpc: process.env.MONAD_MAINNET_RPC || 'https://monad-mainnet.drpc.org',
     explorer: 'https://explorer.monad.xyz',
     contracts: {
-      agentFactory: '0x0000000000000000000000000000000000000000',
-      reputationMirror: '0x0000000000000000000000000000000000000000',
-      swarmSimulator: '0x0000000000000000000000000000000000000000',
+      agentFactory: '0x87f9aC00D727A1Ee8d1C246b67e2D0eb1a2206b2',
+      reputationMirror: '0x7f4C878E7B2B083878f0bA3d2De2c6DB995B1A11',
+      swarmSimulator: '0xcAa2e2d77E09c4ec48830adA7ABC711607350EA5',
     },
   },
 };
