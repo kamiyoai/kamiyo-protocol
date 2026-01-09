@@ -397,8 +397,7 @@ export class KamiyoClient {
   }
 
   /**
-   * Build deactivate agent instruction
-   * Returns stake and closes account (rent returned to owner)
+   * Build deactivate agent instruction (closes PDA, returns stake + rent)
    */
   buildDeactivateAgentInstruction(owner: PublicKey): TransactionInstruction {
     const [agentPDA] = this.getAgentPDA(owner);
@@ -523,7 +522,7 @@ export class KamiyoClient {
   }
 
   /**
-   * Deactivate agent and recover stake + rent
+   * Deactivate agent (closes PDA, returns stake + rent)
    */
   async deactivateAgent(): Promise<string> {
     const instruction = this.buildDeactivateAgentInstruction(
