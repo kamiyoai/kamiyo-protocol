@@ -1,337 +1,199 @@
-/**
- * Swarm backtesting engine using Monad's parallel execution.
- * Runs concurrent evolutionary simulations without serialization constraints.
- */
-
 import { ethers } from 'ethers';
 import { MonadProvider } from './provider';
 import {
-  SwarmConfig,
-  AgentConfig,
-  SimulationResult,
-  RoundResult,
-  Action,
-  SimulationMetrics,
-  MonadError,
+  SwarmConfig, AgentConfig, SimulationResult, RoundResult,
+  Action, SimulationMetrics, MonadError
 } from './types';
 
-const SWARM_SIMULATOR_ABI = [
-  'function initializeSimulation(bytes32 configHash, uint256 rounds) external returns (bytes32 simId)',
-  'function executeRound(bytes32 simId, bytes calldata actions) external returns (bytes32 stateHash)',
-  'function getSimulationState(bytes32 simId) view returns (bytes32 stateHash, uint256 currentRound, bool completed)',
-  'function finalizeSimulation(bytes32 simId) external returns (bytes memory results)',
-  'event SimulationStarted(bytes32 indexed simId, bytes32 configHash, uint256 rounds)',
-  'event RoundCompleted(bytes32 indexed simId, uint256 round, bytes32 stateHash)',
-  'event SimulationFinalized(bytes32 indexed simId, bytes results)',
+const SIM_ABI = [
+  'function initializeSimulation(bytes32, uint256) external returns (bytes32)',
+  'function executeRound(bytes32, bytes) external returns (bytes32)',
+  'function getSimulationState(bytes32) view returns (bytes32, uint256, bool)',
+  'function finalizeSimulation(bytes32) external returns (bytes)',
 ];
 
 export interface InferenceProvider {
-  analyze(context: SimulationContext): Promise<Decision>;
+  analyze(ctx: SimulationContext): Promise<Decision>;
 }
 
 export interface SimulationContext {
   agentId: string;
-  currentRound: number;
+  round: number;
   state: Record<string, unknown>;
   history: RoundResult[];
-  peers: AgentState[];
-}
-
-export interface AgentState {
-  id: string;
-  reputation: number;
-  lastAction: Action | null;
+  peers: { id: string; reputation: number; lastAction: Action | null }[];
 }
 
 export interface Decision {
   action: string;
   target?: string;
-  parameters: Record<string, unknown>;
+  params: Record<string, unknown>;
   confidence: number;
 }
 
 export class SwarmBacktester {
   private readonly provider: MonadProvider;
-  private readonly simulatorAddress: string;
   private readonly simulator: ethers.Contract;
   private readonly inference?: InferenceProvider;
 
   constructor(provider: MonadProvider, inference?: InferenceProvider) {
     this.provider = provider;
-    this.simulatorAddress = provider.getContracts().swarmSimulator;
     this.simulator = new ethers.Contract(
-      this.simulatorAddress,
-      SWARM_SIMULATOR_ABI,
+      provider.getContracts().swarmSimulator,
+      SIM_ABI,
       provider.getProvider()
     );
     this.inference = inference;
   }
 
-  async runSimulation(config: SwarmConfig): Promise<SimulationResult[]> {
-    const stateRoot = config.stateRoot || (await this.provider.forkState());
-    const simulations = config.agents.map((agent) =>
-      this.simulateAgent(agent, config.simulationRounds, stateRoot)
-    );
-    return Promise.all(simulations);
+  async run(config: SwarmConfig): Promise<SimulationResult[]> {
+    const root = config.stateRoot || (await this.provider.forkState());
+    return Promise.all(config.agents.map((a) => this.simulate(a, config.simulationRounds, root)));
   }
 
-  private async simulateAgent(
-    agent: AgentConfig,
-    rounds: number,
-    stateRoot: string
-  ): Promise<SimulationResult> {
-    const roundResults: RoundResult[] = [];
-    let currentState = agent.initialState || {};
-    let totalGasUsed = 0n;
-    let successCount = 0;
+  private async simulate(agent: AgentConfig, rounds: number, _root: string): Promise<SimulationResult> {
+    const results: RoundResult[] = [];
+    let state = agent.initialState || {};
+    let gas = 0n;
+    let ok = 0;
     const latencies: number[] = [];
 
-    for (let round = 0; round < rounds; round++) {
-      const start = Date.now();
-
+    for (let r = 0; r < rounds; r++) {
+      const t0 = Date.now();
       try {
-        const roundResult = await this.executeRound(
-          agent,
-          round,
-          currentState,
-          roundResults
-        );
-
-        roundResults.push(roundResult);
-        currentState = { ...currentState, ...roundResult.stateChanges };
-        totalGasUsed += roundResult.gasUsed;
-        successCount++;
-        latencies.push(Date.now() - start);
+        const result = await this.execRound(agent, r, state, results);
+        results.push(result);
+        state = { ...state, ...result.stateChanges };
+        gas += result.gasUsed;
+        ok++;
       } catch (e) {
-        roundResults.push({
-          round,
-          actions: [],
-          stateChanges: { error: String(e) },
-          gasUsed: 0n,
-        });
-        latencies.push(Date.now() - start);
+        results.push({ round: r, actions: [], stateChanges: { error: String(e) }, gasUsed: 0n });
       }
+      latencies.push(Date.now() - t0);
     }
 
-    const initialReputation = (agent.initialState?.reputation as number) || 500;
-    const finalReputation = (currentState.reputation as number) || 500;
+    const initRep = (agent.initialState?.reputation as number) || 500;
+    const finalRep = (state.reputation as number) || 500;
 
     return {
       agentId: agent.id,
-      rounds: roundResults,
-      finalState: currentState,
+      rounds: results,
+      finalState: state,
       metrics: {
-        totalGasUsed,
-        successRate: successCount / rounds,
+        totalGasUsed: gas,
+        successRate: ok / rounds,
         averageLatency: latencies.reduce((a, b) => a + b, 0) / latencies.length,
-        reputationDelta: finalReputation - initialReputation,
+        reputationDelta: finalRep - initRep,
       },
     };
   }
 
-  private async executeRound(
+  private async execRound(
     agent: AgentConfig,
     round: number,
     state: Record<string, unknown>,
     history: RoundResult[]
   ): Promise<RoundResult> {
-    const actions: Action[] = [];
-    const stateChanges: Record<string, unknown> = {};
+    const decision = await this.decide(agent, round, state, history);
+    const action = this.exec(decision, state);
+    const changes: Record<string, unknown> = {};
 
-    const decision = await this.getDecision(agent, round, state, history);
-    const action = await this.executeAction(decision, state);
-    actions.push(action);
-
-    if (action.result !== undefined) {
-      stateChanges[`action_${round}`] = action.result;
-    }
-
-    const gasUsed = await this.estimateRoundGas(actions);
-    Object.assign(stateChanges, this.applyStrategy(agent.strategy, action, state));
+    if (action.result !== undefined) changes[`action_${round}`] = action.result;
+    Object.assign(changes, this.applyStrategy(agent.strategy, action, state));
 
     return {
       round,
-      actions,
-      stateChanges,
-      gasUsed,
+      actions: [action],
+      stateChanges: changes,
+      gasUsed: 21000n + 50000n,
     };
   }
 
-  private async getDecision(
+  private async decide(
     agent: AgentConfig,
     round: number,
     state: Record<string, unknown>,
     history: RoundResult[]
   ): Promise<Decision> {
     if (this.inference) {
-      const context: SimulationContext = {
-        agentId: agent.id,
-        currentRound: round,
-        state,
-        history,
-        peers: [],
-      };
-      return this.inference.analyze(context);
+      return this.inference.analyze({ agentId: agent.id, round, state, history, peers: [] });
     }
-
-    return this.defaultDecision(agent, round, state);
+    return this.defaultDecision(agent, state);
   }
 
-  private defaultDecision(
-    agent: AgentConfig,
-    round: number,
-    state: Record<string, unknown>
-  ): Decision {
-    const strategy = agent.strategy;
-    const params = agent.parameters;
-
-    switch (strategy) {
+  private defaultDecision(agent: AgentConfig, state: Record<string, unknown>): Decision {
+    const p = agent.parameters;
+    switch (agent.strategy) {
       case 'aggressive':
-        return {
-          action: 'trade',
-          parameters: { amount: params.maxAmount || 100, leverage: 2 },
-          confidence: 0.8,
-        };
-
+        return { action: 'trade', params: { amount: p.maxAmount || 100, leverage: 2 }, confidence: 0.8 };
       case 'conservative':
-        return {
-          action: 'hold',
-          parameters: { duration: params.holdDuration || 5 },
-          confidence: 0.9,
-        };
-
+        return { action: 'hold', params: { duration: p.holdDuration || 5 }, confidence: 0.9 };
       case 'adaptive':
         const trend = (state.trend as number) || 0;
-        return {
-          action: trend > 0 ? 'trade' : 'hold',
-          parameters: { amount: Math.abs(trend) * 10 },
-          confidence: 0.7,
-        };
-
+        return { action: trend > 0 ? 'trade' : 'hold', params: { amount: Math.abs(trend) * 10 }, confidence: 0.7 };
       case 'random':
-        const actions = ['trade', 'hold', 'exit'];
-        return {
-          action: actions[Math.floor(Math.random() * actions.length)],
-          parameters: {},
-          confidence: 0.5,
-        };
-
+        const acts = ['trade', 'hold', 'exit'];
+        return { action: acts[Math.floor(Math.random() * acts.length)], params: {}, confidence: 0.5 };
       default:
-        return {
-          action: 'observe',
-          parameters: {},
-          confidence: 1.0,
-        };
+        return { action: 'observe', params: {}, confidence: 1.0 };
     }
   }
 
-  private async executeAction(
-    decision: Decision,
-    _state: Record<string, unknown>
-  ): Promise<Action> {
-    const action: Action = {
-      type: decision.action,
-      target: decision.target,
-      data: JSON.stringify(decision.parameters),
-    };
+  private exec(d: Decision, _state: Record<string, unknown>): Action {
+    const action: Action = { type: d.action, target: d.target, data: JSON.stringify(d.params) };
 
-    switch (decision.action) {
+    switch (d.action) {
       case 'trade':
-        const amount = (decision.parameters.amount as number) || 10;
-        const success = Math.random() > 0.3;
-        action.result = {
-          success,
-          pnl: success ? amount * 0.1 : -amount * 0.05,
-        };
+        const amt = (d.params.amount as number) || 10;
+        const win = Math.random() > 0.3;
+        action.result = { success: win, pnl: win ? amt * 0.1 : -amt * 0.05 };
         break;
-
       case 'hold':
-        action.result = { duration: decision.parameters.duration || 1 };
+        action.result = { duration: d.params.duration || 1 };
         break;
-
       case 'exit':
         action.result = { position: 0 };
         break;
-
       default:
         action.result = { observed: true };
     }
-
     return action;
   }
 
-  private applyStrategy(
-    strategy: string,
-    action: Action,
-    state: Record<string, unknown>
-  ): Record<string, unknown> {
+  private applyStrategy(strategy: string, action: Action, state: Record<string, unknown>): Record<string, unknown> {
     const changes: Record<string, unknown> = {};
-    const result = action.result as Record<string, unknown> | undefined;
+    const res = action.result as Record<string, unknown> | undefined;
 
-    if (result?.pnl !== undefined) {
-      const currentBalance = (state.balance as number) || 1000;
-      changes.balance = currentBalance + (result.pnl as number);
+    if (res?.pnl !== undefined) {
+      changes.balance = ((state.balance as number) || 1000) + (res.pnl as number);
     }
-
-    if (result?.success !== undefined) {
-      const currentReputation = (state.reputation as number) || 500;
-      changes.reputation = result.success
-        ? Math.min(1000, currentReputation + 5)
-        : Math.max(0, currentReputation - 2);
+    if (res?.success !== undefined) {
+      const rep = (state.reputation as number) || 500;
+      changes.reputation = res.success ? Math.min(1000, rep + 5) : Math.max(0, rep - 2);
     }
-
     return changes;
   }
 
-  private async estimateRoundGas(actions: Action[]): Promise<bigint> {
-    const baseGas = 21000n;
-    const perAction = 50000n;
-    return baseGas + BigInt(actions.length) * perAction;
-  }
-
-  aggregateResults(results: SimulationResult[]): {
-    bestAgent: string;
-    worstAgent: string;
-    averageSuccessRate: number;
-    totalGasUsed: bigint;
-    reputationLeaderboard: Array<{ id: string; delta: number }>;
+  aggregate(results: SimulationResult[]): {
+    best: string;
+    worst: string;
+    avgSuccess: number;
+    totalGas: bigint;
+    leaderboard: { id: string; delta: number }[];
   } {
-    if (results.length === 0) {
-      throw new MonadError('No simulation results', 'SIMULATION_ERROR');
-    }
+    if (!results.length) throw new MonadError('No results', 'SIMULATION_ERROR');
 
-    const sorted = [...results].sort(
-      (a, b) => b.metrics.reputationDelta - a.metrics.reputationDelta
-    );
-
-    const leaderboard = sorted.map((r) => ({
-      id: r.agentId,
-      delta: r.metrics.reputationDelta,
-    }));
-
-    const totalSuccessRate = results.reduce(
-      (sum, r) => sum + r.metrics.successRate,
-      0
-    );
-
-    const totalGas = results.reduce(
-      (sum, r) => sum + r.metrics.totalGasUsed,
-      0n
-    );
-
+    const sorted = [...results].sort((a, b) => b.metrics.reputationDelta - a.metrics.reputationDelta);
     return {
-      bestAgent: sorted[0].agentId,
-      worstAgent: sorted[sorted.length - 1].agentId,
-      averageSuccessRate: totalSuccessRate / results.length,
-      totalGasUsed: totalGas,
-      reputationLeaderboard: leaderboard,
+      best: sorted[0].agentId,
+      worst: sorted[sorted.length - 1].agentId,
+      avgSuccess: results.reduce((s, r) => s + r.metrics.successRate, 0) / results.length,
+      totalGas: results.reduce((s, r) => s + r.metrics.totalGasUsed, 0n),
+      leaderboard: sorted.map((r) => ({ id: r.agentId, delta: r.metrics.reputationDelta })),
     };
   }
 }
 
-export function createSwarmBacktester(
-  provider: MonadProvider,
-  inference?: InferenceProvider
-): SwarmBacktester {
+export function createSwarmBacktester(provider: MonadProvider, inference?: InferenceProvider): SwarmBacktester {
   return new SwarmBacktester(provider, inference);
 }

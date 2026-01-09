@@ -1,356 +1,188 @@
-/**
- * KAMIYO Helius Adapter - Webhook Handler
- * Process escrow events in real-time via Helius webhooks
- */
-
 import { createHmac, timingSafeEqual } from 'crypto';
-import {
-    HeliusWebhookPayload,
-    KamiyoEvent,
-    WebhookHandlerOptions
-} from './types';
+import { HeliusWebhookPayload, KamiyoEvent, WebhookHandlerOptions } from './types';
 import { KAMIYO_PROGRAM_ID, DEFAULTS, INSTRUCTION_DISCRIMINATORS } from './constants';
 
-/**
- * Verify Helius webhook signature
- */
-export function verifyWebhookSignature(
-    payload: string | Buffer,
-    signature: string,
-    secret: string
-): boolean {
-    const payloadString = typeof payload === 'string' ? payload : payload.toString('utf-8');
-
-    const expectedSignature = createHmac('sha256', secret)
-        .update(payloadString)
-        .digest('hex');
-
-    try {
-        return timingSafeEqual(
-            Buffer.from(signature),
-            Buffer.from(expectedSignature)
-        );
-    } catch {
-        return false;
-    }
+export function verifyWebhookSignature(payload: string | Buffer, signature: string, secret: string): boolean {
+  const str = typeof payload === 'string' ? payload : payload.toString('utf-8');
+  const expected = createHmac('sha256', secret).update(str).digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch { return false; }
 }
 
-/**
- * Parse webhook payload into KAMIYO events
- */
 export function parseWebhookPayload(payload: HeliusWebhookPayload[]): KamiyoEvent[] {
-    const events: KamiyoEvent[] = [];
+  const events: KamiyoEvent[] = [];
 
-    for (const tx of payload) {
-        const kamiyoInstructions = tx.instructions.filter(
-            ix => ix.programId === KAMIYO_PROGRAM_ID
-        );
-
-        for (const ix of kamiyoInstructions) {
-            const event = parseInstructionToEvent(ix, tx);
-            if (event) {
-                events.push(event);
-            }
-        }
+  for (const tx of payload) {
+    for (const ix of tx.instructions.filter(i => i.programId === KAMIYO_PROGRAM_ID)) {
+      const ev = parseIx(ix, tx);
+      if (ev) events.push(ev);
     }
+  }
 
-    return events;
+  return events;
 }
 
-/**
- * Parse single instruction into KAMIYO event
- */
-function parseInstructionToEvent(
-    instruction: HeliusWebhookPayload['instructions'][0],
-    tx: HeliusWebhookPayload
-): KamiyoEvent | null {
-    const data = decodeInstructionData(instruction.data);
-    if (!data || data.length < 8) return null;
+function parseIx(ix: HeliusWebhookPayload['instructions'][0], tx: HeliusWebhookPayload): KamiyoEvent | null {
+  const data = decode(ix.data);
+  if (!data || data.length < 8) return null;
 
-    const discriminator = data.slice(0, 8);
-    const accounts = instruction.accounts;
-    const type = identifyEventType(discriminator);
+  const type = identifyType(data.slice(0, 8));
+  if (!type) return null;
 
-    if (!type) return null;
+  const accounts = ix.accounts;
+  const ev: KamiyoEvent = {
+    type,
+    escrowId: accounts[0]?.slice(0, 8) ?? '',
+    escrowPda: accounts[0] ?? '',
+    agent: null,
+    provider: null,
+    amount: null,
+    qualityScore: null,
+    refundAmount: null,
+    signature: tx.signature,
+    timestamp: tx.timestamp,
+    slot: tx.slot
+  };
 
-    const baseEvent: KamiyoEvent = {
-        type,
-        escrowId: accounts[0]?.slice(0, 8) ?? '',
-        escrowPda: accounts[0] ?? '',
-        agent: null,
-        provider: null,
-        amount: null,
-        qualityScore: null,
-        refundAmount: null,
-        signature: tx.signature,
-        timestamp: tx.timestamp,
-        slot: tx.slot
-    };
+  switch (type) {
+    case 'escrow_created':
+      ev.agent = accounts[1] ?? null;
+      ev.provider = accounts[2] ?? null;
+      if (data.length >= 16) ev.amount = data.readBigUInt64LE(8);
+      break;
+    case 'escrow_funded':
+      ev.amount = tx.nativeTransfers.find(t => t.toUserAccount === accounts[0])?.amount
+        ? BigInt(tx.nativeTransfers.find(t => t.toUserAccount === accounts[0])!.amount) : null;
+      break;
+    case 'dispute_resolved':
+      if (data.length >= 9) ev.qualityScore = data[8];
+      if (data.length >= 17) ev.refundAmount = data.readBigUInt64LE(9);
+      break;
+    case 'funds_released':
+      ev.amount = tx.nativeTransfers.find(t => t.fromUserAccount === accounts[0])?.amount
+        ? BigInt(tx.nativeTransfers.find(t => t.fromUserAccount === accounts[0])!.amount) : null;
+      break;
+  }
 
-    // Extract additional data based on event type
-    switch (type) {
-        case 'escrow_created':
-            baseEvent.agent = accounts[1] ?? null;
-            baseEvent.provider = accounts[2] ?? null;
-            if (data.length >= 16) {
-                baseEvent.amount = readBigUInt64LE(data, 8);
-            }
-            break;
-
-        case 'escrow_funded':
-            const fundTransfer = tx.nativeTransfers.find(
-                t => t.toUserAccount === accounts[0]
-            );
-            baseEvent.amount = fundTransfer ? BigInt(fundTransfer.amount) : null;
-            break;
-
-        case 'dispute_resolved':
-            if (data.length >= 9) {
-                baseEvent.qualityScore = data[8];
-            }
-            if (data.length >= 17) {
-                baseEvent.refundAmount = readBigUInt64LE(data, 9);
-            }
-            break;
-
-        case 'funds_released':
-            const releaseTransfer = tx.nativeTransfers.find(
-                t => t.fromUserAccount === accounts[0]
-            );
-            baseEvent.amount = releaseTransfer ? BigInt(releaseTransfer.amount) : null;
-            break;
-    }
-
-    return baseEvent;
+  return ev;
 }
 
-/**
- * Identify event type from discriminator
- */
-function identifyEventType(discriminator: Buffer): KamiyoEvent['type'] | null {
-    if (discriminator.equals(INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW)) {
-        return 'escrow_created';
-    }
-    if (discriminator.equals(INSTRUCTION_DISCRIMINATORS.FUND_ESCROW)) {
-        return 'escrow_funded';
-    }
-    if (discriminator.equals(INSTRUCTION_DISCRIMINATORS.INITIATE_DISPUTE)) {
-        return 'dispute_initiated';
-    }
-    if (discriminator.equals(INSTRUCTION_DISCRIMINATORS.RESOLVE_DISPUTE)) {
-        return 'dispute_resolved';
-    }
-    if (discriminator.equals(INSTRUCTION_DISCRIMINATORS.RELEASE_FUNDS)) {
-        return 'funds_released';
-    }
-    if (discriminator.equals(INSTRUCTION_DISCRIMINATORS.CLOSE_ESCROW)) {
-        return 'escrow_closed';
-    }
-    return null;
+function identifyType(disc: Buffer): KamiyoEvent['type'] | null {
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW)) return 'escrow_created';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.FUND_ESCROW)) return 'escrow_funded';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.INITIATE_DISPUTE)) return 'dispute_initiated';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.RESOLVE_DISPUTE)) return 'dispute_resolved';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.RELEASE_FUNDS)) return 'funds_released';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.CLOSE_ESCROW)) return 'escrow_closed';
+  return null;
 }
 
-/**
- * Decode instruction data from base64 or hex
- */
-function decodeInstructionData(data: string): Buffer | null {
+function decode(data: string): Buffer | null {
+  try {
+    const d = Buffer.from(data, 'base64');
+    if (d.length >= 8) return d;
+  } catch {}
+  try {
+    const d = Buffer.from(data, 'hex');
+    if (d.length >= 8) return d;
+  } catch {}
+  return null;
+}
+
+type Req = { body: unknown; rawBody?: string | Buffer; headers: Record<string, string | undefined> };
+type Res = { status: (code: number) => { send: (msg: string) => void; json: (data: unknown) => void } };
+
+export function createWebhookHandler(opts: WebhookHandlerOptions) {
+  return async (req: Req, res: Res) => {
     try {
-        // Try base64 first
-        const decoded = Buffer.from(data, 'base64');
-        if (decoded.length >= 8) {
-            return decoded;
-        }
-    } catch {
-        // Ignore and try hex
-    }
+      let payload: HeliusWebhookPayload[];
+      if (Array.isArray(req.body)) payload = req.body;
+      else if (typeof req.body === 'string') payload = JSON.parse(req.body);
+      else payload = [req.body as HeliusWebhookPayload];
 
-    try {
-        const decoded = Buffer.from(data, 'hex');
-        if (decoded.length >= 8) {
-            return decoded;
-        }
-    } catch {
-        // Ignore
-    }
+      const events = parseWebhookPayload(payload);
 
-    return null;
-}
-
-/**
- * Read BigUInt64LE from buffer
- */
-function readBigUInt64LE(buffer: Buffer, offset: number): bigint {
-    if (buffer.length < offset + 8) {
-        return 0n;
-    }
-    return buffer.readBigUInt64LE(offset);
-}
-
-/**
- * Create a webhook handler function
- */
-export function createWebhookHandler(options: WebhookHandlerOptions) {
-    return async (
-        req: { body: unknown; rawBody?: string | Buffer; headers: Record<string, string | undefined> },
-        res: { status: (code: number) => { send: (msg: string) => void; json: (data: unknown) => void } }
-    ) => {
+      for (const ev of events) {
         try {
-            // Parse payload
-            let payload: HeliusWebhookPayload[];
-
-            if (Array.isArray(req.body)) {
-                payload = req.body;
-            } else if (typeof req.body === 'string') {
-                payload = JSON.parse(req.body);
-            } else {
-                payload = [req.body as HeliusWebhookPayload];
-            }
-
-            // Parse events
-            const events = parseWebhookPayload(payload);
-
-            // Process each event
-            for (const event of events) {
-                try {
-                    switch (event.type) {
-                        case 'escrow_created':
-                            await options.onEscrowCreated?.(event);
-                            break;
-                        case 'escrow_funded':
-                            await options.onEscrowFunded?.(event);
-                            break;
-                        case 'dispute_initiated':
-                            await options.onDisputeInitiated?.(event);
-                            break;
-                        case 'dispute_resolved':
-                            await options.onDisputeResolved?.(event);
-                            break;
-                        case 'funds_released':
-                            await options.onFundsReleased?.(event);
-                            break;
-                        case 'escrow_closed':
-                            await options.onEscrowClosed?.(event);
-                            break;
-                    }
-                } catch (error) {
-                    if (options.onError) {
-                        options.onError(
-                            error instanceof Error ? error : new Error(String(error)),
-                            payload[0]
-                        );
-                    }
-                }
-            }
-
-            res.status(200).json({ success: true, eventsProcessed: events.length });
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            res.status(500).json({ success: false, error: errorMessage });
+          switch (ev.type) {
+            case 'escrow_created': await opts.onEscrowCreated?.(ev); break;
+            case 'escrow_funded': await opts.onEscrowFunded?.(ev); break;
+            case 'dispute_initiated': await opts.onDisputeInitiated?.(ev); break;
+            case 'dispute_resolved': await opts.onDisputeResolved?.(ev); break;
+            case 'funds_released': await opts.onFundsReleased?.(ev); break;
+            case 'escrow_closed': await opts.onEscrowClosed?.(ev); break;
+          }
+        } catch (e) {
+          opts.onError?.(e instanceof Error ? e : new Error(String(e)), payload[0]);
         }
-    };
+      }
+
+      res.status(200).json({ success: true, eventsProcessed: events.length });
+    } catch (e) {
+      res.status(500).json({ success: false, error: e instanceof Error ? e.message : 'Unknown' });
+    }
+  };
 }
 
-/**
- * Create a webhook handler with signature verification
- */
-export function createVerifiedWebhookHandler(
-    secret: string,
-    options: WebhookHandlerOptions
-) {
-    const handler = createWebhookHandler(options);
+export function createVerifiedWebhookHandler(secret: string, opts: WebhookHandlerOptions) {
+  const handler = createWebhookHandler(opts);
 
-    return async (
-        req: { body: unknown; rawBody?: string | Buffer; headers: Record<string, string | undefined> },
-        res: { status: (code: number) => { send: (msg: string) => void; json: (data: unknown) => void } }
-    ) => {
-        const signature = req.headers[DEFAULTS.WEBHOOK_SIGNATURE_HEADER] ||
-                          req.headers['x-helius-signature'];
+  return async (req: Req, res: Res) => {
+    const sig = req.headers[DEFAULTS.WEBHOOK_SIGNATURE_HEADER] || req.headers['x-helius-signature'];
+    if (!sig) return res.status(401).json({ success: false, error: 'Missing signature' });
 
-        if (!signature) {
-            res.status(401).json({ success: false, error: 'Missing signature header' });
-            return;
-        }
+    const payload = req.rawBody || JSON.stringify(req.body);
+    if (!verifyWebhookSignature(payload, sig, secret)) {
+      return res.status(401).json({ success: false, error: 'Invalid signature' });
+    }
 
-        const payload = req.rawBody || JSON.stringify(req.body);
-
-        if (!verifyWebhookSignature(payload, signature, secret)) {
-            res.status(401).json({ success: false, error: 'Invalid signature' });
-            return;
-        }
-
-        return handler(req, res);
-    };
+    return handler(req, res);
+  };
 }
 
-/**
- * Filter events by type
- */
-export function filterEventsByType(
-    events: KamiyoEvent[],
-    types: KamiyoEvent['type'][]
-): KamiyoEvent[] {
-    return events.filter(e => types.includes(e.type));
+export function filterEventsByType(events: KamiyoEvent[], types: KamiyoEvent['type'][]): KamiyoEvent[] {
+  return events.filter(e => types.includes(e.type));
 }
 
-/**
- * Group events by escrow
- */
 export function groupEventsByEscrow(events: KamiyoEvent[]): Map<string, KamiyoEvent[]> {
-    const grouped = new Map<string, KamiyoEvent[]>();
-
-    for (const event of events) {
-        const existing = grouped.get(event.escrowPda) || [];
-        existing.push(event);
-        grouped.set(event.escrowPda, existing);
-    }
-
-    return grouped;
+  const grouped = new Map<string, KamiyoEvent[]>();
+  for (const ev of events) {
+    const list = grouped.get(ev.escrowPda) || [];
+    list.push(ev);
+    grouped.set(ev.escrowPda, list);
+  }
+  return grouped;
 }
 
-/**
- * Get event statistics
- */
 export function getEventStats(events: KamiyoEvent[]): {
-    total: number;
-    byType: Record<KamiyoEvent['type'], number>;
-    uniqueEscrows: number;
-    totalVolume: bigint;
-    averageQualityScore: number | null;
+  total: number;
+  byType: Record<KamiyoEvent['type'], number>;
+  uniqueEscrows: number;
+  totalVolume: bigint;
+  averageQualityScore: number | null;
 } {
-    const byType: Record<KamiyoEvent['type'], number> = {
-        escrow_created: 0,
-        escrow_funded: 0,
-        dispute_initiated: 0,
-        dispute_resolved: 0,
-        funds_released: 0,
-        escrow_closed: 0
-    };
+  const byType: Record<KamiyoEvent['type'], number> = {
+    escrow_created: 0, escrow_funded: 0, dispute_initiated: 0,
+    dispute_resolved: 0, funds_released: 0, escrow_closed: 0
+  };
 
-    let totalVolume = 0n;
-    const qualityScores: number[] = [];
-    const uniqueEscrows = new Set<string>();
+  let vol = 0n;
+  const scores: number[] = [];
+  const escrows = new Set<string>();
 
-    for (const event of events) {
-        byType[event.type]++;
-        uniqueEscrows.add(event.escrowPda);
+  for (const ev of events) {
+    byType[ev.type]++;
+    escrows.add(ev.escrowPda);
+    if (ev.amount) vol += ev.amount;
+    if (ev.qualityScore !== null) scores.push(ev.qualityScore);
+  }
 
-        if (event.amount) {
-            totalVolume += event.amount;
-        }
-
-        if (event.qualityScore !== null) {
-            qualityScores.push(event.qualityScore);
-        }
-    }
-
-    const averageQualityScore = qualityScores.length > 0
-        ? qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length
-        : null;
-
-    return {
-        total: events.length,
-        byType,
-        uniqueEscrows: uniqueEscrows.size,
-        totalVolume,
-        averageQualityScore
-    };
+  return {
+    total: events.length,
+    byType,
+    uniqueEscrows: escrows.size,
+    totalVolume: vol,
+    averageQualityScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null
+  };
 }
