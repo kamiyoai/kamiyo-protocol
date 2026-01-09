@@ -12,7 +12,7 @@ Click the badge above or go to the repo and click "Code" → "Codespaces" → "C
 
 ```bash
 cd examples/eliza-demo
-npm run dev
+pnpm run dev
 ```
 
 **Option 2: Local**
@@ -24,8 +24,8 @@ pnpm install
 pnpm --filter @kamiyo/sdk build
 pnpm --filter @kamiyo/eliza build
 cd examples/eliza-demo
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## What This Demonstrates
