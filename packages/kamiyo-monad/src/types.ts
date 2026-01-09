@@ -1,7 +1,3 @@
-/**
- * Monad network types and configuration
- */
-
 export type MonadNetwork = 'monad-testnet' | 'monad-mainnet';
 
 export interface NetworkConfig {
