@@ -18,8 +18,8 @@ export interface NetworkConfig {
 export const NETWORKS: Record<MonadNetwork, NetworkConfig> = {
   'monad-testnet': {
     chainId: 10143,
-    rpc: process.env.MONAD_TESTNET_RPC || 'https://monad-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}',
-    explorer: 'https://testnet.monadexplorer.com',
+    rpc: process.env.MONAD_TESTNET_RPC || 'https://monad-testnet.drpc.org',
+    explorer: 'https://testnet.explorer.monad.xyz',
     contracts: {
       agentFactory: '0x0000000000000000000000000000000000000000',
       reputationMirror: '0x0000000000000000000000000000000000000000',
@@ -28,8 +28,8 @@ export const NETWORKS: Record<MonadNetwork, NetworkConfig> = {
   },
   'monad-mainnet': {
     chainId: 143,
-    rpc: process.env.MONAD_MAINNET_RPC || 'https://monad-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}',
-    explorer: 'https://monadexplorer.com',
+    rpc: process.env.MONAD_MAINNET_RPC || 'https://monad-mainnet.drpc.org',
+    explorer: 'https://explorer.monad.xyz',
     contracts: {
       agentFactory: '0x0000000000000000000000000000000000000000',
       reputationMirror: '0x0000000000000000000000000000000000000000',

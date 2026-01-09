@@ -9,7 +9,7 @@ export { SwarmBacktester, createSwarmBacktester } from './swarm';
 export { NETWORKS, AgentType, MonadError } from './types';
 
 export type { SolanaReputationSource } from './reputation';
-export type { InferenceProvider, SimulationContext, Decision, AgentState } from './swarm';
+export type { InferenceProvider, SimulationContext, Decision } from './swarm';
 export type {
   MonadNetwork,
   NetworkConfig,

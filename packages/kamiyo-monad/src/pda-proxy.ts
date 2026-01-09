@@ -1,20 +1,14 @@
-/**
- * PDA emulation via ERC1967 upgradable proxies
- */
-
 import { ethers } from 'ethers';
 import { MonadProvider } from './provider';
-import {
-  AgentIdentity,
-  AgentType,
-  MonadError,
-} from './types';
+import { AgentIdentity, AgentType, MonadError } from './types';
 
-const AGENT_SEED = ethers.keccak256(ethers.toUtf8Bytes('agent'));
-const ESCROW_SEED = ethers.keccak256(ethers.toUtf8Bytes('escrow'));
-const REPUTATION_SEED = ethers.keccak256(ethers.toUtf8Bytes('reputation'));
+const SEED = {
+  agent: ethers.keccak256(ethers.toUtf8Bytes('agent')),
+  escrow: ethers.keccak256(ethers.toUtf8Bytes('escrow')),
+  reputation: ethers.keccak256(ethers.toUtf8Bytes('reputation')),
+};
 
-const AGENT_PROXY_ABI = [
+const PROXY_ABI = [
   'function owner() view returns (address)',
   'function name() view returns (string)',
   'function agentType() view returns (uint8)',
@@ -26,63 +20,53 @@ const AGENT_PROXY_ABI = [
   'function totalEscrows() view returns (uint64)',
   'function successfulEscrows() view returns (uint64)',
   'function disputedEscrows() view returns (uint64)',
-  'function initialize(address _owner, string _name, uint8 _agentType) external',
-  'function updateReputation(uint64 _reputation) external',
-  'function updateStake(uint64 _stakeAmount) external',
-  'function setActive(bool _isActive) external',
-  'function recordEscrow(bool successful, bool disputed) external',
-  'event AgentInitialized(address indexed owner, string name, uint8 agentType)',
-  'event ReputationUpdated(uint64 oldReputation, uint64 newReputation)',
-  'event StakeUpdated(uint64 oldStake, uint64 newStake)',
-  'event EscrowRecorded(bool successful, bool disputed)',
+  'function initialize(address, string, uint8) external',
+  'function updateReputation(uint64) external',
+  'function updateStake(uint64) external',
+  'function setActive(bool) external',
+  'function recordEscrow(bool, bool) external',
 ];
 
-const AGENT_FACTORY_ABI = [
-  'function createAgent(address owner, string name, uint8 agentType) external returns (address)',
-  'function getAgent(address owner) view returns (address)',
-  'function agentExists(address owner) view returns (bool)',
-  'function deriveAddress(bytes32 seed, address owner) view returns (address)',
+const FACTORY_ABI = [
+  'function createAgent(address, string, uint8) external returns (address)',
+  'function getAgent(address) view returns (address)',
+  'function agentExists(address) view returns (bool)',
   'event AgentCreated(address indexed owner, address indexed proxy, string name)',
 ];
 
 export class PDAProxy {
   private readonly provider: MonadProvider;
-  private readonly factoryAddress: string;
   private readonly factory: ethers.Contract;
 
   constructor(provider: MonadProvider) {
     this.provider = provider;
-    this.factoryAddress = provider.getContracts().agentFactory;
     this.factory = new ethers.Contract(
-      this.factoryAddress,
-      AGENT_FACTORY_ABI,
+      provider.getContracts().agentFactory,
+      FACTORY_ABI,
       provider.getProvider()
     );
   }
 
   deriveAgentAddress(owner: string): string {
-    return this.deriveAddress(AGENT_SEED, owner);
+    return this.derive(SEED.agent, owner);
   }
 
-  deriveEscrowAddress(agent: string, transactionId: string): string {
-    const txIdHash = ethers.keccak256(ethers.toUtf8Bytes(transactionId));
-    const combinedSeed = ethers.keccak256(
-      ethers.solidityPacked(['bytes32', 'bytes32'], [ESCROW_SEED, txIdHash])
-    );
-    return this.deriveAddress(combinedSeed, agent);
+  deriveEscrowAddress(agent: string, txId: string): string {
+    const txHash = ethers.keccak256(ethers.toUtf8Bytes(txId));
+    const seed = ethers.keccak256(ethers.solidityPacked(['bytes32', 'bytes32'], [SEED.escrow, txHash]));
+    return this.derive(seed, agent);
   }
 
   deriveReputationAddress(entity: string): string {
-    return this.deriveAddress(REPUTATION_SEED, entity);
+    return this.derive(SEED.reputation, entity);
   }
 
-  private deriveAddress(seed: string, owner: string): string {
+  private derive(seed: string, owner: string): string {
     const packed = ethers.solidityPacked(
       ['bytes32', 'address', 'address'],
-      [seed, owner, this.factoryAddress]
+      [seed, owner, this.provider.getContracts().agentFactory]
     );
-    const hash = ethers.keccak256(packed);
-    return ethers.getAddress('0x' + hash.slice(-40));
+    return ethers.getAddress('0x' + ethers.keccak256(packed).slice(-40));
   }
 
   async agentExists(owner: string): Promise<boolean> {
@@ -95,34 +79,26 @@ export class PDAProxy {
 
   async getAgentAddress(owner: string): Promise<string | null> {
     try {
-      const exists = await this.agentExists(owner);
-      if (!exists) return null;
+      if (!(await this.agentExists(owner))) return null;
       return await this.factory.getAgent(owner);
     } catch {
       return null;
     }
   }
 
-  async createAgent(
-    owner: string,
-    name: string,
-    agentType: AgentType
-  ): Promise<string> {
+  async createAgent(owner: string, name: string, type: AgentType): Promise<string> {
     const signer = this.provider.getSigner();
-    const factoryWithSigner = this.factory.connect(signer) as ethers.Contract;
+    const contract = this.factory.connect(signer) as ethers.Contract;
 
     try {
-      const tx = await factoryWithSigner.createAgent(owner, name, agentType);
+      const tx = await contract.createAgent(owner, name, type);
       const receipt = await tx.wait();
 
       const event = receipt.logs.find(
-        (log: ethers.Log) =>
-          log.topics[0] === ethers.id('AgentCreated(address,address,string)')
+        (log: ethers.Log) => log.topics[0] === ethers.id('AgentCreated(address,address,string)')
       );
 
-      if (!event) {
-        throw new MonadError('Agent creation event not found', 'CONTRACT_ERROR');
-      }
+      if (!event) throw new MonadError('AgentCreated event not found', 'CONTRACT_ERROR');
 
       const decoded = this.factory.interface.parseLog({
         topics: event.topics as string[],
@@ -132,46 +108,29 @@ export class PDAProxy {
       return decoded?.args.proxy;
     } catch (e) {
       if (e instanceof MonadError) throw e;
-      throw new MonadError(
-        `Failed to create agent: ${e}`,
-        'CONTRACT_ERROR',
-        { owner, name, agentType }
-      );
+      throw new MonadError(`createAgent failed: ${e}`, 'CONTRACT_ERROR', { owner, name, type });
     }
   }
 
-  async getAgentIdentity(proxyAddress: string): Promise<AgentIdentity> {
-    const proxy = new ethers.Contract(
-      proxyAddress,
-      AGENT_PROXY_ABI,
-      this.provider.getProvider()
-    );
+  async getAgentIdentity(proxy: string): Promise<AgentIdentity> {
+    const contract = new ethers.Contract(proxy, PROXY_ABI, this.provider.getProvider());
 
     try {
       const [
-        owner,
-        name,
-        agentType,
-        reputation,
-        stakeAmount,
-        isActive,
-        createdAt,
-        lastActive,
-        totalEscrows,
-        successfulEscrows,
-        disputedEscrows,
+        owner, name, agentType, reputation, stakeAmount, isActive,
+        createdAt, lastActive, totalEscrows, successfulEscrows, disputedEscrows
       ] = await Promise.all([
-        proxy.owner(),
-        proxy.name(),
-        proxy.agentType(),
-        proxy.reputation(),
-        proxy.stakeAmount(),
-        proxy.isActive(),
-        proxy.createdAt(),
-        proxy.lastActive(),
-        proxy.totalEscrows(),
-        proxy.successfulEscrows(),
-        proxy.disputedEscrows(),
+        contract.owner(),
+        contract.name(),
+        contract.agentType(),
+        contract.reputation(),
+        contract.stakeAmount(),
+        contract.isActive(),
+        contract.createdAt(),
+        contract.lastActive(),
+        contract.totalEscrows(),
+        contract.successfulEscrows(),
+        contract.disputedEscrows(),
       ]);
 
       return {
@@ -188,52 +147,27 @@ export class PDAProxy {
         disputedEscrows: BigInt(disputedEscrows),
       };
     } catch (e) {
-      throw new MonadError(
-        `Failed to fetch agent identity: ${e}`,
-        'CONTRACT_ERROR',
-        { proxyAddress }
-      );
+      throw new MonadError(`getAgentIdentity failed: ${e}`, 'CONTRACT_ERROR', { proxy });
     }
   }
 
-  async updateReputation(
-    proxyAddress: string,
-    newReputation: bigint
-  ): Promise<string> {
-    const signer = this.provider.getSigner();
-    const proxy = new ethers.Contract(proxyAddress, AGENT_PROXY_ABI, signer);
-
+  async updateReputation(proxy: string, rep: bigint): Promise<string> {
+    const contract = new ethers.Contract(proxy, PROXY_ABI, this.provider.getSigner());
     try {
-      const tx = await proxy.updateReputation(newReputation);
-      const receipt = await tx.wait();
-      return receipt.hash;
+      const tx = await contract.updateReputation(rep);
+      return (await tx.wait()).hash;
     } catch (e) {
-      throw new MonadError(
-        `Failed to update reputation: ${e}`,
-        'CONTRACT_ERROR',
-        { proxyAddress, newReputation: newReputation.toString() }
-      );
+      throw new MonadError(`updateReputation failed: ${e}`, 'CONTRACT_ERROR', { proxy, rep: rep.toString() });
     }
   }
 
-  async recordEscrow(
-    proxyAddress: string,
-    successful: boolean,
-    disputed: boolean
-  ): Promise<string> {
-    const signer = this.provider.getSigner();
-    const proxy = new ethers.Contract(proxyAddress, AGENT_PROXY_ABI, signer);
-
+  async recordEscrow(proxy: string, successful: boolean, disputed: boolean): Promise<string> {
+    const contract = new ethers.Contract(proxy, PROXY_ABI, this.provider.getSigner());
     try {
-      const tx = await proxy.recordEscrow(successful, disputed);
-      const receipt = await tx.wait();
-      return receipt.hash;
+      const tx = await contract.recordEscrow(successful, disputed);
+      return (await tx.wait()).hash;
     } catch (e) {
-      throw new MonadError(
-        `Failed to record escrow: ${e}`,
-        'CONTRACT_ERROR',
-        { proxyAddress, successful, disputed }
-      );
+      throw new MonadError(`recordEscrow failed: ${e}`, 'CONTRACT_ERROR', { proxy, successful, disputed });
     }
   }
 }

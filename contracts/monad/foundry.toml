@@ -17,8 +17,9 @@ remappings = [
 ]
 
 [rpc_endpoints]
-monad-testnet = "${MONAD_TESTNET_RPC}"
-monad-mainnet = "${MONAD_MAINNET_RPC}"
+monad-testnet = "https://monad-testnet.drpc.org"
+monad-mainnet = "https://monad-mainnet.drpc.org"
 
 [etherscan]
-monad = { key = "${MONAD_EXPLORER_KEY}", url = "https://explorer.monad.xyz/api" }
+monad-mainnet = { key = "${MONAD_EXPLORER_KEY}", url = "https://explorer.monad.xyz/api" }
+monad-testnet = { key = "${MONAD_EXPLORER_KEY}", url = "https://testnet.explorer.monad.xyz/api" }
