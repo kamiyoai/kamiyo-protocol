@@ -1,0 +1,28 @@
+{
+  "name": "@kamiyo/e2e-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Full protocol E2E demo - registration, escrow, disputes, cross-chain reputation",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@kamiyo/sdk": "file:../../packages/kamiyo-sdk",
+    "@kamiyo/monad": "file:../../packages/kamiyo-monad",
+    "@solana/web3.js": "^1.98.0",
+    "bn.js": "^5.2.1",
+    "bs58": "^5.0.0",
+    "dotenv": "^16.4.0",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

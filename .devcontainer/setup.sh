@@ -16,10 +16,11 @@ fi
 # Install and build
 pnpm install
 pnpm -F @kamiyo/sdk build
+pnpm -F @kamiyo/monad build
 pnpm -F @kamiyo/eliza build
 
-cd examples/eliza-demo
-pnpm install
+cd examples/eliza-demo && pnpm install && cd ../..
+cd examples/e2e-protocol && pnpm install && cd ../..
 
 echo ""
 echo "Done. Run: cd examples/eliza-demo && pnpm dev"
