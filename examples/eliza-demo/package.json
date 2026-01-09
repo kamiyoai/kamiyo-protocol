@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@kamiyo/eliza": "workspace:*",
-    "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/eliza": "file:../../packages/kamiyo-eliza",
+    "@kamiyo/sdk": "file:../../packages/kamiyo-sdk",
     "@elizaos/core": "^0.25.0",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.1",
