@@ -1,4 +1,6 @@
 import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Wallet } from '@coral-xyz/anchor';
 import { ethers } from 'ethers';
 import { createMonadProvider, createReputationBridge, createSwarmBacktester, MonadProvider } from '@kamiyo/monad';
@@ -298,16 +300,25 @@ export async function initializeProtocol(config: DemoConfig): Promise<Protocol> 
   let wallet: Wallet | undefined;
   let evmKey: string | undefined;
 
-  if (process.env.SOLANA_PRIVATE_KEY) {
+  const keypairPath = process.env.SOLANA_KEYPAIR_PATH;
+  const privateKey = process.env.SOLANA_PRIVATE_KEY;
+
+  if (keypairPath || privateKey) {
     try {
-      const key = process.env.SOLANA_PRIVATE_KEY.trim();
       let secretKey: Uint8Array;
 
-      if (key.startsWith('[')) {
-        secretKey = Uint8Array.from(JSON.parse(key));
+      if (keypairPath) {
+        const resolved = path.resolve(process.cwd(), keypairPath);
+        const data = fs.readFileSync(resolved, 'utf-8');
+        secretKey = Uint8Array.from(JSON.parse(data));
       } else {
-        const bs58 = await import('bs58');
-        secretKey = bs58.default.decode(key);
+        const key = privateKey!.trim();
+        if (key.startsWith('[')) {
+          secretKey = Uint8Array.from(JSON.parse(key));
+        } else {
+          const bs58 = await import('bs58');
+          secretKey = bs58.default.decode(key);
+        }
       }
 
       const keypair = Keypair.fromSecretKey(secretKey);
@@ -317,8 +328,9 @@ export async function initializeProtocol(config: DemoConfig): Promise<Protocol> 
       const balance = await connection.getBalance(keypair.publicKey);
       await log.header('SOLANA CONNECTED');
       await log.ok(`${config.network} | ${keypair.publicKey.toBase58().slice(0, 8)}... | ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
-    } catch {
-      await log.warn('Invalid SOLANA_PRIVATE_KEY, running simulation');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await log.warn(`Keypair load failed: ${msg.slice(0, 40)}`);
     }
   }
 
