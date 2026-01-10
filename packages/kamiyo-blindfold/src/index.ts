@@ -44,3 +44,19 @@ export type {
   ReputationProofData,
   BlindfoldPaymentResult,
 } from './escrow-hook';
+
+export {
+  ReputationGate,
+  verifyThresholdMet,
+  getTierFromThreshold,
+  TIER_THRESHOLDS,
+  TIER_LIMITS,
+} from './reputation-gate';
+
+export type {
+  ReputationStats,
+  ReputationProof,
+  ExclusionProof,
+  GatedPaymentParams,
+  GatedPaymentResult,
+} from './reputation-gate';
