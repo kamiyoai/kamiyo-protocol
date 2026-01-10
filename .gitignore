@@ -197,4 +197,32 @@ token-launch/
 contracts/monad/cache/
 contracts/monad/out/
 contracts/monad/foundry.lock
+contracts/monad/broadcast/
+contracts/hyperliquid/cache/
+contracts/hyperliquid/foundry.lock
+
+# Anchor/Solana
+.anchor/
+programs/*/target/
+target/
+Cargo.lock
+
+# ZK circuit build artifacts (keep verification_key.json)
+packages/kamiyo-tetsuo-privacy/circuits/build/*.ptau
+packages/kamiyo-tetsuo-privacy/circuits/build/*.zkey
+packages/kamiyo-tetsuo-privacy/circuits/build/*.r1cs
+packages/kamiyo-tetsuo-privacy/circuits/build/*.sym
+
+# Native builds
+native/*/build/
+native/*/lib/
+native/*/deps/*/lib/
+
+# Playwright
+.playwright-mcp/
+
+# Demo recordings
+examples/*/demo.gif
+examples/*/demo.tape
+
 docs/
