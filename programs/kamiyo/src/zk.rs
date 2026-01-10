@@ -1,12 +1,10 @@
-//! ZK proof verification for reputation thresholds
-//!
-//! Groth16 on BN254, verified via groth16-solana.
+//! Groth16 verification for reputation threshold proofs.
 //! Public inputs: [valid, threshold, commitment]
 
 use groth16_solana::groth16::{Groth16Verifier, Groth16Verifyingkey};
 
-/// Reputation threshold verification key
-/// Generated from packages/kamiyo-tetsuo-privacy/circuits
+/// Verification key for reputation_threshold circuit.
+/// Regenerate with: cd packages/kamiyo-tetsuo-privacy/circuits && node export-solana-vk.js
 pub const REPUTATION_VK: Groth16Verifyingkey = Groth16Verifyingkey {
     nr_pubinputs: 3,
     vk_alpha_g1: [45, 77, 154, 167, 227, 2, 217, 223, 65, 116, 157, 85, 7, 148, 157, 5, 219, 234, 51, 251, 177, 108, 100, 59, 34, 245, 153, 162, 190, 109, 242, 226, 20, 190, 221, 80, 60, 55, 206, 176, 97, 216, 236, 96, 32, 159, 227, 69, 206, 137, 131, 10, 25, 35, 3, 1, 240, 118, 202, 255, 0, 77, 25, 38],
@@ -21,10 +19,6 @@ pub const REPUTATION_VK: Groth16Verifyingkey = Groth16Verifyingkey {
     ],
 };
 
-/// Verify a reputation threshold proof
-///
-/// Returns Ok(()) if proof is valid, Err otherwise.
-/// Costs ~200k compute units.
 pub fn verify_reputation_proof(
     proof_a: &[u8; 64],
     proof_b: &[u8; 128],
