@@ -63,7 +63,6 @@ async function main() {
   └─ program   ${KAMIYO_PROGRAM_ID.toBase58()}
 `);
 
-  // Escrow PDA derivation
   const modelHash = Buffer.alloc(32);
   Buffer.from('tits-pro-v2').copy(modelHash);
   const [escrowPda] = PublicKey.findProgramAddressSync(
@@ -76,7 +75,6 @@ async function main() {
   └─ address   ${escrowPda.toBase58()}
 `);
 
-  // ZK Proof Generation
   const wasmPath = path.join(CIRCUIT_DIR, 'reputation_threshold_js', 'reputation_threshold.wasm');
   const zkeyPath = path.join(CIRCUIT_DIR, 'reputation_threshold_final.zkey');
   const vkeyPath = path.join(CIRCUIT_DIR, 'verification_key.json');
@@ -86,18 +84,16 @@ async function main() {
     process.exit(1);
   }
 
-  // Private inputs
   const score = 92;
   const threshold = 80;
   const secret = BigInt('0x' + Buffer.from(crypto.getRandomValues(new Uint8Array(31))).toString('hex'));
 
-  console.log(`  Private Witness
-  ├─ score     ${score} (hidden)
-  ├─ threshold ${threshold} (public)
+  console.log(`  Witness
+  ├─ score     ${score}
+  ├─ threshold ${threshold}
   └─ secret    0x${hex(secret).slice(0, 32)}...
 `);
 
-  // Poseidon hash (t=3, RF=8, RP=57)
   const poseidon = await buildPoseidon();
   const commitment = poseidon.F.toObject(poseidon([BigInt(score), secret]));
 
@@ -108,7 +104,6 @@ async function main() {
   └─ output    0x${truncHex(hex(commitment))}
 `);
 
-  // Groth16 prove
   const input = {
     score,
     secret: secret.toString(),
@@ -121,7 +116,6 @@ async function main() {
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
   const proveTime = (performance.now() - t0).toFixed(1);
 
-  // Parse proof points
   const piA = [BigInt(proof.pi_a[0]), BigInt(proof.pi_a[1])];
   const piB = [[BigInt(proof.pi_b[0][0]), BigInt(proof.pi_b[0][1])],
                [BigInt(proof.pi_b[1][0]), BigInt(proof.pi_b[1][1])]];
@@ -147,12 +141,11 @@ async function main() {
 `);
 
   console.log(`  Public Signals
-  ├─ valid     ${publicSignals[0]} (constraint satisfied)
+  ├─ valid     ${publicSignals[0]}
   ├─ threshold ${publicSignals[1]}
   └─ commit    ${publicSignals[2].slice(0, 20)}...
 `);
 
-  // Verify
   const vkey = JSON.parse(fs.readFileSync(vkeyPath, 'utf-8'));
   const t1 = performance.now();
   const valid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
@@ -164,18 +157,15 @@ async function main() {
   └─ result    ${valid ? '✓ VALID' : '✗ INVALID'}
 `);
 
-  // Proof size
-  const proofBytes = 64 + 128 + 64; // G1 + G2 + G1
+  const proofBytes = 256;
   console.log(`  Wire Format
   ├─ proof     ${proofBytes} bytes (π_A ‖ π_B ‖ π_C)
   ├─ signals   ${publicSignals.length * 32} bytes
   └─ total     ${proofBytes + publicSignals.length * 32} bytes
 `);
 
-  console.log(`  ───────────────────────────────────────────────────────────────────────────
-  Proved: reputation ≥ ${threshold} without revealing score (${score})
-  Verify: anyone with vkey can check in ${verifyTime}ms
-  ───────────────────────────────────────────────────────────────────────────
+  console.log(`  ═══════════════════════════════════════════════════════════════════════════
+  score=${score} hidden · threshold=${threshold} public · proof=${proofBytes}B · verify=${verifyTime}ms
 `);
 }
 
