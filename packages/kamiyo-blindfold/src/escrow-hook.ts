@@ -10,10 +10,12 @@ import {
 import { BN } from '@coral-xyz/anchor';
 import { BlindfoldClient } from './client';
 import {
-  BlindoldEscrowMetadata,
+  BlindfoldEscrowMetadata,
   CardTier,
   CARD_TIERS,
   NATIVE_SOL_MINT,
+  USDC_MINT,
+  USDT_MINT,
 } from './types';
 
 export interface EscrowReleaseParams {
@@ -21,7 +23,7 @@ export interface EscrowReleaseParams {
   recipient: PublicKey;
   amount: BN;
   tokenMint: PublicKey;
-  metadata?: BlindoldEscrowMetadata;
+  metadata?: BlindfoldEscrowMetadata;
 }
 
 export interface ReputationProofData {
@@ -31,7 +33,7 @@ export interface ReputationProofData {
   threshold: number;
 }
 
-export interface BlindofoldPaymentResult {
+export interface BlindfoldPaymentResult {
   paymentId: string;
   holdingWalletAddress: string;
   transferSignature: string;
@@ -39,9 +41,7 @@ export interface BlindofoldPaymentResult {
   limit: number;
 }
 
-/**
- * Hook to route KAMIYO escrow releases to Blindfold for card payment.
- */
+// Routes KAMIYO escrow releases to Blindfold for card payment
 export class EscrowToBlindoldHook {
   private connection: Connection;
   private blindfold: BlindfoldClient;
@@ -51,22 +51,18 @@ export class EscrowToBlindoldHook {
     this.blindfold = new BlindfoldClient(blindfoldConfig);
   }
 
-  /**
-   * Process an escrow release, optionally routing to Blindfold.
-   * Returns null if escrow doesn't have Blindfold metadata.
-   */
+  // Returns null if escrow doesn't have Blindfold metadata
   async onEscrowRelease(
     params: EscrowReleaseParams,
     payer: Keypair,
     reputationProof?: ReputationProofData
-  ): Promise<BlindofoldPaymentResult | null> {
+  ): Promise<BlindfoldPaymentResult | null> {
     const { metadata, amount, tokenMint } = params;
 
     if (!metadata?.blindfoldCard || !metadata.recipientEmail) {
       return null;
     }
 
-    // Determine tier from reputation
     let tier: CardTier = 'basic';
     if (reputationProof) {
       tier = this.blindfold.getTierForThreshold(reputationProof.threshold);
@@ -77,17 +73,12 @@ export class EscrowToBlindoldHook {
     const limit = this.blindfold.getLimitForTier(tier);
     const amountSol = amount.toNumber() / LAMPORTS_PER_SOL;
 
-    // Validate amount against tier limit
     if (amountSol > limit) {
-      throw new Error(
-        `Amount $${amountSol.toFixed(2)} exceeds tier limit $${limit}`
-      );
+      throw new Error(`Amount $${amountSol.toFixed(2)} exceeds tier limit $${limit}`);
     }
 
-    // Determine currency
     const currency = this.getCurrencyFromMint(tokenMint);
 
-    // Create Blindfold payment
     const payment = await this.blindfold.createPayment({
       amount: amountSol,
       currency,
@@ -101,14 +92,12 @@ export class EscrowToBlindoldHook {
       requestedTier: tier,
     });
 
-    // Create holding wallet
     const holding = await this.blindfold.createHoldingWallet(
       payment.paymentId,
       amount.toString(),
       tokenMint.toBase58()
     );
 
-    // Transfer funds to holding wallet
     const holdingWalletPubkey = new PublicKey(holding.holdingWalletAddress);
     const transferSignature = await this.transferToHoldingWallet(
       payer,
@@ -126,21 +115,13 @@ export class EscrowToBlindoldHook {
     };
   }
 
-  /**
-   * Transfer funds to Blindfold holding wallet.
-   */
   private async transferToHoldingWallet(
     payer: Keypair,
     holdingWallet: PublicKey,
     amount: BN,
     tokenMint: PublicKey
   ): Promise<string> {
-    const isNativeSOL =
-      tokenMint.equals(NATIVE_SOL_MINT) ||
-      tokenMint.toBase58() === 'Native';
-
-    if (isNativeSOL) {
-      // Native SOL transfer
+    if (tokenMint.equals(NATIVE_SOL_MINT)) {
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: payer.publicKey,
@@ -148,22 +129,17 @@ export class EscrowToBlindoldHook {
           lamports: amount.toNumber(),
         })
       );
-
       return sendAndConfirmTransaction(this.connection, tx, [payer]);
     }
 
-    // SPL token transfer would go here
-    // For now, only SOL is supported in Blindfold ZK payments
-    throw new Error('Only SOL transfers are currently supported');
+    // SPL tokens not yet supported by Blindfold ZK payments
+    throw new Error('Only SOL transfers supported');
   }
 
-  /**
-   * Poll for payment completion.
-   */
   async waitForCompletion(
     paymentId: string,
-    timeoutMs: number = 300000,
-    pollIntervalMs: number = 5000
+    timeoutMs = 300000,
+    pollIntervalMs = 5000
   ): Promise<boolean> {
     const startTime = Date.now();
 
@@ -184,31 +160,18 @@ export class EscrowToBlindoldHook {
     return false;
   }
 
-  /**
-   * Trigger the auto-split and exchange process after funds arrive.
-   */
   async triggerProcessing(paymentId: string): Promise<void> {
-    // Check funds arrived
     const fundsCheck = await this.blindfold.checkFunds(paymentId);
     if (!fundsCheck.success) {
       throw new Error(`Funds not received: ${fundsCheck.message}`);
     }
-
-    // Trigger split and exchange
     await this.blindfold.autoSplitAndExchange(paymentId);
   }
 
   private getCurrencyFromMint(tokenMint: PublicKey): 'SOL' | 'USDC' | 'USDT' {
-    const mint = tokenMint.toBase58();
-    if (mint === NATIVE_SOL_MINT.toBase58() || mint === 'Native') {
-      return 'SOL';
-    }
-    if (mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
-      return 'USDC';
-    }
-    if (mint === 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB') {
-      return 'USDT';
-    }
+    if (tokenMint.equals(NATIVE_SOL_MINT)) return 'SOL';
+    if (tokenMint.equals(USDC_MINT)) return 'USDC';
+    if (tokenMint.equals(USDT_MINT)) return 'USDT';
     return 'SOL';
   }
 }
@@ -217,20 +180,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Check if escrow metadata indicates Blindfold card payment.
- */
-export function isBlindoldCardPayment(
+export function isBlindfoldCardPayment(
   metadata: unknown
-): metadata is BlindoldEscrowMetadata {
+): metadata is BlindfoldEscrowMetadata {
   if (!metadata || typeof metadata !== 'object') return false;
   const m = metadata as Record<string, unknown>;
   return m.blindfoldCard === true && typeof m.recipientEmail === 'string';
 }
 
-/**
- * Get required reputation threshold for a card tier.
- */
 export function getThresholdForTier(tier: CardTier): number {
   const config = CARD_TIERS.find((t) => t.tier === tier);
   return config?.reputationThreshold ?? 0;

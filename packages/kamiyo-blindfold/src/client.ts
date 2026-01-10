@@ -1,7 +1,6 @@
 import {
   PaymentRequest,
   PaymentResponse,
-  HoldingWalletRequest,
   HoldingWalletResponse,
   FundsCheckResponse,
   PaymentStatusResponse,
@@ -25,9 +24,6 @@ export class BlindfoldClient {
     this.apiKey = config.apiKey || process.env.BLINDFOLD_API_KEY;
   }
 
-  /**
-   * Create a payment request.
-   */
   async createPayment(request: PaymentRequest): Promise<PaymentResponse> {
     const response = await this.post('/api/crypto-payment/create', {
       amount: request.amount,
@@ -35,7 +31,6 @@ export class BlindfoldClient {
       recipientEmail: request.recipientEmail,
       recipientName: request.recipientName,
       useZkProof: request.useZkProof ?? true,
-      // KAMIYO integration fields
       agent_pk: request.agentPk,
       reputation_commitment: request.reputationCommitment,
       reputation_proof: request.reputationProof,
@@ -45,9 +40,6 @@ export class BlindfoldClient {
     return response as PaymentResponse;
   }
 
-  /**
-   * Create a holding wallet for ZK proof payment.
-   */
   async createHoldingWallet(
     paymentId: string,
     amount: string,
@@ -61,17 +53,11 @@ export class BlindfoldClient {
     return response as HoldingWalletResponse;
   }
 
-  /**
-   * Check if funds have arrived in holding wallet.
-   */
   async checkFunds(paymentId: string): Promise<FundsCheckResponse> {
     const response = await this.post('/api/zk-pay/check-funds', { paymentId });
     return response as FundsCheckResponse;
   }
 
-  /**
-   * Trigger auto split and exchange for privacy.
-   */
   async autoSplitAndExchange(paymentId: string): Promise<{
     success: boolean;
     totalSplits: number;
@@ -95,9 +81,6 @@ export class BlindfoldClient {
     };
   }
 
-  /**
-   * Queue deposit for batch processing.
-   */
   async queueDeposit(params: {
     paymentId: string;
     intermediateWalletPublicKey: string;
@@ -117,9 +100,6 @@ export class BlindfoldClient {
     return response as { success: boolean; batchKey: string };
   }
 
-  /**
-   * Upload ZK proof to blockchain.
-   */
   async uploadProof(params: {
     paymentId: string;
     proofBytes: string;
@@ -135,9 +115,6 @@ export class BlindfoldClient {
     return response as { success: boolean; proofPDA: string; signature: string };
   }
 
-  /**
-   * Submit proof to relayer for execution.
-   */
   async submitToRelayer(
     proofPDA: string,
     paymentId: string
@@ -149,19 +126,11 @@ export class BlindfoldClient {
     return response as { success: boolean; signature: string };
   }
 
-  /**
-   * Get payment status.
-   */
   async getPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
-    const response = await this.get(
-      `/api/crypto-payment/verify/${paymentId}`
-    );
+    const response = await this.get(`/api/crypto-payment/verify/${paymentId}`);
     return response as PaymentStatusResponse;
   }
 
-  /**
-   * Get card tier for a reputation threshold.
-   */
   getTierForThreshold(threshold: number): CardTier {
     for (let i = CARD_TIERS.length - 1; i >= 0; i--) {
       if (threshold >= CARD_TIERS[i].reputationThreshold) {
@@ -171,9 +140,6 @@ export class BlindfoldClient {
     return 'basic';
   }
 
-  /**
-   * Get card limit for a tier.
-   */
   getLimitForTier(tier: CardTier): number {
     const config = CARD_TIERS.find((t) => t.tier === tier);
     return config?.limit ?? 100;

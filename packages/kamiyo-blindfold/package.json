@@ -17,7 +17,7 @@
     "zk"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/web3.js": "^1.98.0"

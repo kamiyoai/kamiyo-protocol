@@ -1,10 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { BLINDFOLD_PROGRAM_ID, NATIVE_SOL_MINT } from './types';
 
-/**
- * Derive Pool PDA for a token mint.
- * Seeds: ["pool", token_mint]
- */
+// Seeds: ["pool", token_mint]
 export function derivePoolPDA(
   tokenMint: PublicKey | string,
   programId: PublicKey = BLINDFOLD_PROGRAM_ID
@@ -16,10 +13,7 @@ export function derivePoolPDA(
   );
 }
 
-/**
- * Derive UserBalance PDA for a wallet and token mint.
- * Seeds: ["user_balance", wallet, token_mint]
- */
+// Seeds: ["user_balance", wallet, token_mint]
 export function deriveUserBalancePDA(
   wallet: PublicKey | string,
   tokenMint: PublicKey | string,
@@ -33,10 +27,7 @@ export function deriveUserBalancePDA(
   );
 }
 
-/**
- * Derive Proof PDA for a nonce.
- * Seeds: ["proof", nonce (u64 LE bytes)]
- */
+// Seeds: ["proof", nonce (u64 LE bytes)]
 export function deriveProofPDA(
   nonce: number | bigint,
   programId: PublicKey = BLINDFOLD_PROGRAM_ID
@@ -52,9 +43,6 @@ export function deriveProofPDA(
   );
 }
 
-/**
- * Resolve token mint, handling "Native" and "SOL" as native SOL mint.
- */
 function resolveTokenMint(tokenMint: PublicKey | string): PublicKey {
   if (typeof tokenMint === 'string') {
     if (tokenMint === 'Native' || tokenMint === 'SOL') {
@@ -65,9 +53,6 @@ function resolveTokenMint(tokenMint: PublicKey | string): PublicKey {
   return tokenMint;
 }
 
-/**
- * Validate a Solana address.
- */
 export function isValidAddress(address: string): boolean {
   try {
     new PublicKey(address);

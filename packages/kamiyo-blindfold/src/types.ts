@@ -1,11 +1,9 @@
 import { PublicKey } from '@solana/web3.js';
 
-// Blindfold ZK Pay Program ID (mainnet)
 export const BLINDFOLD_PROGRAM_ID = new PublicKey(
   '4VBEvYSEFBr7B3b6ahgUdMnR9hPZLnZJy6rHVM8kcMsn'
 );
 
-// Token mints
 export const NATIVE_SOL_MINT = new PublicKey(
   'So11111111111111111111111111111111111111112'
 );
@@ -15,8 +13,6 @@ export const USDC_MINT = new PublicKey(
 export const USDT_MINT = new PublicKey(
   'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
 );
-
-// On-chain account structures
 
 export interface UserBalance {
   wallet: PublicKey;
@@ -44,8 +40,6 @@ export interface Proof {
   commitmentBytes: Uint8Array;
   blindingFactorBytes: Uint8Array;
 }
-
-// API types
 
 export interface PaymentRequest {
   amount: number;
@@ -132,8 +126,7 @@ export const CARD_TIERS: CardTierConfig[] = [
   { tier: 'elite', reputationThreshold: 95, limit: 10000 },
 ];
 
-// Escrow metadata for Blindfold integration
-export interface BlindoldEscrowMetadata {
+export interface BlindfoldEscrowMetadata {
   blindfoldCard: boolean;
   recipientEmail: string;
   requestedTier?: CardTier;
