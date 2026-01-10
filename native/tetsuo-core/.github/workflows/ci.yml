@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/tetsuo-core/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'native/tetsuo-core/**'
+
+defaults:
+  run:
+    working-directory: native/tetsuo-core
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            mcl_install: |
+              git clone --depth 1 https://github.com/herumi/mcl /tmp/mcl
+              cd /tmp/mcl && make -j4 MCL_FP_BIT=256 MCL_FR_BIT=256
+              make install PREFIX=$GITHUB_WORKSPACE/native/tetsuo-core/deps/mcl
+          - os: macos-latest
+            mcl_install: |
+              git clone --depth 1 https://github.com/herumi/mcl /tmp/mcl
+              cd /tmp/mcl && make -j4 MCL_FP_BIT=256 MCL_FR_BIT=256
+              make install PREFIX=$GITHUB_WORKSPACE/native/tetsuo-core/deps/mcl
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install llvm
+
+      - name: Build mcl
+        run: ${{ matrix.mcl_install }}
+
+      - name: Build (without mcl)
+        run: make clean && make
+
+      - name: Test (without mcl)
+        run: make test
+
+      - name: Build (with mcl)
+        run: make clean && make USE_MCL=1
+
+      - name: Test (with mcl)
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            LD_LIBRARY_PATH=deps/mcl/lib make USE_MCL=1 test
+          else
+            DYLD_LIBRARY_PATH=deps/mcl/lib make USE_MCL=1 test
+          fi
+
+  build-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with sanitizers
+        run: make DEBUG=1
+        working-directory: native/tetsuo-core
+
+      - name: Test with sanitizers
+        run: make DEBUG=1 test
+        working-directory: native/tetsuo-core
+
+  fuzz:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Build fuzz targets
+        run: |
+          CC=clang make clean
+          CC=clang CFLAGS="-fsanitize=fuzzer-no-link,address -g" make
+        working-directory: native/tetsuo-core
+
+      - name: Build fuzzers
+        run: |
+          clang -fsanitize=fuzzer,address -g -Isrc \
+            fuzz/fuzz_proof.c lib/libtetsuo.a -o build/fuzz_proof
+          clang -fsanitize=fuzzer,address -g -Isrc \
+            fuzz/fuzz_field.c lib/libtetsuo.a -o build/fuzz_field
+        working-directory: native/tetsuo-core
+
+      - name: Run fuzzers (short)
+        run: |
+          mkdir -p fuzz/corpus
+          timeout 60 ./build/fuzz_proof fuzz/corpus -max_total_time=30 || true
+          timeout 60 ./build/fuzz_field fuzz/corpus -max_total_time=30 || true
+        working-directory: native/tetsuo-core

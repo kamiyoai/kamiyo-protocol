@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: tetsuo-core
+Description: High-performance ZK proof verification engine
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -ltetsuo
+Cflags: -I${includedir}
