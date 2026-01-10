@@ -4,23 +4,25 @@
 
 Quality-escrowed inference payments with ZK privacy proofs.
 
-## Quick Start
+## Quick Start (Mock)
 
-**Codespaces** (one click):
 ```bash
-cd examples/tetsuo-demo && pnpm install && pnpm server
-# new terminal
-cd examples/tetsuo-demo && pnpm demo
-```
-
-**Local**:
-```bash
-git clone https://github.com/kamiyo-ai/kamiyo-protocol
-cd kamiyo-protocol/examples/tetsuo-demo
-pnpm install
+cd examples/tetsuo-demo && pnpm install
 pnpm server  # terminal 1
 pnpm demo    # terminal 2
 ```
+
+## Mainnet Demo (Real)
+
+```bash
+export SOLANA_PRIVATE_KEY=<your-base58-key>
+pnpm mainnet
+```
+
+Shows:
+- Real escrow creation on mainnet (Solscan links)
+- Real Groth16 proof generation (~800ms)
+- Real ZK verification
 
 ## What It Does
 
