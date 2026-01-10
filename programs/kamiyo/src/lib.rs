@@ -77,6 +77,8 @@ use anchor_lang::solana_program::{
 use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer as SplTransfer};
 use anchor_spl::associated_token::AssociatedToken;
 
+pub mod zk;
+
 declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 
 // ============================================================================
