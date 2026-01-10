@@ -320,6 +320,66 @@ pub struct OracleRewardsClaimed {
     pub amount: u64,
 }
 
+#[event]
+pub struct BlacklistRegistryInitialized {
+    pub registry: Pubkey,
+    pub authority: Pubkey,
+}
+
+#[event]
+pub struct AgentBlacklisted {
+    pub registry: Pubkey,
+    pub agent: Pubkey,
+    pub reason: String,
+    pub root: [u8; 32],
+}
+
+#[event]
+pub struct AgentUnblacklisted {
+    pub registry: Pubkey,
+    pub agent: Pubkey,
+    pub root: [u8; 32],
+}
+
+#[event]
+pub struct InferenceEscrowCreated {
+    pub escrow: Pubkey,
+    pub user: Pubkey,
+    pub model_id: [u8; 32],
+    pub amount: u64,
+    pub quality_threshold: u8,
+}
+
+#[event]
+pub struct InferenceSettled {
+    pub escrow: Pubkey,
+    pub quality_score: u8,
+    pub user_refund: u64,
+    pub provider_payment: u64,
+}
+
+#[event]
+pub struct InferenceRefunded {
+    pub escrow: Pubkey,
+    pub user: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct ModelRegistered {
+    pub model: Pubkey,
+    pub model_id: [u8; 32],
+    pub owner: Pubkey,
+}
+
+#[event]
+pub struct ModelReputationUpdated {
+    pub model: Pubkey,
+    pub total_inferences: u64,
+    pub successful_inferences: u64,
+    pub avg_quality: u8,
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -2221,6 +2281,234 @@ pub mod kamiyo {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Blacklist Registry Instructions
+    // ========================================================================
+
+    pub fn initialize_blacklist_registry(ctx: Context<InitializeBlacklistRegistry>) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+        registry.authority = ctx.accounts.authority.key();
+        registry.root = [0u8; 32];
+        registry.leaf_count = 0;
+        registry.last_updated = Clock::get()?.unix_timestamp;
+        registry.bump = ctx.bumps.registry;
+
+        emit!(BlacklistRegistryInitialized {
+            registry: registry.key(),
+            authority: registry.authority,
+        });
+
+        Ok(())
+    }
+
+    pub fn add_to_blacklist(
+        ctx: Context<AddToBlacklist>,
+        agent: Pubkey,
+        new_root: [u8; 32],
+        reason: String,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+
+        registry.root = new_root;
+        registry.leaf_count = registry.leaf_count.saturating_add(1);
+        registry.last_updated = Clock::get()?.unix_timestamp;
+
+        emit!(AgentBlacklisted {
+            registry: registry.key(),
+            agent,
+            reason,
+            root: new_root,
+        });
+
+        Ok(())
+    }
+
+    pub fn remove_from_blacklist(
+        ctx: Context<RemoveFromBlacklist>,
+        agent: Pubkey,
+        new_root: [u8; 32],
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+
+        registry.root = new_root;
+        registry.leaf_count = registry.leaf_count.saturating_sub(1);
+        registry.last_updated = Clock::get()?.unix_timestamp;
+
+        emit!(AgentUnblacklisted {
+            registry: registry.key(),
+            agent,
+            root: new_root,
+        });
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // Inference Escrow Instructions
+    // ========================================================================
+
+    pub fn create_inference_escrow(
+        ctx: Context<CreateInferenceEscrow>,
+        model_id: [u8; 32],
+        amount: u64,
+        quality_threshold: u8,
+        expires_in: i64,
+    ) -> Result<()> {
+        require!(amount >= MIN_ESCROW_AMOUNT, KamiyoError::InvalidAmount);
+        require!(quality_threshold <= 100, KamiyoError::InvalidQualityScore);
+        require!(expires_in >= 300 && expires_in <= 86400, KamiyoError::InvalidTimeLock);
+
+        let clock = Clock::get()?;
+        let escrow = &mut ctx.accounts.escrow;
+
+        escrow.user = ctx.accounts.user.key();
+        escrow.model_owner = ctx.accounts.model.owner;
+        escrow.model_id = model_id;
+        escrow.amount = amount;
+        escrow.quality_threshold = quality_threshold;
+        escrow.status = InferenceStatus::Pending;
+        escrow.quality_score = None;
+        escrow.created_at = clock.unix_timestamp;
+        escrow.expires_at = clock.unix_timestamp.saturating_add(expires_in);
+        escrow.bump = ctx.bumps.escrow;
+
+        let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &ctx.accounts.user.key(),
+            &escrow.key(),
+            amount,
+        );
+        anchor_lang::solana_program::program::invoke(
+            &transfer_ix,
+            &[
+                ctx.accounts.user.to_account_info(),
+                escrow.to_account_info(),
+            ],
+        )?;
+
+        emit!(InferenceEscrowCreated {
+            escrow: escrow.key(),
+            user: escrow.user,
+            model_id,
+            amount,
+            quality_threshold,
+        });
+
+        Ok(())
+    }
+
+    pub fn settle_inference(
+        ctx: Context<SettleInference>,
+        quality_score: u8,
+    ) -> Result<()> {
+        require!(quality_score <= 100, KamiyoError::InvalidQualityScore);
+
+        let escrow = &mut ctx.accounts.escrow;
+        require!(escrow.status == InferenceStatus::Pending, KamiyoError::InvalidStatus);
+
+        let clock = Clock::get()?;
+        require!(clock.unix_timestamp <= escrow.expires_at, KamiyoError::DisputeWindowExpired);
+
+        escrow.status = InferenceStatus::Settled;
+        escrow.quality_score = Some(quality_score);
+
+        let (user_refund, provider_payment) = if quality_score >= escrow.quality_threshold {
+            (0, escrow.amount)
+        } else if quality_score >= 50 {
+            let provider_share = (escrow.amount as u128)
+                .saturating_mul(quality_score as u128)
+                .checked_div(100)
+                .unwrap_or(0) as u64;
+            (escrow.amount.saturating_sub(provider_share), provider_share)
+        } else {
+            (escrow.amount, 0)
+        };
+
+        let escrow_info = escrow.to_account_info();
+        if user_refund > 0 {
+            **escrow_info.try_borrow_mut_lamports()? -= user_refund;
+            **ctx.accounts.user.to_account_info().try_borrow_mut_lamports()? += user_refund;
+        }
+        if provider_payment > 0 {
+            **escrow_info.try_borrow_mut_lamports()? -= provider_payment;
+            **ctx.accounts.model_owner.to_account_info().try_borrow_mut_lamports()? += provider_payment;
+        }
+
+        let model = &mut ctx.accounts.model;
+        model.total_inferences = model.total_inferences.saturating_add(1);
+        if quality_score >= escrow.quality_threshold {
+            model.successful_inferences = model.successful_inferences.saturating_add(1);
+        }
+        model.total_quality_sum = model.total_quality_sum.saturating_add(quality_score as u64);
+        model.last_updated = clock.unix_timestamp;
+
+        emit!(InferenceSettled {
+            escrow: escrow.key(),
+            quality_score,
+            user_refund,
+            provider_payment,
+        });
+
+        Ok(())
+    }
+
+    pub fn register_model(
+        ctx: Context<RegisterModel>,
+        model_id: [u8; 32],
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        let model = &mut ctx.accounts.model;
+
+        model.model_id = model_id;
+        model.owner = ctx.accounts.owner.key();
+        model.total_inferences = 0;
+        model.successful_inferences = 0;
+        model.total_quality_sum = 0;
+        model.disputes = 0;
+        model.created_at = clock.unix_timestamp;
+        model.last_updated = clock.unix_timestamp;
+        model.bump = ctx.bumps.model;
+
+        emit!(ModelRegistered {
+            model: model.key(),
+            model_id,
+            owner: model.owner,
+        });
+
+        Ok(())
+    }
+
+    /// Refund expired escrow to user.
+    pub fn refund_expired(ctx: Context<RefundExpired>) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+
+        require!(
+            escrow.status == InferenceStatus::Pending,
+            KamiyoError::InvalidStatus
+        );
+
+        let clock = Clock::get()?;
+        require!(
+            clock.unix_timestamp > escrow.expires_at,
+            KamiyoError::TimeLockNotExpired
+        );
+
+        escrow.status = InferenceStatus::Expired;
+
+        // Transfer all funds back to user
+        let escrow_info = escrow.to_account_info();
+        let amount = escrow.amount;
+        **escrow_info.try_borrow_mut_lamports()? -= amount;
+        **ctx.accounts.user.try_borrow_mut_lamports()? += amount;
+
+        emit!(InferenceRefunded {
+            escrow: escrow.key(),
+            user: escrow.user,
+            amount,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -2800,6 +3088,134 @@ pub struct ClaimExpiredEscrow<'info> {
     pub token_program: Option<Program<'info, Token>>,
 }
 
+#[derive(Accounts)]
+pub struct InitializeBlacklistRegistry<'info> {
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + BlacklistRegistry::INIT_SPACE,
+        seeds = [b"blacklist_registry"],
+        bump
+    )]
+    pub registry: Account<'info, BlacklistRegistry>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AddToBlacklist<'info> {
+    #[account(
+        mut,
+        seeds = [b"blacklist_registry"],
+        bump = registry.bump,
+        constraint = authority.key() == registry.authority @ KamiyoError::Unauthorized
+    )]
+    pub registry: Account<'info, BlacklistRegistry>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RemoveFromBlacklist<'info> {
+    #[account(
+        mut,
+        seeds = [b"blacklist_registry"],
+        bump = registry.bump,
+        constraint = authority.key() == registry.authority @ KamiyoError::Unauthorized
+    )]
+    pub registry: Account<'info, BlacklistRegistry>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(model_id: [u8; 32])]
+pub struct CreateInferenceEscrow<'info> {
+    #[account(
+        init,
+        payer = user,
+        space = 8 + InferenceEscrow::INIT_SPACE,
+        seeds = [b"inference_escrow", user.key().as_ref(), model_id.as_ref()],
+        bump
+    )]
+    pub escrow: Account<'info, InferenceEscrow>,
+
+    #[account(
+        seeds = [b"model", model_id.as_ref()],
+        bump = model.bump
+    )]
+    pub model: Account<'info, ModelReputation>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SettleInference<'info> {
+    #[account(
+        mut,
+        seeds = [b"inference_escrow", escrow.user.as_ref(), escrow.model_id.as_ref()],
+        bump = escrow.bump
+    )]
+    pub escrow: Account<'info, InferenceEscrow>,
+
+    #[account(
+        mut,
+        seeds = [b"model", escrow.model_id.as_ref()],
+        bump = model.bump
+    )]
+    pub model: Account<'info, ModelReputation>,
+
+    /// CHECK: User wallet for refund
+    #[account(mut, constraint = user.key() == escrow.user @ KamiyoError::Unauthorized)]
+    pub user: AccountInfo<'info>,
+
+    /// CHECK: Model owner for payment
+    #[account(mut, constraint = model_owner.key() == escrow.model_owner @ KamiyoError::Unauthorized)]
+    pub model_owner: AccountInfo<'info>,
+
+    pub caller: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RefundExpired<'info> {
+    #[account(
+        mut,
+        seeds = [b"inference_escrow", escrow.user.as_ref(), escrow.model_id.as_ref()],
+        bump = escrow.bump
+    )]
+    pub escrow: Account<'info, InferenceEscrow>,
+
+    /// CHECK: User wallet for refund
+    #[account(mut, constraint = user.key() == escrow.user @ KamiyoError::Unauthorized)]
+    pub user: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(model_id: [u8; 32])]
+pub struct RegisterModel<'info> {
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + ModelReputation::INIT_SPACE,
+        seeds = [b"model", model_id.as_ref()],
+        bump
+    )]
+    pub model: Account<'info, ModelReputation>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 // ============================================================================
 // State
 // ============================================================================
@@ -2959,6 +3375,53 @@ pub struct EntityReputation {
     pub bump: u8,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct BlacklistRegistry {
+    pub authority: Pubkey,
+    pub root: [u8; 32],
+    pub leaf_count: u64,
+    pub last_updated: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct InferenceEscrow {
+    pub user: Pubkey,
+    pub model_owner: Pubkey,
+    pub model_id: [u8; 32],
+    pub amount: u64,
+    pub quality_threshold: u8,
+    pub status: InferenceStatus,
+    pub quality_score: Option<u8>,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ModelReputation {
+    pub model_id: [u8; 32],
+    pub owner: Pubkey,
+    pub total_inferences: u64,
+    pub successful_inferences: u64,
+    pub total_quality_sum: u64,
+    pub disputes: u64,
+    pub created_at: i64,
+    pub last_updated: i64,
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum InferenceStatus {
+    Pending,
+    Settled,
+    Refunded,
+    Expired,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum EntityType {
     Agent,
@@ -3098,4 +3561,16 @@ pub enum KamiyoError {
 
     #[msg("Reveal delay not met - wait 5 minutes after first oracle submission")]
     RevealDelayNotMet,
+
+    #[msg("Agent is blacklisted")]
+    AgentBlacklisted,
+
+    #[msg("Agent already blacklisted")]
+    AlreadyBlacklisted,
+
+    #[msg("Agent not on blacklist")]
+    NotBlacklisted,
+
+    #[msg("Invalid SMT root")]
+    InvalidSmtRoot,
 }

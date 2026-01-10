@@ -185,6 +185,15 @@ export interface UpdateProtocolConfigParams {
   newIdentityFee?: BN;
 }
 
+// Blacklist Registry Account
+export interface BlacklistRegistry {
+  authority: PublicKey;
+  root: Uint8Array;
+  leafCount: BN;
+  lastUpdated: BN;
+  bump: number;
+}
+
 // Constants
 export const MIN_TIME_LOCK_SECONDS = 3600; // 1 hour
 export const MAX_TIME_LOCK_SECONDS = 2_592_000; // 30 days

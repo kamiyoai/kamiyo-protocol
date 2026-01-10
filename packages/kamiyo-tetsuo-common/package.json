@@ -1,0 +1,26 @@
+{
+  "name": "@kamiyo/tetsuo-common",
+  "version": "0.1.0",
+  "description": "Shared utilities for TETSUO SDK packages",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-tetsuo-common"
+  },
+  "license": "MIT"
+}

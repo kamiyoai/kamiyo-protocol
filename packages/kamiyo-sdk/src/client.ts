@@ -19,6 +19,7 @@ import {
   OracleRegistry,
   EntityReputation,
   ProtocolConfig,
+  BlacklistRegistry,
   CreateAgentParams,
   CreateAgreementParams,
   UpdateProtocolConfigParams,
@@ -116,6 +117,16 @@ export class KamiyoClient {
   getFeeVaultPDA(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("fee_vault")],
+      this.programId
+    );
+  }
+
+  /**
+   * Derive the blacklist registry PDA
+   */
+  getBlacklistRegistryPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("blacklist_registry")],
       this.programId
     );
   }
@@ -234,6 +245,30 @@ export class KamiyoClient {
       disputeBaseFee: config.disputeBaseFee,
       identityFee: config.identityFee,
     };
+  }
+
+  /**
+   * Fetch blacklist registry
+   */
+  async getBlacklistRegistry(): Promise<BlacklistRegistry | null> {
+    const [registryPDA] = this.getBlacklistRegistryPDA();
+    try {
+      const accountInfo = await this.connection.getAccountInfo(registryPDA);
+      if (!accountInfo) return null;
+      return this.deserializeBlacklistRegistry(accountInfo.data);
+    } catch (error) {
+      console.error("Failed to fetch blacklist registry:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get current blacklist root as hex string
+   */
+  async getBlacklistRoot(): Promise<string | null> {
+    const registry = await this.getBlacklistRegistry();
+    if (!registry) return null;
+    return Buffer.from(registry.root).toString("hex");
   }
 
   /**
@@ -861,6 +896,32 @@ export class KamiyoClient {
       isActive,
       createdAt,
       updatedAt,
+      bump,
+    };
+  }
+
+  private deserializeBlacklistRegistry(data: Buffer): BlacklistRegistry {
+    let offset = 8; // Skip discriminator
+
+    const authority = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const root = new Uint8Array(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const leafCount = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const lastUpdated = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const bump = data[offset];
+
+    return {
+      authority,
+      root,
+      leafCount,
+      lastUpdated,
       bump,
     };
   }
