@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: kamiyo-verifier-api
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: VERIFIER_PROGRAM_ID
+        sync: false
+      - key: BLACKLIST_REGISTRY_PDA
+        sync: false
+    healthCheckPath: /health
