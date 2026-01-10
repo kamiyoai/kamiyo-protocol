@@ -1,4 +1,3 @@
-// Types
 export {
   BLINDFOLD_PROGRAM_ID,
   NATIVE_SOL_MINT,
@@ -21,10 +20,9 @@ export type {
   HoldingWalletStatus,
   CardTier,
   CardTierConfig,
-  BlindoldEscrowMetadata,
+  BlindfoldEscrowMetadata,
 } from './types';
 
-// PDA helpers
 export {
   derivePoolPDA,
   deriveUserBalancePDA,
@@ -32,19 +30,17 @@ export {
   isValidAddress,
 } from './pda';
 
-// Client
 export { BlindfoldClient } from './client';
 export type { BlindfoldClientConfig } from './client';
 
-// Escrow hook
 export {
   EscrowToBlindoldHook,
-  isBlindoldCardPayment,
+  isBlindfoldCardPayment,
   getThresholdForTier,
 } from './escrow-hook';
 
 export type {
   EscrowReleaseParams,
   ReputationProofData,
-  BlindofoldPaymentResult,
+  BlindfoldPaymentResult,
 } from './escrow-hook';
