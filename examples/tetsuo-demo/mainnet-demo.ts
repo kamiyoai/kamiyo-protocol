@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Connection, Keypair, PublicKey, Transaction, TransactionInstruction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Wallet, BN } from '@coral-xyz/anchor';
 import * as snarkjs from 'snarkjs';
