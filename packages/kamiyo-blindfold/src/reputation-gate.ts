@@ -120,7 +120,6 @@ export class ReputationGate {
   }
 }
 
-// Verification helpers (for Blindfold side or local verification)
 export function verifyThresholdMet(stats: ReputationStats, threshold: number): boolean {
   if (stats.totalAgreements === 0) return threshold === 0;
   const rate = Math.floor((stats.successfulAgreements * 100) / stats.totalAgreements);

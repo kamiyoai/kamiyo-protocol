@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 
 const TIER_THRESHOLDS = { basic: 0, standard: 70, premium: 85, elite: 95 } as const;
 const TIER_LIMITS = { basic: 100, standard: 500, premium: 2000, elite: 10000 } as const;
@@ -128,7 +128,6 @@ async function verifyProofOnChain(
     threshBuf,
   ]);
 
-  const { Transaction, TransactionInstruction } = await import('@solana/web3.js');
   const ix = new TransactionInstruction({
     keys: [],
     programId: verifierProgram,
