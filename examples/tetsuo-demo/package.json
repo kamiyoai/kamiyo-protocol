@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "server": "tsx server.ts",
-    "demo": "tsx demo.ts"
+    "server": "npx tsx server.ts",
+    "demo": "npx tsx demo.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",
