@@ -2,7 +2,6 @@ import { ethers, Signer, Provider, Contract, ContractTransactionReceipt } from '
 import {
   HyperliquidNetwork,
   NetworkConfig,
-  NETWORKS,
   Agent,
   AgentWithAddress,
   AgentListResult,
@@ -26,6 +25,7 @@ import {
   CanAcceptDepositResult,
   TIER_NAMES,
 } from './types';
+import { getNetworkConfig, validateConfig, isNetworkConfigured } from './config';
 
 const AGENT_REGISTRY_ABI = [
   'function register(string name) payable',
@@ -121,10 +121,19 @@ export class HyperliquidClient {
 
   constructor(options: HyperliquidClientConfig = {}) {
     const network = options.network || 'testnet';
-    this.config = { ...NETWORKS[network] };
+    this.config = { ...getNetworkConfig(network) };
 
+    // Override contracts if provided explicitly
     if (options.contracts) {
       this.config.contracts = { ...this.config.contracts, ...options.contracts };
+    }
+
+    // Warn if using unconfigured network (zero addresses)
+    if (!isNetworkConfigured(network) && !options.contracts) {
+      console.warn(
+        `[kamiyo-hyperliquid] Contract addresses not configured for ${network}. ` +
+        `Set env vars or use configure() before creating client.`
+      );
     }
 
     if (options.provider) {

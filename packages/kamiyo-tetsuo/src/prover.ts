@@ -1,4 +1,6 @@
 import type { groth16 as Groth16 } from 'snarkjs';
+import * as path from 'path';
+import * as fs from 'fs';
 import {
   ProofInput,
   ProverConfig,
@@ -10,6 +12,16 @@ import {
 } from './types';
 
 let snarkjs: { groth16: typeof Groth16 } | null = null;
+
+// Default bundled artifact paths
+const BUNDLED_ARTIFACTS_DIR = path.join(__dirname, '../artifacts');
+const DEFAULT_WASM_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'reputation_threshold.wasm');
+const DEFAULT_ZKEY_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'reputation_threshold_final.zkey');
+const DEFAULT_VKEY_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'verification_key.json');
+
+function getBundledArtifactsAvailable(): boolean {
+  return fs.existsSync(DEFAULT_WASM_PATH) && fs.existsSync(DEFAULT_ZKEY_PATH);
+}
 
 async function poseidonHash(inputs: bigint[]): Promise<bigint> {
   const { buildPoseidon } = await import('circomlibjs');
@@ -33,11 +45,24 @@ function randomSecret(bytes: number = 31): bigint {
 export class TetsuoProver {
   private wasmPath: string;
   private zkeyPath: string;
+  private vkeyPath: string;
   private initialized = false;
 
-  constructor(config: ProverConfig) {
-    this.wasmPath = config.wasmPath;
-    this.zkeyPath = config.zkeyPath;
+  constructor(config?: Partial<ProverConfig>) {
+    this.wasmPath = config?.wasmPath ?? DEFAULT_WASM_PATH;
+    this.zkeyPath = config?.zkeyPath ?? DEFAULT_ZKEY_PATH;
+    this.vkeyPath = config?.vkeyPath ?? DEFAULT_VKEY_PATH;
+
+    if (!config?.wasmPath && !getBundledArtifactsAvailable()) {
+      throw new Error(
+        'Bundled circuit artifacts not found. Either provide explicit paths ' +
+        'or ensure artifacts are in packages/kamiyo-tetsuo/artifacts/'
+      );
+    }
+  }
+
+  static isAvailable(): boolean {
+    return getBundledArtifactsAvailable();
   }
 
   async init(): Promise<void> {
@@ -102,11 +127,12 @@ export class TetsuoProver {
     };
   }
 
-  async verifyProof(proof: GeneratedProof, vkeyPath: string): Promise<VerificationResult> {
+  async verifyProof(proof: GeneratedProof, vkeyPath?: string): Promise<VerificationResult> {
     await this.init();
 
     try {
-      const vkey = await import(vkeyPath);
+      const keyPath = vkeyPath ?? this.vkeyPath;
+      const vkey = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
 
       const snarkProof = {
         pi_a: [proof.a[0].toString(), proof.a[1].toString(), '1'],

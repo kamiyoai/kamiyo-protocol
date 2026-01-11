@@ -1,6 +1,18 @@
 export { HyperliquidClient, HyperliquidClientConfig } from './client';
 
 export {
+  configure,
+  getNetworkConfig,
+  getAllNetworkConfigs,
+  isNetworkConfigured,
+  validateConfig,
+  resetConfig,
+  getConfigHints,
+  ConfigOverrides,
+  ConfigError,
+} from './config';
+
+export {
   HyperliquidExchange,
   ExchangeConfig,
   OrderRequest,
@@ -38,6 +50,12 @@ export {
   disableLogging,
   createConsoleLogger,
 } from './logger';
+
+export {
+  EventListener,
+  EventSubscription,
+  EventType,
+} from './events';
 
 export {
   HyperliquidNetwork,
