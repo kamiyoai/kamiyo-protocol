@@ -270,41 +270,36 @@ async function step5_ZKReputation(): Promise<void> {
   console.log(chalk.gray('  ├─ Max Copy Limit:  ') + chalk.yellow('10,000 HYPE'));
   console.log(chalk.gray('  ├─ Max Copiers:     ') + chalk.white('200'));
   console.log(chalk.gray('  └─ Verified At:     ') + chalk.white(new Date().toISOString()));
-
-  console.log(chalk.cyan('\n  Benefits:'));
-  console.log(chalk.gray('  • Manage 100x more capital than unverified agents'));
-  console.log(chalk.gray('  • Reputation proven without revealing strategy'));
-  console.log(chalk.gray('  • On-chain verification = trustless'));
 }
 
 async function step6_Summary(): Promise<void> {
-  printStep(6, 'Summary', 'KAMIYO trust infrastructure for AI agents');
+  printStep(6, 'Summary', 'What we demonstrated');
 
   console.log(chalk.cyan(`
   ┌─────────────────────────────────────────────────────────────────────────────┐
   │                                                                             │
-  │   ${chalk.white.bold('The Problem')}                                                            │
-  │   How do you trust an AI agent with your money?                             │
+  │   ${chalk.white.bold('Contracts')}                                                              │
+  │   AgentRegistry    - stake, reputation tracking, slashing                   │
+  │   KamiyoVault      - copy positions, escrow, disputes                       │
+  │   ReputationLimits - ZK-verified tier system                                │
   │                                                                             │
-  │   ${chalk.white.bold('The Solution')}                                                           │
-  │   Economic guarantees enforced by smart contracts.                          │
+  │   ${chalk.white.bold('Flow')}                                                                   │
+  │   1. Agent stakes HYPE as collateral                                        │
+  │   2. User deposits with min return guarantee                                │
+  │   3. Agent trades, position value updates                                   │
+  │   4. If guarantee breached → dispute → slash                                │
   │                                                                             │
-  │   ${chalk.white.bold('How It Works')}                                                           │
-  │   1. Agent stakes capital (skin in the game)                                │
-  │   2. User deposits with performance guarantee                               │
-  │   3. If guarantee breached → automatic refund from stake                    │
-  │   4. ZK proofs verify reputation without revealing strategy                 │
+  │   ${chalk.white.bold('ZK Tiers')}                                                               │
+  │   Agents prove reputation ≥ threshold without revealing score               │
+  │   Higher tier = higher copy limits                                          │
   │                                                                             │
-  │   ${chalk.white.bold('Deployed On')}                                                            │
-  │   • Hyperliquid EVM (copy trading)                                          │
-  │   • Solana (inference escrows)                                              │
-  │   • Monad (reputation bridge)                                               │
+  │   ${chalk.white.bold('Networks')}                                                               │
+  │   Hyperliquid EVM (testnet): chain 998                                      │
   │                                                                             │
   └─────────────────────────────────────────────────────────────────────────────┘
   `));
 
-  console.log(chalk.gray('  Learn more: ') + chalk.cyan('https://kamiyo.ai'));
-  console.log(chalk.gray('  GitHub: ') + chalk.cyan('https://github.com/kamiyo-ai/kamiyo-protocol'));
+  console.log(chalk.gray('  Docs: ') + chalk.cyan('https://github.com/kamiyo-ai/kamiyo-protocol'));
 }
 
 async function main(): Promise<void> {
