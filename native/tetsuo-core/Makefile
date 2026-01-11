@@ -51,7 +51,8 @@ SRCS = $(SRC_DIR)/field.c \
        $(SRC_DIR)/pairing.c \
        $(SRC_DIR)/log.c \
        $(SRC_DIR)/error.c \
-       $(SRC_DIR)/api.c
+       $(SRC_DIR)/api.c \
+       $(SRC_DIR)/agenc_zk.c
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 DEPS = $(OBJS:.o=.d)
