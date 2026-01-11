@@ -58,6 +58,7 @@ contract ReputationLimits is ReentrancyGuard {
     error InvalidTier();
     error AlreadyHigherTier();
     error BadInputs();
+    error VKNotInitialized();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -266,7 +267,7 @@ contract ReputationLimits is ReentrancyGuard {
         uint256[2] calldata proofC,
         uint256[] calldata pubInputs
     ) internal view returns (bool) {
-        if (vkIC.length == 0) return false;
+        if (vkIC.length == 0) revert VKNotInitialized();
         if (pubInputs.length + 1 > vkIC.length) revert BadInputs();
 
         // Compute vk_x = vkIC[0] + sum(pubInputs[i] * vkIC[i+1])

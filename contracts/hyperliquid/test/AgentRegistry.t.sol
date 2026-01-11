@@ -13,7 +13,7 @@ contract AgentRegistryTest is Test {
     address public agent2 = address(4);
     address public vault = address(5);
 
-    uint256 constant MIN_STAKE = 100e18;
+    uint256 constant MIN_STAKE = 0.1e18;
 
     event AgentRegistered(address indexed agent, string name, uint256 stake);
     event AgentDeactivated(address indexed agent);

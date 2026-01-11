@@ -15,20 +15,21 @@ import {
   DisputeResolvedEvent,
   TierVerifiedEvent,
 } from './types';
+import {
+  AGENT_REGISTRY_EVENTS_ABI,
+  KAMIYO_VAULT_EVENTS_ABI,
+  REPUTATION_LIMITS_EVENTS_ABI,
+} from './abis';
 
-// Event signatures
-const EVENT_SIGNATURES = {
-  AgentRegistered: 'AgentRegistered(address,string,uint256)',
-  AgentDeactivated: 'AgentDeactivated(address)',
-  AgentReactivated: 'AgentReactivated(address)',
-  PositionOpened: 'PositionOpened(uint256,address,address,uint256,int16,uint64)',
-  PositionClosed: 'PositionClosed(uint256,uint256,int64)',
-  DisputeFiled: 'DisputeFiled(uint256,uint256,address)',
-  DisputeResolved: 'DisputeResolved(uint256,bool,uint256)',
-  TierVerified: 'TierVerified(address,uint8,uint256)',
-} as const;
-
-export type EventType = keyof typeof EVENT_SIGNATURES;
+export type EventType =
+  | 'AgentRegistered'
+  | 'AgentDeactivated'
+  | 'AgentReactivated'
+  | 'PositionOpened'
+  | 'PositionClosed'
+  | 'DisputeFiled'
+  | 'DisputeResolved'
+  | 'TierVerified';
 
 export interface EventSubscription {
   unsubscribe(): void;
@@ -40,6 +41,7 @@ export class EventListener {
   private kamiyoVault: Contract;
   private reputationLimits: Contract | null;
   private subscriptions: Map<string, () => void> = new Map();
+  private subscriptionCounter = 0;
 
   constructor(
     provider: Provider,
@@ -49,34 +51,10 @@ export class EventListener {
   ) {
     this.provider = provider;
 
-    // Create contract instances for event filtering
-    this.agentRegistry = new Contract(
-      agentRegistryAddress,
-      [
-        'event AgentRegistered(address indexed agent, string name, uint256 stake)',
-        'event AgentDeactivated(address indexed agent)',
-        'event AgentReactivated(address indexed agent)',
-      ],
-      provider
-    );
-
-    this.kamiyoVault = new Contract(
-      kamiyoVaultAddress,
-      [
-        'event PositionOpened(uint256 indexed positionId, address indexed user, address indexed agent, uint256 deposit, int16 minReturnBps, uint64 lockPeriod)',
-        'event PositionClosed(uint256 indexed positionId, uint256 returnAmount, int64 returnBps)',
-        'event DisputeFiled(uint256 indexed disputeId, uint256 indexed positionId, address user)',
-        'event DisputeResolved(uint256 indexed disputeId, bool userWon, uint256 payout)',
-      ],
-      provider
-    );
-
+    this.agentRegistry = new Contract(agentRegistryAddress, AGENT_REGISTRY_EVENTS_ABI, provider);
+    this.kamiyoVault = new Contract(kamiyoVaultAddress, KAMIYO_VAULT_EVENTS_ABI, provider);
     this.reputationLimits = reputationLimitsAddress
-      ? new Contract(
-          reputationLimitsAddress,
-          ['event TierVerified(address indexed agent, uint8 tier, uint256 maxCopyLimit)'],
-          provider
-        )
+      ? new Contract(reputationLimitsAddress, REPUTATION_LIMITS_EVENTS_ABI, provider)
       : null;
   }
 
@@ -98,7 +76,7 @@ export class EventListener {
     };
 
     this.agentRegistry.on(eventFilter, handler);
-    const id = `AgentRegistered-${Date.now()}`;
+    const id = `AgentRegistered-${this.subscriptionCounter++}`;
     this.subscriptions.set(id, () => this.agentRegistry.off(eventFilter, handler));
 
     return { unsubscribe: () => this.unsubscribe(id) };
@@ -133,7 +111,7 @@ export class EventListener {
     };
 
     this.kamiyoVault.on(eventFilter, handler);
-    const id = `PositionOpened-${Date.now()}`;
+    const id = `PositionOpened-${this.subscriptionCounter++}`;
     this.subscriptions.set(id, () => this.kamiyoVault.off(eventFilter, handler));
 
     return { unsubscribe: () => this.unsubscribe(id) };
@@ -160,7 +138,7 @@ export class EventListener {
     };
 
     this.kamiyoVault.on(eventFilter, handler);
-    const id = `PositionClosed-${Date.now()}`;
+    const id = `PositionClosed-${this.subscriptionCounter++}`;
     this.subscriptions.set(id, () => this.kamiyoVault.off(eventFilter, handler));
 
     return { unsubscribe: () => this.unsubscribe(id) };
@@ -189,7 +167,7 @@ export class EventListener {
     };
 
     this.kamiyoVault.on(eventFilter, handler);
-    const id = `DisputeFiled-${Date.now()}`;
+    const id = `DisputeFiled-${this.subscriptionCounter++}`;
     this.subscriptions.set(id, () => this.kamiyoVault.off(eventFilter, handler));
 
     return { unsubscribe: () => this.unsubscribe(id) };
@@ -216,7 +194,7 @@ export class EventListener {
     };
 
     this.kamiyoVault.on(eventFilter, handler);
-    const id = `DisputeResolved-${Date.now()}`;
+    const id = `DisputeResolved-${this.subscriptionCounter++}`;
     this.subscriptions.set(id, () => this.kamiyoVault.off(eventFilter, handler));
 
     return { unsubscribe: () => this.unsubscribe(id) };
@@ -249,7 +227,7 @@ export class EventListener {
     };
 
     this.reputationLimits.on(eventFilter, handler);
-    const id = `TierVerified-${Date.now()}`;
+    const id = `TierVerified-${this.subscriptionCounter++}`;
     this.subscriptions.set(id, () => this.reputationLimits!.off(eventFilter, handler));
 
     return { unsubscribe: () => this.unsubscribe(id) };

@@ -110,6 +110,7 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
     error DisputeNotResolved();
     error PositionNotFound();
     error InsufficientFee();
+    error LengthMismatch();
 
     
 
@@ -310,7 +311,7 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
         uint256[] calldata positionIds,
         uint256[] calldata newValues
     ) external onlyDisputeResolver {
-        require(positionIds.length == newValues.length, "Length mismatch");
+        if (positionIds.length != newValues.length) revert LengthMismatch();
 
         for (uint256 i = 0; i < positionIds.length; i++) {
             CopyPosition storage pos = _positions[positionIds[i]];

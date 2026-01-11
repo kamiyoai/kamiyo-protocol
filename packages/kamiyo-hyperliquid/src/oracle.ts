@@ -9,6 +9,7 @@ import { ethers, Contract } from 'ethers';
 import { HyperliquidClient, HyperliquidClientConfig } from './client';
 import { HyperliquidExchange } from './exchange';
 import { getLogger, Logger } from './logger';
+import { VAULT_ORACLE_ABI } from './abis';
 
 export interface OracleConfig extends HyperliquidClientConfig {
   updateInterval?: number; // ms between position value updates
@@ -32,17 +33,6 @@ export interface DisputeEvaluation {
   reason: string;
 }
 
-const KAMIYO_VAULT_ABI = [
-  'function updatePositionValue(uint256 positionId, uint256 newValue)',
-  'function batchUpdatePositionValues(uint256[] positionIds, uint256[] newValues)',
-  'function resolveDispute(uint256 disputeId, bool userWins)',
-  'function getPosition(uint256 positionId) view returns (tuple(address user, address agent, uint256 deposit, uint256 currentValue, int16 minReturnBps, uint64 startTime, uint64 lockPeriod, uint64 endTime, bool active, bool disputed))',
-  'function getDispute(uint256 disputeId) view returns (tuple(uint256 positionId, address user, address agent, uint64 filedAt, int64 actualReturnBps, int16 expectedReturnBps, bool resolved, bool userWon))',
-  'function positionCount() view returns (uint256)',
-  'function disputeCount() view returns (uint256)',
-  'event DisputeFiled(uint256 indexed disputeId, uint256 indexed positionId, address indexed user)',
-];
-
 export class DisputeOracle {
   private client: HyperliquidClient;
   private exchange: HyperliquidExchange | null = null;
@@ -63,7 +53,7 @@ export class DisputeOracle {
 
     this.vaultContract = new Contract(
       networkConfig.contracts.kamiyoVault,
-      KAMIYO_VAULT_ABI,
+      VAULT_ORACLE_ABI,
       signerOrProvider
     );
 
@@ -135,7 +125,10 @@ export class DisputeOracle {
           // Calculate position value based on agent's total performance
           // Value = deposit * (1 + total_pnl_ratio)
           const depositValue = position.deposit;
-          const pnlRatio = summary.totalPnl * 10000n / summary.accountValue;
+          // Guard against division by zero (liquidated accounts)
+          const pnlRatio = summary.accountValue > 0n
+            ? summary.totalPnl * 10000n / summary.accountValue
+            : 0n;
           const newValue = depositValue + (depositValue * pnlRatio / 10000n);
 
           if (newValue !== position.currentValue) {
@@ -179,7 +172,10 @@ export class DisputeOracle {
 
     // Calculate actual return
     const depositValue = position.deposit;
-    const pnlRatio = summary.totalPnl * 10000n / summary.accountValue;
+    // Guard against division by zero (liquidated accounts)
+    const pnlRatio = summary.accountValue > 0n
+      ? summary.totalPnl * 10000n / summary.accountValue
+      : 0n;
     const actualReturnBps = Number(pnlRatio);
     const expectedReturnBps = Number(position.minReturnBps);
 
