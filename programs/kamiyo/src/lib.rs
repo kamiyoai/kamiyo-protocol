@@ -110,8 +110,6 @@ const BASE_DISPUTE_COST: u64 = 1_000_000;           // 0.001 SOL
 const MAX_ORACLES: usize = 7;
 const MIN_CONSENSUS_ORACLES: u8 = 3;                 // Minimum 3-of-N for collusion resistance
 const ORACLE_REVEAL_DELAY: i64 = 300;                // 5 minute delay before scores visible
-#[allow(dead_code)]
-const MAX_SCORE_DEVIATION: u8 = 15;
 
 // Agent constants
 const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
@@ -566,76 +564,6 @@ fn calculate_reputation_score(reputation: &EntityReputation) -> u16 {
     };
     let quality_score = ((reputation.average_quality_received as u16).saturating_mul(2)).min(200);
     tx_score.saturating_add(dispute_score).saturating_add(quality_score).min(1000)
-}
-
-/// Get rate limits based on verification level
-/// Reserved for future rate limiting implementation
-#[allow(dead_code)]
-fn get_rate_limits(verification: VerificationLevel) -> (u16, u16, u16) {
-    match verification {
-        VerificationLevel::Basic => (1, 10, 3),
-        VerificationLevel::Staked => (10, 100, 10),
-        VerificationLevel::Social => (50, 500, 50),
-        VerificationLevel::KYC => (1000, 10000, 1000),
-    }
-}
-
-/// Update agent reputation after dispute resolution
-/// Reserved for enhanced reputation tracking
-#[allow(dead_code)]
-fn update_agent_reputation(
-    reputation: &mut EntityReputation,
-    quality_score: u8,
-    refund_percentage: u8,
-) -> Result<()> {
-    let clock = Clock::get()?;
-    reputation.total_transactions = reputation.total_transactions.saturating_add(1);
-
-    let total_quality = (reputation.average_quality_received as u64)
-        .saturating_mul(reputation.total_transactions.saturating_sub(1))
-        .saturating_add(quality_score as u64);
-    reputation.average_quality_received =
-        (total_quality / reputation.total_transactions) as u8;
-
-    if refund_percentage >= 75 {
-        reputation.disputes_won = reputation.disputes_won.saturating_add(1);
-    } else if refund_percentage >= 25 {
-        reputation.disputes_partial = reputation.disputes_partial.saturating_add(1);
-    } else {
-        reputation.disputes_lost = reputation.disputes_lost.saturating_add(1);
-    }
-
-    reputation.last_updated = clock.unix_timestamp;
-    Ok(())
-}
-
-/// Update API/provider reputation after dispute resolution
-/// Reserved for enhanced reputation tracking
-#[allow(dead_code)]
-fn update_api_reputation(
-    reputation: &mut EntityReputation,
-    refund_percentage: u8,
-) -> Result<()> {
-    let clock = Clock::get()?;
-    reputation.total_transactions = reputation.total_transactions.saturating_add(1);
-
-    let quality_delivered = 100u8.saturating_sub(refund_percentage);
-    let total_quality = (reputation.average_quality_received as u64)
-        .saturating_mul(reputation.total_transactions.saturating_sub(1))
-        .saturating_add(quality_delivered as u64);
-    reputation.average_quality_received =
-        (total_quality / reputation.total_transactions) as u8;
-
-    if refund_percentage <= 25 {
-        reputation.disputes_won = reputation.disputes_won.saturating_add(1);
-    } else if refund_percentage <= 75 {
-        reputation.disputes_partial = reputation.disputes_partial.saturating_add(1);
-    } else {
-        reputation.disputes_lost = reputation.disputes_lost.saturating_add(1);
-    }
-
-    reputation.last_updated = clock.unix_timestamp;
-    Ok(())
 }
 
 // ============================================================================
@@ -3428,17 +3356,6 @@ pub enum InferenceStatus {
 pub enum EntityType {
     Agent,
     Provider,
-}
-
-/// Verification levels for rate limiting
-/// Reserved for future implementation
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
-#[allow(dead_code)]
-pub enum VerificationLevel {
-    Basic,
-    Staked,
-    Social,
-    KYC,
 }
 
 // ============================================================================
