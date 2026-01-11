@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../ReputationMirror.sol";
+import "../src/ReputationMirror.sol";
 
 contract ReputationMirrorTest is Test {
     ReputationMirror mirror;
