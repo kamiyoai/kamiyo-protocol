@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../SwarmSimulator.sol";
+import "../src/SwarmSimulator.sol";
 
 contract SwarmSimulatorTest is Test {
     SwarmSimulator sim;

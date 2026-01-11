@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../AgentProxy.sol";
-import "../ReputationMirror.sol";
-import "../SwarmSimulator.sol";
+import "../src/AgentProxy.sol";
+import "../src/ReputationMirror.sol";
+import "../src/SwarmSimulator.sol";
 
 contract DeployKamiyo is Script {
     function run() external {

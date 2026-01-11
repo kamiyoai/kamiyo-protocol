@@ -25,10 +25,10 @@
   "scripts": {
     "build": "anchor build && npm run build:sdk",
     "build:program": "anchor build",
-    "build:sdk": "cd packages/kamiyo-sdk && npm run build",
+    "build:sdk": "pnpm --filter @kamiyo/sdk run build",
     "clean": "rm -rf target && cd packages/kamiyo-sdk && rm -rf dist",
     "test": "anchor test",
-    "test:sdk": "cd packages/kamiyo-sdk && npm test"
+    "test:sdk": "pnpm --filter @kamiyo/sdk run test"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
