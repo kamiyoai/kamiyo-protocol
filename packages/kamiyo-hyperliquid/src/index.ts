@@ -16,15 +16,14 @@ export {
   Network as ExchangeNetwork,
 } from './exchange';
 
-// ZK Prover
+// ZK Prover (powered by TETSUO)
 export {
   ReputationProver,
-  ProofInput,
-  GeneratedProof,
-  ProverConfig,
+  TetsuoProver,
   getTierThreshold,
   getQualifyingTier,
 } from './prover';
+export type { ProofInput, GeneratedProof, ProverConfig, TierLevel } from './prover';
 
 // Dispute Oracle
 export {

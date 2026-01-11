@@ -1,0 +1,202 @@
+/**
+ * TETSUO ZK Prover
+ *
+ * Generates Groth16 proofs for reputation threshold verification.
+ * Chain-agnostic - works with any blockchain that supports Groth16 verification.
+ */
+
+import type { groth16 as Groth16 } from 'snarkjs';
+import {
+  ProofInput,
+  ProverConfig,
+  GeneratedProof,
+  Commitment,
+  VerificationResult,
+  TIER_THRESHOLDS,
+  TierLevel,
+} from './types';
+
+let snarkjs: { groth16: typeof Groth16 } | null = null;
+
+/**
+ * Poseidon hash function (matches circomlib circuit)
+ */
+async function poseidonHash(inputs: bigint[]): Promise<bigint> {
+  const { buildPoseidon } = await import('circomlibjs');
+  const poseidon = await buildPoseidon();
+  const hash = poseidon(inputs);
+  return poseidon.F.toObject(hash);
+}
+
+/**
+ * Generate random bytes as bigint
+ */
+function randomSecret(bytes: number = 31): bigint {
+  const array = new Uint8Array(bytes);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(array);
+  } else {
+    // Node.js fallback
+    const { randomBytes } = require('crypto');
+    const buf = randomBytes(bytes);
+    array.set(buf);
+  }
+  return BigInt('0x' + Array.from(array).map(b => b.toString(16).padStart(2, '0')).join(''));
+}
+
+/**
+ * TETSUO Reputation Prover
+ *
+ * Generates ZK proofs that a score meets a threshold without revealing the score.
+ */
+export class TetsuoProver {
+  private wasmPath: string;
+  private zkeyPath: string;
+  private initialized = false;
+
+  constructor(config: ProverConfig) {
+    this.wasmPath = config.wasmPath;
+    this.zkeyPath = config.zkeyPath;
+  }
+
+  /**
+   * Initialize the prover (loads snarkjs lazily)
+   */
+  async init(): Promise<void> {
+    if (this.initialized) return;
+    if (!snarkjs) {
+      snarkjs = await import('snarkjs');
+    }
+    this.initialized = true;
+  }
+
+  /**
+   * Generate a commitment for a score
+   *
+   * @param score - The reputation score (0-100)
+   * @param secret - Optional secret; random if not provided
+   * @returns Commitment value and secret
+   */
+  async generateCommitment(score: number, secret?: bigint): Promise<Commitment> {
+    if (score < 0 || score > 100) {
+      throw new Error('Score must be between 0 and 100');
+    }
+
+    const secretValue = secret ?? randomSecret();
+    const value = await poseidonHash([BigInt(score), secretValue]);
+
+    return { value, secret: secretValue };
+  }
+
+  /**
+   * Generate a proof that score >= threshold
+   *
+   * @param input - Score, secret, and threshold
+   * @returns Groth16 proof and public inputs
+   */
+  async generateProof(input: ProofInput): Promise<GeneratedProof> {
+    await this.init();
+
+    if (input.score < 0 || input.score > 100) {
+      throw new Error('Score must be between 0 and 100');
+    }
+    if (input.threshold < 0 || input.threshold > 100) {
+      throw new Error('Threshold must be between 0 and 100');
+    }
+    if (input.score < input.threshold) {
+      throw new Error('Score must be >= threshold to generate valid proof');
+    }
+
+    const commitment = await poseidonHash([BigInt(input.score), input.secret]);
+
+    const circuitInput = {
+      score: input.score,
+      secret: input.secret.toString(),
+      threshold: input.threshold,
+      commitment: commitment.toString(),
+    };
+
+    if (!snarkjs) throw new Error('Prover not initialized');
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      circuitInput,
+      this.wasmPath,
+      this.zkeyPath
+    );
+
+    // Convert to on-chain format (note B point coordinate swap for EVM)
+    return {
+      commitment: '0x' + commitment.toString(16).padStart(64, '0'),
+      a: [BigInt(proof.pi_a[0]), BigInt(proof.pi_a[1])],
+      b: [
+        [BigInt(proof.pi_b[0][1]), BigInt(proof.pi_b[0][0])],
+        [BigInt(proof.pi_b[1][1]), BigInt(proof.pi_b[1][0])],
+      ],
+      c: [BigInt(proof.pi_c[0]), BigInt(proof.pi_c[1])],
+      publicInputs: publicSignals.map((s: string) => BigInt(s)),
+    };
+  }
+
+  /**
+   * Verify a proof locally (for testing)
+   *
+   * @param proof - The generated proof
+   * @param vkeyPath - Path to verification key JSON
+   */
+  async verifyProof(proof: GeneratedProof, vkeyPath: string): Promise<VerificationResult> {
+    await this.init();
+
+    try {
+      const vkey = await import(vkeyPath);
+
+      const snarkProof = {
+        pi_a: [proof.a[0].toString(), proof.a[1].toString(), '1'],
+        pi_b: [
+          [proof.b[0][1].toString(), proof.b[0][0].toString()],
+          [proof.b[1][1].toString(), proof.b[1][0].toString()],
+          ['1', '0'],
+        ],
+        pi_c: [proof.c[0].toString(), proof.c[1].toString(), '1'],
+        protocol: 'groth16',
+        curve: 'bn128',
+      };
+
+      const publicSignals = proof.publicInputs.map((i) => i.toString());
+
+      if (!snarkjs) throw new Error('Prover not initialized');
+
+      const valid = await snarkjs.groth16.verify(vkey, publicSignals, snarkProof);
+      return { valid };
+    } catch (error) {
+      return {
+        valid: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
+ * Get threshold required for a tier
+ */
+export function getTierThreshold(tier: TierLevel): number {
+  return TIER_THRESHOLDS[tier];
+}
+
+/**
+ * Determine which tier a score qualifies for
+ */
+export function getQualifyingTier(score: number): TierLevel {
+  if (score >= 90) return 4;
+  if (score >= 75) return 3;
+  if (score >= 50) return 2;
+  if (score >= 25) return 1;
+  return 0;
+}
+
+/**
+ * Check if a score qualifies for a specific tier
+ */
+export function qualifiesForTier(score: number, tier: TierLevel): boolean {
+  return score >= TIER_THRESHOLDS[tier];
+}

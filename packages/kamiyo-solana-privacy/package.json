@@ -1,0 +1,38 @@
+{
+  "name": "@kamiyo/solana-privacy",
+  "version": "0.1.0",
+  "description": "Private inference proofs on Solana (powered by TETSUO)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:circuit": "./circuits/build.sh",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist circuits/build"
+  },
+  "keywords": [
+    "kamiyo",
+    "solana",
+    "privacy",
+    "zk",
+    "tetsuo"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "BUSL-1.1",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@kamiyo/tetsuo": "^0.1.0",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@kamiyo/sdk": "*"
+  },
+  "directories": {
+    "test": "tests"
+  },
+  "type": "commonjs"
+}
