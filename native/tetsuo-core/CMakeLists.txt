@@ -42,6 +42,7 @@ set(TETSUO_SOURCES
     src/log.c
     src/error.c
     src/api.c
+    src/agenc_zk.c
 )
 
 set(TETSUO_HEADERS
@@ -53,6 +54,7 @@ set(TETSUO_HEADERS
     src/log.h
     src/error.h
     src/poseidon_constants.h
+    src/agenc_zk.h
 )
 
 # Static library
@@ -89,7 +91,7 @@ install(TARGETS tetsuo tetsuo_static
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-install(FILES src/tetsuo.h
+install(FILES src/tetsuo.h src/agenc_zk.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 

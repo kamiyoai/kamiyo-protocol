@@ -184,6 +184,11 @@ static void poseidon_hash(field_t *out, const field_t *inputs, size_t count) {
     field_copy(out, &state[0]);
 }
 
+/* Public Poseidon hash for agenc_zk module */
+void poseidon_hash_public(field_t *out, const field_t *inputs, size_t count) {
+    poseidon_hash(out, inputs, count);
+}
+
 /* BN254 curve parameter b = 3 in Montgomery form */
 static const uint64_t CURVE_B_MONT[4] = {
     0x7a17caa950ad28d7ULL,
