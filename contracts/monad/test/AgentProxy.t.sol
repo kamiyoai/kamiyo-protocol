@@ -213,7 +213,6 @@ contract AgentProxyTest is Test {
     }
 
     function test_AgentTypes() public {
-        // Test all agent types can be initialized
         AgentProxy.AgentType[4] memory types = [
             AgentProxy.AgentType.Trading,
             AgentProxy.AgentType.Service,
