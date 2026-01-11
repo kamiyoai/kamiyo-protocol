@@ -39,6 +39,8 @@ jobs:
           avm use ${{ env.ANCHOR_VERSION }}
 
       - run: pnpm install
+      - name: Clean Cargo.lock
+        run: rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
       - run: anchor build
       - run: anchor test
       - name: Validate VK
