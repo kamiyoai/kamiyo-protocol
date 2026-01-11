@@ -50,10 +50,10 @@ static void random_bytes(uint8_t *buf, size_t len) {
 }
 
 static void create_random_proof(tetsuo_proof_t *proof) {
-    uint8_t agent_pk[32], commitment[32], proof_data[128];
+    uint8_t agent_pk[32], commitment[32], proof_data[256];
     random_bytes(agent_pk, 32);
     random_bytes(commitment, 32);
-    random_bytes(proof_data, 128);
+    random_bytes(proof_data, 256);
 
     tetsuo_proof_create(
         proof,
@@ -62,7 +62,7 @@ static void create_random_proof(tetsuo_proof_t *proof) {
         agent_pk,
         commitment,
         proof_data,
-        128
+        256
     );
 }
 
@@ -154,20 +154,20 @@ static void bench_batch_verify(bench_result_t *r, size_t batch_size) {
 
 static void bench_proof_create(bench_result_t *r) {
     tetsuo_proof_t proof;
-    uint8_t agent_pk[32], commitment[32], proof_data[128];
+    uint8_t agent_pk[32], commitment[32], proof_data[256];
 
     random_bytes(agent_pk, 32);
     random_bytes(commitment, 32);
-    random_bytes(proof_data, 128);
+    random_bytes(proof_data, 256);
 
     /* Warmup */
     for (int i = 0; i < WARMUP_ITERS; i++) {
-        tetsuo_proof_create(&proof, TETSUO_PROOF_REPUTATION, 50, agent_pk, commitment, proof_data, 128);
+        tetsuo_proof_create(&proof, TETSUO_PROOF_REPUTATION, 50, agent_pk, commitment, proof_data, 256);
     }
 
     uint64_t start = get_ns();
     for (int i = 0; i < BENCH_ITERS; i++) {
-        tetsuo_proof_create(&proof, TETSUO_PROOF_REPUTATION, 50, agent_pk, commitment, proof_data, 128);
+        tetsuo_proof_create(&proof, TETSUO_PROOF_REPUTATION, 50, agent_pk, commitment, proof_data, 256);
     }
     uint64_t end = get_ns();
 

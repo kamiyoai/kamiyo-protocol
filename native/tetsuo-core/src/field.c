@@ -4,6 +4,7 @@
  */
 
 #include "field.h"
+#include "arena.h"
 #include <stdlib.h>
 
 #if defined(__x86_64__) && defined(__BMI2__)
@@ -390,8 +391,14 @@ void field_batch_inv(field_t *r, const field_t *a, size_t count) {
         return;
     }
 
-    field_t *acc = (field_t *)malloc(count * sizeof(field_t));
+    /* Use scratch arena for temporary allocation */
+    arena_t *scratch = scratch_arena_get();
+    arena_checkpoint_t cp = arena_checkpoint(scratch);
+
+    field_t *acc = arena_alloc(scratch, count * sizeof(field_t));
     if (!acc) {
+        /* Fallback to sequential inversion */
+        arena_restore(scratch, cp);
         for (size_t i = 0; i < count; i++) {
             field_inv(&r[i], &a[i]);
         }
@@ -412,11 +419,8 @@ void field_batch_inv(field_t *r, const field_t *a, size_t count) {
     }
     field_copy(&r[0], &inv_all);
 
-    volatile uint8_t *p = (volatile uint8_t *)acc;
-    for (size_t i = 0; i < count * sizeof(field_t); i++) {
-        p[i] = 0;
-    }
-    free(acc);
+    /* Arena restore handles cleanup - no explicit zeroing needed */
+    arena_restore(scratch, cp);
 }
 
 void field_pow(field_t *r, const field_t *a, const uint64_t *exp, size_t exp_len) {

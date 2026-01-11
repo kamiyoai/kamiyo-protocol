@@ -30,7 +30,14 @@ typedef enum {
     VERIFY_BLACKLISTED = 5,
 } verify_result_t;
 
-/* Compressed proof format (wire representation) */
+/*
+ * Compressed proof format (wire representation)
+ *
+ * proof_data layout (256 bytes):
+ *   [0-63]    A point (G1): x (32 bytes) + y (32 bytes)
+ *   [64-191]  B point (G2): x_re (32) + x_im (32) + y_re (32) + y_im (32)
+ *   [192-255] C point (G1): x (32 bytes) + y (32 bytes)
+ */
 typedef struct {
     uint8_t type;
     uint8_t version;
@@ -38,8 +45,20 @@ typedef struct {
     uint32_t timestamp;
     uint8_t agent_pk[32];
     uint8_t commitment[32];
-    uint8_t proof_data[128];
+    uint8_t proof_data[256];
 } __attribute__((packed)) proof_wire_t;
+
+/*
+ * G2 point coordinates for proof B point (twist curve over Fp2)
+ * Each coordinate is Fp2 = Fp[u]/(u^2 + 1), stored as (real, imag)
+ */
+typedef struct {
+    field_t x_re;
+    field_t x_im;
+    field_t y_re;
+    field_t y_im;
+    bool is_infinity;
+} proof_g2_t;
 
 /* Expanded proof for verification */
 typedef struct {
@@ -49,9 +68,9 @@ typedef struct {
     field_t agent_pk;
     field_t commitment;
     field_t nullifier;
-    point_t proof_point_a;
-    point_t proof_point_b;
-    point_t proof_point_c;
+    point_t proof_point_a;      /* G1 */
+    proof_g2_t proof_point_b;   /* G2 (4 field elements) */
+    point_t proof_point_c;      /* G1 */
 } proof_t;
 
 /* Forward declaration for Groth16 VK */

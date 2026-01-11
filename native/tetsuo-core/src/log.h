@@ -16,6 +16,7 @@
 #define TETSUO_LOG_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 /* Log levels */
 typedef enum {

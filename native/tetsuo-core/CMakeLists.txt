@@ -38,6 +38,9 @@ set(TETSUO_SOURCES
     src/field.c
     src/arena.c
     src/verify.c
+    src/pairing.c
+    src/log.c
+    src/error.c
     src/api.c
 )
 
@@ -46,6 +49,10 @@ set(TETSUO_HEADERS
     src/field.h
     src/arena.h
     src/verify.h
+    src/pairing.h
+    src/log.h
+    src/error.h
+    src/poseidon_constants.h
 )
 
 # Static library
@@ -96,6 +103,10 @@ if(TETSUO_BUILD_TESTS)
     add_executable(test_verify tests/test_verify.c)
     target_link_libraries(test_verify tetsuo_static)
     add_test(NAME verify_test COMMAND test_verify)
+
+    add_executable(test_pairing tests/test_pairing.c)
+    target_link_libraries(test_pairing tetsuo_static)
+    add_test(NAME pairing_test COMMAND test_pairing)
 endif()
 
 # Benchmarks

@@ -272,7 +272,7 @@ tetsuo_result_t tetsuo_proof_create(
     memcpy(proof->commitment, commitment, 32);
 
     if (proof_bytes && proof_len > 0) {
-        size_t copy_len = proof_len < 128 ? proof_len : 128;
+        size_t copy_len = proof_len < 256 ? proof_len : 256;
         memcpy(proof->proof_data, proof_bytes, copy_len);
     }
 

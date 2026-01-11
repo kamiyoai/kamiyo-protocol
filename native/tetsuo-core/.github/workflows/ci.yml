@@ -78,6 +78,36 @@ jobs:
         run: make DEBUG=1 test
         working-directory: native/tetsuo-core
 
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy cppcheck
+
+      - name: Run clang-tidy
+        working-directory: native/tetsuo-core
+        run: |
+          clang-tidy src/*.c \
+            -checks='*,-llvmlibc-*,-altera-*,-cert-dcl37-c,-cert-dcl51-cpp,-readability-identifier-length,-bugprone-easily-swappable-parameters,-cppcoreguidelines-avoid-magic-numbers,-readability-magic-numbers' \
+            -- -Isrc -std=c11 2>&1 | tee clang-tidy.log
+          if grep -q "error:" clang-tidy.log; then
+            echo "clang-tidy found errors"
+            exit 1
+          fi
+
+      - name: Run cppcheck
+        working-directory: native/tetsuo-core
+        run: |
+          cppcheck --enable=warning,performance,portability \
+            --suppress=missingIncludeSystem \
+            --error-exitcode=1 \
+            -Isrc src/*.c
+
   fuzz:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'

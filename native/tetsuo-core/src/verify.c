@@ -324,6 +324,8 @@ static void point_add(point_t *r, const point_t *p, const point_t *q) {
     field_mul(&r->z, &r->z, &h);
 }
 
+/* Currently unused - kept for potential non-mcl fallback implementation */
+__attribute__((unused))
 static void point_mul(point_t *r, const point_t *p, const field_t *scalar) {
     point_t r0, r1;
 
@@ -362,81 +364,6 @@ static void point_mul(point_t *r, const point_t *p, const field_t *scalar) {
     }
 
     *r = r0;
-}
-
-static void multi_scalar_mul(point_t *r, const point_t *points,
-                             const field_t *scalars, size_t count) {
-    if (count == 0) {
-        point_set_infinity(r);
-        return;
-    }
-
-    if (count == 1) {
-        point_mul(r, &points[0], &scalars[0]);
-        return;
-    }
-
-    int c = count < 32 ? 4 : count < 256 ? 6 : 8;
-    int num_windows = (256 + c - 1) / c;
-    size_t buckets_per_window = (1ULL << c) - 1;
-
-    arena_t *scratch = scratch_arena_get();
-    arena_checkpoint_t cp = arena_checkpoint(scratch);
-
-    point_t *buckets = arena_alloc(scratch, buckets_per_window * sizeof(point_t));
-    if (!buckets) {
-        point_set_infinity(r);
-        arena_restore(scratch, cp);
-        return;
-    }
-
-    point_t result;
-    point_set_infinity(&result);
-
-    for (int w = num_windows - 1; w >= 0; w--) {
-        for (size_t i = 0; i < buckets_per_window; i++) {
-            point_set_infinity(&buckets[i]);
-        }
-
-        for (size_t i = 0; i < count; i++) {
-            int limb = (w * c) / 64;
-            int shift = (w * c) % 64;
-
-            uint64_t bits;
-            if (limb >= 4) {
-                bits = 0;
-            } else if (shift + c <= 64) {
-                bits = (scalars[i].limbs[limb] >> shift) & ((1ULL << c) - 1);
-            } else {
-                bits = scalars[i].limbs[limb] >> shift;
-                if (limb + 1 < 4) {
-                    bits |= (scalars[i].limbs[limb + 1] << (64 - shift));
-                }
-                bits &= (1ULL << c) - 1;
-            }
-
-            if (bits > 0) {
-                point_add(&buckets[bits - 1], &buckets[bits - 1], &points[i]);
-            }
-        }
-
-        point_t running, sum;
-        point_set_infinity(&running);
-        point_set_infinity(&sum);
-
-        for (size_t i = buckets_per_window; i > 0; i--) {
-            point_add(&running, &running, &buckets[i - 1]);
-            point_add(&sum, &sum, &running);
-        }
-
-        for (int i = 0; i < c; i++) {
-            point_double(&result, &result);
-        }
-        point_add(&result, &result, &sum);
-    }
-
-    *r = result;
-    arena_restore(scratch, cp);
 }
 
 verify_ctx_t *verify_ctx_create(arena_t *arena) {
@@ -530,25 +457,10 @@ bool verify_ctx_load_vk(verify_ctx_t *ctx, const uint8_t *vk_data, size_t len) {
 /*
  * Parse wire format proof into expanded proof structure.
  *
- * WIRE FORMAT LIMITATION:
- * The current wire format (128 bytes proof_data) can only hold:
- *   - A (G1): 64 bytes (offset 0)
- *   - C (G1): 64 bytes (offset 64)
- *
- * A full Groth16 proof requires:
- *   - A (G1): 64 bytes
- *   - B (G2): 128 bytes (4 field elements for Fp2 coordinates)
- *   - C (G1): 64 bytes
- *   Total: 256 bytes
- *
- * To support full Groth16 verification:
- *   1. Expand proof_wire_t.proof_data to 256 bytes, OR
- *   2. Use compressed point format, OR
- *   3. Provide B point via separate channel
- *
- * Currently proof_point_b is set to point at infinity, which will
- * cause pairing-based verification to fail. This is by design until
- * the wire format is extended.
+ * Wire format layout (256 bytes proof_data):
+ *   [0-63]    A point (G1): x (32) + y (32)
+ *   [64-191]  B point (G2): x_re (32) + x_im (32) + y_re (32) + y_im (32)
+ *   [192-255] C point (G1): x (32) + y (32)
  */
 bool proof_parse(proof_t *out, const proof_wire_t *wire) {
     if (wire->version != 1) return false;
@@ -572,23 +484,31 @@ bool proof_parse(proof_t *out, const proof_wire_t *wire) {
     field_to_mont(&out->proof_point_a.x, &out->proof_point_a.x);
     field_to_mont(&out->proof_point_a.y, &out->proof_point_a.y);
 
-    /*
-     * B point (G2) cannot fit in current wire format.
-     * Initialize to point at infinity to prevent undefined behavior.
-     * This will cause pairing verification to fail until wire format is extended.
-     */
-    field_set_zero(&out->proof_point_b.x);
-    field_set_one(&out->proof_point_b.y);
-    field_set_zero(&out->proof_point_b.z);
+    /* Parse B point (G2) from bytes 64-191: x_re, x_im, y_re, y_im */
+    field_from_bytes(&out->proof_point_b.x_re, data + 64);
+    field_from_bytes(&out->proof_point_b.x_im, data + 96);
+    field_from_bytes(&out->proof_point_b.y_re, data + 128);
+    field_from_bytes(&out->proof_point_b.y_im, data + 160);
+    field_to_mont(&out->proof_point_b.x_re, &out->proof_point_b.x_re);
+    field_to_mont(&out->proof_point_b.x_im, &out->proof_point_b.x_im);
+    field_to_mont(&out->proof_point_b.y_re, &out->proof_point_b.y_re);
+    field_to_mont(&out->proof_point_b.y_im, &out->proof_point_b.y_im);
 
-    /* Parse C point (G1) from bytes 64-127 */
-    field_from_bytes(&out->proof_point_c.x, data + 64);
-    field_from_bytes(&out->proof_point_c.y, data + 96);
+    /* Check if B is point at infinity (all coords zero) */
+    out->proof_point_b.is_infinity =
+        field_is_zero(&out->proof_point_b.x_re) &&
+        field_is_zero(&out->proof_point_b.x_im) &&
+        field_is_zero(&out->proof_point_b.y_re) &&
+        field_is_zero(&out->proof_point_b.y_im);
+
+    /* Parse C point (G1) from bytes 192-255 */
+    field_from_bytes(&out->proof_point_c.x, data + 192);
+    field_from_bytes(&out->proof_point_c.y, data + 224);
     field_set_one(&out->proof_point_c.z);
     field_to_mont(&out->proof_point_c.x, &out->proof_point_c.x);
     field_to_mont(&out->proof_point_c.y, &out->proof_point_c.y);
 
-    /* Validate proof points on curve (fail fast, prevent invalid curve attacks) */
+    /* Validate G1 proof points on curve */
     if (!point_is_infinity(&out->proof_point_a) && !point_is_on_curve(&out->proof_point_a)) {
         LOG_DEBUG("proof_parse: A point not on curve");
         return false;
@@ -598,6 +518,7 @@ bool proof_parse(proof_t *out, const proof_wire_t *wire) {
         return false;
     }
 
+    /* G2 curve validation done in pairing layer via g2_is_on_curve */
     return true;
 }
 
@@ -674,12 +595,14 @@ verify_result_t verify_proof_ex(verify_ctx_t *ctx, const proof_t *proof) {
             field_copy(&g16_proof.a.y, &proof->proof_point_a.y);
         }
 
-        /* B is in G2 - extract from proof_point_b */
-        /* For now, assume proof_point_b contains serialized G2 data */
-        g16_proof.b.is_infinity = false;
-        field_copy(&g16_proof.b.x_re, &proof->proof_point_b.x);
-        field_copy(&g16_proof.b.y_re, &proof->proof_point_b.y);
-        /* Note: proper G2 extraction needs full Fp2 coordinates */
+        /* Copy B (G2 point) with full Fp2 coordinates */
+        g16_proof.b.is_infinity = proof->proof_point_b.is_infinity;
+        if (!g16_proof.b.is_infinity) {
+            field_copy(&g16_proof.b.x_re, &proof->proof_point_b.x_re);
+            field_copy(&g16_proof.b.x_im, &proof->proof_point_b.x_im);
+            field_copy(&g16_proof.b.y_re, &proof->proof_point_b.y_re);
+            field_copy(&g16_proof.b.y_im, &proof->proof_point_b.y_im);
+        }
 
         /* Copy C (G1 point) */
         g16_proof.c.is_infinity = point_is_infinity(&proof->proof_point_c);
@@ -798,9 +721,7 @@ bool batch_verify(batch_ctx_t *batch) {
 
     LOG_DEBUG("batch_verify: verifying %zu proofs", batch->count);
 
-    arena_t *scratch = scratch_arena_get();
-    arena_checkpoint_t cp = arena_checkpoint(scratch);
-
+    /* Pre-filter: check timestamps and thresholds */
     for (size_t i = 0; i < batch->count; i++) {
         batch->results[i] = VERIFY_OK;
 
@@ -818,6 +739,7 @@ bool batch_verify(batch_ctx_t *batch) {
         }
     }
 
+    /* Count valid proofs needing cryptographic verification */
     size_t valid_count = 0;
     for (size_t i = 0; i < batch->count; i++) {
         if (batch->results[i] == VERIFY_OK) {
@@ -826,15 +748,35 @@ bool batch_verify(batch_ctx_t *batch) {
     }
 
     if (valid_count == 0) {
-        arena_restore(scratch, cp);
         return true;
     }
 
-    point_t *a_points = arena_alloc(scratch, valid_count * sizeof(point_t));
-    field_t *a_scalars = arena_alloc(scratch, valid_count * sizeof(field_t));
+    /*
+     * Cryptographic batch verification using groth16_verify_batch.
+     * Falls back to sequential if mcl not available or VK not loaded.
+     */
+    if (!pairing_is_initialized() || !batch->ctx->groth16_vk) {
+        LOG_DEBUG("batch_verify: pairing unavailable, sequential verification");
+        for (size_t i = 0; i < batch->count; i++) {
+            if (batch->results[i] == VERIFY_OK) {
+                batch->results[i] = verify_proof_ex(batch->ctx, &batch->proofs[i]);
+            }
+        }
+        return true;
+    }
 
-    if (!a_points || !a_scalars) {
-        LOG_WARN("batch_verify: scratch arena exhausted, falling back to sequential");
+    arena_t *scratch = scratch_arena_get();
+    arena_checkpoint_t cp = arena_checkpoint(scratch);
+
+    /* Build arrays for groth16_verify_batch */
+    groth16_proof_t *g16_proofs = arena_alloc(scratch, valid_count * sizeof(groth16_proof_t));
+    field_t **pub_inputs = arena_alloc(scratch, valid_count * sizeof(field_t *));
+    size_t *num_inputs = arena_alloc(scratch, valid_count * sizeof(size_t));
+    field_t *inputs_storage = arena_alloc(scratch, valid_count * sizeof(field_t));
+    size_t *valid_indices = arena_alloc(scratch, valid_count * sizeof(size_t));
+
+    if (!g16_proofs || !pub_inputs || !num_inputs || !inputs_storage || !valid_indices) {
+        LOG_WARN("batch_verify: arena alloc failed, falling back to sequential");
         arena_restore(scratch, cp);
         for (size_t i = 0; i < batch->count; i++) {
             if (batch->results[i] == VERIFY_OK) {
@@ -846,20 +788,61 @@ bool batch_verify(batch_ctx_t *batch) {
 
     size_t j = 0;
     for (size_t i = 0; i < batch->count; i++) {
-        if (batch->results[i] == VERIFY_OK) {
-            a_points[j] = batch->proofs[i].proof_point_a;
-            field_copy(&a_scalars[j], &batch->randoms[i]);
-            j++;
+        if (batch->results[i] != VERIFY_OK) continue;
+
+        proof_t *proof = &batch->proofs[i];
+        valid_indices[j] = i;
+
+        /* Compute public input hash */
+        field_t inputs[3];
+        field_copy(&inputs[0], &proof->agent_pk);
+        field_copy(&inputs[1], &proof->commitment);
+        inputs[2].limbs[0] = proof->threshold;
+        inputs[2].limbs[1] = inputs[2].limbs[2] = inputs[2].limbs[3] = 0;
+        field_to_mont(&inputs[2], &inputs[2]);
+
+        poseidon_hash(&inputs_storage[j], inputs, 3);
+        pub_inputs[j] = &inputs_storage[j];
+        num_inputs[j] = 1;
+
+        /* Convert proof to groth16 format */
+        g16_proofs[j].a.is_infinity = point_is_infinity(&proof->proof_point_a);
+        if (!g16_proofs[j].a.is_infinity) {
+            field_copy(&g16_proofs[j].a.x, &proof->proof_point_a.x);
+            field_copy(&g16_proofs[j].a.y, &proof->proof_point_a.y);
         }
+
+        g16_proofs[j].b.is_infinity = proof->proof_point_b.is_infinity;
+        if (!g16_proofs[j].b.is_infinity) {
+            field_copy(&g16_proofs[j].b.x_re, &proof->proof_point_b.x_re);
+            field_copy(&g16_proofs[j].b.x_im, &proof->proof_point_b.x_im);
+            field_copy(&g16_proofs[j].b.y_re, &proof->proof_point_b.y_re);
+            field_copy(&g16_proofs[j].b.y_im, &proof->proof_point_b.y_im);
+        }
+
+        g16_proofs[j].c.is_infinity = point_is_infinity(&proof->proof_point_c);
+        if (!g16_proofs[j].c.is_infinity) {
+            field_copy(&g16_proofs[j].c.x, &proof->proof_point_c.x);
+            field_copy(&g16_proofs[j].c.y, &proof->proof_point_c.y);
+        }
+
+        j++;
     }
 
-    point_t acc_a;
-    multi_scalar_mul(&acc_a, a_points, a_scalars, valid_count);
+    /* Call groth16_verify_batch */
+    bool batch_ok = groth16_verify_batch(
+        batch->ctx->groth16_vk,
+        g16_proofs,
+        (const field_t **)pub_inputs,
+        num_inputs,
+        valid_count
+    );
 
     arena_restore(scratch, cp);
 
-    if (point_is_infinity(&acc_a)) {
-        LOG_DEBUG("batch_verify: MSM result is infinity, falling back to sequential");
+    if (!batch_ok) {
+        /* Batch failed - need to identify which proofs are invalid */
+        LOG_DEBUG("batch_verify: batch failed, verifying individually");
         for (size_t i = 0; i < batch->count; i++) {
             if (batch->results[i] == VERIFY_OK) {
                 batch->results[i] = verify_proof_ex(batch->ctx, &batch->proofs[i]);

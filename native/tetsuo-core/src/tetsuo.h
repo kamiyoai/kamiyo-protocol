@@ -51,7 +51,14 @@ typedef enum {
     TETSUO_PROOF_INFERENCE = 2,
 } tetsuo_proof_type_t;
 
-/* Wire format for proofs */
+/*
+ * Wire format for proofs (330 bytes total)
+ *
+ * proof_data layout (256 bytes):
+ *   [0-63]    A point (G1): x (32) + y (32)
+ *   [64-191]  B point (G2): x_re (32) + x_im (32) + y_re (32) + y_im (32)
+ *   [192-255] C point (G1): x (32) + y (32)
+ */
 #pragma pack(push, 1)
 typedef struct {
     uint8_t type;
@@ -60,7 +67,7 @@ typedef struct {
     uint32_t timestamp;
     uint8_t agent_pk[32];
     uint8_t commitment[32];
-    uint8_t proof_data[128];
+    uint8_t proof_data[256];
 } tetsuo_proof_t;
 #pragma pack(pop)
 
