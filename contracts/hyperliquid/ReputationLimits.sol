@@ -311,26 +311,29 @@ contract ReputationLimits is ReentrancyGuard {
     ) internal view returns (bool) {
         uint256[24] memory input;
 
+        // G2 points are already in EVM format [x_im, x_re, y_im, y_re]
+        // from VK export and proof generation - no swap needed
+
         // -A, B (negate A for pairing equation)
         input[0] = a1[0];
         input[1] = (P - a1[1]) % P;
-        input[2] = b1[0][1]; input[3] = b1[0][0];
-        input[4] = b1[1][1]; input[5] = b1[1][0];
+        input[2] = b1[0][0]; input[3] = b1[0][1];
+        input[4] = b1[1][0]; input[5] = b1[1][1];
 
         // alpha, beta
         input[6] = a2[0]; input[7] = a2[1];
-        input[8] = b2[0][1]; input[9] = b2[0][0];
-        input[10] = b2[1][1]; input[11] = b2[1][0];
+        input[8] = b2[0][0]; input[9] = b2[0][1];
+        input[10] = b2[1][0]; input[11] = b2[1][1];
 
         // vk_x, gamma
         input[12] = a3[0]; input[13] = a3[1];
-        input[14] = b3[0][1]; input[15] = b3[0][0];
-        input[16] = b3[1][1]; input[17] = b3[1][0];
+        input[14] = b3[0][0]; input[15] = b3[0][1];
+        input[16] = b3[1][0]; input[17] = b3[1][1];
 
         // C, delta
         input[18] = a4[0]; input[19] = a4[1];
-        input[20] = b4[0][1]; input[21] = b4[0][0];
-        input[22] = b4[1][1]; input[23] = b4[1][0];
+        input[20] = b4[0][0]; input[21] = b4[0][1];
+        input[22] = b4[1][0]; input[23] = b4[1][1];
 
         uint256[1] memory out;
         assembly {

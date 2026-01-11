@@ -27,7 +27,7 @@ contract AgentRegistry is ReentrancyGuard, Pausable {
 
     
 
-    uint256 public constant MIN_STAKE = 100e18;
+    uint256 public constant MIN_STAKE = 0.1e18;
     uint256 public constant SLASH_PERCENT = 10;
     uint256 public constant MAX_NAME_LENGTH = 32;
     uint256 public constant MIN_NAME_LENGTH = 3;

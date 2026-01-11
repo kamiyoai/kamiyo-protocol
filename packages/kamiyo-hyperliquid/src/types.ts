@@ -19,7 +19,7 @@ export const NETWORKS: Record<HyperliquidNetwork, NetworkConfig> = {
     rpc: 'https://rpc.hyperliquid.xyz/evm',
     explorer: 'https://explorer.hyperliquid.xyz',
     contracts: {
-      agentRegistry: '0x0feb48737d7f47AF432a094E69e716c9E8fA8A22',
+      agentRegistry: '0xE467c6d2586CBC34feB4D9c6Cb7dB07E1b57341a',
       kamiyoVault: '0x87394c7a6D380b3a886704560E2A823CDA03c873',
       reputationLimits: '0x5adF9B47342C2e0A425F3c99735b6E01FEd4201E',
     },
@@ -206,7 +206,7 @@ export enum KamiyoErrorCode {
 }
 
 export const CONSTANTS = {
-  MIN_STAKE: BigInt('100000000000000000000'), // 100 HYPE
+  MIN_STAKE: BigInt('100000000000000000'), // 0.1 HYPE
   MIN_DEPOSIT: BigInt('10000000000000000'), // 0.01 HYPE
   MAX_DEPOSIT: BigInt('1000000000000000000000'), // 1000 HYPE
   MIN_LOCK_PERIOD: 86400, // 1 day in seconds

@@ -18,6 +18,7 @@ export interface ProofInput {
 export interface ProverConfig {
   wasmPath: string;
   zkeyPath: string;
+  vkeyPath?: string;
 }
 
 export interface TierDefinition {
