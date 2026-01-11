@@ -224,5 +224,3 @@ native/*/deps/*/lib/
 # Demo recordings
 examples/*/demo.gif
 examples/*/demo.tape
-
-docs/
