@@ -121,6 +121,13 @@ const ORACLE_SLASH_PERCENT: u8 = 10;                // 10% slash for voting agai
 const ORACLE_REWARD_PERCENT: u8 = 1;                // 1% of escrow amount as oracle reward
 const MAX_ORACLE_SLASH_VIOLATIONS: u8 = 3;          // Max violations before removal
 
+// Time constants
+const SECONDS_PER_DAY: i64 = 86_400;
+const GRACE_PERIOD_DAYS: i64 = 7;
+const GRACE_PERIOD_SECONDS: i64 = GRACE_PERIOD_DAYS * SECONDS_PER_DAY;
+const MIN_QUALITY_TIMELOCK: i64 = 300;              // 5 minutes
+const MAX_QUALITY_TIMELOCK: i64 = SECONDS_PER_DAY;  // 24 hours
+
 // Tiered escrow thresholds (require more oracles for larger amounts)
 const TIER2_ESCROW_THRESHOLD: u64 = 10_000_000_000;  // 10 SOL - requires 4 oracles
 const TIER3_ESCROW_THRESHOLD: u64 = 100_000_000_000; // 100 SOL - requires 5 oracles
@@ -2089,9 +2096,8 @@ pub mod kamiyo {
         let clock = Clock::get()?;
         let escrow = &ctx.accounts.escrow;
 
-        // Must be expired + 7 day grace period (604800 seconds)
-        let grace_period = 604800i64;
-        let claim_time = escrow.expires_at.saturating_add(grace_period);
+        // Must be expired + grace period
+        let claim_time = escrow.expires_at.saturating_add(GRACE_PERIOD_SECONDS);
         require!(clock.unix_timestamp >= claim_time, KamiyoError::EscrowNotExpired);
 
         // Can only claim Active or Disputed (unresolved) escrows
@@ -2287,7 +2293,7 @@ pub mod kamiyo {
     ) -> Result<()> {
         require!(amount >= MIN_ESCROW_AMOUNT, KamiyoError::InvalidAmount);
         require!(quality_threshold <= 100, KamiyoError::InvalidQualityScore);
-        require!(expires_in >= 300 && expires_in <= 86400, KamiyoError::InvalidTimeLock);
+        require!(expires_in >= MIN_QUALITY_TIMELOCK && expires_in <= MAX_QUALITY_TIMELOCK, KamiyoError::InvalidTimeLock);
 
         let clock = Clock::get()?;
         let escrow = &mut ctx.accounts.escrow;
