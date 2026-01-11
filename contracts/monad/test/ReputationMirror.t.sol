@@ -122,7 +122,6 @@ contract ReputationMirrorTest is Test {
     }
 
     function test_VerifyProof_BadInputs() public {
-        // Set up VK with 2 IC elements (supports 1 public input)
         uint256[2] memory alpha = [uint256(1), uint256(2)];
         uint256[2][2] memory beta = [[uint256(3), uint256(4)], [uint256(5), uint256(6)]];
         uint256[2][2] memory gamma = [[uint256(7), uint256(8)], [uint256(9), uint256(10)]];
@@ -140,7 +139,6 @@ contract ReputationMirrorTest is Test {
             c: [uint256(0), uint256(0)]
         });
 
-        // Try with 3 public inputs when VK only supports 1
         uint256[] memory inputs = new uint256[](3);
         inputs[0] = 1;
         inputs[1] = 2;
