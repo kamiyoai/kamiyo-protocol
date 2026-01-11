@@ -1,10 +1,3 @@
-/**
- * TETSUO ZK Prover
- *
- * Generates Groth16 proofs for reputation threshold verification.
- * Chain-agnostic - works with any blockchain that supports Groth16 verification.
- */
-
 import type { groth16 as Groth16 } from 'snarkjs';
 import {
   ProofInput,
@@ -18,9 +11,6 @@ import {
 
 let snarkjs: { groth16: typeof Groth16 } | null = null;
 
-/**
- * Poseidon hash function (matches circomlib circuit)
- */
 async function poseidonHash(inputs: bigint[]): Promise<bigint> {
   const { buildPoseidon } = await import('circomlibjs');
   const poseidon = await buildPoseidon();
@@ -28,15 +18,11 @@ async function poseidonHash(inputs: bigint[]): Promise<bigint> {
   return poseidon.F.toObject(hash);
 }
 
-/**
- * Generate random bytes as bigint
- */
 function randomSecret(bytes: number = 31): bigint {
   const array = new Uint8Array(bytes);
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
     crypto.getRandomValues(array);
   } else {
-    // Node.js fallback
     const { randomBytes } = require('crypto');
     const buf = randomBytes(bytes);
     array.set(buf);
@@ -44,11 +30,6 @@ function randomSecret(bytes: number = 31): bigint {
   return BigInt('0x' + Array.from(array).map(b => b.toString(16).padStart(2, '0')).join(''));
 }
 
-/**
- * TETSUO Reputation Prover
- *
- * Generates ZK proofs that a score meets a threshold without revealing the score.
- */
 export class TetsuoProver {
   private wasmPath: string;
   private zkeyPath: string;
@@ -59,9 +40,6 @@ export class TetsuoProver {
     this.zkeyPath = config.zkeyPath;
   }
 
-  /**
-   * Initialize the prover (loads snarkjs lazily)
-   */
   async init(): Promise<void> {
     if (this.initialized) return;
     if (!snarkjs) {
@@ -70,13 +48,6 @@ export class TetsuoProver {
     this.initialized = true;
   }
 
-  /**
-   * Generate a commitment for a score
-   *
-   * @param score - The reputation score (0-100)
-   * @param secret - Optional secret; random if not provided
-   * @returns Commitment value and secret
-   */
   async generateCommitment(score: number, secret?: bigint): Promise<Commitment> {
     if (score < 0 || score > 100) {
       throw new Error('Score must be between 0 and 100');
@@ -88,12 +59,6 @@ export class TetsuoProver {
     return { value, secret: secretValue };
   }
 
-  /**
-   * Generate a proof that score >= threshold
-   *
-   * @param input - Score, secret, and threshold
-   * @returns Groth16 proof and public inputs
-   */
   async generateProof(input: ProofInput): Promise<GeneratedProof> {
     await this.init();
 
@@ -124,7 +89,7 @@ export class TetsuoProver {
       this.zkeyPath
     );
 
-    // Convert to on-chain format (note B point coordinate swap for EVM)
+    // B point coordinate swap for EVM pairing precompile
     return {
       commitment: '0x' + commitment.toString(16).padStart(64, '0'),
       a: [BigInt(proof.pi_a[0]), BigInt(proof.pi_a[1])],
@@ -137,12 +102,6 @@ export class TetsuoProver {
     };
   }
 
-  /**
-   * Verify a proof locally (for testing)
-   *
-   * @param proof - The generated proof
-   * @param vkeyPath - Path to verification key JSON
-   */
   async verifyProof(proof: GeneratedProof, vkeyPath: string): Promise<VerificationResult> {
     await this.init();
 
@@ -176,16 +135,10 @@ export class TetsuoProver {
   }
 }
 
-/**
- * Get threshold required for a tier
- */
 export function getTierThreshold(tier: TierLevel): number {
   return TIER_THRESHOLDS[tier];
 }
 
-/**
- * Determine which tier a score qualifies for
- */
 export function getQualifyingTier(score: number): TierLevel {
   if (score >= 90) return 4;
   if (score >= 75) return 3;
@@ -194,9 +147,6 @@ export function getQualifyingTier(score: number): TierLevel {
   return 0;
 }
 
-/**
- * Check if a score qualifies for a specific tier
- */
 export function qualifiesForTier(score: number, tier: TierLevel): boolean {
   return score >= TIER_THRESHOLDS[tier];
 }

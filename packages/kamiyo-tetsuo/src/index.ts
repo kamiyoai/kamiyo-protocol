@@ -1,11 +1,3 @@
-/**
- * @kamiyo/tetsuo
- *
- * TETSUO: ZK reputation proofs for AI agents.
- * Chain-agnostic SDK for generating and verifying Groth16 proofs.
- */
-
-// Prover
 export {
   TetsuoProver,
   getTierThreshold,
@@ -13,7 +5,6 @@ export {
   qualifiesForTier,
 } from './prover';
 
-// Types
 export {
   // Proof types
   Groth16Proof,
