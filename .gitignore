@@ -207,10 +207,9 @@ programs/*/target/
 target/
 Cargo.lock
 
-# ZK circuit build artifacts (keep verification_key.json)
+# ZK circuit build artifacts (keep final zkey, r1cs, wasm, verification_key for demo)
 packages/kamiyo-tetsuo-privacy/circuits/build/*.ptau
-packages/kamiyo-tetsuo-privacy/circuits/build/*.zkey
-packages/kamiyo-tetsuo-privacy/circuits/build/*.r1cs
+packages/kamiyo-tetsuo-privacy/circuits/build/*_0000.zkey
 packages/kamiyo-tetsuo-privacy/circuits/build/*.sym
 
 # Native builds
