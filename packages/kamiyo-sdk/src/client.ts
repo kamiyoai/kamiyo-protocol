@@ -25,6 +25,7 @@ import {
   UpdateProtocolConfigParams,
   AgentType,
 } from "./types";
+import { DISCRIMINATORS } from "./discriminators";
 
 export interface KamiyoClientConfig {
   connection: Connection;
@@ -305,15 +306,9 @@ export class KamiyoClient {
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();
 
-    // Build instruction data
-    // Discriminator (8 bytes) + name (4 + name.length) + agent_type (1) + stake_amount (8)
     const nameBytes = Buffer.from(params.name);
-    const discriminator = Buffer.from([
-      0x48, 0x6c, 0x5e, 0x9e, 0x29, 0x8b, 0x91, 0x2a,
-    ]); // create_agent discriminator
-
     const data = Buffer.concat([
-      discriminator,
+      DISCRIMINATORS.createAgent,
       Buffer.from([nameBytes.length, 0, 0, 0]), // name length (u32)
       nameBytes,
       Buffer.from([params.agentType]),
@@ -344,14 +339,9 @@ export class KamiyoClient {
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();
 
-    // Build instruction data
-    const discriminator = Buffer.from([
-      0x3d, 0x2c, 0x1e, 0x4f, 0x5a, 0x6b, 0x7c, 0x8d,
-    ]); // initialize_escrow discriminator
     const transactionIdBytes = Buffer.from(params.transactionId);
-
     const data = Buffer.concat([
-      discriminator,
+      DISCRIMINATORS.initializeEscrow,
       params.amount.toArrayLike(Buffer, "le", 8),
       params.timeLockSeconds.toArrayLike(Buffer, "le", 8),
       Buffer.from([transactionIdBytes.length, 0, 0, 0]),
@@ -385,10 +375,6 @@ export class KamiyoClient {
   ): TransactionInstruction {
     const [agreementPDA] = this.getAgreementPDA(agent, transactionId);
 
-    const discriminator = Buffer.from([
-      0x8a, 0x9b, 0xac, 0xbd, 0xce, 0xdf, 0xe0, 0xf1,
-    ]); // release_funds discriminator
-
     return new TransactionInstruction({
       keys: [
         { pubkey: agreementPDA, isSigner: false, isWritable: true },
@@ -397,7 +383,7 @@ export class KamiyoClient {
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
-      data: discriminator,
+      data: DISCRIMINATORS.releaseFunds,
     });
   }
 
@@ -413,10 +399,6 @@ export class KamiyoClient {
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();
 
-    const discriminator = Buffer.from([
-      0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
-    ]); // mark_disputed discriminator
-
     return new TransactionInstruction({
       keys: [
         { pubkey: agreementPDA, isSigner: false, isWritable: true },
@@ -427,7 +409,7 @@ export class KamiyoClient {
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
-      data: discriminator,
+      data: DISCRIMINATORS.markDisputed,
     });
   }
 
@@ -437,18 +419,13 @@ export class KamiyoClient {
   buildDeactivateAgentInstruction(owner: PublicKey): TransactionInstruction {
     const [agentPDA] = this.getAgentPDA(owner);
 
-    // sha256("global:deactivate_agent")[0..8]
-    const discriminator = Buffer.from([
-      0x79, 0x64, 0x04, 0x47, 0x57, 0xd9, 0xd0, 0x8d,
-    ]);
-
     return new TransactionInstruction({
       keys: [
         { pubkey: agentPDA, isSigner: false, isWritable: true },
         { pubkey: owner, isSigner: true, isWritable: true },
       ],
       programId: this.programId,
-      data: discriminator,
+      data: DISCRIMINATORS.deactivateAgent,
     });
   }
 
