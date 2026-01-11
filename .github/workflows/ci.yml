@@ -27,7 +27,7 @@ jobs:
         with:
           version: 9
 
-      - uses: dtolnay/rust-toolchain@1.77.0
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Solana
         run: |
