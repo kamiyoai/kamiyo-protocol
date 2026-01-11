@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../AgentRegistry.sol";
-import "../ReputationLimits.sol";
+import "../src/AgentRegistry.sol";
+import "../src/ReputationLimits.sol";
 
 contract ReputationLimitsTest is Test {
     AgentRegistry public registry;

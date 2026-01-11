@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../AgentRegistry.sol";
-import "../KamiyoVault.sol";
+import "../src/AgentRegistry.sol";
+import "../src/KamiyoVault.sol";
 
 contract KamiyoVaultTest is Test {
     AgentRegistry public registry;

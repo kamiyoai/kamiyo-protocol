@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../AgentRegistry.sol";
+import "../src/AgentRegistry.sol";
 
 contract AgentRegistryTest is Test {
     AgentRegistry public registry;
