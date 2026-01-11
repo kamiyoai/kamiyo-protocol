@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
-import "../AgentRegistry.sol";
-import "../KamiyoVault.sol";
-import "../ReputationLimits.sol";
+import "../src/AgentRegistry.sol";
+import "../src/KamiyoVault.sol";
+import "../src/ReputationLimits.sol";
 
 /**
  * @title Deploy
