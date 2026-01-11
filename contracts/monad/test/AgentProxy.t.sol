@@ -70,7 +70,7 @@ contract AgentProxyTest is Test {
 
     function test_UpdateReputation_OverMax() public {
         vm.prank(owner);
-        vm.expectRevert("max 1000");
+        vm.expectRevert(AgentProxy.InvalidReputation.selector);
         proxy.updateReputation(1001);
     }
 

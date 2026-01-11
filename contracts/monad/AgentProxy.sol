@@ -26,6 +26,7 @@ contract AgentProxy is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event EscrowRecorded(bool successful, bool disputed);
 
     error InvalidName();
+    error InvalidReputation();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -48,7 +49,7 @@ contract AgentProxy is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function updateReputation(uint64 _rep) external onlyOwner {
-        require(_rep <= 1000, "max 1000");
+        if (_rep > 1000) revert InvalidReputation();
         uint64 old = reputation;
         reputation = _rep;
         lastActive = uint64(block.timestamp);

@@ -41,6 +41,8 @@ jobs:
       - run: pnpm install
       - run: anchor build
       - run: anchor test
+      - name: Validate VK
+        run: ./scripts/validate-vk.sh
 
   evm:
     name: EVM

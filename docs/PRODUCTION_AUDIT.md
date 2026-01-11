@@ -39,20 +39,20 @@ Anyone can call `executeRound` on any simulation. Needs initiator check.
 |-------|----------|-------|
 | ~~Hardcoded discriminators~~ | ~~`kamiyo-sdk/src/client.ts`~~ | FIXED - now uses IDL discriminators |
 | groth16-solana 0.0.3 | `Cargo.toml:26` | Early version, audit needed |
-| VK not validated | `zk.rs` | No CI check that VK matches circuit |
+| ~~VK not validated~~ | ~~`zk.rs`~~ | FIXED - CI validates VK matches circuit |
 
 ### Medium (P2)
 
 | Issue | Location |
 |-------|----------|
 | Monolithic test file | `tests/mitama.ts` (1000+ lines) |
-| Dead code | `lib.rs` - unused functions with `#[allow(dead_code)]` |
-| docs/ gitignored | `.gitignore:228` |
+| ~~Dead code~~ | ~~`lib.rs`~~ | FIXED - removed unused functions |
+| ~~docs/ gitignored~~ | ~~`.gitignore:228`~~ | FIXED |
 | No cross-chain tests | - |
 
 ### Low (P3)
 
-- Mixed error styles in AgentProxy (custom errors + require strings)
+- ~~Mixed error styles in AgentProxy~~ FIXED - uses custom errors consistently
 - Magic numbers (e.g. `604800i64` for 7 days)
 
 ---
@@ -100,15 +100,16 @@ Anyone can call `executeRound` on any simulation. Needs initiator check.
 - [x] Remove docs/ from gitignore
 - [x] Add Foundry tests (53 tests)
 - [x] Fix SDK discriminators (derive from IDL)
+- [x] Add VK validation to CI
+- [x] Remove dead code from lib.rs
+- [x] Standardize AgentProxy error handling
 - [ ] Audit groth16-solana
 - [ ] Professional security audit
 
 ### Post-Launch
 
 - [ ] Split test files
-- [ ] Remove dead code
 - [ ] Add integration tests
-- [ ] Standardize error handling
 
 ---
 
