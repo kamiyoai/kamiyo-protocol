@@ -11,15 +11,17 @@ export interface NetworkConfig {
   };
 }
 
+// NETWORKS is deprecated - use getNetworkConfig() from config.ts
+// Kept for backwards compatibility, returns static defaults
 export const NETWORKS: Record<HyperliquidNetwork, NetworkConfig> = {
   mainnet: {
     chainId: 999,
     rpc: 'https://rpc.hyperliquid.xyz/evm',
     explorer: 'https://explorer.hyperliquid.xyz',
     contracts: {
-      agentRegistry: '0x0000000000000000000000000000000000000000',
-      kamiyoVault: '0x0000000000000000000000000000000000000000',
-      reputationLimits: '0x0000000000000000000000000000000000000000',
+      agentRegistry: '0x0feb48737d7f47AF432a094E69e716c9E8fA8A22',
+      kamiyoVault: '0x87394c7a6D380b3a886704560E2A823CDA03c873',
+      reputationLimits: '0x5adF9B47342C2e0A425F3c99735b6E01FEd4201E',
     },
   },
   testnet: {
