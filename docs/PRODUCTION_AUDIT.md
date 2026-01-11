@@ -37,7 +37,7 @@ Anyone can call `executeRound` on any simulation. Needs initiator check.
 
 | Issue | Location | Notes |
 |-------|----------|-------|
-| Hardcoded discriminators | `kamiyo-sdk/src/client.ts` | Should derive from IDL |
+| ~~Hardcoded discriminators~~ | ~~`kamiyo-sdk/src/client.ts`~~ | FIXED - now uses IDL discriminators |
 | groth16-solana 0.0.3 | `Cargo.toml:26` | Early version, audit needed |
 | VK not validated | `zk.rs` | No CI check that VK matches circuit |
 
@@ -99,6 +99,7 @@ Anyone can call `executeRound` on any simulation. Needs initiator check.
 - [x] Create CI workflow
 - [x] Remove docs/ from gitignore
 - [x] Add Foundry tests (53 tests)
+- [x] Fix SDK discriminators (derive from IDL)
 - [ ] Audit groth16-solana
 - [ ] Professional security audit
 

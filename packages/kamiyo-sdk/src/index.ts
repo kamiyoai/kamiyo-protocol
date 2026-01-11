@@ -5,6 +5,7 @@
  */
 
 export * from "./types";
+export * from "./discriminators";
 export * from "./client";
 export * from "./agent";
 export * from "./agreement";
