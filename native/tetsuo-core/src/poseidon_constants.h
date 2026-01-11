@@ -13,6 +13,7 @@
 #define POSEIDON_CONSTANTS_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include "field.h"
 
@@ -260,12 +261,31 @@ static const char *POSEIDON_RC_HEX[171] = {
  * Convert hex string to field element (internal use).
  * Input: 64-character hex string (256 bits, big-endian).
  * Output: field_t in standard (non-Montgomery) form.
+ *
+ * NOTE: For internal use only with compile-time constants.
+ * Validates hex string length to prevent buffer overflows.
  */
 static inline void hex_to_field(field_t *out, const char *hex) {
+    /* Validate hex string length - must be exactly 64 characters */
+    size_t len = 0;
+    while (hex[len] && len <= 64) len++;
+    if (len != 64) {
+        /* Invalid length - set to zero and return */
+        field_set_zero(out);
+        return;
+    }
+
     uint8_t bytes[32];
     for (int i = 0; i < 32; i++) {
-        unsigned int byte;
+        unsigned int byte = 0;
         char h[3] = {hex[i*2], hex[i*2+1], 0};
+        /* Validate hex characters */
+        char c0 = hex[i*2], c1 = hex[i*2+1];
+        if (!((c0 >= '0' && c0 <= '9') || (c0 >= 'a' && c0 <= 'f') || (c0 >= 'A' && c0 <= 'F')) ||
+            !((c1 >= '0' && c1 <= '9') || (c1 >= 'a' && c1 <= 'f') || (c1 >= 'A' && c1 <= 'F'))) {
+            field_set_zero(out);
+            return;
+        }
         sscanf(h, "%02x", &byte);
         bytes[31 - i] = (uint8_t)byte;  /* Reverse for little-endian */
     }

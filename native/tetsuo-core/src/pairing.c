@@ -7,9 +7,19 @@
 
 #include "pairing.h"
 #include "field.h"
+#include "arena.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdatomic.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 #ifdef TETSUO_USE_MCL
 
@@ -169,11 +179,14 @@ bool pairing_multi(gt_t *result, const g1_t *ps, const g2_t *qs, size_t n) {
     if (!g_pairing_initialized) return false;
     if (n == 0) return false;
 
-    mcl_g1_t *mcl_ps = malloc(n * sizeof(mcl_g1_t));
-    mcl_g2_t *mcl_qs = malloc(n * sizeof(mcl_g2_t));
+    /* Use scratch arena for temporary allocations */
+    arena_t *scratch = scratch_arena_get();
+    arena_checkpoint_t cp = arena_checkpoint(scratch);
+
+    mcl_g1_t *mcl_ps = arena_alloc(scratch, n * sizeof(mcl_g1_t));
+    mcl_g2_t *mcl_qs = arena_alloc(scratch, n * sizeof(mcl_g2_t));
     if (!mcl_ps || !mcl_qs) {
-        free(mcl_ps);
-        free(mcl_qs);
+        arena_restore(scratch, cp);
         return false;
     }
 
@@ -188,8 +201,7 @@ bool pairing_multi(gt_t *result, const g1_t *ps, const g2_t *qs, size_t n) {
 
     mclBnGT_serialize(result->data, sizeof(result->data), &mcl_result);
 
-    free(mcl_ps);
-    free(mcl_qs);
+    arena_restore(scratch, cp);
     return true;
 }
 
@@ -362,14 +374,8 @@ bool g2_from_bytes(g2_t *p, const uint8_t *data, size_t len) {
         return false;
     }
 
-    p->is_infinity = mclBnG2_isZero(&mcl_p) != 0;
-    if (!p->is_infinity) {
-        /* Extract coordinates - simplified */
-        memcpy(p->x_re.limbs, data, 32);
-        memcpy(p->x_im.limbs, data + 32, 32);
-        memcpy(p->y_re.limbs, data + 64, 32);
-        memcpy(p->y_im.limbs, data + 96, 32);
-    }
+    /* Use g2_from_mcl for consistent coordinate extraction */
+    g2_from_mcl(p, &mcl_p);
     return true;
 }
 
@@ -405,12 +411,17 @@ bool vk_load(groth16_vk_t *vk, const uint8_t *data, size_t len) {
     if (len < offset + ic_len * 64) return false;
 
     vk->ic = malloc(ic_len * sizeof(g1_t));
-    if (!vk->ic) return false;
+    if (!vk->ic) {
+        vk->ic_len = 0;
+        return false;
+    }
 
     vk->ic_len = ic_len;
     for (size_t i = 0; i < ic_len; i++) {
         if (!g1_from_bytes(&vk->ic[i], data + offset, 64)) {
             free(vk->ic);
+            vk->ic = NULL;
+            vk->ic_len = 0;
             return false;
         }
         offset += 64;
@@ -492,6 +503,29 @@ bool groth16_verify(
     return gt_eq(&lhs, &vk->alpha_beta);
 }
 
+/*
+ * Generate cryptographic random scalar for batch verification.
+ * Returns false on RNG failure (fail-closed).
+ */
+static bool random_scalar(field_t *out) {
+#ifdef _WIN32
+    if (BCryptGenRandom(NULL, (PUCHAR)out->limbs, 32, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+        return false;
+    }
+#else
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) return false;
+    ssize_t n = read(fd, out->limbs, 32);
+    close(fd);
+    if (n != 32) return false;
+#endif
+    /* Reduce to 128 bits for sufficient security margin */
+    out->limbs[2] = 0;
+    out->limbs[3] = 0;
+    field_to_mont(out, out);
+    return true;
+}
+
 bool groth16_verify_batch(
     const groth16_vk_t *vk,
     const groth16_proof_t *proofs,
@@ -502,18 +536,155 @@ bool groth16_verify_batch(
     if (!g_pairing_initialized) return false;
     if (num_proofs == 0) return true;
 
-    /* For batch verification, we use random linear combinations */
-    /* Σ r_i · (e(A_i, B_i) - e(α, β) · e(IC_i, γ) · e(C_i, δ)) = 0 */
-
-    /* Simplified: verify each proof individually for now */
-    /* Full batch verification requires more complex accumulation */
-    for (size_t i = 0; i < num_proofs; i++) {
-        if (!groth16_verify(vk, &proofs[i], public_inputs[i], num_inputs[i])) {
-            return false;
+    /* Small batches: verify individually (overhead not worth it) */
+    if (num_proofs < 4) {
+        for (size_t i = 0; i < num_proofs; i++) {
+            if (!groth16_verify(vk, &proofs[i], public_inputs[i], num_inputs[i])) {
+                return false;
+            }
         }
+        return true;
     }
 
-    return true;
+    /*
+     * Batch verification using random linear combination.
+     *
+     * For each proof i, Groth16 verification is:
+     *   e(A_i, B_i) · e(-IC_i, γ) · e(-C_i, δ) = e(α, β)
+     *
+     * Batch check with random scalars r_i:
+     *   Π_i e(r_i·A_i, B_i) · e(-Σ(r_i·IC_i), γ) · e(-Σ(r_i·C_i), δ) = e(α, β)^(Σr_i)
+     *
+     * Optimization: Miller loop is linear, so we can compute:
+     *   miller(Σ(r_i·A_i), B_avg) · miller(-IC_acc, γ) · miller(-C_acc, δ)
+     *
+     * But B_i are different per proof (in G2), so we need n+2 pairings:
+     *   - n pairings: e(r_i·A_i, B_i) for each proof
+     *   - 1 pairing: e(-IC_acc, γ)
+     *   - 1 pairing: e(-C_acc, δ)
+     *
+     * Savings: IC and C accumulation reduces 2n pairings to 2.
+     */
+
+    /* Use scratch arena for all temporary allocations */
+    arena_t *scratch = scratch_arena_get();
+    arena_checkpoint_t cp = arena_checkpoint(scratch);
+
+    size_t total_pairings = num_proofs + 2;
+    field_t *randoms = arena_alloc(scratch, num_proofs * sizeof(field_t));
+    g1_t *scaled_A = arena_alloc(scratch, num_proofs * sizeof(g1_t));
+    g1_t *g1_points = arena_alloc(scratch, total_pairings * sizeof(g1_t));
+    g2_t *g2_points = arena_alloc(scratch, total_pairings * sizeof(g2_t));
+
+    if (!randoms || !scaled_A || !g1_points || !g2_points) {
+        arena_restore(scratch, cp);
+        /* Fallback to sequential verification */
+        for (size_t i = 0; i < num_proofs; i++) {
+            if (!groth16_verify(vk, &proofs[i], public_inputs[i], num_inputs[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /* Generate random scalars and validate proofs */
+    field_t r_sum;
+    field_set_zero(&r_sum);
+
+    for (size_t i = 0; i < num_proofs; i++) {
+        /* Validate proof points */
+        if (!g1_is_on_curve(&proofs[i].a) || !g1_is_in_subgroup(&proofs[i].a) ||
+            !g2_is_on_curve(&proofs[i].b) || !g2_is_in_subgroup(&proofs[i].b) ||
+            !g1_is_on_curve(&proofs[i].c) || !g1_is_in_subgroup(&proofs[i].c)) {
+            arena_restore(scratch, cp);
+            return false;
+        }
+
+        /* Generate random scalar (fail-closed on RNG failure) */
+        if (!random_scalar(&randoms[i])) {
+            arena_restore(scratch, cp);
+            return false;
+        }
+
+        /* Accumulate r_sum for e(α,β)^(Σr_i) */
+        field_add(&r_sum, &r_sum, &randoms[i]);
+
+        /* Compute r_i·A_i */
+        g1_scalar_mul(&scaled_A[i], &proofs[i].a, &randoms[i]);
+    }
+
+    /* Compute IC accumulator: Σ r_i · (IC[0] + Σ_j(input[j] * IC[j+1])) */
+    g1_t ic_acc;
+    g1_set_infinity(&ic_acc);
+
+    for (size_t i = 0; i < num_proofs; i++) {
+        /* Compute IC for this proof */
+        g1_t ic_i;
+        memcpy(&ic_i, &vk->ic[0], sizeof(g1_t));
+        for (size_t j = 0; j < num_inputs[i]; j++) {
+            g1_t tmp;
+            g1_scalar_mul(&tmp, &vk->ic[j + 1], &public_inputs[i][j]);
+            g1_add(&ic_i, &ic_i, &tmp);
+        }
+        /* Scale by r_i and accumulate */
+        g1_t scaled_ic;
+        g1_scalar_mul(&scaled_ic, &ic_i, &randoms[i]);
+        g1_add(&ic_acc, &ic_acc, &scaled_ic);
+    }
+
+    /* Compute C accumulator: Σ r_i · C_i */
+    g1_t c_acc;
+    g1_set_infinity(&c_acc);
+    for (size_t i = 0; i < num_proofs; i++) {
+        g1_t scaled_c;
+        g1_scalar_mul(&scaled_c, &proofs[i].c, &randoms[i]);
+        g1_add(&c_acc, &c_acc, &scaled_c);
+    }
+
+    /* Negate accumulators */
+    g1_t neg_ic_acc, neg_c_acc;
+    g1_neg(&neg_ic_acc, &ic_acc);
+    g1_neg(&neg_c_acc, &c_acc);
+
+    /*
+     * Compute LHS = Π e(r_i·A_i, B_i) · e(-IC_acc, γ) · e(-C_acc, δ)
+     * Use multi-Miller loop for efficiency.
+     */
+
+    /* Set up pairing inputs */
+    for (size_t i = 0; i < num_proofs; i++) {
+        memcpy(&g1_points[i], &scaled_A[i], sizeof(g1_t));
+        memcpy(&g2_points[i], &proofs[i].b, sizeof(g2_t));
+    }
+    memcpy(&g1_points[num_proofs], &neg_ic_acc, sizeof(g1_t));
+    memcpy(&g2_points[num_proofs], &vk->gamma, sizeof(g2_t));
+    memcpy(&g1_points[num_proofs + 1], &neg_c_acc, sizeof(g1_t));
+    memcpy(&g2_points[num_proofs + 1], &vk->delta, sizeof(g2_t));
+
+    /* Compute multi-pairing */
+    gt_t lhs;
+    bool ok = pairing_multi(&lhs, g1_points, g2_points, total_pairings);
+
+    arena_restore(scratch, cp);
+
+    if (!ok) return false;
+
+    /*
+     * Compute RHS = e(α, β)^(Σr_i)
+     *
+     * Since e(α,β) is precomputed, we need GT exponentiation.
+     * GT exp is expensive, so we use a different approach:
+     * Compute e(Σr_i · α, β) instead.
+     */
+    g1_t scaled_alpha;
+    g1_scalar_mul(&scaled_alpha, &vk->alpha, &r_sum);
+
+    gt_t rhs;
+    if (!pairing_compute(&rhs, &scaled_alpha, &vk->beta)) {
+        return false;
+    }
+
+    return gt_eq(&lhs, &rhs);
 }
 
 #else /* !TETSUO_USE_MCL */
