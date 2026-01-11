@@ -76,6 +76,21 @@ contract SwarmSimulator {
         Simulation storage s = simulations[id];
         if (s.initiator == address(0)) revert NotFound();
         if (msg.sender != s.initiator) revert NotInitiator();
+        return _executeRound(id, actions);
+    }
+
+    function executeRoundsBatch(bytes32 id, bytes[] calldata batch) external returns (bytes32[] memory hashes) {
+        Simulation storage s = simulations[id];
+        if (s.initiator == address(0)) revert NotFound();
+        if (msg.sender != s.initiator) revert NotInitiator();
+        hashes = new bytes32[](batch.length);
+        for (uint256 i = 0; i < batch.length; i++) {
+            hashes[i] = _executeRound(id, batch[i]);
+        }
+    }
+
+    function _executeRound(bytes32 id, bytes calldata actions) internal returns (bytes32 stateHash) {
+        Simulation storage s = simulations[id];
         if (s.completed) revert AlreadyDone();
 
         uint256 r = s.currentRound;
@@ -95,16 +110,6 @@ contract SwarmSimulator {
         emit RoundDone(id, r, stateHash, g0 - gasleft());
 
         if (s.currentRound >= s.totalRounds) _finalize(id);
-    }
-
-    function executeRoundsBatch(bytes32 id, bytes[] calldata batch) external returns (bytes32[] memory hashes) {
-        Simulation storage s = simulations[id];
-        if (s.initiator == address(0)) revert NotFound();
-        if (msg.sender != s.initiator) revert NotInitiator();
-        hashes = new bytes32[](batch.length);
-        for (uint256 i = 0; i < batch.length; i++) {
-            hashes[i] = this.executeRound(id, batch[i]);
-        }
     }
 
     function getSimulationState(bytes32 id) external view returns (bytes32, uint256, bool) {

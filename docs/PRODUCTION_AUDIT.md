@@ -98,7 +98,7 @@ Anyone can call `executeRound` on any simulation. Needs initiator check.
 - [x] Add SwarmSimulator access control
 - [x] Create CI workflow
 - [x] Remove docs/ from gitignore
-- [ ] Add Foundry tests
+- [x] Add Foundry tests (53 tests)
 - [ ] Audit groth16-solana
 - [ ] Professional security audit
 
