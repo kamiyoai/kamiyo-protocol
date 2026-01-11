@@ -3,7 +3,7 @@ import { PrivateInference } from '../src/proofs';
 import {
   verifyReputationProof,
   verifyPaymentProof,
-  isNativeVerificationAvailable,
+  isSnarkjsVerificationAvailable,
 } from '../src/verifier';
 import { Keypair } from '@solana/web3.js';
 
@@ -26,9 +26,9 @@ describe('TETSUO Privacy SDK Integration', () => {
     privateInference = new PrivateInference(wallet as any);
   });
 
-  describe('Native Verification Availability', () => {
-    it('should report native verification status', () => {
-      const available = isNativeVerificationAvailable();
+  describe('Snarkjs Verification Availability', () => {
+    it('should report snarkjs verification status', () => {
+      const available = isSnarkjsVerificationAvailable();
       expect(typeof available).toBe('boolean');
     });
   });
@@ -134,7 +134,7 @@ describe('TETSUO Privacy SDK Integration', () => {
       // Without native crypto, should either:
       // - Return valid with warning (default)
       // - Return invalid if requireCrypto is set
-      if (isNativeVerificationAvailable()) {
+      if (isSnarkjsVerificationAvailable()) {
         // With native, result depends on actual cryptographic verification
         expect(typeof result.valid).toBe('boolean');
       } else {
@@ -145,7 +145,7 @@ describe('TETSUO Privacy SDK Integration', () => {
     });
 
     it('should fail with requireCrypto when native unavailable', async () => {
-      if (!isNativeVerificationAvailable()) {
+      if (!isSnarkjsVerificationAvailable()) {
         const proof = await privateInference.proveReputation({
           threshold: 85,
         });
