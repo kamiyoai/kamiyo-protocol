@@ -27,6 +27,8 @@ jobs:
         with:
           version: 9
 
+      - uses: dtolnay/rust-toolchain@1.77.0
+
       - name: Install Solana
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
