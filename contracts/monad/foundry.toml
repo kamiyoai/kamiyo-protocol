@@ -6,14 +6,14 @@ auto_detect_solc = true
 optimizer = true
 optimizer_runs = 200
 
-# Only compile our contracts, not OZ tests
-match_path = "*.sol"
-no_match_path = "lib/**/test/**"
+# Only compile our contracts, not dependency tests
+test = "test"
+no_match_path = "{lib/**,node_modules/**}"
 
 remappings = [
     "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/",
-    "forge-std/=lib/openzeppelin-contracts-upgradeable/lib/forge-std/src/"
+    "forge-std/=lib/forge-std/src/"
 ]
 
 [rpc_endpoints]
