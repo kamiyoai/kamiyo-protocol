@@ -60,7 +60,7 @@ jobs:
 
       - name: Hyperliquid
         working-directory: contracts/hyperliquid
-        run: forge build
+        run: forge build && forge test -vvv
 
   typescript:
     name: TypeScript

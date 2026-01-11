@@ -26,77 +26,13 @@ import {
   TIER_NAMES,
 } from './types';
 import { getNetworkConfig, validateConfig, isNetworkConfigured } from './config';
-
-const AGENT_REGISTRY_ABI = [
-  'function register(string name) payable',
-  'function addStake() payable',
-  'function requestWithdrawal(uint256 amount)',
-  'function executeWithdrawal()',
-  'function cancelWithdrawal()',
-  'function deactivate()',
-  'function reactivate()',
-  'function getAgent(address agent) view returns (tuple(address owner, string name, uint256 stake, uint64 registeredAt, uint64 totalTrades, int64 totalPnl, uint64 copiers, uint64 successfulTrades, bool active))',
-  'function isRegistered(address) view returns (bool)',
-  'function totalAgents() view returns (uint256)',
-  'function getAgents(uint256 offset, uint256 limit) view returns (address[], uint256)',
-  'function getSuccessRate(address agent) view returns (uint256)',
-  'function minStake() view returns (uint256)',
-  'function withdrawalRequestTime(address) view returns (uint64)',
-  'function withdrawalRequestAmount(address) view returns (uint256)',
-  'function totalStaked() view returns (uint256)',
-  'function totalSlashed() view returns (uint256)',
-  'event AgentRegistered(address indexed agent, string name, uint256 stake)',
-  'event AgentDeactivated(address indexed agent)',
-  'event AgentReactivated(address indexed agent)',
-  'event StakeAdded(address indexed agent, uint256 amount, uint256 newTotal)',
-  'event StakeWithdrawn(address indexed agent, uint256 amount, uint256 remaining)',
-  'event AgentSlashed(address indexed agent, uint256 amount, uint256 remaining, string reason)',
-];
-
-const KAMIYO_VAULT_ABI = [
-  'function openPosition(address agent, int16 minReturnBps, uint64 lockPeriod) payable returns (uint256)',
-  'function closePosition(uint256 positionId)',
-  'function fileDispute(uint256 positionId) payable returns (uint256)',
-  'function getPosition(uint256 positionId) view returns (tuple(address user, address agent, uint256 deposit, uint256 currentValue, int16 minReturnBps, uint64 startTime, uint64 lockPeriod, uint64 endTime, bool active, bool disputed))',
-  'function getDispute(uint256 disputeId) view returns (tuple(uint256 positionId, address user, address agent, uint64 filedAt, int64 actualReturnBps, int16 expectedReturnBps, bool resolved, bool userWon))',
-  'function getUserPositions(address user) view returns (uint256[])',
-  'function getAgentPositions(address agent) view returns (uint256[])',
-  'function getUserActivePositions(address user) view returns (tuple(address user, address agent, uint256 deposit, uint256 currentValue, int16 minReturnBps, uint64 startTime, uint64 lockPeriod, uint64 endTime, bool active, bool disputed)[], uint256[])',
-  'function getPositionReturn(uint256 positionId) view returns (int64)',
-  'function canClosePosition(uint256 positionId) view returns (bool, string)',
-  'function disputeFee() view returns (uint256)',
-  'function positionCount() view returns (uint256)',
-  'function disputeCount() view returns (uint256)',
-  'function totalDeposits() view returns (uint256)',
-  'function totalFees() view returns (uint256)',
-  'event PositionOpened(uint256 indexed positionId, address indexed user, address indexed agent, uint256 deposit, int16 minReturnBps, uint64 lockPeriod)',
-  'event PositionClosed(uint256 indexed positionId, uint256 returnAmount, int64 returnBps)',
-  'event DisputeFiled(uint256 indexed disputeId, uint256 indexed positionId, address user)',
-  'event DisputeResolved(uint256 indexed disputeId, bool userWon, uint256 payout)',
-];
-
-const REPUTATION_LIMITS_ABI = [
-  'function proveReputation(uint8 tier, bytes32 commitment, uint256[2] proofA, uint256[2][2] proofB, uint256[2] proofC, uint256[] pubInputs)',
-  'function getCopyLimits(address agent) view returns (uint256 maxCopyLimit, uint256 maxCopiers)',
-  'function canAcceptDeposit(address agent, uint256 currentAUM, uint256 currentCopiers, uint256 newDeposit) view returns (bool allowed, string reason)',
-  'function getTier(uint8 tier) view returns (tuple(uint256 threshold, uint256 maxCopyLimit, uint256 maxCopiers))',
-  'function tierCount() view returns (uint256)',
-  'function getAgentTierInfo(address agent) view returns (uint8 tier, uint64 verifiedAt, tuple(uint256 threshold, uint256 maxCopyLimit, uint256 maxCopiers) tierInfo)',
-  'function agentTiers(address) view returns (uint8 tier, uint64 verifiedAt, bytes32 commitment)',
-  'event TierVerified(address indexed agent, uint8 tier, uint256 maxCopyLimit)',
-];
-
-// IHyperCore precompile ABI - reads L1 position state from HyperEVM
-const HYPERCORE_ABI = [
-  'function getUserPosition(address user, uint32 assetId) view returns (tuple(int64 szi, uint64 entryPx, int64 unrealizedPnl, uint64 marginUsed, uint64 liquidationPx, uint32 leverage))',
-  'function getAccountSummary(address user) view returns (tuple(uint64 accountValue, uint64 marginUsed, uint64 availableMargin, int64 totalPnl, uint32 positionCount))',
-  'function getAllPositions(address user) view returns (uint32[] assetIds, tuple(int64 szi, uint64 entryPx, int64 unrealizedPnl, uint64 marginUsed, uint64 liquidationPx, uint32 leverage)[] positions)',
-  'function getMarkPrice(uint32 assetId) view returns (uint64 price)',
-  'function getIndexPrice(uint32 assetId) view returns (uint64 price)',
-  'function getFundingRate(uint32 assetId) view returns (int64 rate)',
-];
-
-const HYPERCORE_ADDRESS = '0x0000000000000000000000000000000000000800';
+import {
+  AGENT_REGISTRY_ABI,
+  KAMIYO_VAULT_ABI,
+  REPUTATION_LIMITS_ABI,
+  HYPERCORE_ABI,
+  HYPERCORE_ADDRESS,
+} from './abis';
 
 export interface HyperliquidClientConfig {
   network?: HyperliquidNetwork;
