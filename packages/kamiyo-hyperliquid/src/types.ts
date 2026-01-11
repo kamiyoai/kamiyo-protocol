@@ -7,6 +7,7 @@ export interface NetworkConfig {
   contracts: {
     agentRegistry: string;
     kamiyoVault: string;
+    reputationLimits?: string;
   };
 }
 
@@ -18,6 +19,7 @@ export const NETWORKS: Record<HyperliquidNetwork, NetworkConfig> = {
     contracts: {
       agentRegistry: '0x0000000000000000000000000000000000000000',
       kamiyoVault: '0x0000000000000000000000000000000000000000',
+      reputationLimits: '0x0000000000000000000000000000000000000000',
     },
   },
   testnet: {
@@ -27,6 +29,7 @@ export const NETWORKS: Record<HyperliquidNetwork, NetworkConfig> = {
     contracts: {
       agentRegistry: '0x0000000000000000000000000000000000000000',
       kamiyoVault: '0x0000000000000000000000000000000000000000',
+      reputationLimits: '0x0000000000000000000000000000000000000000',
     },
   },
 };
@@ -224,4 +227,52 @@ export type EventCallback<T> = (event: T) => void;
 export interface ContractAddresses {
   agentRegistry: string;
   kamiyoVault: string;
+  reputationLimits?: string;
+}
+
+// ============ Reputation Limits Types ============
+
+export interface Tier {
+  threshold: number;
+  maxCopyLimit: bigint;
+  maxCopiers: number;
+}
+
+export interface AgentTier {
+  tier: number;
+  verifiedAt: number;
+  commitment: string;
+  tierInfo: Tier;
+}
+
+export interface TierInfo {
+  tier: number;
+  name: string;
+  threshold: number;
+  maxCopyLimit: bigint;
+  maxCopiers: number;
+}
+
+export const TIER_NAMES = ['Default', 'Bronze', 'Silver', 'Gold', 'Platinum'] as const;
+
+export interface ProveReputationParams {
+  tier: number;
+  commitment: string;
+  proofA: [bigint, bigint];
+  proofB: [[bigint, bigint], [bigint, bigint]];
+  proofC: [bigint, bigint];
+  pubInputs: bigint[];
+}
+
+export interface CanAcceptDepositResult {
+  allowed: boolean;
+  reason: string;
+}
+
+export interface TierVerifiedEvent {
+  agent: string;
+  tier: number;
+  maxCopyLimit: bigint;
+  blockNumber: number;
+  transactionHash: string;
 }
