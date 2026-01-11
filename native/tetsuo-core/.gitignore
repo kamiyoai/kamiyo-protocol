@@ -1,0 +1,9 @@
+# Build artifacts
+build/
+lib/
+
+# Dependencies (built locally)
+deps/
+
+# Examples binaries
+examples/agent_trust

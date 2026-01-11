@@ -1,0 +1,12 @@
+# Large ceremony files
+*.ptau
+
+# Intermediate zkey files
+*_0000.zkey
+*_0001.zkey
+
+# Keep final artifacts:
+# - reputation_threshold_final.zkey (proving key)
+# - verification_key.json
+# - Groth16Verifier.sol
+# - reputation_threshold.wasm
