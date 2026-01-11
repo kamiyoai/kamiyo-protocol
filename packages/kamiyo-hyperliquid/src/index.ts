@@ -23,6 +23,15 @@ export {
   // Dispute
   DisputeInfo,
 
+  // Reputation Limits
+  Tier,
+  AgentTier,
+  TierInfo,
+  ProveReputationParams,
+  CanAcceptDepositResult,
+  TierVerifiedEvent,
+  TIER_NAMES,
+
   // Transaction
   TransactionResult,
   PositionOpenedResult,

@@ -19,6 +19,12 @@ import {
   KamiyoErrorCode,
   CONSTANTS,
   ContractAddresses,
+  Tier,
+  AgentTier,
+  TierInfo,
+  ProveReputationParams,
+  CanAcceptDepositResult,
+  TIER_NAMES,
 } from './types';
 
 const AGENT_REGISTRY_ABI = [
@@ -69,6 +75,17 @@ const KAMIYO_VAULT_ABI = [
   'event DisputeResolved(uint256 indexed disputeId, bool userWon, uint256 payout)',
 ];
 
+const REPUTATION_LIMITS_ABI = [
+  'function proveReputation(uint8 tier, bytes32 commitment, uint256[2] proofA, uint256[2][2] proofB, uint256[2] proofC, uint256[] pubInputs)',
+  'function getCopyLimits(address agent) view returns (uint256 maxCopyLimit, uint256 maxCopiers)',
+  'function canAcceptDeposit(address agent, uint256 currentAUM, uint256 currentCopiers, uint256 newDeposit) view returns (bool allowed, string reason)',
+  'function getTier(uint8 tier) view returns (tuple(uint256 threshold, uint256 maxCopyLimit, uint256 maxCopiers))',
+  'function tierCount() view returns (uint256)',
+  'function getAgentTierInfo(address agent) view returns (uint8 tier, uint64 verifiedAt, tuple(uint256 threshold, uint256 maxCopyLimit, uint256 maxCopiers) tierInfo)',
+  'function agentTiers(address) view returns (uint8 tier, uint64 verifiedAt, bytes32 commitment)',
+  'event TierVerified(address indexed agent, uint8 tier, uint256 maxCopyLimit)',
+];
+
 export interface HyperliquidClientConfig {
   network?: HyperliquidNetwork;
   rpcUrl?: string;
@@ -85,6 +102,7 @@ export class HyperliquidClient {
   private readonly signer?: Signer;
   private readonly agentRegistry: Contract;
   private readonly kamiyoVault: Contract;
+  private readonly reputationLimits: Contract | null;
   private readonly retryAttempts: number;
   private readonly retryDelay: number;
 
@@ -93,7 +111,7 @@ export class HyperliquidClient {
     this.config = { ...NETWORKS[network] };
 
     if (options.contracts) {
-      this.config.contracts = options.contracts;
+      this.config.contracts = { ...this.config.contracts, ...options.contracts };
     }
 
     if (options.provider) {
@@ -117,6 +135,12 @@ export class HyperliquidClient {
       KAMIYO_VAULT_ABI,
       signerOrProvider
     );
+
+    // ReputationLimits is optional
+    const repLimitsAddr = this.config.contracts.reputationLimits;
+    this.reputationLimits = repLimitsAddr && repLimitsAddr !== ethers.ZeroAddress
+      ? new Contract(repLimitsAddr, REPUTATION_LIMITS_ABI, signerOrProvider)
+      : null;
   }
 
   
@@ -125,10 +149,14 @@ export class HyperliquidClient {
     return new HyperliquidClient({
       provider: this.provider,
       signer,
-      contracts: this.config.contracts,
+      contracts: this.config.contracts as ContractAddresses,
       retryAttempts: this.retryAttempts,
       retryDelay: this.retryDelay,
     });
+  }
+
+  hasReputationLimits(): boolean {
+    return this.reputationLimits !== null;
   }
 
   getAddress(): Promise<string> {
@@ -456,7 +484,100 @@ export class HyperliquidClient {
     };
   }
 
-  
+  // ============ Reputation Limits Methods ============
+
+  private requireReputationLimits(): Contract {
+    if (!this.reputationLimits) {
+      throw new KamiyoError('ReputationLimits contract not configured', KamiyoErrorCode.INVALID_PARAMETERS);
+    }
+    return this.reputationLimits;
+  }
+
+  async getTierCount(): Promise<number> {
+    const contract = this.requireReputationLimits();
+    const count = await contract.tierCount();
+    return Number(count);
+  }
+
+  async getTier(tier: number): Promise<TierInfo> {
+    const contract = this.requireReputationLimits();
+    const result = await contract.getTier(tier);
+    return {
+      tier,
+      name: TIER_NAMES[tier] || `Tier ${tier}`,
+      threshold: Number(result.threshold),
+      maxCopyLimit: result.maxCopyLimit,
+      maxCopiers: Number(result.maxCopiers),
+    };
+  }
+
+  async getAllTiers(): Promise<TierInfo[]> {
+    const count = await this.getTierCount();
+    const tiers: TierInfo[] = [];
+    for (let i = 0; i < count; i++) {
+      tiers.push(await this.getTier(i));
+    }
+    return tiers;
+  }
+
+  async getAgentTier(agent: string): Promise<AgentTier> {
+    this.validateAddress(agent);
+    const contract = this.requireReputationLimits();
+    const [tier, verifiedAt, tierInfo] = await contract.getAgentTierInfo(agent);
+    return {
+      tier: Number(tier),
+      verifiedAt: Number(verifiedAt),
+      commitment: '', // Not returned by getAgentTierInfo
+      tierInfo: {
+        threshold: Number(tierInfo.threshold),
+        maxCopyLimit: tierInfo.maxCopyLimit,
+        maxCopiers: Number(tierInfo.maxCopiers),
+      },
+    };
+  }
+
+  async getCopyLimits(agent: string): Promise<{ maxCopyLimit: bigint; maxCopiers: number }> {
+    this.validateAddress(agent);
+    const contract = this.requireReputationLimits();
+    const [maxCopyLimit, maxCopiers] = await contract.getCopyLimits(agent);
+    return { maxCopyLimit, maxCopiers: Number(maxCopiers) };
+  }
+
+  async canAcceptDeposit(
+    agent: string,
+    currentAUM: bigint,
+    currentCopiers: number,
+    newDeposit: bigint
+  ): Promise<CanAcceptDepositResult> {
+    this.validateAddress(agent);
+    const contract = this.requireReputationLimits();
+    const [allowed, reason] = await contract.canAcceptDeposit(agent, currentAUM, currentCopiers, newDeposit);
+    return { allowed, reason };
+  }
+
+  async proveReputation(params: ProveReputationParams): Promise<TransactionResult> {
+    this.requireSigner();
+    const contract = this.requireReputationLimits();
+
+    if (params.tier < 1 || params.tier > 4) {
+      throw new KamiyoError('Tier must be between 1 and 4', KamiyoErrorCode.INVALID_PARAMETERS);
+    }
+
+    return this.executeWithRetry(async () => {
+      const tx = await contract.proveReputation(
+        params.tier,
+        params.commitment,
+        params.proofA,
+        params.proofB,
+        params.proofC,
+        params.pubInputs
+      );
+      const receipt = await tx.wait();
+      return this.parseReceipt(receipt);
+    });
+  }
+
+  // ============ Gas Estimation ============
 
   async estimateRegisterGas(params: RegisterAgentParams): Promise<bigint> {
     this.requireSigner();
