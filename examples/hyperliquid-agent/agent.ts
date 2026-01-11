@@ -8,6 +8,9 @@
 import { ethers, Wallet } from 'ethers';
 import chalk from 'chalk';
 
+// Import exchange client for L1 order execution
+import { HyperliquidExchange, Position, AccountState } from '../../packages/kamiyo-hyperliquid/src/exchange';
+
 // Hyperliquid API types
 interface MarketData {
   coin: string;
@@ -17,27 +20,6 @@ interface MarketData {
   dayNtlVlm: string;
   funding: string;
   openInterest: string;
-}
-
-interface Position {
-  coin: string;
-  szi: string;
-  entryPx: string;
-  positionValue: string;
-  unrealizedPnl: string;
-  returnOnEquity: string;
-  liquidationPx: string | null;
-  leverage: { type: string; value: number };
-}
-
-interface AccountState {
-  marginSummary: {
-    accountValue: string;
-    totalMarginUsed: string;
-    totalNtlPos: string;
-    totalRawUsd: string;
-  };
-  assetPositions: Position[];
 }
 
 interface TradeSignal {
@@ -55,6 +37,8 @@ interface AgentConfig {
   maxLeverage: number;
   riskPerTrade: number;
   tradingPairs: string[];
+  network?: 'mainnet' | 'testnet';
+  simulate?: boolean;
 }
 
 const HYPERLIQUID_API = 'https://api.hyperliquid-testnet.xyz';
@@ -62,6 +46,7 @@ const HYPERLIQUID_API = 'https://api.hyperliquid-testnet.xyz';
 export class KamiyoTradingAgent {
   private wallet: Wallet;
   private config: AgentConfig;
+  private exchange: HyperliquidExchange;
   private positions: Map<string, Position> = new Map();
   private tradeHistory: Array<{ time: Date; coin: string; side: string; pnl: number }> = [];
   private isRunning = false;
@@ -75,6 +60,10 @@ export class KamiyoTradingAgent {
   constructor(config: AgentConfig) {
     this.config = config;
     this.wallet = new Wallet(config.privateKey);
+    this.exchange = new HyperliquidExchange({
+      wallet: this.wallet,
+      network: config.network || 'testnet',
+    });
   }
 
   async start(): Promise<void> {
@@ -86,6 +75,24 @@ export class KamiyoTradingAgent {
     console.log(chalk.gray(`  Stake: ${ethers.formatEther(this.config.stakeAmount)} HYPE`));
     console.log(chalk.gray(`  Max leverage: ${this.config.maxLeverage}x`));
     console.log(chalk.gray(`  Trading pairs: ${this.config.tradingPairs.join(', ')}`));
+    console.log(chalk.gray(`  Mode: ${this.config.simulate ? 'SIMULATION' : 'LIVE'}`));
+
+    // Initialize exchange
+    if (!this.config.simulate) {
+      console.log(chalk.gray('\n  Connecting to Hyperliquid L1...'));
+      await this.exchange.init();
+      console.log(chalk.green('  ✓ Exchange connected'));
+
+      // Set leverage for trading pairs
+      for (const coin of this.config.tradingPairs) {
+        try {
+          await this.exchange.setLeverage(coin, this.config.maxLeverage);
+          console.log(chalk.gray(`  ${coin}: leverage set to ${this.config.maxLeverage}x`));
+        } catch (e) {
+          console.log(chalk.yellow(`  ${coin}: could not set leverage`));
+        }
+      }
+    }
 
     // Main trading loop
     while (this.isRunning) {
@@ -145,15 +152,18 @@ export class KamiyoTradingAgent {
 
   private async fetchAccountState(): Promise<AccountState | null> {
     try {
-      const response = await fetch(`${HYPERLIQUID_API}/info`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'clearinghouseState',
-          user: this.wallet.address,
-        }),
-      });
-      return await response.json();
+      if (this.config.simulate) {
+        const response = await fetch(`${HYPERLIQUID_API}/info`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'clearinghouseState',
+            user: this.wallet.address,
+          }),
+        });
+        return await response.json();
+      }
+      return await this.exchange.getAccountState();
     } catch {
       return null;
     }
@@ -162,7 +172,8 @@ export class KamiyoTradingAgent {
   private updatePositions(account: AccountState | null): void {
     this.positions.clear();
     if (account?.assetPositions) {
-      for (const pos of account.assetPositions) {
+      for (const assetPos of account.assetPositions) {
+        const pos = 'position' in assetPos ? assetPos.position : assetPos as unknown as Position;
         if (parseFloat(pos.szi) !== 0) {
           this.positions.set(pos.coin, pos);
         }
@@ -242,28 +253,81 @@ export class KamiyoTradingAgent {
     console.log(chalk.gray(`  Confidence: ${(signal.confidence * 100).toFixed(0)}%`));
     console.log(chalk.gray(`  Reason: ${signal.reason}`));
 
-    // In production, this would execute via Hyperliquid API
-    // For demo, we simulate the trade
-    this.stats.totalTrades++;
+    if (this.config.simulate) {
+      // Simulation mode
+      this.stats.totalTrades++;
+      const simulatedPnl = (Math.random() - 0.4) * 100;
+      if (simulatedPnl > 0) {
+        this.stats.winningTrades++;
+      }
+      this.stats.totalPnl += simulatedPnl;
 
-    const simulatedPnl = (Math.random() - 0.4) * 100; // Slightly positive expected value
-    if (simulatedPnl > 0) {
-      this.stats.winningTrades++;
+      this.tradeHistory.push({
+        time: new Date(),
+        coin: signal.coin,
+        side: signal.side,
+        pnl: simulatedPnl,
+      });
+
+      if (this.tradeHistory.length > 100) {
+        this.tradeHistory.shift();
+      }
+
+      console.log(chalk.green(`  ✓ Trade executed (simulated)`));
+      return;
     }
-    this.stats.totalPnl += simulatedPnl;
 
-    this.tradeHistory.push({
-      time: new Date(),
-      coin: signal.coin,
-      side: signal.side,
-      pnl: simulatedPnl,
-    });
+    // Live execution via Hyperliquid L1
+    try {
+      let result;
+      const positionSize = this.calculatePositionSize();
 
-    if (this.tradeHistory.length > 100) {
-      this.tradeHistory.shift();
+      if (signal.side === 'close') {
+        result = await this.exchange.closePosition(signal.coin);
+        if (result) {
+          console.log(chalk.green(`  ✓ Position closed`));
+        } else {
+          console.log(chalk.gray(`  No position to close`));
+          return;
+        }
+      } else {
+        const isBuy = signal.side === 'long';
+        result = await this.exchange.marketOrder(signal.coin, isBuy, positionSize);
+      }
+
+      if (result?.status === 'ok' && result.response?.data?.statuses?.[0]) {
+        const status = result.response.data.statuses[0];
+        if (status.filled) {
+          console.log(chalk.green(`  ✓ Order filled: ${status.filled.totalSz} @ ${status.filled.avgPx}`));
+          this.stats.totalTrades++;
+        } else if (status.resting) {
+          console.log(chalk.yellow(`  Order resting: oid=${status.resting.oid}`));
+        } else if (status.error) {
+          console.log(chalk.red(`  Order error: ${status.error}`));
+        }
+      } else if (result?.error) {
+        console.log(chalk.red(`  Execution failed: ${result.error}`));
+      }
+
+      this.tradeHistory.push({
+        time: new Date(),
+        coin: signal.coin,
+        side: signal.side,
+        pnl: 0, // PnL calculated on position close
+      });
+
+      if (this.tradeHistory.length > 100) {
+        this.tradeHistory.shift();
+      }
+    } catch (error: any) {
+      console.log(chalk.red(`  Execution error: ${error.message}`));
     }
+  }
 
-    console.log(chalk.green(`  Trade executed (simulated)`));
+  private calculatePositionSize(): number {
+    // Size based on risk per trade and max position size
+    // In production, factor in account balance and current exposure
+    return Math.min(this.config.maxPositionSize * this.config.riskPerTrade, 0.1);
   }
 
   private printStatus(account: AccountState | null, signals: TradeSignal[]): void {
@@ -322,6 +386,7 @@ export class KamiyoTradingAgent {
 
 // Run if executed directly
 const privateKey = process.env.PRIVATE_KEY || ethers.Wallet.createRandom().privateKey;
+const simulate = process.env.SIMULATE !== 'false'; // Default to simulation mode
 
 const agent = new KamiyoTradingAgent({
   name: 'KamiyoAlpha',
@@ -331,6 +396,8 @@ const agent = new KamiyoTradingAgent({
   maxLeverage: 5,
   riskPerTrade: 0.02,
   tradingPairs: ['BTC', 'ETH', 'SOL'],
+  network: (process.env.NETWORK as 'mainnet' | 'testnet') || 'testnet',
+  simulate,
 });
 
 process.on('SIGINT', () => {

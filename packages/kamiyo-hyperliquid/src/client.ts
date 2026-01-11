@@ -86,6 +86,18 @@ const REPUTATION_LIMITS_ABI = [
   'event TierVerified(address indexed agent, uint8 tier, uint256 maxCopyLimit)',
 ];
 
+// IHyperCore precompile ABI - reads L1 position state from HyperEVM
+const HYPERCORE_ABI = [
+  'function getUserPosition(address user, uint32 assetId) view returns (tuple(int64 szi, uint64 entryPx, int64 unrealizedPnl, uint64 marginUsed, uint64 liquidationPx, uint32 leverage))',
+  'function getAccountSummary(address user) view returns (tuple(uint64 accountValue, uint64 marginUsed, uint64 availableMargin, int64 totalPnl, uint32 positionCount))',
+  'function getAllPositions(address user) view returns (uint32[] assetIds, tuple(int64 szi, uint64 entryPx, int64 unrealizedPnl, uint64 marginUsed, uint64 liquidationPx, uint32 leverage)[] positions)',
+  'function getMarkPrice(uint32 assetId) view returns (uint64 price)',
+  'function getIndexPrice(uint32 assetId) view returns (uint64 price)',
+  'function getFundingRate(uint32 assetId) view returns (int64 rate)',
+];
+
+const HYPERCORE_ADDRESS = '0x0000000000000000000000000000000000000800';
+
 export interface HyperliquidClientConfig {
   network?: HyperliquidNetwork;
   rpcUrl?: string;
@@ -103,6 +115,7 @@ export class HyperliquidClient {
   private readonly agentRegistry: Contract;
   private readonly kamiyoVault: Contract;
   private readonly reputationLimits: Contract | null;
+  private readonly hyperCore: Contract;
   private readonly retryAttempts: number;
   private readonly retryDelay: number;
 
@@ -141,6 +154,9 @@ export class HyperliquidClient {
     this.reputationLimits = repLimitsAddr && repLimitsAddr !== ethers.ZeroAddress
       ? new Contract(repLimitsAddr, REPUTATION_LIMITS_ABI, signerOrProvider)
       : null;
+
+    // HyperCore precompile for L1 position tracking
+    this.hyperCore = new Contract(HYPERCORE_ADDRESS, HYPERCORE_ABI, signerOrProvider);
   }
 
   
@@ -575,6 +591,100 @@ export class HyperliquidClient {
       const receipt = await tx.wait();
       return this.parseReceipt(receipt);
     });
+  }
+
+  // ============ HyperCore L1 Position Tracking ============
+
+  /**
+   * Get L1 perp position for an agent/user
+   * @param user Address to query
+   * @param assetId Asset ID (0=BTC, 1=ETH, etc)
+   */
+  async getL1Position(user: string, assetId: number): Promise<{
+    size: bigint;
+    entryPrice: bigint;
+    unrealizedPnl: bigint;
+    marginUsed: bigint;
+    liquidationPrice: bigint;
+    leverage: number;
+  }> {
+    this.validateAddress(user);
+    const result = await this.hyperCore.getUserPosition(user, assetId);
+    return {
+      size: result.szi,
+      entryPrice: result.entryPx,
+      unrealizedPnl: result.unrealizedPnl,
+      marginUsed: result.marginUsed,
+      liquidationPrice: result.liquidationPx,
+      leverage: Number(result.leverage) / 100,
+    };
+  }
+
+  /**
+   * Get account summary from L1
+   */
+  async getL1AccountSummary(user: string): Promise<{
+    accountValue: bigint;
+    marginUsed: bigint;
+    availableMargin: bigint;
+    totalPnl: bigint;
+    positionCount: number;
+  }> {
+    this.validateAddress(user);
+    const result = await this.hyperCore.getAccountSummary(user);
+    return {
+      accountValue: result.accountValue,
+      marginUsed: result.marginUsed,
+      availableMargin: result.availableMargin,
+      totalPnl: result.totalPnl,
+      positionCount: Number(result.positionCount),
+    };
+  }
+
+  /**
+   * Get all L1 positions for an agent/user
+   */
+  async getAllL1Positions(user: string): Promise<Array<{
+    assetId: number;
+    size: bigint;
+    entryPrice: bigint;
+    unrealizedPnl: bigint;
+    marginUsed: bigint;
+    liquidationPrice: bigint;
+    leverage: number;
+  }>> {
+    this.validateAddress(user);
+    const [assetIds, positions] = await this.hyperCore.getAllPositions(user);
+    return assetIds.map((id: number, i: number) => ({
+      assetId: Number(id),
+      size: positions[i].szi,
+      entryPrice: positions[i].entryPx,
+      unrealizedPnl: positions[i].unrealizedPnl,
+      marginUsed: positions[i].marginUsed,
+      liquidationPrice: positions[i].liquidationPx,
+      leverage: Number(positions[i].leverage) / 100,
+    }));
+  }
+
+  /**
+   * Get mark price for an asset from L1
+   */
+  async getL1MarkPrice(assetId: number): Promise<bigint> {
+    return this.hyperCore.getMarkPrice(assetId);
+  }
+
+  /**
+   * Get index price for an asset from L1
+   */
+  async getL1IndexPrice(assetId: number): Promise<bigint> {
+    return this.hyperCore.getIndexPrice(assetId);
+  }
+
+  /**
+   * Get funding rate for an asset from L1
+   */
+  async getL1FundingRate(assetId: number): Promise<bigint> {
+    return this.hyperCore.getFundingRate(assetId);
   }
 
   // ============ Gas Estimation ============
