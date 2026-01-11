@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Script.sol";
 import "../AgentRegistry.sol";
 import "../KamiyoVault.sol";
+import "../ReputationLimits.sol";
 
 /**
  * @title Deploy
@@ -28,6 +29,10 @@ contract Deploy is Script {
         KamiyoVault vault = new KamiyoVault(address(registry), deployer);
         console.log("KamiyoVault deployed at:", address(vault));
 
+        // Deploy ReputationLimits
+        ReputationLimits reputationLimits = new ReputationLimits(address(registry), deployer);
+        console.log("ReputationLimits deployed at:", address(reputationLimits));
+
         // Configure AgentRegistry to allow vault to update copiers
         registry.setVault(address(vault));
         console.log("Vault configured in AgentRegistry");
@@ -41,6 +46,7 @@ contract Deploy is Script {
         console.log("");
         console.log("AgentRegistry:", address(registry));
         console.log("KamiyoVault:", address(vault));
+        console.log("ReputationLimits:", address(reputationLimits));
         console.log("");
         console.log("Admin:", deployer);
         console.log("Dispute Resolver:", deployer);
@@ -51,6 +57,7 @@ contract Deploy is Script {
         console.log("contracts: {");
         console.log("  agentRegistry: '%s',", address(registry));
         console.log("  kamiyoVault: '%s',", address(vault));
+        console.log("  reputationLimits: '%s',", address(reputationLimits));
         console.log("}");
     }
 }
@@ -70,6 +77,7 @@ contract DeployTestnet is Script {
 
         AgentRegistry registry = new AgentRegistry(deployer);
         KamiyoVault vault = new KamiyoVault(address(registry), deployer);
+        ReputationLimits reputationLimits = new ReputationLimits(address(registry), deployer);
         registry.setVault(address(vault));
 
         // Set a lower dispute fee for testnet
@@ -80,6 +88,7 @@ contract DeployTestnet is Script {
         console.log("\n========== TESTNET DEPLOYMENT ==========");
         console.log("AgentRegistry:", address(registry));
         console.log("KamiyoVault:", address(vault));
+        console.log("ReputationLimits:", address(reputationLimits));
         console.log("Dispute Fee: 0.001 HYPE");
         console.log("=========================================\n");
     }

@@ -48,10 +48,25 @@ User Deposit → KamiyoVault (escrow)
 | Dispute Window | Time to dispute after close (7 days) |
 | Slash Percent | Agent stake lost on dispute (10%) |
 
+## ZK Reputation Tiers
+
+Agents unlock higher copy limits by proving their reputation via ZK proofs:
+
+| Tier | Threshold | Max Copy Limit | Max Copiers |
+|------|-----------|----------------|-------------|
+| Default | 0 | 100 HYPE | 5 |
+| Bronze | 25+ | 500 HYPE | 20 |
+| Silver | 50+ | 2,000 HYPE | 50 |
+| Gold | 75+ | 10,000 HYPE | 200 |
+| Platinum | 90+ | Unlimited | Unlimited |
+
+The ZK proof proves `score >= threshold` without revealing the actual score.
+
 ## Contracts
 
 - `AgentRegistry` - Agent registration, staking, reputation
 - `KamiyoVault` - Copy positions, escrow, disputes
+- `ReputationLimits` - ZK-verified tier system for copy limits
 
 ## Environment
 

@@ -209,33 +209,72 @@ async function step4_ShowGuarantee(): Promise<void> {
 }
 
 async function step5_ZKReputation(): Promise<void> {
-  printStep(5, 'ZK Reputation', 'Agent proves track record without revealing strategy');
+  printStep(5, 'ZK Reputation Tiers', 'Agent proves reputation to unlock higher copy limits');
 
-  console.log(chalk.white('  Agent wants to prove:'));
-  console.log(chalk.gray('  "My win rate is ≥ 65%"'));
+  console.log(chalk.white('  Tier System'));
+  console.log(chalk.gray('  ┌──────────┬───────────┬────────────────┬─────────────┐'));
+  console.log(chalk.gray('  │ Tier     │ Threshold │ Max Copy Limit │ Max Copiers │'));
+  console.log(chalk.gray('  ├──────────┼───────────┼────────────────┼─────────────┤'));
+  console.log(chalk.gray('  │ ') + chalk.white('Default ') + chalk.gray(' │    0      │     100 HYPE   │      5      │'));
+  console.log(chalk.gray('  │ ') + chalk.yellow('Bronze  ') + chalk.gray(' │   25+     │     500 HYPE   │     20      │'));
+  console.log(chalk.gray('  │ ') + chalk.white('Silver  ') + chalk.gray(' │   50+     │   2,000 HYPE   │     50      │'));
+  console.log(chalk.gray('  │ ') + chalk.yellow('Gold    ') + chalk.gray(' │   75+     │  10,000 HYPE   │    200      │'));
+  console.log(chalk.gray('  │ ') + chalk.cyan('Platinum') + chalk.gray(' │   90+     │   Unlimited    │  Unlimited  │'));
+  console.log(chalk.gray('  └──────────┴───────────┴────────────────┴─────────────┘'));
   console.log('');
 
-  console.log(chalk.white('  Without revealing:'));
-  console.log(chalk.gray('  • Actual win rate (68.2%)'));
+  await sleep(1500);
+
+  console.log(chalk.white('  KamiyoAlpha upgrading to Gold tier...'));
+  console.log('');
+
+  console.log(chalk.gray('  Agent wants to prove:'));
+  console.log(chalk.gray('  "My reputation score is ≥ 75"'));
+  console.log('');
+
+  console.log(chalk.gray('  Without revealing:'));
+  console.log(chalk.gray('  • Actual score (82)'));
   console.log(chalk.gray('  • Individual trade history'));
   console.log(chalk.gray('  • Trading strategy details'));
   console.log('');
 
   await sleep(1000);
 
-  console.log(chalk.gray('  Generating ZK proof...'));
+  console.log(chalk.gray('  Generating Groth16 proof...'));
+  await sleep(800);
+
+  // Simulate proof generation
+  const fakeProofA = ['0x' + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join(''), '0x' + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')];
+  const fakeCommitment = '0x' + [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+
+  console.log(chalk.cyan('\n  ZK Proof (Groth16)'));
+  console.log(chalk.gray('  ├─ Circuit:     ') + chalk.white('reputation_threshold'));
+  console.log(chalk.gray('  ├─ Public Inputs:'));
+  console.log(chalk.gray('  │  ├─ threshold:   ') + chalk.white('75'));
+  console.log(chalk.gray('  │  └─ commitment:  ') + chalk.white(fakeCommitment.slice(0, 18) + '...'));
+  console.log(chalk.gray('  ├─ Private Inputs: ') + chalk.gray('[score=82, secret=***]'));
+  console.log(chalk.gray('  └─ Proof:'));
+  console.log(chalk.gray('     ├─ a: ') + chalk.white(fakeProofA[0].slice(0, 22) + '...'));
+  console.log(chalk.gray('     ├─ b: ') + chalk.gray('[...]'));
+  console.log(chalk.gray('     └─ c: ') + chalk.gray('[...]'));
+
+  await sleep(1000);
+
+  console.log(chalk.gray('\n  Calling ReputationLimits.proveReputation()...'));
   await sleep(500);
 
-  console.log(chalk.cyan('\n  Groth16 Proof'));
-  console.log(chalk.gray('  ├─ Circuit:     ') + chalk.white('reputation_threshold'));
-  console.log(chalk.gray('  ├─ Public:      ') + chalk.white('threshold=65, commitment=0x1a2b...'));
-  console.log(chalk.gray('  ├─ Private:     ') + chalk.gray('[hidden]'));
-  console.log(chalk.gray('  └─ Verified:    ') + chalk.green('✓'));
+  console.log(chalk.green('  ✓ Proof verified on-chain'));
+  console.log(chalk.green('  ✓ Agent upgraded to Gold tier'));
 
-  console.log(chalk.cyan('\n  Use Cases:'));
-  console.log(chalk.gray('  • Higher tier access (higher copy limits)'));
-  console.log(chalk.gray('  • Premium features unlock'));
-  console.log(chalk.gray('  • Cross-chain reputation portability'));
+  console.log(chalk.cyan('\n  New Limits:'));
+  console.log(chalk.gray('  ├─ Max Copy Limit:  ') + chalk.yellow('10,000 HYPE'));
+  console.log(chalk.gray('  ├─ Max Copiers:     ') + chalk.white('200'));
+  console.log(chalk.gray('  └─ Verified At:     ') + chalk.white(new Date().toISOString()));
+
+  console.log(chalk.cyan('\n  Benefits:'));
+  console.log(chalk.gray('  • Manage 100x more capital than unverified agents'));
+  console.log(chalk.gray('  • Reputation proven without revealing strategy'));
+  console.log(chalk.gray('  • On-chain verification = trustless'));
 }
 
 async function step6_Summary(): Promise<void> {
