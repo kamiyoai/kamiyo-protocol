@@ -6,8 +6,8 @@ import "./interfaces/IKamiyoBridge.sol";
 contract ReputationMirror is IKamiyoBridge {
     uint256[2] public vkAlpha;
     uint256[2][2] public vkBeta;
-    uint256[2] public vkGamma;
-    uint256[2] public vkDelta;
+    uint256[2][2] public vkGamma;
+    uint256[2][2] public vkDelta;
     uint256[2][] public vkIC;
 
     mapping(bytes32 => ReputationAttestation) private attestations;
@@ -27,6 +27,7 @@ contract ReputationMirror is IKamiyoBridge {
     error BadProof();
     error NotFound();
     error Stale();
+    error BadInputs();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -60,6 +61,7 @@ contract ReputationMirror is IKamiyoBridge {
     }
 
     function verifyProof(Groth16Proof calldata proof, uint256[] calldata pubInputs) public view returns (bool) {
+        if (pubInputs.length + 1 > vkIC.length) revert BadInputs();
         uint256[2] memory vkX = vkIC[0];
         for (uint256 i = 0; i < pubInputs.length; i++) {
             vkX = pointAdd(vkX, scalarMul(vkIC[i + 1], pubInputs[i]));
@@ -89,8 +91,8 @@ contract ReputationMirror is IKamiyoBridge {
     function setVerificationKey(
         uint256[2] calldata _a,
         uint256[2][2] calldata _b,
-        uint256[2] calldata _g,
-        uint256[2] calldata _d,
+        uint256[2][2] calldata _g,
+        uint256[2][2] calldata _d,
         uint256[2][] calldata _ic
     ) external onlyAdmin {
         vkAlpha = _a;
@@ -127,12 +129,12 @@ contract ReputationMirror is IKamiyoBridge {
     function pairingCheck(
         uint256[2] memory a1, uint256[2][2] memory b1,
         uint256[2] memory a2, uint256[2][2] memory b2,
-        uint256[2] memory a3, uint256[2] memory b3,
-        uint256[2] memory a4, uint256[2] memory b4
+        uint256[2] memory a3, uint256[2][2] memory b3,
+        uint256[2] memory a4, uint256[2][2] memory b4
     ) internal view returns (bool) {
         uint256[24] memory inp;
 
-        // -A, B
+        // -A, B (negate A for pairing equation)
         inp[0] = a1[0];
         inp[1] = (P - a1[1]) % P;
         inp[2] = b1[0][1]; inp[3] = b1[0][0];
@@ -143,15 +145,15 @@ contract ReputationMirror is IKamiyoBridge {
         inp[8] = b2[0][1]; inp[9] = b2[0][0];
         inp[10] = b2[1][1]; inp[11] = b2[1][0];
 
-        // vk_x, gamma (G2 point stored as 2 coordinates for simplified interface)
+        // vk_x, gamma
         inp[12] = a3[0]; inp[13] = a3[1];
-        inp[14] = b3[0]; inp[15] = b3[1];
-        inp[16] = 0; inp[17] = 0;
+        inp[14] = b3[0][1]; inp[15] = b3[0][0];
+        inp[16] = b3[1][1]; inp[17] = b3[1][0];
 
         // C, delta
         inp[18] = a4[0]; inp[19] = a4[1];
-        inp[20] = b4[0]; inp[21] = b4[1];
-        inp[22] = 0; inp[23] = 0;
+        inp[20] = b4[0][1]; inp[21] = b4[0][0];
+        inp[22] = b4[1][1]; inp[23] = b4[1][0];
 
         uint256[1] memory out;
         assembly { if iszero(staticcall(gas(), 0x08, inp, 0x300, out, 0x20)) { revert(0, 0) } }

@@ -40,6 +40,7 @@ contract SwarmSimulator {
     error BadRounds();
     error TooMany();
     error NotAdmin();
+    error NotInitiator();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -74,6 +75,7 @@ contract SwarmSimulator {
     function executeRound(bytes32 id, bytes calldata actions) external returns (bytes32 stateHash) {
         Simulation storage s = simulations[id];
         if (s.initiator == address(0)) revert NotFound();
+        if (msg.sender != s.initiator) revert NotInitiator();
         if (s.completed) revert AlreadyDone();
 
         uint256 r = s.currentRound;
@@ -96,6 +98,9 @@ contract SwarmSimulator {
     }
 
     function executeRoundsBatch(bytes32 id, bytes[] calldata batch) external returns (bytes32[] memory hashes) {
+        Simulation storage s = simulations[id];
+        if (s.initiator == address(0)) revert NotFound();
+        if (msg.sender != s.initiator) revert NotInitiator();
         hashes = new bytes32[](batch.length);
         for (uint256 i = 0; i < batch.length; i++) {
             hashes[i] = this.executeRound(id, batch[i]);
@@ -111,6 +116,7 @@ contract SwarmSimulator {
     function finalizeSimulation(bytes32 id) external returns (bytes memory) {
         Simulation storage s = simulations[id];
         if (s.initiator == address(0)) revert NotFound();
+        if (msg.sender != s.initiator) revert NotInitiator();
         if (s.completed) return results[id];
         _finalize(id);
         return results[id];
