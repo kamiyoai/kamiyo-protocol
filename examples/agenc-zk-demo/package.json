@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "demo": "tsx demo.ts",
+    "onchain": "tsx onchain-demo.ts",
     "benchmark": "tsx benchmark.ts"
   },
   "dependencies": {
     "@kamiyo/tetsuo": "file:../../packages/kamiyo-tetsuo",
-    "gradient-string": "^3.0.0"
+    "gradient-string": "^3.0.0",
+    "viem": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

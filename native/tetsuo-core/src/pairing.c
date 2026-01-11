@@ -24,8 +24,8 @@
 #ifdef TETSUO_USE_MCL
 
 /* BN254 curve parameters for mcl */
-#define MCL_FP_BIT 256
-#define MCL_FR_BIT 256
+#define MCLBN_FP_UNIT_SIZE 4  /* 4 * 64-bit = 256-bit for BN254 */
+#define MCLBN_FR_UNIT_SIZE 4
 
 #include <mcl/bn.h>
 
