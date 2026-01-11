@@ -1,16 +1,6 @@
-/**
- * ZK Prover for Hyperliquid Reputation Tiers
- *
- * Re-exports from @kamiyo/tetsuo with Hyperliquid-specific helpers.
- */
-
 import { ethers } from 'ethers';
-import {
-  TetsuoProver,
-  GeneratedProof,
-} from '@kamiyo/tetsuo';
+import { TetsuoProver, GeneratedProof } from '@kamiyo/tetsuo';
 
-// Re-export core prover functionality
 export {
   TetsuoProver,
   getTierThreshold,
@@ -28,15 +18,7 @@ export type {
   VerificationResult,
 } from '@kamiyo/tetsuo';
 
-/**
- * Hyperliquid-specific proof wrapper
- *
- * Extends TetsuoProver with EVM contract formatting.
- */
 export class ReputationProver extends TetsuoProver {
-  /**
-   * Format proof for Hyperliquid ReputationLimits contract
-   */
   formatForContract(proof: GeneratedProof): {
     proofA: [bigint, bigint];
     proofB: [[bigint, bigint], [bigint, bigint]];
@@ -51,9 +33,6 @@ export class ReputationProver extends TetsuoProver {
     };
   }
 
-  /**
-   * Generate commitment as hex string (for contract)
-   */
   async generateCommitmentHex(score: number, secret?: bigint): Promise<{
     commitment: string;
     secret: bigint;

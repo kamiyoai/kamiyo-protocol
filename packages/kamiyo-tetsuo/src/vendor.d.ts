@@ -1,7 +1,3 @@
-/**
- * Type declarations for ZK dependencies
- */
-
 declare module 'snarkjs' {
   export namespace groth16 {
     function fullProve(

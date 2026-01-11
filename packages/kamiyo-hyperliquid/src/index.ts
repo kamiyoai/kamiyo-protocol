@@ -1,7 +1,5 @@
-// Client
 export { HyperliquidClient, HyperliquidClientConfig } from './client';
 
-// Exchange (L1 order execution)
 export {
   HyperliquidExchange,
   ExchangeConfig,
@@ -16,7 +14,6 @@ export {
   Network as ExchangeNetwork,
 } from './exchange';
 
-// ZK Prover (powered by TETSUO)
 export {
   ReputationProver,
   TetsuoProver,
@@ -25,7 +22,6 @@ export {
 } from './prover';
 export type { ProofInput, GeneratedProof, ProverConfig, TierLevel } from './prover';
 
-// Dispute Oracle
 export {
   DisputeOracle,
   OracleConfig,
@@ -34,29 +30,19 @@ export {
   createOracle,
 } from './oracle';
 
-// Types
 export {
-  // Network
   HyperliquidNetwork,
   NetworkConfig,
   NETWORKS,
   ContractAddresses,
-
-  // Agent
   Agent,
   AgentWithAddress,
   AgentStats,
   RegisterAgentParams,
-
-  // Position
   CopyPosition,
   PositionWithReturn,
   OpenPositionParams,
-
-  // Dispute
   DisputeInfo,
-
-  // Reputation Limits
   Tier,
   AgentTier,
   TierInfo,
@@ -64,17 +50,11 @@ export {
   CanAcceptDepositResult,
   TierVerifiedEvent,
   TIER_NAMES,
-
-  // Transaction
   TransactionResult,
   PositionOpenedResult,
   DisputeFiledResult,
-
-  // Query
   PaginationParams,
   AgentListResult,
-
-  // Events
   AgentRegisteredEvent,
   PositionOpenedEvent,
   PositionClosedEvent,
@@ -82,11 +62,7 @@ export {
   DisputeResolvedEvent,
   EventFilter,
   EventCallback,
-
-  // Errors
   KamiyoError,
   KamiyoErrorCode,
-
-  // Constants
   CONSTANTS,
 } from './types';
