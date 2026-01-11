@@ -108,8 +108,8 @@ Anyone can call `executeRound` on any simulation. Needs initiator check.
 
 ### Post-Launch
 
-- [ ] Split test files
-- [ ] Add integration tests
+- [x] Split test files (done: agent, escrow, disputes, oracle, reputation, spl-token)
+- [x] Add integration tests (cross-chain Solana ↔ Monad)
 
 ---
 
