@@ -18,7 +18,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/web3.js": "^1.98.0",
-    "@kamiyo/sdk": "^0.1.0"
+    "@kamiyo/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

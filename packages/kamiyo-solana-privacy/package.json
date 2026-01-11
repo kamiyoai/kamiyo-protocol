@@ -21,7 +21,8 @@
   "license": "BUSL-1.1",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@kamiyo/tetsuo": "^0.1.0",
+    "@kamiyo/tetsuo": "workspace:*",
+    "@rollup/rollup-darwin-arm64": "^4.55.1",
     "@solana/web3.js": "^1.98.0"
   },
   "devDependencies": {
@@ -29,7 +30,7 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@kamiyo/sdk": "*"
+    "@kamiyo/sdk": "workspace:*"
   },
   "directories": {
     "test": "tests"

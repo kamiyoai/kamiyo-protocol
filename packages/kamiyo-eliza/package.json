@@ -70,7 +70,7 @@
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
-    "@kamiyo/sdk": "file:../kamiyo-sdk",
+    "@kamiyo/sdk": "workspace:*",
     "@solana/web3.js": "^1.95.8",
     "@coral-xyz/anchor": "^0.31.1",
     "zod": "^3.23.8"

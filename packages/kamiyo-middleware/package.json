@@ -28,7 +28,7 @@
   "author": "KAMIYO <dev@kamiyo.ai>",
   "license": "MIT",
   "dependencies": {
-    "@kamiyo/sdk": "^0.1.0",
+    "@kamiyo/sdk": "workspace:*",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.95.8"
   },
