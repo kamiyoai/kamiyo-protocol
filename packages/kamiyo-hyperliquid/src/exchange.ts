@@ -100,13 +100,21 @@ const ENDPOINTS = {
   testnet: 'https://api.hyperliquid-testnet.xyz',
 };
 
-// EIP-712 domain for Hyperliquid
-const EIP712_DOMAIN = {
-  name: 'HyperliquidSignTransaction',
-  version: '1',
-  chainId: 42161, // Arbitrum
-  verifyingContract: '0x0000000000000000000000000000000000000000',
+const CHAIN_IDS: Record<Network, number> = {
+  mainnet: 999,
+  testnet: 998,
 };
+
+const DEFAULT_TIMEOUT_MS = 30000;
+
+function getEIP712Domain(network: Network) {
+  return {
+    name: 'HyperliquidSignTransaction',
+    version: '1',
+    chainId: CHAIN_IDS[network],
+    verifyingContract: '0x0000000000000000000000000000000000000000',
+  };
+}
 
 const ORDER_TYPES = {
   Agent: [
@@ -131,15 +139,20 @@ const ORDER_TYPES = {
 export class HyperliquidExchange {
   private readonly wallet: Wallet;
   private readonly endpoint: string;
+  private readonly network: Network;
   private readonly vaultAddress?: string;
+  private readonly timeoutMs: number;
   private assetMap: Map<string, number> = new Map();
   private szDecimals: Map<string, number> = new Map();
   private initialized = false;
+  private nonceCounter = 0;
 
   constructor(config: ExchangeConfig) {
     this.wallet = config.wallet;
-    this.endpoint = ENDPOINTS[config.network || 'testnet'];
+    this.network = config.network || 'testnet';
+    this.endpoint = ENDPOINTS[this.network];
     this.vaultAddress = config.vaultAddress;
+    this.timeoutMs = DEFAULT_TIMEOUT_MS;
   }
 
   async init(): Promise<void> {
@@ -160,37 +173,32 @@ export class HyperliquidExchange {
   // ============ Info API ============
 
   async getMeta(): Promise<MetaInfo> {
-    const response = await this.postInfo({ type: 'meta' });
-    return response;
+    return this.postInfo<MetaInfo>({ type: 'meta' });
   }
 
   async getAccountState(user?: string): Promise<AccountState> {
-    const response = await this.postInfo({
+    return this.postInfo<AccountState>({
       type: 'clearinghouseState',
       user: user || this.wallet.address,
     });
-    return response;
   }
 
-  async getOpenOrders(user?: string): Promise<any[]> {
-    const response = await this.postInfo({
+  async getOpenOrders(user?: string): Promise<unknown[]> {
+    return this.postInfo<unknown[]>({
       type: 'openOrders',
       user: user || this.wallet.address,
     });
-    return response;
   }
 
   async getAllMids(): Promise<Record<string, string>> {
-    const response = await this.postInfo({ type: 'allMids' });
-    return response;
+    return this.postInfo<Record<string, string>>({ type: 'allMids' });
   }
 
   async getL2Snapshot(coin: string): Promise<{ levels: Array<{ px: string; sz: string; n: number }[]> }> {
-    const response = await this.postInfo({
+    return this.postInfo<{ levels: Array<{ px: string; sz: string; n: number }[]> }>({
       type: 'l2Book',
       coin,
     });
-    return response;
   }
 
   // ============ Exchange API ============
@@ -263,17 +271,15 @@ export class HyperliquidExchange {
       cancels: [{ a: this.getAssetIndex(coin), o: oid }],
     };
 
-    const nonce = Date.now();
+    const nonce = this.generateNonce();
     const signature = await this.signAction(action, nonce);
 
-    const response = await this.postExchange({
+    return this.postExchange<{ status: string }>({
       action,
       nonce,
       signature,
       vaultAddress: this.vaultAddress,
     });
-
-    return response;
   }
 
   async cancelAllOrders(): Promise<{ status: string }> {
@@ -282,17 +288,15 @@ export class HyperliquidExchange {
       cancels: [],
     };
 
-    const nonce = Date.now();
+    const nonce = this.generateNonce();
     const signature = await this.signAction(action, nonce);
 
-    const response = await this.postExchange({
+    return this.postExchange<{ status: string }>({
       action,
       nonce,
       signature,
       vaultAddress: this.vaultAddress,
     });
-
-    return response;
   }
 
   async setLeverage(coin: string, leverage: number, isCross: boolean = true): Promise<{ status: string }> {
@@ -303,17 +307,15 @@ export class HyperliquidExchange {
       leverage,
     };
 
-    const nonce = Date.now();
+    const nonce = this.generateNonce();
     const signature = await this.signAction(action, nonce);
 
-    const response = await this.postExchange({
+    return this.postExchange<{ status: string }>({
       action,
       nonce,
       signature,
       vaultAddress: this.vaultAddress,
     });
-
-    return response;
   }
 
   // ============ Private Methods ============
@@ -325,17 +327,15 @@ export class HyperliquidExchange {
       grouping: 'na',
     };
 
-    const nonce = Date.now();
+    const nonce = this.generateNonce();
     const signature = await this.signAction(action, nonce);
 
-    const response = await this.postExchange({
+    return this.postExchange<OrderResult>({
       action,
       nonce,
       signature,
       vaultAddress: this.vaultAddress,
     });
-
-    return response;
   }
 
   private buildOrderWire(order: OrderRequest): any {
@@ -371,7 +371,7 @@ export class HyperliquidExchange {
     };
 
     const signature = await this.wallet.signTypedData(
-      EIP712_DOMAIN,
+      getEIP712Domain(this.network),
       this.getEIP712Types(action.type),
       message
     );
@@ -418,8 +418,30 @@ export class HyperliquidExchange {
     }
   }
 
-  private async postInfo(payload: any): Promise<any> {
-    const response = await fetch(`${this.endpoint}/info`, {
+  private generateNonce(): number {
+    // Combine timestamp with counter to ensure uniqueness even in rapid succession
+    const timestamp = Date.now();
+    this.nonceCounter = (this.nonceCounter + 1) % 1000;
+    return timestamp * 1000 + this.nonceCounter;
+  }
+
+  private async fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async postInfo<T>(payload: unknown): Promise<T> {
+    const response = await this.fetchWithTimeout(`${this.endpoint}/info`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -429,11 +451,12 @@ export class HyperliquidExchange {
       throw new Error(`Info request failed: ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    return data as T;
   }
 
-  private async postExchange(payload: any): Promise<any> {
-    const response = await fetch(`${this.endpoint}/exchange`, {
+  private async postExchange<T>(payload: unknown): Promise<T> {
+    const response = await this.fetchWithTimeout(`${this.endpoint}/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -444,6 +467,7 @@ export class HyperliquidExchange {
       throw new Error(`Exchange request failed: ${response.status} - ${text}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    return data as T;
   }
 }

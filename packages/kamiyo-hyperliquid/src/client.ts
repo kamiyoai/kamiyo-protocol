@@ -731,7 +731,13 @@ export class HyperliquidClient {
     }
   }
 
-  private parseReceipt(receipt: ContractTransactionReceipt): TransactionResult {
+  private parseReceipt(receipt: ContractTransactionReceipt | null): TransactionResult {
+    if (!receipt) {
+      throw new KamiyoError('Transaction failed - no receipt', KamiyoErrorCode.TRANSACTION_FAILED);
+    }
+    if (receipt.status === 0) {
+      throw new KamiyoError('Transaction reverted on chain', KamiyoErrorCode.TRANSACTION_FAILED);
+    }
     return {
       hash: receipt.hash,
       blockNumber: receipt.blockNumber,

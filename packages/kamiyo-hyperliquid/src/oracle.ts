@@ -5,9 +5,10 @@
  * This service should be run by the dispute resolver.
  */
 
-import { ethers, Signer, Contract } from 'ethers';
+import { ethers, Contract } from 'ethers';
 import { HyperliquidClient, HyperliquidClientConfig } from './client';
 import { HyperliquidExchange } from './exchange';
+import { getLogger, Logger } from './logger';
 
 export interface OracleConfig extends HyperliquidClientConfig {
   updateInterval?: number; // ms between position value updates
@@ -49,10 +50,12 @@ export class DisputeOracle {
   private updateInterval: number;
   private running = false;
   private updateTimer: NodeJS.Timeout | null = null;
+  private logger: Logger;
 
   constructor(config: OracleConfig) {
     this.client = new HyperliquidClient(config);
     this.updateInterval = config.updateInterval || 60000; // 1 minute default
+    this.logger = getLogger();
 
     const networkConfig = this.client.getNetworkConfig();
     const provider = new ethers.JsonRpcProvider(networkConfig.rpc);
@@ -80,11 +83,11 @@ export class DisputeOracle {
     if (this.running) return;
     this.running = true;
 
-    console.log('[Oracle] Starting dispute oracle service');
+    this.logger.info('Starting dispute oracle service');
 
     if (this.exchange) {
       await this.exchange.init();
-      console.log('[Oracle] Exchange connection initialized');
+      this.logger.info('Exchange connection initialized');
     }
 
     // Initial update
@@ -92,7 +95,7 @@ export class DisputeOracle {
 
     // Schedule periodic updates
     this.updateTimer = setInterval(() => {
-      this.updateAllPositions().catch(console.error);
+      this.updateAllPositions().catch((err) => this.logger.error('Position update failed', err));
     }, this.updateInterval);
   }
 
@@ -105,7 +108,7 @@ export class DisputeOracle {
       clearInterval(this.updateTimer);
       this.updateTimer = null;
     }
-    console.log('[Oracle] Stopped');
+    this.logger.info('Oracle stopped');
   }
 
   /**
@@ -148,17 +151,17 @@ export class DisputeOracle {
             });
           }
         } catch (err) {
-          console.error(`[Oracle] Failed to get L1 data for position ${i}:`, err);
+          this.logger.error(`Failed to get L1 data for position ${i}`, err);
         }
       }
 
       // Batch update if there are changes
       if (positionIds.length > 0) {
         await this.vaultContract.batchUpdatePositionValues(positionIds, newValues);
-        console.log(`[Oracle] Updated ${positionIds.length} position values`);
+        this.logger.info(`Updated ${positionIds.length} position values`);
       }
     } catch (err) {
-      console.error('[Oracle] Failed to update positions:', err);
+      this.logger.error('Failed to update positions', err);
     }
 
     return updates;
@@ -204,11 +207,11 @@ export class DisputeOracle {
       const tx = await this.vaultContract.resolveDispute(disputeId, evaluation.userShouldWin);
       await tx.wait();
 
-      console.log(`[Oracle] Resolved dispute ${disputeId}: user ${evaluation.userShouldWin ? 'won' : 'lost'}`);
+      this.logger.info(`Resolved dispute ${disputeId}: user ${evaluation.userShouldWin ? 'won' : 'lost'}`);
 
       return { success: true, evaluation };
     } catch (err) {
-      console.error(`[Oracle] Failed to resolve dispute ${disputeId}:`, err);
+      this.logger.error(`Failed to resolve dispute ${disputeId}`, err);
       return { success: false, evaluation };
     }
   }
@@ -229,7 +232,7 @@ export class DisputeOracle {
         }
       }
     } catch (err) {
-      console.error('[Oracle] Failed to get pending disputes:', err);
+      this.logger.error('Failed to get pending disputes', err);
     }
 
     return pending;
@@ -247,7 +250,7 @@ export class DisputeOracle {
       if (result.success) resolved++;
     }
 
-    console.log(`[Oracle] Auto-resolved ${resolved}/${pending.length} disputes`);
+    this.logger.info(`Auto-resolved ${resolved}/${pending.length} disputes`);
     return resolved;
   }
 }

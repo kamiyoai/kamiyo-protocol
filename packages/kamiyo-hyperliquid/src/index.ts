@@ -31,6 +31,15 @@ export {
 } from './oracle';
 
 export {
+  Logger,
+  setLogger,
+  getLogger,
+  enableConsoleLogging,
+  disableLogging,
+  createConsoleLogger,
+} from './logger';
+
+export {
   HyperliquidNetwork,
   NetworkConfig,
   NETWORKS,
