@@ -1,0 +1,38 @@
+{
+  "name": "@kamiyo/tetsuo",
+  "version": "0.1.0",
+  "description": "TETSUO: ZK reputation proofs for AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "keywords": [
+    "kamiyo",
+    "tetsuo",
+    "zk",
+    "groth16",
+    "reputation",
+    "ai-agents"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-tetsuo"
+  }
+}

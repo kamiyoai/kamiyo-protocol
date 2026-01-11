@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/hyperliquid",
   "version": "0.1.0",
-  "description": "Kamiyo copy trading integration for Hyperliquid",
+  "description": "Kamiyo copy trading on Hyperliquid (powered by TETSUO)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -15,11 +15,8 @@
     "test:integration": "vitest run test/integration.test.ts"
   },
   "dependencies": {
+    "@kamiyo/tetsuo": "^0.1.0",
     "ethers": "^6.9.0"
-  },
-  "optionalDependencies": {
-    "circomlibjs": "^0.1.7",
-    "snarkjs": "^0.7.5"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -31,7 +28,8 @@
     "hyperliquid",
     "copy-trading",
     "escrow",
-    "agents"
+    "agents",
+    "tetsuo"
   ],
   "license": "BUSL-1.1"
 }
