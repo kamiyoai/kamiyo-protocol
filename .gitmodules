@@ -7,3 +7,6 @@
 [submodule "contracts/hyperliquid/lib/forge-std"]
 	path = contracts/hyperliquid/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "contracts/monad/lib/forge-std"]
+	path = contracts/monad/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
