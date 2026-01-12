@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import {
   TetsuoProver,
   getTierThreshold,
@@ -8,7 +8,8 @@ import {
   TIER_THRESHOLDS,
   TIER_NAMES,
 } from '../src';
-import type { TierLevel } from '../src';
+import type { TierLevel, GeneratedProof } from '../src';
+import * as path from 'path';
 
 describe('Tier Utility Functions', () => {
   describe('getTierThreshold', () => {
@@ -228,5 +229,176 @@ describe('Type exports', () => {
   it('exports all expected types', () => {
     const tierLevel: TierLevel = 0;
     expect([0, 1, 2, 3, 4]).toContain(tierLevel);
+  });
+});
+
+describe('TetsuoProver with real artifacts', () => {
+  let prover: TetsuoProver;
+
+  beforeAll(() => {
+    if (!TetsuoProver.isAvailable()) {
+      console.warn('Skipping proof tests - artifacts not available');
+      return;
+    }
+    prover = new TetsuoProver();
+  });
+
+  describe('generateProof', () => {
+    it('generates valid proof for Gold tier', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 85;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 75,
+      });
+
+      expect(proof).toHaveProperty('a');
+      expect(proof).toHaveProperty('b');
+      expect(proof).toHaveProperty('c');
+      expect(proof).toHaveProperty('commitment');
+      expect(proof).toHaveProperty('publicInputs');
+      expect(proof.a).toHaveLength(2);
+      expect(proof.b).toHaveLength(2);
+      expect(proof.c).toHaveLength(2);
+      expect(proof.publicInputs).toHaveLength(2);
+    }, 30000);
+
+    it('generates valid proof for Bronze tier', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 30;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 25,
+      });
+
+      expect(proof.publicInputs[0]).toBe(25n);
+    }, 30000);
+
+    it('generates valid proof for Platinum tier', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 95;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 90,
+      });
+
+      expect(proof.publicInputs[0]).toBe(90n);
+    }, 30000);
+
+    it('fails when score below threshold', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 50;
+      const commitment = await prover.generateCommitment(score);
+
+      await expect(
+        prover.generateProof({
+          score,
+          secret: commitment.secret,
+          threshold: 75,
+        })
+      ).rejects.toThrow('Score must be >= threshold');
+    });
+
+    it('proof at boundary (score equals threshold)', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 50;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 50,
+      });
+
+      expect(proof).toBeDefined();
+      expect(proof.publicInputs[0]).toBe(50n);
+    }, 30000);
+  });
+
+  describe('verifyProof', () => {
+    it('verifies valid proof', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 80;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 75,
+      });
+
+      const result = await prover.verifyProof(proof);
+      expect(result.valid).toBe(true);
+      expect(result.error).toBeUndefined();
+    }, 30000);
+
+    it('rejects tampered proof', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 80;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 75,
+      });
+
+      // Tamper with proof point
+      const tamperedProof: GeneratedProof = {
+        ...proof,
+        a: [proof.a[0] + 1n, proof.a[1]],
+      };
+
+      const result = await prover.verifyProof(tamperedProof);
+      expect(result.valid).toBe(false);
+    }, 30000);
+
+    it('rejects proof with wrong public inputs', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 80;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 75,
+      });
+
+      // Tamper with public inputs
+      const tamperedProof: GeneratedProof = {
+        ...proof,
+        publicInputs: [90n, proof.publicInputs[1]],
+      };
+
+      const result = await prover.verifyProof(tamperedProof);
+      expect(result.valid).toBe(false);
+    }, 30000);
+  });
+
+  describe('commitment consistency', () => {
+    it('proof commitment matches generated commitment', async () => {
+      if (!TetsuoProver.isAvailable()) return;
+
+      const score = 75;
+      const commitment = await prover.generateCommitment(score);
+      const proof = await prover.generateProof({
+        score,
+        secret: commitment.secret,
+        threshold: 50,
+      });
+
+      const expectedHex = '0x' + commitment.value.toString(16).padStart(64, '0');
+      expect(proof.commitment).toBe(expectedHex);
+    }, 30000);
   });
 });

@@ -30,11 +30,11 @@ export interface TierDefinition {
 }
 
 export const DEFAULT_TIERS: TierDefinition[] = [
-  { id: 0, name: 'Default', threshold: 0, maxCopyLimit: 1000n * 10n ** 18n, maxCopiers: 5 },
-  { id: 1, name: 'Bronze', threshold: 25, maxCopyLimit: 10000n * 10n ** 18n, maxCopiers: 25 },
-  { id: 2, name: 'Silver', threshold: 50, maxCopyLimit: 50000n * 10n ** 18n, maxCopiers: 100 },
-  { id: 3, name: 'Gold', threshold: 75, maxCopyLimit: 250000n * 10n ** 18n, maxCopiers: 500 },
-  { id: 4, name: 'Platinum', threshold: 90, maxCopyLimit: 1000000n * 10n ** 18n, maxCopiers: 2000 },
+  { id: 0, name: 'Default', threshold: 0, maxCopyLimit: 0n, maxCopiers: 0 },
+  { id: 1, name: 'Bronze', threshold: 25, maxCopyLimit: 10000n * 10n ** 18n, maxCopiers: 10 },
+  { id: 2, name: 'Silver', threshold: 50, maxCopyLimit: 100000n * 10n ** 18n, maxCopiers: 50 },
+  { id: 3, name: 'Gold', threshold: 75, maxCopyLimit: 500000n * 10n ** 18n, maxCopiers: 200 },
+  { id: 4, name: 'Platinum', threshold: 90, maxCopyLimit: 5000000n * 10n ** 18n, maxCopiers: 1000 },
 ];
 
 export const TIER_THRESHOLDS = [0, 25, 50, 75, 90] as const;
