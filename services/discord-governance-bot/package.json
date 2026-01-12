@@ -1,0 +1,21 @@
+{
+  "name": "@kamiyo/discord-governance-bot",
+  "version": "1.0.0",
+  "description": "Token-weighted governance voting bot for Discord",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
