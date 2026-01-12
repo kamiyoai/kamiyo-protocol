@@ -52,6 +52,21 @@ export {
 } from './logger';
 
 export {
+  ReputationClient,
+  Tier as ReputationTier,
+  TIER_THRESHOLDS,
+  DEPLOYED_CONTRACTS,
+  createSepoliaClient,
+} from './reputation';
+export type { ReputationConfig } from './reputation';
+
+export {
+  CopyTradingGuard,
+  TIER_LIMITS,
+} from './copy-trading';
+export type { CopyLimits, CopyTradeRequest, CopyTradeResult } from './copy-trading';
+
+export {
   EventListener,
   EventSubscription,
   EventType,
