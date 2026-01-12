@@ -282,74 +282,7 @@ Testing the `@kamiyo/agent-core` and `@kamiyo/daydreams` packages.
 
 ---
 
-## Step 10: Test agent-core utilities
-
-```bash
-cd packages/kamiyo-agent-core
-npm test
-```
-
-This tests:
-- Observability (logging, metrics, tracing)
-- Retry with exponential backoff
-- Rate limiting (token bucket, sliding window)
-- LRU cache with TTL
-- Health checks
-- Batch operations
-- Saga transactions
-- Zod validation
-
----
-
-## Step 11: Test Daydreams extension
-
-```bash
-cd packages/kamiyo-daydreams
-npm test
-```
-
-This tests:
-- Extension creation and actions
-- Payment/dispute/reputation contexts
-- MCP server tools
-- Agent behaviors
-
----
-
-## Step 12: Manual integration test
-
-Run the full integration test:
-
-```bash
-cd packages/kamiyo-agent-core
-npx tsx ../kamiyo-daydreams/scripts/manual-test.ts
-```
-
-Expected output:
-
-```
-============================================================
-KAMIYO AGENT CLIENT - MANUAL INTEGRATION TEST
-============================================================
-
-[EXTENSION] Testing extension creation
-  ✓ createKamiyoExtension()
-  ✓ toExtension() returns valid extension
-  ✓ getActions() returns 13 actions
-...
-[REPUTATION] Testing ZK reputation
-  ✓ generateCommitment()
-  ✓ getTier()
-  ✓ proveReputation()
-  ✓ verifyProof()
-...
-============================================================
-ALL 13 TEST SUITES PASSED
-```
-
----
-
-## Step 13: Test observability
+## Step 10: Test observability
 
 ```bash
 node -e "
@@ -374,7 +307,7 @@ console.log('Metrics:', ctx.metrics.collect());
 
 ---
 
-## Step 14: Test rate limiting
+## Step 11: Test rate limiting
 
 ```bash
 node -e "
@@ -400,7 +333,7 @@ for (let i = 1; i <= 6; i++) {
 
 ---
 
-## Step 15: Test retry logic
+## Step 12: Test retry logic
 
 ```bash
 node -e "
@@ -428,7 +361,7 @@ const { retry, retryWithResult } = require('@kamiyo/agent-core');
 
 ---
 
-## Step 16: Test caching
+## Step 13: Test caching
 
 ```bash
 node -e "
@@ -459,7 +392,7 @@ const { LRUCache, memoizeAsync } = require('@kamiyo/agent-core');
 
 ---
 
-## Step 17: Test health checks
+## Step 14: Test health checks
 
 ```bash
 node -e "
@@ -490,7 +423,7 @@ const { HealthChecker, healthChecks } = require('@kamiyo/agent-core');
 
 ---
 
-## Step 18: Test Daydreams extension
+## Step 15: Test Daydreams extension
 
 ```bash
 node -e "
@@ -510,7 +443,7 @@ ext.getActions().forEach(a => {
 
 ---
 
-## Step 19: Test ZK reputation via agent-core
+## Step 16: Test ZK reputation via agent-core
 
 ```bash
 node -e "
@@ -541,7 +474,7 @@ const { ReputationManager, getTierThreshold, TIER_NAMES } = require('@kamiyo/age
 
 ---
 
-## Step 20: Run Daydreams demo
+## Step 17: Run Daydreams demo
 
 ```bash
 cd examples/daydreams-demo
@@ -667,17 +600,3 @@ cd packages/kamiyo-daydreams
 npm run build
 ```
 
-### Manual test script not found
-
-The manual test script is in the daydreams package:
-
-```bash
-ls packages/kamiyo-daydreams/scripts/
-```
-
-If missing, run the integration tests via npm instead:
-
-```bash
-cd packages/kamiyo-daydreams
-npm test
-```
