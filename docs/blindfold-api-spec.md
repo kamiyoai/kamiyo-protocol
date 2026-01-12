@@ -91,8 +91,6 @@ Returns the current blacklist SMT root.
 
 ### GET /blacklist/proof/:agent_pk
 
-Generates an exclusion proof for the given agent. This is the endpoint Blindfold should call to get the proof data needed for `/verify/exclusion`.
-
 **Response (not blacklisted):**
 ```json
 {
@@ -148,7 +146,6 @@ async function issueCard(payment) {
     return proceedWithReloadly(payment);
   }
 
-  // Verify reputation via KAMIYO API
   const repCheck = await fetch('https://api.kamiyo.ai/verify/reputation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -168,7 +165,6 @@ async function issueCard(payment) {
     throw new Error(`Amount exceeds tier limit: $${repCheck.limit}`);
   }
 
-  // Get exclusion proof from KAMIYO API (generates proof server-side)
   const exclusionProof = await fetch(
     `https://api.kamiyo.ai/blacklist/proof/${payment.agent_pk}`
   ).then(r => r.json());
@@ -177,7 +173,7 @@ async function issueCard(payment) {
     throw new Error('Agent is blacklisted');
   }
 
-  // Verify exclusion proof (optional - proof is already validated server-side)
+  // Optional: cryptographic verification
   const exclusionCheck = await fetch('https://api.kamiyo.ai/verify/exclusion', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -196,7 +192,7 @@ async function issueCard(payment) {
 }
 ```
 
-**Simplified flow** (if you trust our proof generation):
+**Minimal version:**
 
 ```typescript
 async function issueCard(payment) {
@@ -204,7 +200,6 @@ async function issueCard(payment) {
     return proceedWithReloadly(payment);
   }
 
-  // Check reputation
   const repCheck = await fetch('https://api.kamiyo.ai/verify/reputation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -220,7 +215,6 @@ async function issueCard(payment) {
     throw new Error(repCheck.error || 'Reputation check failed');
   }
 
-  // Check blacklist (single call)
   const blacklistCheck = await fetch(
     `https://api.kamiyo.ai/blacklist/proof/${payment.agent_pk}`
   ).then(r => r.json());
