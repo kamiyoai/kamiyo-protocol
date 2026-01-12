@@ -339,7 +339,9 @@ client.on('messageCreate', async (message: Message) => {
   if (history.length > 20) history = history.slice(-20);
 
   try {
-    await message.channel.sendTyping();
+    if ('sendTyping' in message.channel) {
+      await message.channel.sendTyping();
+    }
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
