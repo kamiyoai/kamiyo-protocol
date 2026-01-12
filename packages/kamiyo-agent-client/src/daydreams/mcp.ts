@@ -32,6 +32,8 @@ import {
   MCPServerConfig,
   KamiyoExtensionConfig,
   KamiyoNetwork,
+  AuthProvider,
+  AuthResult,
   KAMIYO_NETWORKS,
 } from './types';
 import {
@@ -40,6 +42,7 @@ import {
   type ProveReputationInput,
   type VerifyProofInput,
 } from './reputation';
+import { createKamiyoExtension, KamiyoExtension } from './extension';
 
 export const KAMIYO_MCP_TOOLS: MCPToolDefinition[] = [
   {
@@ -378,11 +381,20 @@ export interface MCPToolCallResponse {
   isError?: boolean;
 }
 
+interface MCPHandlerConfig extends KamiyoExtensionConfig {
+  extension?: KamiyoExtension;
+  authProvider?: AuthProvider;
+  requireAuth?: boolean;
+}
+
 export class KamiyoMCPHandler {
   private config: KamiyoExtensionConfig;
+  private extension: KamiyoExtension | null;
   private reputation: ReputationManager;
+  private authProvider: AuthProvider | null;
+  private requireAuth: boolean;
 
-  constructor(config: KamiyoExtensionConfig = {}) {
+  constructor(config: MCPHandlerConfig = {}) {
     this.config = {
       network: config.network || 'devnet',
       qualityThreshold: config.qualityThreshold || 85,
@@ -390,7 +402,19 @@ export class KamiyoMCPHandler {
       autoDispute: config.autoDispute ?? true,
       ...config,
     };
-    this.reputation = new ReputationManager();
+    this.extension = config.extension || null;
+    this.authProvider = config.authProvider || null;
+    this.requireAuth = config.requireAuth ?? false;
+    this.reputation = this.extension?.getReputation() || new ReputationManager();
+  }
+
+  setExtension(ext: KamiyoExtension): void {
+    this.extension = ext;
+    this.reputation = ext.getReputation();
+  }
+
+  setAuthProvider(provider: AuthProvider): void {
+    this.authProvider = provider;
   }
 
   getServerInfo(): MCPServerConfig {
@@ -401,7 +425,28 @@ export class KamiyoMCPHandler {
     return KAMIYO_MCP_TOOLS;
   }
 
-  async handleToolCall(request: MCPToolCallRequest): Promise<MCPToolCallResponse> {
+  private async authenticate(token?: string): Promise<AuthResult> {
+    if (!this.requireAuth) {
+      return { valid: true };
+    }
+    if (!token) {
+      return { valid: false, error: 'Authentication required' };
+    }
+    if (!this.authProvider) {
+      return { valid: false, error: 'No auth provider configured' };
+    }
+    return this.authProvider.validate(token);
+  }
+
+  async handleToolCall(request: MCPToolCallRequest, authToken?: string): Promise<MCPToolCallResponse> {
+    const authResult = await this.authenticate(authToken);
+    if (!authResult.valid) {
+      return {
+        content: [{ type: 'text', text: `Unauthorized: ${authResult.error}` }],
+        isError: true,
+      };
+    }
+
     const { name, arguments: args } = request;
 
     try {
@@ -432,7 +477,6 @@ export class KamiyoMCPHandler {
         case 'kamiyo_release_escrow':
           result = await this.releaseEscrow(args);
           break;
-        // ZK Reputation
         case 'kamiyo_generate_commitment':
           result = await this.generateCommitment(args);
           break;
@@ -470,43 +514,113 @@ export class KamiyoMCPHandler {
   }
 
   private async consumeAPI(args: Record<string, unknown>): Promise<unknown> {
-    console.warn('[kamiyo-mcp] consumeAPI: standalone mode');
-    return { status: 'simulated' };
+    if (!this.extension) {
+      return { status: 'no_extension', error: 'Extension not configured' };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.consumeAPI');
+    if (!action) return { status: 'error', error: 'Action not found' };
+
+    return action.handler({
+      endpoint: args.endpoint as string,
+      method: args.method as 'GET' | 'POST' | 'PUT' | 'DELETE',
+      query: args.body as Record<string, unknown>,
+      headers: args.headers as Record<string, string>,
+      expectedSchema: args.expected_schema as Record<string, unknown>,
+      maxPrice: args.max_price_sol as number,
+      qualityThreshold: args.quality_threshold as number,
+    }, {} as never);
   }
 
   private async createEscrow(args: Record<string, unknown>): Promise<unknown> {
-    console.warn('[kamiyo-mcp] createEscrow: standalone mode');
-    return { status: 'simulated', escrowAddress: 'simulated' };
+    if (!this.extension) {
+      return { status: 'no_extension', error: 'Extension not configured' };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.createEscrow');
+    if (!action) return { status: 'error', error: 'Action not found' };
+
+    return action.handler({
+      provider: args.provider_address as string,
+      amount: args.amount_sol as number,
+      timeLockHours: args.time_lock_hours as number,
+      transactionId: args.transaction_id as string,
+    }, {} as never);
   }
 
   private async fileDispute(args: Record<string, unknown>): Promise<unknown> {
-    console.warn('[kamiyo-mcp] fileDispute: standalone mode');
-    return { status: 'simulated', disputeId: 'simulated' };
+    if (!this.extension) {
+      return { status: 'no_extension', error: 'Extension not configured' };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.fileDispute');
+    if (!action) return { status: 'error', error: 'Action not found' };
+
+    return action.handler({
+      paymentId: args.payment_id as string,
+      reason: args.reason as string,
+      evidence: args.evidence as Record<string, unknown>,
+    }, {} as never);
   }
 
   private async discoverAPIs(args: Record<string, unknown>): Promise<unknown> {
-    return { apis: [], total: 0 };
+    if (!this.extension) {
+      return { apis: [], total: 0 };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.discoverAPIs');
+    if (!action) return { apis: [], total: 0 };
+
+    return action.handler({
+      endpoints: args.endpoints as string[],
+      category: args.category as string,
+    }, {} as never);
   }
 
   private async checkBalance(args: Record<string, unknown>): Promise<unknown> {
-    console.warn('[kamiyo-mcp] checkBalance: standalone mode');
-    return { balance: 0, pending: 0, available: 0 };
+    if (!this.extension) {
+      return { balance: 0, pending: 0, available: 0 };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.checkBalance');
+    if (!action) return { balance: 0, pending: 0, available: 0 };
+
+    return action.handler({ address: args.address as string }, {} as never);
   }
 
   private async getPaymentHistory(args: Record<string, unknown>): Promise<unknown> {
-    return { payments: [] };
+    if (!this.extension) {
+      return { payments: [] };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.getPaymentHistory');
+    if (!action) return { payments: [] };
+
+    return action.handler({
+      limit: args.limit as number,
+      endpoint: args.endpoint as string,
+    }, {} as never);
   }
 
   private async getQualityStats(args: Record<string, unknown>): Promise<unknown> {
-    return { totalCalls: 0, avgQuality: 0 };
+    if (!this.extension) {
+      return { totalCalls: 0, avgQuality: 0 };
+    }
+    const actions = this.extension.getActions();
+    const action = actions.find((a) => a.name === 'kamiyo.getQualityStats');
+    if (!action) return { totalCalls: 0, avgQuality: 0 };
+
+    return action.handler({}, {} as never);
   }
 
   private async releaseEscrow(args: Record<string, unknown>): Promise<unknown> {
-    console.warn('[kamiyo-mcp] releaseEscrow: standalone mode');
-    return { status: 'simulated', released: true };
+    if (!this.extension) {
+      return { status: 'no_extension', error: 'Extension not configured' };
+    }
+    // TODO: Add release escrow action to extension
+    return { status: 'not_implemented' };
   }
 
-  // ZK Reputation handlers
   private async generateCommitment(args: Record<string, unknown>): Promise<unknown> {
     const score = args.score as number;
     if (typeof score !== 'number' || score < 0 || score > 100) {

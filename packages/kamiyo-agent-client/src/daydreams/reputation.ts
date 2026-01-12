@@ -124,13 +124,27 @@ function generateId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+interface CachedProof {
+  proof: SerializedProof;
+  threshold: number;
+  tier: TierLevel;
+  commitment: string;
+  expiresAt: number;
+}
+
+const DEFAULT_PROOF_CACHE_TTL = 3600000; // 1 hour
+const MAX_CACHED_PROOFS = 10;
+
 export class ReputationManager {
   private prover: TetsuoProver | null = null;
   private memory: ReputationMemory;
   private secret: bigint | null = null;
+  private proofCache = new Map<number, CachedProof>();
+  private proofCacheTTL: number;
 
-  constructor() {
+  constructor(opts: { proofCacheTTL?: number } = {}) {
     this.memory = this.createInitialMemory();
+    this.proofCacheTTL = opts.proofCacheTTL ?? DEFAULT_PROOF_CACHE_TTL;
   }
 
   private createInitialMemory(): ReputationMemory {
@@ -231,6 +245,19 @@ export class ReputationManager {
       };
     }
 
+    // Check cache
+    const cached = this.proofCache.get(threshold);
+    if (cached && cached.expiresAt > Date.now() && cached.commitment === this.memory.commitment) {
+      return {
+        success: true,
+        proof: cached.proof,
+        commitment: cached.commitment,
+        threshold: cached.threshold,
+        tier: cached.tier,
+        tierName,
+      };
+    }
+
     try {
       const prover = await this.ensureProver();
 
@@ -241,6 +268,19 @@ export class ReputationManager {
       });
 
       const serialized = serializeProof(proof);
+
+      // Cache the proof
+      if (this.proofCache.size >= MAX_CACHED_PROOFS) {
+        const oldest = this.proofCache.keys().next().value;
+        if (oldest !== undefined) this.proofCache.delete(oldest);
+      }
+      this.proofCache.set(threshold, {
+        proof: serialized,
+        threshold,
+        tier,
+        commitment: proof.commitment,
+        expiresAt: Date.now() + this.proofCacheTTL,
+      });
 
       const record: ProofRecord = {
         id: generateId('proof'),
@@ -272,6 +312,10 @@ export class ReputationManager {
         error: err instanceof Error ? err.message : String(err),
       };
     }
+  }
+
+  clearProofCache(): void {
+    this.proofCache.clear();
   }
 
   async verifyProof(input: VerifyProofInput): Promise<VerifyProofOutput> {
