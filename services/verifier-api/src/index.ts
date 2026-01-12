@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { serve } from '@hono/node-server';
 import { verifyReputation } from './reputation.js';
-import { verifyExclusion, getBlacklistRoot } from './exclusion.js';
+import { verifyExclusion, getBlacklistRoot, getExclusionProof } from './exclusion.js';
 
 const app = new Hono();
 
@@ -19,6 +19,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 app.post('/verify/reputation', verifyReputation);
 app.post('/verify/exclusion', verifyExclusion);
 app.get('/blacklist/root', getBlacklistRoot);
+app.get('/blacklist/proof/:agent_pk', getExclusionProof);
 
 export default app;
 

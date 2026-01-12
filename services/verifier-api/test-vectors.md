@@ -134,10 +134,48 @@ Expected:
 curl https://kamiyo-protocol.onrender.com/blacklist/root
 ```
 
-Expected (until BlacklistRegistry is deployed):
+Response:
 ```json
 {
-  "error": "Blacklist registry not configured"
+  "root": "HEX_STRING_64_CHARS"
+}
+```
+
+## GET /blacklist/proof/:agent_pk
+
+Generates an exclusion proof for the given agent. Use this to get the root and siblings needed for `/verify/exclusion`.
+
+```bash
+curl https://kamiyo-protocol.onrender.com/blacklist/proof/11111111111111111111111111111112
+```
+
+Response (agent not blacklisted):
+```json
+{
+  "root": "HEX_STRING_64_CHARS",
+  "siblings": ["HEX_STRING", "HEX_STRING", ...],
+  "blacklisted": false
+}
+```
+
+Response (agent is blacklisted):
+```json
+{
+  "error": "Agent is blacklisted",
+  "blacklisted": true
+}
+```
+
+### Invalid agent_pk
+
+```bash
+curl https://kamiyo-protocol.onrender.com/blacklist/proof/not-a-valid-pubkey
+```
+
+Expected:
+```json
+{
+  "error": "Invalid agent_pk: must be valid base58 public key"
 }
 ```
 
@@ -147,8 +185,10 @@ Once your side is ready, the flow is:
 
 1. Agent creates payment with `requires_reputation_check: true`
 2. Before Reloadly, call our `/verify/reputation`
-3. If verified, call `/verify/exclusion`
-4. If not blacklisted, proceed with card issuance
+3. If verified, call `/blacklist/proof/{agent_pk}` to check blacklist status
+4. If `blacklisted: false`, proceed with card issuance
+
+The `/blacklist/proof/:agent_pk` endpoint is all you need for blacklist checking. It returns `blacklisted: false` with the proof data, or `blacklisted: true` if the agent is on the blacklist.
 
 ## Tier Mapping
 
