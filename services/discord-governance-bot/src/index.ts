@@ -11,15 +11,57 @@ import {
   ButtonStyle,
   ButtonInteraction,
   PermissionFlagsBits,
+  Message,
 } from 'discord.js';
 import { Connection, PublicKey } from '@solana/web3.js';
+import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import 'dotenv/config';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
-const TOKEN_DECIMALS = 6;
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DATA_FILE = './data/proposals.json';
+const SUPPORT_CHANNEL_ID = process.env.SUPPORT_CHANNEL_ID;
+
+const SUPPORT_PROMPT = `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
+
+## About KAMIYO
+KAMIYO is an AI agent reputation and coordination protocol. Agents earn reputation through on-chain performance. Token holders govern the protocol through proposals and voting.
+
+## Token
+- Symbol: $KAMIYO
+- Mint: Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+- Type: Token-2022 (pump.fun)
+- Decimals: 6
+- Chain: Solana
+
+## Governance
+- Token-weighted voting through Discord
+- Use /link-wallet (then paste your wallet address) to connect your wallet
+- Use /my-wallet to check voting power
+- Proposals require 60% approval to pass
+- Treasury managed via Squads multisig
+
+## Commands
+- /link-wallet (then paste your wallet address) - Link Solana wallet for voting
+- /my-wallet - Check linked wallet and voting power
+- /propose - Create governance proposal (admin only)
+- /proposal <id> - View proposal details
+- /proposals - List proposals by status
+
+## Links
+- Website: https://kamiyo.ai
+- Docs: https://docs.kamiyo.ai
+- GitHub: https://github.com/kamiyo-ai
+- Twitter: https://x.com/kamiyo_ai
+- DEXScreener: https://dexscreener.com/solana/Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+
+## Guidelines
+- Keep responses short and helpful
+- If you don't know something, say so
+- For complex issues, suggest asking in #dev or waiting for team response
+- Never share private keys or ask for them
+- Be friendly but professional`;
 
 interface Vote {
   wallet: string;
@@ -45,10 +87,16 @@ interface Proposal {
 
 interface ProposalStore {
   proposals: Proposal[];
-  walletLinks: Record<string, string>; // odiscordId -> wallet
+  walletLinks: Record<string, string>;
 }
 
 const connection = new Connection(RPC_URL, 'confirmed');
+
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
+
+const conversationHistory: Map<string, { role: 'user' | 'assistant'; content: string }[]> = new Map();
 
 function loadData(): ProposalStore {
   try {
@@ -159,7 +207,11 @@ function createVoteButtons(proposalId: string, disabled = false): ActionRowBuild
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 const commands = [
@@ -217,7 +269,6 @@ const commands = [
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user?.tag}`);
 
-  // Register commands to guild (instant) instead of global (takes up to an hour)
   const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
   const guildId = process.env.GUILD_ID;
 
@@ -231,7 +282,7 @@ client.once('ready', async () => {
       Routes.applicationGuildCommands(client.user!.id, guildId),
       { body: commands.map(c => c.toJSON()) }
     );
-    console.log('Commands registered to guild');
+    console.log('Commands registered');
   } catch (err) {
     console.error('Failed to register commands:', err);
   }
@@ -269,6 +320,50 @@ client.on('interactionCreate', async (interaction) => {
     await handleCommand(interaction);
   } else if (interaction.isButton()) {
     await handleButton(interaction);
+  }
+});
+
+// AI Support handler
+client.on('messageCreate', async (message: Message) => {
+  if (message.author.bot) return;
+  if (!SUPPORT_CHANNEL_ID || message.channelId !== SUPPORT_CHANNEL_ID) return;
+  if (!anthropic) return;
+
+  const question = message.content.trim();
+  if (!question) return;
+
+  const userId = message.author.id;
+  let history = conversationHistory.get(userId) || [];
+
+  history.push({ role: 'user', content: question });
+  if (history.length > 20) history = history.slice(-20);
+
+  try {
+    await message.channel.sendTyping();
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: SUPPORT_PROMPT,
+      messages: history,
+    });
+
+    const reply = response.content[0].type === 'text' ? response.content[0].text : '';
+
+    history.push({ role: 'assistant', content: reply });
+    conversationHistory.set(userId, history);
+
+    if (reply.length > 2000) {
+      const chunks = reply.match(/.{1,2000}/gs) || [];
+      for (const chunk of chunks) {
+        await message.reply(chunk);
+      }
+    } else {
+      await message.reply(reply);
+    }
+  } catch (err) {
+    console.error('AI error:', err);
+    await message.reply('Something went wrong. Please try again or ask in #dev for help.');
   }
 });
 
@@ -421,7 +516,6 @@ async function handleButton(interaction: ButtonInteraction) {
     return;
   }
 
-  // Get balance (use snapshot if exists, otherwise fetch current)
   let weight = proposal.snapshot[wallet];
   if (weight === undefined) {
     weight = await getTokenBalance(wallet);
@@ -436,10 +530,8 @@ async function handleButton(interaction: ButtonInteraction) {
     return;
   }
 
-  // Remove existing vote if any
   proposal.votes = proposal.votes.filter(v => v.wallet !== wallet);
 
-  // Add new vote
   proposal.votes.push({
     wallet,
     choice: choice as 'for' | 'against' | 'abstain',
@@ -449,7 +541,6 @@ async function handleButton(interaction: ButtonInteraction) {
 
   saveData(data);
 
-  // Update embed
   try {
     const channel = await client.channels.fetch(proposal.channelId);
     if (channel?.isTextBased()) {
