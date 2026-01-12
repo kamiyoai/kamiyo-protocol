@@ -1,0 +1,49 @@
+{
+  "name": "@kamiyo/agent-core",
+  "version": "1.0.0",
+  "description": "Core utilities for AI agent infrastructure: observability, retry, caching, rate limiting, health checks, and ZK reputation.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-agent-core"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "keywords": [
+    "ai-agents",
+    "observability",
+    "retry",
+    "rate-limiting",
+    "caching",
+    "health-checks",
+    "zk-reputation",
+    "agent-infrastructure"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "dependencies": {
+    "@kamiyo/tetsuo": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.10",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.2",
+    "typescript": "^5.5.3"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

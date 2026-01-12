@@ -8,8 +8,8 @@
  * - PaymentOptimizer: Route payments for best quality/cost ratio
  */
 
-import type { TierLevel, TierName } from './reputation';
-import type { PaymentRecord, QualityCheckResult, DiscoveredAPI } from './types';
+import type { TierLevel, TierName, QualityCheckResult } from '@kamiyo/agent-core';
+import type { PaymentRecord, DiscoveredAPI } from './types';
 
 export interface BehaviorConfig {
   enabled: boolean;
