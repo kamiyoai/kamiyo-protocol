@@ -49,6 +49,86 @@ import {
   KamiyoError,
 } from './types';
 
+const DEFAULT_TIMEOUT_MS = 30000;
+const MAX_PAYMENTS_HISTORY = 1000;
+const MAX_DISPUTES_HISTORY = 500;
+
+// SSRF protection: block internal/private ranges
+const BLOCKED_HOSTS = [
+  /^localhost$/i,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^fc00:/i,
+  /^fe80:/i,
+];
+
+function isBlockedHost(hostname: string): boolean {
+  return BLOCKED_HOSTS.some((pattern) => pattern.test(hostname));
+}
+
+function validateUrl(urlString: string): URL {
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch {
+    throw new KamiyoError('Invalid URL format', 'INVALID_CONFIG', { url: urlString });
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new KamiyoError('URL must use http or https protocol', 'INVALID_CONFIG', { url: urlString });
+  }
+
+  if (isBlockedHost(url.hostname)) {
+    throw new KamiyoError('URL host not allowed', 'INVALID_CONFIG', { url: urlString });
+  }
+
+  return url;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new KamiyoError('Request timed out', 'TIMEOUT', { url, timeoutMs });
+    }
+    throw new KamiyoError(
+      `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      'NETWORK_ERROR',
+      { url }
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+import {
+  ReputationManager,
+  reputationActions,
+  type GenerateCommitmentInput,
+  type GenerateCommitmentOutput,
+  type ProveReputationInput,
+  type ProveReputationOutput,
+  type VerifyProofInput,
+  type VerifyProofOutput,
+  type TierLevel,
+  type PeerReputation,
+} from './reputation';
+
 type ActionHandler<I, O> = (input: I, ctx: ExtensionContext) => Promise<O>;
 
 interface ExtensionContext {
@@ -79,12 +159,13 @@ interface DaydreamsExtension {
 
 class KamiyoExtension {
   readonly name = 'kamiyo';
-  readonly version = '1.0.0';
+  readonly version = '2.0.0';
 
   private config: Required<KamiyoExtensionConfig>;
   private connection: Connection;
   private keypair: Keypair | null = null;
   private memory: KamiyoMemory;
+  private reputation: ReputationManager;
 
   constructor(config: KamiyoExtensionConfig = {}) {
     const networkConfig = KAMIYO_NETWORKS[config.network || 'devnet'];
@@ -111,6 +192,7 @@ class KamiyoExtension {
     }
 
     this.memory = this.createInitialMemory();
+    this.reputation = new ReputationManager();
   }
 
   private createInitialMemory(): KamiyoMemory {
@@ -239,6 +321,43 @@ class KamiyoExtension {
         },
         handler: this.getQualityStats.bind(this) as ActionHandler<unknown, unknown>,
       },
+      // ZK Reputation Actions
+      {
+        name: reputationActions.generateCommitment.name,
+        description: reputationActions.generateCommitment.description,
+        schema: reputationActions.generateCommitment.schema,
+        handler: this.generateCommitment.bind(this) as ActionHandler<unknown, unknown>,
+      },
+      {
+        name: reputationActions.proveReputation.name,
+        description: reputationActions.proveReputation.description,
+        schema: reputationActions.proveReputation.schema,
+        handler: this.proveReputation.bind(this) as ActionHandler<unknown, unknown>,
+      },
+      {
+        name: reputationActions.verifyProof.name,
+        description: reputationActions.verifyProof.description,
+        schema: reputationActions.verifyProof.schema,
+        handler: this.verifyProof.bind(this) as ActionHandler<unknown, unknown>,
+      },
+      {
+        name: reputationActions.getReputationTier.name,
+        description: reputationActions.getReputationTier.description,
+        schema: reputationActions.getReputationTier.schema,
+        handler: this.getReputationTier.bind(this) as ActionHandler<unknown, unknown>,
+      },
+      {
+        name: reputationActions.canProveTier.name,
+        description: reputationActions.canProveTier.description,
+        schema: reputationActions.canProveTier.schema,
+        handler: this.canProveTier.bind(this) as ActionHandler<unknown, unknown>,
+      },
+      {
+        name: reputationActions.getVerifiedPeers.name,
+        description: reputationActions.getVerifiedPeers.description,
+        schema: reputationActions.getVerifiedPeers.schema,
+        handler: this.getVerifiedPeers.bind(this) as ActionHandler<unknown, unknown>,
+      },
     ];
   }
 
@@ -247,7 +366,9 @@ class KamiyoExtension {
     const maxPrice = input.maxPrice ?? ctx.config.maxPrice;
     const threshold = input.qualityThreshold ?? ctx.config.qualityThreshold;
 
-    const initialResponse = await fetch(input.endpoint, {
+    validateUrl(input.endpoint);
+
+    const initialResponse = await fetchWithTimeout(input.endpoint, {
       method: input.method || 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -270,7 +391,7 @@ class KamiyoExtension {
         disputed: false,
       };
 
-      ctx.memory.payments.push(record);
+      this.addPaymentRecord(ctx, record);
       this.updateQualityStats(input.endpoint, quality.score, 0);
 
       return {
@@ -287,16 +408,15 @@ class KamiyoExtension {
 
     if (price > maxPrice) {
       throw new KamiyoError(
-        `Price ${price} SOL exceeds maximum ${maxPrice} SOL`,
-        'INSUFFICIENT_FUNDS',
-        { price, maxPrice }
+        'Price exceeds maximum allowed',
+        'INSUFFICIENT_FUNDS'
       );
     }
 
     const transactionId = this.generateId('tx');
     const paymentId = this.generateId('pay');
 
-    const paidResponse = await fetch(input.endpoint, {
+    const paidResponse = await fetchWithTimeout(input.endpoint, {
       method: input.method || 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -309,9 +429,8 @@ class KamiyoExtension {
 
     if (!paidResponse.ok) {
       throw new KamiyoError(
-        `API request failed: ${paidResponse.statusText}`,
-        'API_UNAVAILABLE',
-        { status: paidResponse.status }
+        'API request failed',
+        'API_UNAVAILABLE'
       );
     }
 
@@ -324,9 +443,9 @@ class KamiyoExtension {
     let refundAmount = 0;
 
     if (quality.score < threshold && ctx.config.autoDispute) {
-      const disputeResult = await this.fileDispute({
+      await this.fileDispute({
         paymentId,
-        reason: `Quality ${quality.score}% below threshold ${threshold}%`,
+        reason: 'Quality below threshold',
         evidence: { expected: input.expectedSchema, received: data },
       });
       disputed = true;
@@ -344,7 +463,7 @@ class KamiyoExtension {
       transactionId,
     };
 
-    ctx.memory.payments.push(record);
+    this.addPaymentRecord(ctx, record);
     ctx.memory.totalSpent += price - refundAmount;
     if (disputed) ctx.memory.totalRefunded += refundAmount;
 
@@ -361,6 +480,13 @@ class KamiyoExtension {
     };
   }
 
+  private addPaymentRecord(ctx: ExtensionContext, record: PaymentRecord): void {
+    if (ctx.memory.payments.length >= MAX_PAYMENTS_HISTORY) {
+      ctx.memory.payments.shift();
+    }
+    ctx.memory.payments.push(record);
+  }
+
   private async createEscrow(input: CreateEscrowInput): Promise<CreateEscrowOutput> {
     const ctx = this.getContext();
 
@@ -368,10 +494,15 @@ class KamiyoExtension {
       throw new KamiyoError('Wallet not initialized', 'WALLET_NOT_INITIALIZED');
     }
 
+    if (typeof input.amount !== 'number' || input.amount <= 0) {
+      throw new KamiyoError('Invalid escrow amount', 'INVALID_CONFIG');
+    }
+
+    // TODO: SDK integration
+    console.warn('[kamiyo] createEscrow: simulated');
+
     const transactionId = input.transactionId || this.generateId('tx');
     const timeLockSeconds = (input.timeLockHours || 24) * 3600;
-
-    // Simulated escrow creation (actual implementation would use Kamiyo SDK)
     const escrowAddress = Keypair.generate().publicKey.toString();
 
     return {
@@ -385,9 +516,13 @@ class KamiyoExtension {
   private async fileDispute(input: FileDisputeInput): Promise<FileDisputeOutput> {
     const ctx = this.getContext();
 
+    if (!input.paymentId || typeof input.paymentId !== 'string') {
+      throw new KamiyoError('Invalid payment ID', 'DISPUTE_FAILED');
+    }
+
     const payment = ctx.memory.payments.find((p) => p.id === input.paymentId);
     if (!payment) {
-      throw new KamiyoError('Payment not found', 'PAYMENT_FAILED', { paymentId: input.paymentId });
+      throw new KamiyoError('Payment not found', 'PAYMENT_FAILED');
     }
 
     const disputeId = this.generateId('dsp');
@@ -402,6 +537,9 @@ class KamiyoExtension {
       filedAt: Date.now(),
     };
 
+    if (ctx.memory.disputes.length >= MAX_DISPUTES_HISTORY) {
+      ctx.memory.disputes.shift();
+    }
     ctx.memory.disputes.push(dispute);
     payment.disputed = true;
 
@@ -410,22 +548,23 @@ class KamiyoExtension {
     return {
       disputeId,
       status: 'pending',
-      estimatedResolution: Date.now() + 7 * 24 * 3600 * 1000, // 7 days
+      estimatedResolution: Date.now() + 7 * 24 * 3600 * 1000,
     };
   }
 
   private async discoverAPIs(input: DiscoverAPIsInput): Promise<DiscoverAPIsOutput> {
-    const endpoints = input.endpoints || [
-      'https://api.kamiyo.ai/v1/exploits',
-      'https://api.kamiyo.ai/v1/protocols',
-      'https://api.kamiyo.ai/v1/risk',
-    ];
+    const endpoints = input.endpoints || [];
+
+    if (endpoints.length === 0) {
+      return { apis: [], total: 0 };
+    }
 
     const apis: DiscoveredAPI[] = [];
 
     for (const endpoint of endpoints) {
       try {
-        const response = await fetch(endpoint, { method: 'OPTIONS' });
+        validateUrl(endpoint);
+        const response = await fetchWithTimeout(endpoint, { method: 'OPTIONS' }, 10000);
 
         if (response.status === 402 || response.headers.has('x-payment-amount')) {
           const paymentHeader = response.headers.get('x-payment-amount');
@@ -442,6 +581,7 @@ class KamiyoExtension {
           });
         }
       } catch {
+        // Skip invalid or unreachable endpoints
         continue;
       }
     }
@@ -616,6 +756,38 @@ class KamiyoExtension {
     if (lower.includes('nft')) categories.push('nft');
 
     return categories.length > 0 ? categories : ['general'];
+  }
+
+  // ZK Reputation Handlers
+  private async generateCommitment(input: GenerateCommitmentInput): Promise<GenerateCommitmentOutput> {
+    return this.reputation.generateCommitment(input);
+  }
+
+  private async proveReputation(input: ProveReputationInput): Promise<ProveReputationOutput> {
+    return this.reputation.proveReputation(input);
+  }
+
+  private async verifyProof(input: VerifyProofInput): Promise<VerifyProofOutput> {
+    return this.reputation.verifyProof(input);
+  }
+
+  private async getReputationTier(): Promise<{ tier: TierLevel; name: string }> {
+    return this.reputation.getTier();
+  }
+
+  private async canProveTier(input: { tier: TierLevel }): Promise<{ canProve: boolean; tier: TierLevel }> {
+    return {
+      canProve: this.reputation.canProveTier(input.tier),
+      tier: input.tier,
+    };
+  }
+
+  private async getVerifiedPeers(): Promise<{ peers: PeerReputation[] }> {
+    return { peers: this.reputation.getVerifiedPeers() };
+  }
+
+  getReputation(): ReputationManager {
+    return this.reputation;
   }
 
   toExtension(): DaydreamsExtension {

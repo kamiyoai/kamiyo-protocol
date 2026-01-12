@@ -2,13 +2,15 @@
  * Kamiyo x Daydreams Integration
  *
  * Full integration with the Daydreams AI agent framework for building
- * autonomous agents with payment capabilities.
+ * autonomous agents with payment and ZK reputation capabilities.
  *
  * Features:
  * - Extension pattern for drop-in Daydreams integration
- * - Composable contexts for payment state management
+ * - Composable contexts for payment & reputation state
+ * - ZK reputation proofs (prove tier without revealing score)
  * - MCP server for Model Context Protocol compatibility
  * - Quality verification with automatic dispute filing
+ * - Pre-built agent behaviors
  *
  * Quick Start:
  * ```typescript
@@ -28,7 +30,11 @@
  *   ],
  * });
  *
- * // Agent can now call kamiyo.consumeAPI, kamiyo.fileDispute, etc.
+ * // Agent actions:
+ * // - kamiyo.consumeAPI - Pay for API with quality verification
+ * // - kamiyo.generateCommitment - Create ZK commitment to reputation
+ * // - kamiyo.proveReputation - Generate ZK proof of tier
+ * // - kamiyo.verifyProof - Verify another agent's proof
  * await agent.start('my-agent');
  * ```
  *
@@ -48,11 +54,15 @@ export {
   kamiyoPaymentContext,
   kamiyoServiceContext,
   kamiyoDisputeContext,
+  kamiyoReputationContext,
   composeKamiyoContexts,
 } from './context';
 export type {
   ContextDefinition,
   ServiceProviderMemory,
+  ReputationMemory,
+  ProofRecord,
+  PeerReputation,
 } from './context';
 
 // MCP
@@ -105,3 +115,57 @@ export type {
   MCPServerConfig,
   KamiyoErrorCode,
 } from './types';
+
+// ZK Reputation
+export {
+  ReputationManager,
+  reputationActions,
+  getTierThreshold,
+  getQualifyingTier,
+  qualifiesForTier,
+  TIER_NAMES,
+  TIER_THRESHOLDS,
+} from './reputation';
+export type {
+  GenerateCommitmentInput,
+  GenerateCommitmentOutput,
+  ProveReputationInput,
+  ProveReputationOutput,
+  VerifyProofInput,
+  VerifyProofOutput,
+  SerializedProof,
+  TierLevel,
+  TierName,
+} from './reputation';
+
+// Agent Behaviors
+export {
+  composeBehaviors,
+  reputationProverBehavior,
+  qualityEnforcerBehavior,
+  serviceDiscovererBehavior,
+  paymentOptimizerBehavior,
+  createReputationProverState,
+  createQualityEnforcerState,
+  createServiceDiscovererState,
+  DEFAULT_REPUTATION_PROVER_CONFIG,
+  DEFAULT_QUALITY_ENFORCER_CONFIG,
+  DEFAULT_SERVICE_DISCOVERER_CONFIG,
+  DEFAULT_PAYMENT_OPTIMIZER_CONFIG,
+} from './behaviors';
+export type {
+  BehaviorConfig,
+  BehaviorResult,
+  BehaviorContext,
+  BehaviorMemory,
+  ComposedBehaviors,
+  ReputationProverConfig,
+  ReputationProverState,
+  QualityEnforcerConfig,
+  QualityEnforcerState,
+  ServiceDiscovererConfig,
+  ServiceDiscovererState,
+  PaymentOptimizerConfig,
+  ServiceScore,
+  EndpointQualityStats,
+} from './behaviors';

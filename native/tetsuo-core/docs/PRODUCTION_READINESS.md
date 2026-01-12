@@ -8,9 +8,9 @@
 
 ## Executive Summary
 
-Tetsuo-core is a native C library for Groth16 ZK proof verification on the BN254 curve. The codebase demonstrates professional engineering practices (constant-time field arithmetic, arena allocation, comprehensive logging).
+Native C library for Groth16 ZK proof verification on BN254. Constant-time field ops, arena allocation, full logging.
 
-**Overall Score: 9/10** (improved from 7.5/10 after complete remediation)
+**Overall Score: 9/10** (up from 7.5/10 after fixes)
 
 ### Fixes Applied
 

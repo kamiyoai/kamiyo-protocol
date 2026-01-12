@@ -34,6 +34,12 @@ import {
   KamiyoNetwork,
   KAMIYO_NETWORKS,
 } from './types';
+import {
+  ReputationManager,
+  type GenerateCommitmentInput,
+  type ProveReputationInput,
+  type VerifyProofInput,
+} from './reputation';
 
 export const KAMIYO_MCP_TOOLS: MCPToolDefinition[] = [
   {
@@ -206,11 +212,95 @@ export const KAMIYO_MCP_TOOLS: MCPToolDefinition[] = [
       required: ['escrow_address'],
     },
   },
+  // ZK Reputation Tools
+  {
+    name: 'kamiyo_generate_commitment',
+    description: 'Generate a ZK commitment to your reputation score. Creates a Poseidon hash binding your score to a secret, enabling privacy-preserving proofs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        score: {
+          type: 'number',
+          description: 'Reputation score (0-100)',
+          minimum: 0,
+          maximum: 100,
+        },
+      },
+      required: ['score'],
+    },
+  },
+  {
+    name: 'kamiyo_prove_reputation',
+    description: 'Generate a ZK Groth16 proof that your reputation meets a threshold. Proves tier qualification without revealing your actual score.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        threshold: {
+          type: 'number',
+          description: 'Minimum score threshold to prove (0-100)',
+        },
+        tier: {
+          type: 'number',
+          description: 'Tier level to prove (0=Default, 1=Bronze, 2=Silver, 3=Gold, 4=Platinum)',
+          enum: [0, 1, 2, 3, 4],
+        },
+      },
+    },
+  },
+  {
+    name: 'kamiyo_verify_proof',
+    description: 'Verify another agent\'s ZK reputation proof. Confirms they meet the claimed threshold without learning their actual score.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        proof: {
+          type: 'object',
+          description: 'Serialized Groth16 proof object',
+        },
+        commitment: {
+          type: 'string',
+          description: 'Expected commitment (hex string starting with 0x)',
+        },
+        threshold: {
+          type: 'number',
+          description: 'Threshold the proof claims to satisfy',
+        },
+        agent_id: {
+          type: 'string',
+          description: 'Optional agent ID to track verified peers',
+        },
+      },
+      required: ['proof', 'commitment', 'threshold'],
+    },
+  },
+  {
+    name: 'kamiyo_get_reputation_tier',
+    description: 'Get your current reputation tier based on initialized score.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'kamiyo_can_prove_tier',
+    description: 'Check if you can generate a proof for a specific tier level.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tier: {
+          type: 'number',
+          description: 'Tier level to check (0-4)',
+          enum: [0, 1, 2, 3, 4],
+        },
+      },
+      required: ['tier'],
+    },
+  },
 ];
 
 export const KAMIYO_MCP_SERVER: MCPServerConfig = {
   name: 'kamiyo',
-  version: '1.0.0',
+  version: '2.0.0',
   tools: KAMIYO_MCP_TOOLS,
 };
 
@@ -290,6 +380,7 @@ export interface MCPToolCallResponse {
 
 export class KamiyoMCPHandler {
   private config: KamiyoExtensionConfig;
+  private reputation: ReputationManager;
 
   constructor(config: KamiyoExtensionConfig = {}) {
     this.config = {
@@ -299,6 +390,7 @@ export class KamiyoMCPHandler {
       autoDispute: config.autoDispute ?? true,
       ...config,
     };
+    this.reputation = new ReputationManager();
   }
 
   getServerInfo(): MCPServerConfig {
@@ -340,6 +432,22 @@ export class KamiyoMCPHandler {
         case 'kamiyo_release_escrow':
           result = await this.releaseEscrow(args);
           break;
+        // ZK Reputation
+        case 'kamiyo_generate_commitment':
+          result = await this.generateCommitment(args);
+          break;
+        case 'kamiyo_prove_reputation':
+          result = await this.proveReputation(args);
+          break;
+        case 'kamiyo_verify_proof':
+          result = await this.verifyProof(args);
+          break;
+        case 'kamiyo_get_reputation_tier':
+          result = await this.getReputationTier();
+          break;
+        case 'kamiyo_can_prove_tier':
+          result = await this.canProveTier(args);
+          break;
         default:
           return {
             content: [{ type: 'text', text: `Unknown tool: ${name}` }],
@@ -362,16 +470,18 @@ export class KamiyoMCPHandler {
   }
 
   private async consumeAPI(args: Record<string, unknown>): Promise<unknown> {
-    // Implementation delegated to extension
-    return { status: 'ok', message: 'API consumed via Kamiyo escrow' };
+    console.warn('[kamiyo-mcp] consumeAPI: standalone mode');
+    return { status: 'simulated' };
   }
 
   private async createEscrow(args: Record<string, unknown>): Promise<unknown> {
-    return { status: 'ok', escrowAddress: 'simulated_address' };
+    console.warn('[kamiyo-mcp] createEscrow: standalone mode');
+    return { status: 'simulated', escrowAddress: 'simulated' };
   }
 
   private async fileDispute(args: Record<string, unknown>): Promise<unknown> {
-    return { status: 'ok', disputeId: 'simulated_dispute' };
+    console.warn('[kamiyo-mcp] fileDispute: standalone mode');
+    return { status: 'simulated', disputeId: 'simulated' };
   }
 
   private async discoverAPIs(args: Record<string, unknown>): Promise<unknown> {
@@ -379,6 +489,7 @@ export class KamiyoMCPHandler {
   }
 
   private async checkBalance(args: Record<string, unknown>): Promise<unknown> {
+    console.warn('[kamiyo-mcp] checkBalance: standalone mode');
     return { balance: 0, pending: 0, available: 0 };
   }
 
@@ -391,7 +502,60 @@ export class KamiyoMCPHandler {
   }
 
   private async releaseEscrow(args: Record<string, unknown>): Promise<unknown> {
-    return { status: 'ok', released: true };
+    console.warn('[kamiyo-mcp] releaseEscrow: standalone mode');
+    return { status: 'simulated', released: true };
+  }
+
+  // ZK Reputation handlers
+  private async generateCommitment(args: Record<string, unknown>): Promise<unknown> {
+    const score = args.score as number;
+    if (typeof score !== 'number' || score < 0 || score > 100) {
+      throw new Error('Score must be a number between 0 and 100');
+    }
+    return this.reputation.generateCommitment({ score });
+  }
+
+  private async proveReputation(args: Record<string, unknown>): Promise<unknown> {
+    const input: ProveReputationInput = {};
+    if (typeof args.threshold === 'number') {
+      input.threshold = args.threshold;
+    }
+    if (typeof args.tier === 'number') {
+      input.tier = args.tier as 0 | 1 | 2 | 3 | 4;
+    }
+    return this.reputation.proveReputation(input);
+  }
+
+  private async verifyProof(args: Record<string, unknown>): Promise<unknown> {
+    const { proof, commitment, threshold, agent_id } = args;
+    if (!proof || typeof commitment !== 'string' || typeof threshold !== 'number') {
+      throw new Error('Missing required fields: proof, commitment, threshold');
+    }
+    return this.reputation.verifyProof({
+      proof: proof as VerifyProofInput['proof'],
+      commitment,
+      threshold,
+      agentId: agent_id as string | undefined,
+    });
+  }
+
+  private async getReputationTier(): Promise<unknown> {
+    return this.reputation.getTier();
+  }
+
+  private async canProveTier(args: Record<string, unknown>): Promise<unknown> {
+    const tier = args.tier as number;
+    if (typeof tier !== 'number' || tier < 0 || tier > 4) {
+      throw new Error('Tier must be a number between 0 and 4');
+    }
+    return {
+      canProve: this.reputation.canProveTier(tier as 0 | 1 | 2 | 3 | 4),
+      tier,
+    };
+  }
+
+  getReputation(): ReputationManager {
+    return this.reputation;
   }
 }
 
