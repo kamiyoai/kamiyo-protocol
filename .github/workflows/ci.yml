@@ -44,7 +44,9 @@ jobs:
       - name: Build with Anchor
         run: |
           rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
-          CARGO=$HOME/.cargo/bin/cargo anchor build
+          export PATH="$HOME/.cargo/bin:$PATH"
+          which cargo && cargo --version
+          anchor build
       - run: anchor test
       - name: Validate VK
         run: ./scripts/validate-vk.sh
