@@ -57,6 +57,10 @@ jobs:
 
       - uses: foundry-rs/foundry-toolchain@v1
 
+      - name: ZK Reputation
+        working-directory: contracts/zk-reputation
+        run: forge build && forge test -vvv
+
       - name: Monad
         working-directory: contracts/monad
         run: forge build && forge test -vvv
@@ -80,5 +84,17 @@ jobs:
           version: 9
 
       - run: pnpm install
-      - run: pnpm run build:sdk
-      - run: pnpm run test:sdk
+
+      - name: Build SDK
+        run: pnpm run build:sdk
+
+      - name: Build TETSUO
+        working-directory: packages/kamiyo-tetsuo
+        run: npm run build
+
+      - name: Test TETSUO
+        working-directory: packages/kamiyo-tetsuo
+        run: npm test
+
+      - name: Test SDK
+        run: pnpm run test:sdk

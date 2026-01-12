@@ -47,6 +47,7 @@ export class TetsuoProver {
   private zkeyPath: string;
   private vkeyPath: string;
   private initialized = false;
+  private vkeyCache: object | null = null;
 
   constructor(config?: Partial<ProverConfig>) {
     this.wasmPath = config?.wasmPath ?? DEFAULT_WASM_PATH;
@@ -132,7 +133,16 @@ export class TetsuoProver {
 
     try {
       const keyPath = vkeyPath ?? this.vkeyPath;
-      const vkey = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+      let vkey: object;
+      if (!vkeyPath && this.vkeyCache) {
+        vkey = this.vkeyCache;
+      } else {
+        const vkeyData = await fs.promises.readFile(keyPath, 'utf8');
+        vkey = JSON.parse(vkeyData);
+        if (!vkeyPath) {
+          this.vkeyCache = vkey;
+        }
+      }
 
       const snarkProof = {
         pi_a: [proof.a[0].toString(), proof.a[1].toString(), '1'],

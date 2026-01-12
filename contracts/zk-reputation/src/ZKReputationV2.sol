@@ -9,8 +9,7 @@ import "./Groth16Verifier.sol";
 
 /**
  * @title ZKReputationV2
- * @notice Upgradeable ZK reputation verification with admin controls
- * @dev UUPS proxy pattern, pausable, supports batch verification and tier decay
+ * @notice ZK reputation verification with tier decay and batch ops
  */
 contract ZKReputationV2 is
     Initializable,
@@ -25,7 +24,6 @@ contract ZKReputationV2 is
     uint256 public constant TIER_GOLD = 75;
     uint256 public constant TIER_PLATINUM = 90;
 
-    // Decay config: tier drops after this many blocks without re-verification
     uint256 public decayPeriod;
 
     enum Tier { Unverified, Bronze, Silver, Gold, Platinum }
@@ -39,7 +37,11 @@ contract ZKReputationV2 is
 
     mapping(address => Agent) public agents;
 
+    mapping(uint256 => bool) public commitmentUsed;
+
     event AgentRegistered(address indexed agent, uint256 commitment);
+    event AgentUnregistered(address indexed agent);
+    event CommitmentUpdated(address indexed agent, uint256 oldCommitment, uint256 newCommitment);
     event TierVerified(address indexed agent, Tier tier, uint256 threshold);
     event TierDecayed(address indexed agent, Tier oldTier, Tier newTier);
     event DecayPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
@@ -50,6 +52,8 @@ contract ZKReputationV2 is
     error InvalidProof();
     error BatchLengthMismatch();
     error ZeroAddress();
+    error CommitmentAlreadyUsed();
+    error ZeroCommitment();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -70,7 +74,10 @@ contract ZKReputationV2 is
 
     function register(uint256 commitment) external whenNotPaused {
         if (agents[msg.sender].registered) revert AgentAlreadyRegistered();
+        if (commitment == 0) revert ZeroCommitment();
+        if (commitmentUsed[commitment]) revert CommitmentAlreadyUsed();
 
+        commitmentUsed[commitment] = true;
         agents[msg.sender] = Agent({
             commitment: commitment,
             verifiedTier: Tier.Unverified,
@@ -79,6 +86,44 @@ contract ZKReputationV2 is
         });
 
         emit AgentRegistered(msg.sender, commitment);
+    }
+
+    function unregister() external {
+        Agent storage agent = agents[msg.sender];
+        if (!agent.registered) revert AgentNotRegistered();
+
+        commitmentUsed[agent.commitment] = false;
+        delete agents[msg.sender];
+
+        emit AgentUnregistered(msg.sender);
+    }
+
+    /// @dev Requires proof at current tier to authorize
+    function updateCommitment(
+        uint256 newCommitment,
+        uint256[2] calldata pA,
+        uint256[2][2] calldata pB,
+        uint256[2] calldata pC
+    ) external whenNotPaused {
+        Agent storage agent = agents[msg.sender];
+        if (!agent.registered) revert AgentNotRegistered();
+        if (newCommitment == 0) revert ZeroCommitment();
+        if (commitmentUsed[newCommitment]) revert CommitmentAlreadyUsed();
+
+        uint256 threshold = _tierToThreshold(agent.verifiedTier);
+        uint256[2] memory pubSignals;
+        pubSignals[0] = threshold;
+        pubSignals[1] = agent.commitment;
+
+        if (!verifier.verifyProof(pA, pB, pC, pubSignals)) revert InvalidProof();
+
+        uint256 oldCommitment = agent.commitment;
+        commitmentUsed[oldCommitment] = false;
+        commitmentUsed[newCommitment] = true;
+        agent.commitment = newCommitment;
+        agent.lastProofBlock = block.number;
+
+        emit CommitmentUpdated(msg.sender, oldCommitment, newCommitment);
     }
 
     function verifyTier(
@@ -107,10 +152,6 @@ contract ZKReputationV2 is
 
     // ============ Batch Verification ============
 
-    /**
-     * @notice Verify multiple agents' proofs in a single transaction
-     * @dev Useful for services verifying multiple agents at once
-     */
     function batchVerify(
         address[] calldata agentAddrs,
         uint256[2][] calldata pAs,
@@ -158,12 +199,8 @@ contract ZKReputationV2 is
 
     // ============ Tier Decay ============
 
-    /**
-     * @notice Apply decay to an agent's tier if proof is stale
-     * @dev Anyone can call this to enforce decay
-     */
     function applyDecay(address agentAddr) external {
-        if (decayPeriod == 0) return; // Decay disabled
+        if (decayPeriod == 0) return;
 
         Agent storage agent = agents[agentAddr];
         if (!agent.registered || agent.verifiedTier == Tier.Unverified) return;
@@ -183,10 +220,6 @@ contract ZKReputationV2 is
         }
     }
 
-    /**
-     * @notice Refresh tier by re-verifying at current level
-     * @dev Resets decay timer without upgrading tier
-     */
     function refreshTier(
         uint256[2] calldata pA,
         uint256[2][2] calldata pB,
@@ -293,4 +326,6 @@ contract ZKReputationV2 is
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    uint256[48] private __gap;
 }
