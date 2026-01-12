@@ -282,11 +282,22 @@ Testing the `@kamiyo/agent-core` and `@kamiyo/daydreams` packages.
 
 ---
 
-## Step 10: Test observability
+## Step 10: Build the SDK packages
+
+```bash
+cd packages/kamiyo-agent-core && npm run build
+cd ../kamiyo-daydreams && npm run build
+```
+
+---
+
+## Step 11: Test observability
+
+From `packages/kamiyo-agent-core`:
 
 ```bash
 node -e "
-const { createObservabilityContext } = require('@kamiyo/agent-core');
+const { createObservabilityContext } = require('./dist');
 
 const ctx = createObservabilityContext({
   logLevel: 'debug',
@@ -307,11 +318,11 @@ console.log('Metrics:', ctx.metrics.collect());
 
 ---
 
-## Step 11: Test rate limiting
+## Step 12: Test rate limiting
 
 ```bash
 node -e "
-const { TokenBucket, SlidingWindowCounter } = require('@kamiyo/agent-core');
+const { TokenBucket, SlidingWindowCounter } = require('./dist');
 
 // Token bucket: 10 tokens/sec, bucket size 5
 const bucket = new TokenBucket({ tokensPerSecond: 10, bucketSize: 5 });
@@ -333,11 +344,11 @@ for (let i = 1; i <= 6; i++) {
 
 ---
 
-## Step 12: Test retry logic
+## Step 13: Test retry logic
 
 ```bash
 node -e "
-const { retry, retryWithResult } = require('@kamiyo/agent-core');
+const { retry } = require('./dist');
 
 (async () => {
   let attempts = 0;
@@ -361,11 +372,11 @@ const { retry, retryWithResult } = require('@kamiyo/agent-core');
 
 ---
 
-## Step 13: Test caching
+## Step 14: Test caching
 
 ```bash
 node -e "
-const { LRUCache, memoizeAsync } = require('@kamiyo/agent-core');
+const { LRUCache, memoizeAsync } = require('./dist');
 
 (async () => {
   const cache = new LRUCache({ maxEntries: 100, defaultTTL: 5000 });
@@ -392,11 +403,11 @@ const { LRUCache, memoizeAsync } = require('@kamiyo/agent-core');
 
 ---
 
-## Step 14: Test health checks
+## Step 15: Test health checks
 
 ```bash
 node -e "
-const { HealthChecker, healthChecks } = require('@kamiyo/agent-core');
+const { HealthChecker, healthChecks } = require('./dist');
 
 (async () => {
   const checker = new HealthChecker({ version: '1.0.0' });
@@ -423,11 +434,13 @@ const { HealthChecker, healthChecks } = require('@kamiyo/agent-core');
 
 ---
 
-## Step 15: Test Daydreams extension
+## Step 16: Test Daydreams extension
+
+From `packages/kamiyo-daydreams`:
 
 ```bash
 node -e "
-const { createKamiyoExtension } = require('@kamiyo/daydreams');
+const { createKamiyoExtension } = require('./dist');
 
 const ext = createKamiyoExtension({ network: 'devnet' });
 
@@ -443,11 +456,13 @@ ext.getActions().forEach(a => {
 
 ---
 
-## Step 16: Test ZK reputation via agent-core
+## Step 17: Test ZK reputation via agent-core
+
+From `packages/kamiyo-agent-core`:
 
 ```bash
 node -e "
-const { ReputationManager, getTierThreshold, TIER_NAMES } = require('@kamiyo/agent-core');
+const { ReputationManager, getTierThreshold, TIER_NAMES } = require('./dist');
 
 (async () => {
   const manager = new ReputationManager();
@@ -474,11 +489,13 @@ const { ReputationManager, getTierThreshold, TIER_NAMES } = require('@kamiyo/age
 
 ---
 
-## Step 17: Run Daydreams demo
+## Step 18: Run Daydreams demo
+
+From repo root:
 
 ```bash
 cd examples/daydreams-demo
-npm install
+pnpm install
 npm run demo
 ```
 
