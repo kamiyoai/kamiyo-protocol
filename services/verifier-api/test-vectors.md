@@ -15,8 +15,6 @@ Response:
 
 ## POST /verify/reputation
 
-### Valid Request (should return verified: true)
-
 ```bash
 curl -X POST https://kamiyo-protocol.onrender.com/verify/reputation \
   -H "Content-Type: application/json" \
@@ -28,23 +26,9 @@ curl -X POST https://kamiyo-protocol.onrender.com/verify/reputation \
   }'
 ```
 
-Note: This will return `verified: false` until we deploy the on-chain verifier program. For now, test that you get a valid response structure.
-
-Expected response structure:
+Response:
 ```json
-{
-  "verified": false,
-  "error": "Proof verification failed"
-}
-```
-
-Or when verified:
-```json
-{
-  "verified": true,
-  "tier": "premium",
-  "limit": 2000
-}
+{"verified": true, "tier": "premium", "limit": 2000}
 ```
 
 ### Invalid Request - Missing Fields
@@ -100,9 +84,7 @@ curl -X POST https://kamiyo-protocol.onrender.com/verify/exclusion \
   }'
 ```
 
-Note: `siblings` must be exactly 256 hex strings for a valid proof. This test will fail validation.
-
-Expected:
+Response (invalid - needs 256 siblings):
 ```json
 {
   "not_blacklisted": false,
@@ -143,8 +125,6 @@ Response:
 
 ## GET /blacklist/proof/:agent_pk
 
-Generates an exclusion proof for the given agent. Use this to get the root and siblings needed for `/verify/exclusion`.
-
 ```bash
 curl https://kamiyo-protocol.onrender.com/blacklist/proof/11111111111111111111111111111112
 ```
@@ -181,14 +161,10 @@ Expected:
 
 ## Integration Flow
 
-Once your side is ready, the flow is:
-
 1. Agent creates payment with `requires_reputation_check: true`
-2. Before Reloadly, call our `/verify/reputation`
-3. If verified, call `/blacklist/proof/{agent_pk}` to check blacklist status
-4. If `blacklisted: false`, proceed with card issuance
-
-The `/blacklist/proof/:agent_pk` endpoint is all you need for blacklist checking. It returns `blacklisted: false` with the proof data, or `blacklisted: true` if the agent is on the blacklist.
+2. Call `/verify/reputation`
+3. Call `/blacklist/proof/{agent_pk}`
+4. If both pass, issue card
 
 ## Tier Mapping
 

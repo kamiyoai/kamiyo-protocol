@@ -207,7 +207,6 @@ export async function verifyExclusion(c: Context): Promise<Response> {
       }, 400);
     }
 
-    // Verify root matches our authoritative in-memory blacklist
     const expectedRoot = blacklist.getRoot();
     if (root !== expectedRoot) {
       return c.json<ExclusionResponse>({
@@ -240,7 +239,6 @@ export async function verifyExclusion(c: Context): Promise<Response> {
 }
 
 export async function getBlacklistRoot(c: Context): Promise<Response> {
-  // Return the in-memory blacklist root (authoritative for proof generation)
   return c.json({ root: blacklist.getRoot().toString(16).padStart(64, '0') });
 }
 
