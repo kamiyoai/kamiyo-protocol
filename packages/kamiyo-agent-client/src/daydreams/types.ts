@@ -240,4 +240,52 @@ export type KamiyoErrorCode =
   | 'INVALID_CONFIG'
   | 'WALLET_NOT_INITIALIZED'
   | 'TIMEOUT'
-  | 'NETWORK_ERROR';
+  | 'NETWORK_ERROR'
+  | 'CIRCUIT_OPEN'
+  | 'UNAUTHORIZED';
+
+// Pluggable quality evaluation
+export interface QualityEvaluator {
+  name: string;
+  evaluate(response: unknown, expected: Record<string, unknown>, query: Record<string, unknown>): QualityCheckResult;
+}
+
+// Circuit breaker for endpoint reliability
+export interface CircuitBreakerConfig {
+  failureThreshold: number;
+  resetTimeoutMs: number;
+  halfOpenRequests: number;
+}
+
+export interface CircuitBreakerState {
+  failures: number;
+  lastFailure: number | null;
+  state: 'closed' | 'open' | 'half-open';
+  halfOpenAttempts: number;
+}
+
+export const DEFAULT_CIRCUIT_BREAKER_CONFIG: CircuitBreakerConfig = {
+  failureThreshold: 5,
+  resetTimeoutMs: 60000,
+  halfOpenRequests: 2,
+};
+
+// Persistence layer
+export interface StorageProvider {
+  get<T>(key: string): Promise<T | null>;
+  set<T>(key: string, value: T): Promise<void>;
+  delete(key: string): Promise<void>;
+  keys(prefix?: string): Promise<string[]>;
+}
+
+// MCP authentication
+export interface AuthProvider {
+  validate(token: string): Promise<AuthResult>;
+  getPermissions(token: string): Promise<string[]>;
+}
+
+export interface AuthResult {
+  valid: boolean;
+  agentId?: string;
+  error?: string;
+}

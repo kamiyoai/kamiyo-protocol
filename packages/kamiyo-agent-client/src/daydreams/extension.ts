@@ -1,31 +1,10 @@
 /**
- * Kamiyo Extension for Daydreams
- *
- * Provides payment capabilities to Daydreams agents via the extension pattern.
- * Handles escrow creation, quality verification, and automatic dispute filing.
- *
- * Usage:
- * ```typescript
- * import { createDreams } from '@daydreamsai/core';
- * import { kamiyoExtension } from '@kamiyo/agent-client';
- *
- * const agent = createDreams({
- *   model: openai('gpt-4o'),
- *   extensions: [
- *     kamiyoExtension({
- *       network: 'devnet',
- *       qualityThreshold: 85,
- *       maxPrice: 0.01,
- *       autoDispute: true,
- *     }),
- *   ],
- * });
- * ```
- *
- * @see https://docs.dreams.fun/docs/core/concepts/extensions
+ * Daydreams extension with escrow, quality verification, and dispute handling.
  */
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { Wallet } from '@coral-xyz/anchor';
+import { KamiyoClient, AgreementManager } from '@kamiyo/sdk';
 import {
   KamiyoExtensionConfig,
   KamiyoMemory,
@@ -33,6 +12,10 @@ import {
   DisputeRecord,
   QualityStats,
   QualityCheckResult,
+  QualityEvaluator,
+  CircuitBreakerConfig,
+  CircuitBreakerState,
+  StorageProvider,
   ConsumeAPIInput,
   ConsumeAPIOutput,
   CreateEscrowInput,
@@ -46,12 +29,15 @@ import {
   CheckBalanceOutput,
   KAMIYO_NETWORKS,
   DEFAULT_CONFIG,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG,
   KamiyoError,
 } from './types';
+import { MemoryStorage } from './storage';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_PAYMENTS_HISTORY = 1000;
 const MAX_DISPUTES_HISTORY = 500;
+const MAX_CIRCUIT_BREAKERS = 100;
 
 // SSRF protection: block internal/private ranges
 const BLOCKED_HOSTS = [
@@ -157,6 +143,64 @@ interface DaydreamsExtension {
   actions?: KamiyoAction<unknown, unknown>[];
 }
 
+// Default quality evaluator
+const defaultQualityEvaluator: QualityEvaluator = {
+  name: 'default',
+  evaluate(received: unknown, expected: Record<string, unknown>, query: Record<string, unknown>): QualityCheckResult {
+    const data = extractData(received);
+    const completeness = checkCompleteness(data, expected);
+    const accuracy = checkAccuracy(data, query);
+    const freshness = checkFreshness(data);
+    const score = Math.round(completeness * 0.4 + accuracy * 0.3 + freshness * 0.3);
+    return { score, completeness, accuracy, freshness, passesThreshold: false };
+  },
+};
+
+function extractData(received: unknown): unknown {
+  if (!received || typeof received !== 'object') return received;
+  const r = received as Record<string, unknown>;
+  return r.data || received;
+}
+
+function checkCompleteness(received: unknown, expected: Record<string, unknown>): number {
+  const data = extractData(received);
+  const expectedFields = Object.keys(expected);
+  if (expectedFields.length === 0) return 100;
+  if (!data || (Array.isArray(data) && data.length === 0)) return 0;
+  const target = Array.isArray(data) ? data[0] : data;
+  const receivedFields = Object.keys(target || {});
+  const missing = expectedFields.filter((f) => !receivedFields.includes(f));
+  return Math.round(((expectedFields.length - missing.length) / expectedFields.length) * 100);
+}
+
+function checkAccuracy(received: unknown, query: Record<string, unknown>): number {
+  const data = extractData(received);
+  if (!data || (Array.isArray(data) && data.length === 0)) return 0;
+  const target = Array.isArray(data) ? data[0] : data;
+  if (!target || typeof target !== 'object') return 50;
+  const t = target as Record<string, unknown>;
+  const hasValidValues = Object.values(t).some((v) => v !== null && v !== undefined && v !== '' && v !== 0);
+  return hasValidValues ? 100 : 30;
+}
+
+function checkFreshness(received: unknown): number {
+  const data = extractData(received);
+  const target = Array.isArray(data) ? data[0] : data;
+  if (!target || typeof target !== 'object') return 50;
+  const t = target as Record<string, unknown>;
+  const timestamp = t.timestamp || t.updated_at || t.created_at;
+  if (!timestamp) return 50;
+  const age = Date.now() - new Date(String(timestamp)).getTime();
+  const maxAge = 3600000;
+  return Math.max(0, Math.round(100 - (age / maxAge) * 100));
+}
+
+interface ExtendedConfig extends KamiyoExtensionConfig {
+  storage?: StorageProvider;
+  qualityEvaluator?: QualityEvaluator;
+  circuitBreakerConfig?: CircuitBreakerConfig;
+}
+
 class KamiyoExtension {
   readonly name = 'kamiyo';
   readonly version = '2.0.0';
@@ -164,10 +208,17 @@ class KamiyoExtension {
   private config: Required<KamiyoExtensionConfig>;
   private connection: Connection;
   private keypair: Keypair | null = null;
+  private wallet: Wallet | null = null;
   private memory: KamiyoMemory;
   private reputation: ReputationManager;
+  private sdkClient: KamiyoClient | null = null;
+  private agreementManager: AgreementManager | null = null;
+  private circuitBreakers = new Map<string, CircuitBreakerState>();
+  private circuitBreakerConfig: CircuitBreakerConfig;
+  private storage: StorageProvider;
+  private qualityEvaluator: QualityEvaluator;
 
-  constructor(config: KamiyoExtensionConfig = {}) {
+  constructor(config: ExtendedConfig = {}) {
     const networkConfig = KAMIYO_NETWORKS[config.network || 'devnet'];
 
     this.config = {
@@ -185,10 +236,31 @@ class KamiyoExtension {
     };
 
     this.connection = new Connection(this.config.rpcUrl, 'confirmed');
+    this.circuitBreakerConfig = config.circuitBreakerConfig || DEFAULT_CIRCUIT_BREAKER_CONFIG;
+    this.storage = config.storage || new MemoryStorage();
+    this.qualityEvaluator = config.qualityEvaluator || defaultQualityEvaluator;
 
     if (this.config.privateKey) {
       const secretKey = Buffer.from(this.config.privateKey, 'base64');
       this.keypair = Keypair.fromSecretKey(secretKey);
+      this.wallet = {
+        publicKey: this.keypair.publicKey,
+        signTransaction: async <T extends import('@solana/web3.js').Transaction>(tx: T): Promise<T> => {
+          tx.partialSign(this.keypair!);
+          return tx;
+        },
+        signAllTransactions: async <T extends import('@solana/web3.js').Transaction>(txs: T[]): Promise<T[]> => {
+          txs.forEach((tx) => tx.partialSign(this.keypair!));
+          return txs;
+        },
+      } as Wallet;
+
+      this.sdkClient = new KamiyoClient({
+        connection: this.connection,
+        wallet: this.wallet,
+        programId: new PublicKey(this.config.programId),
+      });
+      this.agreementManager = new AgreementManager(this.sdkClient);
     }
 
     this.memory = this.createInitialMemory();
@@ -367,20 +439,29 @@ class KamiyoExtension {
     const threshold = input.qualityThreshold ?? ctx.config.qualityThreshold;
 
     validateUrl(input.endpoint);
+    this.checkCircuitBreaker(input.endpoint);
 
-    const initialResponse = await fetchWithTimeout(input.endpoint, {
-      method: input.method || 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...input.headers,
-      },
-      body: input.query ? JSON.stringify(input.query) : undefined,
-    });
+    let initialResponse: Response;
+    try {
+      initialResponse = await fetchWithTimeout(input.endpoint, {
+        method: input.method || 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...input.headers,
+        },
+        body: input.query ? JSON.stringify(input.query) : undefined,
+      });
+    } catch (err) {
+      this.recordCircuitFailure(input.endpoint);
+      throw err;
+    }
 
     if (initialResponse.status !== 402) {
       const data = await initialResponse.json();
       const paymentId = this.generateId('pay');
       const quality = this.assessQuality(data, input.expectedSchema || {}, input.query || {});
+
+      this.recordCircuitSuccess(input.endpoint);
 
       const record: PaymentRecord = {
         id: paymentId,
@@ -416,24 +497,32 @@ class KamiyoExtension {
     const transactionId = this.generateId('tx');
     const paymentId = this.generateId('pay');
 
-    const paidResponse = await fetchWithTimeout(input.endpoint, {
-      method: input.method || 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Payment-Proof': transactionId,
-        'X-Payment-Amount': String(price),
-        ...input.headers,
-      },
-      body: input.query ? JSON.stringify(input.query) : undefined,
-    });
+    let paidResponse: Response;
+    try {
+      paidResponse = await fetchWithTimeout(input.endpoint, {
+        method: input.method || 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Payment-Proof': transactionId,
+          'X-Payment-Amount': String(price),
+          ...input.headers,
+        },
+        body: input.query ? JSON.stringify(input.query) : undefined,
+      });
+    } catch (err) {
+      this.recordCircuitFailure(input.endpoint);
+      throw err;
+    }
 
     if (!paidResponse.ok) {
+      this.recordCircuitFailure(input.endpoint);
       throw new KamiyoError(
         'API request failed',
         'API_UNAVAILABLE'
       );
     }
 
+    this.recordCircuitSuccess(input.endpoint);
     const data = await paidResponse.json();
     const quality = this.assessQuality(data, input.expectedSchema || {}, input.query || {});
 
@@ -488,9 +577,7 @@ class KamiyoExtension {
   }
 
   private async createEscrow(input: CreateEscrowInput): Promise<CreateEscrowOutput> {
-    const ctx = this.getContext();
-
-    if (!ctx.keypair) {
+    if (!this.keypair || !this.agreementManager) {
       throw new KamiyoError('Wallet not initialized', 'WALLET_NOT_INITIALIZED');
     }
 
@@ -498,19 +585,37 @@ class KamiyoExtension {
       throw new KamiyoError('Invalid escrow amount', 'INVALID_CONFIG');
     }
 
-    // TODO: SDK integration
-    console.warn('[kamiyo] createEscrow: simulated');
-
     const transactionId = input.transactionId || this.generateId('tx');
-    const timeLockSeconds = (input.timeLockHours || 24) * 3600;
-    const escrowAddress = Keypair.generate().publicKey.toString();
+    const timeLockHours = input.timeLockHours || 24;
 
-    return {
-      escrowAddress,
-      transactionId,
-      amount: input.amount,
-      expiresAt: Date.now() + timeLockSeconds * 1000,
-    };
+    try {
+      const { pda, signature } = await this.agreementManager.create(
+        new PublicKey(input.provider),
+        input.amount,
+        timeLockHours,
+        transactionId
+      );
+
+      await this.storage.set(`escrow:${transactionId}`, {
+        escrowAddress: pda.toString(),
+        provider: input.provider,
+        amount: input.amount,
+        createdAt: Date.now(),
+        signature,
+      });
+
+      return {
+        escrowAddress: pda.toString(),
+        transactionId,
+        amount: input.amount,
+        expiresAt: Date.now() + timeLockHours * 3600 * 1000,
+      };
+    } catch (err) {
+      throw new KamiyoError(
+        `Escrow creation failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        'ESCROW_CREATION_FAILED'
+      );
+    }
   }
 
   private async fileDispute(input: FileDisputeInput): Promise<FileDisputeOutput> {
@@ -639,70 +744,74 @@ class KamiyoExtension {
     expected: Record<string, unknown>,
     query: Record<string, unknown>
   ): QualityCheckResult {
-    const completeness = this.checkCompleteness(received, expected);
-    const accuracy = this.checkAccuracy(received, query);
-    const freshness = this.checkFreshness(received);
-
-    const score = Math.round(completeness * 0.4 + accuracy * 0.3 + freshness * 0.3);
-
+    const result = this.qualityEvaluator.evaluate(received, expected, query);
     return {
-      score,
-      completeness,
-      accuracy,
-      freshness,
-      passesThreshold: score >= this.config.qualityThreshold,
+      ...result,
+      passesThreshold: result.score >= this.config.qualityThreshold,
     };
   }
 
-  private checkCompleteness(received: unknown, expected: Record<string, unknown>): number {
-    const data = this.extractData(received);
-    const expectedFields = Object.keys(expected);
-
-    if (expectedFields.length === 0) return 100;
-    if (!data || (Array.isArray(data) && data.length === 0)) return 0;
-
-    const target = Array.isArray(data) ? data[0] : data;
-    const receivedFields = Object.keys(target || {});
-
-    const missing = expectedFields.filter((f) => !receivedFields.includes(f));
-    return Math.round(((expectedFields.length - missing.length) / expectedFields.length) * 100);
+  // Circuit breaker
+  private getCircuitBreaker(endpoint: string): CircuitBreakerState {
+    let cb = this.circuitBreakers.get(endpoint);
+    if (!cb) {
+      if (this.circuitBreakers.size >= MAX_CIRCUIT_BREAKERS) {
+        const oldest = this.circuitBreakers.keys().next().value;
+        if (oldest) this.circuitBreakers.delete(oldest);
+      }
+      cb = { failures: 0, lastFailure: null, state: 'closed', halfOpenAttempts: 0 };
+      this.circuitBreakers.set(endpoint, cb);
+    }
+    return cb;
   }
 
-  private checkAccuracy(received: unknown, query: Record<string, unknown>): number {
-    const data = this.extractData(received);
-    if (!data || (Array.isArray(data) && data.length === 0)) return 0;
+  private checkCircuitBreaker(endpoint: string): void {
+    const cb = this.getCircuitBreaker(endpoint);
+    const now = Date.now();
 
-    const target = Array.isArray(data) ? data[0] : data;
-    if (!target || typeof target !== 'object') return 50;
+    if (cb.state === 'open') {
+      if (cb.lastFailure && now - cb.lastFailure > this.circuitBreakerConfig.resetTimeoutMs) {
+        cb.state = 'half-open';
+        cb.halfOpenAttempts = 0;
+      } else {
+        throw new KamiyoError(`Circuit open for ${endpoint}`, 'CIRCUIT_OPEN');
+      }
+    }
 
-    const t = target as Record<string, unknown>;
-    const hasValidValues = Object.values(t).some(
-      (v) => v !== null && v !== undefined && v !== '' && v !== 0
-    );
+    if (cb.state === 'half-open' && cb.halfOpenAttempts >= this.circuitBreakerConfig.halfOpenRequests) {
+      throw new KamiyoError(`Circuit half-open limit reached for ${endpoint}`, 'CIRCUIT_OPEN');
+    }
 
-    return hasValidValues ? 100 : 30;
+    if (cb.state === 'half-open') {
+      cb.halfOpenAttempts++;
+    }
   }
 
-  private checkFreshness(received: unknown): number {
-    const data = this.extractData(received);
-    const target = Array.isArray(data) ? data[0] : data;
-
-    if (!target || typeof target !== 'object') return 50;
-
-    const t = target as Record<string, unknown>;
-    const timestamp = t.timestamp || t.updated_at || t.created_at;
-    if (!timestamp) return 50;
-
-    const age = Date.now() - new Date(String(timestamp)).getTime();
-    const maxAge = 3600000; // 1 hour
-
-    return Math.max(0, Math.round(100 - (age / maxAge) * 100));
+  private recordCircuitSuccess(endpoint: string): void {
+    const cb = this.getCircuitBreaker(endpoint);
+    if (cb.state === 'half-open') {
+      cb.state = 'closed';
+      cb.failures = 0;
+      cb.halfOpenAttempts = 0;
+    } else if (cb.state === 'closed' && cb.failures > 0) {
+      cb.failures = Math.max(0, cb.failures - 1);
+    }
   }
 
-  private extractData(received: unknown): unknown {
-    if (!received || typeof received !== 'object') return received;
-    const r = received as Record<string, unknown>;
-    return r.data || received;
+  private recordCircuitFailure(endpoint: string): void {
+    const cb = this.getCircuitBreaker(endpoint);
+    cb.failures++;
+    cb.lastFailure = Date.now();
+
+    if (cb.state === 'half-open') {
+      cb.state = 'open';
+    } else if (cb.failures >= this.circuitBreakerConfig.failureThreshold) {
+      cb.state = 'open';
+    }
+  }
+
+  getCircuitBreakerState(endpoint: string): CircuitBreakerState | null {
+    return this.circuitBreakers.get(endpoint) || null;
   }
 
   private updateQualityStats(endpoint: string, quality: number, cost: number): void {
@@ -805,6 +914,8 @@ export function kamiyoExtension(config?: KamiyoExtensionConfig): DaydreamsExtens
   return ext.toExtension();
 }
 
-export function createKamiyoExtension(config?: KamiyoExtensionConfig): KamiyoExtension {
+export function createKamiyoExtension(config?: ExtendedConfig): KamiyoExtension {
   return new KamiyoExtension(config);
 }
+
+export { KamiyoExtension };

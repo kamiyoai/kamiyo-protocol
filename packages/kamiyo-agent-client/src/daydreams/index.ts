@@ -1,52 +1,18 @@
 /**
- * Kamiyo x Daydreams Integration
+ * Daydreams extension for Kamiyo payments and ZK reputation.
  *
- * Full integration with the Daydreams AI agent framework for building
- * autonomous agents with payment and ZK reputation capabilities.
- *
- * Features:
- * - Extension pattern for drop-in Daydreams integration
- * - Composable contexts for payment & reputation state
- * - ZK reputation proofs (prove tier without revealing score)
- * - MCP server for Model Context Protocol compatibility
- * - Quality verification with automatic dispute filing
- * - Pre-built agent behaviors
- *
- * Quick Start:
- * ```typescript
- * import { createDreams } from '@daydreamsai/core';
- * import { openai } from '@ai-sdk/openai';
- * import { kamiyoExtension } from '@kamiyo/agent-client';
- *
+ * @example
  * const agent = createDreams({
  *   model: openai('gpt-4o'),
- *   extensions: [
- *     kamiyoExtension({
- *       network: 'devnet',
- *       qualityThreshold: 85,
- *       maxPrice: 0.01,
- *       autoDispute: true,
- *     }),
- *   ],
+ *   extensions: [kamiyoExtension({ network: 'devnet' })],
  * });
- *
- * // Agent actions:
- * // - kamiyo.consumeAPI - Pay for API with quality verification
- * // - kamiyo.generateCommitment - Create ZK commitment to reputation
- * // - kamiyo.proveReputation - Generate ZK proof of tier
- * // - kamiyo.verifyProof - Verify another agent's proof
- * await agent.start('my-agent');
- * ```
- *
- * @see https://docs.dreams.fun
- * @see https://github.com/daydreamsai/daydreams
- * @see https://kamiyo.ai
  */
 
 // Extension
 export {
   kamiyoExtension,
   createKamiyoExtension,
+  KamiyoExtension,
 } from './extension';
 
 // Contexts
@@ -86,6 +52,7 @@ export type {
 export {
   KAMIYO_NETWORKS,
   DEFAULT_CONFIG,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG,
   KamiyoError,
 } from './types';
 export type {
@@ -100,6 +67,12 @@ export type {
   KamiyoNetwork,
   KamiyoExtensionConfig,
   QualityCheckResult,
+  QualityEvaluator,
+  CircuitBreakerConfig,
+  CircuitBreakerState,
+  StorageProvider,
+  AuthProvider,
+  AuthResult,
   ConsumeAPIInput,
   ConsumeAPIOutput,
   CreateEscrowInput,
@@ -115,6 +88,124 @@ export type {
   MCPServerConfig,
   KamiyoErrorCode,
 } from './types';
+
+// Storage
+export {
+  MemoryStorage,
+  FileStorage,
+  createMemoryStorage,
+  createFileStorage,
+} from './storage';
+
+// Observability
+export {
+  createObservabilityContext,
+  createKamiyoMetrics,
+  ConsoleLogger,
+  InMemoryTracer,
+  InMemoryMetricsRegistry,
+} from './observability';
+export type {
+  Logger,
+  LogLevel,
+  LogEntry,
+  Tracer,
+  Span,
+  SpanEvent,
+  MetricsRegistry,
+  Counter,
+  Gauge,
+  Histogram,
+  MetricValue,
+  KamiyoMetrics,
+  ObservabilityContext,
+  SpanExporter,
+  LogExporter,
+} from './observability';
+
+// Retry
+export {
+  retry,
+  retryWithResult,
+  retryWithDeadline,
+  retryWithTimeout,
+  retryConditions,
+  Bulkhead,
+  withTimeout,
+  DeadlineContext,
+  RetryError,
+  DEFAULT_RETRY_CONFIG,
+} from './retry';
+export type { RetryConfig, RetryResult } from './retry';
+
+// Events
+export {
+  KamiyoEventEmitter,
+  KamiyoEventBus,
+  createEventEmitter,
+  loggingMiddleware,
+  metricsMiddleware,
+} from './events';
+export type {
+  KamiyoEvents,
+  EventName,
+  EventPayload,
+  EventHandler,
+  EventMiddleware,
+} from './events';
+
+// Rate Limiting
+export {
+  TokenBucket,
+  SlidingWindowCounter,
+  KeyedRateLimiter,
+  CompositeRateLimiter,
+  createRateLimitMiddleware,
+  RATE_LIMIT_PRESETS,
+} from './ratelimit';
+export type {
+  RateLimitConfig,
+  RateLimitResult,
+  RateLimiter,
+  RateLimitMiddleware,
+} from './ratelimit';
+
+// Cache
+export {
+  LRUCache,
+  ResponseCache,
+  memoize,
+  memoizeAsync,
+} from './cache';
+export type { Cache, CacheConfig, CacheEntry, CacheStats, ResponseCacheKey } from './cache';
+
+// Health
+export {
+  HealthChecker,
+  healthChecks,
+  createHealthHandlers,
+} from './health';
+export type {
+  HealthStatus,
+  ComponentHealth,
+  HealthReport,
+  HealthCheck,
+  HealthCheckerConfig,
+} from './health';
+
+// Batch Operations
+export {
+  parallelMap,
+  batchExecute,
+  batchWithProgress,
+  batchReduce,
+  sequentialBatch,
+  chunk,
+  RequestBatcher,
+  pipeline,
+  DEFAULT_BATCH_CONFIG,
+} from './batch';
+export type { BatchConfig, BatchResult } from './batch';
 
 // ZK Reputation
 export {
@@ -169,3 +260,61 @@ export type {
   ServiceScore,
   EndpointQualityStats,
 } from './behaviors';
+
+// Validation
+export {
+  validate,
+  validateOrThrow,
+  createValidator,
+  validators,
+  NetworkSchema,
+  ExtensionConfigSchema,
+  BatchConfigSchema,
+  RetryConfigSchema,
+  RateLimitConfigSchema,
+  CacheConfigSchema,
+  ConsumeAPIInputSchema,
+  CreateEscrowInputSchema,
+  FileDisputeInputSchema,
+  CheckBalanceInputSchema,
+  DiscoverAPIsInputSchema,
+  GenerateCommitmentInputSchema,
+  ProveReputationInputSchema,
+  VerifyProofInputSchema,
+  QualityCheckResultSchema,
+  ConsumeAPIOutputSchema,
+  CreateEscrowOutputSchema,
+  FileDisputeOutputSchema,
+  CheckBalanceOutputSchema,
+  DiscoveredAPISchema,
+  DiscoverAPIsOutputSchema,
+  HealthStatusSchema,
+  ComponentHealthSchema,
+  HealthReportSchema,
+  MCPToolCallRequestSchema,
+  MCPToolCallResponseSchema,
+} from './validation';
+export type { ValidationResult } from './validation';
+
+// Transaction
+export {
+  TransactionContext,
+  transaction,
+  Outbox,
+  IdempotencyManager,
+  TwoPhaseCoordinator,
+  createInMemoryTransactionStorage,
+} from './transaction';
+export type {
+  TransactionStatus,
+  TransactionStep,
+  TransactionOptions,
+  TransactionResult,
+  OutboxEntry,
+  OutboxConfig,
+  IdempotencyRecord,
+  IdempotencyConfig,
+  TwoPhaseStatus,
+  Participant,
+  TwoPhaseResult,
+} from './transaction';
