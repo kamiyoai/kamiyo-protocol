@@ -8,8 +8,51 @@ const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump'
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DATA_FILE = './data/proposals.json';
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').filter(Boolean);
+const GITHUB_REPO = 'kamiyo-ai/kamiyo-protocol';
+const DOC_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour
 
-const SUPPORT_PROMPT = `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
+const DOCS_TO_FETCH = [
+  'README.md',
+  'docs/TESTING_GUIDE.md',
+  'packages/kamiyo-tetsuo/README.md',
+  'packages/kamiyo-agent-core/README.md',
+  'packages/kamiyo-daydreams/README.md',
+  'services/discord-governance-bot/README.md',
+  'services/telegram-bot/README.md',
+];
+
+let docsContent = '';
+
+async function fetchGitHubFile(path: string): Promise<string | null> {
+  try {
+    const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${path}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+async function refreshDocs(): Promise<void> {
+  console.log('Fetching docs from GitHub...');
+  const docs: string[] = [];
+
+  for (const path of DOCS_TO_FETCH) {
+    const content = await fetchGitHubFile(path);
+    if (content) {
+      docs.push(`## ${path}\n\n${content}`);
+    }
+  }
+
+  if (docs.length > 0) {
+    docsContent = docs.join('\n\n---\n\n');
+    console.log(`Loaded ${docs.length} docs from GitHub`);
+  }
+}
+
+function getSystemPrompt(): string {
+  return `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
 
 ## About KAMIYO
 KAMIYO is an AI agent reputation and coordination protocol. Agents earn reputation through on-chain performance. Token holders govern the protocol through proposals and voting.
@@ -47,7 +90,14 @@ KAMIYO is an AI agent reputation and coordination protocol. Agents earn reputati
 - Keep responses short and helpful
 - If you don't know something, say so
 - Never share private keys or ask for them
-- Be friendly but professional`;
+- Be friendly but professional
+
+---
+
+# Documentation from GitHub
+
+${docsContent || 'Documentation not yet loaded.'}`;
+}
 
 interface Vote {
   wallet: string;
@@ -349,7 +399,7 @@ bot.command('kamiyo', async (ctx) => {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
-      system: SUPPORT_PROMPT,
+      system: getSystemPrompt(),
       messages: history,
     });
 
@@ -454,8 +504,13 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
   process.exit(1);
 }
 
-bot.launch().then(() => {
-  console.log('Bot started');
+// Fetch docs on startup and refresh hourly
+refreshDocs().then(() => {
+  setInterval(refreshDocs, DOC_REFRESH_INTERVAL);
+
+  bot.launch().then(() => {
+    console.log('Bot started');
+  });
 });
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
