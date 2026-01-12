@@ -11,7 +11,6 @@ import {
   ButtonStyle,
   ButtonInteraction,
   PermissionFlagsBits,
-  Message,
 } from 'discord.js';
 import { Connection, PublicKey } from '@solana/web3.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -21,7 +20,6 @@ import 'dotenv/config';
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DATA_FILE = './data/proposals.json';
-const SUPPORT_CHANNEL_ID = process.env.SUPPORT_CHANNEL_ID;
 
 const SUPPORT_PROMPT = `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
 
@@ -207,11 +205,7 @@ function createVoteButtons(proposalId: string, disabled = false): ActionRowBuild
 }
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: [GatewayIntentBits.Guilds],
 });
 
 const commands = [
@@ -264,6 +258,14 @@ const commands = [
           { name: 'Rejected', value: 'rejected' },
           { name: 'All', value: 'all' },
         )),
+
+  new SlashCommandBuilder()
+    .setName('kamiyo')
+    .setDescription('Ask KAMIYO AI a question')
+    .addStringOption(opt =>
+      opt.setName('question')
+        .setDescription('Your question')
+        .setRequired(true)),
 ];
 
 client.once('ready', async () => {
@@ -320,52 +322,6 @@ client.on('interactionCreate', async (interaction) => {
     await handleCommand(interaction);
   } else if (interaction.isButton()) {
     await handleButton(interaction);
-  }
-});
-
-// AI Support handler
-client.on('messageCreate', async (message: Message) => {
-  if (message.author.bot) return;
-  if (!SUPPORT_CHANNEL_ID || message.channelId !== SUPPORT_CHANNEL_ID) return;
-  if (!anthropic) return;
-
-  const question = message.content.trim();
-  if (!question) return;
-
-  const userId = message.author.id;
-  let history = conversationHistory.get(userId) || [];
-
-  history.push({ role: 'user', content: question });
-  if (history.length > 20) history = history.slice(-20);
-
-  try {
-    if ('sendTyping' in message.channel) {
-      await message.channel.sendTyping();
-    }
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      system: SUPPORT_PROMPT,
-      messages: history,
-    });
-
-    const reply = response.content[0].type === 'text' ? response.content[0].text : '';
-
-    history.push({ role: 'assistant', content: reply });
-    conversationHistory.set(userId, history);
-
-    if (reply.length > 2000) {
-      const chunks = reply.match(/.{1,2000}/gs) || [];
-      for (const chunk of chunks) {
-        await message.reply(chunk);
-      }
-    } else {
-      await message.reply(reply);
-    }
-  } catch (err) {
-    console.error('AI error:', err);
-    await message.reply('Something went wrong. Please try again or ask in #dev for help.');
   }
 });
 
@@ -487,6 +443,46 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
         content: `**${status.charAt(0).toUpperCase() + status.slice(1)} Proposals:**\n${list}`,
         ephemeral: true,
       });
+      break;
+    }
+
+    case 'kamiyo': {
+      if (!anthropic) {
+        await interaction.reply({ content: 'AI support not configured.', ephemeral: true });
+        return;
+      }
+
+      const question = interaction.options.getString('question', true);
+      const userId = interaction.user.id;
+      let history = conversationHistory.get(userId) || [];
+
+      history.push({ role: 'user', content: question });
+      if (history.length > 20) history = history.slice(-20);
+
+      await interaction.deferReply();
+
+      try {
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          system: SUPPORT_PROMPT,
+          messages: history,
+        });
+
+        const reply = response.content[0].type === 'text' ? response.content[0].text : '';
+
+        history.push({ role: 'assistant', content: reply });
+        conversationHistory.set(userId, history);
+
+        if (reply.length > 2000) {
+          await interaction.editReply(reply.slice(0, 2000));
+        } else {
+          await interaction.editReply(reply);
+        }
+      } catch (err) {
+        console.error('AI error:', err);
+        await interaction.editReply('Something went wrong. Please try again.');
+      }
       break;
     }
   }
