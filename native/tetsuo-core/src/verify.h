@@ -1,8 +1,7 @@
 /*
- * tetsuo-core: Proof verification engine
+ * Proof verification internals
  *
- * High-throughput batch verification for reputation and payment proofs
- * Optimized for the TETSUO × KAMIYO integration
+ * Wire format parsing, Poseidon public input, Groth16 check.
  */
 
 #ifndef TETSUO_VERIFY_H

@@ -1,18 +1,8 @@
 /*
- * agenc_zk.h - ZK Reputation Module for AgenC
+ * AgenC ZK reputation module
  *
- * Privacy-preserving reputation proofs for agent-to-agent trust.
- * Agents prove their reputation exceeds a threshold without revealing
- * the actual score.
- *
- * Integration with AgenC (https://github.com/tetsuo-ai/AgenC):
- *   #include "agenc_zk.h"
- *
- *   // Agent commits to reputation on registration
- *   agenc_zk_commit(score, secret, commitment);
- *
- *   // Agent proves tier to another agent
- *   agenc_zk_verify(proof, commitment, threshold);
+ * Commit to score, prove tier >= threshold.
+ * Poseidon commitment, Groth16 proof.
  */
 
 #ifndef AGENC_ZK_H

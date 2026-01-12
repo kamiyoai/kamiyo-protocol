@@ -1,8 +1,8 @@
 /*
- * tetsuo-core: Lock-free arena allocator
+ * Arena allocator with checkpoint/restore
  *
- * Zero-fragmentation memory management for proof verification
- * Cache-line aligned allocations for optimal performance
+ * Cache-line aligned, reference counted.
+ * Thread-local scratch arenas for verification temporaries.
  */
 
 #ifndef TETSUO_ARENA_H

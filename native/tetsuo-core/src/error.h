@@ -1,5 +1,5 @@
 /*
- * tetsuo-core: Error codes and handling
+ * Error codes and resource limits
  */
 
 #ifndef TETSUO_ERROR_H

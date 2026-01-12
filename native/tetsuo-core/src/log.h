@@ -1,15 +1,8 @@
 /*
- * tetsuo-core: Logging infrastructure
+ * Logging with compile-time level control
  *
- * Compile with -DTETSUO_LOG_LEVEL=N to set verbosity:
- *   0 = OFF (default for release)
- *   1 = ERROR
- *   2 = WARN
- *   3 = INFO
- *   4 = DEBUG
- *   5 = TRACE
- *
- * Compile with -DTETSUO_LOG_CALLBACK to use custom callback instead of stderr.
+ * -DTETSUO_LOG_LEVEL=N (0=off, 1=error, ..., 5=trace)
+ * Default: error in release, debug otherwise.
  */
 
 #ifndef TETSUO_LOG_H

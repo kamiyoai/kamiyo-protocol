@@ -1,5 +1,5 @@
 /*
- * tetsuo-core: Error handling implementation
+ * Error code to string mapping
  */
 
 #include "error.h"

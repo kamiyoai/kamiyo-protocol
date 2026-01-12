@@ -1,6 +1,7 @@
 /*
- * BN254 pairing operations for Groth16 verification
- * Uses mcl library for optimal ate pairing
+ * BN254 pairing and curve operations
+ *
+ * G1/G2/GT types, Groth16 verification via mcl.
  */
 
 #ifndef TETSUO_PAIRING_H

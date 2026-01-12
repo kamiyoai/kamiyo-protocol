@@ -1,6 +1,5 @@
 /*
- * tetsuo-core: Finite field arithmetic
- * BN254 base field with Montgomery representation
+ * BN254 field arithmetic - Montgomery form, x86-64 fast path
  */
 
 #include "field.h"

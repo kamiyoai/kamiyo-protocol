@@ -1,11 +1,5 @@
 /*
- * tetsuo-core: Arena allocator implementation
- *
- * Features:
- * - Cache-line aligned allocations
- * - Lock-free reference counting
- * - Checkpoint/restore for temporary allocations
- * - Thread-local scratch arenas
+ * Arena allocator - mmap backend, page-aligned blocks.
  */
 
 #include "arena.h"
@@ -22,10 +16,7 @@
 
 #define ALIGN_UP(x, align) (((x) + (align) - 1) & ~((align) - 1))
 
-/*
- * Platform-specific large allocation
- * Uses mmap/VirtualAlloc for better memory characteristics
- */
+/* Direct syscall for large allocations - avoids malloc overhead */
 static void *alloc_block(size_t size) {
 #ifdef _WIN32
     return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -222,10 +213,7 @@ size_t arena_peak(const arena_t *arena) {
     return arena->peak_usage;
 }
 
-/*
- * Thread-local scratch arena
- * Provides fast temporary allocations without contention
- */
+/* Thread-local scratch arena - 256KB per thread, auto-created on first use */
 #ifdef _WIN32
 static __declspec(thread) arena_t *tls_scratch = NULL;
 #else
