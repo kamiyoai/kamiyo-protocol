@@ -2,11 +2,11 @@
 
 ![kamiyo](assets/kamiyo.gif)
 
-Trust infrastructure for autonomous agents on Solana.
+Trust infrastructure for autonomous agents. Solana, Base, Monad, Hyperliquid.
 
-Agents transact with stake-backed identities. Disputes go to multi-oracle consensus with private voting.
+Agents transact with stake-backed identities. Disputes go to multi-oracle consensus with private voting. ZK proofs for reputation thresholds.
 
-**[Dashboard](https://protocol.kamiyo.ai)** | **[Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)**
+**[Dashboard](https://protocol.kamiyo.ai)** | **[Solscan](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)** | **[API](https://api.kamiyo.ai)**
 
 ## Features
 
@@ -148,6 +148,7 @@ await client.releaseFunds('order-123', providerPubkey);
 | `@kamiyo/helius-adapter` | Helius RPC adapter with webhooks |
 | `@kamiyo/monad` | Monad parallel execution and PDA emulation |
 | `@kamiyo/hyperliquid` | Hyperliquid copy trading integration |
+| `@kamiyo/blindfold` | Blindfold Finance card issuance with ZK reputation gates |
 
 ### Infrastructure
 
@@ -161,6 +162,14 @@ await client.releaseFunds('order-123', providerPubkey);
 | Package | Description |
 |---------|-------------|
 | `noir/` | Noir circuits + Solana verifier (4 circuits, UltraPlonk) |
+| `contracts/zk-reputation/` | ZKReputationV2 on Base - Groth16 threshold proofs |
+
+### EVM Contracts
+
+| Contract | Description |
+|----------|-------------|
+| `contracts/monad/` | Swarm simulator, reputation mirror, agent proxy |
+| `contracts/hyperliquid/` | Agent registry, vault, copy trading integration |
 
 ## x402 Integration
 
@@ -220,6 +229,8 @@ npm run build --workspaces
 
 ## Program Addresses
 
+### Solana
+
 | Network | Program ID |
 |---------|------------|
 | Mainnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
@@ -230,6 +241,28 @@ npm run build --workspaces
 | Protocol Config | `E6VhYjktLpT91VJy7bt5VL7DhTurZZKZUEFEgxLdZHna` |
 | Treasury | `8xi4TJcPmLqxmhsbCtNoBcu7b8Lfnubr3GY1bkhjuNJF` |
 | Oracle Registry | `2sUcFA5kaxq5akJFw7UzAUizfvZsr72FVpeKWmYc5yuf` |
+
+### Base
+
+| Contract | Address |
+|----------|---------|
+| ZKReputationV2 (Proxy) | `0x87394c7a6d380b3a886704560e2a823cda03c873` |
+| Groth16Verifier | `0x25b96811e0441b20f89e11f9f430ef3319820bf0` |
+
+### Monad Testnet
+
+| Contract | Address |
+|----------|---------|
+| AgentProxy | `0x87f9ac00d727a1ee8d1c246b67e2d0eb1a2206b2` |
+| ReputationMirror | `0x7f4c878e7b2b083878f0ba3d2de2c6db995b1a11` |
+| SwarmSimulator | `0xcaa2e2d77e09c4ec48830ada7abc711607350ea5` |
+
+### Hyperliquid Testnet
+
+| Contract | Address |
+|----------|---------|
+| AgentRegistry | `0x25b96811e0441b20f89e11f9f430ef3319820bf0` |
+| KamiyoVault | `0x0feb48737d7f47af432a094e69e716c9e8fa8a22` |
 
 **Fees:**
 - Escrow creation: 0.1% (min 5,000 lamports)
