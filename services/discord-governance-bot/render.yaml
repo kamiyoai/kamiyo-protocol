@@ -1,6 +1,6 @@
 services:
   - type: worker
-    name: kamiyo-governance-bot
+    name: kamiyo-discord-bot
     runtime: node
     rootDir: services/discord-governance-bot
     buildCommand: pnpm install && pnpm build
@@ -13,4 +13,8 @@ services:
       - key: GUILD_ID
         sync: false
       - key: GOVERNANCE_CHANNEL_ID
+        sync: false
+      - key: SUPPORT_CHANNEL_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
