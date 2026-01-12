@@ -32,6 +32,8 @@ jobs:
       - name: Install Solana
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Install Anchor
@@ -44,8 +46,7 @@ jobs:
       - name: Build with Anchor
         run: |
           rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
-          export PATH="$HOME/.cargo/bin:$PATH"
-          which cargo && cargo --version
+          which cargo-build-sbf && echo "Found cargo-build-sbf"
           anchor build
       - run: anchor test
       - name: Validate VK
