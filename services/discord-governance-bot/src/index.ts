@@ -261,10 +261,10 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('kamiyo')
-    .setDescription('Ask KAMIYO AI a question')
+    .setDescription('Ask the KAMIYO AI assistant about the protocol, token, governance, etc.')
     .addStringOption(opt =>
       opt.setName('question')
-        .setDescription('Your question')
+        .setDescription('e.g. "How do I vote?" or "What is KAMIYO?"')
         .setRequired(true)),
 ];
 
