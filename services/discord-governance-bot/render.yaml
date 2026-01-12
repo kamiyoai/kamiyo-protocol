@@ -1,0 +1,16 @@
+services:
+  - type: worker
+    name: kamiyo-governance-bot
+    runtime: node
+    rootDir: services/discord-governance-bot
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: GOVERNANCE_CHANNEL_ID
+        sync: false
