@@ -32,6 +32,13 @@ import {
   KamiyoNetwork,
   KAMIYO_NETWORKS,
 } from './types';
+import {
+  ReputationMemory,
+  ProofRecord,
+  PeerReputation,
+  TIER_NAMES,
+  type TierLevel,
+} from './reputation';
 
 interface ContextDefinition<T, M> {
   type: string;
@@ -176,11 +183,54 @@ export const kamiyoDisputeContext: ContextDefinition<DisputeContextInput, Disput
     `[disputes] active=${memory.activeDisputes.length} resolved=${memory.resolvedDisputes.length} refunds=${memory.totalRefundsIssued.toFixed(4)} avgTime=${(memory.avgResolutionTime / 3600000).toFixed(1)}h`,
 };
 
+interface ReputationContextInput {
+  agentId: string;
+  score?: number;
+}
+
+export const kamiyoReputationContext: ContextDefinition<ReputationContextInput, ReputationMemory> = {
+  type: 'kamiyo-reputation',
+  schema: createContextSchema(
+    {
+      agentId: { type: 'string', description: 'Agent identifier' },
+      score: { type: 'number', description: 'Initial reputation score (0-100)' },
+    },
+    (input: unknown) => {
+      const i = input as Record<string, unknown>;
+      if (!i.agentId || typeof i.agentId !== 'string') {
+        throw new Error('agentId is required');
+      }
+      return {
+        agentId: i.agentId,
+        score: typeof i.score === 'number' ? i.score : undefined,
+      };
+    }
+  ),
+  key: ({ agentId }) => `rep_${agentId}`,
+  create: (input): ReputationMemory => ({
+    commitment: null,
+    score: input.score ?? null,
+    tier: 0,
+    proofHistory: [],
+    verifiedPeers: {},
+    initialized: false,
+  }),
+  render: ({ memory, input }) => {
+    const tierName = TIER_NAMES[memory.tier];
+    const proofCount = memory.proofHistory.length;
+    const peerCount = Object.keys(memory.verifiedPeers).length;
+    const status = memory.initialized ? 'ready' : 'uninitialized';
+
+    return `[reputation:${input.agentId}] status=${status} tier=${tierName} proofs=${proofCount} verified_peers=${peerCount}`;
+  },
+};
+
 export function composeKamiyoContexts(agentId: string, network: KamiyoNetwork = 'devnet') {
   return [
     { context: kamiyoPaymentContext, input: { agentId, network } },
     { context: kamiyoDisputeContext, input: { agentId } },
+    { context: kamiyoReputationContext, input: { agentId } },
   ];
 }
 
-export type { ContextDefinition };
+export type { ContextDefinition, ReputationMemory, ProofRecord, PeerReputation };
