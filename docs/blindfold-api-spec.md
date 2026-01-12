@@ -89,6 +89,27 @@ Returns the current blacklist SMT root.
 }
 ```
 
+### GET /blacklist/proof/:agent_pk
+
+Generates an exclusion proof for the given agent. This is the endpoint Blindfold should call to get the proof data needed for `/verify/exclusion`.
+
+**Response (not blacklisted):**
+```json
+{
+  "root": "HEX_STRING",
+  "siblings": ["HEX_STRING", ...],
+  "blacklisted": false
+}
+```
+
+**Response (blacklisted):**
+```json
+{
+  "error": "Agent is blacklisted",
+  "blacklisted": true
+}
+```
+
 ## What Blindfold Needs to Implement
 
 ### 1. Database changes
@@ -147,22 +168,64 @@ async function issueCard(payment) {
     throw new Error(`Amount exceeds tier limit: $${repCheck.limit}`);
   }
 
-  // Get current blacklist root
-  const { root } = await fetch('https://api.kamiyo.ai/blacklist/root')
-    .then(r => r.json());
+  // Get exclusion proof from KAMIYO API (generates proof server-side)
+  const exclusionProof = await fetch(
+    `https://api.kamiyo.ai/blacklist/proof/${payment.agent_pk}`
+  ).then(r => r.json());
 
-  // Verify exclusion via KAMIYO API
+  if (exclusionProof.blacklisted) {
+    throw new Error('Agent is blacklisted');
+  }
+
+  // Verify exclusion proof (optional - proof is already validated server-side)
   const exclusionCheck = await fetch('https://api.kamiyo.ai/verify/exclusion', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       agent_pk: payment.agent_pk,
-      root,
-      siblings: JSON.parse(payment.exclusion_proof_siblings),
+      root: exclusionProof.root,
+      siblings: exclusionProof.siblings,
     }),
   }).then(r => r.json());
 
   if (!exclusionCheck.not_blacklisted) {
+    throw new Error('Exclusion verification failed');
+  }
+
+  return proceedWithReloadly(payment);
+}
+```
+
+**Simplified flow** (if you trust our proof generation):
+
+```typescript
+async function issueCard(payment) {
+  if (!payment.requires_reputation_check) {
+    return proceedWithReloadly(payment);
+  }
+
+  // Check reputation
+  const repCheck = await fetch('https://api.kamiyo.ai/verify/reputation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agent_pk: payment.agent_pk,
+      commitment: payment.reputation_commitment,
+      threshold: TIER_THRESHOLDS[payment.requested_tier],
+      proof_bytes: payment.reputation_proof,
+    }),
+  }).then(r => r.json());
+
+  if (!repCheck.verified || payment.usd_amount > repCheck.limit) {
+    throw new Error(repCheck.error || 'Reputation check failed');
+  }
+
+  // Check blacklist (single call)
+  const blacklistCheck = await fetch(
+    `https://api.kamiyo.ai/blacklist/proof/${payment.agent_pk}`
+  ).then(r => r.json());
+
+  if (blacklistCheck.blacklisted) {
     throw new Error('Agent is blacklisted');
   }
 
