@@ -1,18 +1,15 @@
 {
-  "name": "@kamiyo/agent-client",
+  "name": "@kamiyo/daydreams",
   "version": "1.0.0",
-  "description": "Autonomous agent SDK for Kamiyo protocol. Integrates with Daydreams agent framework for payment-enabled AI agents with quality verification and dispute resolution.",
+  "description": "Daydreams extension for Kamiyo payments and ZK reputation.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
   "homepage": "https://kamiyo.ai",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/kamiyo.git",
-    "directory": "packages/kamiyo-agent-client"
-  },
-  "bugs": {
-    "url": "https://github.com/kamiyo-ai/kamiyo/issues"
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-daydreams"
   },
   "scripts": {
     "build": "tsc",
@@ -25,26 +22,20 @@
     "daydreams",
     "daydreamsai",
     "ai-agents",
-    "autonomous-agents",
-    "agent-framework",
     "mcp",
     "model-context-protocol",
     "kamiyo",
     "payments",
-    "micropayments",
-    "x402",
     "escrow",
-    "quality-verification",
-    "dispute-resolution",
-    "solana",
-    "coinbase-cdp"
+    "zk-reputation"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
-    "@solana/web3.js": "^1.95.8",
-    "@coral-xyz/anchor": "^0.31.1",
+    "@kamiyo/agent-core": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
-    "@kamiyo/middleware": "workspace:*"
+    "@kamiyo/middleware": "workspace:*",
+    "@solana/web3.js": "^1.95.8",
+    "@coral-xyz/anchor": "^0.31.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
@@ -77,7 +68,8 @@
     "contexts": [
       "kamiyoPaymentContext",
       "kamiyoServiceContext",
-      "kamiyoDisputeContext"
+      "kamiyoDisputeContext",
+      "kamiyoReputationContext"
     ],
     "actions": [
       "kamiyo.consumeAPI",
@@ -86,10 +78,16 @@
       "kamiyo.discoverAPIs",
       "kamiyo.checkBalance",
       "kamiyo.getPaymentHistory",
-      "kamiyo.getQualityStats"
+      "kamiyo.getQualityStats",
+      "kamiyo.generateCommitment",
+      "kamiyo.proveReputation",
+      "kamiyo.verifyProof",
+      "kamiyo.getReputationTier",
+      "kamiyo.canProveTier",
+      "kamiyo.getVerifiedPeers"
     ],
     "mcp": {
-      "tools": 8,
+      "tools": 13,
       "transport": ["stdio", "sse"]
     }
   }

@@ -7,7 +7,7 @@
  * Usage with Daydreams:
  * ```typescript
  * import { createMcpExtension } from '@daydreamsai/mcp';
- * import { createKamiyoMCPConfig } from '@kamiyo/agent-client';
+ * import { createKamiyoMCPConfig } from '@kamiyo/daydreams';
  *
  * const mcpExtension = createMcpExtension([
  *   createKamiyoMCPConfig({ network: 'devnet' }),
@@ -20,7 +20,7 @@
  *
  * Standalone server:
  * ```bash
- * npx @kamiyo/agent-client mcp-server --network devnet
+ * npx @kamiyo/daydreams mcp-server --network devnet
  * ```
  *
  * @see https://docs.dreams.fun/docs/core/concepts/mcp
@@ -28,20 +28,20 @@
  */
 
 import {
-  MCPToolDefinition,
-  MCPServerConfig,
-  KamiyoExtensionConfig,
-  KamiyoNetwork,
-  AuthProvider,
-  AuthResult,
-  KAMIYO_NETWORKS,
-} from './types';
-import {
   ReputationManager,
   type GenerateCommitmentInput,
   type ProveReputationInput,
   type VerifyProofInput,
-} from './reputation';
+  AuthProvider,
+  AuthResult,
+  KAMIYO_NETWORKS,
+} from '@kamiyo/agent-core';
+import {
+  MCPToolDefinition,
+  MCPServerConfig,
+  KamiyoExtensionConfig,
+  KamiyoNetwork,
+} from './types';
 import { createKamiyoExtension, KamiyoExtension } from './extension';
 
 export const KAMIYO_MCP_TOOLS: MCPToolDefinition[] = [
@@ -341,7 +341,7 @@ export function createKamiyoMCPConfig(
     transport: {
       type: 'stdio',
       command: 'npx',
-      args: ['@kamiyo/agent-client', ...args],
+      args: ['@kamiyo/daydreams', ...args],
     },
   };
 }

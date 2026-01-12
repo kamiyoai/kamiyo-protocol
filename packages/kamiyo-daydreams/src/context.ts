@@ -7,7 +7,7 @@
  * Usage:
  * ```typescript
  * import { createDreams, context } from '@daydreamsai/core';
- * import { kamiyoPaymentContext, consumeAPIAction, fileDisputeAction } from '@kamiyo/agent-client';
+ * import { kamiyoPaymentContext, consumeAPIAction, fileDisputeAction } from '@kamiyo/daydreams';
  *
  * const agent = createDreams({
  *   model: openai('gpt-4o'),
@@ -30,15 +30,36 @@ import {
   QualityStats,
   PaymentContextInput,
   KamiyoNetwork,
-  KAMIYO_NETWORKS,
 } from './types';
 import {
-  ReputationMemory,
-  ProofRecord,
-  PeerReputation,
   TIER_NAMES,
+  KAMIYO_NETWORKS,
   type TierLevel,
-} from './reputation';
+} from '@kamiyo/agent-core';
+
+export interface ReputationMemory {
+  commitment: string | null;
+  score: number | null;
+  tier: TierLevel;
+  proofHistory: ProofRecord[];
+  verifiedPeers: Record<string, VerifiedPeer>;
+  initialized: boolean;
+}
+
+export interface ProofRecord {
+  proof: string;
+  threshold: number;
+  tier: TierLevel;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface VerifiedPeer {
+  agentId: string;
+  verifiedTier: TierLevel;
+  lastVerified: number;
+  trustScore: number;
+}
 
 interface ContextDefinition<T, M> {
   type: string;
@@ -233,4 +254,4 @@ export function composeKamiyoContexts(agentId: string, network: KamiyoNetwork = 
   ];
 }
 
-export type { ContextDefinition, ReputationMemory, ProofRecord, PeerReputation };
+export type { ContextDefinition };

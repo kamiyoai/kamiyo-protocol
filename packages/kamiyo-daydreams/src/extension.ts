@@ -6,16 +6,22 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { Wallet } from '@coral-xyz/anchor';
 import { KamiyoClient, AgreementManager } from '@kamiyo/sdk';
 import {
-  KamiyoExtensionConfig,
-  KamiyoMemory,
-  PaymentRecord,
-  DisputeRecord,
-  QualityStats,
   QualityCheckResult,
   QualityEvaluator,
   CircuitBreakerConfig,
   CircuitBreakerState,
   StorageProvider,
+  KAMIYO_NETWORKS,
+  DEFAULT_CIRCUIT_BREAKER_CONFIG,
+  KamiyoError,
+  MemoryStorage,
+} from '@kamiyo/agent-core';
+import {
+  KamiyoExtensionConfig,
+  KamiyoMemory,
+  PaymentRecord,
+  DisputeRecord,
+  QualityStats,
   ConsumeAPIInput,
   ConsumeAPIOutput,
   CreateEscrowInput,
@@ -27,12 +33,8 @@ import {
   DiscoveredAPI,
   CheckBalanceInput,
   CheckBalanceOutput,
-  KAMIYO_NETWORKS,
   DEFAULT_CONFIG,
-  DEFAULT_CIRCUIT_BREAKER_CONFIG,
-  KamiyoError,
 } from './types';
-import { MemoryStorage } from './storage';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_PAYMENTS_HISTORY = 1000;
@@ -113,7 +115,7 @@ import {
   type VerifyProofOutput,
   type TierLevel,
   type PeerReputation,
-} from './reputation';
+} from '@kamiyo/agent-core';
 
 type ActionHandler<I, O> = (input: I, ctx: ExtensionContext) => Promise<O>;
 
