@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { PublicKey, Connection } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { createHash } from 'crypto';
 
 const SMT_DEPTH = 256;
@@ -169,25 +169,6 @@ function verifyExclusionProof(
   return current === root;
 }
 
-const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-const BLACKLIST_REGISTRY = process.env.BLACKLIST_REGISTRY_PDA;
-
-async function fetchOnChainRoot(): Promise<bigint | null> {
-  if (!BLACKLIST_REGISTRY) return null;
-
-  try {
-    const connection = new Connection(RPC_URL, 'confirmed');
-    const pubkey = new PublicKey(BLACKLIST_REGISTRY);
-    const account = await connection.getAccountInfo(pubkey);
-    if (!account) return null;
-
-    const rootBytes = account.data.slice(8, 40);
-    return bytesToField(rootBytes);
-  } catch {
-    return null;
-  }
-}
-
 export async function verifyExclusion(c: Context): Promise<Response> {
   try {
     const body = await c.req.json<ExclusionRequest>();
@@ -226,11 +207,12 @@ export async function verifyExclusion(c: Context): Promise<Response> {
       }, 400);
     }
 
-    const onChainRoot = await fetchOnChainRoot();
-    if (onChainRoot !== null && onChainRoot !== root) {
+    // Verify root matches our authoritative in-memory blacklist
+    const expectedRoot = blacklist.getRoot();
+    if (root !== expectedRoot) {
       return c.json<ExclusionResponse>({
         not_blacklisted: false,
-        error: 'Root mismatch: provided root does not match on-chain registry',
+        error: `Root mismatch: expected ${expectedRoot.toString(16).padStart(64, '0')}`,
       }, 400);
     }
 
