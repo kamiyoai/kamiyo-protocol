@@ -142,7 +142,7 @@ agenc_zk_result_t agenc_zk_verify(
     }
 
     /* Check threshold matches */
-    uint16_t proof_threshold = (proof->threshold >> 8) | (proof->threshold << 8); /* big-endian */
+    uint16_t proof_threshold = (uint16_t)((proof->threshold >> 8) | (proof->threshold << 8));
     if (proof_threshold < threshold) {
         return AGENC_ZK_ERR_BELOW_THRESHOLD;
     }
