@@ -3,8 +3,8 @@ services:
     name: kamiyo-discord-bot
     runtime: node
     rootDir: services/discord-governance-bot
-    buildCommand: corepack enable && pnpm install && pnpm build
-    startCommand: pnpm start
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: DISCORD_TOKEN
         sync: false
