@@ -1,4 +1,4 @@
-# KAMIYO Governance Bot
+# KAMIYO Discord Bot
 
 Token-weighted voting bot for Discord.
 
@@ -18,7 +18,7 @@ Token-weighted voting bot for Discord.
 ### 1. Create Discord Bot
 
 1. Go to https://discord.com/developers/applications
-2. Click "New Application" → name it "KAMIYO Governance"
+2. Click "New Application" → name it "KAMIYO"
 3. Go to "Bot" tab → "Add Bot"
 4. Enable these Privileged Gateway Intents:
    - Server Members Intent
