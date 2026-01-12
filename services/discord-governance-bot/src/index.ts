@@ -161,12 +161,12 @@ function createProposalEmbed(proposal: Proposal): EmbedBuilder {
   const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
   const minsLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
 
-  const statusEmoji = proposal.status === 'active' ? '🟢' :
-                      proposal.status === 'passed' ? '✅' :
-                      proposal.status === 'rejected' ? '❌' : '⏰';
+  const statusTag = proposal.status === 'active' ? '[ACTIVE]' :
+                    proposal.status === 'passed' ? '[PASSED]' :
+                    proposal.status === 'rejected' ? '[REJECTED]' : '[EXPIRED]';
 
   const embed = new EmbedBuilder()
-    .setTitle(`${statusEmoji} ${proposal.title}`)
+    .setTitle(`${statusTag} ${proposal.title}`)
     .setDescription(proposal.description)
     .addFields(
       { name: 'For', value: `${formatNumber(results.forVotes)} KAMIYO (${results.forPct.toFixed(1)}%)`, inline: true },
@@ -435,8 +435,8 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
 
       const list = filtered.slice(-10).map(p => {
         const results = calculateResults(p);
-        const emoji = p.status === 'active' ? '🟢' : p.status === 'passed' ? '✅' : '❌';
-        return `${emoji} **${p.id}**: ${p.title} (${results.forPct.toFixed(0)}% for)`;
+        const tag = p.status === 'active' ? '[ACTIVE]' : p.status === 'passed' ? '[PASSED]' : '[REJECTED]';
+        return `${tag} **${p.id}**: ${p.title} (${results.forPct.toFixed(0)}% for)`;
       }).join('\n');
 
       await interaction.reply({
