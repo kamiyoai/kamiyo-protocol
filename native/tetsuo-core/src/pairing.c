@@ -1,8 +1,8 @@
 /*
- * BN254 pairing implementation using mcl library
+ * BN254 optimal ate pairing via mcl
  *
- * mcl: https://github.com/herumi/mcl
- * Provides highly optimized BN254 (alt_bn128) pairing operations
+ * Groth16 verification reduces to checking a pairing equation.
+ * mcl handles the heavy lifting (Miller loop + final exp).
  */
 
 #include "pairing.h"
@@ -64,18 +64,13 @@ bool pairing_is_initialized(void) {
     return atomic_load(&g_pairing_initialized);
 }
 
-/* Convert our g1_t to mcl format */
+/* Convert our G1 point to mcl's serialization format */
 static void g1_to_mcl(mcl_g1_t *out, const g1_t *in) {
     if (in->is_infinity) {
         mclBnG1_clear(out);
         return;
     }
 
-    /*
-     * mcl expects serialized affine coordinates in little-endian format.
-     * Our field_t stores limbs in little-endian order internally.
-     * Use mclBnG1_setStr with binary mode or deserialize directly.
-     */
     uint8_t buf[64];
 
     /* Convert from Montgomery to standard form and serialize */
@@ -124,18 +119,13 @@ static void g1_from_mcl(g1_t *out, const mcl_g1_t *in) {
     field_to_mont(&out->y, &out->y);
 }
 
-/* Convert our g2_t to mcl format */
+/* Convert our G2 point to mcl format. Fp2 coords: x_im || x_re || y_im || y_re */
 static void g2_to_mcl(mcl_g2_t *out, const g2_t *in) {
     if (in->is_infinity) {
         mclBnG2_clear(out);
         return;
     }
 
-    /*
-     * G2 has Fp2 coordinates: x = x_re + i*x_im, y = y_re + i*y_im
-     * mcl serialization format: x_im || x_re || y_im || y_re (each 32 bytes)
-     * Convert from Montgomery to standard form before serializing.
-     */
     uint8_t buf[128];
     field_t tmp;
 
@@ -465,16 +455,7 @@ bool groth16_verify(
         g1_add(&ic_acc, &ic_acc, &tmp);
     }
 
-    /*
-     * Groth16 verification equation:
-     * e(A, B) = e(α, β) · e(IC_acc, γ) · e(C, δ)
-     *
-     * Rearranged for single multi-pairing:
-     * e(A, B) · e(IC_acc, -γ) · e(C, -δ) · e(-α, β) = 1
-     *
-     * Or equivalently check:
-     * e(A, B) · e(-IC_acc, γ) · e(-C, δ) = e(α, β)
-     */
+    /* e(A,B) · e(-IC,γ) · e(-C,δ) = e(α,β) */
 
     /* Negate points for the check */
     g1_t neg_ic_acc, neg_c;
@@ -547,23 +528,8 @@ bool groth16_verify_batch(
     }
 
     /*
-     * Batch verification using random linear combination.
-     *
-     * For each proof i, Groth16 verification is:
-     *   e(A_i, B_i) · e(-IC_i, γ) · e(-C_i, δ) = e(α, β)
-     *
-     * Batch check with random scalars r_i:
-     *   Π_i e(r_i·A_i, B_i) · e(-Σ(r_i·IC_i), γ) · e(-Σ(r_i·C_i), δ) = e(α, β)^(Σr_i)
-     *
-     * Optimization: Miller loop is linear, so we can compute:
-     *   miller(Σ(r_i·A_i), B_avg) · miller(-IC_acc, γ) · miller(-C_acc, δ)
-     *
-     * But B_i are different per proof (in G2), so we need n+2 pairings:
-     *   - n pairings: e(r_i·A_i, B_i) for each proof
-     *   - 1 pairing: e(-IC_acc, γ)
-     *   - 1 pairing: e(-C_acc, δ)
-     *
-     * Savings: IC and C accumulation reduces 2n pairings to 2.
+     * Random linear combination: Σrᵢ(verification eq)ᵢ
+     * n+2 pairings total: n for (rᵢAᵢ, Bᵢ), plus IC and C accumulators.
      */
 
     /* Use scratch arena for all temporary allocations */
@@ -669,13 +635,7 @@ bool groth16_verify_batch(
 
     if (!ok) return false;
 
-    /*
-     * Compute RHS = e(α, β)^(Σr_i)
-     *
-     * Since e(α,β) is precomputed, we need GT exponentiation.
-     * GT exp is expensive, so we use a different approach:
-     * Compute e(Σr_i · α, β) instead.
-     */
+    /* RHS: e(Σrᵢ·α, β) - cheaper than GT exponentiation */
     g1_t scaled_alpha;
     g1_scalar_mul(&scaled_alpha, &vk->alpha, &r_sum);
 

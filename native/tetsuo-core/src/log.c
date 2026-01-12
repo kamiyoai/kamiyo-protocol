@@ -1,5 +1,5 @@
 /*
- * tetsuo-core: Logging implementation
+ * Logging - stderr with color, or custom callback
  */
 
 #include "log.h"

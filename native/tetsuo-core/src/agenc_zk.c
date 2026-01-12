@@ -1,7 +1,5 @@
 /*
- * agenc_zk.c - ZK Reputation Module for AgenC
- *
- * Implementation of privacy-preserving reputation proofs.
+ * AgenC ZK module - wraps tetsuo_ctx for reputation proofs
  */
 
 #include "agenc_zk.h"

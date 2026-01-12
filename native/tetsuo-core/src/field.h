@@ -1,8 +1,8 @@
 /*
- * tetsuo-core: High-performance finite field arithmetic
+ * BN254 prime field arithmetic
  *
- * 256-bit prime field for BN254 curve operations
- * Hand-optimized with x86-64 assembly for critical paths
+ * Montgomery representation, x86-64 assembly where it counts.
+ * p = 21888242871839275222246405745257275088696311157297823662689037894645226208583
  */
 
 #ifndef TETSUO_FIELD_H
@@ -16,7 +16,7 @@
 #include <immintrin.h>
 #endif
 
-/* BN254 base field prime: p = 21888242871839275222246405745257275088696311157297823662689037894645226208583 */
+/* Field modulus p */
 static const uint64_t FIELD_MODULUS[4] = {
     0x3C208C16D87CFD47ULL,
     0x97816A916871CA8DULL,
@@ -24,7 +24,7 @@ static const uint64_t FIELD_MODULUS[4] = {
     0x30644E72E131A029ULL
 };
 
-/* R = 2^256 mod p (Montgomery form) */
+/* Montgomery constant R = 2^256 mod p */
 static const uint64_t FIELD_R[4] = {
     0xD35D438DC58F0D9DULL,
     0x0A78EB28F5C70B3DULL,
@@ -32,7 +32,7 @@ static const uint64_t FIELD_R[4] = {
     0x0E0A77C19A07DF2FULL
 };
 
-/* R^2 mod p */
+/* R² mod p for toMont conversion */
 static const uint64_t FIELD_R2[4] = {
     0xF32CFC5B538AFA89ULL,
     0xB5E71911D44501FBULL,
@@ -40,7 +40,7 @@ static const uint64_t FIELD_R2[4] = {
     0x06D89F71CAB8351FULL
 };
 
-/* -p^(-1) mod 2^64 */
+/* Montgomery reduction constant: -p⁻¹ mod 2⁶⁴ */
 static const uint64_t FIELD_INV = 0x87D20782E4866389ULL;
 
 typedef struct {

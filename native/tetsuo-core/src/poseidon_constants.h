@@ -1,12 +1,8 @@
 /*
- * Poseidon round constants for BN254 scalar field
- * Parameters: t=3, R_F=8, R_P=57 (circomlib compatible)
+ * Poseidon round constants (t=3, R_F=8, R_P=57)
  *
- * Source: TaceoLabs/poseidon-rust (circom_t3.rs)
- * Reference: https://github.com/TaceoLabs/poseidon-rust
- *
- * Total: 171 constants (57 rounds * 3 constants per round)
- * In partial rounds, only the first constant is used but all are stored.
+ * 171 constants from TaceoLabs/poseidon-rust.
+ * circomlib compatible.
  */
 
 #ifndef POSEIDON_CONSTANTS_H
@@ -257,14 +253,7 @@ static const char *POSEIDON_RC_HEX[171] = {
     "1a730d372310ba82320345a29ac4238ed3f07a8a2b4e121bb50ddb9af407f451",
 };
 
-/*
- * Convert hex string to field element (internal use).
- * Input: 64-character hex string (256 bits, big-endian).
- * Output: field_t in standard (non-Montgomery) form.
- *
- * NOTE: For internal use only with compile-time constants.
- * Validates hex string length to prevent buffer overflows.
- */
+/* Hex string -> field element (big-endian, 64 chars expected) */
 static inline void hex_to_field(field_t *out, const char *hex) {
     /* Validate hex string length - must be exactly 64 characters */
     size_t len = 0;

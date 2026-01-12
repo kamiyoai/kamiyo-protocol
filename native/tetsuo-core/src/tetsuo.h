@@ -1,8 +1,8 @@
 /*
- * tetsuo-core: Public API
+ * tetsuo-core public API
  *
- * Native proof verification engine for TETSUO × KAMIYO
- * High-performance implementation optimized for batch operations
+ * Groth16 proof verification for ZK reputation.
+ * Single and batch modes, arena-backed memory.
  */
 
 #ifndef TETSUO_H

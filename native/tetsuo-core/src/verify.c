@@ -1,6 +1,8 @@
 /*
- * tetsuo-core: Proof verification engine
- * Groth16 batch verification with Pippenger MSM
+ * Groth16 proof verification
+ *
+ * Poseidon hash for public inputs, BN254 pairing via mcl.
+ * Batch verification uses random linear combination.
  */
 
 #include "verify.h"
@@ -20,23 +22,9 @@
 #endif
 
 /*
- * Poseidon MDS matrix for t=3 (3x3 state width) over BN254 scalar field.
- *
- * Origin: These are the first 9 elements of the circomlib Poseidon MDS
- * matrix for the BN254 scalar field (r ≈ 2^254), computed as follows:
- *
- * 1. Start with a Cauchy matrix where M[i][j] = 1/(x_i + y_j)
- * 2. Use x = [0, 1, 2, ...] and y = [t, t+1, t+2, ...] where t = state width
- * 3. Verify the matrix is MDS (all square submatrices are invertible)
- *
- * Reference: https://github.com/iden3/circomlib/blob/master/circuits/poseidon.circom
- *
- * The values below are in little-endian 64-bit limb representation.
- * Each inner array represents a 256-bit field element as [limb0, limb1, limb2, limb3].
- *
- * SECURITY NOTE: For production deployments, verify these constants match
- * the circomlib reference implementation or regenerate using the Poseidon
- * specification algorithm (https://eprint.iacr.org/2019/458.pdf).
+ * Poseidon MDS matrix (t=3, circomlib compatible)
+ * Cauchy construction ensures maximum distance separability.
+ * Limbs are little-endian.
  */
 static const uint64_t POSEIDON_MDS[3][3][4] = {
     {{0x109b7f411ba0e4c9ULL, 0xd69b5a8127c15fe0ULL, 0x58d3f7e5e3d7a5b9ULL, 0x0b85cda6a5f9a9ddULL},
@@ -63,26 +51,8 @@ static bool get_random_bytes(uint8_t *buf, size_t len) {
 }
 
 /*
- * Poseidon hash with x^5 S-box for BN254
- * Parameters: t=3 (width), alpha=5, R_F=8 (full rounds), R_P=57 (partial rounds)
- *
- * Constants sourced from TaceoLabs/poseidon-rust (circomlib compatible).
- * Reference: https://github.com/TaceoLabs/poseidon-rust
- *
- * Structure (57 rounds total as stored):
- * - Rounds 0-3: Full rounds (ARK all + S-box all + MDS)
- * - Rounds 4-56: Partial rounds (ARK first + S-box first + MDS)
- * Wait, circomlib uses a different structure - let's use the correct one:
- *
- * Correct circomlib structure (65 total rounds):
- * - 4 initial full rounds
- * - 57 partial rounds
- * - 4 final full rounds
- *
- * With 171 constants (3 per round for 57 stored rounds), we need to
- * reorganize. The TaceoLabs storage is optimized differently.
- *
- * For now, using the stored constants directly with proper round structure.
+ * Poseidon parameters: t=3, α=5, R_F=8, R_P=57
+ * TaceoLabs-optimized constants (171 total).
  */
 #define POSEIDON_T 3
 #define POSEIDON_R_F 8       /* Full rounds (4 at start, 4 at end) */
@@ -129,20 +99,7 @@ static void mds_mix(field_t state[3]) {
     state[2] = tmp[2];
 }
 
-/*
- * Poseidon hash function (circomlib compatible).
- *
- * TaceoLabs stores 171 constants (57 rounds * 3 constants each).
- * Their structure for t=3, R_F=8, R_P=57 with optimized constants:
- * - 57 "rounds" with 3 constants per round
- * - First 4 rounds: full (S-box on all elements)
- * - Middle 49 rounds: partial (S-box on first element only)
- * - Last 4 rounds: full (S-box on all elements)
- * Total: 4 + 49 + 4 = 57 rounds
- *
- * This differs from standard circomlib which uses 65 rounds (8+57).
- * TaceoLabs optimizes by pre-computing combined round constants.
- */
+/* Poseidon sponge: 4 full + 49 partial + 4 full rounds */
 static void poseidon_hash(field_t *out, const field_t *inputs, size_t count) {
     poseidon_init_constants();
 
@@ -329,9 +286,8 @@ static void point_add(point_t *r, const point_t *p, const point_t *q) {
     field_mul(&r->z, &r->z, &h);
 }
 
-/* Currently unused - kept for potential non-mcl fallback implementation */
-__attribute__((unused))
-static void point_mul(point_t *r, const point_t *p, const field_t *scalar) {
+/* Scalar multiplication (Montgomery ladder, constant-time). Retained for non-mcl builds. */
+static void __attribute__((unused)) point_mul(point_t *r, const point_t *p, const field_t *scalar) {
     point_t r0, r1;
 
     point_set_infinity(&r0);
@@ -621,23 +577,9 @@ verify_result_t verify_proof_ex(verify_ctx_t *ctx, const proof_t *proof) {
             return VERIFY_INVALID_PROOF;
         }
     } else {
-        /*
-         * Pairing not available or verification key not loaded.
-         *
-         * SECURITY: Cannot return VERIFY_OK without cryptographic verification.
-         * This would allow any well-formed proof to pass, completely bypassing
-         * the ZK security guarantee.
-         *
-         * To enable cryptographic verification:
-         * 1. Build with USE_MCL=1 (make USE_MCL=1)
-         * 2. Load verification key via verify_ctx_load_vk()
-         * 3. Ensure mcl library is available at runtime
-         *
-         * The VERIFY_INVALID_PROOF result indicates the proof could not be
-         * cryptographically verified, NOT that it is necessarily invalid.
-         */
-        LOG_ERROR("verify_proof_ex: cryptographic verification unavailable "
-                  "(pairing=%d, vk=%p)", pairing_is_initialized(), (void*)ctx->groth16_vk);
+        /* No pairing available - cannot verify cryptographically */
+        LOG_ERROR("verify_proof_ex: pairing unavailable (init=%d vk=%p)",
+                  pairing_is_initialized(), (void*)ctx->groth16_vk);
         (void)pub_input;
         return VERIFY_INVALID_PROOF;
     }

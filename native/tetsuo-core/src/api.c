@@ -1,5 +1,5 @@
 /*
- * tetsuo-core: Public API implementation
+ * Public API - thin wrapper over verify_ctx and batch_ctx
  */
 
 #include "tetsuo.h"
