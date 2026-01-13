@@ -516,7 +516,7 @@ async function startMentionStream(
     try {
       const mentions = await twitter.v2.userMentionTimeline(myId, {
         since_id: lastSeenId,
-        'tweet.fields': ['author_id', 'conversation_id'],
+        'tweet.fields': ['author_id', 'conversation_id', 'in_reply_to_user_id'],
         max_results: 10,
       });
 
@@ -544,6 +544,20 @@ async function startMentionStream(
             lastSeenId = tweet.id;
             setBotState('lastSeenId', lastSeenId);
             continue;
+          }
+
+          // Skip replies to our own tweets (auto-mentions in thread)
+          // unless they explicitly have substance beyond the auto-mention
+          const tweetWithReply = tweet as typeof tweet & { in_reply_to_user_id?: string };
+          if (tweetWithReply.in_reply_to_user_id === myId) {
+            const textWithoutMentions = tweet.text.replace(/@\w+/g, '').trim();
+            // If it's just a short reply in our thread, skip it
+            if (textWithoutMentions.length < 20 || isEngagementComment(textWithoutMentions)) {
+              logger.info('Skipping thread reply', { tweetId: tweet.id, text: textWithoutMentions.slice(0, 30) });
+              lastSeenId = tweet.id;
+              setBotState('lastSeenId', lastSeenId);
+              continue;
+            }
           }
 
           // Mark as processed BEFORE handling (prevents race conditions)
