@@ -21,9 +21,9 @@ pnpm -F @kamiyo/eliza build
 
 cd examples/eliza-demo && pnpm install && cd ../..
 cd examples/e2e-protocol && pnpm install && cd ../..
-cd examples/tetsuo-demo && pnpm install && cd ../..
+cd examples/dark-forest-demo && pnpm install && cd ../..
 
 echo ""
 echo "Done. Run one of:"
 echo "  cd examples/eliza-demo && pnpm dev"
-echo "  cd examples/tetsuo-demo && pnpm server"
+echo "  cd examples/dark-forest-demo && pnpm server"

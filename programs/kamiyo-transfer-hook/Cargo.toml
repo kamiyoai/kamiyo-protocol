@@ -1,0 +1,23 @@
+[package]
+name = "kamiyo-transfer-hook"
+version = "0.1.0"
+description = "KAMIYO Transfer Hook - MEV Protection for $KAMIYO token"
+edition = "2021"
+license = "BUSL-1.1"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kamiyo_transfer_hook"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.31.1", features = ["token_2022"] }
+spl-transfer-hook-interface = "0.8"

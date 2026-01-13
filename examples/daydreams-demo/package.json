@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@kamiyo/daydreams": "workspace:*",
-    "@kamiyo/tetsuo": "file:../../packages/kamiyo-tetsuo",
+    "@kamiyo/dark-forest": "file:../../packages/kamiyo-dark-forest",
     "gradient-string": "^3.0.0"
   },
   "devDependencies": {

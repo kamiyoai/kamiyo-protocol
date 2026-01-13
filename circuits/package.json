@@ -15,6 +15,7 @@
     "verify": "snarkjs groth16 verify build/verification_key.json build/public.json build/proof.json",
     "export:solana": "node scripts/export-solana-verifier.js",
     "test": "node scripts/test-circuit.js",
+    "test:agent-collab": "mocha --timeout 120000 agent-collab/test/*.test.js",
     "clean": "rm -rf build"
   },
   "dependencies": {
@@ -22,7 +23,10 @@
     "snarkjs": "^0.7.4"
   },
   "devDependencies": {
-    "circom_tester": "^0.0.19"
+    "chai": "^4.3.10",
+    "circom_tester": "^0.0.19",
+    "circomlibjs": "^0.1.7",
+    "mocha": "^10.2.0"
   },
   "engines": {
     "node": ">=18.0.0"

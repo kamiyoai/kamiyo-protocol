@@ -22,7 +22,7 @@ class MockWallet implements Partial<Wallet> {
   }
 }
 
-describe('TETSUO Inference SDK Input Validation', () => {
+describe('DARK FOREST Inference SDK Input Validation', () => {
   let client: InferenceClient;
   let mockWallet: MockWallet;
 

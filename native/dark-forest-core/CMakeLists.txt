@@ -1,0 +1,131 @@
+cmake_minimum_required(VERSION 3.16)
+project(dark_forest-core VERSION 0.1.0 LANGUAGES C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# Build options
+option(DARK_FOREST_BUILD_SHARED "Build shared library" ON)
+option(DARK_FOREST_BUILD_STATIC "Build static library" ON)
+option(DARK_FOREST_BUILD_TESTS "Build tests" OFF)
+option(DARK_FOREST_BUILD_BENCH "Build benchmarks" OFF)
+option(DARK_FOREST_ENABLE_ASM "Enable assembly optimizations" ON)
+
+# Compiler flags
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -march=native -mtune=native")
+    set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fsanitize=address,undefined")
+
+    if(DARK_FOREST_ENABLE_ASM AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mbmi2 -madx")
+    endif()
+
+    # LTO for release builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
+    endif()
+endif()
+
+if(MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /DNDEBUG")
+endif()
+
+# Source files
+set(DARK_FOREST_SOURCES
+    src/field.c
+    src/arena.c
+    src/verify.c
+    src/pairing.c
+    src/log.c
+    src/error.c
+    src/api.c
+    src/agenc_zk.c
+)
+
+set(DARK_FOREST_HEADERS
+    src/dark_forest.h
+    src/field.h
+    src/arena.h
+    src/verify.h
+    src/pairing.h
+    src/log.h
+    src/error.h
+    src/poseidon_constants.h
+    src/agenc_zk.h
+)
+
+# Static library
+if(DARK_FOREST_BUILD_STATIC)
+    add_library(dark_forest_static STATIC ${DARK_FOREST_SOURCES})
+    target_include_directories(dark_forest_static PUBLIC src)
+    set_target_properties(dark_forest_static PROPERTIES
+        OUTPUT_NAME dark_forest
+        POSITION_INDEPENDENT_CODE ON
+    )
+endif()
+
+# Shared library
+if(DARK_FOREST_BUILD_SHARED)
+    add_library(dark_forest SHARED ${DARK_FOREST_SOURCES})
+    target_include_directories(dark_forest PUBLIC src)
+    set_target_properties(dark_forest PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION 0
+        C_VISIBILITY_PRESET hidden
+    )
+
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(dark_forest PRIVATE pthread)
+    endif()
+endif()
+
+# Installation
+include(GNUInstallDirs)
+
+install(TARGETS dark_forest dark_forest_static
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+install(FILES src/dark_forest.h src/agenc_zk.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Tests
+if(DARK_FOREST_BUILD_TESTS)
+    enable_testing()
+    add_executable(test_field tests/test_field.c)
+    target_link_libraries(test_field dark_forest_static)
+    add_test(NAME field_test COMMAND test_field)
+
+    add_executable(test_verify tests/test_verify.c)
+    target_link_libraries(test_verify dark_forest_static)
+    add_test(NAME verify_test COMMAND test_verify)
+
+    add_executable(test_pairing tests/test_pairing.c)
+    target_link_libraries(test_pairing dark_forest_static)
+    add_test(NAME pairing_test COMMAND test_pairing)
+endif()
+
+# Benchmarks
+if(DARK_FOREST_BUILD_BENCH)
+    add_executable(bench_field bench/bench_field.c)
+    target_link_libraries(bench_field dark_forest_static)
+
+    add_executable(bench_verify bench/bench_verify.c)
+    target_link_libraries(bench_verify dark_forest_static)
+endif()
+
+# pkg-config
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/dark_forest.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/dark_forest.pc
+    @ONLY
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dark_forest.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+)

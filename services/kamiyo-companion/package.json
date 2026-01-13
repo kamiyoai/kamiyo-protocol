@@ -1,0 +1,21 @@
+{
+  "name": "kamiyo-companion",
+  "version": "1.0.0",
+  "description": "KAMIYO Companion - AI thinking partner with blockchain-verified trust",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "twitter-api-v2": "^1.18.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2",
+    "ts-node": "^10.9.2"
+  }
+}

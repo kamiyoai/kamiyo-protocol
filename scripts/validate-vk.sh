@@ -3,7 +3,7 @@
 
 set -e
 
-CIRCUITS_DIR="packages/kamiyo-tetsuo-privacy/circuits"
+CIRCUITS_DIR="packages/kamiyo-dark-forest-privacy/circuits"
 ZK_RS="programs/kamiyo/src/zk.rs"
 
 cd "$(dirname "$0")/.."

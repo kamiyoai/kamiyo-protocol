@@ -79,7 +79,7 @@ use anchor_spl::associated_token::AssociatedToken;
 
 pub mod zk;
 
-declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+declare_id!("368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca");
 
 // ============================================================================
 // Constants
@@ -385,6 +385,14 @@ pub struct ModelReputationUpdated {
     pub total_inferences: u64,
     pub successful_inferences: u64,
     pub avg_quality: u8,
+}
+
+#[event]
+pub struct ReputationTierVerified {
+    pub user: Pubkey,
+    pub threshold: u8,
+    pub commitment: [u8; 32],
+    pub timestamp: i64,
 }
 
 // ============================================================================
@@ -2445,6 +2453,53 @@ pub mod kamiyo {
 
         Ok(())
     }
+
+    /// Verify a Groth16 ZK proof that a user's reputation score meets a threshold.
+    /// This enables privacy-preserving reputation verification without revealing
+    /// the actual score.
+    ///
+    /// # Arguments
+    /// * `proof_a` - G1 point (64 bytes)
+    /// * `proof_b` - G2 point (128 bytes)
+    /// * `proof_c` - G1 point (64 bytes)
+    /// * `threshold` - The minimum reputation score being proven
+    /// * `commitment` - Poseidon commitment binding the score
+    ///
+    /// # Returns
+    /// Emits `ReputationTierVerified` event on success.
+    pub fn verify_reputation_tier(
+        ctx: Context<VerifyReputationTier>,
+        proof_a: [u8; 64],
+        proof_b: [u8; 128],
+        proof_c: [u8; 64],
+        threshold: u8,
+        commitment: [u8; 32],
+    ) -> Result<()> {
+        require!(threshold <= 100, KamiyoError::InvalidQualityScore);
+
+        // Construct public inputs: [threshold, commitment]
+        let mut public_inputs: [[u8; 32]; 2] = [[0u8; 32]; 2];
+
+        // Public input 0: threshold (big-endian)
+        public_inputs[0][31] = threshold;
+
+        // Public input 1: commitment (32 bytes, big-endian)
+        public_inputs[1] = commitment;
+
+        zk::verify_reputation_proof(&proof_a, &proof_b, &proof_c, &public_inputs)
+            .map_err(|_| KamiyoError::InvalidZKProof)?;
+
+        let clock = Clock::get()?;
+
+        emit!(ReputationTierVerified {
+            user: ctx.accounts.user.key(),
+            threshold,
+            commitment,
+            timestamp: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -3152,6 +3207,14 @@ pub struct RegisterModel<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Accounts for verifying a ZK reputation tier proof.
+/// Minimal footprint - just needs the user to sign.
+#[derive(Accounts)]
+pub struct VerifyReputationTier<'info> {
+    /// The user proving their reputation tier
+    pub user: Signer<'info>,
+}
+
 // ============================================================================
 // State
 // ============================================================================
@@ -3498,4 +3561,7 @@ pub enum KamiyoError {
 
     #[msg("Invalid SMT root")]
     InvalidSmtRoot,
+
+    #[msg("Invalid ZK proof")]
+    InvalidZKProof,
 }

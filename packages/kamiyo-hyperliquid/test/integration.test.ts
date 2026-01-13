@@ -170,6 +170,22 @@ describe('Type Exports', () => {
     expect(exports.DisputeOracle).toBeDefined();
     expect(exports.createOracle).toBeDefined();
 
+    // Config
+    expect(exports.configure).toBeDefined();
+    expect(exports.getNetworkConfig).toBeDefined();
+    expect(exports.getAllNetworkConfigs).toBeDefined();
+    expect(exports.isNetworkConfigured).toBeDefined();
+    expect(exports.validateConfig).toBeDefined();
+    expect(exports.resetConfig).toBeDefined();
+    expect(exports.getConfigHints).toBeDefined();
+    expect(exports.ConfigError).toBeDefined();
+
+    // Logger (Logger is a type, only functions are runtime values)
+    expect(exports.setLogger).toBeDefined();
+    expect(exports.getLogger).toBeDefined();
+    expect(exports.enableConsoleLogging).toBeDefined();
+    expect(exports.createConsoleLogger).toBeDefined();
+
     // Types
     expect(exports.NETWORKS).toBeDefined();
     expect(exports.TIER_NAMES).toBeDefined();

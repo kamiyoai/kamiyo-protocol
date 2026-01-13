@@ -1,12 +1,12 @@
 /**
- * KAMIYO x TETSUO - On-Chain ZK Reputation Demo
+ * KAMIYO x DARK_FOREST - On-Chain ZK Reputation Demo
  *
  * Real Groth16 proofs verified on Base Sepolia.
  * Generates proof in TypeScript, verifies in Solidity.
  */
 
-import { TetsuoProver } from '@kamiyo/tetsuo';
-import type { GeneratedProof } from '@kamiyo/tetsuo';
+import { DarkForestProver } from '@kamiyo/dark-forest';
+import type { GeneratedProof } from '@kamiyo/dark-forest';
 import {
   createPublicClient,
   createWalletClient,
@@ -156,12 +156,12 @@ async function main() {
   // Check if already registered
   const isRegistered = await contract.read.isRegistered([account.address]);
 
-  if (!TetsuoProver.isAvailable()) {
+  if (!DarkForestProver.isAvailable()) {
     printError('Circuit artifacts not found. Run circuit setup first.');
     process.exit(1);
   }
 
-  const prover = new TetsuoProver();
+  const prover = new DarkForestProver();
   const score = 85;
   const commitment = await prover.generateCommitment(score);
 

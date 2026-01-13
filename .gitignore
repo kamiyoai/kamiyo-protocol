@@ -208,9 +208,9 @@ target/
 Cargo.lock
 
 # ZK circuit build artifacts (keep final zkey, r1cs, wasm, verification_key for demo)
-packages/kamiyo-tetsuo-privacy/circuits/build/*.ptau
-packages/kamiyo-tetsuo-privacy/circuits/build/*_0000.zkey
-packages/kamiyo-tetsuo-privacy/circuits/build/*.sym
+packages/kamiyo-solana-privacy/circuits/build/*.ptau
+packages/kamiyo-solana-privacy/circuits/build/*_0000.zkey
+packages/kamiyo-solana-privacy/circuits/build/*.sym
 
 # Native builds
 native/*/build/
@@ -224,3 +224,4 @@ native/*/deps/*/lib/
 examples/*/demo.gif
 examples/*/demo.tape
 docs/
+test-ledger/

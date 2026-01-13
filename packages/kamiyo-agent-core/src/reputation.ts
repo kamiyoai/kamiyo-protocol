@@ -6,7 +6,7 @@
  */
 
 import {
-  TetsuoProver,
+  DarkForestProver,
   getTierThreshold,
   getQualifyingTier,
   qualifiesForTier,
@@ -16,7 +16,7 @@ import {
   type TierName,
   TIER_NAMES,
   TIER_THRESHOLDS,
-} from '@kamiyo/tetsuo';
+} from '@kamiyo/dark-forest';
 
 export interface ReputationMemory {
   commitment: string | null;
@@ -136,7 +136,7 @@ const DEFAULT_PROOF_CACHE_TTL = 3600000; // 1 hour
 const MAX_CACHED_PROOFS = 10;
 
 export class ReputationManager {
-  private prover: TetsuoProver | null = null;
+  private prover: DarkForestProver | null = null;
   private memory: ReputationMemory;
   private secret: bigint | null = null;
   private proofCache = new Map<number, CachedProof>();
@@ -162,12 +162,12 @@ export class ReputationManager {
     this.secret = null;
   }
 
-  private async ensureProver(): Promise<TetsuoProver> {
+  private async ensureProver(): Promise<DarkForestProver> {
     if (!this.prover) {
-      if (!TetsuoProver.isAvailable()) {
-        throw new Error('Tetsuo circuit artifacts not available');
+      if (!DarkForestProver.isAvailable()) {
+        throw new Error('DarkForest circuit artifacts not available');
       }
-      this.prover = new TetsuoProver();
+      this.prover = new DarkForestProver();
       await this.prover.init();
     }
     return this.prover;

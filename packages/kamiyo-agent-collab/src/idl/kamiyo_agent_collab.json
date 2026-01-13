@@ -1,0 +1,1477 @@
+{
+  "address": "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26",
+  "metadata": {
+    "name": "kamiyo_agent_collab",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "ZK-Private Agent Collaboration Protocol"
+  },
+  "instructions": [
+    {
+      "name": "create_swarm_action",
+      "docs": [
+        "Create a swarm action proposal"
+      ],
+      "discriminator": [
+        206,
+        123,
+        22,
+        244,
+        95,
+        131,
+        87,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "swarm_action",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  119,
+                  97,
+                  114,
+                  109,
+                  95,
+                  97,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "action_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "action_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "proof_a",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "proof_b",
+          "type": {
+            "array": [
+              "u8",
+              128
+            ]
+          }
+        },
+        {
+          "name": "proof_c",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "threshold",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "deactivate_agent",
+      "docs": [
+        "Deactivate an agent and reclaim stake"
+      ],
+      "discriminator": [
+        205,
+        171,
+        239,
+        225,
+        82,
+        126,
+        96,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "relations": [
+            "agent"
+          ]
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_swarm_action",
+      "docs": [
+        "Execute a swarm action if threshold met"
+      ],
+      "discriminator": [
+        218,
+        53,
+        125,
+        154,
+        196,
+        202,
+        253,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "swarm_action",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_registry",
+      "docs": [
+        "Initialize the agent registry"
+      ],
+      "discriminator": [
+        189,
+        181,
+        20,
+        17,
+        174,
+        57,
+        249,
+        59
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "config",
+          "type": {
+            "defined": {
+              "name": "RegistryConfig"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pause_protocol",
+      "docs": [
+        "Pause the protocol (admin only)"
+      ],
+      "discriminator": [
+        144,
+        95,
+        0,
+        107,
+        119,
+        39,
+        248,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_agent",
+      "docs": [
+        "Register an agent with identity commitment",
+        "Proves ownership of the agent without revealing the owner"
+      ],
+      "discriminator": [
+        135,
+        157,
+        66,
+        195,
+        2,
+        113,
+        175,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "identity_commitment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "identity_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "stake_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "submit_signal",
+      "docs": [
+        "Submit a private signal with ZK proof of agent identity"
+      ],
+      "discriminator": [
+        5,
+        243,
+        225,
+        174,
+        221,
+        98,
+        232,
+        40
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "signal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  103,
+                  110,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "signal_commitment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nullifier_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "signal_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "proof_a",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "proof_b",
+          "type": {
+            "array": [
+              "u8",
+              128
+            ]
+          }
+        },
+        {
+          "name": "proof_c",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpause_protocol",
+      "docs": [
+        "Unpause the protocol (admin only)"
+      ],
+      "discriminator": [
+        183,
+        154,
+        5,
+        183,
+        105,
+        76,
+        87,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_agents_root",
+      "docs": [
+        "Update the agents Merkle root (admin only)",
+        "Called after batch registration to update membership proof root"
+      ],
+      "discriminator": [
+        210,
+        27,
+        107,
+        20,
+        96,
+        50,
+        75,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "agent_count",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "vote_swarm_action",
+      "docs": [
+        "Vote on a swarm action"
+      ],
+      "discriminator": [
+        100,
+        36,
+        145,
+        220,
+        21,
+        234,
+        170,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "registry"
+        },
+        {
+          "name": "swarm_action",
+          "writable": true
+        },
+        {
+          "name": "vote_nullifier",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "swarm_action"
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "proof_a",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "proof_b",
+          "type": {
+            "array": [
+              "u8",
+              128
+            ]
+          }
+        },
+        {
+          "name": "proof_c",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        },
+        {
+          "name": "vote",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Agent",
+      "discriminator": [
+        47,
+        166,
+        112,
+        147,
+        155,
+        197,
+        86,
+        7
+      ]
+    },
+    {
+      "name": "AgentRegistry",
+      "discriminator": [
+        6,
+        34,
+        128,
+        124,
+        33,
+        136,
+        199,
+        171
+      ]
+    },
+    {
+      "name": "NullifierRecord",
+      "discriminator": [
+        56,
+        18,
+        57,
+        175,
+        69,
+        202,
+        189,
+        70
+      ]
+    },
+    {
+      "name": "Signal",
+      "discriminator": [
+        20,
+        6,
+        227,
+        69,
+        183,
+        62,
+        78,
+        246
+      ]
+    },
+    {
+      "name": "SwarmAction",
+      "discriminator": [
+        149,
+        174,
+        235,
+        81,
+        51,
+        167,
+        41,
+        110
+      ]
+    },
+    {
+      "name": "VoteNullifier",
+      "discriminator": [
+        168,
+        95,
+        50,
+        31,
+        126,
+        37,
+        225,
+        181
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AgentDeactivated",
+      "discriminator": [
+        138,
+        251,
+        82,
+        87,
+        119,
+        148,
+        20,
+        180
+      ]
+    },
+    {
+      "name": "AgentRegistered",
+      "discriminator": [
+        191,
+        78,
+        217,
+        54,
+        232,
+        100,
+        189,
+        85
+      ]
+    },
+    {
+      "name": "AgentsRootUpdated",
+      "discriminator": [
+        78,
+        219,
+        162,
+        13,
+        137,
+        48,
+        28,
+        47
+      ]
+    },
+    {
+      "name": "ProtocolPaused",
+      "discriminator": [
+        35,
+        111,
+        245,
+        138,
+        237,
+        199,
+        79,
+        223
+      ]
+    },
+    {
+      "name": "ProtocolUnpaused",
+      "discriminator": [
+        248,
+        204,
+        112,
+        239,
+        72,
+        67,
+        127,
+        216
+      ]
+    },
+    {
+      "name": "RegistryInitialized",
+      "discriminator": [
+        144,
+        138,
+        62,
+        105,
+        58,
+        38,
+        100,
+        177
+      ]
+    },
+    {
+      "name": "SignalSubmitted",
+      "discriminator": [
+        113,
+        127,
+        19,
+        47,
+        140,
+        194,
+        105,
+        99
+      ]
+    },
+    {
+      "name": "SwarmActionCreated",
+      "discriminator": [
+        181,
+        233,
+        4,
+        120,
+        215,
+        84,
+        123,
+        82
+      ]
+    },
+    {
+      "name": "SwarmActionExecuted",
+      "discriminator": [
+        35,
+        147,
+        147,
+        147,
+        131,
+        136,
+        196,
+        125
+      ]
+    },
+    {
+      "name": "SwarmVoteCast",
+      "discriminator": [
+        197,
+        112,
+        6,
+        233,
+        157,
+        104,
+        8,
+        131
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ProtocolPaused",
+      "msg": "Protocol is paused"
+    },
+    {
+      "code": 6001,
+      "name": "InsufficientStake",
+      "msg": "Insufficient stake amount"
+    },
+    {
+      "code": 6002,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6003,
+      "name": "NullifierAlreadyUsed",
+      "msg": "Nullifier already used this epoch"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidProof",
+      "msg": "Invalid ZK proof"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidThreshold",
+      "msg": "Invalid threshold"
+    },
+    {
+      "code": 6006,
+      "name": "ActionAlreadyExecuted",
+      "msg": "Action already executed"
+    },
+    {
+      "code": 6007,
+      "name": "VotingEnded",
+      "msg": "Voting has ended"
+    },
+    {
+      "code": 6008,
+      "name": "AlreadyVoted",
+      "msg": "Already voted on this action"
+    },
+    {
+      "code": 6009,
+      "name": "VotingNotEnded",
+      "msg": "Voting has not ended"
+    },
+    {
+      "code": 6010,
+      "name": "NoVotes",
+      "msg": "No votes cast"
+    },
+    {
+      "code": 6011,
+      "name": "ThresholdNotMet",
+      "msg": "Threshold not met"
+    },
+    {
+      "code": 6012,
+      "name": "AgentNotActive",
+      "msg": "Agent not active"
+    }
+  ],
+  "types": [
+    {
+      "name": "Agent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "identity_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "registered_slot",
+            "type": "u64"
+          },
+          {
+            "name": "signal_count",
+            "type": "u32"
+          },
+          {
+            "name": "swarm_votes",
+            "type": "u32"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentDeactivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_returned",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "identity_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentRegistry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "agents_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "agent_count",
+            "type": "u32"
+          },
+          {
+            "name": "signal_count",
+            "type": "u32"
+          },
+          {
+            "name": "swarm_action_count",
+            "type": "u32"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "min_stake",
+            "type": "u64"
+          },
+          {
+            "name": "min_signal_confidence",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentsRootUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "agent_count",
+            "type": "u32"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "NullifierRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolPaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolUnpaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegistryConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "min_stake",
+            "type": "u64"
+          },
+          {
+            "name": "min_signal_confidence",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegistryInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "min_stake",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Signal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "submitted_slot",
+            "type": "u64"
+          },
+          {
+            "name": "revealed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SignalSubmitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmAction",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposer_nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "action_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          },
+          {
+            "name": "votes_for",
+            "type": "u32"
+          },
+          {
+            "name": "votes_against",
+            "type": "u32"
+          },
+          {
+            "name": "created_slot",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "type": "u64"
+          },
+          {
+            "name": "executed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmActionCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "action_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          },
+          {
+            "name": "deadline_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmActionExecuted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "action",
+            "type": "pubkey"
+          },
+          {
+            "name": "action_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "votes_for",
+            "type": "u32"
+          },
+          {
+            "name": "votes_against",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwarmVoteCast",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "action",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "vote",
+            "type": "bool"
+          },
+          {
+            "name": "votes_for",
+            "type": "u32"
+          },
+          {
+            "name": "votes_against",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteNullifier",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "action",
+            "type": "pubkey"
+          },
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

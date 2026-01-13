@@ -62,10 +62,10 @@ snarkjs groth16 setup \
 
 # Contribute to phase 2 (for production, use proper MPC ceremony)
 echo "Contributing to phase 2..."
-echo "kamiyo-tetsuo-entropy-contribution" | snarkjs zkey contribute \
+echo "kamiyo-dark-forest-entropy-contribution" | snarkjs zkey contribute \
     "$BUILD_DIR/reputation_threshold_0000.zkey" \
     "$BUILD_DIR/reputation_threshold_final.zkey" \
-    --name="KAMIYO TETSUO" -v
+    --name="KAMIYO DARK_FOREST" -v
 
 # Export verification key
 echo "Exporting verification key..."

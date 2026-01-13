@@ -1,0 +1,33 @@
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 121033627
+INFO: Loaded 1 modules   (10 inline 8-bit counters): 10 [0x100950000, 0x10095000a), 
+INFO: Loaded 1 PC tables (10 PCs): 10 [0x100950010,0x1009500b0), 
+INFO:        6 files found in fuzz/corpus_field
+INFO: -max_len is not provided; libFuzzer will not generate inputs larger than 4096 bytes
+INFO: seed corpus: files: 6 min: 64b max: 128b total: 448b rss: 35Mb
+#8	INITED cov: 9 ft: 11 corp: 4/320b exec/s: 0 rss: 35Mb
+#19	NEW    cov: 10 ft: 12 corp: 5/375b lim: 128 exec/s: 0 rss: 36Mb L: 55/128 MS: 1 EraseBytes-
+#86	REDUCE cov: 10 ft: 12 corp: 5/365b lim: 128 exec/s: 0 rss: 36Mb L: 45/128 MS: 2 CopyPart-EraseBytes-
+#99	REDUCE cov: 10 ft: 12 corp: 5/350b lim: 128 exec/s: 0 rss: 36Mb L: 30/128 MS: 3 ChangeByte-CopyPart-EraseBytes-
+#130	REDUCE cov: 10 ft: 12 corp: 5/349b lim: 128 exec/s: 0 rss: 36Mb L: 29/128 MS: 1 EraseBytes-
+#264	REDUCE cov: 10 ft: 12 corp: 5/339b lim: 128 exec/s: 0 rss: 36Mb L: 19/128 MS: 4 ChangeBinInt-ChangeByte-CMP-EraseBytes- DE: "\377\377\377\377\377\377\377Y"-
+#291	REDUCE cov: 10 ft: 12 corp: 5/337b lim: 128 exec/s: 0 rss: 36Mb L: 17/128 MS: 2 PersAutoDict-EraseBytes- DE: "\377\377\377\377\377\377\377Y"-
+#302	REDUCE cov: 10 ft: 12 corp: 5/336b lim: 128 exec/s: 0 rss: 36Mb L: 16/128 MS: 1 EraseBytes-
+#455	REDUCE cov: 10 ft: 12 corp: 5/329b lim: 128 exec/s: 0 rss: 36Mb L: 9/128 MS: 3 CrossOver-ChangeByte-EraseBytes-
+#579	REDUCE cov: 10 ft: 12 corp: 5/326b lim: 128 exec/s: 0 rss: 36Mb L: 6/128 MS: 4 ChangeBit-PersAutoDict-CrossOver-EraseBytes- DE: "\377\377\377\377\377\377\377Y"-
+#758	REDUCE cov: 10 ft: 12 corp: 5/324b lim: 128 exec/s: 0 rss: 36Mb L: 4/128 MS: 4 ShuffleBytes-CMP-ChangeBit-EraseBytes- DE: "\001\000"-
+#1054	REDUCE cov: 10 ft: 12 corp: 5/322b lim: 128 exec/s: 0 rss: 36Mb L: 2/128 MS: 1 EraseBytes-
+#1110	REDUCE cov: 10 ft: 12 corp: 5/321b lim: 128 exec/s: 0 rss: 36Mb L: 1/128 MS: 1 EraseBytes-
+#262144	pulse  cov: 10 ft: 12 corp: 5/321b lim: 2721 exec/s: 87381 rss: 80Mb
+#524288	pulse  cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 74898 rss: 115Mb
+#1048576	pulse  cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 65536 rss: 115Mb
+#2097152	pulse  cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 61680 rss: 115Mb
+#4194304	pulse  cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 61680 rss: 181Mb
+#8388608	pulse  cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 61230 rss: 182Mb
+#16777216	pulse  cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 62368 rss: 228Mb
+#18867482	DONE   cov: 10 ft: 12 corp: 5/321b lim: 4096 exec/s: 62682 rss: 228Mb
+###### Recommended dictionary. ######
+"\377\377\377\377\377\377\377Y" # Uses: 856674
+"\001\000" # Uses: 873838
+###### End of recommended dictionary. ######
+Done 18867482 runs in 301 second(s)

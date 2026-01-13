@@ -1,10 +1,3 @@
-/**
- * On-chain ZK Reputation Client
- *
- * Queries agent reputation tiers from the ZKReputation contract.
- * No dependency on TETSUO SDK - just reads on-chain state.
- */
-
 import { ethers, Provider } from 'ethers';
 
 export enum Tier {
@@ -51,31 +44,19 @@ export class ReputationClient {
     );
   }
 
-  /**
-   * Get an agent's verified reputation tier
-   */
   async getAgentTier(agent: string): Promise<Tier> {
     const tier = await this.contract.getAgentTier(agent);
     return Number(tier) as Tier;
   }
 
-  /**
-   * Check if an agent is registered
-   */
   async isRegistered(agent: string): Promise<boolean> {
     return this.contract.isRegistered(agent);
   }
 
-  /**
-   * Get an agent's Poseidon commitment
-   */
   async getCommitment(agent: string): Promise<bigint> {
     return this.contract.getAgentCommitment(agent);
   }
 
-  /**
-   * Get full agent info
-   */
   async getAgentInfo(agent: string): Promise<{
     commitment: bigint;
     tier: Tier;
@@ -91,18 +72,12 @@ export class ReputationClient {
     };
   }
 
-  /**
-   * Check if agent meets minimum tier requirement
-   */
   async meetsMinimumTier(agent: string, minimumTier: Tier): Promise<boolean> {
     const tier = await this.getAgentTier(agent);
     return tier >= minimumTier;
   }
 }
 
-/**
- * Create a reputation client for Sepolia testnet
- */
 export function createSepoliaClient(rpcUrl?: string): ReputationClient {
   const provider = new ethers.JsonRpcProvider(
     rpcUrl || 'https://ethereum-sepolia-rpc.publicnode.com'
