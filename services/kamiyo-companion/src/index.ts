@@ -2,6 +2,26 @@ import Anthropic from '@anthropic-ai/sdk';
 import { TwitterApi } from 'twitter-api-v2';
 import 'dotenv/config';
 
+import {
+  getOrCreateUser,
+  getConversationHistory,
+  addMessage,
+  clearConversationHistory,
+  startSession,
+  endSession,
+  incrementSessionMessages,
+  updateUserWallet,
+} from './db';
+import {
+  refreshUserTier,
+  getTierConfig,
+  checkMessageLimit,
+  incrementMessageCount,
+  TIERS,
+} from './tiers';
+import { verifyPayment, getPaymentInstructions } from './payments';
+import { submitRating, getUserReputation, formatReputation } from './reputation';
+
 const SYSTEM_PROMPT = `You are KAMIYO Companion - an AI thinking partner that helps people work through tasks and problems.
 
 ## Personality
@@ -64,6 +84,17 @@ Text HOME to 741741 (Crisis Text Line)
 
 You matter. These feelings can change with support.`;
 
+// Commands that users can send
+const COMMANDS = {
+  WALLET: /^!wallet\s+([1-9A-HJ-NP-Za-km-z]{32,44})$/,
+  UPGRADE: /^!upgrade\s+(companion|pro)$/,
+  VERIFY: /^!verify\s+([1-9A-HJ-NP-Za-km-z]{64,})$/,
+  RATE: /^!rate\s+([1-5])$/,
+  STATUS: /^!status$/,
+  CLEAR: /^!clear$/,
+  HELP: /^!help$/,
+};
+
 interface TwitterCredentials {
   appKey: string;
   appSecret: string;
@@ -89,18 +120,109 @@ function containsCrisisKeywords(text: string): boolean {
   return CRISIS_KEYWORDS.some(kw => lower.includes(kw));
 }
 
+async function handleCommand(
+  userId: string,
+  text: string
+): Promise<string | null> {
+  // !wallet <address> - Link wallet
+  const walletMatch = text.match(COMMANDS.WALLET);
+  if (walletMatch) {
+    const wallet = walletMatch[1];
+    updateUserWallet(userId, wallet);
+    const tier = await refreshUserTier(userId, 'twitter', wallet);
+    const config = getTierConfig(tier);
+    return `Wallet linked. Your tier: ${config.name}`;
+  }
+
+  // !upgrade <tier> - Show upgrade instructions
+  const upgradeMatch = text.match(COMMANDS.UPGRADE);
+  if (upgradeMatch) {
+    const tier = upgradeMatch[1];
+    return getPaymentInstructions(tier);
+  }
+
+  // !verify <tx> - Verify payment
+  const verifyMatch = text.match(COMMANDS.VERIFY);
+  if (verifyMatch) {
+    const tx = verifyMatch[1];
+    const user = getOrCreateUser(userId, 'twitter');
+    const currentTier = (await refreshUserTier(userId, 'twitter', user.wallet));
+    const nextTier = currentTier === 'free' ? 'companion' : 'pro';
+
+    const result = await verifyPayment(userId, tx, nextTier);
+    if (result.valid) {
+      return `Payment verified. You now have ${TIERS[result.tier!].name} for ${result.durationDays} days.`;
+    }
+    return `Payment failed: ${result.error}`;
+  }
+
+  // !rate <1-5> - Rate session
+  const rateMatch = text.match(COMMANDS.RATE);
+  if (rateMatch) {
+    const rating = parseInt(rateMatch[1], 10);
+    const result = submitRating(userId, rating);
+    if (result.success) {
+      return `Thanks for rating ${rating}/5. This helps improve the service.`;
+    }
+    return result.error || 'Could not submit rating.';
+  }
+
+  // !status - Show user status
+  if (COMMANDS.STATUS.test(text)) {
+    const user = getOrCreateUser(userId, 'twitter');
+    const tier = await refreshUserTier(userId, 'twitter', user.wallet);
+    const config = getTierConfig(tier);
+    const { remaining } = checkMessageLimit(userId, tier);
+    const rep = getUserReputation(userId);
+
+    let status = `Tier: ${config.name}\n`;
+    status += `Messages today: ${remaining === -1 ? 'Unlimited' : `${remaining} remaining`}\n`;
+    status += `Reputation: ${formatReputation(rep)}`;
+    if (user.wallet) {
+      status += `\nWallet: ${user.wallet.slice(0, 8)}...`;
+    }
+    return status;
+  }
+
+  // !clear - Clear conversation history
+  if (COMMANDS.CLEAR.test(text)) {
+    clearConversationHistory(userId);
+    endSession(userId as unknown as number); // End any active session
+    return 'Conversation cleared. Starting fresh.';
+  }
+
+  // !help - Show commands
+  if (COMMANDS.HELP.test(text)) {
+    return `Commands:
+!wallet <addr> - Link Solana wallet
+!upgrade companion|pro - Show upgrade options
+!verify <tx> - Verify payment
+!rate 1-5 - Rate this session
+!status - Show your tier and stats
+!clear - Clear conversation history`;
+  }
+
+  return null;
+}
+
 async function generateResponse(
   anthropic: Anthropic,
+  userId: string,
   userMessage: string,
-  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+  tier: string
 ): Promise<string> {
   // Check for crisis keywords first
   if (containsCrisisKeywords(userMessage)) {
     return CRISIS_RESPONSE;
   }
 
+  const config = getTierConfig(tier);
+
+  // Get conversation history (only for paid tiers)
+  const history = config.contextMemory ? getConversationHistory(userId, 20) : [];
+
   const messages = [
-    ...conversationHistory,
+    ...history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     { role: 'user' as const, content: userMessage }
   ];
 
@@ -116,6 +238,12 @@ async function generateResponse(
     .map(b => b.text)
     .join('\n');
 
+  // Store in history if tier supports it
+  if (config.contextMemory) {
+    addMessage(userId, 'user', userMessage);
+    addMessage(userId, 'assistant', text);
+  }
+
   return text;
 }
 
@@ -125,7 +253,6 @@ async function postReply(
   text: string
 ): Promise<string | null> {
   try {
-    // Twitter has 280 char limit - split into thread if needed
     if (text.length <= 280) {
       const reply = await twitter.v2.reply(text, tweetId);
       return reply.data.id;
@@ -141,7 +268,6 @@ async function postReply(
         break;
       }
 
-      // Find last space before 280
       let splitPoint = remaining.lastIndexOf(' ', 277);
       if (splitPoint === -1) splitPoint = 277;
 
@@ -162,54 +288,63 @@ async function postReply(
   }
 }
 
-// Simple in-memory conversation cache (keyed by user ID)
-const conversationCache = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>();
-const MAX_HISTORY = 10;
-
-function getConversationHistory(userId: string): Array<{ role: 'user' | 'assistant'; content: string }> {
-  return conversationCache.get(userId) || [];
-}
-
-function addToConversationHistory(
-  userId: string,
-  role: 'user' | 'assistant',
-  content: string
-): void {
-  const history = conversationCache.get(userId) || [];
-  history.push({ role, content });
-
-  // Keep last N messages
-  while (history.length > MAX_HISTORY) {
-    history.shift();
-  }
-
-  conversationCache.set(userId, history);
-}
-
 async function processMention(
   twitter: TwitterApi,
   anthropic: Anthropic,
   tweet: { id: string; text: string; author_id?: string }
 ): Promise<void> {
-  const userId = tweet.author_id || 'unknown';
-  const text = tweet.text.replace(/@\w+/g, '').trim(); // Remove mentions
+  const userId = `twitter_${tweet.author_id || 'unknown'}`;
+  const text = tweet.text.replace(/@\w+/g, '').trim();
 
   if (!text) return;
 
   console.log(`Processing mention from ${userId}: ${text.slice(0, 50)}...`);
 
-  const history = getConversationHistory(userId);
-  const response = await generateResponse(anthropic, text, history);
+  // Ensure user exists
+  const user = getOrCreateUser(userId, 'twitter');
 
-  // Update history
-  addToConversationHistory(userId, 'user', text);
-  addToConversationHistory(userId, 'assistant', response);
+  // Check for commands
+  const commandResponse = await handleCommand(userId, text);
+  if (commandResponse) {
+    await postReply(twitter, tweet.id, commandResponse);
+    return;
+  }
+
+  // Get user's tier
+  const tier = await refreshUserTier(userId, 'twitter', user.wallet);
+
+  // Check message limit
+  const { allowed, remaining } = checkMessageLimit(userId, tier);
+  if (!allowed) {
+    const config = getTierConfig(tier);
+    await postReply(twitter, tweet.id,
+      `You've reached today's limit (${config.maxMessagesPerDay} messages). Upgrade with !upgrade companion for more.`
+    );
+    return;
+  }
+
+  // Start or continue session
+  startSession(userId);
+
+  // Generate response
+  const response = await generateResponse(anthropic, userId, text, tier);
+
+  // Track usage
+  incrementMessageCount(userId);
+  incrementSessionMessages(userId as unknown as number);
 
   // Post reply
   const replyId = await postReply(twitter, tweet.id, response);
 
   if (replyId) {
-    console.log(`Replied to ${tweet.id}: ${response.slice(0, 50)}...`);
+    console.log(`Replied to ${tweet.id} (${tier}): ${response.slice(0, 50)}...`);
+  }
+
+  // Add rate reminder occasionally
+  if (remaining !== -1 && remaining <= 3) {
+    await postReply(twitter, replyId || tweet.id,
+      `${remaining} messages left today. Use !rate 1-5 to rate this session, or !upgrade for more.`
+    );
   }
 }
 
@@ -219,14 +354,12 @@ async function startMentionStream(
 ): Promise<void> {
   console.log('Starting mention polling...');
 
-  // Get our user ID
   const me = await twitter.v2.me();
   const myId = me.data.id;
   console.log(`Bot user ID: ${myId}`);
 
   let lastSeenId: string | undefined;
 
-  // Poll for mentions every 30 seconds (Twitter rate limits)
   const poll = async () => {
     try {
       const mentions = await twitter.v2.userMentionTimeline(myId, {
@@ -236,7 +369,6 @@ async function startMentionStream(
       });
 
       if (mentions.data?.data) {
-        // Process oldest first
         const tweets = [...mentions.data.data].reverse();
 
         for (const tweet of tweets) {
@@ -249,17 +381,13 @@ async function startMentionStream(
     }
   };
 
-  // Initial poll
   await poll();
-
-  // Continue polling
   setInterval(poll, 30000);
 }
 
 async function main(): Promise<void> {
   console.log('KAMIYO Companion starting...');
 
-  // Validate env vars
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not set');
   }
@@ -271,14 +399,13 @@ async function main(): Promise<void> {
   const twitterCreds = getTwitterCredentials();
   const twitter = new TwitterApi(twitterCreds);
 
-  // Test auth
   const me = await twitter.v2.me();
   console.log(`Authenticated as @${me.data.username}`);
 
-  // Start listening for mentions
   await startMentionStream(twitter, anthropic);
 
   console.log('KAMIYO Companion is running');
+  console.log('Tiers:', Object.keys(TIERS).join(', '));
 }
 
 main().catch((err) => {
