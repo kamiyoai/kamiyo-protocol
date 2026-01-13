@@ -23,19 +23,8 @@ const DOCS_TO_FETCH = [
 
 let docsContent = '';
 
-// Tool definitions for Claude
-const tools: Tool[] = [
-  {
-    name: 'search_web',
-    description: 'Search the web for information. Use for crypto news, comparisons, or anything not in KAMIYO docs.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        query: { type: 'string', description: 'Search query' }
-      },
-      required: ['query']
-    }
-  },
+// Custom tool definitions for Claude
+const customTools: Tool[] = [
   {
     name: 'get_token_data',
     description: 'Get live KAMIYO token data: price, market cap, 24h volume, price change, liquidity.',
@@ -87,44 +76,6 @@ const tools: Tool[] = [
 ];
 
 // Tool implementations
-async function searchWeb(query: string): Promise<string> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) return 'Web search not configured (TAVILY_API_KEY missing).';
-
-  try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        max_results: 5,
-        include_answer: true
-      })
-    });
-
-    if (!res.ok) return `Search failed: ${res.status}`;
-
-    const data = await res.json();
-    let result = '';
-
-    if (data.answer) {
-      result += `Answer: ${data.answer}\n\n`;
-    }
-
-    if (data.results?.length) {
-      result += 'Sources:\n';
-      for (const r of data.results.slice(0, 3)) {
-        result += `- ${r.title}: ${r.content?.slice(0, 200)}...\n`;
-      }
-    }
-
-    return result || 'No results found.';
-  } catch (e) {
-    return `Search error: ${e}`;
-  }
-}
-
 async function getTokenData(): Promise<string> {
   try {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${KAMIYO_PAIR}`);
@@ -235,8 +186,6 @@ Created by: ${proposal.author}`;
 
 async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
   switch (name) {
-    case 'search_web':
-      return await searchWeb(input.query as string);
     case 'get_token_data':
       return await getTokenData();
     case 'get_holder_count':
@@ -618,12 +567,17 @@ bot.command('kamiyo', async (ctx) => {
   try {
     const messages: MessageParam[] = [{ role: 'user', content: question }];
 
-    // Tool use loop
+    // Tool use loop - includes Claude's native web search + custom tools
+    const allTools = [
+      { type: 'web_search_20250305' as const, name: 'web_search', max_uses: 3 },
+      ...customTools,
+    ];
+
     let response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: getSystemPrompt(),
-      tools,
+      tools: allTools as Tool[],
       messages,
     });
 
@@ -652,7 +606,7 @@ bot.command('kamiyo', async (ctx) => {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
         system: getSystemPrompt(),
-        tools,
+        tools: allTools as Tool[],
         messages,
       });
     }
