@@ -1,6 +1,5 @@
 import { getUserStats, rateSession, getActiveSession, releaseEscrow } from './db';
 
-// Reputation tiers based on aggregate session ratings
 export interface ReputationScore {
   totalSessions: number;
   avgRating: number;
@@ -37,11 +36,7 @@ export function calculateReputationTier(totalSessions: number, avgRating: number
 }
 
 export function getCompanionReputation(): ReputationScore {
-  // Aggregate reputation across all users
-  // In production, this would query on-chain data
-  // For now, we calculate from local DB
-
-  // This is a placeholder - real implementation would aggregate all sessions
+  // TODO: aggregate from on-chain data
   return {
     totalSessions: 0,
     avgRating: 0,
@@ -62,7 +57,6 @@ export function getUserReputation(userId: string): ReputationScore {
   };
 }
 
-// Session rating (1-5 scale)
 export function submitRating(userId: string, rating: number): { success: boolean; error?: string } {
   if (rating < 1 || rating > 5 || !Number.isInteger(rating)) {
     return { success: false, error: 'Rating must be 1-5' };
@@ -84,8 +78,6 @@ export function submitRating(userId: string, rating: number): { success: boolean
   return { success: true };
 }
 
-// ZK proof generation for reputation
-// Integrates with @kamiyo/solana-privacy
 export interface ReputationProofResult {
   commitment: string;
   threshold: number;
@@ -139,18 +131,9 @@ export async function generateReputationProof(
   }
 }
 
-// Format reputation for display
 export function formatReputation(rep: ReputationScore): string {
   if (rep.tier === 'unrated') {
     return 'Unrated (need more sessions)';
   }
-
-  const tierEmoji: Record<string, string> = {
-    bronze: '',
-    silver: '',
-    gold: '',
-    platinum: '',
-  };
-
-  return `${tierEmoji[rep.tier] || ''} ${rep.tier.charAt(0).toUpperCase() + rep.tier.slice(1)} | ${rep.avgRating.toFixed(1)}/5 | ${rep.totalSessions} sessions`;
+  return `${rep.tier.charAt(0).toUpperCase() + rep.tier.slice(1)} | ${rep.avgRating.toFixed(1)}/5 | ${rep.totalSessions} sessions`;
 }

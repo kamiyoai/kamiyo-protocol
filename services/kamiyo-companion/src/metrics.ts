@@ -2,10 +2,8 @@ import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom
 
 export const registry = new Registry();
 
-// Collect default Node.js metrics
 collectDefaultMetrics({ register: registry });
 
-// Custom metrics
 export const messagesTotal = new Counter({
   name: 'companion_messages_total',
   help: 'Total messages processed',
@@ -62,7 +60,6 @@ export const ratingsReceived = new Counter({
   registers: [registry],
 });
 
-// Helper to track async operation latency
 export function trackLatency<T>(
   histogram: Histogram<string>,
   labels: Record<string, string>,

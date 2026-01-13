@@ -1,5 +1,3 @@
-// Simple in-memory cache with TTL
-
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;

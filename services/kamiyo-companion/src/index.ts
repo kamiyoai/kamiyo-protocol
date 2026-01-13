@@ -94,7 +94,6 @@ Text HOME to 741741 (Crisis Text Line)
 
 You matter. These feelings can change with support.`;
 
-// Commands that users can send
 const COMMANDS = {
   WALLET: /^!wallet\s+([1-9A-HJ-NP-Za-km-z]{32,44})$/,
   UPGRADE: /^!upgrade\s+(companion|pro)$/,
