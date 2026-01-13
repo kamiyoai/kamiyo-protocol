@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { TwitterApi } from 'twitter-api-v2';
 import 'dotenv/config';
+import { logger } from './logger';
 
 import {
   getOrCreateUser,
@@ -12,7 +13,9 @@ import {
   incrementSessionMessages,
   updateUserWallet,
   getActiveEscrowByUser,
+  getActiveEscrowByWallet,
   updateEscrowStatus,
+  getActiveSession,
 } from './db';
 import {
   refreshUserTier,
@@ -163,9 +166,13 @@ async function handleCommand(
   const rateMatch = text.match(COMMANDS.RATE);
   if (rateMatch) {
     const rating = parseInt(rateMatch[1], 10);
+    const user = getOrCreateUser(userId, 'twitter');
 
-    // Check if user has an active escrow session
-    const escrow = getActiveEscrowByUser(userId);
+    // Check if user has an active escrow session (by userId or wallet)
+    let escrow = getActiveEscrowByUser(userId);
+    if (!escrow && user.wallet) {
+      escrow = getActiveEscrowByWallet(user.wallet);
+    }
     if (escrow) {
       // User has escrow - they need to sign a transaction to release/refund
       const HOST = process.env.ACTIONS_HOST || 'https://companion.kamiyo.ai';
@@ -226,7 +233,10 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
   // !clear - Clear conversation history
   if (COMMANDS.CLEAR.test(text)) {
     clearConversationHistory(userId);
-    endSession(userId as unknown as number); // End any active session
+    const activeSession = getActiveSession(userId);
+    if (activeSession) {
+      endSession(activeSession.id);
+    }
     return 'Conversation cleared. Starting fresh.';
   }
 
@@ -244,6 +254,8 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
 
   return null;
 }
+
+const FALLBACK_RESPONSE = "I'm having trouble processing that right now. Please try again in a moment.";
 
 async function generateResponse(
   anthropic: Anthropic,
@@ -266,25 +278,42 @@ async function generateResponse(
     { role: 'user' as const, content: userMessage }
   ];
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 512,
-    system: SYSTEM_PROMPT,
-    messages,
-  });
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      system: SYSTEM_PROMPT,
+      messages,
+    });
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('\n');
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('\n');
 
-  // Store in history if tier supports it
-  if (config.contextMemory) {
-    addMessage(userId, 'user', userMessage);
-    addMessage(userId, 'assistant', text);
+    // Store in history if tier supports it
+    if (config.contextMemory) {
+      addMessage(userId, 'user', userMessage);
+      addMessage(userId, 'assistant', text);
+    }
+
+    return text;
+  } catch (err: unknown) {
+    const error = err as { status?: number; message?: string };
+
+    if (error.status === 429) {
+      logger.error('Anthropic rate limited');
+      return "I'm receiving a lot of requests right now. Please try again in a minute.";
+    }
+
+    if (error.status === 500 || error.status === 503) {
+      logger.error('Anthropic service error', { status: error.status });
+      return FALLBACK_RESPONSE;
+    }
+
+    logger.error('Anthropic API error', { error: String(err) });
+    return FALLBACK_RESPONSE;
   }
-
-  return text;
 }
 
 async function postReply(
@@ -323,10 +352,12 @@ async function postReply(
 
     return lastTweetId;
   } catch (err) {
-    console.error('Failed to post reply:', err);
+    logger.error('Failed to post reply', { error: String(err) });
     return null;
   }
 }
+
+const MAX_MESSAGE_LENGTH = 1000; // Prevent abuse with very long messages
 
 async function processMention(
   twitter: TwitterApi,
@@ -334,11 +365,17 @@ async function processMention(
   tweet: { id: string; text: string; author_id?: string }
 ): Promise<void> {
   const userId = `twitter_${tweet.author_id || 'unknown'}`;
-  const text = tweet.text.replace(/@\w+/g, '').trim();
+  let text = tweet.text.replace(/@\w+/g, '').trim();
 
   if (!text) return;
 
-  console.log(`Processing mention from ${userId}: ${text.slice(0, 50)}...`);
+  // Truncate very long messages to prevent abuse
+  if (text.length > MAX_MESSAGE_LENGTH) {
+    text = text.slice(0, MAX_MESSAGE_LENGTH);
+    logger.warn('Message truncated', { userId, originalLength: tweet.text.length });
+  }
+
+  logger.info(`Processing mention from ${userId}: ${text.slice(0, 50)}...`);
 
   // Ensure user exists
   const user = getOrCreateUser(userId, 'twitter');
@@ -363,21 +400,22 @@ async function processMention(
     return;
   }
 
-  // Start or continue session
-  startSession(userId);
+  // Get or create session
+  const existingSession = getActiveSession(userId);
+  const sessionId = existingSession ? existingSession.id : startSession(userId);
 
   // Generate response
   const response = await generateResponse(anthropic, userId, text, tier);
 
   // Track usage
   incrementMessageCount(userId);
-  incrementSessionMessages(userId as unknown as number);
+  incrementSessionMessages(sessionId);
 
   // Post reply
   const replyId = await postReply(twitter, tweet.id, response);
 
   if (replyId) {
-    console.log(`Replied to ${tweet.id} (${tier}): ${response.slice(0, 50)}...`);
+    logger.info(`Replied to ${tweet.id} (${tier}): ${response.slice(0, 50)}...`);
   }
 
   // Add rate reminder occasionally
@@ -388,15 +426,20 @@ async function processMention(
   }
 }
 
+// Exponential backoff state
+let backoffMs = 0;
+const MAX_BACKOFF_MS = 15 * 60 * 1000; // 15 minutes max
+const BASE_POLL_INTERVAL = 30000;
+
 async function startMentionStream(
   twitter: TwitterApi,
   anthropic: Anthropic
 ): Promise<void> {
-  console.log('Starting mention polling...');
+  logger.info('Starting mention polling...');
 
   const me = await twitter.v2.me();
   const myId = me.data.id;
-  console.log(`Bot user ID: ${myId}`);
+  logger.info(`Bot user ID: ${myId}`);
 
   let lastSeenId: string | undefined;
 
@@ -408,6 +451,12 @@ async function startMentionStream(
         max_results: 10,
       });
 
+      // Reset backoff on success
+      if (backoffMs > 0) {
+        logger.info('Rate limit cleared, resuming normal polling');
+        backoffMs = 0;
+      }
+
       if (mentions.data?.data) {
         const tweets = [...mentions.data.data].reverse();
 
@@ -416,17 +465,44 @@ async function startMentionStream(
           lastSeenId = tweet.id;
         }
       }
-    } catch (err) {
-      console.error('Polling error:', err);
+    } catch (err: unknown) {
+      const error = err as { code?: number; rateLimit?: { reset?: number } };
+
+      // Handle rate limiting (429)
+      if (error.code === 429 || (error as Error).message?.includes('429')) {
+        const resetTime = error.rateLimit?.reset;
+        if (resetTime) {
+          const waitMs = (resetTime * 1000) - Date.now();
+          backoffMs = Math.min(Math.max(waitMs, BASE_POLL_INTERVAL), MAX_BACKOFF_MS);
+        } else {
+          // Exponential backoff if no reset time provided
+          backoffMs = backoffMs === 0 ? BASE_POLL_INTERVAL : Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+        }
+        logger.info('Rate limited', { backoffSeconds: Math.round(backoffMs / 1000) });
+      } else {
+        logger.error('Polling error', { error: String(err) });
+      }
     }
   };
 
   await poll();
-  setInterval(poll, 30000);
+
+  // Dynamic interval with backoff
+  const scheduleNext = () => {
+    const interval = backoffMs > 0 ? backoffMs : BASE_POLL_INTERVAL;
+    setTimeout(async () => {
+      await poll();
+      scheduleNext();
+    }, interval);
+  };
+  scheduleNext();
 }
 
+// Track shutdown state
+let isShuttingDown = false;
+
 async function main(): Promise<void> {
-  console.log('KAMIYO Companion starting...');
+  logger.info('KAMIYO Companion starting...');
 
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not set');
@@ -440,15 +516,32 @@ async function main(): Promise<void> {
   const twitter = new TwitterApi(twitterCreds);
 
   const me = await twitter.v2.me();
-  console.log(`Authenticated as @${me.data.username}`);
+  logger.info(`Authenticated as @${me.data.username}`);
+
+  // Graceful shutdown handler
+  const shutdown = async (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    logger.info(`\n${signal} received. Shutting down gracefully...`);
+
+    // Give in-flight requests time to complete
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    logger.info('Shutdown complete');
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   await startMentionStream(twitter, anthropic);
 
-  console.log('KAMIYO Companion is running');
-  console.log('Tiers:', Object.keys(TIERS).join(', '));
+  logger.info('KAMIYO Companion is running');
+  logger.info('Available tiers', { tiers: Object.keys(TIERS) });
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err);
+  logger.error('Fatal error', { error: String(err) });
   process.exit(1);
 });

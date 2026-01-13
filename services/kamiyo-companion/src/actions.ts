@@ -1,5 +1,6 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import {
   Connection,
   PublicKey,
@@ -11,7 +12,11 @@ import {
 import { createHash } from 'crypto';
 import { recordPayment, updateUserTier, paymentExists, recordEscrowSession, getEscrowSession } from './db';
 import { TIERS, getRequiredPayment } from './tiers';
+import { logger } from './logger';
 import 'dotenv/config';
+
+// API key for webhook authentication
+const API_SECRET = process.env.COMPANION_API_SECRET;
 
 // Main KAMIYO program ID (has escrow built in)
 const KAMIYO_PROGRAM_ID = new PublicKey(
@@ -29,6 +34,13 @@ const TREASURY_WALLET = process.env.TREASURY_WALLET;
 const HOST = process.env.ACTIONS_HOST || 'https://companion.kamiyo.ai';
 
 const connection = new Connection(RPC_URL, 'confirmed');
+
+// Validate Solana public key format
+function isValidPublicKey(address: string): boolean {
+  if (!address || typeof address !== 'string') return false;
+  // Base58 characters only, 32-44 chars
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+}
 
 // Generate unique transaction ID for escrow
 function generateTransactionId(): string {
@@ -138,6 +150,47 @@ function createMarkDisputedInstruction(
 
 const app = express();
 
+// Rate limiting - 30 requests per minute per IP
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limit for transaction endpoints
+const txLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many transaction requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// API key authentication middleware
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!API_SECRET) {
+    logger.warn('COMPANION_API_SECRET not set - verify endpoint unprotected');
+    next();
+    return;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing authorization header' });
+    return;
+  }
+
+  const token = authHeader.slice(7);
+  if (token !== API_SECRET) {
+    res.status(403).json({ error: 'Invalid API key' });
+    return;
+  }
+
+  next();
+}
+
 // CORS headers required for Actions
 app.use(cors({
   origin: '*',
@@ -146,6 +199,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(limiter);
 
 // Serve static files (icon.png)
 app.use(express.static('public'));
@@ -205,7 +259,7 @@ app.get('/api/actions/subscribe', (req, res) => {
 });
 
 // POST - Return transaction for user to sign
-app.post('/api/actions/subscribe', async (req, res) => {
+app.post('/api/actions/subscribe', txLimiter, async (req, res) => {
   try {
     const { account } = req.body;
     const tier = (req.query.tier as string) || 'companion';
@@ -213,6 +267,10 @@ app.post('/api/actions/subscribe', async (req, res) => {
 
     if (!account) {
       return res.status(400).json({ error: 'Missing account' });
+    }
+
+    if (!isValidPublicKey(account)) {
+      return res.status(400).json({ error: 'Invalid Solana wallet address' });
     }
 
     if (!TREASURY_WALLET) {
@@ -229,9 +287,11 @@ app.post('/api/actions/subscribe', async (req, res) => {
 
     const transaction = new Transaction();
 
+    let transactionId: string | undefined;
+
     if (useEscrow) {
       // Create escrow transaction using kamiyo program - pay only if it helps
-      const transactionId = generateTransactionId();
+      transactionId = generateTransactionId();
       const [escrowPDA] = getEscrowPDA(payer, transactionId);
       const [protocolConfigPDA] = getProtocolConfigPDA();
       const [treasuryPDA] = getTreasuryPDA();
@@ -252,8 +312,17 @@ app.post('/api/actions/subscribe', async (req, res) => {
         )
       );
 
-      // Return transaction ID in response for tracking
-      // The bot will use this to look up the escrow later
+      // Record escrow session for tracking
+      // Uses wallet as temporary userId until linked via bot
+      const walletUserId = `wallet_${account}`;
+      recordEscrowSession(
+        walletUserId,
+        account,
+        transactionId,
+        escrowPDA.toBase58(),
+        lamports,
+        tier
+      );
     } else {
       // Direct payment - no escrow
       transaction.add(
@@ -287,13 +356,13 @@ app.post('/api/actions/subscribe', async (req, res) => {
       message,
     });
   } catch (err) {
-    console.error('Action error:', err);
+    logger.error('Action error', { error: String(err) });
     res.status(500).json({ error: 'Failed to create transaction' });
   }
 });
 
-// Webhook to verify completed transactions (called by your backend or cron)
-app.post('/api/actions/verify', async (req, res) => {
+// Webhook to verify completed transactions (requires API key authentication)
+app.post('/api/actions/verify', requireAuth, async (req, res) => {
   try {
     const { signature, userId, tier } = req.body;
 
@@ -339,7 +408,7 @@ app.post('/api/actions/verify', async (req, res) => {
 
     res.json({ success: true, tier, expiresAt });
   } catch (err) {
-    console.error('Verify error:', err);
+    logger.error('Verify error', { error: String(err) });
     res.status(500).json({ error: 'Verification failed' });
   }
 });
@@ -353,6 +422,10 @@ app.post('/api/actions/rate', async (req, res) => {
 
     if (!account) {
       return res.status(400).json({ error: 'Missing account' });
+    }
+
+    if (!isValidPublicKey(account)) {
+      return res.status(400).json({ error: 'Invalid Solana wallet address' });
     }
 
     if (!rating || rating < 1 || rating > 5) {
@@ -403,23 +476,61 @@ app.post('/api/actions/rate', async (req, res) => {
       message: `Rate ${rating}/5 - will ${action}`,
     });
   } catch (err) {
-    console.error('Rate error:', err);
+    logger.error('Rate error', { error: String(err) });
     res.status(500).json({ error: 'Failed to create rating transaction' });
   }
 });
 
-// Health check
+// Health check - shallow (for load balancers)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Deep health check - verifies all dependencies
+app.get('/health/deep', async (req, res) => {
+  const checks: Record<string, { status: string; message?: string }> = {};
+  let healthy = true;
+
+  // Check required environment variables
+  const requiredEnv = ['ANTHROPIC_API_KEY', 'TREASURY_WALLET'];
+  const missingEnv = requiredEnv.filter(key => !process.env[key]);
+  if (missingEnv.length > 0) {
+    checks.env = { status: 'unhealthy', message: `Missing: ${missingEnv.join(', ')}` };
+    healthy = false;
+  } else {
+    checks.env = { status: 'healthy' };
+  }
+
+  // Check database
+  try {
+    const db = (await import('./db')).default;
+    db.prepare('SELECT 1').get();
+    checks.database = { status: 'healthy' };
+  } catch (err) {
+    checks.database = { status: 'unhealthy', message: String(err) };
+    healthy = false;
+  }
+
+  // Check Solana RPC
+  try {
+    const slot = await connection.getSlot();
+    checks.solana = { status: 'healthy', message: `slot ${slot}` };
+  } catch (err) {
+    checks.solana = { status: 'unhealthy', message: String(err) };
+    healthy = false;
+  }
+
+  const status = healthy ? 'healthy' : 'unhealthy';
+  res.status(healthy ? 200 : 503).json({ status, checks });
 });
 
 const PORT = process.env.PORT || process.env.ACTIONS_PORT || 3001;
 
 export function startActionsServer(): void {
   app.listen(PORT, () => {
-    console.log(`Actions API running on port ${PORT}`);
-    console.log(`Blink URL: ${HOST}/api/actions/subscribe`);
-    console.log(`Test on X: Share any tweet with the Blink URL`);
+    logger.info(`Actions API running on port ${PORT}`);
+    logger.info(`Blink URL: ${HOST}/api/actions/subscribe`);
+    logger.info(`Test on X: Share any tweet with the Blink URL`);
   });
 }
 

@@ -70,11 +70,20 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS daily_message_counts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    count INTEGER DEFAULT 0,
+    UNIQUE(user_id, date)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
   CREATE INDEX IF NOT EXISTS idx_escrow_wallet ON escrow_sessions(wallet);
   CREATE INDEX IF NOT EXISTS idx_escrow_session ON escrow_sessions(session_id);
+  CREATE INDEX IF NOT EXISTS idx_daily_counts ON daily_message_counts(user_id, date);
 `);
 
 export interface User {
@@ -276,6 +285,31 @@ export function getPendingEscrows(olderThanDays: number = 7): EscrowSession[] {
     SELECT * FROM escrow_sessions
     WHERE status = 'active' AND created_at < ?
   `).all(cutoff) as EscrowSession[];
+}
+
+// Daily message count operations (persistent)
+export function getDailyMessageCount(userId: string, date: string): number {
+  const row = db.prepare('SELECT count FROM daily_message_counts WHERE user_id = ? AND date = ?')
+    .get(userId, date) as { count: number } | undefined;
+  return row?.count || 0;
+}
+
+export function incrementDailyMessageCount(userId: string, date: string): number {
+  db.prepare(`
+    INSERT INTO daily_message_counts (user_id, date, count) VALUES (?, ?, 1)
+    ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1
+  `).run(userId, date);
+
+  return getDailyMessageCount(userId, date);
+}
+
+// Cleanup old message counts (call periodically)
+export function cleanupOldMessageCounts(daysToKeep: number = 7): void {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+  const cutoff = cutoffDate.toISOString().split('T')[0];
+
+  db.prepare('DELETE FROM daily_message_counts WHERE date < ?').run(cutoff);
 }
 
 export default db;
