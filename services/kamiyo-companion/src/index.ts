@@ -169,14 +169,13 @@ async function handleCommand(
     if (escrow) {
       // User has escrow - they need to sign a transaction to release/refund
       const HOST = process.env.ACTIONS_HOST || 'https://companion.kamiyo.ai';
-      const action = rating >= 3 ? 'release payment' : 'get refund';
+      const action = rating >= 3 ? 'release payment' : 'mark disputed for refund';
 
       // For on-chain rating, direct them to sign the transaction
-      // The transaction is created via the rate action endpoint
-      return `Rating ${rating}/5 recorded. To ${action}, sign the transaction:
-${HOST}/api/actions/rate?rating=${rating}&session=${escrow.session_id}
+      return `Rating ${rating}/5. To ${action}, sign the transaction:
+${HOST}/api/actions/rate?rating=${rating}&txid=${escrow.session_id}
 
-Or if using a wallet that supports Blinks, the transaction will appear above.`;
+Or paste that URL in a tweet to use Blinks.`;
     }
 
     // No escrow - just record the rating locally
