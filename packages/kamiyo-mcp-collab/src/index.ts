@@ -52,6 +52,9 @@ const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
   vote_swarm_action: { maxCalls: 10, windowMs: 60000 },
   get_registry_status: { maxCalls: 30, windowMs: 60000 },
   get_agent_status: { maxCalls: 30, windowMs: 60000 },
+  request_withdrawal: { maxCalls: 3, windowMs: 60000 },
+  get_withdrawal_status: { maxCalls: 30, windowMs: 60000 },
+  get_aggregator_status: { maxCalls: 30, windowMs: 60000 },
 };
 
 class RateLimiter {
@@ -283,6 +286,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         properties: {},
       },
     },
+    {
+      name: 'request_withdrawal',
+      description: 'Request withdrawal of staked tokens. Starts 24-hour timelock.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'get_withdrawal_status',
+      description: 'Check status of pending withdrawal request.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'get_aggregator_status',
+      description: 'Get aggregated signal statistics for current epoch.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
   ],
 }));
 
@@ -345,6 +372,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'get_agent_status':
         return await handleGetAgentStatus();
+
+      case 'request_withdrawal':
+        return await handleRequestWithdrawal();
+
+      case 'get_withdrawal_status':
+        return await handleGetWithdrawalStatus();
+
+      case 'get_aggregator_status':
+        return await handleGetAggregatorStatus();
 
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -663,6 +699,110 @@ async function handleGetAgentStatus() {
           status: agentState.registered ? 'registered' : 'initialized',
           identityCommitment: agentState.identityCommitment,
           leafIndex: agentState.leafIndex,
+        }),
+      },
+    ],
+  };
+}
+
+async function handleRequestWithdrawal() {
+  ensureInitialized();
+  ensureRegistered();
+  await ensureClient();
+
+  const wallet = getWallet();
+  const identityCommitment = Buffer.from(agentState!.identityCommitment, 'hex');
+
+  const tx = await client!.requestWithdrawal(
+    wallet,
+    new Uint8Array(identityCommitment)
+  );
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          status: 'withdrawal_requested',
+          transaction: tx,
+          message: 'Stake will be available for claim after 24-hour timelock',
+        }),
+      },
+    ],
+  };
+}
+
+async function handleGetWithdrawalStatus() {
+  ensureInitialized();
+  await ensureClient();
+
+  const identityCommitment = Buffer.from(agentState!.identityCommitment, 'hex');
+  const withdrawal = await client!.getWithdrawal(new Uint8Array(identityCommitment));
+
+  if (!withdrawal) {
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify({ status: 'no_pending_withdrawal' }) },
+      ],
+    };
+  }
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          status: withdrawal.claimed ? 'claimed' : 'pending',
+          amount: withdrawal.amount.toString(),
+          requestSlot: withdrawal.requestSlot.toString(),
+          unlockSlot: withdrawal.unlockSlot.toString(),
+          claimed: withdrawal.claimed,
+        }),
+      },
+    ],
+  };
+}
+
+async function handleGetAggregatorStatus() {
+  await ensureClient();
+
+  const registry = await client!.getRegistry();
+  if (!registry) {
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify({ status: 'registry_not_initialized' }) },
+      ],
+    };
+  }
+
+  const aggregator = await client!.getAggregator(registry.epoch);
+  if (!aggregator) {
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify({ status: 'aggregator_not_initialized', epoch: registry.epoch.toString() }) },
+      ],
+    };
+  }
+
+  const totalDirectional = aggregator.longCount + aggregator.shortCount + aggregator.neutralCount;
+  const avgConfidence = totalDirectional > 0 ? aggregator.totalConfidence / totalDirectional : 0;
+  const avgMagnitude = totalDirectional > 0 ? aggregator.totalMagnitude / totalDirectional : 0;
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          status: 'active',
+          epoch: aggregator.epoch.toString(),
+          totalSignals: aggregator.totalSignals,
+          longCount: aggregator.longCount,
+          shortCount: aggregator.shortCount,
+          neutralCount: aggregator.neutralCount,
+          avgConfidence: Math.round(avgConfidence),
+          avgMagnitude: Math.round(avgMagnitude),
+          sentiment: aggregator.longCount > aggregator.shortCount ? 'bullish' :
+                     aggregator.shortCount > aggregator.longCount ? 'bearish' : 'neutral',
         }),
       },
     ],
