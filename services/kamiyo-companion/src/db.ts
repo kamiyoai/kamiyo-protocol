@@ -228,6 +228,17 @@ export function paymentExists(txSignature: string): boolean {
   return !!row;
 }
 
+// Atomic payment record - prevents race conditions
+// Returns true if payment was recorded, false if it already existed
+export function tryRecordPayment(userId: string, txSignature: string, amountLamports: number, tier: string, durationDays: number): boolean {
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO payments (user_id, tx_signature, amount_lamports, tier, duration_days)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(userId, txSignature, amountLamports, tier, durationDays);
+
+  return result.changes > 0;
+}
+
 // Stats
 export function getUserStats(userId: string): { totalSessions: number; avgRating: number | null; totalMessages: number } {
   const stats = db.prepare(`

@@ -63,7 +63,22 @@ export const tierCache = new Cache<string>(5 * 60 * 1000);
 export const balanceCache = new Cache<number>(5 * 60 * 1000);
 
 // Cleanup caches every 10 minutes
-setInterval(() => {
-  tierCache.cleanup();
-  balanceCache.cleanup();
-}, 10 * 60 * 1000);
+let cacheCleanupInterval: NodeJS.Timeout | null = null;
+
+export function startCacheCleanup(): void {
+  if (cacheCleanupInterval) return;
+  cacheCleanupInterval = setInterval(() => {
+    tierCache.cleanup();
+    balanceCache.cleanup();
+  }, 10 * 60 * 1000);
+}
+
+export function stopCacheCleanup(): void {
+  if (cacheCleanupInterval) {
+    clearInterval(cacheCleanupInterval);
+    cacheCleanupInterval = null;
+  }
+}
+
+// Auto-start cleanup (for backwards compatibility)
+startCacheCleanup();

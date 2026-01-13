@@ -10,7 +10,7 @@ import {
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import { createHash } from 'crypto';
-import { recordPayment, updateUserTier, paymentExists, recordEscrowSession, getEscrowSession } from './db';
+import { tryRecordPayment, updateUserTier, recordEscrowSession, getEscrowSession } from './db';
 import { TIERS, getRequiredPayment } from './tiers';
 import { logger } from './logger';
 import { registry, apiRequestsTotal, escrowsCreated } from './metrics';
@@ -172,8 +172,8 @@ const txLimiter = rateLimit({
 // API key authentication middleware
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!API_SECRET) {
-    logger.warn('COMPANION_API_SECRET not set - verify endpoint unprotected');
-    next();
+    logger.error('COMPANION_API_SECRET not configured - endpoint disabled');
+    res.status(503).json({ error: 'Service not configured' });
     return;
   }
 
@@ -191,6 +191,26 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 
   next();
 }
+
+// Rate limiter for rating endpoint (per-wallet, stricter)
+const rateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => req.body?.account || req.ip || 'unknown',
+  message: { error: 'Too many rating requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for verify endpoint
+const verifyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.body?.userId || req.ip || 'unknown',
+  message: { error: 'Too many verification requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // CORS headers required for Actions
 app.use(cors({
@@ -364,16 +384,12 @@ app.post('/api/actions/subscribe', txLimiter, async (req, res) => {
 });
 
 // Webhook to verify completed transactions (requires API key authentication)
-app.post('/api/actions/verify', requireAuth, async (req, res) => {
+app.post('/api/actions/verify', verifyLimiter, requireAuth, async (req, res) => {
   try {
     const { signature, userId, tier } = req.body;
 
     if (!signature || !userId || !tier) {
       return res.status(400).json({ error: 'Missing params' });
-    }
-
-    if (paymentExists(signature)) {
-      return res.status(400).json({ error: 'Already processed' });
     }
 
     // Verify transaction
@@ -403,11 +419,15 @@ app.post('/api/actions/verify', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Insufficient payment' });
     }
 
-    // Record payment and upgrade tier
+    // Atomic record - prevents race conditions
     const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
-    recordPayment(userId, signature, transferAmount, tier, 30);
-    updateUserTier(userId, tier, expiresAt);
+    const recorded = tryRecordPayment(userId, signature, transferAmount, tier, 30);
 
+    if (!recorded) {
+      return res.status(400).json({ error: 'Already processed' });
+    }
+
+    updateUserTier(userId, tier, expiresAt);
     res.json({ success: true, tier, expiresAt });
   } catch (err) {
     logger.error('Verify error', { error: String(err) });
@@ -416,7 +436,7 @@ app.post('/api/actions/verify', requireAuth, async (req, res) => {
 });
 
 // Rate session - release funds (happy) or mark disputed (unhappy)
-app.post('/api/actions/rate', async (req, res) => {
+app.post('/api/actions/rate', rateLimiter, async (req, res) => {
   try {
     const { account } = req.body;
     const rating = parseInt(req.query.rating as string, 10);
@@ -538,10 +558,30 @@ app.get('/metrics', async (req, res) => {
 
 const PORT = process.env.PORT || process.env.ACTIONS_PORT || 3001;
 
+function validateStartupConfig(): void {
+  const required = ['TREASURY_WALLET', 'SOLANA_RPC_URL'];
+  const missing = required.filter(key => !process.env[key]);
+
+  if (missing.length > 0) {
+    logger.error('Missing required environment variables', { missing });
+    process.exit(1);
+  }
+
+  if (!API_SECRET) {
+    logger.warn('COMPANION_API_SECRET not set - /verify endpoint will be disabled');
+  }
+}
+
 export function startActionsServer(): void {
+  validateStartupConfig();
+
   app.listen(PORT, () => {
     logger.info(`Actions API running on port ${PORT}`);
     logger.info(`Blink URL: ${HOST}/api/actions/subscribe`);
+    logger.info('Security status', {
+      verifyEndpoint: API_SECRET ? 'protected' : 'disabled',
+      treasury: TREASURY_WALLET ? 'configured' : 'missing',
+    });
   });
 }
 

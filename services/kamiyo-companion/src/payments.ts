@@ -1,5 +1,5 @@
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { recordPayment, paymentExists, updateUserTier } from './db';
+import { tryRecordPayment, updateUserTier } from './db';
 import { getRequiredPayment, TIERS } from './tiers';
 
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
@@ -19,11 +19,6 @@ export async function verifyPayment(
   txSignature: string,
   expectedTier: string
 ): Promise<PaymentVerification> {
-  // Check if already processed
-  if (paymentExists(txSignature)) {
-    return { valid: false, error: 'Transaction already processed' };
-  }
-
   if (!TREASURY_WALLET) {
     return { valid: false, error: 'Treasury wallet not configured' };
   }
@@ -81,11 +76,16 @@ export async function verifyPayment(
       return { valid: false, error: `Payment insufficient for ${expectedTier} tier` };
     }
 
-    // Record payment and update tier
+    // Atomic record - prevents race conditions
+    // Returns false if transaction was already processed
     const expiresAt = Math.floor(Date.now() / 1000) + (durationDays * 24 * 60 * 60);
-    recordPayment(userId, txSignature, transferAmount, tier, durationDays);
-    updateUserTier(userId, tier, expiresAt);
+    const recorded = tryRecordPayment(userId, txSignature, transferAmount, tier, durationDays);
 
+    if (!recorded) {
+      return { valid: false, error: 'Transaction already processed' };
+    }
+
+    updateUserTier(userId, tier, expiresAt);
     return { valid: true, tier, durationDays };
   } catch (err) {
     console.error('Payment verification error:', err);
