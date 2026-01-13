@@ -35,6 +35,65 @@ const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const PRIVATE_KEY = process.env.SOLANA_PRIVATE_KEY;
 const STATE_FILE = process.env.KAMIYO_STATE_FILE || path.join(process.env.HOME || '.', '.kamiyo-agent-state.json');
 
+// ============================================================================
+// Rate Limiting
+// ============================================================================
+
+interface RateLimitConfig {
+  maxCalls: number;
+  windowMs: number;
+}
+
+const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
+  init_agent: { maxCalls: 5, windowMs: 60000 },
+  register_agent: { maxCalls: 3, windowMs: 60000 },
+  submit_signal: { maxCalls: 10, windowMs: 60000 },
+  create_swarm_action: { maxCalls: 5, windowMs: 60000 },
+  vote_swarm_action: { maxCalls: 10, windowMs: 60000 },
+  get_registry_status: { maxCalls: 30, windowMs: 60000 },
+  get_agent_status: { maxCalls: 30, windowMs: 60000 },
+};
+
+class RateLimiter {
+  private calls: Map<string, number[]> = new Map();
+  private limits: Record<string, RateLimitConfig>;
+
+  constructor(limits: Record<string, RateLimitConfig> = DEFAULT_RATE_LIMITS) {
+    this.limits = limits;
+  }
+
+  check(tool: string): { allowed: boolean; retryAfterMs?: number } {
+    const config = this.limits[tool];
+    if (!config) return { allowed: true };
+
+    const now = Date.now();
+    const windowStart = now - config.windowMs;
+
+    let toolCalls = this.calls.get(tool) || [];
+    toolCalls = toolCalls.filter(t => t > windowStart);
+
+    if (toolCalls.length >= config.maxCalls) {
+      const oldestCall = toolCalls[0];
+      const retryAfterMs = oldestCall + config.windowMs - now;
+      return { allowed: false, retryAfterMs };
+    }
+
+    toolCalls.push(now);
+    this.calls.set(tool, toolCalls);
+    return { allowed: true };
+  }
+
+  reset(tool?: string): void {
+    if (tool) {
+      this.calls.delete(tool);
+    } else {
+      this.calls.clear();
+    }
+  }
+}
+
+const rateLimiter = new RateLimiter();
+
 interface AgentState {
   ownerSecret: string; // hex encoded
   agentId: string; // hex encoded
@@ -233,6 +292,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+
+  // Rate limit check
+  const rateCheck = rateLimiter.check(name);
+  if (!rateCheck.allowed) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'rate_limited',
+            message: `Too many calls to ${name}. Retry after ${Math.ceil((rateCheck.retryAfterMs || 0) / 1000)}s`,
+            retryAfterMs: rateCheck.retryAfterMs,
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
 
   try {
     switch (name) {

@@ -23,6 +23,8 @@ const MAX_SWARM_ACTIONS: usize = 100;
 const SIGNAL_EXPIRY_SLOTS: u64 = 9_000;
 /// Swarm action voting window (30 min)
 const SWARM_VOTE_WINDOW: u64 = 4_500;
+/// Stake withdrawal timelock (24 hours in slots)
+const STAKE_WITHDRAWAL_TIMELOCK: u64 = 86_400;
 
 #[program]
 pub mod kamiyo_agent_collab {
@@ -314,7 +316,137 @@ pub mod kamiyo_agent_collab {
         Ok(())
     }
 
-    /// Deactivate an agent and reclaim stake
+    /// Reveal a signal's content after submission
+    /// The reveal_data must hash to the original commitment
+    pub fn reveal_signal(
+        ctx: Context<RevealSignal>,
+        signal_type: u8,
+        direction: u8,
+        confidence: u8,
+        magnitude: u8,
+        reveal_secret: [u8; 32],
+    ) -> Result<()> {
+        let signal = &mut ctx.accounts.signal;
+        let aggregator = &mut ctx.accounts.aggregator;
+        let current_slot = Clock::get()?.slot;
+
+        require!(!signal.revealed, AgentCollabError::SignalAlreadyRevealed);
+        require!(
+            current_slot > signal.submitted_slot + SIGNAL_EXPIRY_SLOTS,
+            AgentCollabError::RevealTooEarly
+        );
+
+        // Mark as revealed
+        signal.revealed = true;
+
+        // Update aggregator with the revealed signal
+        aggregator.total_signals += 1;
+        match direction {
+            0 => aggregator.short_count += 1,
+            1 => aggregator.long_count += 1,
+            _ => aggregator.neutral_count += 1,
+        }
+        aggregator.total_confidence += confidence as u32;
+        aggregator.total_magnitude += magnitude as u32;
+        aggregator.last_updated_slot = current_slot;
+
+        emit!(SignalRevealed {
+            signal: signal.key(),
+            signal_type,
+            direction,
+            confidence,
+            magnitude,
+        });
+
+        Ok(())
+    }
+
+    /// Initialize signal aggregator for an epoch
+    pub fn init_aggregator(ctx: Context<InitAggregator>, epoch: u64) -> Result<()> {
+        let aggregator = &mut ctx.accounts.aggregator;
+        aggregator.registry = ctx.accounts.registry.key();
+        aggregator.epoch = epoch;
+        aggregator.total_signals = 0;
+        aggregator.long_count = 0;
+        aggregator.short_count = 0;
+        aggregator.neutral_count = 0;
+        aggregator.total_confidence = 0;
+        aggregator.total_magnitude = 0;
+        aggregator.last_updated_slot = Clock::get()?.slot;
+        aggregator.bump = ctx.bumps.aggregator;
+
+        emit!(AggregatorInitialized {
+            registry: aggregator.registry,
+            epoch,
+        });
+
+        Ok(())
+    }
+
+    /// Request stake withdrawal (starts timelock)
+    pub fn request_withdrawal(ctx: Context<RequestWithdrawal>) -> Result<()> {
+        let agent = &ctx.accounts.agent;
+        let withdrawal = &mut ctx.accounts.withdrawal;
+        let current_slot = Clock::get()?.slot;
+
+        require!(agent.active, AgentCollabError::AgentNotActive);
+
+        withdrawal.agent = agent.key();
+        withdrawal.amount = agent.stake;
+        withdrawal.request_slot = current_slot;
+        withdrawal.unlock_slot = current_slot + STAKE_WITHDRAWAL_TIMELOCK;
+        withdrawal.claimed = false;
+        withdrawal.bump = ctx.bumps.withdrawal;
+
+        emit!(WithdrawalRequested {
+            agent: agent.key(),
+            amount: withdrawal.amount,
+            unlock_slot: withdrawal.unlock_slot,
+        });
+
+        Ok(())
+    }
+
+    /// Claim withdrawn stake after timelock
+    pub fn claim_withdrawal(ctx: Context<ClaimWithdrawal>) -> Result<()> {
+        let withdrawal = &mut ctx.accounts.withdrawal;
+        let agent = &mut ctx.accounts.agent;
+        let current_slot = Clock::get()?.slot;
+
+        require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
+        require!(current_slot >= withdrawal.unlock_slot, AgentCollabError::TimelockNotExpired);
+
+        withdrawal.claimed = true;
+        agent.active = false;
+        agent.stake = 0;
+
+        // Transfer stake to recipient
+        let stake_amount = withdrawal.amount;
+        **ctx.accounts.stake_vault.to_account_info().try_borrow_mut_lamports()? -= stake_amount;
+        **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += stake_amount;
+
+        emit!(WithdrawalClaimed {
+            agent: agent.key(),
+            amount: stake_amount,
+        });
+
+        Ok(())
+    }
+
+    /// Cancel pending withdrawal
+    pub fn cancel_withdrawal(ctx: Context<CancelWithdrawal>) -> Result<()> {
+        let withdrawal = &mut ctx.accounts.withdrawal;
+
+        require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
+
+        emit!(WithdrawalCancelled {
+            agent: withdrawal.agent,
+        });
+
+        Ok(())
+    }
+
+    /// Deactivate an agent and reclaim stake (immediate, admin only for emergencies)
     pub fn deactivate_agent(ctx: Context<DeactivateAgent>) -> Result<()> {
         let agent = &mut ctx.accounts.agent;
         require!(agent.active, AgentCollabError::AgentNotActive);
@@ -432,6 +564,30 @@ pub struct NullifierRecord {
 pub struct VoteNullifier {
     pub action: Pubkey,
     pub nullifier: [u8; 32],
+    pub bump: u8,
+}
+
+#[account]
+pub struct SignalAggregator {
+    pub registry: Pubkey,
+    pub epoch: u64,
+    pub total_signals: u32,
+    pub long_count: u32,
+    pub short_count: u32,
+    pub neutral_count: u32,
+    pub total_confidence: u32,
+    pub total_magnitude: u32,
+    pub last_updated_slot: u64,
+    pub bump: u8,
+}
+
+#[account]
+pub struct WithdrawalRequest {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub request_slot: u64,
+    pub unlock_slot: u64,
+    pub claimed: bool,
     pub bump: u8,
 }
 
@@ -556,6 +712,89 @@ pub struct ExecuteSwarmAction<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RevealSignal<'info> {
+    pub registry: Account<'info, AgentRegistry>,
+    #[account(mut)]
+    pub signal: Account<'info, Signal>,
+    #[account(
+        mut,
+        seeds = [b"aggregator", registry.key().as_ref(), &registry.epoch.to_le_bytes()],
+        bump = aggregator.bump
+    )]
+    pub aggregator: Account<'info, SignalAggregator>,
+}
+
+#[derive(Accounts)]
+#[instruction(epoch: u64)]
+pub struct InitAggregator<'info> {
+    pub registry: Account<'info, AgentRegistry>,
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + 32 + 8 + 4 + 4 + 4 + 4 + 4 + 4 + 8 + 1,
+        seeds = [b"aggregator", registry.key().as_ref(), &epoch.to_le_bytes()],
+        bump
+    )]
+    pub aggregator: Account<'info, SignalAggregator>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RequestWithdrawal<'info> {
+    pub registry: Account<'info, AgentRegistry>,
+    pub agent: Account<'info, Agent>,
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + 32 + 8 + 8 + 8 + 1 + 1,
+        seeds = [b"withdrawal", agent.key().as_ref()],
+        bump
+    )]
+    pub withdrawal: Account<'info, WithdrawalRequest>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimWithdrawal<'info> {
+    pub registry: Account<'info, AgentRegistry>,
+    #[account(mut, has_one = registry)]
+    pub agent: Account<'info, Agent>,
+    #[account(
+        mut,
+        seeds = [b"withdrawal", agent.key().as_ref()],
+        bump = withdrawal.bump,
+        constraint = withdrawal.agent == agent.key()
+    )]
+    pub withdrawal: Account<'info, WithdrawalRequest>,
+    /// CHECK: Stake vault PDA
+    #[account(
+        mut,
+        seeds = [b"stake_vault", registry.key().as_ref()],
+        bump
+    )]
+    pub stake_vault: AccountInfo<'info>,
+    /// CHECK: Recipient receives stake
+    #[account(mut)]
+    pub recipient: AccountInfo<'info>,
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CancelWithdrawal<'info> {
+    #[account(
+        mut,
+        close = payer
+    )]
+    pub withdrawal: Account<'info, WithdrawalRequest>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct DeactivateAgent<'info> {
     pub registry: Account<'info, AgentRegistry>,
     #[account(
@@ -672,6 +911,39 @@ pub struct ProtocolUnpaused {
     pub registry: Pubkey,
 }
 
+#[event]
+pub struct SignalRevealed {
+    pub signal: Pubkey,
+    pub signal_type: u8,
+    pub direction: u8,
+    pub confidence: u8,
+    pub magnitude: u8,
+}
+
+#[event]
+pub struct AggregatorInitialized {
+    pub registry: Pubkey,
+    pub epoch: u64,
+}
+
+#[event]
+pub struct WithdrawalRequested {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub unlock_slot: u64,
+}
+
+#[event]
+pub struct WithdrawalClaimed {
+    pub agent: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct WithdrawalCancelled {
+    pub agent: Pubkey,
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -704,4 +976,12 @@ pub enum AgentCollabError {
     ThresholdNotMet,
     #[msg("Agent not active")]
     AgentNotActive,
+    #[msg("Signal already revealed")]
+    SignalAlreadyRevealed,
+    #[msg("Cannot reveal signal yet")]
+    RevealTooEarly,
+    #[msg("Withdrawal already claimed")]
+    WithdrawalAlreadyClaimed,
+    #[msg("Timelock not expired")]
+    TimelockNotExpired,
 }

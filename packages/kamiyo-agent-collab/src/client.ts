@@ -24,10 +24,91 @@ import { Idl } from '@coral-xyz/anchor';
 // Re-export program ID for convenience
 export { AGENT_COLLAB_PROGRAM_ID };
 
+// ============================================================================
+// Retry Logic
+// ============================================================================
+
+interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  retryableErrors: string[];
+}
+
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 10000,
+  retryableErrors: [
+    'blockhash not found',
+    'Node is behind',
+    'Too many requests',
+    'Service temporarily unavailable',
+    'connection refused',
+    'ECONNRESET',
+    'ETIMEDOUT',
+  ],
+};
+
+function isRetryableError(error: unknown, config: RetryConfig): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return config.retryableErrors.some(e => message.toLowerCase().includes(e.toLowerCase()));
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  config: RetryConfig = DEFAULT_RETRY_CONFIG
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt < config.maxRetries && isRetryableError(error, config)) {
+        const delay = Math.min(
+          config.baseDelayMs * Math.pow(2, attempt),
+          config.maxDelayMs
+        );
+        await sleep(delay);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Client for the KAMIYO Agent Collaboration Protocol.
+ * Provides methods for ZK-private agent coordination on Solana.
+ *
+ * @example
+ * ```typescript
+ * const provider = new AnchorProvider(connection, wallet, {});
+ * const client = new AgentCollabClient(provider);
+ *
+ * // Initialize registry
+ * await client.initializeRegistry(authority, { minStake: new BN(1000000), minSignalConfidence: 50 });
+ *
+ * // Register agent
+ * await client.registerAgent(payer, identityCommitment, new BN(1000000));
+ * ```
+ */
 export class AgentCollabClient {
+  /** The Anchor program instance */
   readonly program: Program<Idl>;
+  /** The Solana connection */
   readonly connection: Connection;
 
+  /**
+   * Create a new AgentCollabClient.
+   * @param provider - Anchor provider with connection and wallet
+   */
   constructor(provider: AnchorProvider) {
     this.connection = provider.connection;
     this.program = new Program(idlJson as Idl, provider);
@@ -37,6 +118,10 @@ export class AgentCollabClient {
   // PDA Derivation
   // ============================================================================
 
+  /**
+   * Derive the registry PDA address.
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getRegistryPDA(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('registry')],
@@ -44,6 +129,11 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive an agent PDA from identity commitment.
+   * @param identityCommitment - 32-byte identity commitment
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getAgentPDA(identityCommitment: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('agent'), identityCommitment],
@@ -51,6 +141,11 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive the stake vault PDA for a registry.
+   * @param registry - Registry public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getStakeVaultPDA(registry: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('stake_vault'), registry.toBuffer()],
@@ -58,6 +153,11 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive a signal PDA from signal commitment.
+   * @param signalCommitment - 32-byte signal commitment
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getSignalPDA(signalCommitment: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('signal'), signalCommitment],
@@ -65,6 +165,11 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive a nullifier record PDA.
+   * @param nullifier - 32-byte nullifier
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getNullifierPDA(nullifier: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('nullifier'), nullifier],
@@ -72,6 +177,11 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive a swarm action PDA from action hash.
+   * @param actionHash - 32-byte action hash
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getSwarmActionPDA(actionHash: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('swarm_action'), actionHash],
@@ -79,6 +189,12 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive a vote nullifier PDA for preventing double votes.
+   * @param swarmAction - Swarm action public key
+   * @param nullifier - 32-byte vote nullifier
+   * @returns Tuple of [PDA address, bump seed]
+   */
   static getVoteNullifierPDA(
     swarmAction: PublicKey,
     nullifier: Uint8Array
@@ -93,6 +209,10 @@ export class AgentCollabClient {
   // Account Fetching
   // ============================================================================
 
+  /**
+   * Fetch the agent registry account.
+   * @returns Registry account data or null if not initialized
+   */
   async getRegistry(): Promise<AgentRegistry | null> {
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     try {
@@ -137,23 +257,38 @@ export class AgentCollabClient {
   // Instructions
   // ============================================================================
 
+  /**
+   * Initialize the agent collaboration registry.
+   * @param authority - Registry authority keypair
+   * @param config - Registry configuration (minStake, minSignalConfidence)
+   * @returns Transaction signature
+   */
   async initializeRegistry(
     authority: Keypair,
     config: RegistryConfig
   ): Promise<string> {
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
 
-    return this.program.methods
-      .initializeRegistry(config)
-      .accounts({
-        registry: registryPDA,
-        authority: authority.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-      })
-      .signers([authority])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .initializeRegistry(config)
+        .accounts({
+          registry: registryPDA,
+          authority: authority.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([authority])
+        .rpc()
+    );
   }
 
+  /**
+   * Register an agent with a ZK identity commitment.
+   * @param payer - Keypair paying for the transaction and stake
+   * @param identityCommitment - 32-byte Poseidon hash commitment
+   * @param stakeAmount - Amount of lamports to stake
+   * @returns Transaction signature
+   */
   async registerAgent(
     payer: Keypair,
     identityCommitment: Uint8Array,
@@ -163,19 +298,29 @@ export class AgentCollabClient {
     const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
     const [stakeVault] = AgentCollabClient.getStakeVaultPDA(registryPDA);
 
-    return this.program.methods
-      .registerAgent(Array.from(identityCommitment), stakeAmount)
-      .accounts({
-        registry: registryPDA,
-        agent: agentPDA,
-        stakeVault,
-        payer: payer.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-      })
-      .signers([payer])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .registerAgent(Array.from(identityCommitment), stakeAmount)
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          stakeVault,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
   }
 
+  /**
+   * Submit a private signal with ZK proof.
+   * @param payer - Keypair paying for the transaction
+   * @param proof - Groth16 proof of agent identity
+   * @param nullifier - 32-byte nullifier to prevent double submission
+   * @param signalCommitment - 32-byte commitment to signal content
+   * @returns Transaction signature
+   */
   async submitSignal(
     payer: Keypair,
     proof: Groth16Proof,
@@ -186,23 +331,25 @@ export class AgentCollabClient {
     const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
     const [nullifierPDA] = AgentCollabClient.getNullifierPDA(nullifier);
 
-    return this.program.methods
-      .submitSignal(
-        Array.from(nullifier),
-        Array.from(signalCommitment),
-        Array.from(proof.a),
-        Array.from(proof.b),
-        Array.from(proof.c)
-      )
-      .accounts({
-        registry: registryPDA,
-        signal: signalPDA,
-        nullifierRecord: nullifierPDA,
-        payer: payer.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-      })
-      .signers([payer])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .submitSignal(
+          Array.from(nullifier),
+          Array.from(signalCommitment),
+          Array.from(proof.a),
+          Array.from(proof.b),
+          Array.from(proof.c)
+        )
+        .accounts({
+          registry: registryPDA,
+          signal: signalPDA,
+          nullifierRecord: nullifierPDA,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
   }
 
   async createSwarmAction(
@@ -215,23 +362,25 @@ export class AgentCollabClient {
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
 
-    return this.program.methods
-      .createSwarmAction(
-        Array.from(actionHash),
-        Array.from(proof.a),
-        Array.from(proof.b),
-        Array.from(proof.c),
-        Array.from(nullifier),
-        threshold
-      )
-      .accounts({
-        registry: registryPDA,
-        swarmAction: actionPDA,
-        payer: payer.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-      })
-      .signers([payer])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .createSwarmAction(
+          Array.from(actionHash),
+          Array.from(proof.a),
+          Array.from(proof.b),
+          Array.from(proof.c),
+          Array.from(nullifier),
+          threshold
+        )
+        .accounts({
+          registry: registryPDA,
+          swarmAction: actionPDA,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
   }
 
   async voteSwarmAction(
@@ -248,34 +397,38 @@ export class AgentCollabClient {
       nullifier
     );
 
-    return this.program.methods
-      .voteSwarmAction(
-        Array.from(nullifier),
-        Array.from(proof.a),
-        Array.from(proof.b),
-        Array.from(proof.c),
-        vote
-      )
-      .accounts({
-        registry: registryPDA,
-        swarmAction: actionPDA,
-        voteNullifier: voteNullifierPDA,
-        payer: payer.publicKey,
-        systemProgram: web3.SystemProgram.programId,
-      })
-      .signers([payer])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .voteSwarmAction(
+          Array.from(nullifier),
+          Array.from(proof.a),
+          Array.from(proof.b),
+          Array.from(proof.c),
+          vote
+        )
+        .accounts({
+          registry: registryPDA,
+          swarmAction: actionPDA,
+          voteNullifier: voteNullifierPDA,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
   }
 
   async executeSwarmAction(actionHash: Uint8Array): Promise<string> {
     const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
 
-    return this.program.methods
-      .executeSwarmAction()
-      .accounts({
-        swarmAction: actionPDA,
-      })
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .executeSwarmAction()
+        .accounts({
+          swarmAction: actionPDA,
+        })
+        .rpc()
+    );
   }
 
   async updateAgentsRoot(
@@ -285,40 +438,46 @@ export class AgentCollabClient {
   ): Promise<string> {
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
 
-    return this.program.methods
-      .updateAgentsRoot(Array.from(newRoot), agentCount)
-      .accounts({
-        registry: registryPDA,
-        authority: authority.publicKey,
-      })
-      .signers([authority])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .updateAgentsRoot(Array.from(newRoot), agentCount)
+        .accounts({
+          registry: registryPDA,
+          authority: authority.publicKey,
+        })
+        .signers([authority])
+        .rpc()
+    );
   }
 
   async pauseProtocol(authority: Keypair): Promise<string> {
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
 
-    return this.program.methods
-      .pauseProtocol()
-      .accounts({
-        registry: registryPDA,
-        authority: authority.publicKey,
-      })
-      .signers([authority])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .pauseProtocol()
+        .accounts({
+          registry: registryPDA,
+          authority: authority.publicKey,
+        })
+        .signers([authority])
+        .rpc()
+    );
   }
 
   async unpauseProtocol(authority: Keypair): Promise<string> {
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
 
-    return this.program.methods
-      .unpauseProtocol()
-      .accounts({
-        registry: registryPDA,
-        authority: authority.publicKey,
-      })
-      .signers([authority])
-      .rpc();
+    return withRetry(() =>
+      this.program.methods
+        .unpauseProtocol()
+        .accounts({
+          registry: registryPDA,
+          authority: authority.publicKey,
+        })
+        .signers([authority])
+        .rpc()
+    );
   }
 
   // ============================================================================
