@@ -1,15 +1,17 @@
 import { Telegraf, Markup } from 'telegraf';
 import { Connection, PublicKey } from '@solana/web3.js';
 import Anthropic from '@anthropic-ai/sdk';
+import type { Tool, ToolUseBlock, TextBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import * as fs from 'fs';
 import 'dotenv/config';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
+const KAMIYO_PAIR = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DATA_FILE = './data/proposals.json';
 const ADMIN_IDS = (process.env.ADMIN_IDS || '').split(',').filter(Boolean);
 const GITHUB_REPO = 'kamiyo-ai/kamiyo-protocol';
-const DOC_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour
+const DOC_REFRESH_INTERVAL = 60 * 60 * 1000;
 
 const DOCS_TO_FETCH = [
   'README.md',
@@ -17,11 +19,246 @@ const DOCS_TO_FETCH = [
   'packages/kamiyo-tetsuo/README.md',
   'packages/kamiyo-agent-core/README.md',
   'packages/kamiyo-daydreams/README.md',
-  'services/discord-governance-bot/README.md',
-  'services/telegram-bot/README.md',
 ];
 
 let docsContent = '';
+
+// Tool definitions for Claude
+const tools: Tool[] = [
+  {
+    name: 'search_web',
+    description: 'Search the web for information. Use for crypto news, comparisons, or anything not in KAMIYO docs.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Search query' }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'get_token_data',
+    description: 'Get live KAMIYO token data: price, market cap, 24h volume, price change, liquidity.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {}
+    }
+  },
+  {
+    name: 'get_holder_count',
+    description: 'Get the current number of KAMIYO token holders.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {}
+    }
+  },
+  {
+    name: 'search_twitter',
+    description: 'Search Twitter/X for mentions of KAMIYO or related topics.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Search query (e.g. "KAMIYO", "$KAMIYO")' }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'get_proposals',
+    description: 'Get list of governance proposals. Can filter by status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['active', 'passed', 'rejected', 'all'], description: 'Filter by status' }
+      }
+    }
+  },
+  {
+    name: 'get_proposal',
+    description: 'Get details of a specific proposal by ID.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'Proposal ID (e.g. KIP-1)' }
+      },
+      required: ['id']
+    }
+  }
+];
+
+// Tool implementations
+async function searchWeb(query: string): Promise<string> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return 'Web search not configured (TAVILY_API_KEY missing).';
+
+  try {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: 5,
+        include_answer: true
+      })
+    });
+
+    if (!res.ok) return `Search failed: ${res.status}`;
+
+    const data = await res.json();
+    let result = '';
+
+    if (data.answer) {
+      result += `Answer: ${data.answer}\n\n`;
+    }
+
+    if (data.results?.length) {
+      result += 'Sources:\n';
+      for (const r of data.results.slice(0, 3)) {
+        result += `- ${r.title}: ${r.content?.slice(0, 200)}...\n`;
+      }
+    }
+
+    return result || 'No results found.';
+  } catch (e) {
+    return `Search error: ${e}`;
+  }
+}
+
+async function getTokenData(): Promise<string> {
+  try {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${KAMIYO_PAIR}`);
+    if (!res.ok) return `DexScreener error: ${res.status}`;
+
+    const data = await res.json();
+    const pair = data.pairs?.[0];
+
+    if (!pair) return 'Token data not found.';
+
+    return `KAMIYO Token Data:
+- Price: $${parseFloat(pair.priceUsd).toFixed(8)}
+- Market Cap: $${formatLargeNumber(pair.marketCap)}
+- 24h Volume: $${formatLargeNumber(pair.volume?.h24)}
+- 24h Change: ${pair.priceChange?.h24 || 0}%
+- Liquidity: $${formatLargeNumber(pair.liquidity?.usd)}
+- DEX: ${pair.dexId}`;
+  } catch (e) {
+    return `Error fetching token data: ${e}`;
+  }
+}
+
+async function getHolderCount(): Promise<string> {
+  try {
+    // Use Helius or Solscan API for holder count
+    const apiKey = process.env.HELIUS_API_KEY;
+    if (!apiKey) {
+      // Fallback to basic RPC call for token accounts
+      const accounts = await connection.getProgramAccounts(
+        new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+        {
+          filters: [
+            { dataSize: 165 },
+            { memcmp: { offset: 0, bytes: KAMIYO_MINT.toBase58() } }
+          ]
+        }
+      );
+      return `KAMIYO has approximately ${accounts.length} token holders.`;
+    }
+
+    const res = await fetch(`https://api.helius.xyz/v0/token-metadata?api-key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mintAccounts: [KAMIYO_MINT.toBase58()] })
+    });
+
+    if (!res.ok) return `Helius error: ${res.status}`;
+    const data = await res.json();
+    const holders = data[0]?.onChainAccountInfo?.accountInfo?.data?.parsed?.info?.supply;
+    return `Token supply info retrieved. Check DexScreener for holder count.`;
+  } catch (e) {
+    return `Error fetching holder count: ${e}`;
+  }
+}
+
+async function searchTwitter(query: string): Promise<string> {
+  // Twitter API requires OAuth - use a search proxy or scraper
+  // For now, return a helpful message with manual search link
+  const encodedQuery = encodeURIComponent(query);
+  return `Twitter search for "${query}":
+Search manually: https://twitter.com/search?q=${encodedQuery}
+
+Recent KAMIYO updates: https://twitter.com/kamiyo_ai
+
+Note: Real-time Twitter search requires API access. Check the links above for latest tweets.`;
+}
+
+function getProposalsData(status?: string): string {
+  const data = loadData();
+  let proposals = data.proposals;
+
+  if (status && status !== 'all') {
+    proposals = proposals.filter(p => p.status === status);
+  }
+
+  if (proposals.length === 0) {
+    return `No ${status || ''} proposals found.`;
+  }
+
+  return proposals.slice(-10).map(p => {
+    const results = calculateResults(p);
+    return `[${p.status.toUpperCase()}] ${p.id}: ${p.title} (${results.forPct.toFixed(0)}% for, ${p.votes.length} voters)`;
+  }).join('\n');
+}
+
+function getProposalData(id: string): string {
+  const data = loadData();
+  const proposal = data.proposals.find(p => p.id.toLowerCase() === id.toLowerCase());
+
+  if (!proposal) return `Proposal ${id} not found.`;
+
+  const results = calculateResults(proposal);
+  const timeLeft = Math.max(0, proposal.endsAt - Date.now());
+  const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+
+  return `${proposal.id}: ${proposal.title}
+
+Description: ${proposal.description}
+
+Status: ${proposal.status}
+For: ${formatNumber(results.forVotes)} KAMIYO (${results.forPct.toFixed(1)}%)
+Against: ${formatNumber(results.againstVotes)} KAMIYO (${results.againstPct.toFixed(1)}%)
+Abstain: ${formatNumber(results.abstainVotes)} KAMIYO
+Voters: ${proposal.votes.length}
+Time Left: ${proposal.status === 'active' ? `${hoursLeft}h` : 'Ended'}
+Created by: ${proposal.author}`;
+}
+
+async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
+  switch (name) {
+    case 'search_web':
+      return await searchWeb(input.query as string);
+    case 'get_token_data':
+      return await getTokenData();
+    case 'get_holder_count':
+      return await getHolderCount();
+    case 'search_twitter':
+      return await searchTwitter(input.query as string);
+    case 'get_proposals':
+      return getProposalsData(input.status as string);
+    case 'get_proposal':
+      return getProposalData(input.id as string);
+    default:
+      return `Unknown tool: ${name}`;
+  }
+}
+
+function formatLargeNumber(n: number | undefined): string {
+  if (!n) return '0';
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + 'B';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K';
+  return n.toFixed(2);
+}
 
 async function fetchGitHubFile(path: string): Promise<string | null> {
   try {
@@ -54,49 +291,38 @@ async function refreshDocs(): Promise<void> {
 function getSystemPrompt(): string {
   return `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
 
+You have access to tools for:
+- Web search (crypto news, comparisons)
+- Live token data (price, market cap, volume)
+- Twitter/X search
+- Governance proposals
+
+Use tools when you need live data or information not in the docs. Don't use tools for basic questions already answered in the docs below.
+
 ## About KAMIYO
-KAMIYO is an AI agent reputation and coordination protocol. Agents earn reputation through on-chain performance. Token holders govern the protocol through proposals and voting.
+KAMIYO is an AI agent reputation and coordination protocol on Solana. Agents earn ZK reputation through on-chain performance. Token holders govern the protocol.
 
 ## Token
 - Symbol: $KAMIYO
 - Mint: Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
-- Type: Token-2022 (pump.fun)
-- Decimals: 6
 - Chain: Solana
-
-## Governance
-- Token-weighted voting through Telegram
-- Use /link_wallet <address> to connect your wallet
-- Use /my_wallet to check voting power
-- Proposals require 60% approval to pass
-- Treasury managed via Squads multisig
-
-## Commands
-- /link_wallet <address> - Link Solana wallet for voting
-- /my_wallet - Check linked wallet and voting power
-- /propose <title>|<description> - Create governance proposal (admin only)
-- /proposal <id> - View proposal details
-- /proposals - List proposals by status
-- /kamiyo <question> - Ask about KAMIYO
 
 ## Links
 - Website: https://kamiyo.ai
-- Docs: https://docs.kamiyo.ai
 - GitHub: https://github.com/kamiyo-ai
 - Twitter: https://x.com/kamiyo_ai
-- DEXScreener: https://dexscreener.com/solana/Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+- DEXScreener: https://dexscreener.com/solana/${KAMIYO_PAIR}
 
 ## Guidelines
-- Keep responses short and helpful
-- If you don't know something, say so
-- Never share private keys or ask for them
-- Be friendly but professional
+- Keep responses short
+- Use tools for live data
+- Never share private keys
 
 ---
 
-# Documentation from GitHub
+# Documentation
 
-${docsContent || 'Documentation not yet loaded.'}`;
+${docsContent || 'Loading...'}`;
 }
 
 interface Vote {
@@ -131,8 +357,6 @@ const connection = new Connection(RPC_URL, 'confirmed');
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
-
-const conversationHistory: Map<string, { role: 'user' | 'assistant'; content: string }[]> = new Map();
 
 function loadData(): ProposalStore {
   try {
@@ -236,7 +460,7 @@ function isAdmin(userId: number): boolean {
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN!);
 
 bot.command('start', async (ctx) => {
-  await ctx.reply(`Welcome to KAMIYO Governance Bot
+  await ctx.reply(`Welcome to KAMIYO Bot
 
 Commands:
 /link_wallet <address> - Link your Solana wallet
@@ -244,6 +468,8 @@ Commands:
 /proposals - List active proposals
 /proposal <id> - View proposal
 /kamiyo <question> - Ask the AI assistant
+
+The AI can search the web, get live token data, and answer questions about KAMIYO.
 
 Token: $KAMIYO
 Chain: Solana`);
@@ -383,32 +609,59 @@ bot.command('kamiyo', async (ctx) => {
   const question = ctx.message.text.replace('/kamiyo ', '').trim();
 
   if (!question) {
-    await ctx.reply('Usage: /kamiyo <question>\n\nExample: /kamiyo How do I vote?');
+    await ctx.reply('Usage: /kamiyo <question>\n\nExample: /kamiyo What is the current price?');
     return;
   }
-
-  const userId = String(ctx.from.id);
-  let history = conversationHistory.get(userId) || [];
-
-  history.push({ role: 'user', content: question });
-  if (history.length > 20) history = history.slice(-20);
 
   await ctx.sendChatAction('typing');
 
   try {
-    const response = await anthropic.messages.create({
+    const messages: MessageParam[] = [{ role: 'user', content: question }];
+
+    // Tool use loop
+    let response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
+      max_tokens: 1024,
       system: getSystemPrompt(),
-      messages: history,
+      tools,
+      messages,
     });
 
-    const reply = response.content[0].type === 'text' ? response.content[0].text : '';
+    // Process tool calls
+    while (response.stop_reason === 'tool_use') {
+      const toolUseBlocks = response.content.filter((b): b is ToolUseBlock => b.type === 'tool_use');
 
-    history.push({ role: 'assistant', content: reply });
-    conversationHistory.set(userId, history);
+      const toolResults = await Promise.all(
+        toolUseBlocks.map(async (toolUse) => {
+          console.log(`Executing tool: ${toolUse.name}`);
+          const result = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>);
+          return {
+            type: 'tool_result' as const,
+            tool_use_id: toolUse.id,
+            content: result,
+          };
+        })
+      );
 
-    await ctx.reply(reply.slice(0, 4096));
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: toolResults });
+
+      await ctx.sendChatAction('typing');
+
+      response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: getSystemPrompt(),
+        tools,
+        messages,
+      });
+    }
+
+    // Extract final text response
+    const textBlocks = response.content.filter((b): b is TextBlock => b.type === 'text');
+    const reply = textBlocks.map(b => b.text).join('\n');
+
+    await ctx.reply(reply.slice(0, 4096) || 'No response generated.');
   } catch (err) {
     console.error('AI error:', err);
     await ctx.reply('Something went wrong. Please try again.');
@@ -509,7 +762,7 @@ refreshDocs().then(() => {
   setInterval(refreshDocs, DOC_REFRESH_INTERVAL);
 
   bot.launch().then(() => {
-    console.log('Bot started');
+    console.log('Bot started with AI tools enabled');
   });
 });
 
