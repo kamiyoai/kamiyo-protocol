@@ -2,6 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { TwitterApi } from 'twitter-api-v2';
 import 'dotenv/config';
 import { logger } from './logger';
+import { initSentry, captureError, setUser } from './sentry';
+import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
+
+// Initialize Sentry first
+initSentry();
 
 import {
   getOrCreateUser,
@@ -279,12 +284,14 @@ async function generateResponse(
   ];
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      system: SYSTEM_PROMPT,
-      messages,
-    });
+    const response = await trackLatency(anthropicLatency, {}, () =>
+      anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 512,
+        system: SYSTEM_PROMPT,
+        messages,
+      })
+    );
 
     const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -300,6 +307,7 @@ async function generateResponse(
     return text;
   } catch (err: unknown) {
     const error = err as { status?: number; message?: string };
+    captureError(err, { userId, tier });
 
     if (error.status === 429) {
       logger.error('Anthropic rate limited');
@@ -404,18 +412,25 @@ async function processMention(
   const existingSession = getActiveSession(userId);
   const sessionId = existingSession ? existingSession.id : startSession(userId);
 
-  // Generate response
+  // Set Sentry user context
+  setUser(userId, tier);
+
+  // Generate response with latency tracking
+  const startTime = Date.now();
   const response = await generateResponse(anthropic, userId, text, tier);
+  const latencySeconds = (Date.now() - startTime) / 1000;
+  responseLatency.observe({ tier }, latencySeconds);
 
   // Track usage
   incrementMessageCount(userId);
   incrementSessionMessages(sessionId);
+  messagesTotal.inc({ tier, status: 'success' });
 
   // Post reply
   const replyId = await postReply(twitter, tweet.id, response);
 
   if (replyId) {
-    logger.info(`Replied to ${tweet.id} (${tier}): ${response.slice(0, 50)}...`);
+    logger.info('Message processed', { tweetId: tweet.id, tier, latencySeconds });
   }
 
   // Add rate reminder occasionally
