@@ -386,6 +386,28 @@ async function postReply(
 
 const MAX_MESSAGE_LENGTH = 1000; // Prevent abuse with very long messages
 
+// Skip low-effort engagement comments
+const ENGAGEMENT_PATTERNS = [
+  /^(nice|bullish|bearish|gm|gn|lfg|wagmi|ngmi|based|fire|lit|dope|sick|cool|awesome|amazing|great|love it|love this|lets go|let's go|moon|mooning|send it|vibes|fr fr|no cap|sheesh|yooo?|damn|bruh|bro|fam|ser|anon|chad|king|queen|legend|goat|w\b|l\b|rip|gg|ez|pog|poggers|hype|hyped)!*$/i,
+  /^[\p{Emoji}\s]+$/u,  // Emoji-only
+  /^[.!?]+$/,  // Punctuation only
+  /^(yes|no|yep|nope|yea|yeah|nah|ok|okay|k|kk|lol|lmao|haha|hehe|hmm|mhm|ah|oh|uh|um)!*$/i,
+];
+
+function isEngagementComment(text: string): boolean {
+  const cleaned = text.trim().toLowerCase();
+
+  // Too short to be a real request (less than 10 chars after removing mentions)
+  if (cleaned.length < 10) return true;
+
+  // Matches engagement patterns
+  for (const pattern of ENGAGEMENT_PATTERNS) {
+    if (pattern.test(cleaned)) return true;
+  }
+
+  return false;
+}
+
 async function processMention(
   twitter: TwitterApi,
   anthropic: Anthropic,
@@ -395,6 +417,12 @@ async function processMention(
   let text = tweet.text.replace(/@\w+/g, '').trim();
 
   if (!text) return;
+
+  // Skip low-effort engagement comments (nice, bullish, emojis, etc.)
+  if (isEngagementComment(text)) {
+    logger.info('Skipping engagement comment', { tweetId: tweet.id, text: text.slice(0, 30) });
+    return;
+  }
 
   // Truncate very long messages to prevent abuse
   if (text.length > MAX_MESSAGE_LENGTH) {
