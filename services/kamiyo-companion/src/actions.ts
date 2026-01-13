@@ -13,9 +13,9 @@ import { recordPayment, updateUserTier, paymentExists, recordEscrowSession, getE
 import { TIERS, getRequiredPayment } from './tiers';
 import 'dotenv/config';
 
-// Escrow program ID (update after deployment)
-const ESCROW_PROGRAM_ID = new PublicKey(
-  process.env.ESCROW_PROGRAM_ID || 'EscrowKAMIYO1111111111111111111111111111111'
+// Main KAMIYO program ID (has escrow built in)
+const KAMIYO_PROGRAM_ID = new PublicKey(
+  process.env.KAMIYO_PROGRAM_ID || '368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca'
 );
 
 // Anchor instruction discriminators (first 8 bytes of sha256("global:<method_name>"))
@@ -30,74 +30,109 @@ const HOST = process.env.ACTIONS_HOST || 'https://companion.kamiyo.ai';
 
 const connection = new Connection(RPC_URL, 'confirmed');
 
-// Generate session ID from user + timestamp
-function generateSessionId(userPubkey: PublicKey): Buffer {
-  const timestamp = Date.now().toString();
-  const hash = createHash('sha256')
-    .update(userPubkey.toBuffer())
-    .update(timestamp)
-    .digest();
-  return hash;
+// Generate unique transaction ID for escrow
+function generateTransactionId(): string {
+  return `companion_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Derive escrow PDA
-function getEscrowPDA(userPubkey: PublicKey, sessionId: Buffer): [PublicKey, number] {
+// Derive PDAs for kamiyo program
+function getProtocolConfigPDA(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from('escrow'), userPubkey.toBuffer(), sessionId],
-    ESCROW_PROGRAM_ID
+    [Buffer.from('protocol_config')],
+    KAMIYO_PROGRAM_ID
   );
 }
 
-// Create escrow instruction
-function createEscrowInstruction(
-  user: PublicKey,
-  treasury: PublicKey,
-  escrow: PublicKey,
-  sessionId: Buffer,
-  amount: bigint
-): TransactionInstruction {
-  const discriminator = getAnchorDiscriminator('create_escrow');
+function getTreasuryPDA(): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('treasury')],
+    KAMIYO_PROGRAM_ID
+  );
+}
 
-  // Serialize: discriminator (8) + session_id (32) + amount (8)
-  const data = Buffer.alloc(8 + 32 + 8);
-  discriminator.copy(data, 0);
-  sessionId.copy(data, 8);
-  data.writeBigUInt64LE(amount, 40);
+function getEscrowPDA(agent: PublicKey, transactionId: string): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('escrow'), agent.toBuffer(), Buffer.from(transactionId)],
+    KAMIYO_PROGRAM_ID
+  );
+}
+
+// Create initialize_escrow instruction for kamiyo program
+function createInitializeEscrowInstruction(
+  agent: PublicKey,
+  api: PublicKey,
+  escrow: PublicKey,
+  protocolConfig: PublicKey,
+  treasury: PublicKey,
+  amount: bigint,
+  timeLock: bigint,
+  transactionId: string
+): TransactionInstruction {
+  const discriminator = getAnchorDiscriminator('initialize_escrow');
+
+  // Serialize: discriminator (8) + amount (8) + time_lock (8) + transaction_id (4 + len)
+  const txIdBytes = Buffer.from(transactionId);
+  const data = Buffer.alloc(8 + 8 + 8 + 4 + txIdBytes.length);
+  let offset = 0;
+
+  discriminator.copy(data, offset); offset += 8;
+  data.writeBigUInt64LE(amount, offset); offset += 8;
+  data.writeBigInt64LE(timeLock, offset); offset += 8;
+  data.writeUInt32LE(txIdBytes.length, offset); offset += 4;
+  txIdBytes.copy(data, offset);
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: user, isSigner: true, isWritable: true },
-      { pubkey: treasury, isSigner: false, isWritable: false },
+      { pubkey: protocolConfig, isSigner: false, isWritable: false },
+      { pubkey: treasury, isSigner: false, isWritable: true },
       { pubkey: escrow, isSigner: false, isWritable: true },
+      { pubkey: agent, isSigner: true, isWritable: true },
+      { pubkey: api, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    programId: ESCROW_PROGRAM_ID,
+    programId: KAMIYO_PROGRAM_ID,
     data,
   });
 }
 
-// Create rate_and_release instruction
-function createRateAndReleaseInstruction(
-  user: PublicKey,
-  treasury: PublicKey,
+// Create release_funds instruction
+function createReleaseFundsInstruction(
+  caller: PublicKey,
+  api: PublicKey,
   escrow: PublicKey,
-  rating: number
+  protocolConfig: PublicKey
 ): TransactionInstruction {
-  const discriminator = getAnchorDiscriminator('rate_and_release');
-
-  // Serialize: discriminator (8) + rating (1)
-  const data = Buffer.alloc(8 + 1);
-  discriminator.copy(data, 0);
-  data.writeUInt8(rating, 8);
+  const discriminator = getAnchorDiscriminator('release_funds');
 
   return new TransactionInstruction({
     keys: [
-      { pubkey: user, isSigner: true, isWritable: true },
-      { pubkey: treasury, isSigner: false, isWritable: true },
+      { pubkey: protocolConfig, isSigner: false, isWritable: false },
       { pubkey: escrow, isSigner: false, isWritable: true },
+      { pubkey: caller, isSigner: true, isWritable: true },
+      { pubkey: api, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
-    programId: ESCROW_PROGRAM_ID,
-    data,
+    programId: KAMIYO_PROGRAM_ID,
+    data: discriminator,
+  });
+}
+
+// Create mark_disputed instruction
+function createMarkDisputedInstruction(
+  agent: PublicKey,
+  escrow: PublicKey,
+  protocolConfig: PublicKey
+): TransactionInstruction {
+  const discriminator = getAnchorDiscriminator('mark_disputed');
+
+  return new TransactionInstruction({
+    keys: [
+      { pubkey: protocolConfig, isSigner: false, isWritable: false },
+      { pubkey: escrow, isSigner: false, isWritable: true },
+      { pubkey: agent, isSigner: true, isWritable: false },
+    ],
+    programId: KAMIYO_PROGRAM_ID,
+    data: discriminator,
   });
 }
 
@@ -195,22 +230,30 @@ app.post('/api/actions/subscribe', async (req, res) => {
     const transaction = new Transaction();
 
     if (useEscrow) {
-      // Create escrow transaction - pay only if it helps
-      const sessionId = generateSessionId(payer);
-      const [escrowPDA] = getEscrowPDA(payer, sessionId);
+      // Create escrow transaction using kamiyo program - pay only if it helps
+      const transactionId = generateTransactionId();
+      const [escrowPDA] = getEscrowPDA(payer, transactionId);
+      const [protocolConfigPDA] = getProtocolConfigPDA();
+      const [treasuryPDA] = getTreasuryPDA();
+
+      // 24 hour timelock for companion sessions
+      const timeLock = BigInt(24 * 60 * 60);
 
       transaction.add(
-        createEscrowInstruction(
-          payer,
-          treasury,
+        createInitializeEscrowInstruction(
+          payer,           // agent (user)
+          treasury,        // api (companion service)
           escrowPDA,
-          sessionId,
-          BigInt(lamports)
+          protocolConfigPDA,
+          treasuryPDA,
+          BigInt(lamports),
+          timeLock,
+          transactionId
         )
       );
 
-      // Store session info for later release (will be looked up by wallet address)
-      // The bot will call recordEscrowSession when it detects the tx
+      // Return transaction ID in response for tracking
+      // The bot will use this to look up the escrow later
     } else {
       // Direct payment - no escrow
       transaction.add(
@@ -301,12 +344,12 @@ app.post('/api/actions/verify', async (req, res) => {
   }
 });
 
-// Rate session and release/refund escrow
+// Rate session - release funds (happy) or mark disputed (unhappy)
 app.post('/api/actions/rate', async (req, res) => {
   try {
     const { account } = req.body;
     const rating = parseInt(req.query.rating as string, 10);
-    const sessionId = req.query.session as string;
+    const txid = req.query.txid as string;
 
     if (!account) {
       return res.status(400).json({ error: 'Missing account' });
@@ -316,34 +359,44 @@ app.post('/api/actions/rate', async (req, res) => {
       return res.status(400).json({ error: 'Rating must be 1-5' });
     }
 
-    if (!sessionId) {
-      return res.status(400).json({ error: 'Missing session ID' });
+    if (!txid) {
+      return res.status(400).json({ error: 'Missing transaction ID' });
     }
 
     if (!TREASURY_WALLET) {
       return res.status(500).json({ error: 'Treasury not configured' });
     }
 
-    const payer = new PublicKey(account);
-    const treasury = new PublicKey(TREASURY_WALLET);
-    const sessionIdBuffer = Buffer.from(sessionId, 'hex');
-    const [escrowPDA] = getEscrowPDA(payer, sessionIdBuffer);
+    const agent = new PublicKey(account);
+    const api = new PublicKey(TREASURY_WALLET);
+    const [escrowPDA] = getEscrowPDA(agent, txid);
+    const [protocolConfigPDA] = getProtocolConfigPDA();
 
-    const transaction = new Transaction().add(
-      createRateAndReleaseInstruction(payer, treasury, escrowPDA, rating)
-    );
+    const transaction = new Transaction();
+
+    if (rating >= 3) {
+      // Happy path - release funds to companion service
+      transaction.add(
+        createReleaseFundsInstruction(agent, api, escrowPDA, protocolConfigPDA)
+      );
+    } else {
+      // Unhappy - mark as disputed (triggers refund flow)
+      transaction.add(
+        createMarkDisputedInstruction(agent, escrowPDA, protocolConfigPDA)
+      );
+    }
 
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
     transaction.lastValidBlockHeight = lastValidBlockHeight;
-    transaction.feePayer = payer;
+    transaction.feePayer = agent;
 
     const serialized = transaction.serialize({
       requireAllSignatures: false,
       verifySignatures: false,
     });
 
-    const action = rating >= 3 ? 'release payment to service' : 'refund to your wallet';
+    const action = rating >= 3 ? 'release payment to service' : 'mark disputed for refund';
     res.json({
       type: 'transaction',
       transaction: serialized.toString('base64'),
