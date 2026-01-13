@@ -13,6 +13,7 @@ import { createHash } from 'crypto';
 import { recordPayment, updateUserTier, paymentExists, recordEscrowSession, getEscrowSession } from './db';
 import { TIERS, getRequiredPayment } from './tiers';
 import { logger } from './logger';
+import { registry, apiRequestsTotal, escrowsCreated } from './metrics';
 import 'dotenv/config';
 
 // API key for webhook authentication
@@ -323,6 +324,7 @@ app.post('/api/actions/subscribe', txLimiter, async (req, res) => {
         lamports,
         tier
       );
+      escrowsCreated.inc({ tier });
     } else {
       // Direct payment - no escrow
       transaction.add(
@@ -522,6 +524,16 @@ app.get('/health/deep', async (req, res) => {
 
   const status = healthy ? 'healthy' : 'unhealthy';
   res.status(healthy ? 200 : 503).json({ status, checks });
+});
+
+// Prometheus metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', registry.contentType);
+    res.end(await registry.metrics());
+  } catch (err) {
+    res.status(500).end(String(err));
+  }
 });
 
 const PORT = process.env.PORT || process.env.ACTIONS_PORT || 3001;

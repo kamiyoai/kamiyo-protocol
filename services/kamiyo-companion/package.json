@@ -8,16 +8,20 @@
     "start": "node dist/index.js",
     "start:actions": "node dist/actions.js",
     "dev": "tsx watch src/index.ts",
-    "dev:actions": "tsx watch src/actions.ts"
+    "dev:actions": "tsx watch src/actions.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@sentry/node": "^8.0.0",
     "@solana/web3.js": "^1.98.0",
     "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "express-rate-limit": "^7.5.0",
+    "prom-client": "^15.1.0",
     "twitter-api-v2": "^1.18.2"
   },
   "devDependencies": {
@@ -27,6 +31,7 @@
     "@types/node": "^22.10.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.0.0"
   }
 }

@@ -1,5 +1,7 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import { getUserTier, updateUserTier, getOrCreateUser, getDailyMessageCount, incrementDailyMessageCount } from './db';
+import { tierCache, balanceCache } from './cache';
+import { rpcCalls } from './metrics';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
@@ -51,19 +53,33 @@ export const TIERS: Record<string, TierConfig> = {
 };
 
 export async function getTokenBalance(wallet: string): Promise<number> {
+  // Check cache first
+  const cached = balanceCache.get(wallet);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
     const pubkey = new PublicKey(wallet);
+    rpcCalls.inc({ method: 'getParsedTokenAccountsByOwner', status: 'attempt' });
+
     const accounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
       mint: KAMIYO_MINT,
     });
+
+    rpcCalls.inc({ method: 'getParsedTokenAccountsByOwner', status: 'success' });
 
     let total = 0;
     for (const account of accounts.value) {
       const amount = account.account.data.parsed.info.tokenAmount.uiAmount;
       if (amount) total += amount;
     }
+
+    // Cache the result
+    balanceCache.set(wallet, total);
     return total;
   } catch {
+    rpcCalls.inc({ method: 'getParsedTokenAccountsByOwner', status: 'error' });
     return 0;
   }
 }
@@ -77,6 +93,13 @@ export async function calculateTierFromHoldings(wallet: string): Promise<string>
 }
 
 export async function refreshUserTier(userId: string, platform: string, wallet: string | null): Promise<string> {
+  // Check cache first
+  const cacheKey = `${userId}:${wallet || 'no-wallet'}`;
+  const cached = tierCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const user = getOrCreateUser(userId, platform);
 
   // If user has a wallet, check token holdings
@@ -86,6 +109,7 @@ export async function refreshUserTier(userId: string, platform: string, wallet: 
     // Token holdings give permanent access (no expiry)
     if (tierFromHoldings !== 'free') {
       updateUserTier(userId, tierFromHoldings, 0); // 0 = no expiry (token-based)
+      tierCache.set(cacheKey, tierFromHoldings);
       return tierFromHoldings;
     }
   }
@@ -93,11 +117,15 @@ export async function refreshUserTier(userId: string, platform: string, wallet: 
   // Otherwise check paid subscription
   const { tier, expired } = getUserTier(userId);
 
-  if (expired) {
-    return 'free';
-  }
+  const result = expired ? 'free' : tier;
+  tierCache.set(cacheKey, result);
+  return result;
+}
 
-  return tier;
+// Invalidate tier cache when wallet is linked
+export function invalidateTierCache(userId: string): void {
+  // Clear any cached entries for this user
+  tierCache.delete(`${userId}:no-wallet`);
 }
 
 export function getTierConfig(tier: string): TierConfig {
