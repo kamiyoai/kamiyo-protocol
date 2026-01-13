@@ -87,14 +87,15 @@ export function submitRating(userId: string, rating: number): { success: boolean
 // ZK proof generation for reputation
 // Integrates with @kamiyo/solana-privacy
 export interface ReputationProofResult {
-  proof: {
-    pi_a: string[];
-    pi_b: string[][];
-    pi_c: string[];
-  };
-  publicSignals: string[];
   commitment: string;
   threshold: number;
+  proofBytes: string;
+  groth16Proof?: {
+    pi_a: [string, string, string];
+    pi_b: [[string, string], [string, string], [string, string]];
+    pi_c: [string, string, string];
+  };
+  publicSignals?: string[];
 }
 
 export async function generateReputationProof(
@@ -126,10 +127,11 @@ export async function generateReputationProof(
     const proof = await prover.proveReputation({ score, threshold });
 
     return {
-      proof: proof.proof,
-      publicSignals: proof.publicSignals || [],
       commitment: proof.commitment,
-      threshold,
+      threshold: proof.threshold,
+      proofBytes: Buffer.from(proof.proofBytes).toString('base64'),
+      groth16Proof: proof.groth16Proof,
+      publicSignals: proof.publicSignals,
     };
   } catch (err) {
     console.error('ZK proof generation failed:', err);

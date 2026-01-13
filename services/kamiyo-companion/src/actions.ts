@@ -191,7 +191,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-const PORT = process.env.ACTIONS_PORT || 3001;
+const PORT = process.env.PORT || process.env.ACTIONS_PORT || 3001;
 
 export function startActionsServer(): void {
   app.listen(PORT, () => {
