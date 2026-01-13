@@ -85,23 +85,56 @@ export function submitRating(userId: string, rating: number): { success: boolean
 }
 
 // ZK proof generation for reputation
-// This integrates with the existing kamiyo-tetsuo package
-export interface ReputationProof {
-  proof: string;
-  publicInputs: string[];
+// Integrates with @kamiyo/solana-privacy
+export interface ReputationProofResult {
+  proof: {
+    pi_a: string[];
+    pi_b: string[][];
+    pi_c: string[];
+  };
+  publicSignals: string[];
+  commitment: string;
   threshold: number;
 }
 
 export async function generateReputationProof(
-  _userId: string,
-  _threshold: number
-): Promise<ReputationProof | null> {
-  // TODO: Integrate with @kamiyo/tetsuo for ZK proof generation
-  // This would prove "avgRating >= threshold" without revealing actual rating
+  userId: string,
+  threshold: number
+): Promise<ReputationProofResult | null> {
+  try {
+    // Dynamic import to avoid bundling issues
+    const { PrivateInference } = await import('@kamiyo/solana-privacy');
+    const { Keypair } = await import('@solana/web3.js');
 
-  // Placeholder - real implementation would use snarkjs/circom
-  console.log('ZK reputation proofs not yet implemented');
-  return null;
+    // Get user's reputation score (0-100 scale)
+    const rep = getUserReputation(userId);
+    const score = Math.round(rep.avgRating * 20); // Convert 5-scale to 100-scale
+
+    if (score < threshold) {
+      console.log(`Score ${score} below threshold ${threshold}`);
+      return null;
+    }
+
+    // Create a dummy wallet for proof generation (user doesn't need to sign)
+    const dummyWallet = {
+      publicKey: Keypair.generate().publicKey,
+      signTransaction: async (tx: any) => tx,
+      signAllTransactions: async (txs: any) => txs,
+    };
+
+    const prover = new PrivateInference(dummyWallet as any);
+    const proof = await prover.proveReputation({ score, threshold });
+
+    return {
+      proof: proof.proof,
+      publicSignals: proof.publicSignals || [],
+      commitment: proof.commitment,
+      threshold,
+    };
+  } catch (err) {
+    console.error('ZK proof generation failed:', err);
+    return null;
+  }
 }
 
 // Format reputation for display
