@@ -54,9 +54,27 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS escrow_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    wallet TEXT NOT NULL,
+    session_id TEXT UNIQUE NOT NULL,
+    escrow_pda TEXT NOT NULL,
+    amount_lamports INTEGER NOT NULL,
+    tier TEXT NOT NULL,
+    tx_signature TEXT,
+    status TEXT DEFAULT 'pending',
+    rating INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    released_at INTEGER,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
+  CREATE INDEX IF NOT EXISTS idx_escrow_wallet ON escrow_sessions(wallet);
+  CREATE INDEX IF NOT EXISTS idx_escrow_session ON escrow_sessions(session_id);
 `);
 
 export interface User {
@@ -83,6 +101,21 @@ export interface Session {
   rating: number | null;
   escrow_tx: string | null;
   escrow_released: number;
+}
+
+export interface EscrowSession {
+  id: number;
+  user_id: string;
+  wallet: string;
+  session_id: string;
+  escrow_pda: string;
+  amount_lamports: number;
+  tier: string;
+  tx_signature: string | null;
+  status: 'pending' | 'active' | 'released' | 'refunded';
+  rating: number | null;
+  created_at: number;
+  released_at: number | null;
 }
 
 // User operations
@@ -186,6 +219,63 @@ export function getUserStats(userId: string): { totalSessions: number; avgRating
   `).get(userId) as { totalSessions: number; avgRating: number | null; totalMessages: number };
 
   return stats;
+}
+
+// Escrow session operations
+export function recordEscrowSession(
+  userId: string,
+  wallet: string,
+  sessionId: string,
+  escrowPda: string,
+  amountLamports: number,
+  tier: string,
+  txSignature?: string
+): number {
+  const result = db.prepare(`
+    INSERT INTO escrow_sessions (user_id, wallet, session_id, escrow_pda, amount_lamports, tier, tx_signature, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+  `).run(userId, wallet, sessionId, escrowPda, amountLamports, tier, txSignature || null);
+  return result.lastInsertRowid as number;
+}
+
+export function getEscrowSession(sessionId: string): EscrowSession | null {
+  return db.prepare('SELECT * FROM escrow_sessions WHERE session_id = ?').get(sessionId) as EscrowSession | null;
+}
+
+export function getActiveEscrowByWallet(wallet: string): EscrowSession | null {
+  return db.prepare(`
+    SELECT * FROM escrow_sessions
+    WHERE wallet = ? AND status = 'active'
+    ORDER BY created_at DESC LIMIT 1
+  `).get(wallet) as EscrowSession | null;
+}
+
+export function getActiveEscrowByUser(userId: string): EscrowSession | null {
+  return db.prepare(`
+    SELECT * FROM escrow_sessions
+    WHERE user_id = ? AND status = 'active'
+    ORDER BY created_at DESC LIMIT 1
+  `).get(userId) as EscrowSession | null;
+}
+
+export function updateEscrowStatus(
+  sessionId: string,
+  status: 'released' | 'refunded',
+  rating?: number
+): void {
+  db.prepare(`
+    UPDATE escrow_sessions
+    SET status = ?, rating = ?, released_at = unixepoch()
+    WHERE session_id = ?
+  `).run(status, rating || null, sessionId);
+}
+
+export function getPendingEscrows(olderThanDays: number = 7): EscrowSession[] {
+  const cutoff = Math.floor(Date.now() / 1000) - (olderThanDays * 24 * 60 * 60);
+  return db.prepare(`
+    SELECT * FROM escrow_sessions
+    WHERE status = 'active' AND created_at < ?
+  `).all(cutoff) as EscrowSession[];
 }
 
 export default db;

@@ -11,6 +11,8 @@ import {
   endSession,
   incrementSessionMessages,
   updateUserWallet,
+  getActiveEscrowByUser,
+  updateEscrowStatus,
 } from './db';
 import {
   refreshUserTier,
@@ -161,6 +163,23 @@ async function handleCommand(
   const rateMatch = text.match(COMMANDS.RATE);
   if (rateMatch) {
     const rating = parseInt(rateMatch[1], 10);
+
+    // Check if user has an active escrow session
+    const escrow = getActiveEscrowByUser(userId);
+    if (escrow) {
+      // User has escrow - they need to sign a transaction to release/refund
+      const HOST = process.env.ACTIONS_HOST || 'https://companion.kamiyo.ai';
+      const action = rating >= 3 ? 'release payment' : 'get refund';
+
+      // For on-chain rating, direct them to sign the transaction
+      // The transaction is created via the rate action endpoint
+      return `Rating ${rating}/5 recorded. To ${action}, sign the transaction:
+${HOST}/api/actions/rate?rating=${rating}&session=${escrow.session_id}
+
+Or if using a wallet that supports Blinks, the transaction will appear above.`;
+    }
+
+    // No escrow - just record the rating locally
     const result = submitRating(userId, rating);
     if (result.success) {
       return `Thanks for rating ${rating}/5. This helps improve the service.`;
