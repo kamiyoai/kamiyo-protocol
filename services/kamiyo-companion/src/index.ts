@@ -196,11 +196,11 @@ async function handleCommand(
     }
 
     // Return proof hash (full proof too long for tweet)
-    const proofHash = Buffer.from(JSON.stringify(proof.proof).slice(0, 32)).toString('hex');
+    const proofHash = Buffer.from(proof.proofBytes).toString('hex').slice(0, 16);
     return `ZK Reputation Proof generated.
 Threshold: ${threshold}%
 Commitment: ${proof.commitment.slice(0, 16)}...
-Proof hash: ${proofHash}...
+Proof: ${proofHash}...
 
 This proves your rating >= ${threshold}% without revealing the exact rating.`;
   }
