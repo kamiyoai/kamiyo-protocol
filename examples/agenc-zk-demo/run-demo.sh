@@ -1,11 +1,11 @@
 #!/bin/bash
-# KAMIYO x TETSUO - Agent-to-Agent ZK Trust Demo
+# KAMIYO x DARK FOREST - Agent-to-Agent ZK Trust Demo
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-NATIVE_DIR="$ROOT_DIR/native/tetsuo-core"
+NATIVE_DIR="$ROOT_DIR/native/dark-forest-core"
 
 # Neon colors (magenta, purple, cyan only)
 MAGENTA='\033[38;5;199m'
@@ -57,7 +57,7 @@ make static > /dev/null 2>&1
 
 echo -e "  ${DIM}Compiling demo...${RESET}"
 cd "$NATIVE_DIR/examples"
-cc -O3 -I../src agent_trust_demo.c ../lib/libtetsuo.a -o agent_trust 2>/dev/null
+cc -O3 -I../src agent_trust_demo.c ../lib/libdark_forest.a -o agent_trust 2>/dev/null
 
 echo -e "  ${CYAN}Running...${RESET}"
 echo ""
@@ -82,5 +82,5 @@ echo -e "${CYAN}═════════════════════�
 echo ""
 echo -e "  ${BOLD}Demo complete.${RESET}"
 echo ""
-echo -e "  ${MAGENTA}github.com/kamiyo-ai/kamiyo-protocol${RESET}  ${PURPLE}•${RESET}  ${CYAN}github.com/tetsuo-ai/AgenC${RESET}"
+echo -e "  ${MAGENTA}github.com/kamiyo-ai/kamiyo-protocol${RESET}  ${PURPLE}•${RESET}  ${CYAN}github.com/dark-forest-ai/AgenC${RESET}"
 echo ""

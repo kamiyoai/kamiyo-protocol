@@ -5,14 +5,17 @@ anchor_version = "0.31.1"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
-
 [programs.devnet]
-kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
+kamiyo_agent_collab = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
+
+[programs.localnet]
+kamiyo = "6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7"
+kamiyo_agent_collab = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
 
 [programs.mainnet]
-kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
+kamiyo_agent_collab = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
 
 [registry]
 url = "https://api.apr.dev"
@@ -21,8 +24,10 @@ url = "https://api.apr.dev"
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
-[test]
-startup_wait = 30000
-
 [scripts]
 test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test]
+startup_wait = 30000
+shutdown_wait = 2000
+upgradeable = false

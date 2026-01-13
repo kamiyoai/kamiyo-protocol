@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/solana-privacy",
   "version": "0.1.0",
-  "description": "Private inference proofs on Solana (powered by TETSUO)",
+  "description": "Private inference proofs on Solana (powered by DARK FOREST)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -15,13 +15,13 @@
     "solana",
     "privacy",
     "zk",
-    "tetsuo"
+    "dark-forest"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "license": "BUSL-1.1",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@kamiyo/tetsuo": "workspace:*",
+    "@kamiyo/dark-forest": "workspace:*",
     "@rollup/rollup-darwin-arm64": "^4.55.1",
     "@solana/web3.js": "^1.98.0"
   },

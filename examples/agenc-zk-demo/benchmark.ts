@@ -2,10 +2,10 @@
  * ZK Proof Performance Benchmark
  *
  * Measures proof generation and verification times.
- * Compares JavaScript (snarkjs) vs Native C (tetsuo-core).
+ * Compares JavaScript (snarkjs) vs Native C (dark-forest-core).
  */
 
-import { TetsuoProver, getQualifyingTier, getTierThreshold } from '@kamiyo/tetsuo';
+import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/dark-forest';
 
 const BOLD = '\x1b[1m';
 const DIM = '\x1b[2m';
@@ -29,12 +29,12 @@ async function benchmark() {
   console.log(`${BOLD}${'═'.repeat(65)}${RESET}`);
   console.log();
 
-  if (!TetsuoProver.isAvailable()) {
+  if (!DarkForestProver.isAvailable()) {
     console.error('Circuit artifacts not found.');
     process.exit(1);
   }
 
-  const prover = new TetsuoProver();
+  const prover = new DarkForestProver();
   const iterations = 10;
 
   // Warmup
@@ -105,7 +105,7 @@ async function benchmark() {
   console.log(`    Range:   ${formatMs(minVerify)} - ${formatMs(maxVerify)}`);
   console.log();
 
-  console.log(`  ${BOLD}Verification - Native C (tetsuo-core)${RESET}`);
+  console.log(`  ${BOLD}Verification - Native C (dark-forest-core)${RESET}`);
   console.log(`    Single:  ${GREEN}<1 ms${RESET} (BN254 pairing)`);
   console.log(`    Batch:   ${GREEN}~0.5 ms/proof${RESET} (amortized)`);
   console.log(`    Speedup: ${GREEN}${(avgVerify / 0.8).toFixed(0)}x${RESET} faster than JS`);

@@ -1,12 +1,12 @@
 /**
- * KAMIYO x TETSUO - Agent-to-Agent ZK Trust
+ * KAMIYO x DARK_FOREST - Agent-to-Agent ZK Trust
  *
  * Real Groth16 proof generation and verification.
  * Privacy-preserving reputation for AI agents.
  */
 
-import { TetsuoProver, getQualifyingTier, getTierThreshold } from '@kamiyo/tetsuo';
-import type { GeneratedProof, TierLevel } from '@kamiyo/tetsuo';
+import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/dark-forest';
+import type { GeneratedProof, TierLevel } from '@kamiyo/dark-forest';
 import {
   printBanner,
   printDataFlow,
@@ -44,7 +44,7 @@ function formatMs(ms: number): string {
   return ms < 1 ? `${(ms * 1000).toFixed(0)}μs` : `${ms.toFixed(0)}ms`;
 }
 
-async function createAgent(name: string, score: number, prover: TetsuoProver): Promise<Agent> {
+async function createAgent(name: string, score: number, prover: DarkForestProver): Promise<Agent> {
   const commitment = await prover.generateCommitment(score);
   return {
     name,
@@ -60,7 +60,7 @@ async function createAgent(name: string, score: number, prover: TetsuoProver): P
 async function generateProof(
   agent: Agent,
   threshold: number,
-  prover: TetsuoProver
+  prover: DarkForestProver
 ): Promise<{ proof: GeneratedProof; time: number } | null> {
   if (agent.score < threshold) return null;
 
@@ -78,7 +78,7 @@ async function generateProof(
 
 async function verifyProof(
   proof: GeneratedProof,
-  prover: TetsuoProver
+  prover: DarkForestProver
 ): Promise<{ valid: boolean; time: number }> {
   const start = performance.now();
   const result = await prover.verifyProof(proof);
@@ -90,12 +90,12 @@ async function main() {
   // Epic banner
   printBanner();
 
-  if (!TetsuoProver.isAvailable()) {
+  if (!DarkForestProver.isAvailable()) {
     printError('Circuit artifacts not found. Run circuit setup first.');
     process.exit(1);
   }
 
-  const prover = new TetsuoProver();
+  const prover = new DarkForestProver();
 
   // Agent Registration
   printSeparator('AGENT REGISTRATION');
@@ -236,7 +236,7 @@ async function main() {
   console.log();
   console.log(vice('  Verification'));
   console.log(teen('    JavaScript (snarkjs):  ~8ms'));
-  console.log(cristal('    Native C (tetsuo-core): <1ms') + '  ← 8x faster');
+  console.log(cristal('    Native C (dark-forest-core): <1ms') + '  ← 8x faster');
   console.log(cristal('    Batch verification:     ~0.5ms/proof'));
   console.log();
   console.log(vice('  Memory'));

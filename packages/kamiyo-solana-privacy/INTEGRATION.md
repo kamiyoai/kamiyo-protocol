@@ -59,5 +59,5 @@ mirror.verifyProof(proof, publicInputs);
 ## Build
 
 ```bash
-cd packages/kamiyo-tetsuo-privacy/circuits && ./build.sh
+cd packages/kamiyo-dark-forest-privacy/circuits && ./build.sh
 ```

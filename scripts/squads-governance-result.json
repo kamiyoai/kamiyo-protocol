@@ -1,0 +1,10 @@
+{
+  "multisig": "2Cn6MF9DE91zh6PsMiUitpkRLieuA2pTjdm1XLUmwpU1",
+  "members": [
+    "DiBLoJLZFcaF293ajFeU9q96z3mYNBkesUK14TNaUUt6",
+    "DidgNTicbGoP1bSiZmp4wSbtNkrSJSb2je7tgha5Mq74"
+  ],
+  "threshold": 1,
+  "created": "2026-01-12T15:45:00.000Z",
+  "ui": "https://app.squads.so/squads/2Cn6MF9DE91zh6PsMiUitpkRLieuA2pTjdm1XLUmwpU1/treasury"
+}

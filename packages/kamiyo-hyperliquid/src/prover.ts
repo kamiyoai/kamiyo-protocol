@@ -1,12 +1,12 @@
 import { ethers } from 'ethers';
-import { TetsuoProver, GeneratedProof } from '@kamiyo/tetsuo';
+import { DarkForestProver, GeneratedProof } from '@kamiyo/dark-forest';
 
 export {
-  TetsuoProver,
+  DarkForestProver,
   getTierThreshold,
   getQualifyingTier,
   qualifiesForTier,
-} from '@kamiyo/tetsuo';
+} from '@kamiyo/dark-forest';
 
 export type {
   ProverConfig,
@@ -16,9 +16,9 @@ export type {
   Groth16Proof,
   Commitment,
   VerificationResult,
-} from '@kamiyo/tetsuo';
+} from '@kamiyo/dark-forest';
 
-export class ReputationProver extends TetsuoProver {
+export class ReputationProver extends DarkForestProver {
   formatForContract(proof: GeneratedProof): {
     proofA: [bigint, bigint];
     proofB: [[bigint, bigint], [bigint, bigint]];

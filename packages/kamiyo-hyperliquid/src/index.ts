@@ -28,7 +28,7 @@ export {
 
 export {
   ReputationProver,
-  TetsuoProver,
+  DarkForestProver,
   getTierThreshold,
   getQualifyingTier,
 } from './prover';

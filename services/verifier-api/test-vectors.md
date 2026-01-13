@@ -1,11 +1,11 @@
 # KAMIYO Verifier API - Test Vectors
 
-Base URL: `https://kamiyo-protocol.onrender.com`
+Base URL: `https://api.kamiyo.ai`
 
 ## Health Check
 
 ```bash
-curl https://kamiyo-protocol.onrender.com/health
+curl https://api.kamiyo.ai/health
 ```
 
 Response:
@@ -16,7 +16,7 @@ Response:
 ## POST /verify/reputation
 
 ```bash
-curl -X POST https://kamiyo-protocol.onrender.com/verify/reputation \
+curl -X POST https://api.kamiyo.ai/verify/reputation \
   -H "Content-Type: application/json" \
   -d '{
     "agent_pk": "11111111111111111111111111111112",
@@ -34,7 +34,7 @@ Response:
 ### Invalid Request - Missing Fields
 
 ```bash
-curl -X POST https://kamiyo-protocol.onrender.com/verify/reputation \
+curl -X POST https://api.kamiyo.ai/verify/reputation \
   -H "Content-Type: application/json" \
   -d '{
     "agent_pk": "11111111111111111111111111111112"
@@ -52,7 +52,7 @@ Expected:
 ### Invalid Request - Bad Public Key
 
 ```bash
-curl -X POST https://kamiyo-protocol.onrender.com/verify/reputation \
+curl -X POST https://api.kamiyo.ai/verify/reputation \
   -H "Content-Type: application/json" \
   -d '{
     "agent_pk": "not-a-valid-pubkey",
@@ -75,7 +75,7 @@ Expected:
 ### Valid Request Structure
 
 ```bash
-curl -X POST https://kamiyo-protocol.onrender.com/verify/exclusion \
+curl -X POST https://api.kamiyo.ai/verify/exclusion \
   -H "Content-Type: application/json" \
   -d '{
     "agent_pk": "11111111111111111111111111111112",
@@ -95,7 +95,7 @@ Response (invalid - needs 256 siblings):
 ### Invalid Request - Missing Fields
 
 ```bash
-curl -X POST https://kamiyo-protocol.onrender.com/verify/exclusion \
+curl -X POST https://api.kamiyo.ai/verify/exclusion \
   -H "Content-Type: application/json" \
   -d '{
     "agent_pk": "11111111111111111111111111111112"
@@ -113,7 +113,7 @@ Expected:
 ## GET /blacklist/root
 
 ```bash
-curl https://kamiyo-protocol.onrender.com/blacklist/root
+curl https://api.kamiyo.ai/blacklist/root
 ```
 
 Response:
@@ -126,7 +126,7 @@ Response:
 ## GET /blacklist/proof/:agent_pk
 
 ```bash
-curl https://kamiyo-protocol.onrender.com/blacklist/proof/11111111111111111111111111111112
+curl https://api.kamiyo.ai/blacklist/proof/11111111111111111111111111111112
 ```
 
 Response (agent not blacklisted):
@@ -149,7 +149,7 @@ Response (agent is blacklisted):
 ### Invalid agent_pk
 
 ```bash
-curl https://kamiyo-protocol.onrender.com/blacklist/proof/not-a-valid-pubkey
+curl https://api.kamiyo.ai/blacklist/proof/not-a-valid-pubkey
 ```
 
 Expected:

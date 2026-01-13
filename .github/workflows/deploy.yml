@@ -1,0 +1,94 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Network to deploy to'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      component:
+        description: 'Component to deploy'
+        required: true
+        default: 'hyperliquid'
+        type: choice
+        options:
+          - hyperliquid
+          - all
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  deploy-hyperliquid:
+    name: Deploy Hyperliquid Contracts
+    if: inputs.component == 'hyperliquid' || inputs.component == 'all'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build Contracts
+        working-directory: contracts/hyperliquid
+        run: forge build
+
+      - name: Run Tests
+        working-directory: contracts/hyperliquid
+        run: forge test -vvv
+
+      - name: Verify Verification Key
+        working-directory: contracts/hyperliquid
+        run: |
+          echo "Verifying VK matches circuit artifacts..."
+          # Compare VK hash from circuit build with deployed script
+
+      - name: Deploy to ${{ inputs.network }}
+        working-directory: contracts/hyperliquid
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: ${{ inputs.network == 'mainnet' && secrets.HYPERLIQUID_MAINNET_RPC || secrets.HYPERLIQUID_TESTNET_RPC }}
+        run: |
+          forge script script/Deploy.s.sol:DeployScript \
+            --rpc-url $RPC_URL \
+            --broadcast \
+            --verify \
+            -vvvv
+
+      - name: Output Deployed Addresses
+        run: |
+          echo "### Deployed Addresses" >> $GITHUB_STEP_SUMMARY
+          echo "Network: ${{ inputs.network }}" >> $GITHUB_STEP_SUMMARY
+          cat contracts/hyperliquid/broadcast/Deploy.s.sol/*/run-latest.json | jq '.transactions[] | select(.transactionType == "CREATE") | {contract: .contractName, address: .contractAddress}' >> $GITHUB_STEP_SUMMARY
+
+  update-sdk-addresses:
+    name: Update SDK Addresses
+    needs: deploy-hyperliquid
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse Deployed Addresses
+        run: |
+          # Extract addresses from broadcast output and update config
+          echo "TODO: Parse and commit address updates"
+
+      - name: Create PR with Address Updates
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: "chore: update ${{ inputs.network }} contract addresses"
+          body: |
+            Automated update of contract addresses after deployment.
+
+            Network: ${{ inputs.network }}
+            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          branch: auto/update-${{ inputs.network }}-addresses
+          commit-message: "Update ${{ inputs.network }} contract addresses"

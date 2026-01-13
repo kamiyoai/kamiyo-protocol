@@ -1,0 +1,22 @@
+[package]
+name = "kamiyo-governance"
+version = "0.1.0"
+description = "KAMIYO Governance - Token-weighted voting for protocol decisions"
+edition = "2021"
+license = "BUSL-1.1"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kamiyo_governance"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+anchor-spl = "0.31.1"

@@ -1,10 +1,3 @@
-/**
- * Copy Trading with Reputation Checks
- *
- * Enforces tier-based limits before executing copy trades.
- * Queries on-chain ZK reputation to determine agent eligibility.
- */
-
 import { ReputationClient, Tier, TIER_THRESHOLDS, createSepoliaClient } from './reputation';
 
 export interface CopyLimits {
@@ -13,7 +6,6 @@ export interface CopyLimits {
   maxLeverage: number;
 }
 
-// Tier-based copy trading limits
 export const TIER_LIMITS: Record<Tier, CopyLimits> = {
   [Tier.Unverified]: {
     maxCopiers: 0,
@@ -67,17 +59,11 @@ export class CopyTradingGuard {
     this.reputation = reputationClient || createSepoliaClient();
   }
 
-  /**
-   * Check if a copy trade is allowed based on agent's ZK-verified tier
-   */
   async checkCopyTrade(request: CopyTradeRequest): Promise<CopyTradeResult> {
     const { agentAddress, copierAddress, tradeValueUsd, leverage } = request;
-
-    // Query on-chain tier
     const tier = await this.reputation.getAgentTier(agentAddress);
     const limits = TIER_LIMITS[tier];
 
-    // Check if agent is verified
     if (tier === Tier.Unverified) {
       return {
         allowed: false,
@@ -87,7 +73,6 @@ export class CopyTradingGuard {
       };
     }
 
-    // Check copier limit
     const copiers = this.activeCopiers.get(agentAddress) || new Set();
     if (!copiers.has(copierAddress) && copiers.size >= limits.maxCopiers) {
       return {
@@ -98,7 +83,6 @@ export class CopyTradingGuard {
       };
     }
 
-    // Check total value limit
     const currentValue = this.totalValue.get(agentAddress) || 0;
     if (currentValue + tradeValueUsd > limits.maxTotalValue) {
       return {
@@ -109,7 +93,6 @@ export class CopyTradingGuard {
       };
     }
 
-    // Check leverage limit
     if (leverage > limits.maxLeverage) {
       return {
         allowed: false,
@@ -126,24 +109,16 @@ export class CopyTradingGuard {
     };
   }
 
-  /**
-   * Record a copy trade (call after successful execution)
-   */
   recordCopyTrade(agentAddress: string, copierAddress: string, valueUsd: number): void {
-    // Track copier
     if (!this.activeCopiers.has(agentAddress)) {
       this.activeCopiers.set(agentAddress, new Set());
     }
     this.activeCopiers.get(agentAddress)!.add(copierAddress);
 
-    // Track value
     const current = this.totalValue.get(agentAddress) || 0;
     this.totalValue.set(agentAddress, current + valueUsd);
   }
 
-  /**
-   * Remove a copier (call when they stop copying)
-   */
   removeCopier(agentAddress: string, copierAddress: string, valueUsd: number): void {
     this.activeCopiers.get(agentAddress)?.delete(copierAddress);
 
@@ -151,9 +126,6 @@ export class CopyTradingGuard {
     this.totalValue.set(agentAddress, Math.max(0, current - valueUsd));
   }
 
-  /**
-   * Get current stats for an agent
-   */
   getAgentStats(agentAddress: string): { copierCount: number; totalValue: number } {
     return {
       copierCount: this.activeCopiers.get(agentAddress)?.size || 0,

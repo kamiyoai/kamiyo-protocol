@@ -1,11 +1,11 @@
 /**
  * Cyberpunk ASCII Banner
- * KAMIYO x TETSUO - Agent-to-Agent ZK Trust
+ * KAMIYO x DARK FOREST - Agent-to-Agent ZK Trust
  */
 
 import gradient from 'gradient-string';
 
-const KAMIYO_TETSUO = `
+const KAMIYO_DARK FOREST = `
 ██╗  ██╗ █████╗ ███╗   ███╗██╗██╗   ██╗ ██████╗     ██╗  ██╗    ████████╗███████╗████████╗███████╗██╗   ██╗ ██████╗
 ██║ ██╔╝██╔══██╗████╗ ████║██║╚██╗ ██╔╝██╔═══██╗    ╚██╗██╔╝    ╚══██╔══╝██╔════╝╚══██╔══╝██╔════╝██║   ██║██╔═══██╗
 █████╔╝ ███████║██╔████╔██║██║ ╚████╔╝ ██║   ██║     ╚███╔╝        ██║   █████╗     ██║   ███████╗██║   ██║██║   ██║
@@ -109,7 +109,7 @@ export async function printBannerAnimated(): Promise<void> {
   console.log();
 
   // Dramatic reveal line by line
-  const lines = KAMIYO_TETSUO.split('\n');
+  const lines = KAMIYO_DARK FOREST.split('\n');
   for (const line of lines) {
     console.log(vice(line));
     await sleep(50);
@@ -124,7 +124,7 @@ export async function printBannerAnimated(): Promise<void> {
 
 export function printBanner(): void {
   console.log();
-  console.log(vice.multiline(KAMIYO_TETSUO));
+  console.log(vice.multiline(KAMIYO_DARK FOREST));
   console.log();
   console.log(teen.multiline(SUBTITLE));
   console.log();

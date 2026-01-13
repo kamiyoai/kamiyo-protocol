@@ -88,12 +88,12 @@ jobs:
       - name: Build SDK
         run: pnpm run build:sdk
 
-      - name: Build TETSUO
-        working-directory: packages/kamiyo-tetsuo
+      - name: Build DARK_FOREST
+        working-directory: packages/kamiyo-dark-forest
         run: npm run build
 
-      - name: Test TETSUO
-        working-directory: packages/kamiyo-tetsuo
+      - name: Test DARK_FOREST
+        working-directory: packages/kamiyo-dark-forest
         run: npm test
 
       - name: Test SDK

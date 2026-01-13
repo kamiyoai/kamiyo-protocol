@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/hyperliquid",
   "version": "0.1.0",
-  "description": "Kamiyo copy trading on Hyperliquid (powered by TETSUO)",
+  "description": "Kamiyo copy trading on Hyperliquid (powered by DARK_FOREST)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -15,7 +15,7 @@
     "test:integration": "vitest run test/integration.test.ts"
   },
   "dependencies": {
-    "@kamiyo/tetsuo": "workspace:*",
+    "@kamiyo/dark-forest": "workspace:*",
     "ethers": "^6.9.0"
   },
   "devDependencies": {
@@ -29,7 +29,7 @@
     "copy-trading",
     "escrow",
     "agents",
-    "tetsuo"
+    "dark-forest"
   ],
   "license": "BUSL-1.1"
 }

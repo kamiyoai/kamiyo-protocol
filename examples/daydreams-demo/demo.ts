@@ -18,7 +18,7 @@ import {
   getTierThreshold,
   getQualifyingTier,
 } from '@kamiyo/daydreams';
-import { TetsuoProver } from '@kamiyo/tetsuo';
+import { DarkForestProver } from '@kamiyo/dark-forest';
 
 import {
   printBanner,
@@ -56,9 +56,9 @@ async function main() {
   printBanner();
 
   // Check circuit artifacts
-  if (!TetsuoProver.isAvailable()) {
+  if (!DarkForestProver.isAvailable()) {
     printError('Circuit artifacts not found. Run circuit setup first.');
-    printInfo('cd native/tetsuo-core && npm run build:circuit');
+    printInfo('cd packages/kamiyo-dark-forest && npm run build:circuit');
     process.exit(1);
   }
 
@@ -275,7 +275,7 @@ async function main() {
   console.log();
   console.log(vice('  Verification'));
   console.log(teen('    JavaScript (snarkjs):  ~8ms'));
-  console.log(cristal('    Native C (tetsuo-core): <1ms') + '  <- 8x faster');
+  console.log(cristal('    Native C (dark-forest-core): <1ms') + '  <- 8x faster');
   console.log();
   console.log(vice('  Memory'));
   console.log(teen('    Proof size: 192 bytes (Groth16 compressed)'));

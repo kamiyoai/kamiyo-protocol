@@ -1,0 +1,21 @@
+[package]
+name = "kamiyo-agent-collab"
+version = "0.1.0"
+description = "ZK-Private Agent Collaboration Protocol"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kamiyo_agent_collab"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+groth16-solana = "0.1"

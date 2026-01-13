@@ -22,7 +22,7 @@ class MockWallet implements Partial<Wallet> {
   }
 }
 
-describe('TETSUO Reputation SDK Input Validation', () => {
+describe('DARK FOREST Reputation SDK Input Validation', () => {
   let client: ReputationClient;
   let clientWithWallet: ReputationClient;
   let mockWallet: MockWallet;

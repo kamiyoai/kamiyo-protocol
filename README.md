@@ -161,7 +161,7 @@ await client.releaseFunds('order-123', providerPubkey);
 
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/tetsuo` | ZK reputation proofs - Groth16/BN254, Poseidon commitments |
+| `@kamiyo/dark-forest` | ZK reputation proofs - Groth16/BN254, Poseidon commitments |
 | `noir/` | Noir circuits + Solana verifier (4 circuits, UltraPlonk) |
 | `contracts/zk-reputation/` | ZKReputationV2 on Base - on-chain Groth16 verifier |
 

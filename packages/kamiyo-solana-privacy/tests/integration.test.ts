@@ -16,7 +16,7 @@ class MockWallet {
   }
 }
 
-describe('TETSUO Privacy SDK Integration', () => {
+describe('DARK FOREST Privacy SDK Integration', () => {
   let wallet: MockWallet;
   let privateInference: PrivateInference;
 
