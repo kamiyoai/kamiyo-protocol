@@ -64,4 +64,4 @@ The verifier does NOT learn: actual score, wallet history, identity
 
 ## License
 
-BUSL-1.1
+MIT

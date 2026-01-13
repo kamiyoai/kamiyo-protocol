@@ -2,8 +2,8 @@
 //!
 //! 魂 (kamiyo) - The soul/spirit that persists through conflict
 //!
-//! Copyright (c) 2025 KAMIYO
-//! SPDX-License-Identifier: BUSL-1.1
+//! Copyright (c) 2026 KAMIYO
+//! SPDX-License-Identifier: MIT
 //!
 //! Kamiyo provides autonomous agents with:
 //! - PDA-based agent identities with stake-backed accountability

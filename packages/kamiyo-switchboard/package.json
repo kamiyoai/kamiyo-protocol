@@ -20,7 +20,7 @@
     "dispute-resolution"
   ],
   "author": "KAMIYO",
-  "license": "BUSL-1.1",
+  "license": "MIT",
   "dependencies": {
     "@switchboard-xyz/on-demand": "^1.0.0"
   },

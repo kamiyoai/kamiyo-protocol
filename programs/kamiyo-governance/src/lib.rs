@@ -15,8 +15,8 @@
 //! 4. Executed -> After timelock, can be executed
 //! 5. Expired -> If not executed within grace period
 //!
-//! Copyright (c) 2025 KAMIYO
-//! SPDX-License-Identifier: BUSL-1.1
+//! Copyright (c) 2026 KAMIYO
+//! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Mint};

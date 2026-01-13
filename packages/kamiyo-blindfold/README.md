@@ -106,4 +106,4 @@ BLINDFOLD_API_KEY=your_api_key
 
 ## License
 
-BUSL-1.1
+MIT

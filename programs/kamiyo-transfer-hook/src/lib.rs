@@ -8,8 +8,8 @@
 //! - Transfer cooldown (minimum time between transfers)
 //! - Platform whitelist (verified platforms bypass restrictions)
 //!
-//! Copyright (c) 2025 KAMIYO
-//! SPDX-License-Identifier: BUSL-1.1
+//! Copyright (c) 2026 KAMIYO
+//! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};

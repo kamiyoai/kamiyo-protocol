@@ -12,8 +12,8 @@
 //! - 90-180 days: 1.5x
 //! - 180+ days: 2.0x
 //!
-//! Copyright (c) 2025 KAMIYO
-//! SPDX-License-Identifier: BUSL-1.1
+//! Copyright (c) 2026 KAMIYO
+//! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer};
