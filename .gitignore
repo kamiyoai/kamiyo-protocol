@@ -225,3 +225,6 @@ examples/*/demo.gif
 examples/*/demo.tape
 docs/
 test-ledger/
+
+# Internal guides
+services/kamiyo-companion/DEMO_GUIDE.md
