@@ -8,6 +8,56 @@ import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from '
 // Initialize Sentry first
 initSentry();
 
+// Timeout wrapper for async operations
+class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, operation: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new TimeoutError(`${operation} timed out after ${ms}ms`)), ms);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (err) {
+    clearTimeout(timeoutId!);
+    throw err;
+  }
+}
+
+// Retry with exponential backoff
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries?: number; baseDelayMs?: number; operation?: string } = {}
+): Promise<T> {
+  const { maxRetries = 3, baseDelayMs = 1000, operation = 'operation' } = options;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      const isRetryable = error.status === 429 || error.status === 500 || error.status === 503;
+
+      if (!isRetryable || attempt === maxRetries) {
+        throw err;
+      }
+
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      logger.warn(`${operation} failed, retrying in ${delay}ms`, { attempt, status: error.status });
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 import {
   getOrCreateUser,
   getConversationHistory,
@@ -36,7 +86,9 @@ import {
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
 import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
-import { startContextRefresh, getContext, formatContextForPrompt } from './crypto-context';
+import { startContextRefresh, stopContextRefresh, getContext, formatContextForPrompt } from './crypto-context';
+import { stopCacheCleanup } from './cache';
+import { startMaintenanceSchedule, stopMaintenanceSchedule } from './maintenance';
 
 const SYSTEM_PROMPT = `You are KAMIYO Companion - an AI thinking partner. You're like that friend who tells you the truth.
 
@@ -304,13 +356,21 @@ async function generateResponse(
     const contextStr = formatContextForPrompt(cryptoCtx);
     const systemWithContext = `${SYSTEM_PROMPT}\n\n${contextStr}`;
 
-    const response = await trackLatency(anthropicLatency, {}, () =>
-      anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 280,
-        system: systemWithContext,
-        messages,
-      })
+    // API call with timeout (30s) and retry (for transient errors)
+    const response = await withRetry(
+      () => withTimeout(
+        trackLatency(anthropicLatency, {}, () =>
+          anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 280,
+            system: systemWithContext,
+            messages,
+          })
+        ),
+        30000,
+        'Anthropic API'
+      ),
+      { maxRetries: 2, operation: 'Anthropic API' }
     );
 
     const text = response.content
@@ -623,7 +683,13 @@ async function main(): Promise<void> {
     if (isShuttingDown) return;
     isShuttingDown = true;
 
-    logger.info(`\n${signal} received. Shutting down gracefully...`);
+    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // Stop all background tasks
+    stopContextRefresh();
+    stopCacheCleanup();
+    stopMaintenanceSchedule();
+    logger.info('Background tasks stopped');
 
     // Give in-flight requests time to complete
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -637,6 +703,9 @@ async function main(): Promise<void> {
 
   // Start crypto context refresh (prices, trending, news)
   startContextRefresh();
+
+  // Start database maintenance schedule (daily cleanup + backup)
+  startMaintenanceSchedule();
 
   await startMentionStream(twitter, anthropic);
 

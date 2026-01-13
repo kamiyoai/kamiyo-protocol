@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
-# Install build dependencies for better-sqlite3
-RUN apk add --no-cache python3 make g++
+# Install build dependencies and supervisor
+RUN apk add --no-cache python3 make g++ supervisor
 
 WORKDIR /app
 
@@ -20,12 +20,15 @@ RUN npm run build
 # Create data directory
 RUN mkdir -p /app/data
 
+# Copy supervisor config
+COPY supervisord.conf /etc/supervisord.conf
+
 # Expose ports
 EXPOSE 3000 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check (checks actions API)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Run both services (use supervisor in production)
-CMD ["sh", "-c", "node dist/index.js & node dist/actions.js"]
+# Run with supervisor for proper process management
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]

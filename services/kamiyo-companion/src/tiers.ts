@@ -2,11 +2,16 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { getUserTier, updateUserTier, getOrCreateUser, getDailyMessageCount, incrementDailyMessageCount } from './db';
 import { tierCache, balanceCache } from './cache';
 import { rpcCalls } from './metrics';
+import { logger } from './logger';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 
 const connection = new Connection(RPC_URL, 'confirmed');
+
+// Long-term balance cache for RPC failure fallback (1 hour)
+const lastKnownBalances = new Map<string, { balance: number; timestamp: number }>();
+const LAST_KNOWN_TTL = 60 * 60 * 1000; // 1 hour
 
 export interface TierConfig {
   name: string;
@@ -53,7 +58,7 @@ export const TIERS: Record<string, TierConfig> = {
 };
 
 export async function getTokenBalance(wallet: string): Promise<number> {
-  // Check cache first
+  // Check short-term cache first
   const cached = balanceCache.get(wallet);
   if (cached !== undefined) {
     return cached;
@@ -75,11 +80,34 @@ export async function getTokenBalance(wallet: string): Promise<number> {
       if (amount) total += amount;
     }
 
-    // Cache the result
+    // Cache the result (both short-term and long-term)
     balanceCache.set(wallet, total);
+    lastKnownBalances.set(wallet, { balance: total, timestamp: Date.now() });
+
     return total;
-  } catch {
+  } catch (err) {
     rpcCalls.inc({ method: 'getParsedTokenAccountsByOwner', status: 'error' });
+
+    // On RPC failure, use last known balance if available and not too old
+    const lastKnown = lastKnownBalances.get(wallet);
+    if (lastKnown && Date.now() - lastKnown.timestamp < LAST_KNOWN_TTL) {
+      logger.warn('RPC failed, using cached balance', {
+        wallet: wallet.slice(0, 8) + '...',
+        cachedBalance: lastKnown.balance,
+        cacheAge: Math.floor((Date.now() - lastKnown.timestamp) / 1000) + 's',
+        error: String(err),
+      });
+      return lastKnown.balance;
+    }
+
+    // No valid cache - log error but don't downgrade immediately
+    // Return -1 to indicate error (caller should handle gracefully)
+    logger.error('RPC failed with no cached balance', {
+      wallet: wallet.slice(0, 8) + '...',
+      error: String(err),
+    });
+
+    // Return 0 only as last resort - but caller should check tier from DB first
     return 0;
   }
 }
@@ -102,6 +130,10 @@ export async function refreshUserTier(userId: string, platform: string, wallet: 
 
   const user = getOrCreateUser(userId, platform);
 
+  // Get existing tier from DB first (as fallback)
+  const { tier: existingTier, expired } = getUserTier(userId);
+  const currentDbTier = expired ? 'free' : existingTier;
+
   // If user has a wallet, check token holdings
   if (wallet) {
     const tierFromHoldings = await calculateTierFromHoldings(wallet);
@@ -112,14 +144,22 @@ export async function refreshUserTier(userId: string, platform: string, wallet: 
       tierCache.set(cacheKey, tierFromHoldings);
       return tierFromHoldings;
     }
+
+    // If holdings check returned 'free' but user had a tier,
+    // it might be due to RPC failure - keep existing tier as safety net
+    if (currentDbTier !== 'free' && !expired) {
+      logger.info('Keeping existing tier (RPC may have failed)', {
+        userId,
+        existingTier: currentDbTier,
+      });
+      tierCache.set(cacheKey, currentDbTier);
+      return currentDbTier;
+    }
   }
 
-  // Otherwise check paid subscription
-  const { tier, expired } = getUserTier(userId);
-
-  const result = expired ? 'free' : tier;
-  tierCache.set(cacheKey, result);
-  return result;
+  // Use paid subscription tier
+  tierCache.set(cacheKey, currentDbTier);
+  return currentDbTier;
 }
 
 // Invalidate tier cache when wallet is linked
