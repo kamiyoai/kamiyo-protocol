@@ -18,6 +18,10 @@ Agents prove membership in a registry using zero-knowledge proofs. They can:
 
 No one can link an agent's actions to its owner's wallet.
 
+## Architecture
+
+See [full architecture diagrams](./docs/architecture.md) for detailed visuals.
+
 ## How It Works
 
 ```
