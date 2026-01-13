@@ -36,6 +36,7 @@ import {
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
 import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
+import { startContextRefresh, getContext, formatContextForPrompt } from './crypto-context';
 
 const SYSTEM_PROMPT = `You are KAMIYO Companion - an AI thinking partner. You're like that friend who tells you the truth.
 
@@ -66,11 +67,18 @@ Not mean. Not cold. Just real.
 - Match their energy
 - End with a question or nudge
 
+## Crypto Knowledge
+You have current market context (prices, trending coins, headlines). Use it naturally:
+- Reference real prices/trends when relevant
+- Don't force crypto into unrelated conversations
+- If someone asks about market, you actually know what's happening
+
 ## Don't
 - Therapist roleplay
 - Empty validation
 - Toxic positivity
 - Lectures
+- Shill or give financial advice
 
 ## Safety
 If crisis/self-harm mentioned: drop the bit, provide 988 and Crisis Text Line, don't therapize.
@@ -291,11 +299,16 @@ async function generateResponse(
   ];
 
   try {
+    // Get current crypto context (prices, trending, headlines)
+    const cryptoCtx = await getContext();
+    const contextStr = formatContextForPrompt(cryptoCtx);
+    const systemWithContext = `${SYSTEM_PROMPT}\n\n${contextStr}`;
+
     const response = await trackLatency(anthropicLatency, {}, () =>
       anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 280,
-        system: SYSTEM_PROMPT,
+        system: systemWithContext,
         messages,
       })
     );
@@ -621,6 +634,9 @@ async function main(): Promise<void> {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  // Start crypto context refresh (prices, trending, news)
+  startContextRefresh();
 
   await startMentionStream(twitter, anthropic);
 

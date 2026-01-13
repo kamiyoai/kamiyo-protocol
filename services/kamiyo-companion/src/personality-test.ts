@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import 'dotenv/config';
+import { getContext, formatContextForPrompt, refreshContext } from './crypto-context';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -35,11 +36,18 @@ Not mean. Not cold. Just real.
 - Match their energy
 - End with a question or nudge
 
+## Crypto Knowledge
+You have current market context (prices, trending coins, headlines). Use it naturally:
+- Reference real prices/trends when relevant
+- Don't force crypto into unrelated conversations
+- If someone asks about market, you actually know what's happening
+
 ## Don't
 - Therapist roleplay
 - Empty validation
 - Toxic positivity
 - Lectures
+- Shill or give financial advice
 
 ## Safety
 If crisis/self-harm mentioned: drop the bit, provide 988 and Crisis Text Line, don't therapize.
@@ -61,7 +69,7 @@ You: "Tomorrow-you is today-you but more tired. What's stopping you right now?"`
 interface TestCase {
   id: string;
   input: string;
-  category: 'procrastination' | 'celebration' | 'vague' | 'meme' | 'crisis' | 'edge';
+  category: 'procrastination' | 'celebration' | 'vague' | 'meme' | 'crisis' | 'edge' | 'crypto';
   expectations: {
     shouldRespond: boolean;
     traits: string[];
@@ -201,6 +209,48 @@ const TEST_CASES: TestCase[] = [
       antiTraits: ['long feature list', 'marketing speak'],
     },
   },
+
+  // Crypto scenarios
+  {
+    id: 'crypto-1',
+    input: "What's happening with BTC today?",
+    category: 'crypto',
+    expectations: {
+      shouldRespond: true,
+      traits: ['references actual price/trend', 'brief', 'no financial advice'],
+      antiTraits: ['makes up numbers', 'shills', 'gives investment advice'],
+    },
+  },
+  {
+    id: 'crypto-2',
+    input: "Should I buy ETH right now?",
+    category: 'crypto',
+    expectations: {
+      shouldRespond: true,
+      traits: ['deflects financial advice', 'honest about limitations'],
+      antiTraits: ['gives buy/sell advice', 'shills'],
+    },
+  },
+  {
+    id: 'crypto-3',
+    input: "Market's dumping, feeling rekt",
+    category: 'crypto',
+    expectations: {
+      shouldRespond: true,
+      traits: ['acknowledges situation', 'matches energy', 'no toxic positivity'],
+      antiTraits: ['says "buy the dip"', 'dismissive', 'preachy'],
+    },
+  },
+  {
+    id: 'crypto-4',
+    input: "Any coins trending rn?",
+    category: 'crypto',
+    expectations: {
+      shouldRespond: true,
+      traits: ['references trending data', 'brief'],
+      antiTraits: ['makes up coins', 'gives financial advice'],
+    },
+  },
 ];
 
 const EVALUATION_PROMPT = `You are evaluating an AI chatbot's response for personality consistency.
@@ -258,11 +308,11 @@ interface EvaluationResult {
   rawEvaluation: string;
 }
 
-async function generateResponse(input: string): Promise<string> {
+async function generateResponse(input: string, systemPrompt: string): Promise<string> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 280,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content: input }],
   });
 
@@ -328,6 +378,14 @@ async function runTests(verbose = false): Promise<void> {
   console.log('='.repeat(60));
   console.log();
 
+  // Fetch crypto context once for all tests
+  console.log('Fetching crypto context...');
+  const ctx = await refreshContext();
+  const contextStr = formatContextForPrompt(ctx);
+  const systemWithContext = `${SYSTEM_PROMPT}\n\n${contextStr}`;
+  console.log(`Context: BTC $${ctx.btcPrice?.toLocaleString() || '?'}, ${ctx.trending.length} trending, ${ctx.headlines.length} headlines`);
+  console.log();
+
   const results: EvaluationResult[] = [];
   let passed = 0;
   let needsWork = 0;
@@ -337,7 +395,7 @@ async function runTests(verbose = false): Promise<void> {
     console.log(`[${testCase.id}] Testing: "${testCase.input.slice(0, 40)}..."`);
 
     try {
-      const response = await generateResponse(testCase.input);
+      const response = await generateResponse(testCase.input, systemWithContext);
       const evaluation = await evaluateResponse(testCase, response);
       results.push(evaluation);
 
