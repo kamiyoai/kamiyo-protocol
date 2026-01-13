@@ -542,7 +542,6 @@ export function startActionsServer(): void {
   app.listen(PORT, () => {
     logger.info(`Actions API running on port ${PORT}`);
     logger.info(`Blink URL: ${HOST}/api/actions/subscribe`);
-    logger.info(`Test on X: Share any tweet with the Blink URL`);
   });
 }
 

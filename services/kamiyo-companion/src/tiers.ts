@@ -144,7 +144,6 @@ export function getRequiredPayment(tier: string): { sol: number; lamports: numbe
   return { sol, lamports: Math.floor(sol * 1_000_000_000) };
 }
 
-// Daily message limit tracking (persisted to SQLite)
 export function checkMessageLimit(userId: string, tier: string): { allowed: boolean; remaining: number } {
   const config = getTierConfig(tier);
   if (config.maxMessagesPerDay === -1) {
