@@ -547,18 +547,14 @@ async function startMentionStream(
             continue;
           }
 
-          // Skip replies to our own tweets (auto-mentions in thread)
-          // unless they explicitly have substance beyond the auto-mention
+          // Never respond to replies to our own tweets
+          // This prevents the bot from having conversations with itself
           const tweetWithReply = tweet as typeof tweet & { in_reply_to_user_id?: string };
           if (tweetWithReply.in_reply_to_user_id === myId) {
-            const textWithoutMentions = tweet.text.replace(/@\w+/g, '').trim();
-            // If it's just a short reply in our thread, skip it
-            if (textWithoutMentions.length < 20 || isEngagementComment(textWithoutMentions)) {
-              logger.info('Skipping thread reply', { tweetId: tweet.id, text: textWithoutMentions.slice(0, 30) });
-              lastSeenId = tweet.id;
-              setBotState('lastSeenId', lastSeenId);
-              continue;
-            }
+            logger.info('Skipping reply to own tweet', { tweetId: tweet.id });
+            lastSeenId = tweet.id;
+            setBotState('lastSeenId', lastSeenId);
+            continue;
           }
 
           // Mark as processed BEFORE handling (prevents race conditions)

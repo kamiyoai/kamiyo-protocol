@@ -69,6 +69,28 @@ export interface VoteNullifier {
   bump: number;
 }
 
+export interface SignalAggregator {
+  registry: PublicKey;
+  epoch: BN;
+  totalSignals: number;
+  longCount: number;
+  shortCount: number;
+  neutralCount: number;
+  totalConfidence: number;
+  totalMagnitude: number;
+  lastUpdatedSlot: BN;
+  bump: number;
+}
+
+export interface WithdrawalRequest {
+  agent: PublicKey;
+  amount: BN;
+  requestSlot: BN;
+  unlockSlot: BN;
+  claimed: boolean;
+  bump: number;
+}
+
 // Config types
 export interface RegistryConfig {
   minStake: BN;

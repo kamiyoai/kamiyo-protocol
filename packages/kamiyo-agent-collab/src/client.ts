@@ -15,6 +15,8 @@ import {
   Signal,
   SwarmAction,
   NullifierRecord,
+  SignalAggregator,
+  WithdrawalRequest,
 } from './types';
 
 // Import the generated IDL
@@ -205,6 +207,33 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive a signal aggregator PDA for an epoch.
+   * @param registry - Registry public key
+   * @param epoch - Epoch number
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getAggregatorPDA(registry: PublicKey, epoch: BN): [PublicKey, number] {
+    const epochBytes = Buffer.alloc(8);
+    epochBytes.writeBigUInt64LE(BigInt(epoch.toString()));
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('aggregator'), registry.toBuffer(), epochBytes],
+      AGENT_COLLAB_PROGRAM_ID
+    );
+  }
+
+  /**
+   * Derive a withdrawal request PDA for an agent.
+   * @param agent - Agent public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getWithdrawalPDA(agent: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('withdrawal'), agent.toBuffer()],
+      AGENT_COLLAB_PROGRAM_ID
+    );
+  }
+
   // ============================================================================
   // Account Fetching
   // ============================================================================
@@ -248,6 +277,38 @@ export class AgentCollabClient {
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['swarmAction'].fetch(actionPDA) as SwarmAction;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch a signal aggregator account.
+   * @param epoch - Epoch to fetch aggregator for
+   * @returns Aggregator data or null if not initialized
+   */
+  async getAggregator(epoch: BN): Promise<SignalAggregator | null> {
+    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [aggregatorPDA] = AgentCollabClient.getAggregatorPDA(registryPDA, epoch);
+    try {
+      const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
+      return await accounts['signalAggregator'].fetch(aggregatorPDA) as SignalAggregator;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch a withdrawal request for an agent.
+   * @param agentCommitment - Agent identity commitment
+   * @returns Withdrawal request or null if none pending
+   */
+  async getWithdrawal(agentCommitment: Uint8Array): Promise<WithdrawalRequest | null> {
+    const [agentPDA] = AgentCollabClient.getAgentPDA(agentCommitment);
+    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+    try {
+      const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
+      return await accounts['withdrawalRequest'].fetch(withdrawalPDA) as WithdrawalRequest;
     } catch {
       return null;
     }
@@ -476,6 +537,147 @@ export class AgentCollabClient {
           authority: authority.publicKey,
         })
         .signers([authority])
+        .rpc()
+    );
+  }
+
+  /**
+   * Initialize a signal aggregator for an epoch.
+   * @param payer - Keypair paying for the transaction
+   * @param epoch - Epoch to initialize aggregator for
+   * @returns Transaction signature
+   */
+  async initAggregator(payer: Keypair, epoch: BN): Promise<string> {
+    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [aggregatorPDA] = AgentCollabClient.getAggregatorPDA(registryPDA, epoch);
+
+    return withRetry(() =>
+      this.program.methods
+        .initAggregator(epoch)
+        .accounts({
+          registry: registryPDA,
+          aggregator: aggregatorPDA,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
+  }
+
+  /**
+   * Reveal a signal's content after the reveal period.
+   * @param signalCommitment - Signal commitment to reveal
+   * @param signalType - Type of signal (0-3)
+   * @param direction - Direction (0=short, 1=long, 2=neutral)
+   * @param confidence - Confidence level (0-100)
+   * @param magnitude - Signal magnitude (0-100)
+   * @param revealSecret - Secret used in original commitment
+   * @returns Transaction signature
+   */
+  async revealSignal(
+    signalCommitment: Uint8Array,
+    signalType: number,
+    direction: number,
+    confidence: number,
+    magnitude: number,
+    revealSecret: Uint8Array
+  ): Promise<string> {
+    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
+    const registry = await this.getRegistry();
+    if (!registry) throw new Error('Registry not initialized');
+    const [aggregatorPDA] = AgentCollabClient.getAggregatorPDA(registryPDA, registry.epoch);
+
+    return withRetry(() =>
+      this.program.methods
+        .revealSignal(signalType, direction, confidence, magnitude, Array.from(revealSecret))
+        .accounts({
+          registry: registryPDA,
+          signal: signalPDA,
+          aggregator: aggregatorPDA,
+        })
+        .rpc()
+    );
+  }
+
+  /**
+   * Request withdrawal of agent stake (starts timelock).
+   * @param payer - Keypair paying for the transaction
+   * @param identityCommitment - Agent identity commitment
+   * @returns Transaction signature
+   */
+  async requestWithdrawal(payer: Keypair, identityCommitment: Uint8Array): Promise<string> {
+    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .requestWithdrawal()
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          withdrawal: withdrawalPDA,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
+  }
+
+  /**
+   * Claim withdrawn stake after timelock expires.
+   * @param authority - Authority keypair
+   * @param identityCommitment - Agent identity commitment
+   * @param recipient - Recipient of the stake
+   * @returns Transaction signature
+   */
+  async claimWithdrawal(
+    authority: Keypair,
+    identityCommitment: Uint8Array,
+    recipient: PublicKey
+  ): Promise<string> {
+    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+    const [stakeVault] = AgentCollabClient.getStakeVaultPDA(registryPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .claimWithdrawal()
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          withdrawal: withdrawalPDA,
+          stakeVault,
+          recipient,
+          authority: authority.publicKey,
+        })
+        .signers([authority])
+        .rpc()
+    );
+  }
+
+  /**
+   * Cancel a pending withdrawal request.
+   * @param payer - Keypair that created the withdrawal
+   * @param identityCommitment - Agent identity commitment
+   * @returns Transaction signature
+   */
+  async cancelWithdrawal(payer: Keypair, identityCommitment: Uint8Array): Promise<string> {
+    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .cancelWithdrawal()
+        .accounts({
+          withdrawal: withdrawalPDA,
+          payer: payer.publicKey,
+        })
+        .signers([payer])
         .rpc()
     );
   }
