@@ -28,6 +28,9 @@ app.use(cors({
 
 app.use(express.json());
 
+// Serve static files (icon.png)
+app.use(express.static('public'));
+
 // Actions require these headers
 app.use((req, res, next) => {
   res.setHeader('X-Action-Version', '2.1.3');

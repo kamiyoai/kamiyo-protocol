@@ -20,7 +20,7 @@ import {
   TIERS,
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
-import { submitRating, getUserReputation, formatReputation } from './reputation';
+import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
 
 const SYSTEM_PROMPT = `You are KAMIYO Companion - an AI thinking partner that helps people work through tasks and problems.
 
@@ -90,6 +90,7 @@ const COMMANDS = {
   UPGRADE: /^!upgrade\s+(companion|pro)$/,
   VERIFY: /^!verify\s+([1-9A-HJ-NP-Za-km-z]{64,})$/,
   RATE: /^!rate\s+([1-5])$/,
+  PROOF: /^!proof(?:\s+(\d+))?$/,
   STATUS: /^!status$/,
   CLEAR: /^!clear$/,
   HELP: /^!help$/,
@@ -184,6 +185,26 @@ async function handleCommand(
     return status;
   }
 
+  // !proof [threshold] - Generate ZK reputation proof
+  const proofMatch = text.match(COMMANDS.PROOF);
+  if (proofMatch) {
+    const threshold = parseInt(proofMatch[1] || '60', 10); // Default 60% (3/5 rating)
+    const proof = await generateReputationProof(userId, threshold);
+
+    if (!proof) {
+      return `Cannot generate proof. Your reputation may be below the ${threshold}% threshold, or ZK circuits unavailable.`;
+    }
+
+    // Return proof hash (full proof too long for tweet)
+    const proofHash = Buffer.from(JSON.stringify(proof.proof).slice(0, 32)).toString('hex');
+    return `ZK Reputation Proof generated.
+Threshold: ${threshold}%
+Commitment: ${proof.commitment.slice(0, 16)}...
+Proof hash: ${proofHash}...
+
+This proves your rating >= ${threshold}% without revealing the exact rating.`;
+  }
+
   // !clear - Clear conversation history
   if (COMMANDS.CLEAR.test(text)) {
     clearConversationHistory(userId);
@@ -198,6 +219,7 @@ async function handleCommand(
 !upgrade companion|pro - Show upgrade options
 !verify <tx> - Verify payment
 !rate 1-5 - Rate this session
+!proof [threshold] - Generate ZK proof
 !status - Show your tier and stats
 !clear - Clear conversation history`;
   }

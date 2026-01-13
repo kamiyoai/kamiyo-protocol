@@ -1,0 +1,47 @@
+services:
+  # X Bot service
+  - type: worker
+    name: kamiyo-companion-bot
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TWITTER_API_KEY
+        sync: false
+      - key: TWITTER_API_SECRET
+        sync: false
+      - key: TWITTER_ACCESS_TOKEN
+        sync: false
+      - key: TWITTER_ACCESS_SECRET
+        sync: false
+      - key: SOLANA_RPC_URL
+        value: https://api.mainnet-beta.solana.com
+      - key: TREASURY_WALLET
+        sync: false
+    disk:
+      name: companion-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  # Actions API (Blinks)
+  - type: web
+    name: kamiyo-companion-actions
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/actions.js
+    envVars:
+      - key: SOLANA_RPC_URL
+        value: https://api.mainnet-beta.solana.com
+      - key: TREASURY_WALLET
+        sync: false
+      - key: ACTIONS_HOST
+        value: https://kamiyo-companion-actions.onrender.com
+      - key: ACTIONS_PORT
+        value: 3001
+    disk:
+      name: companion-data
+      mountPath: /app/data
+      sizeGB: 1
+    healthCheckPath: /health

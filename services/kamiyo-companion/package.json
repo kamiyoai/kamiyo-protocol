@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@kamiyo/solana-privacy": "workspace:*",
     "@solana/web3.js": "^1.98.0",
     "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
