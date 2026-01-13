@@ -3,7 +3,7 @@ name = "kamiyo-staking"
 version = "0.1.0"
 description = "KAMIYO Staking - Single-sided staking with duration multipliers"
 edition = "2021"
-license = "BUSL-1.1"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "lib"]

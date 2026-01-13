@@ -7,7 +7,7 @@ name = "kamiyo-middleware"
 version = "1.0.0"
 description = "HTTP 402 payment middleware for Kamiyo protocol"
 readme = "README.md"
-license = {text = "BUSL-1.1"}
+license = {text = "MIT"}
 authors = [
     {name = "KAMIYO", email = "dev@kamiyo.ai"}
 ]

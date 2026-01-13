@@ -286,10 +286,7 @@ See [SECURITY.md](SECURITY.md).
 
 ## License
 
-- **Core Program**: [BUSL-1.1](LICENSE)
-- **SDK & Packages**: [MIT](packages/kamiyo-sdk/LICENSE)
-
-Commercial license: license@kamiyo.ai
+MIT. See [LICENSE](LICENSE).
 
 ---
 

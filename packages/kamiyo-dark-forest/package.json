@@ -33,7 +33,7 @@
     "ai-agents"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
-  "license": "BUSL-1.1",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",

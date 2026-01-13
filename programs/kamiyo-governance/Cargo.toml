@@ -3,7 +3,7 @@ name = "kamiyo-governance"
 version = "0.1.0"
 description = "KAMIYO Governance - Token-weighted voting for protocol decisions"
 edition = "2021"
-license = "BUSL-1.1"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "lib"]

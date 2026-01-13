@@ -3,7 +3,7 @@ name = "kamiyo"
 version = "0.1.0"
 description = "Kamiyo - Agent Identity and Conflict Resolution Protocol for Solana"
 edition = "2021"
-license = "BUSL-1.1"
+license = "MIT"
 repository = "https://github.com/kamiyo-ai/kamiyo-protocol"
 resolver = "2"
 
