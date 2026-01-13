@@ -21,6 +21,11 @@ import {
   getActiveEscrowByWallet,
   updateEscrowStatus,
   getActiveSession,
+  isProcessed,
+  markProcessed,
+  getBotState,
+  setBotState,
+  cleanupOldProcessedTweets,
 } from './db';
 import {
   refreshUserTier,
@@ -470,7 +475,14 @@ async function startMentionStream(
   const myId = me.data.id;
   logger.info(`Bot user ID: ${myId}`);
 
-  let lastSeenId: string | undefined;
+  // Load lastSeenId from DB (persists across restarts)
+  let lastSeenId: string | undefined = getBotState('lastSeenId') || undefined;
+  if (lastSeenId) {
+    logger.info(`Resuming from lastSeenId: ${lastSeenId}`);
+  }
+
+  // Cleanup old processed tweets periodically
+  cleanupOldProcessedTweets(7);
 
   const poll = async () => {
     try {
@@ -490,8 +502,28 @@ async function startMentionStream(
         const tweets = [...mentions.data.data].reverse();
 
         for (const tweet of tweets) {
+          // Skip own tweets (don't reply to self)
+          if (tweet.author_id === myId) {
+            logger.info('Skipping own tweet', { tweetId: tweet.id });
+            lastSeenId = tweet.id;
+            setBotState('lastSeenId', lastSeenId);
+            continue;
+          }
+
+          // Skip already processed tweets (prevents duplicates)
+          if (isProcessed(tweet.id)) {
+            logger.info('Skipping already processed tweet', { tweetId: tweet.id });
+            lastSeenId = tweet.id;
+            setBotState('lastSeenId', lastSeenId);
+            continue;
+          }
+
+          // Mark as processed BEFORE handling (prevents race conditions)
+          markProcessed(tweet.id);
+
           await processMention(twitter, anthropic, tweet);
           lastSeenId = tweet.id;
+          setBotState('lastSeenId', lastSeenId);
         }
       }
     } catch (err: unknown) {

@@ -78,12 +78,23 @@ db.exec(`
     UNIQUE(user_id, date)
   );
 
+  CREATE TABLE IF NOT EXISTS processed_tweets (
+    tweet_id TEXT PRIMARY KEY,
+    processed_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS bot_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
   CREATE INDEX IF NOT EXISTS idx_escrow_wallet ON escrow_sessions(wallet);
   CREATE INDEX IF NOT EXISTS idx_escrow_session ON escrow_sessions(session_id);
   CREATE INDEX IF NOT EXISTS idx_daily_counts ON daily_message_counts(user_id, date);
+  CREATE INDEX IF NOT EXISTS idx_processed_tweets_at ON processed_tweets(processed_at);
 `);
 
 export interface User {
@@ -310,6 +321,31 @@ export function cleanupOldMessageCounts(daysToKeep: number = 7): void {
   const cutoff = cutoffDate.toISOString().split('T')[0];
 
   db.prepare('DELETE FROM daily_message_counts WHERE date < ?').run(cutoff);
+}
+
+// Processed tweets (deduplication)
+export function isProcessed(tweetId: string): boolean {
+  const row = db.prepare('SELECT 1 FROM processed_tweets WHERE tweet_id = ?').get(tweetId);
+  return !!row;
+}
+
+export function markProcessed(tweetId: string): void {
+  db.prepare('INSERT OR IGNORE INTO processed_tweets (tweet_id) VALUES (?)').run(tweetId);
+}
+
+export function cleanupOldProcessedTweets(daysToKeep: number = 7): void {
+  const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
+  db.prepare('DELETE FROM processed_tweets WHERE processed_at < ?').run(cutoff);
+}
+
+// Bot state (persist lastSeenId across restarts)
+export function getBotState(key: string): string | null {
+  const row = db.prepare('SELECT value FROM bot_state WHERE key = ?').get(key) as { value: string } | undefined;
+  return row?.value || null;
+}
+
+export function setBotState(key: string, value: string): void {
+  db.prepare('INSERT OR REPLACE INTO bot_state (key, value) VALUES (?, ?)').run(key, value);
 }
 
 export default db;
