@@ -17,6 +17,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
     "twitter-api-v2": "^1.18.2"
   },
   "devDependencies": {

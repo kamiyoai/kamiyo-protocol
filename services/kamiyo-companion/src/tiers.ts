@@ -1,5 +1,5 @@
 import { Connection, PublicKey } from '@solana/web3.js';
-import { getUserTier, updateUserTier, getOrCreateUser } from './db';
+import { getUserTier, updateUserTier, getOrCreateUser, getDailyMessageCount, incrementDailyMessageCount } from './db';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
@@ -116,9 +116,7 @@ export function getRequiredPayment(tier: string): { sol: number; lamports: numbe
   return { sol, lamports: Math.floor(sol * 1_000_000_000) };
 }
 
-// Daily message limit tracking (in-memory, resets on restart)
-const dailyMessageCounts = new Map<string, { count: number; date: string }>();
-
+// Daily message limit tracking (persisted to SQLite)
 export function checkMessageLimit(userId: string, tier: string): { allowed: boolean; remaining: number } {
   const config = getTierConfig(tier);
   if (config.maxMessagesPerDay === -1) {
@@ -126,25 +124,13 @@ export function checkMessageLimit(userId: string, tier: string): { allowed: bool
   }
 
   const today = new Date().toISOString().split('T')[0];
-  const userCounts = dailyMessageCounts.get(userId);
+  const count = getDailyMessageCount(userId, today);
+  const remaining = config.maxMessagesPerDay - count;
 
-  if (!userCounts || userCounts.date !== today) {
-    dailyMessageCounts.set(userId, { count: 0, date: today });
-    return { allowed: true, remaining: config.maxMessagesPerDay };
-  }
-
-  const remaining = config.maxMessagesPerDay - userCounts.count;
   return { allowed: remaining > 0, remaining };
 }
 
 export function incrementMessageCount(userId: string): void {
   const today = new Date().toISOString().split('T')[0];
-  const userCounts = dailyMessageCounts.get(userId) || { count: 0, date: today };
-
-  if (userCounts.date !== today) {
-    dailyMessageCounts.set(userId, { count: 1, date: today });
-  } else {
-    userCounts.count++;
-    dailyMessageCounts.set(userId, userCounts);
-  }
+  incrementDailyMessageCount(userId, today);
 }
