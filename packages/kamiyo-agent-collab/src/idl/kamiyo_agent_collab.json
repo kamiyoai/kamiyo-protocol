@@ -8,6 +8,126 @@
   },
   "instructions": [
     {
+      "name": "cancel_withdrawal",
+      "docs": [
+        "Cancel pending withdrawal"
+      ],
+      "discriminator": [
+        183,
+        104,
+        181,
+        250,
+        28,
+        128,
+        210,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "withdrawal",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_withdrawal",
+      "docs": [
+        "Claim withdrawn stake after timelock"
+      ],
+      "discriminator": [
+        118,
+        206,
+        173,
+        38,
+        239,
+        165,
+        65,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "relations": [
+            "agent"
+          ]
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  107,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_swarm_action",
       "docs": [
         "Create a swarm action proposal"
@@ -121,7 +241,7 @@
     {
       "name": "deactivate_agent",
       "docs": [
-        "Deactivate an agent and reclaim stake"
+        "Deactivate an agent and reclaim stake (immediate, admin only for emergencies)"
       ],
       "discriminator": [
         205,
@@ -205,6 +325,73 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "init_aggregator",
+      "docs": [
+        "Initialize signal aggregator for an epoch"
+      ],
+      "discriminator": [
+        81,
+        196,
+        109,
+        228,
+        152,
+        230,
+        88,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "registry"
+        },
+        {
+          "name": "aggregator",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  103,
+                  114,
+                  101,
+                  103,
+                  97,
+                  116,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              },
+              {
+                "kind": "arg",
+                "path": "epoch"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "initialize_registry",
@@ -385,6 +572,152 @@
         {
           "name": "stake_amount",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "request_withdrawal",
+      "docs": [
+        "Request stake withdrawal (starts timelock)"
+      ],
+      "discriminator": [
+        251,
+        85,
+        121,
+        205,
+        56,
+        201,
+        12,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "registry"
+        },
+        {
+          "name": "agent"
+        },
+        {
+          "name": "withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reveal_signal",
+      "docs": [
+        "Reveal a signal's content after submission",
+        "The reveal_data must hash to the original commitment"
+      ],
+      "discriminator": [
+        224,
+        171,
+        21,
+        85,
+        195,
+        253,
+        227,
+        240
+      ],
+      "accounts": [
+        {
+          "name": "registry"
+        },
+        {
+          "name": "signal",
+          "writable": true
+        },
+        {
+          "name": "aggregator",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  103,
+                  114,
+                  101,
+                  103,
+                  97,
+                  116,
+                  111,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              },
+              {
+                "kind": "account",
+                "path": "registry.epoch",
+                "account": "AgentRegistry"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "signal_type",
+          "type": "u8"
+        },
+        {
+          "name": "direction",
+          "type": "u8"
+        },
+        {
+          "name": "confidence",
+          "type": "u8"
+        },
+        {
+          "name": "magnitude",
+          "type": "u8"
+        },
+        {
+          "name": "reveal_secret",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -740,6 +1073,19 @@
       ]
     },
     {
+      "name": "SignalAggregator",
+      "discriminator": [
+        36,
+        181,
+        197,
+        128,
+        144,
+        73,
+        244,
+        70
+      ]
+    },
+    {
       "name": "SwarmAction",
       "discriminator": [
         149,
@@ -763,6 +1109,19 @@
         37,
         225,
         181
+      ]
+    },
+    {
+      "name": "WithdrawalRequest",
+      "discriminator": [
+        242,
+        88,
+        147,
+        173,
+        182,
+        62,
+        229,
+        193
       ]
     }
   ],
@@ -807,6 +1166,19 @@
       ]
     },
     {
+      "name": "AggregatorInitialized",
+      "discriminator": [
+        207,
+        44,
+        135,
+        67,
+        72,
+        151,
+        240,
+        239
+      ]
+    },
+    {
       "name": "ProtocolPaused",
       "discriminator": [
         35,
@@ -843,6 +1215,19 @@
         38,
         100,
         177
+      ]
+    },
+    {
+      "name": "SignalRevealed",
+      "discriminator": [
+        63,
+        108,
+        228,
+        79,
+        255,
+        239,
+        253,
+        121
       ]
     },
     {
@@ -895,6 +1280,45 @@
         104,
         8,
         131
+      ]
+    },
+    {
+      "name": "WithdrawalCancelled",
+      "discriminator": [
+        119,
+        175,
+        207,
+        80,
+        186,
+        237,
+        229,
+        9
+      ]
+    },
+    {
+      "name": "WithdrawalClaimed",
+      "discriminator": [
+        9,
+        131,
+        99,
+        68,
+        7,
+        105,
+        180,
+        36
+      ]
+    },
+    {
+      "name": "WithdrawalRequested",
+      "discriminator": [
+        75,
+        207,
+        21,
+        12,
+        160,
+        102,
+        150,
+        55
       ]
     }
   ],
@@ -963,6 +1387,26 @@
       "code": 6012,
       "name": "AgentNotActive",
       "msg": "Agent not active"
+    },
+    {
+      "code": 6013,
+      "name": "SignalAlreadyRevealed",
+      "msg": "Signal already revealed"
+    },
+    {
+      "code": 6014,
+      "name": "RevealTooEarly",
+      "msg": "Cannot reveal signal yet"
+    },
+    {
+      "code": 6015,
+      "name": "WithdrawalAlreadyClaimed",
+      "msg": "Withdrawal already claimed"
+    },
+    {
+      "code": 6016,
+      "name": "TimelockNotExpired",
+      "msg": "Timelock not expired"
     }
   ],
   "types": [
@@ -1139,6 +1583,22 @@
       }
     },
     {
+      "name": "AggregatorInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "NullifierRecord",
       "type": {
         "kind": "struct",
@@ -1260,6 +1720,82 @@
           },
           {
             "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SignalAggregator",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "total_signals",
+            "type": "u32"
+          },
+          {
+            "name": "long_count",
+            "type": "u32"
+          },
+          {
+            "name": "short_count",
+            "type": "u32"
+          },
+          {
+            "name": "neutral_count",
+            "type": "u32"
+          },
+          {
+            "name": "total_confidence",
+            "type": "u32"
+          },
+          {
+            "name": "total_magnitude",
+            "type": "u32"
+          },
+          {
+            "name": "last_updated_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SignalRevealed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "signal",
+            "type": "pubkey"
+          },
+          {
+            "name": "signal_type",
+            "type": "u8"
+          },
+          {
+            "name": "direction",
+            "type": "u8"
+          },
+          {
+            "name": "confidence",
+            "type": "u8"
+          },
+          {
+            "name": "magnitude",
             "type": "u8"
           }
         ]
@@ -1469,6 +2005,86 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalRequest",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "request_slot",
+            "type": "u64"
+          },
+          {
+            "name": "unlock_slot",
+            "type": "u64"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawalRequested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "unlock_slot",
+            "type": "u64"
           }
         ]
       }
