@@ -114,6 +114,10 @@ import { analyzeSentiment, getSentimentTrend, aggregateHourlySentiment, cleanupO
 import { runApprovalCycle, APPROVAL_MODE } from './approval';
 import { generateMeme, isImageGenAvailable, cleanupOldImages } from './image-gen';
 import { startConversation, runConversation, endConversation, AGENTS } from './multi-agent';
+import { startInfluencerMonitoring, cleanupOldInfluencerTweets } from './influencer-monitor';
+import { startEngagementLoop, getEngagementStats } from './engagement-optimizer';
+import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from './growth-tracker';
+import { isGrokAvailable } from './trend-engine';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
@@ -970,6 +974,20 @@ function startBackgroundTasks(): void {
     cleanupOldSentiment();
     cleanupOldImages();
     cleanupOldProcessedTweets(7);
+    cleanupOldInfluencerTweets();
+    cleanupOldPerformance();
+  }, 24 * 60 * 60 * 1000);
+
+  // Log growth stats daily
+  setInterval(() => {
+    const growth = getGrowthStats();
+    const engagement = getEngagementStats();
+    logger.info('Daily growth stats', {
+      trackedPosts: growth.tracked,
+      avgScore: growth.avgScore.toFixed(1),
+      bestScore: growth.bestScore.toFixed(1),
+      totalReplies: engagement.totalReplies,
+    });
   }, 24 * 60 * 60 * 1000);
 }
 
@@ -1029,12 +1047,22 @@ async function main(): Promise<void> {
   // Start whale monitoring
   await startWhaleMonitoring(twitter, anthropic);
 
+  // Start influencer monitoring (organic growth)
+  await startInfluencerMonitoring(twitter, anthropic);
+
+  // Start engagement optimizer (strategic replies)
+  await startEngagementLoop(twitter, anthropic);
+
+  // Start performance tracking
+  await startPerformanceTracking(twitter);
+
   // Start mention stream (reactive responses)
   await startMentionStream(twitter, anthropic);
 
   logger.info('KAMIYO is fully operational');
   logger.info(`Approval mode: ${APPROVAL_MODE} (auto/dm/hybrid)`);
-  logger.info('Features: mentions, autonomous posts, whale alerts, wallet lookup, sentiment');
+  logger.info(`Grok available: ${isGrokAvailable()}`);
+  logger.info('Features: mentions, autonomous posts, whale alerts, influencer monitoring, strategic replies, growth tracking');
 }
 
 main().catch((err) => {
