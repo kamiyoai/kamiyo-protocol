@@ -108,3 +108,22 @@ export {
   KamiyoErrorCode,
   CONSTANTS,
 } from './types';
+
+// Vibe Trading - AI-powered natural language thesis execution
+export { VibeTrader, VibeTraderConfig } from './vibe-trader';
+export { ThesisParser, validateStrategy, StrategyValidationError } from './vibe-parser';
+export { PriceFeed, ConditionMonitor } from './vibe-monitor';
+export {
+  Strategy,
+  VibePosition,
+  VibeEvent,
+  VibeEventHandler,
+  RiskLimits,
+  DEFAULT_RISK_LIMITS,
+  Direction,
+  Trigger,
+  PriceTrigger,
+  RiskParams,
+  ExecutionResult,
+  SUPPORTED_ASSETS,
+} from './vibe-types';
