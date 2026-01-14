@@ -1,7 +1,4 @@
-/**
- * Fetches crypto market context for the bot.
- * Sources: CoinGecko (free tier), RSS feeds
- */
+// Crypto market context from CoinGecko and RSS
 
 import { logger } from './logger';
 
@@ -301,9 +298,7 @@ export function formatContextForPrompt(ctx: MarketContext): string {
     lines.push(`Market mood: ${mood}`);
   }
 
-  // NOTE: Third-party trending coins intentionally excluded
-  // Mentioning random tokens looks like paid shilling
-  // Only mention $KAMIYO (your own token) or major assets (BTC/ETH)
+  // Skip third-party trending coins - looks like shilling
 
   if (ctx.headlines.length > 0) {
     lines.push('Recent headlines:');

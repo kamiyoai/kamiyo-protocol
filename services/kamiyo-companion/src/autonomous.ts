@@ -1,7 +1,4 @@
-/**
- * Autonomous posting system
- * AI generates content, reviews itself, posts approved content
- */
+// Autonomous posting system
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';

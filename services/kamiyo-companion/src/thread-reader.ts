@@ -1,6 +1,4 @@
-/**
- * Thread awareness - read full Twitter conversation context
- */
+// Thread context reader
 
 import { TwitterApi } from 'twitter-api-v2';
 import { logger } from './logger';

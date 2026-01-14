@@ -1,8 +1,4 @@
-/**
- * Image/meme generation for Twitter posts
- * Uses Grok (xAI Aurora) with OpenAI DALL-E 3 fallback
- * Style: KAMIYO cyberpunk neo-Tokyo aesthetic
- */
+// Image generation via Grok or DALL-E
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
