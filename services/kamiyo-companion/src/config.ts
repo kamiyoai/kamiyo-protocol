@@ -33,6 +33,9 @@ export const DATA_DIR = process.env.DATA_DIR || './data';
 
 // Engagement rate limits
 export const ENGAGEMENT_CONFIG = {
+  // Proactive replies to influencer tweets (when not @mentioned)
+  // Set to 'true' to enable - defaults to false (only respond when @mentioned)
+  proactiveRepliesEnabled: process.env.PROACTIVE_REPLIES_ENABLED === 'true',
   autoReplyEnabled: process.env.AUTO_REPLY_ENABLED !== 'false',
   autoReplyMinScore: parseIntEnv('AUTO_REPLY_MIN_SCORE', 7, 1, 10),
   maxRepliesPerHour: parseIntEnv('MAX_REPLIES_PER_HOUR', 4, 1, 20),
@@ -99,6 +102,7 @@ export const OWNER_TWITTER_ID = process.env.OWNER_TWITTER_ID;
 logger.info('Configuration loaded', {
   dataDir: DATA_DIR,
   approvalMode: APPROVAL_MODE,
+  proactiveReplies: ENGAGEMENT_CONFIG.proactiveRepliesEnabled,
   autoReplyEnabled: ENGAGEMENT_CONFIG.autoReplyEnabled,
   maxRepliesPerHour: ENGAGEMENT_CONFIG.maxRepliesPerHour,
   maxQuotesPerDay: ENGAGEMENT_CONFIG.maxQuotesPerDay,

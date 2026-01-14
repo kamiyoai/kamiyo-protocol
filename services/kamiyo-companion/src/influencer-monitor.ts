@@ -6,7 +6,8 @@
 import { TwitterApi } from 'twitter-api-v2';
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
-import { db, grokClient } from './clients';
+import { db } from './clients';
+import { searchXHandles, isGrokToolsAvailable } from './grok-tools';
 
 // Initialize new tables
 db.exec(`
@@ -233,33 +234,10 @@ async function checkAccountTwitter(
   }
 }
 
-// Check accounts using Grok Live Search (richer context, costs per query)
+// Check accounts using Grok tool calling (richer context, costs per query)
 async function checkAccountsGrok(usernames: string[]): Promise<string | null> {
-  if (!grokClient || usernames.length === 0) return null;
-
-  try {
-    const handles = usernames.slice(0, 10).join(', @'); // Max 10 handles
-    const response = await grokClient.chat.completions.create({
-      model: 'grok-4',
-      messages: [{
-        role: 'user',
-        content: `What have @${handles} been tweeting about in the last 2 hours? Summarize the key topics and any notable tweets.`,
-      }],
-      // @ts-expect-error - xAI-specific parameter
-      search_parameters: {
-        mode: 'on',
-        sources: [{ type: 'x', included_x_handles: usernames }],
-        max_search_results: 30,
-        return_citations: true,
-      },
-    });
-
-    const content = response.choices[0]?.message?.content;
-    return content || null;
-  } catch (err) {
-    logger.error('Grok search failed', { error: String(err) });
-    return null;
-  }
+  if (!isGrokToolsAvailable() || usernames.length === 0) return null;
+  return searchXHandles(usernames, 2);
 }
 
 // Get recent tweets from influencers (for trend alignment)

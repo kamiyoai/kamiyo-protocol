@@ -1,4 +1,7 @@
 import { getUserStats, rateSession, getActiveSession, releaseEscrow } from './db';
+import { getProtocol, GeneratedProof, TierLevel } from './protocol';
+import { getQualifyingTier, getTierThreshold } from '@kamiyo/dark-forest';
+import { logger } from './logger';
 
 export interface ReputationScore {
   totalSessions: number;
@@ -6,6 +9,9 @@ export interface ReputationScore {
   tier: 'unrated' | 'bronze' | 'silver' | 'gold' | 'platinum';
   zkProofEligible: boolean;
 }
+
+// Re-export for convenience
+export { TierLevel, getQualifyingTier, getTierThreshold };
 
 const REPUTATION_THRESHOLDS = {
   bronze: { minSessions: 5, minRating: 3.0 },
@@ -35,13 +41,31 @@ export function calculateReputationTier(totalSessions: number, avgRating: number
   return 'unrated';
 }
 
-export function getCompanionReputation(): ReputationScore {
-  // TODO: aggregate from on-chain data
+export async function getCompanionReputation(): Promise<ReputationScore> {
+  const protocol = getProtocol();
+
+  // Try to get on-chain reputation if available
+  if (protocol.isInitialized()) {
+    const onChainScore = await protocol.getReputation();
+    if (onChainScore !== null) {
+      // Convert 0-1000 to 0-5 rating
+      const avgRating = (onChainScore / 1000) * 5;
+      const tier = calculateReputationTier(100, avgRating); // Assume many sessions if on-chain
+      return {
+        totalSessions: 100, // Placeholder - would need separate tracking
+        avgRating,
+        tier,
+        zkProofEligible: protocol.hasProver() && tier !== 'unrated',
+      };
+    }
+  }
+
+  // Fallback to local stats
   return {
     totalSessions: 0,
     avgRating: 0,
     tier: 'unrated',
-    zkProofEligible: false,
+    zkProofEligible: protocol.hasProver(),
   };
 }
 
@@ -81,54 +105,47 @@ export function submitRating(userId: string, rating: number): { success: boolean
 export interface ReputationProofResult {
   commitment: string;
   threshold: number;
-  proofBytes: string;
-  groth16Proof?: {
-    pi_a: [string, string, string];
-    pi_b: [[string, string], [string, string], [string, string]];
-    pi_c: [string, string, string];
-  };
-  publicSignals?: string[];
+  proof: GeneratedProof;
+  tier: TierLevel;
 }
 
 export async function generateReputationProof(
   userId: string,
   threshold: number
 ): Promise<ReputationProofResult | null> {
-  try {
-    // Dynamic import to avoid bundling issues
-    const { PrivateInference } = await import('@kamiyo/solana-privacy');
-    const { Keypair } = await import('@solana/web3.js');
+  const protocol = getProtocol();
 
-    // Get user's reputation score (0-100 scale)
-    const rep = getUserReputation(userId);
-    const score = Math.round(rep.avgRating * 20); // Convert 5-scale to 100-scale
-
-    if (score < threshold) {
-      console.log(`Score ${score} below threshold ${threshold}`);
-      return null;
-    }
-
-    // Create a dummy wallet for proof generation (user doesn't need to sign)
-    const dummyWallet = {
-      publicKey: Keypair.generate().publicKey,
-      signTransaction: async (tx: any) => tx,
-      signAllTransactions: async (txs: any) => txs,
-    };
-
-    const prover = new PrivateInference(dummyWallet as any);
-    const proof = await prover.proveReputation({ score, threshold });
-
-    return {
-      commitment: proof.commitment,
-      threshold: proof.threshold,
-      proofBytes: Buffer.from(proof.proofBytes).toString('base64'),
-      groth16Proof: proof.groth16Proof,
-      publicSignals: proof.publicSignals,
-    };
-  } catch (err) {
-    console.error('ZK proof generation failed:', err);
+  if (!protocol.hasProver()) {
+    logger.warn('ZK prover not available');
     return null;
   }
+
+  // Get user's reputation score (0-100 scale)
+  const rep = getUserReputation(userId);
+  const score = Math.round(rep.avgRating * 20); // Convert 5-scale to 100-scale
+
+  if (score < threshold) {
+    logger.debug('Score below threshold', { score, threshold });
+    return null;
+  }
+
+  const proof = await protocol.generateReputationProof(score, threshold);
+  if (!proof) return null;
+
+  return {
+    commitment: proof.commitment,
+    threshold,
+    proof,
+    tier: getQualifyingTier(score),
+  };
+}
+
+export async function generateTierProof(
+  userId: string,
+  tier: TierLevel
+): Promise<ReputationProofResult | null> {
+  const threshold = getTierThreshold(tier);
+  return generateReputationProof(userId, threshold);
 }
 
 export function formatReputation(rep: ReputationScore): string {

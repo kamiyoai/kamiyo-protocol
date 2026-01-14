@@ -1,15 +1,14 @@
 /**
- * Trend engine powered by Grok Live Search
- * Fetches real-time trending topics from X and news
+ * Trend engine powered by Grok Tool Calling API
+ * Fetches real-time trending topics from X
  */
 
 import { logger } from './logger';
-import { grokClient, isGrokAvailable } from './clients';
+import { searchXTrends, isGrokToolsAvailable } from './grok-tools';
 
 export interface TrendingContext {
   topics: string[];
   summary: string;
-  citations: string[];
   fetchedAt: number;
 }
 
@@ -24,49 +23,29 @@ export async function getTrendingContext(): Promise<TrendingContext | null> {
     return trendCache;
   }
 
-  if (!grokClient) {
+  if (!isGrokToolsAvailable()) {
     logger.warn('Grok client not available for trend fetching');
     return null;
   }
 
   try {
-    const response = await grokClient.chat.completions.create({
-      model: 'grok-4',
-      messages: [{
-        role: 'user',
-        content: `What are the top trending topics on X right now in these categories:
-1. AI and technology
-2. Crypto and blockchain
-3. Markets and finance
+    const content = await searchXTrends([
+      'AI and technology',
+      'Crypto and blockchain',
+      'Markets and finance',
+    ]);
 
-List the specific topics people are discussing, not generic categories.
-Be concise - just list the trending topics with brief context.`,
-      }],
-      // @ts-expect-error - xAI-specific parameter
-      search_parameters: {
-        mode: 'on',
-        sources: [
-          { type: 'x' },
-          { type: 'news' },
-        ],
-        max_search_results: 30,
-        return_citations: true,
-      },
-    });
-
-    const content = response.choices[0]?.message?.content || '';
+    if (!content) {
+      logger.warn('No trend data returned from Grok');
+      return trendCache;
+    }
 
     // Extract topics from response
     const topics = extractTopicsFromSummary(content);
 
-    // Extract citations if available
-    // @ts-expect-error - xAI-specific response field
-    const citations = response.citations || [];
-
     trendCache = {
       topics,
       summary: content,
-      citations: Array.isArray(citations) ? citations : [],
       fetchedAt: Date.now(),
     };
 
@@ -124,7 +103,7 @@ Don't force it - only mention if you have something genuine to say.
 }
 
 // Re-export for convenience
-export { isGrokAvailable } from './clients';
+export { isGrokToolsAvailable as isGrokAvailable } from './grok-tools';
 
 // Clear trend cache (for testing)
 export function clearTrendCache(): void {
