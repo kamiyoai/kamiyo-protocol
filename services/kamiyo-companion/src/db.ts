@@ -1,7 +1,7 @@
 import Database, { Database as DatabaseType } from 'better-sqlite3';
 import * as fs from 'fs';
 
-const DATA_DIR = './data';
+const DATA_DIR = process.env.DATA_DIR || './data';
 const DB_PATH = `${DATA_DIR}/companion.db`;
 
 if (!fs.existsSync(DATA_DIR)) {
