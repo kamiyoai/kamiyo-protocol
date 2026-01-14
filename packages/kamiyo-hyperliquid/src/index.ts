@@ -110,9 +110,12 @@ export {
 } from './types';
 
 // Vibe Trading - AI-powered natural language thesis execution
-export { VibeTrader, VibeTraderConfig } from './vibe-trader';
-export { ThesisParser, validateStrategy, StrategyValidationError } from './vibe-parser';
+export { VibeTrader } from './vibe-trader';
+export type { VibeTraderConfig } from './vibe-trader';
+export { ThesisParser } from './vibe-parser';
+export type { ThesisParserConfig } from './vibe-parser';
 export { PriceFeed, ConditionMonitor } from './vibe-monitor';
+export type { PriceFeedConfig, ConditionMonitorConfig } from './vibe-monitor';
 export {
   Strategy,
   VibePosition,
@@ -126,4 +129,25 @@ export {
   RiskParams,
   ExecutionResult,
   SUPPORTED_ASSETS,
+  VibeError,
+  ValidationError,
+  ExecutionError,
+  ParseError,
+  validateStrategy,
+  isValidAsset,
 } from './vibe-types';
+export type { SupportedAsset, VibeEventType, StrategyStatus, TriggerOperator, PersistedState } from './vibe-types';
+export {
+  Logger as VibeLogger,
+  nullLogger,
+  createConsoleLogger as createVibeLogger,
+  withRetry,
+  withTimeout,
+  CircuitBreaker,
+  Mutex,
+  createMetrics,
+  TimeoutError,
+  RetryExhaustedError,
+  CircuitState,
+} from './vibe-utils';
+export type { RetryOptions, CircuitBreakerOptions, Metrics } from './vibe-utils';
