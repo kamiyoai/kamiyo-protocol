@@ -1,6 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { TwitterApi } from 'twitter-api-v2';
 import 'dotenv/config';
+
+// Initialize Grok (xAI) client - optional, only if XAI_API_KEY is set
+const grok = process.env.XAI_API_KEY ? new OpenAI({
+  apiKey: process.env.XAI_API_KEY,
+  baseURL: 'https://api.x.ai/v1',
+}) : null;
 import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
@@ -370,6 +377,36 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
 
 const FALLBACK_RESPONSE = "I'm having trouble processing that right now. Please try again in a moment.";
 
+const GROK_SYSTEM = `You are Grok, an AI with real-time access to X (Twitter) discussions and trends.
+Your role: provide spicy, edgy takes with current X context.
+Be direct, witty, and reference what people are actually saying on X right now.
+Keep responses under 140 characters - you're the hot take, not the full analysis.
+No hedging, no disclaimers. Just the take.`;
+
+async function getGrokResponse(userMessage: string, contextStr: string): Promise<string | null> {
+  if (!grok) return null;
+
+  try {
+    const response = await withTimeout(
+      grok.chat.completions.create({
+        model: 'grok-3-mini',
+        max_tokens: 140,
+        messages: [
+          { role: 'system', content: `${GROK_SYSTEM}\n\n${contextStr}` },
+          { role: 'user', content: userMessage }
+        ],
+      }),
+      15000,
+      'Grok API'
+    );
+
+    return response.choices[0]?.message?.content || null;
+  } catch (err) {
+    logger.warn('Grok API error', { error: String(err) });
+    return null;
+  }
+}
+
 async function generateResponse(
   anthropic: Anthropic,
   userId: string,
@@ -397,35 +434,70 @@ async function generateResponse(
     const contextStr = formatContextForPrompt(cryptoCtx);
     const systemWithContext = `${SYSTEM_PROMPT}\n\n${contextStr}`;
 
-    // API call with timeout (30s) and retry (for transient errors)
-    const response = await withRetry(
-      () => withTimeout(
-        trackLatency(anthropicLatency, {}, () =>
-          anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 280,
-            system: systemWithContext,
-            messages,
-          })
+    // Call Claude and Grok in parallel
+    const [claudeResponse, grokTake] = await Promise.all([
+      withRetry(
+        () => withTimeout(
+          trackLatency(anthropicLatency, {}, () =>
+            anthropic.messages.create({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 280,
+              system: systemWithContext,
+              messages,
+            })
+          ),
+          30000,
+          'Anthropic API'
         ),
-        30000,
-        'Anthropic API'
+        { maxRetries: 2, operation: 'Anthropic API' }
       ),
-      { maxRetries: 2, operation: 'Anthropic API' }
-    );
+      getGrokResponse(userMessage, contextStr)
+    ]);
 
-    const text = response.content
+    const claudeText = claudeResponse.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map(b => b.text)
       .join('\n');
 
+    // If Grok responded, synthesize both perspectives
+    let finalResponse: string;
+    if (grokTake) {
+      // Use Claude to synthesize both perspectives into one cohesive response
+      const synthesisResponse = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 280,
+        system: `Combine these two AI perspectives into one cohesive 280-char response.
+Keep Claude's analysis but add Grok's spice. No labels like "Claude:" or "Grok:".
+One voice, best of both.`,
+        messages: [{
+          role: 'user',
+          content: `User asked: "${userMessage}"
+
+Claude's take: ${claudeText}
+
+Grok's take: ${grokTake}
+
+Synthesize into one punchy response under 280 chars:`
+        }]
+      });
+
+      finalResponse = synthesisResponse.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map(b => b.text)
+        .join('\n');
+
+      logger.info('Combined Claude+Grok response', { userId });
+    } else {
+      finalResponse = claudeText;
+    }
+
     // Store in history if tier supports it
     if (config.contextMemory) {
       addMessage(userId, 'user', userMessage);
-      addMessage(userId, 'assistant', text);
+      addMessage(userId, 'assistant', finalResponse);
     }
 
-    return text;
+    return finalResponse;
   } catch (err: unknown) {
     const error = err as { status?: number; message?: string };
     captureError(err, { userId, tier });
