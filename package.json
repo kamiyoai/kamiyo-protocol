@@ -30,6 +30,9 @@
     "test": "anchor test",
     "test:sdk": "pnpm --filter @kamiyo/sdk run test"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
+  },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/spl-governance": "^0.3.28",
