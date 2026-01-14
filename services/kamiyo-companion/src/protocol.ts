@@ -59,13 +59,22 @@ export class ProtocolClient {
 
     const rpcUrl = config.rpcUrl || process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
     const keypairPath = config.keypairPath || process.env.SOLANA_KEYPAIR_PATH;
+    const keypairJson = process.env.SOLANA_KEYPAIR;
 
-    // Load keypair if available
-    if (keypairPath && fs.existsSync(keypairPath)) {
+    // Load keypair from env var (JSON array) or file path
+    if (keypairJson) {
+      try {
+        const keypairData = JSON.parse(keypairJson);
+        this.keypair = Keypair.fromSecretKey(new Uint8Array(keypairData));
+        logger.info('Protocol keypair loaded from env', { pubkey: this.keypair.publicKey.toBase58() });
+      } catch (err) {
+        logger.error('Failed to parse SOLANA_KEYPAIR', { error: err instanceof Error ? err.message : String(err) });
+      }
+    } else if (keypairPath && fs.existsSync(keypairPath)) {
       try {
         const keypairData = JSON.parse(fs.readFileSync(keypairPath, 'utf8'));
         this.keypair = Keypair.fromSecretKey(new Uint8Array(keypairData));
-        logger.info('Protocol keypair loaded', { pubkey: this.keypair.publicKey.toBase58() });
+        logger.info('Protocol keypair loaded from file', { pubkey: this.keypair.publicKey.toBase58() });
       } catch (err) {
         logger.error('Failed to load keypair', { error: err instanceof Error ? err.message : String(err) });
       }
