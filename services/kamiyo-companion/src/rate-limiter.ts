@@ -23,7 +23,7 @@ export function isRateLimited(): boolean {
   if (!state.isLimited) return false;
   if (Date.now() > state.resetAt) {
     state.isLimited = false;
-    state.consecutiveFailures = 0;
+    // Don't reset consecutiveFailures - keep escalating if we keep hitting limits
     logger.info('Global rate limit cleared');
     return false;
   }
@@ -50,11 +50,16 @@ export function recordRateLimit(resetTimestamp?: number): void {
   });
 }
 
-// Record a successful API call
+// Record a successful API call - decay failures slowly
 export function recordSuccess(): void {
   if (state.consecutiveFailures > 0) {
     state.consecutiveFailures = Math.max(0, state.consecutiveFailures - 1);
   }
+}
+
+// Reset failures after sustained success (call after multiple successful ops)
+export function resetFailures(): void {
+  state.consecutiveFailures = 0;
 }
 
 // Check if we can make a write operation (post, reply)
