@@ -149,6 +149,9 @@
         },
         {
           "name": "swarm_action",
+          "docs": [
+            "Space: 8 + 32 + 32 + 32 + 1 + 4 + 4 + 8 + 8 + 8 + 8 + 1 + 1 = 147"
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -306,7 +309,8 @@
     {
       "name": "execute_swarm_action",
       "docs": [
-        "Execute a swarm action if threshold met"
+        "Execute a swarm action if threshold met",
+        "Uses stake-weighted votes for approval calculation"
       ],
       "discriminator": [
         218,
@@ -563,6 +567,71 @@
         {
           "name": "authority",
           "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refresh_stake",
+      "docs": [
+        "Refresh stake info on an existing identity link",
+        "Call this after staking more tokens to update vote weight"
+      ],
+      "discriminator": [
+        194,
+        123,
+        40,
+        247,
+        37,
+        237,
+        119,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "identity_link",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121,
+                  95,
+                  108,
+                  105,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "identity_link.zk_agent",
+                "account": "IdentityLink"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_position",
+          "docs": [
+            "Optional: Updated stake position from kamiyo-staking program"
+          ],
+          "optional": true
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "identity_link"
+          ]
         }
       ],
       "args": []
@@ -1112,6 +1181,14 @@
           }
         },
         {
+          "name": "voter_identity_link",
+          "docs": [
+            "Optional: Voter's identity link for stake-weighted voting",
+            "If provided, vote is weighted by stake_multiplier"
+          ],
+          "optional": true
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -1426,6 +1503,19 @@
         194,
         105,
         99
+      ]
+    },
+    {
+      "name": "StakeRefreshed",
+      "discriminator": [
+        82,
+        32,
+        11,
+        214,
+        115,
+        72,
+        213,
+        12
       ]
     },
     {
@@ -2160,6 +2250,26 @@
       }
     },
     {
+      "name": "StakeRefreshed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "identity_link",
+            "type": "pubkey"
+          },
+          {
+            "name": "staked_amount",
+            "type": "u64"
+          },
+          {
+            "name": "stake_multiplier",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "SwarmAction",
       "type": {
         "kind": "struct",
@@ -2197,6 +2307,14 @@
           {
             "name": "votes_against",
             "type": "u32"
+          },
+          {
+            "name": "weighted_votes_for",
+            "type": "u64"
+          },
+          {
+            "name": "weighted_votes_against",
+            "type": "u64"
           },
           {
             "name": "created_slot",

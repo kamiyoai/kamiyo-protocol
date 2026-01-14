@@ -19,7 +19,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("KStake111111111111111111111111111111111111");
+declare_id!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
 
 // ============================================================================
 // Constants

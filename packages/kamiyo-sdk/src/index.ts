@@ -19,3 +19,5 @@ export * from "./shield";
 export * from "./voting";
 export * from "./api";
 export * from "./governance";
+export * from "./staking";
+export * from "./unified";

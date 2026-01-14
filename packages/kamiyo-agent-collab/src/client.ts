@@ -553,12 +553,23 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Vote on a swarm action with optional stake-weighted voting.
+   * @param payer - Keypair paying for the transaction
+   * @param proof - Groth16 proof of agent identity
+   * @param nullifier - Vote nullifier
+   * @param actionHash - Hash of the action to vote on
+   * @param vote - true for yes, false for no
+   * @param voterIdentityLink - Optional identity link PDA for stake-weighted voting
+   * @returns Transaction signature
+   */
   async voteSwarmAction(
     payer: Keypair,
     proof: Groth16Proof,
     nullifier: Uint8Array,
     actionHash: Uint8Array,
-    vote: boolean
+    vote: boolean,
+    voterIdentityLink?: PublicKey
   ): Promise<string> {
     validateProof(proof);
     validateBytes32(nullifier, 'nullifier');
@@ -574,6 +585,18 @@ export class AgentCollabClient {
       nullifier
     );
 
+    const accounts: Record<string, PublicKey> = {
+      registry: registryPDA,
+      swarmAction: actionPDA,
+      voteNullifier: voteNullifierPDA,
+      payer: payer.publicKey,
+      systemProgram: web3.SystemProgram.programId,
+    };
+
+    if (voterIdentityLink) {
+      accounts.voterIdentityLink = voterIdentityLink;
+    }
+
     return withRetry(() =>
       this.program.methods
         .voteSwarmAction(
@@ -583,13 +606,7 @@ export class AgentCollabClient {
           Array.from(proof.c),
           vote
         )
-        .accounts({
-          registry: registryPDA,
-          swarmAction: actionPDA,
-          voteNullifier: voteNullifierPDA,
-          payer: payer.publicKey,
-          systemProgram: web3.SystemProgram.programId,
-        })
+        .accountsPartial(accounts)
         .signers([payer])
         .rpc()
     );
@@ -865,6 +882,42 @@ export class AgentCollabClient {
           identityLink: identityLinkPDA,
           owner: owner.publicKey,
         })
+        .signers([owner])
+        .rpc()
+    );
+  }
+
+  /**
+   * Refresh stake info on an existing identity link.
+   * Call after staking more tokens to update vote weight.
+   * @param owner - Owner keypair
+   * @param zkAgentCommitment - ZK agent identity commitment
+   * @param stakePosition - Optional stake position PDA from staking program
+   * @returns Transaction signature
+   */
+  async refreshStake(
+    owner: Keypair,
+    zkAgentCommitment: Uint8Array,
+    stakePosition?: PublicKey
+  ): Promise<string> {
+    validateBytes32(zkAgentCommitment, 'zkAgentCommitment');
+
+    const [zkAgentPDA] = AgentCollabClient.getAgentPDA(zkAgentCommitment);
+    const [identityLinkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgentPDA);
+
+    const accounts: Record<string, PublicKey> = {
+      identityLink: identityLinkPDA,
+      owner: owner.publicKey,
+    };
+
+    if (stakePosition) {
+      accounts.stakePosition = stakePosition;
+    }
+
+    return withRetry(() =>
+      this.program.methods
+        .refreshStake()
+        .accountsPartial(accounts)
         .signers([owner])
         .rpc()
     );
