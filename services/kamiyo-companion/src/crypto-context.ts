@@ -31,6 +31,71 @@ interface MarketContext {
 
 const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 
+export interface TokenData {
+  name: string;
+  symbol: string;
+  priceUsd: number | null;
+  priceChange24h: number | null;
+  marketCap: number | null;
+  volume24h: number | null;
+  liquidity: number | null;
+  chain: string;
+}
+
+// Look up any token by name/symbol on DexScreener
+export async function lookupToken(query: string): Promise<TokenData | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(query)}`,
+      8000
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json() as {
+      pairs?: Array<{
+        baseToken?: { name?: string; symbol?: string };
+        priceUsd?: string;
+        priceChange?: { h24?: number };
+        fdv?: number;
+        volume?: { h24?: number };
+        liquidity?: { usd?: number };
+        chainId?: string;
+      }>;
+    };
+
+    const pair = data.pairs?.[0];
+    if (!pair) return null;
+
+    return {
+      name: pair.baseToken?.name || query,
+      symbol: pair.baseToken?.symbol || query.toUpperCase(),
+      priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
+      priceChange24h: pair.priceChange?.h24 ?? null,
+      marketCap: pair.fdv ?? null,
+      volume24h: pair.volume?.h24 ?? null,
+      liquidity: pair.liquidity?.usd ?? null,
+      chain: pair.chainId || 'unknown',
+    };
+  } catch (err) {
+    logger.warn('Token lookup failed', { query, error: String(err) });
+    return null;
+  }
+}
+
+export function formatTokenData(token: TokenData): string {
+  const priceStr = token.priceUsd ? `$${token.priceUsd < 0.01 ? token.priceUsd.toFixed(6) : token.priceUsd.toFixed(2)}` : '?';
+  const changeStr = token.priceChange24h !== null
+    ? `${token.priceChange24h > 0 ? '+' : ''}${token.priceChange24h.toFixed(1)}%`
+    : '';
+  const mcapStr = token.marketCap
+    ? token.marketCap >= 1000000000 ? `$${(token.marketCap / 1000000000).toFixed(2)}B`
+    : token.marketCap >= 1000000 ? `$${(token.marketCap / 1000000).toFixed(2)}M`
+    : `$${(token.marketCap / 1000).toFixed(0)}K`
+    : '?';
+
+  return `${token.symbol}: ${priceStr} ${changeStr} | MC: ${mcapStr}`;
+}
+
 let cachedContext: MarketContext | null = null;
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
