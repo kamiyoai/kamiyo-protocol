@@ -452,6 +452,95 @@
       ]
     },
     {
+      "name": "link_identity",
+      "docs": [
+        "Link a ZK identity to a public kamiyo Agent PDA",
+        "Caller must own both the ZK agent (via identity secrets) and the kamiyo Agent",
+        "Optionally verifies stake position from kamiyo-staking program"
+      ],
+      "discriminator": [
+        175,
+        194,
+        103,
+        122,
+        161,
+        65,
+        174,
+        142
+      ],
+      "accounts": [
+        {
+          "name": "zk_agent",
+          "docs": [
+            "The ZK agent in this program"
+          ]
+        },
+        {
+          "name": "kamiyo_agent",
+          "docs": [
+            "The public kamiyo Agent PDA",
+            "We store its pubkey to enable cross-program lookups.",
+            "The owner must prove they control this agent through the signer constraint."
+          ]
+        },
+        {
+          "name": "identity_link",
+          "docs": [
+            "The identity link account (PDA derived from both agents)",
+            "Space: 8 + 32 + 32 + 32 + 8 + 8 + 8 + 1 + 1 = 130"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121,
+                  95,
+                  108,
+                  105,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "zk_agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "stake_position",
+          "docs": [
+            "Optional: Stake position from kamiyo-staking program",
+            "If provided, stake amount and multiplier are recorded in the link"
+          ],
+          "optional": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Owner who must own both agents"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "pause_protocol",
       "docs": [
         "Pause the protocol (admin only)"
@@ -849,6 +938,63 @@
       ]
     },
     {
+      "name": "unlink_identity",
+      "docs": [
+        "Unlink a ZK identity from a kamiyo Agent"
+      ],
+      "discriminator": [
+        99,
+        3,
+        38,
+        80,
+        87,
+        237,
+        49,
+        71
+      ],
+      "accounts": [
+        {
+          "name": "identity_link",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121,
+                  95,
+                  108,
+                  105,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "identity_link.zk_agent",
+                "account": "IdentityLink"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "identity_link"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "unpause_protocol",
       "docs": [
         "Unpause the protocol (admin only)"
@@ -1047,6 +1193,19 @@
       ]
     },
     {
+      "name": "IdentityLink",
+      "discriminator": [
+        111,
+        21,
+        190,
+        94,
+        122,
+        228,
+        11,
+        66
+      ]
+    },
+    {
       "name": "NullifierRecord",
       "discriminator": [
         56,
@@ -1176,6 +1335,32 @@
         151,
         240,
         239
+      ]
+    },
+    {
+      "name": "IdentityLinked",
+      "discriminator": [
+        211,
+        27,
+        101,
+        33,
+        201,
+        146,
+        111,
+        168
+      ]
+    },
+    {
+      "name": "IdentityUnlinked",
+      "discriminator": [
+        19,
+        56,
+        7,
+        197,
+        193,
+        42,
+        58,
+        228
       ]
     },
     {
@@ -1422,6 +1607,26 @@
       "code": 6019,
       "name": "UnauthorizedWithdrawal",
       "msg": "Unauthorized withdrawal claim"
+    },
+    {
+      "code": 6020,
+      "name": "LinkNotActive",
+      "msg": "Identity link not active"
+    },
+    {
+      "code": 6021,
+      "name": "AlreadyLinked",
+      "msg": "Identity already linked"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidStakePosition",
+      "msg": "Invalid stake position account"
+    },
+    {
+      "code": 6023,
+      "name": "StakeOwnerMismatch",
+      "msg": "Stake position owner mismatch"
     }
   ],
   "types": [
@@ -1609,6 +1814,110 @@
           {
             "name": "epoch",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IdentityLink",
+      "docs": [
+        "Links a ZK identity commitment to a public kamiyo Agent PDA",
+        "Enables cross-program verification of agent ownership"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "zk_agent",
+            "docs": [
+              "The ZK agent account in this program"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "kamiyo_agent",
+            "docs": [
+              "The public Agent PDA from main kamiyo program"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Owner who created the link (must own both)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "staked_amount",
+            "docs": [
+              "Staked amount verified at link time (from staking program)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "stake_multiplier",
+            "docs": [
+              "Stake multiplier in basis points (10000 = 1.0x)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "linked_slot",
+            "docs": [
+              "When the link was created"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "docs": [
+              "Whether the link is active"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IdentityLinked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "zk_agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "kamiyo_agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IdentityUnlinked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "zk_agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "kamiyo_agent",
+            "type": "pubkey"
           }
         ]
       }
