@@ -1,11 +1,12 @@
 // Market context endpoint
 
 import { Router, Request, Response } from 'express';
+import type { Router as IRouter } from 'express-serve-static-core';
 import { getContext } from '../../crypto-context';
 import { getTrendingContext } from '../../trend-engine';
 import { logger } from '../../logger';
 
-const router = Router();
+const router: IRouter = Router();
 
 // GET /api/v1/market
 router.get('/', async (_req: Request, res: Response) => {

@@ -38,6 +38,7 @@
   "devDependencies": {
     "@types/bs58": "^5.0.0",
     "@types/cors": "^2.8.17",
+    "@types/express-serve-static-core": "^4.19.8",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/supertest": "^6.0.0",
     "supertest": "^7.0.0",
