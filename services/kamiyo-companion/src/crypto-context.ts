@@ -11,14 +11,25 @@ interface TrendingCoin {
   price_change_24h: number;
 }
 
+interface KamiyoData {
+  priceUsd: number | null;
+  priceChange24h: number | null;
+  marketCap: number | null;
+  volume24h: number | null;
+  liquidity: number | null;
+}
+
 interface MarketContext {
   trending: TrendingCoin[];
   btcPrice: number | null;
   ethPrice: number | null;
   marketSentiment: 'fear' | 'neutral' | 'greed' | null;
   headlines: string[];
+  kamiyo: KamiyoData | null;
   lastUpdated: number;
 }
+
+const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 
 let cachedContext: MarketContext | null = null;
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
@@ -40,6 +51,39 @@ async function fetchWithTimeout(url: string, timeout = 5000): Promise<Response> 
     return res;
   } finally {
     clearTimeout(id);
+  }
+}
+
+async function fetchKamiyoData(): Promise<KamiyoData | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.dexscreener.com/latest/dex/tokens/${KAMIYO_MINT}`
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json() as {
+      pairs?: Array<{
+        priceUsd?: string;
+        priceChange?: { h24?: number };
+        fdv?: number;
+        volume?: { h24?: number };
+        liquidity?: { usd?: number };
+      }>;
+    };
+
+    const pair = data.pairs?.[0];
+    if (!pair) return null;
+
+    return {
+      priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
+      priceChange24h: pair.priceChange?.h24 ?? null,
+      marketCap: pair.fdv ?? null,
+      volume24h: pair.volume?.h24 ?? null,
+      liquidity: pair.liquidity?.usd ?? null,
+    };
+  } catch (err) {
+    logger.warn('Failed to fetch KAMIYO data', { error: String(err) });
+    return null;
   }
 }
 
@@ -129,11 +173,12 @@ async function fetchRSSHeadlines(): Promise<string[]> {
 export async function refreshContext(): Promise<MarketContext> {
   logger.info('Refreshing crypto context...');
 
-  const [trending, prices, sentiment, headlines] = await Promise.all([
+  const [trending, prices, sentiment, headlines, kamiyo] = await Promise.all([
     fetchTrending(),
     fetchPrices(),
     fetchFearGreedIndex(),
     fetchRSSHeadlines(),
+    fetchKamiyoData(),
   ]);
 
   cachedContext = {
@@ -142,6 +187,7 @@ export async function refreshContext(): Promise<MarketContext> {
     ethPrice: prices.eth,
     marketSentiment: sentiment,
     headlines,
+    kamiyo,
     lastUpdated: Date.now(),
   };
 
@@ -149,6 +195,7 @@ export async function refreshContext(): Promise<MarketContext> {
     trendingCount: trending.length,
     headlineCount: headlines.length,
     btc: prices.btc,
+    kamiyo: kamiyo?.priceUsd,
     sentiment,
   });
 
@@ -165,14 +212,26 @@ export async function getContext(): Promise<MarketContext> {
 export function formatContextForPrompt(ctx: MarketContext): string {
   const lines: string[] = ['## Current Crypto Context'];
 
+  // KAMIYO data first - this is our token
+  if (ctx.kamiyo) {
+    const k = ctx.kamiyo;
+    const priceStr = k.priceUsd ? `$${k.priceUsd.toFixed(6)}` : '?';
+    const changeStr = k.priceChange24h !== null
+      ? `${k.priceChange24h > 0 ? '+' : ''}${k.priceChange24h.toFixed(1)}%`
+      : '';
+    const mcapStr = k.marketCap ? `$${(k.marketCap / 1000000).toFixed(2)}M` : '?';
+    const volStr = k.volume24h ? `$${(k.volume24h / 1000).toFixed(1)}K` : '?';
+    lines.push(`KAMIYO: ${priceStr} ${changeStr} | MC: ${mcapStr} | Vol: ${volStr}`);
+  }
+
   if (ctx.btcPrice) {
     lines.push(`BTC: $${ctx.btcPrice.toLocaleString()} | ETH: $${ctx.ethPrice?.toLocaleString() || '?'}`);
   }
 
   if (ctx.marketSentiment) {
-    const emoji = ctx.marketSentiment === 'greed' ? 'bullish' :
-                  ctx.marketSentiment === 'fear' ? 'bearish' : 'sideways';
-    lines.push(`Market mood: ${emoji}`);
+    const mood = ctx.marketSentiment === 'greed' ? 'bullish' :
+                 ctx.marketSentiment === 'fear' ? 'bearish' : 'sideways';
+    lines.push(`Market mood: ${mood}`);
   }
 
   if (ctx.trending.length > 0) {
