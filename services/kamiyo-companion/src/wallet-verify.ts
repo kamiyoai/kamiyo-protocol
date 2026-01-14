@@ -1,7 +1,3 @@
-/**
- * Wallet signature verification for proving ownership.
- */
-
 import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
@@ -18,9 +14,6 @@ export interface WalletChallenge {
   expiresAt: number;
 }
 
-/**
- * Generate a challenge for wallet verification.
- */
 export function generateChallenge(wallet: string): WalletChallenge {
   // Validate wallet address
   try {
@@ -36,14 +29,6 @@ export function generateChallenge(wallet: string): WalletChallenge {
   return { wallet, nonce, message, expiresAt };
 }
 
-/**
- * Verify a signature against a challenge.
- *
- * @param wallet - The wallet address claiming ownership
- * @param signature - Base58 encoded signature from wallet
- * @param message - The original challenge message that was signed
- * @returns true if signature is valid
- */
 export function verifySignature(wallet: string, signature: string, message: string): boolean {
   try {
     const publicKey = new PublicKey(wallet);
@@ -72,16 +57,10 @@ export function verifySignature(wallet: string, signature: string, message: stri
   }
 }
 
-/**
- * Check if a challenge has expired.
- */
 export function isChallengeExpired(expiresAt: number): boolean {
   return Date.now() > expiresAt;
 }
 
-/**
- * Format user instructions for signing.
- */
 export function formatSigningInstructions(challenge: WalletChallenge): string {
   return [
     `To verify ownership of ${challenge.wallet.slice(0, 8)}..., sign this message with your wallet:`,

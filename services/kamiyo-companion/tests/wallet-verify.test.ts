@@ -1,13 +1,8 @@
-/**
- * Tests for wallet signature verification.
- */
-
 import { describe, it, expect } from 'vitest';
 import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
-// Import functions to test
 import {
   generateChallenge,
   verifySignature,
@@ -16,7 +11,6 @@ import {
 } from '../src/wallet-verify';
 
 describe('Wallet Verification', () => {
-  // Generate a test keypair
   const keypair = Keypair.generate();
   const wallet = keypair.publicKey.toBase58();
 
@@ -67,7 +61,6 @@ describe('Wallet Verification', () => {
       const signature = nacl.sign.detached(messageBytes, keypair.secretKey);
       const signatureBase58 = bs58.encode(signature);
 
-      // Try to verify with different message
       const isValid = verifySignature(wallet, signatureBase58, 'Different message');
       expect(isValid).toBe(false);
     });
@@ -79,7 +72,6 @@ describe('Wallet Verification', () => {
       const signature = nacl.sign.detached(messageBytes, otherKeypair.secretKey);
       const signatureBase58 = bs58.encode(signature);
 
-      // Try to verify with original wallet (should fail)
       const isValid = verifySignature(wallet, signatureBase58, message);
       expect(isValid).toBe(false);
     });
@@ -110,17 +102,12 @@ describe('Wallet Verification', () => {
 
   describe('Full verification flow', () => {
     it('should work end-to-end', () => {
-      // 1. Generate challenge
       const challenge = generateChallenge(wallet);
-
-      // 2. Sign the message (simulating wallet signature)
       const messageBytes = new TextEncoder().encode(challenge.message);
       const signature = nacl.sign.detached(messageBytes, keypair.secretKey);
       const signatureBase58 = bs58.encode(signature);
 
-      // 3. Verify
-      const isValid = verifySignature(wallet, signatureBase58, challenge.message);
-      expect(isValid).toBe(true);
+      expect(verifySignature(wallet, signatureBase58, challenge.message)).toBe(true);
     });
   });
 });

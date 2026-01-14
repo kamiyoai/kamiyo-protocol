@@ -1,7 +1,3 @@
-/**
- * Database maintenance tasks - run periodically to keep the database healthy.
- */
-
 import db from './db';
 import { logger } from './logger';
 import * as fs from 'fs';
@@ -16,9 +12,6 @@ if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
-/**
- * Clean up old conversation history (keep last 30 days per user)
- */
 export function cleanupConversations(daysToKeep = 30): number {
   const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
   const result = db.prepare('DELETE FROM conversations WHERE created_at < ?').run(cutoff);
@@ -26,9 +19,6 @@ export function cleanupConversations(daysToKeep = 30): number {
   return result.changes;
 }
 
-/**
- * Clean up old sessions (keep last 90 days)
- */
 export function cleanupSessions(daysToKeep = 90): number {
   const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
   const result = db.prepare('DELETE FROM sessions WHERE ended_at IS NOT NULL AND ended_at < ?').run(cutoff);
@@ -36,9 +26,6 @@ export function cleanupSessions(daysToKeep = 90): number {
   return result.changes;
 }
 
-/**
- * Clean up old processed tweets (keep last 7 days)
- */
 export function cleanupProcessedTweets(daysToKeep = 7): number {
   const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
   const result = db.prepare('DELETE FROM processed_tweets WHERE processed_at < ?').run(cutoff);
@@ -46,9 +33,6 @@ export function cleanupProcessedTweets(daysToKeep = 7): number {
   return result.changes;
 }
 
-/**
- * Clean up old message counts (keep last 7 days)
- */
 export function cleanupMessageCounts(daysToKeep = 7): number {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
@@ -58,9 +42,6 @@ export function cleanupMessageCounts(daysToKeep = 7): number {
   return result.changes;
 }
 
-/**
- * Clean up released/refunded escrows older than 30 days
- */
 export function cleanupOldEscrows(daysToKeep = 30): number {
   const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
   const result = db.prepare(`
@@ -73,17 +54,11 @@ export function cleanupOldEscrows(daysToKeep = 30): number {
   return result.changes;
 }
 
-/**
- * Run VACUUM to reclaim disk space
- */
 export function vacuumDatabase(): void {
   db.exec('VACUUM');
   logger.info('Database vacuumed');
 }
 
-/**
- * Get database statistics
- */
 export function getDatabaseStats(): Record<string, number> {
   const tables = ['users', 'conversations', 'sessions', 'payments', 'escrow_sessions', 'daily_message_counts', 'processed_tweets', 'bot_state'];
   const stats: Record<string, number> = {};
@@ -104,9 +79,6 @@ export function getDatabaseStats(): Record<string, number> {
   return stats;
 }
 
-/**
- * Create a backup of the database
- */
 export function backupDatabase(): string | null {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -127,9 +99,6 @@ export function backupDatabase(): string | null {
   }
 }
 
-/**
- * Remove old backup files
- */
 export function cleanupOldBackups(keepCount = 7): number {
   try {
     const files = fs.readdirSync(BACKUP_DIR)
@@ -154,9 +123,6 @@ export function cleanupOldBackups(keepCount = 7): number {
   }
 }
 
-/**
- * Run all maintenance tasks
- */
 export function runMaintenance(): void {
   logger.info('Starting maintenance tasks...');
 

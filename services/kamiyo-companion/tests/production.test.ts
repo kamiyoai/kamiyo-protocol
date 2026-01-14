@@ -1,8 +1,4 @@
-/**
- * Tests for production-critical functionality.
- */
-
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Test the atomic payment record function
 describe('Atomic Payment Processing', () => {
