@@ -5,13 +5,11 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
 import { logger } from './logger';
+import { grokClient, openaiClient } from './clients';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const XAI_API_KEY = process.env.XAI_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DATA_DIR = process.env.DATA_DIR || './data';
 const IMAGE_DIR = path.join(DATA_DIR, 'images');
 
@@ -19,16 +17,6 @@ const IMAGE_DIR = path.join(DATA_DIR, 'images');
 if (!fs.existsSync(IMAGE_DIR)) {
   fs.mkdirSync(IMAGE_DIR, { recursive: true });
 }
-
-// Initialize clients
-const grokClient = XAI_API_KEY ? new OpenAI({
-  apiKey: XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-}) : null;
-
-const openaiClient = OPENAI_API_KEY ? new OpenAI({
-  apiKey: OPENAI_API_KEY,
-}) : null;
 
 export interface GeneratedImage {
   path: string;
@@ -58,8 +46,7 @@ const SCENE_TYPES = [
 // Generate a KAMIYO-style image prompt from a topic
 export async function generateMemePrompt(
   anthropic: Anthropic,
-  topic: string,
-  _style?: string // Ignored - always uses KAMIYO style
+  topic: string
 ): Promise<string> {
   // Pick a random scene type for variety
   const sceneType = SCENE_TYPES[Math.floor(Math.random() * SCENE_TYPES.length)];
@@ -178,7 +165,7 @@ export async function generateMeme(
 
 // Check if image generation is available
 export function isImageGenAvailable(): boolean {
-  return !!(XAI_API_KEY || OPENAI_API_KEY);
+  return !!(grokClient || openaiClient);
 }
 
 // Cleanup old images (keep last 50)

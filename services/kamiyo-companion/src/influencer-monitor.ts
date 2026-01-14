@@ -4,14 +4,9 @@
  */
 
 import { TwitterApi } from 'twitter-api-v2';
-import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import Database from 'better-sqlite3';
 import { logger } from './logger';
-
-const DATA_DIR = process.env.DATA_DIR || './data';
-const db = new Database(`${DATA_DIR}/autonomous.db`);
-const XAI_API_KEY = process.env.XAI_API_KEY;
+import { db, grokClient } from './clients';
 
 // Initialize new tables
 db.exec(`
@@ -37,13 +32,12 @@ db.exec(`
     seen_at INTEGER,
     responded INTEGER DEFAULT 0
   );
-`);
 
-// Grok client for x_search
-const grokClient = XAI_API_KEY ? new OpenAI({
-  apiKey: XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-}) : null;
+  CREATE INDEX IF NOT EXISTS idx_influencer_tweets_posted ON influencer_tweets(posted_at);
+  CREATE INDEX IF NOT EXISTS idx_influencer_tweets_author ON influencer_tweets(author_username);
+  CREATE INDEX IF NOT EXISTS idx_influencer_tweets_responded ON influencer_tweets(responded);
+  CREATE INDEX IF NOT EXISTS idx_monitored_accounts_priority ON monitored_accounts(priority);
+`);
 
 export interface MonitoredAccount {
   id: number;

@@ -1,13 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
 import { TwitterApi } from 'twitter-api-v2';
 import 'dotenv/config';
-
-// Initialize Grok (xAI) client - optional, only if XAI_API_KEY is set
-const grok = process.env.XAI_API_KEY ? new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-}) : null;
+import { grokClient as grok } from './clients';
 import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';

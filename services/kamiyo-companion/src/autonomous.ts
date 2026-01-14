@@ -5,14 +5,11 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
+import { db } from './clients';
 import { getContext, formatContextForPrompt } from './crypto-context';
 import { generateMeme, isImageGenAvailable } from './image-gen';
 import { getTrendingContext, formatTrendingForPrompt } from './trend-engine';
 import { getRecentInfluencerTopics } from './influencer-monitor';
-import Database from 'better-sqlite3';
-
-const DATA_DIR = process.env.DATA_DIR || './data';
-const db = new Database(`${DATA_DIR}/autonomous.db`);
 
 // Initialize tables
 db.exec(`
