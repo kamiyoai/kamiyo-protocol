@@ -1,7 +1,11 @@
 FROM node:20-alpine
 
-# Install build dependencies and supervisor
-RUN apk add --no-cache python3 make g++ supervisor
+# Install build dependencies, supervisor, and litestream
+RUN apk add --no-cache python3 make g++ supervisor wget
+
+# Install litestream for SQLite replication
+ARG LITESTREAM_VERSION=0.3.13
+RUN wget -qO- https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-v${LITESTREAM_VERSION}-linux-amd64-static.tar.gz | tar xz -C /usr/local/bin
 
 WORKDIR /app
 
@@ -20,8 +24,11 @@ RUN npm run build
 # Create data directory
 RUN mkdir -p /app/data
 
-# Copy supervisor config
+# Copy supervisor and litestream configs
 COPY supervisord.conf /etc/supervisord.conf
+COPY litestream.yml /app/litestream.yml
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Expose ports
 EXPOSE 3000 3001
@@ -30,5 +37,5 @@ EXPOSE 3000 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Run with supervisor for proper process management
-CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+# Run with entrypoint (handles litestream if configured)
+ENTRYPOINT ["/app/entrypoint.sh"]
