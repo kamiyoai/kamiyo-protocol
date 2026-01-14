@@ -107,6 +107,7 @@ import { getThreadContext, formatThreadContext, shouldReadThread } from './threa
 import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
 import { analyzeSentiment, getSentimentTrend, aggregateHourlySentiment, cleanupOldSentiment } from './sentiment';
 import { runApprovalCycle, APPROVAL_MODE } from './approval';
+import { ENGAGEMENT_CONFIG } from './config';
 import { generateMeme, isImageGenAvailable, cleanupOldImages } from './image-gen';
 import { startConversation, runConversation, endConversation, AGENTS } from './multi-agent';
 import { startInfluencerMonitoring, cleanupOldInfluencerTweets } from './influencer-monitor';
@@ -1098,11 +1099,14 @@ async function main(): Promise<void> {
   // Start whale monitoring
   await startWhaleMonitoring(twitter, anthropic);
 
-  // Start influencer monitoring (organic growth)
-  await startInfluencerMonitoring(twitter, anthropic);
-
-  // Start engagement optimizer (strategic replies)
-  await startEngagementLoop(twitter, anthropic);
+  // Start influencer monitoring (organic growth) - disabled by default to save API budget
+  if (ENGAGEMENT_CONFIG.influencerMonitoringEnabled) {
+    await startInfluencerMonitoring(twitter, anthropic);
+    // Start engagement optimizer (strategic replies) - requires influencer monitoring
+    await startEngagementLoop(twitter, anthropic);
+  } else {
+    logger.info('Influencer monitoring disabled (set INFLUENCER_MONITORING_ENABLED=true to enable)');
+  }
 
   // Start performance tracking
   await startPerformanceTracking(twitter);

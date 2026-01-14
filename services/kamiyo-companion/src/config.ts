@@ -33,6 +33,9 @@ export const DATA_DIR = process.env.DATA_DIR || './data';
 
 // Engagement rate limits
 export const ENGAGEMENT_CONFIG = {
+  // Influencer monitoring - fetches tweets from monitored accounts
+  // Disable to save API rate limit budget
+  influencerMonitoringEnabled: process.env.INFLUENCER_MONITORING_ENABLED === 'true',
   // Proactive replies to influencer tweets (when not @mentioned)
   // Set to 'true' to enable - defaults to false (only respond when @mentioned)
   proactiveRepliesEnabled: process.env.PROACTIVE_REPLIES_ENABLED === 'true',
