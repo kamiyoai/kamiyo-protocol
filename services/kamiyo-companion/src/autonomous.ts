@@ -1,6 +1,6 @@
 /**
- * Autonomous posting system - Truth Terminal style
- * AI generates content, human approves before posting
+ * Autonomous posting system
+ * AI generates content, reviews itself, posts approved content
  */
 
 import Anthropic from '@anthropic-ai/sdk';

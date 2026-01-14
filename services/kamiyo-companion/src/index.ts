@@ -106,7 +106,7 @@ import { startContextRefresh, stopContextRefresh, getContext, formatContextForPr
 import { stopCacheCleanup } from './cache';
 import { startMaintenanceSchedule, stopMaintenanceSchedule } from './maintenance';
 
-// New Truth Terminal-inspired features
+// Autonomous features
 import { lookupWallet, formatWalletSummary, lookupTransaction, formatTransactionSummary, checkWhaleMovements, formatWhaleAlert, isValidSolanaAddress } from './chain-lookup';
 import { getThreadContext, formatThreadContext, shouldReadThread } from './thread-reader';
 import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
@@ -920,7 +920,7 @@ function startBackgroundTasks(): void {
 
 async function main(): Promise<void> {
   logger.info('KAMIYO starting...');
-  logger.info('Mode: Entity (Truth Terminal inspired)');
+  logger.info('Mode: Entity');
 
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not set');
