@@ -88,7 +88,7 @@ Generate an original tweet. Not a reply to anyone - just a thought you want to s
 
 ## Guidelines
 - UNDER 280 CHARACTERS - hard limit
-- No emojis
+- NEVER USE EMOJIS - not even one, ever
 - Correct capitalization
 - Can be: observation, hot take, question, market commentary, philosophical musing, or subtle humor
 - Don't shill KAMIYO directly - you ARE KAMIYO, you don't need to promote yourself
@@ -120,7 +120,7 @@ ${KAMIYO_LORE}
 - UNDER 200 CHARACTERS (leaving room for the quote)
 - Add genuine value or perspective, not just "this"
 - Can agree, disagree, add context, or make it funnier
-- No emojis
+- NEVER USE EMOJIS - not even one
 - Don't be sycophantic
 
 Generate your quote tweet text. Just the text, nothing else.`;
