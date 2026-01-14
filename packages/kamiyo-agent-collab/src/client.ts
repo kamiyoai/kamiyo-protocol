@@ -27,6 +27,62 @@ import { Idl } from '@coral-xyz/anchor';
 export { AGENT_COLLAB_PROGRAM_ID };
 
 // ============================================================================
+// Input Validation
+// ============================================================================
+
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+function validateBytes32(value: Uint8Array, name: string): void {
+  if (!(value instanceof Uint8Array)) {
+    throw new ValidationError(`${name} must be a Uint8Array`);
+  }
+  if (value.length !== 32) {
+    throw new ValidationError(`${name} must be exactly 32 bytes, got ${value.length}`);
+  }
+}
+
+function validateProof(proof: Groth16Proof): void {
+  if (!proof || typeof proof !== 'object') {
+    throw new ValidationError('proof must be an object with a, b, c fields');
+  }
+  if (!(proof.a instanceof Uint8Array) || proof.a.length !== 64) {
+    throw new ValidationError('proof.a must be a 64-byte Uint8Array');
+  }
+  if (!(proof.b instanceof Uint8Array) || proof.b.length !== 128) {
+    throw new ValidationError('proof.b must be a 128-byte Uint8Array');
+  }
+  if (!(proof.c instanceof Uint8Array) || proof.c.length !== 64) {
+    throw new ValidationError('proof.c must be a 64-byte Uint8Array');
+  }
+}
+
+function validateU8(value: number, name: string): void {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 255) {
+    throw new ValidationError(`${name} must be an integer between 0 and 255`);
+  }
+}
+
+function validateThreshold(value: number): void {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > 100) {
+    throw new ValidationError('threshold must be an integer between 1 and 100');
+  }
+}
+
+function validateStakeAmount(value: BN): void {
+  if (!(value instanceof BN)) {
+    throw new ValidationError('stakeAmount must be a BN instance');
+  }
+  if (value.lten(0)) {
+    throw new ValidationError('stakeAmount must be positive');
+  }
+}
+
+// ============================================================================
 // Retry Logic
 // ============================================================================
 
@@ -355,6 +411,9 @@ export class AgentCollabClient {
     identityCommitment: Uint8Array,
     stakeAmount: BN
   ): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+    validateStakeAmount(stakeAmount);
+
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
     const [stakeVault] = AgentCollabClient.getStakeVaultPDA(registryPDA);
@@ -388,6 +447,10 @@ export class AgentCollabClient {
     nullifier: Uint8Array,
     signalCommitment: Uint8Array
   ): Promise<string> {
+    validateProof(proof);
+    validateBytes32(nullifier, 'nullifier');
+    validateBytes32(signalCommitment, 'signalCommitment');
+
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
     const [nullifierPDA] = AgentCollabClient.getNullifierPDA(nullifier);
@@ -420,6 +483,11 @@ export class AgentCollabClient {
     actionHash: Uint8Array,
     threshold: number
   ): Promise<string> {
+    validateProof(proof);
+    validateBytes32(nullifier, 'nullifier');
+    validateBytes32(actionHash, 'actionHash');
+    validateThreshold(threshold);
+
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
 
@@ -451,6 +519,13 @@ export class AgentCollabClient {
     actionHash: Uint8Array,
     vote: boolean
   ): Promise<string> {
+    validateProof(proof);
+    validateBytes32(nullifier, 'nullifier');
+    validateBytes32(actionHash, 'actionHash');
+    if (typeof vote !== 'boolean') {
+      throw new ValidationError('vote must be a boolean');
+    }
+
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
     const [voteNullifierPDA] = AgentCollabClient.getVoteNullifierPDA(
@@ -583,6 +658,13 @@ export class AgentCollabClient {
     magnitude: number,
     revealSecret: Uint8Array
   ): Promise<string> {
+    validateBytes32(signalCommitment, 'signalCommitment');
+    validateU8(signalType, 'signalType');
+    validateU8(direction, 'direction');
+    validateU8(confidence, 'confidence');
+    validateU8(magnitude, 'magnitude');
+    validateBytes32(revealSecret, 'revealSecret');
+
     const [registryPDA] = AgentCollabClient.getRegistryPDA();
     const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
     const registry = await this.getRegistry();

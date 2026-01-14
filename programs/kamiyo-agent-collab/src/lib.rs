@@ -151,12 +151,15 @@ pub mod kamiyo_agent_collab {
         )?;
 
         // Check nullifier not already used this epoch
+        // Note: init_if_needed sets epoch=0 for new accounts, so we use epoch+1 internally
+        // to distinguish "never used" (stored 0) from "used in epoch 0" (stored 1)
         let nullifier_record = &mut ctx.accounts.nullifier_record;
+        let stored_epoch_marker = registry.epoch.checked_add(1).unwrap();
         require!(
-            nullifier_record.epoch != registry.epoch,
+            nullifier_record.epoch != stored_epoch_marker,
             AgentCollabError::NullifierAlreadyUsed
         );
-        nullifier_record.epoch = registry.epoch;
+        nullifier_record.epoch = stored_epoch_marker;
         nullifier_record.nullifier = nullifier;
         nullifier_record.bump = ctx.bumps.nullifier_record;
 
@@ -269,11 +272,15 @@ pub mod kamiyo_agent_collab {
         vote_nullifier.nullifier = nullifier;
         vote_nullifier.bump = ctx.bumps.vote_nullifier;
 
-        // Record vote
+        // Record vote with overflow protection
         if vote {
-            swarm_action.votes_for += 1;
+            swarm_action.votes_for = swarm_action.votes_for
+                .checked_add(1)
+                .ok_or(AgentCollabError::VoteOverflow)?;
         } else {
-            swarm_action.votes_against += 1;
+            swarm_action.votes_against = swarm_action.votes_against
+                .checked_add(1)
+                .ok_or(AgentCollabError::VoteOverflow)?;
         }
 
         emit!(SwarmVoteCast {
@@ -339,15 +346,27 @@ pub mod kamiyo_agent_collab {
         // Mark as revealed
         signal.revealed = true;
 
-        // Update aggregator with the revealed signal
-        aggregator.total_signals += 1;
+        // Update aggregator with the revealed signal (overflow-safe)
+        aggregator.total_signals = aggregator.total_signals
+            .checked_add(1)
+            .ok_or(AgentCollabError::AggregatorOverflow)?;
         match direction {
-            0 => aggregator.short_count += 1,
-            1 => aggregator.long_count += 1,
-            _ => aggregator.neutral_count += 1,
+            0 => aggregator.short_count = aggregator.short_count
+                .checked_add(1)
+                .ok_or(AgentCollabError::AggregatorOverflow)?,
+            1 => aggregator.long_count = aggregator.long_count
+                .checked_add(1)
+                .ok_or(AgentCollabError::AggregatorOverflow)?,
+            _ => aggregator.neutral_count = aggregator.neutral_count
+                .checked_add(1)
+                .ok_or(AgentCollabError::AggregatorOverflow)?,
         }
-        aggregator.total_confidence += confidence as u32;
-        aggregator.total_magnitude += magnitude as u32;
+        aggregator.total_confidence = aggregator.total_confidence
+            .checked_add(confidence as u32)
+            .ok_or(AgentCollabError::AggregatorOverflow)?;
+        aggregator.total_magnitude = aggregator.total_magnitude
+            .checked_add(magnitude as u32)
+            .ok_or(AgentCollabError::AggregatorOverflow)?;
         aggregator.last_updated_slot = current_slot;
 
         emit!(SignalRevealed {
@@ -392,6 +411,7 @@ pub mod kamiyo_agent_collab {
         require!(agent.active, AgentCollabError::AgentNotActive);
 
         withdrawal.agent = agent.key();
+        withdrawal.requester = ctx.accounts.payer.key();
         withdrawal.amount = agent.stake;
         withdrawal.request_slot = current_slot;
         withdrawal.unlock_slot = current_slot + STAKE_WITHDRAWAL_TIMELOCK;
@@ -415,6 +435,10 @@ pub mod kamiyo_agent_collab {
 
         require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
         require!(current_slot >= withdrawal.unlock_slot, AgentCollabError::TimelockNotExpired);
+        require!(
+            ctx.accounts.authority.key() == withdrawal.requester,
+            AgentCollabError::UnauthorizedWithdrawal
+        );
 
         withdrawal.claimed = true;
         agent.active = false;
@@ -438,6 +462,10 @@ pub mod kamiyo_agent_collab {
         let withdrawal = &mut ctx.accounts.withdrawal;
 
         require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
+        require!(
+            ctx.accounts.payer.key() == withdrawal.requester,
+            AgentCollabError::UnauthorizedWithdrawal
+        );
 
         emit!(WithdrawalCancelled {
             agent: withdrawal.agent,
@@ -584,6 +612,7 @@ pub struct SignalAggregator {
 #[account]
 pub struct WithdrawalRequest {
     pub agent: Pubkey,
+    pub requester: Pubkey,
     pub amount: u64,
     pub request_slot: u64,
     pub unlock_slot: u64,
@@ -748,7 +777,7 @@ pub struct RequestWithdrawal<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + 32 + 8 + 8 + 8 + 1 + 1,
+        space = 8 + 32 + 32 + 8 + 8 + 8 + 1 + 1,  // +32 for requester pubkey
         seeds = [b"withdrawal", agent.key().as_ref()],
         bump
     )]
@@ -984,4 +1013,10 @@ pub enum AgentCollabError {
     WithdrawalAlreadyClaimed,
     #[msg("Timelock not expired")]
     TimelockNotExpired,
+    #[msg("Vote count overflow")]
+    VoteOverflow,
+    #[msg("Aggregator overflow")]
+    AggregatorOverflow,
+    #[msg("Unauthorized withdrawal claim")]
+    UnauthorizedWithdrawal,
 }

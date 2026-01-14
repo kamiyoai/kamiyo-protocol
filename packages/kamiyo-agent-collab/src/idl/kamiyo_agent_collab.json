@@ -1407,6 +1407,21 @@
       "code": 6016,
       "name": "TimelockNotExpired",
       "msg": "Timelock not expired"
+    },
+    {
+      "code": 6017,
+      "name": "VoteOverflow",
+      "msg": "Vote count overflow"
+    },
+    {
+      "code": 6018,
+      "name": "AggregatorOverflow",
+      "msg": "Aggregator overflow"
+    },
+    {
+      "code": 6019,
+      "name": "UnauthorizedWithdrawal",
+      "msg": "Unauthorized withdrawal claim"
     }
   ],
   "types": [
@@ -2044,6 +2059,10 @@
         "fields": [
           {
             "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "requester",
             "type": "pubkey"
           },
           {
