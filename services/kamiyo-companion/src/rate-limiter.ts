@@ -18,11 +18,17 @@ const state: RateLimitState = {
 const MIN_WRITE_INTERVAL_MS = 10000; // 10 seconds between writes
 let lastWriteTime = 0;
 
+// Extra buffer after rate limit clears before attempting writes
+// Reads can happen immediately, but writes need more cooling time
+const WRITE_BUFFER_MS = 60000; // 1 minute buffer for writes after rate limit clears
+let rateLimitClearedAt = 0;
+
 // Check if we're currently rate limited
 export function isRateLimited(): boolean {
   if (!state.isLimited) return false;
   if (Date.now() > state.resetAt) {
     state.isLimited = false;
+    rateLimitClearedAt = Date.now();
     // Don't reset consecutiveFailures - keep escalating if we keep hitting limits
     logger.info('Global rate limit cleared');
     return false;
@@ -55,6 +61,8 @@ export function recordSuccess(): void {
   if (state.consecutiveFailures > 0) {
     state.consecutiveFailures = Math.max(0, state.consecutiveFailures - 1);
   }
+  // Clear the buffer once we have a successful call
+  rateLimitClearedAt = 0;
 }
 
 // Reset failures after sustained success (call after multiple successful ops)
@@ -65,6 +73,15 @@ export function resetFailures(): void {
 // Check if we can make a write operation (post, reply)
 export function canWrite(): boolean {
   if (isRateLimited()) return false;
+
+  // After rate limit clears, wait extra buffer before writes
+  // Scale buffer with consecutive failures for extra safety
+  const bufferMultiplier = Math.min(state.consecutiveFailures + 1, 3);
+  const requiredBuffer = WRITE_BUFFER_MS * bufferMultiplier;
+  if (rateLimitClearedAt > 0 && Date.now() - rateLimitClearedAt < requiredBuffer) {
+    return false;
+  }
+
   return Date.now() - lastWriteTime >= MIN_WRITE_INTERVAL_MS;
 }
 

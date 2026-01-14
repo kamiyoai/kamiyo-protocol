@@ -611,15 +611,10 @@ async function postReply(
   tweetId: string,
   text: string
 ): Promise<string | null> {
-  // Check global rate limit
-  if (isRateLimited()) {
-    logger.warn('Skipping reply - global rate limit active', { tweetId });
-    return null;
-  }
-
-  // Wait for write cooldown (10s between writes)
+  // Check if we can write (includes rate limit + buffer period)
   if (!canWrite()) {
-    await waitForWrite();
+    logger.warn('Skipping reply - write cooldown active', { tweetId });
+    return null;
   }
 
   try {
