@@ -799,11 +799,16 @@ async function startMentionStream(
 let isShuttingDown = false;
 
 // Autonomous posting loop - generates posts, Claude reviews, posts approved content
+// Quality over quantity: max 1 post per 2-3 hours, randomized timing
 async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): Promise<void> {
   logger.info('Starting autonomous posting loop...');
   logger.info(`Approval mode: ${APPROVAL_MODE}`);
 
-  // Generate new posts periodically (every 2-4 hours)
+  // Track last post time to enforce rate limit (2-3 hour minimum gap)
+  let lastPostTime = 0;
+  const MIN_POST_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours minimum between posts
+
+  // Generate new posts periodically (every 3-5 hours)
   const generateLoop = async () => {
     try {
       // Rotate mood occasionally
@@ -819,32 +824,56 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
       logger.error('Autonomous generation failed', { error: String(err) });
     }
 
-    // Schedule next generation (2-4 hours)
-    const nextDelay = (2 + Math.random() * 2) * 60 * 60 * 1000;
+    // Schedule next generation (3-5 hours) - generate less frequently than we post
+    const nextDelay = (3 + Math.random() * 2) * 60 * 60 * 1000;
     setTimeout(generateLoop, nextDelay);
   };
 
-  // Post approved content periodically
+  // Post approved content with rate limiting
   const postLoop = async () => {
     try {
-      const approved = getApprovedPosts();
-      for (const post of approved.slice(0, 1)) { // One at a time
-        if (post.post_type === 'tweet') {
-          const result = await twitter.v2.tweet(post.content);
-          if (result.data?.id) {
-            markPosted(post.id, result.data.id);
-            logger.info('Posted autonomous tweet', { id: post.id, tweetId: result.data.id });
+      const now = Date.now();
+      const timeSinceLastPost = now - lastPostTime;
+
+      // Only post if enough time has passed (2-3 hours)
+      if (timeSinceLastPost >= MIN_POST_INTERVAL) {
+        const approved = getApprovedPosts();
+
+        if (approved.length > 0) {
+          // Add randomness - don't always post immediately when eligible
+          // 50% chance to post now, otherwise wait for next check
+          const shouldPostNow = lastPostTime === 0 || Math.random() > 0.5;
+
+          if (shouldPostNow) {
+            const post = approved[0];
+            if (post.post_type === 'tweet') {
+              const result = await twitter.v2.tweet(post.content);
+              if (result.data?.id) {
+                markPosted(post.id, result.data.id);
+                lastPostTime = now;
+                logger.info('Posted autonomous tweet', {
+                  id: post.id,
+                  tweetId: result.data.id,
+                  hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1)
+                });
+              }
+            }
+          } else {
+            logger.info('Skipping post this cycle (randomized delay)', {
+              pendingCount: approved.length
+            });
           }
         }
-        // Small delay between posts
-        await new Promise(r => setTimeout(r, 5000));
+      } else {
+        const hoursRemaining = ((MIN_POST_INTERVAL - timeSinceLastPost) / (60 * 60 * 1000)).toFixed(1);
+        logger.debug('Post rate limit active', { hoursRemaining });
       }
     } catch (err) {
       logger.error('Autonomous posting failed', { error: String(err) });
     }
 
-    // Check every 5 minutes
-    setTimeout(postLoop, 5 * 60 * 1000);
+    // Check every 15 minutes (but rate limit enforces 2-3 hour gap)
+    setTimeout(postLoop, 15 * 60 * 1000);
   };
 
   // Check for DM approvals periodically (if using dm or hybrid mode)
@@ -856,13 +885,13 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
         logger.error('DM approval check failed', { error: String(err) });
       }
     }
-    // Check every 2 minutes
-    setTimeout(dmCheckLoop, 2 * 60 * 1000);
+    // Check every 5 minutes
+    setTimeout(dmCheckLoop, 5 * 60 * 1000);
   };
 
   // Delay start to avoid hitting rate limits on startup
   setTimeout(generateLoop, 60 * 1000);
-  setTimeout(postLoop, 2 * 60 * 1000);
+  setTimeout(postLoop, 5 * 60 * 1000);
   setTimeout(dmCheckLoop, 3 * 60 * 1000);
 }
 

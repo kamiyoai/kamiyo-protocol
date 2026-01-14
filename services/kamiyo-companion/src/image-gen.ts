@@ -67,15 +67,16 @@ Return ONLY the prompt, nothing else.`,
 }
 
 // Generate image using Grok (xAI Aurora)
+// Docs: https://docs.x.ai/docs/guides/image-generations
 async function generateWithGrok(prompt: string): Promise<Buffer | null> {
   if (!grokClient) return null;
 
   try {
+    // Note: xAI API does not support size/quality/style parameters
     const response = await grokClient.images.generate({
       model: 'grok-2-image',
       prompt,
       n: 1,
-      size: '1024x1024',
       response_format: 'b64_json',
     });
 
