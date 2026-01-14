@@ -115,6 +115,7 @@ import { startEngagementLoop, getEngagementStats } from './engagement-optimizer'
 import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from './growth-tracker';
 import { isGrokAvailable } from './trend-engine';
 import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite, withRateLimit } from './rate-limiter';
+import { startApiServer } from './api';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
@@ -1118,6 +1119,11 @@ async function main(): Promise<void> {
   logger.info(`Approval mode: ${APPROVAL_MODE} (auto/dm/hybrid)`);
   logger.info(`Grok available: ${isGrokAvailable()}`);
   logger.info('Features: mentions, autonomous posts, whale alerts, influencer monitoring, strategic replies, growth tracking');
+
+  // Start API server for 1M+ holders
+  if (process.env.API_ENABLED === 'true') {
+    startApiServer({ anthropic });
+  }
 }
 
 main().catch((err) => {

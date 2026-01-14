@@ -10,8 +10,7 @@ use anchor_lang::prelude::*;
 declare_id!("DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26");
 
 /// KAMIYO Staking program ID for CPI stake verification
-/// TODO: Update to actual deployed staking program ID
-pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
+pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
 
 pub mod zk;
 mod vk_generated;
@@ -239,6 +238,8 @@ pub mod kamiyo_agent_collab {
         swarm_action.threshold = threshold;
         swarm_action.votes_for = 1; // Proposer votes yes
         swarm_action.votes_against = 0;
+        swarm_action.weighted_votes_for = 10000; // Proposer default 1.0x weight
+        swarm_action.weighted_votes_against = 0;
         swarm_action.created_slot = current_slot;
         swarm_action.deadline_slot = current_slot + SWARM_VOTE_WINDOW;
         swarm_action.executed = false;
@@ -294,14 +295,31 @@ pub mod kamiyo_agent_collab {
         vote_nullifier.nullifier = nullifier;
         vote_nullifier.bump = ctx.bumps.vote_nullifier;
 
+        // Determine vote weight from identity link
+        let weight: u64 = if let Some(link) = &ctx.accounts.voter_identity_link {
+            if link.active {
+                link.stake_multiplier
+            } else {
+                10000 // Default 1.0x if link inactive
+            }
+        } else {
+            10000 // Default 1.0x if no link provided
+        };
+
         // Record vote with overflow protection
         if vote {
             swarm_action.votes_for = swarm_action.votes_for
                 .checked_add(1)
                 .ok_or(AgentCollabError::VoteOverflow)?;
+            swarm_action.weighted_votes_for = swarm_action.weighted_votes_for
+                .checked_add(weight)
+                .ok_or(AgentCollabError::VoteOverflow)?;
         } else {
             swarm_action.votes_against = swarm_action.votes_against
                 .checked_add(1)
+                .ok_or(AgentCollabError::VoteOverflow)?;
+            swarm_action.weighted_votes_against = swarm_action.weighted_votes_against
+                .checked_add(weight)
                 .ok_or(AgentCollabError::VoteOverflow)?;
         }
 
@@ -317,6 +335,7 @@ pub mod kamiyo_agent_collab {
     }
 
     /// Execute a swarm action if threshold met
+    /// Uses stake-weighted votes for approval calculation
     pub fn execute_swarm_action(ctx: Context<ExecuteSwarmAction>) -> Result<()> {
         let swarm_action = &mut ctx.accounts.swarm_action;
         let current_slot = Clock::get()?.slot;
@@ -327,9 +346,12 @@ pub mod kamiyo_agent_collab {
         let total_votes = swarm_action.votes_for + swarm_action.votes_against;
         require!(total_votes > 0, AgentCollabError::NoVotes);
 
-        let approval_pct = (swarm_action.votes_for as u16 * 100) / total_votes as u16;
+        // Use weighted votes for threshold calculation
+        let weighted_total = swarm_action.weighted_votes_for + swarm_action.weighted_votes_against;
+        require!(weighted_total > 0, AgentCollabError::NoVotes);
+        let approval_pct = (swarm_action.weighted_votes_for * 100) / weighted_total;
         require!(
-            approval_pct >= swarm_action.threshold as u16,
+            approval_pct >= swarm_action.threshold as u64,
             AgentCollabError::ThresholdNotMet
         );
 
@@ -573,6 +595,56 @@ pub mod kamiyo_agent_collab {
         Ok(())
     }
 
+    /// Refresh stake info on an existing identity link
+    /// Call this after staking more tokens to update vote weight
+    pub fn refresh_stake(ctx: Context<RefreshStake>) -> Result<()> {
+        let link = &mut ctx.accounts.identity_link;
+        require!(link.active, AgentCollabError::LinkNotActive);
+
+        // Read updated stake position
+        let (staked_amount, stake_multiplier) = if let Some(stake_position) = &ctx.accounts.stake_position {
+            require!(
+                stake_position.owner == &STAKING_PROGRAM_ID,
+                AgentCollabError::InvalidStakePosition
+            );
+
+            let data = stake_position.try_borrow_data()?;
+            if data.len() >= 56 {
+                let owner_bytes: [u8; 32] = data[8..40].try_into().unwrap();
+                let stake_owner = Pubkey::new_from_array(owner_bytes);
+
+                require!(
+                    stake_owner == ctx.accounts.owner.key(),
+                    AgentCollabError::StakeOwnerMismatch
+                );
+
+                let staked = u64::from_le_bytes(data[40..48].try_into().unwrap());
+                let stake_start = i64::from_le_bytes(data[48..56].try_into().unwrap());
+
+                let current_time = Clock::get()?.unix_timestamp;
+                let duration = current_time.saturating_sub(stake_start);
+                let multiplier = calculate_stake_multiplier(duration);
+
+                (staked, multiplier)
+            } else {
+                (0u64, 10000u64)
+            }
+        } else {
+            (0u64, 10000u64)
+        };
+
+        link.staked_amount = staked_amount;
+        link.stake_multiplier = stake_multiplier;
+
+        emit!(StakeRefreshed {
+            identity_link: link.key(),
+            staked_amount,
+            stake_multiplier,
+        });
+
+        Ok(())
+    }
+
     /// Deactivate an agent and reclaim stake (immediate, admin only for emergencies)
     pub fn deactivate_agent(ctx: Context<DeactivateAgent>) -> Result<()> {
         let agent = &mut ctx.accounts.agent;
@@ -674,6 +746,8 @@ pub struct SwarmAction {
     pub threshold: u8,
     pub votes_for: u32,
     pub votes_against: u32,
+    pub weighted_votes_for: u64,
+    pub weighted_votes_against: u64,
     pub created_slot: u64,
     pub deadline_slot: u64,
     pub executed: bool,
@@ -823,10 +897,11 @@ pub struct SubmitSignal<'info> {
 pub struct CreateSwarmAction<'info> {
     #[account(mut)]
     pub registry: Account<'info, AgentRegistry>,
+    /// Space: 8 + 32 + 32 + 32 + 1 + 4 + 4 + 8 + 8 + 8 + 8 + 1 + 1 = 147
     #[account(
         init,
         payer = payer,
-        space = 8 + 32 + 32 + 32 + 1 + 4 + 4 + 8 + 8 + 1 + 1,
+        space = 147,
         seeds = [b"swarm_action", action_hash.as_ref()],
         bump
     )]
@@ -850,6 +925,9 @@ pub struct VoteSwarmAction<'info> {
         bump
     )]
     pub vote_nullifier: Account<'info, VoteNullifier>,
+    /// Optional: Voter's identity link for stake-weighted voting
+    /// If provided, vote is weighted by stake_multiplier
+    pub voter_identity_link: Option<Account<'info, IdentityLink>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -990,6 +1068,23 @@ pub struct UnlinkIdentity<'info> {
         has_one = owner @ AgentCollabError::UnauthorizedWithdrawal
     )]
     pub identity_link: Account<'info, IdentityLink>,
+
+    pub owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RefreshStake<'info> {
+    #[account(
+        mut,
+        seeds = [b"identity_link", identity_link.zk_agent.as_ref()],
+        bump = identity_link.bump,
+        has_one = owner @ AgentCollabError::UnauthorizedWithdrawal
+    )]
+    pub identity_link: Account<'info, IdentityLink>,
+
+    /// Optional: Updated stake position from kamiyo-staking program
+    /// CHECK: Validated in instruction - must be owned by staking program
+    pub stake_position: Option<AccountInfo<'info>>,
 
     pub owner: Signer<'info>,
 }
@@ -1155,6 +1250,13 @@ pub struct IdentityLinked {
 pub struct IdentityUnlinked {
     pub zk_agent: Pubkey,
     pub kamiyo_agent: Pubkey,
+}
+
+#[event]
+pub struct StakeRefreshed {
+    pub identity_link: Pubkey,
+    pub staked_amount: u64,
+    pub stake_multiplier: u64,
 }
 
 // ============================================================================

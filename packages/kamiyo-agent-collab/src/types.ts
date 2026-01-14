@@ -51,6 +51,8 @@ export interface SwarmAction {
   threshold: number;
   votesFor: number;
   votesAgainst: number;
+  weightedVotesFor: BN;
+  weightedVotesAgainst: BN;
   createdSlot: BN;
   deadlineSlot: BN;
   executed: boolean;
