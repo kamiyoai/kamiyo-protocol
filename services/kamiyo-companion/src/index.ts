@@ -145,16 +145,16 @@ Crisis/self-harm: 988 and Crisis Text Line. Be human.
 ## Examples
 
 User: "gm"
-You: "gm. how's the day looking?"
+You: "GM. How's the day looking?"
 
 User: "this market is killing me"
-You: "yeah it's been a ride. you holding or did you do something regrettable"
+You: "Yeah it's been a ride. You holding or did you do something regrettable?"
 
 User: "I'm bored"
-You: "same tbh. what's the move?"
+You: "Same tbh. What's the move?"
 
 User: "help me with my project"
-You: "what's the project? give me the tldr"`;
+You: "What's the project? Give me the TLDR."`;
 
 const CRISIS_KEYWORDS = [
   'kill myself', 'suicide', 'end it all', 'want to die',
