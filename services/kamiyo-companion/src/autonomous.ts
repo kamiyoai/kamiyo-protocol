@@ -7,6 +7,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
 import { getContext, formatContextForPrompt } from './crypto-context';
 import { generateMeme, isImageGenAvailable } from './image-gen';
+import { getTrendingContext, formatTrendingForPrompt } from './trend-engine';
+import { getRecentInfluencerTopics } from './influencer-monitor';
 import Database from 'better-sqlite3';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -241,16 +243,29 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
   const personality = getPersonalityState();
   const themes = getTopThemes();
 
+  // Get trending context from Grok
+  const trendingCtx = await getTrendingContext();
+  const trendingStr = formatTrendingForPrompt(trendingCtx);
+
+  // Get what influencers are talking about (last 2 hours)
+  const influencerTopics = getRecentInfluencerTopics(2);
+  const influencerStr = influencerTopics.length > 0
+    ? `\n\n## What Big Accounts Are Discussing\n${influencerTopics.slice(0, 5).map(t => `- @${t.author}: ${t.topics.join(', ')}`).join('\n')}`
+    : '';
+
   const themesStr = themes.length > 0
     ? `\n\nRecurring interests lately: ${themes.map(t => t.theme).join(', ')}`
     : '';
 
   const moodStr = `\nCurrent mood: ${personality.mood}`;
 
+  // Combine all context
+  const fullContext = contextStr + trendingStr + influencerStr + themesStr + moodStr;
+
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 100,
-    system: GENERATION_PROMPT + '\n\n' + contextStr + themesStr + moodStr,
+    system: GENERATION_PROMPT + '\n\n' + fullContext,
     messages: [{ role: 'user', content: 'Generate a tweet.' }],
   });
 
@@ -281,7 +296,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
   const result = db.prepare(`
     INSERT INTO post_queue (content, post_type, context, generated_at, status, image_path)
     VALUES (?, 'tweet', ?, ?, 'pending', ?)
-  `).run(finalContent, contextStr, Date.now(), imagePath);
+  `).run(finalContent, fullContext.slice(0, 2000), Date.now(), imagePath); // Truncate context for storage
 
   logger.info('Generated autonomous post', {
     id: result.lastInsertRowid,
@@ -293,7 +308,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
     id: result.lastInsertRowid as number,
     content: finalContent,
     post_type: 'tweet',
-    context: contextStr,
+    context: fullContext.slice(0, 2000),
     generated_at: Date.now(),
     status: 'pending',
     approved_at: null,
