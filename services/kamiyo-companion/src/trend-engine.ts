@@ -3,16 +3,8 @@
  * Fetches real-time trending topics from X and news
  */
 
-import OpenAI from 'openai';
 import { logger } from './logger';
-
-const XAI_API_KEY = process.env.XAI_API_KEY;
-
-// Grok client
-const grokClient = XAI_API_KEY ? new OpenAI({
-  apiKey: XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-}) : null;
+import { grokClient, isGrokAvailable } from './clients';
 
 export interface TrendingContext {
   topics: string[];
@@ -116,65 +108,6 @@ function extractTopicsFromSummary(summary: string): string[] {
   return topics.slice(0, 15); // Max 15 topics
 }
 
-// Get trending topics specifically about crypto
-export async function getCryptoTrends(): Promise<string[] | null> {
-  if (!grokClient) return null;
-
-  try {
-    const response = await grokClient.chat.completions.create({
-      model: 'grok-4',
-      messages: [{
-        role: 'user',
-        content: `What are crypto Twitter talking about right now? Focus on:
-- Token movements and price action
-- Protocol updates and launches
-- Narratives and memes
-- Whale activity
-
-List the specific topics trending in crypto Twitter.`,
-      }],
-      // @ts-expect-error - xAI-specific parameter
-      search_parameters: {
-        mode: 'on',
-        sources: [{ type: 'x' }],
-        max_search_results: 20,
-      },
-    });
-
-    const content = response.choices[0]?.message?.content || '';
-    return extractTopicsFromSummary(content);
-  } catch (err) {
-    logger.error('Failed to fetch crypto trends', { error: String(err) });
-    return null;
-  }
-}
-
-// Search for specific topic context
-export async function searchTopic(topic: string): Promise<string | null> {
-  if (!grokClient) return null;
-
-  try {
-    const response = await grokClient.chat.completions.create({
-      model: 'grok-4',
-      messages: [{
-        role: 'user',
-        content: `What are people on X saying about "${topic}" right now? Summarize the main perspectives and any notable tweets.`,
-      }],
-      // @ts-expect-error - xAI-specific parameter
-      search_parameters: {
-        mode: 'on',
-        sources: [{ type: 'x' }],
-        max_search_results: 15,
-      },
-    });
-
-    return response.choices[0]?.message?.content || null;
-  } catch (err) {
-    logger.error('Failed to search topic', { topic, error: String(err) });
-    return null;
-  }
-}
-
 // Format trending context for post generation prompt
 export function formatTrendingForPrompt(context: TrendingContext | null): string {
   if (!context || context.topics.length === 0) {
@@ -190,10 +123,8 @@ Don't force it - only mention if you have something genuine to say.
 `;
 }
 
-// Check if Grok is available
-export function isGrokAvailable(): boolean {
-  return !!grokClient;
-}
+// Re-export for convenience
+export { isGrokAvailable } from './clients';
 
 // Clear trend cache (for testing)
 export function clearTrendCache(): void {

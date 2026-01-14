@@ -4,11 +4,8 @@
  */
 
 import { TwitterApi } from 'twitter-api-v2';
-import Database from 'better-sqlite3';
 import { logger } from './logger';
-
-const DATA_DIR = process.env.DATA_DIR || './data';
-const db = new Database(`${DATA_DIR}/autonomous.db`);
+import { db } from './clients';
 
 // Initialize performance tracking table
 db.exec(`
@@ -26,6 +23,10 @@ db.exec(`
     impressions INTEGER DEFAULT 0,
     last_sampled INTEGER
   );
+
+  CREATE INDEX IF NOT EXISTS idx_post_performance_posted ON post_performance(posted_at);
+  CREATE INDEX IF NOT EXISTS idx_post_performance_type ON post_performance(post_type);
+  CREATE INDEX IF NOT EXISTS idx_post_performance_sampled ON post_performance(last_sampled);
 `);
 
 export interface PostPerformance {

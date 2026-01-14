@@ -5,20 +5,14 @@
 
 import { TwitterApi } from 'twitter-api-v2';
 import Anthropic from '@anthropic-ai/sdk';
-import Database from 'better-sqlite3';
 import { logger } from './logger';
+import { db } from './clients';
+import { ENGAGEMENT_CONFIG, TIMING, THRESHOLDS } from './config';
 import { getUnrespondedTweets, markTweetResponded, InfluencerTweet } from './influencer-monitor';
 import { selfReview } from './approval';
 import { QueuedPost } from './autonomous';
 
-const DATA_DIR = process.env.DATA_DIR || './data';
-const db = new Database(`${DATA_DIR}/autonomous.db`);
-
-// Configuration
-const AUTO_REPLY_ENABLED = process.env.AUTO_REPLY_ENABLED !== 'false';
-const AUTO_REPLY_MIN_SCORE = parseInt(process.env.AUTO_REPLY_MIN_SCORE || '7', 10);
-const MAX_REPLIES_PER_HOUR = parseInt(process.env.MAX_REPLIES_PER_HOUR || '4', 10);
-const MAX_QUOTES_PER_DAY = parseInt(process.env.MAX_QUOTES_PER_DAY || '3', 10);
+const { autoReplyEnabled, autoReplyMinScore, maxRepliesPerHour, maxQuotesPerDay } = ENGAGEMENT_CONFIG;
 
 // Track reply/quote counts
 interface RateLimitState {
@@ -29,15 +23,7 @@ interface RateLimitState {
   lastReplyTo: Map<string, number>; // username -> timestamp
 }
 
-const rateState: RateLimitState = {
-  repliesThisHour: 0,
-  hourStart: Date.now(),
-  quotesToday: 0,
-  dayStart: Date.now(),
-  lastReplyTo: new Map(),
-};
-
-// Initialize rate limit tracking table
+// Initialize tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS engagement_log (
     id INTEGER PRIMARY KEY,
@@ -48,7 +34,67 @@ db.exec(`
     content TEXT,
     created_at INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS rate_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_engagement_log_created ON engagement_log(created_at);
+  CREATE INDEX IF NOT EXISTS idx_engagement_log_type ON engagement_log(type);
 `);
+
+// Load persisted rate state or initialize fresh
+function loadRateState(): RateLimitState {
+  const now = Date.now();
+  const { hourMs, dayMs } = TIMING;
+
+  // Get saved state
+  const hourStartRow = db.prepare('SELECT value FROM rate_state WHERE key = ?').get('hour_start') as { value: string } | undefined;
+  const dayStartRow = db.prepare('SELECT value FROM rate_state WHERE key = ?').get('day_start') as { value: string } | undefined;
+
+  let hourStart = hourStartRow ? parseInt(hourStartRow.value, 10) : now;
+  let dayStart = dayStartRow ? parseInt(dayStartRow.value, 10) : now;
+
+  // Reset if hour/day has passed
+  if (now - hourStart > hourMs) hourStart = now;
+  if (now - dayStart > dayMs) dayStart = now;
+
+  // Count from engagement_log for this period
+  const repliesThisHour = (db.prepare(
+    'SELECT COUNT(*) as count FROM engagement_log WHERE type = ? AND created_at > ?'
+  ).get('reply', hourStart) as { count: number }).count;
+
+  const quotesToday = (db.prepare(
+    'SELECT COUNT(*) as count FROM engagement_log WHERE type = ? AND created_at > ?'
+  ).get('quote', dayStart) as { count: number }).count;
+
+  // Load per-user cooldowns from recent replies (last 24h)
+  const recentReplies = db.prepare(
+    'SELECT target_username, MAX(created_at) as last_reply FROM engagement_log WHERE type = ? AND created_at > ? GROUP BY target_username'
+  ).all('reply', now - dayMs) as Array<{ target_username: string; last_reply: number }>;
+
+  const lastReplyTo = new Map<string, number>();
+  for (const row of recentReplies) {
+    lastReplyTo.set(row.target_username, row.last_reply);
+  }
+
+  // Persist timestamps
+  const stmt = db.prepare('INSERT OR REPLACE INTO rate_state (key, value, updated_at) VALUES (?, ?, ?)');
+  stmt.run('hour_start', String(hourStart), now);
+  stmt.run('day_start', String(dayStart), now);
+
+  return {
+    repliesThisHour,
+    hourStart,
+    quotesToday,
+    dayStart,
+    lastReplyTo,
+  };
+}
+
+const rateState: RateLimitState = loadRateState();
 
 export interface ReplyOpportunity {
   tweet: InfluencerTweet;
@@ -63,21 +109,23 @@ export interface QuoteOpportunity {
   suggestedAngle: string;
 }
 
-// Reset hourly/daily counters if needed
+// Reset hourly/daily counters if needed and persist
 function checkRateLimitReset(): void {
   const now = Date.now();
-  const hourMs = 60 * 60 * 1000;
-  const dayMs = 24 * 60 * 60 * 1000;
+  const { hourMs, dayMs } = TIMING;
+  const stmt = db.prepare('INSERT OR REPLACE INTO rate_state (key, value, updated_at) VALUES (?, ?, ?)');
 
   if (now - rateState.hourStart > hourMs) {
     rateState.repliesThisHour = 0;
     rateState.hourStart = now;
+    stmt.run('hour_start', String(now), now);
   }
 
   if (now - rateState.dayStart > dayMs) {
     rateState.quotesToday = 0;
     rateState.dayStart = now;
     rateState.lastReplyTo.clear();
+    stmt.run('day_start', String(now), now);
   }
 }
 
@@ -85,45 +133,54 @@ function checkRateLimitReset(): void {
 function canReplyToUser(username: string): boolean {
   const lastReply = rateState.lastReplyTo.get(username);
   if (!lastReply) return true;
-  return (Date.now() - lastReply) > (24 * 60 * 60 * 1000);
+  return (Date.now() - lastReply) > TIMING.userCooldownMs;
 }
 
-// Find reply opportunities
+// Find reply opportunities (optimized - only calls API for top candidates)
 export async function findReplyOpportunities(anthropic: Anthropic): Promise<ReplyOpportunity[]> {
   checkRateLimitReset();
 
-  if (!AUTO_REPLY_ENABLED) return [];
-  if (rateState.repliesThisHour >= MAX_REPLIES_PER_HOUR) {
+  if (!autoReplyEnabled) return [];
+  if (rateState.repliesThisHour >= maxRepliesPerHour) {
     logger.debug('Reply rate limit reached');
     return [];
   }
 
-  // Get tweets from last 30 minutes (critical engagement window)
-  const recentTweets = getUnrespondedTweets(30);
-  const opportunities: ReplyOpportunity[] = [];
+  const windowMinutes = TIMING.replyWindowMinutes;
+  const recentTweets = getUnrespondedTweets(windowMinutes);
+
+  // First pass: filter and score without API calls
+  const candidates: Array<{ tweet: InfluencerTweet; score: number; urgency: number }> = [];
 
   for (const tweet of recentTweets) {
-    // Skip if we recently replied to this user
     if (!canReplyToUser(tweet.author_username)) continue;
 
     const minutesOld = (Date.now() - tweet.posted_at) / 60000;
     const engagementVelocity = tweet.engagement_score / Math.max(minutesOld, 1);
 
-    // Best opportunities: high engagement velocity, under 30 min old
-    if (engagementVelocity > 5 && minutesOld < 30) {
-      // Get suggested reply angle
-      const angle = await suggestReplyAngle(anthropic, tweet);
-
-      opportunities.push({
+    if (engagementVelocity > THRESHOLDS.minEngagementVelocity && minutesOld < windowMinutes) {
+      candidates.push({
         tweet,
-        score: engagementVelocity * (30 - minutesOld) / 10,
-        urgency: Math.max(0, 30 - minutesOld),
-        suggestedAngle: angle,
+        score: engagementVelocity * (windowMinutes - minutesOld) / 10,
+        urgency: Math.max(0, windowMinutes - minutesOld),
       });
     }
   }
 
-  return opportunities.sort((a, b) => b.score - a.score).slice(0, 3);
+  // Sort and take top 3 before API calls
+  const topCandidates = candidates.sort((a, b) => b.score - a.score).slice(0, 3);
+
+  // Only call API for top candidates
+  const opportunities: ReplyOpportunity[] = [];
+  for (const candidate of topCandidates) {
+    const angle = await suggestReplyAngle(anthropic, candidate.tweet);
+    opportunities.push({
+      ...candidate,
+      suggestedAngle: angle,
+    });
+  }
+
+  return opportunities;
 }
 
 // Suggest what angle to take in a reply
@@ -219,7 +276,7 @@ export async function postStrategicReply(
 
   const review = await selfReview(anthropic, mockPost);
 
-  if (review.decision !== 'APPROVE' || review.score < AUTO_REPLY_MIN_SCORE) {
+  if (review.decision !== 'APPROVE' || review.score < autoReplyMinScore) {
     logger.info('Reply rejected by self-review', {
       to: opportunity.tweet.author_username,
       score: review.score,
@@ -266,47 +323,47 @@ export async function postStrategicReply(
 }
 
 // Find quote tweet opportunities (1-4 hours old, high engagement)
+// Only calls API for the top candidate since we quote one at a time
 export async function findQuoteOpportunities(anthropic: Anthropic): Promise<QuoteOpportunity[]> {
   checkRateLimitReset();
 
-  if (rateState.quotesToday >= MAX_QUOTES_PER_DAY) {
+  if (rateState.quotesToday >= maxQuotesPerDay) {
     logger.debug('Quote rate limit reached');
     return [];
   }
 
-  // Get tweets 1-4 hours old with high engagement
-  const cutoffStart = Date.now() - (4 * 60 * 60 * 1000);
-  const cutoffEnd = Date.now() - (1 * 60 * 60 * 1000);
+  // Get tweets in quote window with high engagement
+  const cutoffStart = Date.now() - TIMING.quoteMaxAgeMs;
+  const cutoffEnd = Date.now() - TIMING.quoteMinAgeMs;
 
   const rows = db.prepare(`
     SELECT * FROM influencer_tweets
     WHERE responded = 0
     AND posted_at > ?
     AND posted_at < ?
-    AND engagement_score > 500
+    AND engagement_score > ?
     ORDER BY engagement_score DESC
     LIMIT 5
-  `).all(cutoffStart, cutoffEnd) as Array<Omit<InfluencerTweet, 'topics'> & { topics: string }>;
+  `).all(cutoffStart, cutoffEnd, THRESHOLDS.minQuoteEngagementScore) as Array<Omit<InfluencerTweet, 'topics'> & { topics: string }>;
 
   const tweets = rows.map(row => ({
     ...row,
     topics: JSON.parse(row.topics || '[]'),
   }));
 
-  const opportunities: QuoteOpportunity[] = [];
+  // Filter by cooldown first
+  const eligible = tweets.filter(t => canReplyToUser(t.author_username));
+  if (eligible.length === 0) return [];
 
-  for (const tweet of tweets) {
-    if (!canReplyToUser(tweet.author_username)) continue;
+  // Only call API for top candidate (we only quote one at a time)
+  const topTweet = eligible[0];
+  const angle = await suggestReplyAngle(anthropic, topTweet);
 
-    const angle = await suggestReplyAngle(anthropic, tweet);
-    opportunities.push({
-      tweet,
-      score: tweet.engagement_score,
-      suggestedAngle: angle,
-    });
-  }
-
-  return opportunities;
+  return [{
+    tweet: topTweet,
+    score: topTweet.engagement_score,
+    suggestedAngle: angle,
+  }];
 }
 
 // Generate quote tweet content
@@ -346,34 +403,124 @@ Suggested angle: ${opportunity.suggestedAngle}`,
   }
 }
 
-// Strategic reply loop - check every 5 minutes
+// Post a quote tweet (with self-review)
+export async function postQuoteTweet(
+  twitter: TwitterApi,
+  anthropic: Anthropic,
+  opportunity: QuoteOpportunity
+): Promise<boolean> {
+  const content = await generateQuoteContent(anthropic, opportunity);
+  if (!content) return false;
+
+  const mockPost: QueuedPost = {
+    id: 0,
+    content,
+    post_type: 'quote',
+    context: null,
+    generated_at: Date.now(),
+    status: 'pending',
+    approved_at: null,
+    posted_at: null,
+    tweet_id: null,
+    rejection_reason: null,
+    image_path: null,
+  };
+
+  const review = await selfReview(anthropic, mockPost);
+
+  if (review.decision !== 'APPROVE' || review.score < autoReplyMinScore) {
+    logger.info('Quote rejected by self-review', {
+      original: opportunity.tweet.author_username,
+      score: review.score,
+      reason: review.reason,
+    });
+    return false;
+  }
+
+  try {
+    const result = await twitter.v2.tweet({
+      text: content,
+      quote_tweet_id: opportunity.tweet.tweet_id,
+    });
+
+    if (result.data?.id) {
+      rateState.quotesToday++;
+      rateState.lastReplyTo.set(opportunity.tweet.author_username, Date.now());
+      markTweetResponded(opportunity.tweet.tweet_id);
+
+      db.prepare(`
+        INSERT INTO engagement_log (type, target_tweet_id, target_username, our_tweet_id, content, created_at)
+        VALUES ('quote', ?, ?, ?, ?, ?)
+      `).run(
+        opportunity.tweet.tweet_id,
+        opportunity.tweet.author_username,
+        result.data.id,
+        content,
+        Date.now()
+      );
+
+      logger.info('Posted quote tweet', {
+        original: opportunity.tweet.author_username,
+        tweetId: result.data.id,
+        score: review.score,
+      });
+
+      return true;
+    }
+  } catch (err) {
+    logger.error('Failed to post quote', { error: String(err) });
+  }
+
+  return false;
+}
+
+// Strategic engagement loop - replies and quotes on separate schedules
 export async function startEngagementLoop(
   twitter: TwitterApi,
   anthropic: Anthropic
 ): Promise<void> {
   logger.info('Starting engagement optimizer...');
 
-  const runCycle = async () => {
+  const runReplyCycle = async () => {
     try {
-      // Find and post strategic replies
       const opportunities = await findReplyOpportunities(anthropic);
 
       for (const opp of opportunities.slice(0, 2)) {
-        if (opp.urgency < 5) continue; // Too late, skip
+        if (opp.urgency < 5) continue;
 
         await postStrategicReply(twitter, anthropic, opp);
-        await new Promise(r => setTimeout(r, 3000)); // Rate limit protection
+        await new Promise(r => setTimeout(r, 3000));
       }
     } catch (err) {
-      logger.error('Engagement cycle failed', { error: String(err) });
+      logger.error('Reply cycle failed', { error: String(err) });
     }
 
-    // Run every 5 minutes
-    setTimeout(runCycle, 5 * 60 * 1000);
+    setTimeout(runReplyCycle, TIMING.replyCycleMs);
   };
 
-  // Start after 2 minutes (let monitoring populate first)
-  setTimeout(runCycle, 2 * 60 * 1000);
+  const runQuoteCycle = async () => {
+    try {
+      checkRateLimitReset();
+
+      if (rateState.quotesToday >= maxQuotesPerDay) {
+        logger.debug('Quote limit reached for today');
+      } else {
+        const opportunities = await findQuoteOpportunities(anthropic);
+
+        if (opportunities.length > 0) {
+          await postQuoteTweet(twitter, anthropic, opportunities[0]);
+        }
+      }
+    } catch (err) {
+      logger.error('Quote cycle failed', { error: String(err) });
+    }
+
+    setTimeout(runQuoteCycle, TIMING.quoteCycleMs);
+  };
+
+  // Stagger starts
+  setTimeout(runReplyCycle, 2 * 60 * 1000);
+  setTimeout(runQuoteCycle, 10 * 60 * 1000);
 }
 
 // Get engagement stats
