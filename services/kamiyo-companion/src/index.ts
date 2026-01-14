@@ -441,7 +441,7 @@ async function generateResponse(
           trackLatency(anthropicLatency, {}, () =>
             anthropic.messages.create({
               model: 'claude-sonnet-4-20250514',
-              max_tokens: 280,
+              max_tokens: 100,
               system: systemWithContext,
               messages,
             })
@@ -465,19 +465,11 @@ async function generateResponse(
       // Use Claude to synthesize both perspectives into one cohesive response
       const synthesisResponse = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 280,
-        system: `Combine these two AI perspectives into one cohesive 280-char response.
-Keep Claude's analysis but add Grok's spice. No labels like "Claude:" or "Grok:".
-One voice, best of both.`,
+        max_tokens: 100,
+        system: `Combine into ONE punchy response. MAX 250 characters. No labels.`,
         messages: [{
           role: 'user',
-          content: `User asked: "${userMessage}"
-
-Claude's take: ${claudeText}
-
-Grok's take: ${grokTake}
-
-Synthesize into one punchy response under 280 chars:`
+          content: `Q: "${userMessage}"\nClaude: ${claudeText}\nGrok: ${grokTake}\n\nCombine (max 250 chars):`
         }]
       });
 
@@ -523,35 +515,16 @@ async function postReply(
   text: string
 ): Promise<string | null> {
   try {
-    if (text.length <= 280) {
-      const reply = await twitter.v2.reply(text, tweetId);
-      return reply.data.id;
+    // Hard truncate to 280 chars - no threading, keeps it clean
+    let truncated = text;
+    if (truncated.length > 280) {
+      const splitPoint = truncated.lastIndexOf(' ', 277);
+      truncated = truncated.slice(0, splitPoint > 0 ? splitPoint : 277) + '...';
+      logger.warn('Response truncated', { original: text.length, truncated: truncated.length });
     }
 
-    // Split into thread
-    const chunks: string[] = [];
-    let remaining = text;
-
-    while (remaining.length > 0) {
-      if (remaining.length <= 280) {
-        chunks.push(remaining);
-        break;
-      }
-
-      let splitPoint = remaining.lastIndexOf(' ', 277);
-      if (splitPoint === -1) splitPoint = 277;
-
-      chunks.push(remaining.slice(0, splitPoint) + '...');
-      remaining = remaining.slice(splitPoint + 1);
-    }
-
-    let lastTweetId = tweetId;
-    for (const chunk of chunks) {
-      const reply = await twitter.v2.reply(chunk, lastTweetId);
-      lastTweetId = reply.data.id;
-    }
-
-    return lastTweetId;
+    const reply = await twitter.v2.reply(truncated, tweetId);
+    return reply.data.id;
   } catch (err) {
     logger.error('Failed to post reply', { error: String(err) });
     return null;
