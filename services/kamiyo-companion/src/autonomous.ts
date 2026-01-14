@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
 import { getContext, formatContextForPrompt } from './crypto-context';
+import { generateMeme, isImageGenAvailable } from './image-gen';
 import Database from 'better-sqlite3';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -23,7 +24,8 @@ db.exec(`
     approved_at INTEGER,
     posted_at INTEGER,
     tweet_id TEXT,
-    rejection_reason TEXT
+    rejection_reason TEXT,
+    image_path TEXT
   );
 
   CREATE TABLE IF NOT EXISTS personality_state (
@@ -136,6 +138,7 @@ export interface QueuedPost {
   posted_at: number | null;
   tweet_id: string | null;
   rejection_reason: string | null;
+  image_path: string | null;
 }
 
 export interface PersonalityState {
@@ -189,6 +192,48 @@ export function getTopThemes(limit = 5): Array<{ theme: string; intensity: numbe
   return db.prepare('SELECT theme, intensity FROM recurring_themes ORDER BY intensity DESC, last_used DESC LIMIT ?').all(limit) as Array<{ theme: string; intensity: number }>;
 }
 
+// Topics that warrant visual content
+const IMAGE_WORTHY_TOPICS = [
+  'market', 'whale', 'milestone', 'launch', 'update', 'chart', 'trend',
+  'pump', 'dump', 'ath', 'volume', 'liquidity', 'announcement'
+];
+
+// Decide if a post should include an image
+async function shouldIncludeImage(anthropic: Anthropic, content: string): Promise<{ include: boolean; topic: string | null }> {
+  if (!isImageGenAvailable()) return { include: false, topic: null };
+
+  // Random chance: 1 in 5 posts get an image regardless of topic
+  const randomChance = Math.random() < 0.2;
+
+  // Topic-triggered: check if content mentions image-worthy topics
+  const lowerContent = content.toLowerCase();
+  const matchedTopic = IMAGE_WORTHY_TOPICS.find(topic => lowerContent.includes(topic));
+
+  if (randomChance || matchedTopic) {
+    // Ask Claude to extract a visual topic from the content
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 30,
+        system: 'Extract a 2-4 word visual topic from this tweet for image generation. Return ONLY the topic, nothing else. If no clear visual topic, return "abstract crypto".',
+        messages: [{ role: 'user', content }],
+      });
+
+      const topic = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map(b => b.text)
+        .join('')
+        .trim();
+
+      return { include: true, topic: topic || 'abstract crypto' };
+    } catch {
+      return { include: randomChance, topic: 'abstract crypto' };
+    }
+  }
+
+  return { include: false, topic: null };
+}
+
 // Generate a new autonomous post
 export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
   const cryptoCtx = await getContext();
@@ -219,13 +264,30 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
   // Enforce character limit
   const finalContent = content.length > 280 ? content.slice(0, 277) + '...' : content;
 
+  // Decide if this post should have an image
+  const imageDecision = await shouldIncludeImage(anthropic, finalContent);
+  let imagePath: string | null = null;
+
+  if (imageDecision.include && imageDecision.topic) {
+    logger.info('Generating image for post', { topic: imageDecision.topic });
+    const image = await generateMeme(anthropic, imageDecision.topic);
+    if (image) {
+      imagePath = image.path;
+      logger.info('Image generated', { path: imagePath });
+    }
+  }
+
   // Insert into queue
   const result = db.prepare(`
-    INSERT INTO post_queue (content, post_type, context, generated_at, status)
-    VALUES (?, 'tweet', ?, ?, 'pending')
-  `).run(finalContent, contextStr, Date.now());
+    INSERT INTO post_queue (content, post_type, context, generated_at, status, image_path)
+    VALUES (?, 'tweet', ?, ?, 'pending', ?)
+  `).run(finalContent, contextStr, Date.now(), imagePath);
 
-  logger.info('Generated autonomous post', { id: result.lastInsertRowid, content: finalContent });
+  logger.info('Generated autonomous post', {
+    id: result.lastInsertRowid,
+    content: finalContent.slice(0, 50),
+    hasImage: !!imagePath
+  });
 
   return {
     id: result.lastInsertRowid as number,
@@ -238,6 +300,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
     posted_at: null,
     tweet_id: null,
     rejection_reason: null,
+    image_path: imagePath,
   };
 }
 
@@ -265,8 +328,8 @@ export async function generateQuoteTweet(anthropic: Anthropic, quotedContent: st
   const finalContent = content.length > 200 ? content.slice(0, 197) + '...' : content;
 
   const result = db.prepare(`
-    INSERT INTO post_queue (content, post_type, context, generated_at, status)
-    VALUES (?, 'quote', ?, ?, 'pending')
+    INSERT INTO post_queue (content, post_type, context, generated_at, status, image_path)
+    VALUES (?, 'quote', ?, ?, 'pending', NULL)
   `).run(finalContent, JSON.stringify({ quotedContent, quotedAuthor }), Date.now());
 
   logger.info('Generated quote tweet', { id: result.lastInsertRowid, content: finalContent });
@@ -282,6 +345,7 @@ export async function generateQuoteTweet(anthropic: Anthropic, quotedContent: st
     posted_at: null,
     tweet_id: null,
     rejection_reason: null,
+    image_path: null,
   };
 }
 

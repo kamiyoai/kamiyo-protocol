@@ -847,13 +847,39 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
           if (shouldPostNow) {
             const post = approved[0];
             if (post.post_type === 'tweet') {
-              const result = await twitter.v2.tweet(post.content);
+              let mediaId: string | undefined;
+
+              // Upload image if present
+              if (post.image_path) {
+                try {
+                  const fs = await import('fs');
+                  if (fs.existsSync(post.image_path)) {
+                    const mediaBuffer = fs.readFileSync(post.image_path);
+                    const uploaded = await twitter.v1.uploadMedia(mediaBuffer, {
+                      mimeType: 'image/png',
+                    });
+                    mediaId = uploaded;
+                    logger.info('Uploaded media', { mediaId, path: post.image_path });
+                  }
+                } catch (uploadErr) {
+                  logger.error('Media upload failed', { error: String(uploadErr) });
+                }
+              }
+
+              // Post tweet with or without media
+              const result = mediaId
+                ? await twitter.v2.tweet({
+                    text: post.content,
+                    media: { media_ids: [mediaId] as [string] },
+                  })
+                : await twitter.v2.tweet(post.content);
               if (result.data?.id) {
                 markPosted(post.id, result.data.id);
                 lastPostTime = now;
                 logger.info('Posted autonomous tweet', {
                   id: post.id,
                   tweetId: result.data.id,
+                  hasImage: !!mediaId,
                   hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1)
                 });
               }
