@@ -102,7 +102,7 @@ import {
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
 import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
-import { startContextRefresh, stopContextRefresh, getContext, formatContextForPrompt } from './crypto-context';
+import { startContextRefresh, stopContextRefresh, getContext, formatContextForPrompt, lookupToken, formatTokenData } from './crypto-context';
 import { stopCacheCleanup } from './cache';
 import { startMaintenanceSchedule, stopMaintenanceSchedule } from './maintenance';
 
@@ -422,7 +422,26 @@ async function generateResponse(
   try {
     // Get current crypto context (prices, trending, headlines)
     const cryptoCtx = await getContext();
-    const contextStr = formatContextForPrompt(cryptoCtx);
+    let contextStr = formatContextForPrompt(cryptoCtx);
+
+    // Look up any tokens mentioned in the message (e.g., $BTC, $SOL, $PEPE)
+    const tokenMentions = userMessage.match(/\$([A-Za-z]{2,10})/g);
+    if (tokenMentions) {
+      const uniqueTokens = [...new Set(tokenMentions.map(t => t.slice(1).toUpperCase()))];
+      // Skip KAMIYO since we already have it, limit to 3 lookups
+      const tokensToLookup = uniqueTokens.filter(t => t !== 'KAMIYO').slice(0, 3);
+
+      if (tokensToLookup.length > 0) {
+        const tokenResults = await Promise.all(
+          tokensToLookup.map(t => lookupToken(t))
+        );
+        const foundTokens = tokenResults.filter((t): t is NonNullable<typeof t> => t !== null);
+        if (foundTokens.length > 0) {
+          contextStr += '\n\nRequested tokens:\n' + foundTokens.map(formatTokenData).join('\n');
+        }
+      }
+    }
+
     const systemWithContext = `${SYSTEM_PROMPT}\n\n${contextStr}`;
 
     // Call Claude and Grok in parallel
