@@ -111,7 +111,7 @@ import { lookupWallet, formatWalletSummary, lookupTransaction, formatTransaction
 import { getThreadContext, formatThreadContext, shouldReadThread } from './thread-reader';
 import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
 import { analyzeSentiment, getSentimentTrend, aggregateHourlySentiment, cleanupOldSentiment } from './sentiment';
-import { startApprovalServer } from './approval-api';
+import { runApprovalCycle, APPROVAL_MODE } from './approval';
 import { generateMeme, isImageGenAvailable, cleanupOldImages } from './image-gen';
 import { startConversation, runConversation, endConversation, AGENTS } from './multi-agent';
 
@@ -798,9 +798,10 @@ async function startMentionStream(
 // Track shutdown state
 let isShuttingDown = false;
 
-// Autonomous posting loop - generates posts, user approves via API
+// Autonomous posting loop - generates posts, Claude reviews, posts approved content
 async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): Promise<void> {
   logger.info('Starting autonomous posting loop...');
+  logger.info(`Approval mode: ${APPROVAL_MODE}`);
 
   // Generate new posts periodically (every 2-4 hours)
   const generateLoop = async () => {
@@ -811,6 +812,9 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
       // Generate a new post
       const post = await generatePost(anthropic);
       logger.info('Generated autonomous post', { id: post.id, content: post.content.slice(0, 50) });
+
+      // Run approval cycle (self-review + DM if needed)
+      await runApprovalCycle(anthropic, twitter);
     } catch (err) {
       logger.error('Autonomous generation failed', { error: String(err) });
     }
@@ -843,9 +847,23 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
     setTimeout(postLoop, 5 * 60 * 1000);
   };
 
+  // Check for DM approvals periodically (if using dm or hybrid mode)
+  const dmCheckLoop = async () => {
+    if (APPROVAL_MODE === 'dm' || APPROVAL_MODE === 'hybrid') {
+      try {
+        await runApprovalCycle(anthropic, twitter);
+      } catch (err) {
+        logger.error('DM approval check failed', { error: String(err) });
+      }
+    }
+    // Check every 2 minutes
+    setTimeout(dmCheckLoop, 2 * 60 * 1000);
+  };
+
   // Delay start to avoid hitting rate limits on startup
   setTimeout(generateLoop, 60 * 1000);
   setTimeout(postLoop, 2 * 60 * 1000);
+  setTimeout(dmCheckLoop, 3 * 60 * 1000);
 }
 
 // Whale alert monitoring
@@ -947,10 +965,6 @@ async function main(): Promise<void> {
   // Start database maintenance schedule (daily cleanup + backup)
   startMaintenanceSchedule();
 
-  // Start approval API for autonomous posts
-  const approvalPort = parseInt(process.env.APPROVAL_PORT || '3002', 10);
-  startApprovalServer(approvalPort);
-
   // Start background tasks (sentiment, cleanup)
   startBackgroundTasks();
 
@@ -964,8 +978,8 @@ async function main(): Promise<void> {
   await startMentionStream(twitter, anthropic);
 
   logger.info('KAMIYO is fully operational');
+  logger.info(`Approval mode: ${APPROVAL_MODE} (auto/dm/hybrid)`);
   logger.info('Features: mentions, autonomous posts, whale alerts, wallet lookup, sentiment');
-  logger.info(`Approval dashboard: http://localhost:${approvalPort}?key=${process.env.APPROVAL_API_KEY || 'dev-key'}`);
 }
 
 main().catch((err) => {
