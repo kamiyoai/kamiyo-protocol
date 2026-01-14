@@ -1,5 +1,16 @@
+/**
+ * AI-powered thesis parser with retry logic and input validation.
+ */
+
 import Anthropic from '@anthropic-ai/sdk';
-import { Strategy, Direction, SUPPORTED_ASSETS } from './vibe-types';
+import {
+  Strategy, Direction, SUPPORTED_ASSETS, ParseError,
+  validateStrategy, ValidationError
+} from './vibe-types';
+import { withRetry, CircuitBreaker, Logger, nullLogger } from './vibe-utils';
+
+const MAX_THESIS_LENGTH = 500;
+const MIN_THESIS_LENGTH = 10;
 
 const SYSTEM_PROMPT = `You are a trading thesis parser. Convert natural language trading ideas into structured JSON.
 
@@ -37,73 +48,150 @@ Rules:
 
 Return ONLY valid JSON, no explanation.`;
 
-export class StrategyValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'StrategyValidationError';
-  }
-}
-
-export function validateStrategy(s: Strategy): void {
-  if (!SUPPORTED_ASSETS.includes(s.asset)) {
-    throw new StrategyValidationError(`Unsupported asset: ${s.asset}`);
-  }
-  if (s.direction !== 'long' && s.direction !== 'short') {
-    throw new StrategyValidationError(`Invalid direction: ${s.direction}`);
-  }
-  if (s.leverage < 1 || s.leverage > 20) {
-    throw new StrategyValidationError(`Leverage must be 1-20, got ${s.leverage}`);
-  }
-  if (s.sizeUsd < 10 || s.sizeUsd > 100_000) {
-    throw new StrategyValidationError(`Size must be $10-$100,000`);
-  }
-  if (s.risk.stopLossPercent !== undefined && (s.risk.stopLossPercent >= 0 || s.risk.stopLossPercent < -1)) {
-    throw new StrategyValidationError('Stop loss must be between -100% and 0%');
-  }
-  if (s.risk.takeProfitPercent !== undefined && s.risk.takeProfitPercent <= 0) {
-    throw new StrategyValidationError('Take profit must be positive');
-  }
+export interface ThesisParserConfig {
+  apiKey?: string;
+  maxRetries?: number;
+  timeoutMs?: number;
+  logger?: Logger;
 }
 
 export class ThesisParser {
   private client: Anthropic;
+  private circuit: CircuitBreaker;
+  private logger: Logger;
+  private maxRetries: number;
+  private timeoutMs: number;
 
-  constructor(apiKey?: string) {
-    this.client = new Anthropic({ apiKey });
+  constructor(config: ThesisParserConfig = {}) {
+    this.client = new Anthropic({ apiKey: config.apiKey });
+    this.logger = config.logger || nullLogger;
+    this.maxRetries = config.maxRetries || 3;
+    this.timeoutMs = config.timeoutMs || 30000;
+    this.circuit = new CircuitBreaker({
+      failureThreshold: 3,
+      resetTimeoutMs: 60000,
+    }, this.logger);
   }
 
   async parse(thesis: string): Promise<Strategy> {
-    const response = await this.client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: thesis }],
+    this.validateInput(thesis);
+
+    const sanitized = this.sanitize(thesis);
+    this.logger.info('Parsing thesis', { length: sanitized.length });
+
+    const parsed = await this.circuit.execute(
+      () => this.callAI(sanitized),
+      'thesis_parse'
+    );
+
+    const strategy = this.buildStrategy(sanitized, parsed);
+    validateStrategy(strategy);
+
+    this.logger.info('Strategy parsed successfully', {
+      id: strategy.id,
+      asset: strategy.asset,
+      direction: strategy.direction,
     });
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    return strategy;
+  }
 
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      throw new Error(`Failed to parse AI response: ${text}`);
+  private validateInput(thesis: string): void {
+    if (!thesis || typeof thesis !== 'string') {
+      throw new ValidationError('Thesis must be a non-empty string');
+    }
+    if (thesis.length < MIN_THESIS_LENGTH) {
+      throw new ValidationError(`Thesis too short (min ${MIN_THESIS_LENGTH} chars)`);
+    }
+    if (thesis.length > MAX_THESIS_LENGTH) {
+      throw new ValidationError(`Thesis too long (max ${MAX_THESIS_LENGTH} chars)`);
+    }
+  }
+
+  private sanitize(thesis: string): string {
+    return thesis
+      .trim()
+      .replace(/[\x00-\x1F\x7F]/g, '')
+      .substring(0, MAX_THESIS_LENGTH);
+  }
+
+  private async callAI(thesis: string): Promise<ParsedThesis> {
+    return withRetry(
+      async () => {
+        const response = await this.client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: thesis }],
+        });
+
+        const text = response.content[0].type === 'text'
+          ? response.content[0].text
+          : '';
+
+        if (!text) {
+          throw new ParseError('Empty response from AI');
+        }
+
+        try {
+          return JSON.parse(text) as ParsedThesis;
+        } catch {
+          throw new ParseError('Invalid JSON from AI', { response: text.substring(0, 200) });
+        }
+      },
+      'ai_parse',
+      {
+        maxAttempts: this.maxRetries,
+        timeoutMs: this.timeoutMs,
+        retryOn: (err) => {
+          if (err instanceof ValidationError) return false;
+          if (err.message.includes('rate_limit')) return true;
+          if (err.message.includes('overloaded')) return true;
+          return true;
+        },
+      },
+      this.logger
+    );
+  }
+
+  private buildStrategy(thesis: string, parsed: ParsedThesis): Strategy {
+    if (!parsed.asset) {
+      throw new ParseError('AI did not provide asset');
+    }
+    if (!parsed.direction) {
+      throw new ParseError('AI did not provide direction');
     }
 
-    const strategy: Strategy = {
+    return {
       id: crypto.randomUUID(),
       thesis,
-      asset: parsed.asset,
-      direction: parsed.direction as Direction,
-      leverage: parsed.leverage || 1,
-      sizeUsd: parsed.sizeUsd || 1000,
+      asset: parsed.asset.toUpperCase(),
+      direction: parsed.direction.toLowerCase() as Direction,
+      leverage: Math.max(1, Math.min(20, parsed.leverage || 1)),
+      sizeUsd: Math.max(10, Math.min(100000, parsed.sizeUsd || 1000)),
       trigger: parsed.trigger || {},
-      risk: parsed.risk || {},
+      risk: {
+        stopLossPercent: parsed.risk?.stopLossPercent,
+        takeProfitPercent: parsed.risk?.takeProfitPercent,
+        trailingStopPercent: parsed.risk?.trailingStopPercent,
+      },
       expiresAt: parsed.expiresAt ?? undefined,
       status: 'pending',
       createdAt: Date.now(),
     };
-
-    validateStrategy(strategy);
-    return strategy;
   }
+
+  getCircuitState(): string {
+    return this.circuit.getState();
+  }
+}
+
+interface ParsedThesis {
+  asset: string;
+  direction: string;
+  leverage?: number;
+  sizeUsd?: number;
+  trigger?: Strategy['trigger'];
+  risk?: Strategy['risk'];
+  expiresAt?: number | null;
 }
