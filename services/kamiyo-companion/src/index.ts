@@ -648,18 +648,6 @@ async function startMentionStream(
             continue;
           }
 
-          // Never respond to replies to our own tweets (prevents self-conversation loops)
-          const tweetWithReply = tweet as typeof tweet & { in_reply_to_user_id?: string };
-          if (tweetWithReply.in_reply_to_user_id === myId) {
-            logger.info('Skipping reply to own tweet', {
-              tweetId: tweet.id,
-              authorId: tweet.author_id,
-              inReplyTo: tweetWithReply.in_reply_to_user_id,
-            });
-            lastSeenId = tweet.id;
-            setBotState('lastSeenId', lastSeenId);
-            continue;
-          }
 
           // Mark as processed BEFORE handling (prevents race conditions)
           markProcessed(tweet.id);
