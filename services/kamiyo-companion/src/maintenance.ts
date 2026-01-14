@@ -3,7 +3,7 @@ import { logger } from './logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DATA_DIR = './data';
+const DATA_DIR = process.env.DATA_DIR || './data';
 const BACKUP_DIR = `${DATA_DIR}/backups`;
 const DB_PATH = `${DATA_DIR}/companion.db`;
 
