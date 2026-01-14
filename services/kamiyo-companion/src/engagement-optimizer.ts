@@ -11,8 +11,9 @@ import { ENGAGEMENT_CONFIG, TIMING, THRESHOLDS } from './config';
 import { getUnrespondedTweets, markTweetResponded, InfluencerTweet } from './influencer-monitor';
 import { selfReview } from './approval';
 import { QueuedPost } from './autonomous';
+import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite } from './rate-limiter';
 
-const { autoReplyEnabled, autoReplyMinScore, maxRepliesPerHour, maxQuotesPerDay } = ENGAGEMENT_CONFIG;
+const { proactiveRepliesEnabled, autoReplyEnabled, autoReplyMinScore, maxRepliesPerHour, maxQuotesPerDay } = ENGAGEMENT_CONFIG;
 
 // Track reply/quote counts
 interface RateLimitState {
@@ -140,6 +141,11 @@ function canReplyToUser(username: string): boolean {
 export async function findReplyOpportunities(anthropic: Anthropic): Promise<ReplyOpportunity[]> {
   checkRateLimitReset();
 
+  // Check if proactive replies are enabled
+  if (!proactiveRepliesEnabled) {
+    logger.debug('Proactive replies disabled');
+    return [];
+  }
   if (!autoReplyEnabled) return [];
   if (rateState.repliesThisHour >= maxRepliesPerHour) {
     logger.debug('Reply rate limit reached');
@@ -285,9 +291,23 @@ export async function postStrategicReply(
     return false;
   }
 
+  // Check global rate limit
+  if (isRateLimited()) {
+    logger.debug('Skipping strategic reply - global rate limit active');
+    return false;
+  }
+
+  // Wait for write cooldown
+  if (!canWrite()) {
+    await waitForWrite();
+  }
+
   try {
     // Post the reply
     const result = await twitter.v2.reply(reply, opportunity.tweet.tweet_id);
+
+    recordSuccess();
+    recordWrite();
 
     if (result.data?.id) {
       // Update tracking
@@ -315,7 +335,13 @@ export async function postStrategicReply(
 
       return true;
     }
-  } catch (err) {
+  } catch (err: unknown) {
+    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+    if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
+      recordRateLimit(error.rateLimit?.reset);
+      logger.warn('Strategic reply rate limited', { to: opportunity.tweet.author_username });
+      return false;
+    }
     logger.error('Failed to post reply', { error: String(err) });
   }
 
@@ -327,6 +353,11 @@ export async function postStrategicReply(
 export async function findQuoteOpportunities(anthropic: Anthropic): Promise<QuoteOpportunity[]> {
   checkRateLimitReset();
 
+  // Check if proactive engagement is enabled
+  if (!proactiveRepliesEnabled) {
+    logger.debug('Proactive engagement disabled');
+    return [];
+  }
   if (rateState.quotesToday >= maxQuotesPerDay) {
     logger.debug('Quote rate limit reached');
     return [];
@@ -437,11 +468,25 @@ export async function postQuoteTweet(
     return false;
   }
 
+  // Check global rate limit
+  if (isRateLimited()) {
+    logger.debug('Skipping quote tweet - global rate limit active');
+    return false;
+  }
+
+  // Wait for write cooldown
+  if (!canWrite()) {
+    await waitForWrite();
+  }
+
   try {
     const result = await twitter.v2.tweet({
       text: content,
       quote_tweet_id: opportunity.tweet.tweet_id,
     });
+
+    recordSuccess();
+    recordWrite();
 
     if (result.data?.id) {
       rateState.quotesToday++;
@@ -467,7 +512,13 @@ export async function postQuoteTweet(
 
       return true;
     }
-  } catch (err) {
+  } catch (err: unknown) {
+    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+    if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
+      recordRateLimit(error.rateLimit?.reset);
+      logger.warn('Quote tweet rate limited', { original: opportunity.tweet.author_username });
+      return false;
+    }
     logger.error('Failed to post quote', { error: String(err) });
   }
 
@@ -482,11 +533,21 @@ export async function startEngagementLoop(
   logger.info('Starting engagement optimizer...');
 
   const runReplyCycle = async () => {
+    // Check global rate limit before running cycle
+    if (isRateLimited()) {
+      logger.debug('Skipping reply cycle - global rate limit active');
+      setTimeout(runReplyCycle, TIMING.replyCycleMs);
+      return;
+    }
+
     try {
       const opportunities = await findReplyOpportunities(anthropic);
 
       for (const opp of opportunities.slice(0, 2)) {
         if (opp.urgency < 5) continue;
+
+        // Recheck rate limit between posts
+        if (isRateLimited()) break;
 
         await postStrategicReply(twitter, anthropic, opp);
         await new Promise(r => setTimeout(r, 3000));
@@ -499,6 +560,13 @@ export async function startEngagementLoop(
   };
 
   const runQuoteCycle = async () => {
+    // Check global rate limit before running cycle
+    if (isRateLimited()) {
+      logger.debug('Skipping quote cycle - global rate limit active');
+      setTimeout(runQuoteCycle, TIMING.quoteCycleMs);
+      return;
+    }
+
     try {
       checkRateLimitReset();
 

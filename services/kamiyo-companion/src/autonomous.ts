@@ -271,7 +271,8 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
     .map(b => b.text)
     .join('')
     .trim()
-    .replace(/^["']|["']$/g, ''); // Remove quotes if wrapped
+    .replace(/^["']|["']$/g, '') // Remove quotes if wrapped
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]/gu, ''); // Strip emojis
 
   // Enforce character limit
   const finalContent = content.length > 280 ? content.slice(0, 277) + '...' : content;

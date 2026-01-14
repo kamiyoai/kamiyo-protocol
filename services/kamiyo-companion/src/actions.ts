@@ -10,6 +10,7 @@ import {
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import { createHash } from 'crypto';
+import { KAMIYO_PROGRAM_ID } from '@kamiyo/sdk';
 import { tryRecordPayment, updateUserTier, recordEscrowSession, getEscrowSession } from './db';
 import { TIERS, getRequiredPayment } from './tiers';
 import { logger } from './logger';
@@ -18,11 +19,6 @@ import 'dotenv/config';
 
 // API key for webhook authentication
 const API_SECRET = process.env.COMPANION_API_SECRET;
-
-// Main KAMIYO program ID (has escrow built in)
-const KAMIYO_PROGRAM_ID = new PublicKey(
-  process.env.KAMIYO_PROGRAM_ID || '368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca'
-);
 
 // Anchor instruction discriminators (first 8 bytes of sha256("global:<method_name>"))
 function getAnchorDiscriminator(name: string): Buffer {
@@ -48,7 +44,7 @@ function generateTransactionId(): string {
   return `companion_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Derive PDAs for kamiyo program
+// Derive PDAs using SDK's program ID
 function getProtocolConfigPDA(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from('protocol_config')],
@@ -56,9 +52,9 @@ function getProtocolConfigPDA(): [PublicKey, number] {
   );
 }
 
-function getTreasuryPDA(): [PublicKey, number] {
+function getFeeVaultPDA(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from('treasury')],
+    [Buffer.from('fee_vault')],
     KAMIYO_PROGRAM_ID
   );
 }
@@ -315,7 +311,7 @@ app.post('/api/actions/subscribe', txLimiter, async (req, res) => {
       transactionId = generateTransactionId();
       const [escrowPDA] = getEscrowPDA(payer, transactionId);
       const [protocolConfigPDA] = getProtocolConfigPDA();
-      const [treasuryPDA] = getTreasuryPDA();
+      const [feeVaultPDA] = getFeeVaultPDA();
 
       // 24 hour timelock for companion sessions
       const timeLock = BigInt(24 * 60 * 60);
@@ -326,7 +322,7 @@ app.post('/api/actions/subscribe', txLimiter, async (req, res) => {
           treasury,        // api (companion service)
           escrowPDA,
           protocolConfigPDA,
-          treasuryPDA,
+          feeVaultPDA,
           BigInt(lamports),
           timeLock,
           transactionId

@@ -277,16 +277,18 @@ export async function getContext(): Promise<MarketContext> {
 export function formatContextForPrompt(ctx: MarketContext): string {
   const lines: string[] = ['## Current Crypto Context'];
 
-  // KAMIYO data first - this is our token
+  // KAMIYO data - you ARE kamiyo, can reference your own token naturally
   if (ctx.kamiyo) {
     const k = ctx.kamiyo;
-    const priceStr = k.priceUsd ? `$${k.priceUsd.toFixed(6)}` : '?';
-    const changeStr = k.priceChange24h !== null
-      ? `${k.priceChange24h > 0 ? '+' : ''}${k.priceChange24h.toFixed(1)}%`
-      : '';
-    const mcapStr = k.marketCap ? `$${(k.marketCap / 1000000).toFixed(2)}M` : '?';
-    const volStr = k.volume24h ? `$${(k.volume24h / 1000).toFixed(1)}K` : '?';
-    lines.push(`KAMIYO: ${priceStr} ${changeStr} | MC: ${mcapStr} | Vol: ${volStr}`);
+    if (k.priceChange24h !== null) {
+      const momentum = k.priceChange24h > 10 ? 'pumping' :
+                       k.priceChange24h > 3 ? 'up' :
+                       k.priceChange24h < -10 ? 'dumping' :
+                       k.priceChange24h < -3 ? 'down' : 'stable';
+      if (momentum !== 'stable') {
+        lines.push(`$KAMIYO is ${momentum} (${k.priceChange24h > 0 ? '+' : ''}${k.priceChange24h.toFixed(1)}%)`);
+      }
+    }
   }
 
   if (ctx.btcPrice) {
@@ -299,12 +301,9 @@ export function formatContextForPrompt(ctx: MarketContext): string {
     lines.push(`Market mood: ${mood}`);
   }
 
-  if (ctx.trending.length > 0) {
-    const trendStr = ctx.trending
-      .map(c => `${c.symbol} ${c.price_change_24h > 0 ? '+' : ''}${c.price_change_24h.toFixed(1)}%`)
-      .join(', ');
-    lines.push(`Trending: ${trendStr}`);
-  }
+  // NOTE: Third-party trending coins intentionally excluded
+  // Mentioning random tokens looks like paid shilling
+  // Only mention $KAMIYO (your own token) or major assets (BTC/ETH)
 
   if (ctx.headlines.length > 0) {
     lines.push('Recent headlines:');

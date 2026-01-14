@@ -5,6 +5,7 @@ import { grokClient as grok } from './clients';
 import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
+import { initProtocol, getProtocol } from './protocol';
 
 // Initialize Sentry first
 initSentry();
@@ -112,6 +113,7 @@ import { startInfluencerMonitoring, cleanupOldInfluencerTweets } from './influen
 import { startEngagementLoop, getEngagementStats } from './engagement-optimizer';
 import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from './growth-tracker';
 import { isGrokAvailable } from './trend-engine';
+import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite, withRateLimit } from './rate-limiter';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
@@ -345,12 +347,13 @@ Or paste that URL in a tweet to use Blinks.`;
       return `Cannot generate proof. Your reputation may be below the ${threshold}% threshold, or ZK circuits unavailable.`;
     }
 
-    // Return proof hash (full proof too long for tweet)
-    const proofHash = Buffer.from(proof.proofBytes).toString('hex').slice(0, 16);
+    // Return proof summary (full proof too long for tweet)
+    const commitmentShort = proof.commitment.slice(0, 18);
+    const tierName = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'][proof.tier] || 'Unknown';
     return `ZK Reputation Proof generated.
 Threshold: ${threshold}%
-Commitment: ${proof.commitment.slice(0, 16)}...
-Proof: ${proofHash}...
+Tier: ${tierName}
+Commitment: ${commitmentShort}...
 
 This proves your rating >= ${threshold}% without revealing the exact rating.`;
   }
@@ -607,10 +610,31 @@ async function postReply(
   tweetId: string,
   text: string
 ): Promise<string | null> {
+  // Check global rate limit
+  if (isRateLimited()) {
+    logger.debug('Skipping reply - global rate limit active');
+    return null;
+  }
+
+  // Wait for write cooldown (10s between writes)
+  if (!canWrite()) {
+    await waitForWrite();
+  }
+
   try {
     const reply = await twitter.v2.reply(text, tweetId);
+    recordSuccess();
+    recordWrite();
     return reply.data.id;
-  } catch (err) {
+  } catch (err: unknown) {
+    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+
+    if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
+      recordRateLimit(error.rateLimit?.reset);
+      logger.warn('Reply rate limited', { tweetId });
+      return null;
+    }
+
     logger.error('Failed to post reply', { error: String(err) });
     return null;
   }
@@ -830,6 +854,13 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
   // Post approved content with rate limiting
   const postLoop = async () => {
     try {
+      // Check global rate limit first
+      if (isRateLimited()) {
+        logger.debug('Skipping autonomous post - global rate limit active');
+        setTimeout(postLoop, 15 * 60 * 1000);
+        return;
+      }
+
       const now = Date.now();
       const timeSinceLastPost = now - lastPostTime;
 
@@ -864,6 +895,11 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
                 }
               }
 
+              // Wait for write cooldown
+              if (!canWrite()) {
+                await waitForWrite();
+              }
+
               // Post tweet with or without media
               const result = mediaId
                 ? await twitter.v2.tweet({
@@ -871,6 +907,10 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
                     media: { media_ids: [mediaId] as [string] },
                   })
                 : await twitter.v2.tweet(post.content);
+
+              recordSuccess();
+              recordWrite();
+
               if (result.data?.id) {
                 markPosted(post.id, result.data.id);
                 lastPostTime = now;
@@ -995,6 +1035,23 @@ async function main(): Promise<void> {
 
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+
+  // Initialize protocol integration (agent identity, ZK proofs, escrow)
+  const protocol = await initProtocol();
+  if (protocol.hasKeypair()) {
+    const agent = await protocol.getOrCreateAgent('KAMIYO Companion');
+    if (agent) {
+      logger.info('Agent identity active', {
+        pda: protocol.getAgentPDA()?.toBase58(),
+        reputation: agent.reputation.toNumber(),
+        trust: agent.isActive ? 'active' : 'inactive',
+      });
+    }
+  }
+  logger.info('Protocol status', {
+    hasKeypair: protocol.hasKeypair(),
+    hasProver: protocol.hasProver(),
   });
 
   const twitterCreds = getTwitterCredentials();
