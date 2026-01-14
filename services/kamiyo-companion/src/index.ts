@@ -648,11 +648,14 @@ async function startMentionStream(
             continue;
           }
 
-          // Never respond to replies to our own tweets
-          // This prevents the bot from having conversations with itself
+          // Never respond to replies to our own tweets (prevents self-conversation loops)
           const tweetWithReply = tweet as typeof tweet & { in_reply_to_user_id?: string };
           if (tweetWithReply.in_reply_to_user_id === myId) {
-            logger.info('Skipping reply to own tweet', { tweetId: tweet.id });
+            logger.info('Skipping reply to own tweet', {
+              tweetId: tweet.id,
+              authorId: tweet.author_id,
+              inReplyTo: tweetWithReply.in_reply_to_user_id,
+            });
             lastSeenId = tweet.id;
             setBotState('lastSeenId', lastSeenId);
             continue;
