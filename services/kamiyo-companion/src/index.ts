@@ -471,6 +471,28 @@ async function generateResponse(
       finalResponse = claudeText;
     }
 
+    // If still over 280 chars, ask Claude to shorten it
+    if (finalResponse.length > 280) {
+      logger.info('Response too long, shortening', { original: finalResponse.length });
+      const shortenResponse = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 100,
+        system: 'Shorten to under 280 characters. Keep the core message. Same tone.',
+        messages: [{ role: 'user', content: finalResponse }]
+      });
+
+      finalResponse = shortenResponse.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map(b => b.text)
+        .join('\n');
+
+      // Last resort: hard cut (shouldn't happen often)
+      if (finalResponse.length > 280) {
+        finalResponse = finalResponse.slice(0, 277) + '...';
+        logger.warn('Had to hard truncate after shortening', { length: finalResponse.length });
+      }
+    }
+
     // Store in history if tier supports it
     if (config.contextMemory) {
       addMessage(userId, 'user', userMessage);
@@ -503,15 +525,7 @@ async function postReply(
   text: string
 ): Promise<string | null> {
   try {
-    // Hard truncate to 280 chars - no threading, keeps it clean
-    let truncated = text;
-    if (truncated.length > 280) {
-      const splitPoint = truncated.lastIndexOf(' ', 277);
-      truncated = truncated.slice(0, splitPoint > 0 ? splitPoint : 277) + '...';
-      logger.warn('Response truncated', { original: text.length, truncated: truncated.length });
-    }
-
-    const reply = await twitter.v2.reply(truncated, tweetId);
+    const reply = await twitter.v2.reply(text, tweetId);
     return reply.data.id;
   } catch (err) {
     logger.error('Failed to post reply', { error: String(err) });
