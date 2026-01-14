@@ -1,10 +1,11 @@
 // ZK reputation proof endpoint
 
 import { Router, Request, Response } from 'express';
+import type { Router as IRouter } from 'express-serve-static-core';
 import { getProtocol } from '../../protocol';
 import { logger } from '../../logger';
 
-const router = Router();
+const router: IRouter = Router();
 
 // POST /api/v1/reputation/proof
 router.post('/proof', async (req: Request, res: Response) => {

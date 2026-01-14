@@ -1,13 +1,14 @@
 // Chat completion endpoint
 
 import { Router, Request, Response } from 'express';
+import type { Router as IRouter } from 'express-serve-static-core';
 import Anthropic from '@anthropic-ai/sdk';
 import { randomBytes } from 'crypto';
 import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { getTrendingContext, formatTrendingForPrompt } from '../../trend-engine';
 import { logger } from '../../logger';
 
-const router = Router();
+const router: IRouter = Router();
 
 // Shared Anthropic client - set in index.ts
 let anthropicClient: Anthropic | null = null;

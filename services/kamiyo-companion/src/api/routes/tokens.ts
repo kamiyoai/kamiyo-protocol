@@ -1,10 +1,11 @@
 // Token lookup endpoint
 
 import { Router, Request, Response } from 'express';
+import type { Router as IRouter } from 'express-serve-static-core';
 import { lookupToken, formatTokenData } from '../../crypto-context';
 import { logger } from '../../logger';
 
-const router = Router();
+const router: IRouter = Router();
 
 // GET /api/v1/tokens/:query
 router.get('/:query', async (req: Request, res: Response) => {

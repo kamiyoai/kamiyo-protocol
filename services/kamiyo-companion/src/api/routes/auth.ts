@@ -1,10 +1,11 @@
 // Auth routes: challenge generation and verification
 
 import { Router, Request, Response } from 'express';
+import type { Router as IRouter } from 'express-serve-static-core';
 import { generateChallenge, verifySignature, generateApiKey, refreshApiKey } from '../auth';
 import { logger } from '../../logger';
 
-const router = Router();
+const router: IRouter = Router();
 
 // GET /api/auth/challenge?wallet=<pubkey>
 router.get('/challenge', (req: Request, res: Response) => {
