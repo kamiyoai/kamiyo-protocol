@@ -1,6 +1,7 @@
 /**
  * Image/meme generation for Twitter posts
  * Uses Grok (xAI Aurora) with OpenAI DALL-E 3 fallback
+ * Style: KAMIYO cyberpunk neo-Tokyo aesthetic
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -35,27 +36,51 @@ export interface GeneratedImage {
   generatedAt: number;
 }
 
-// Generate a meme prompt from a topic
+// KAMIYO signature style - cyberpunk neo-Tokyo aesthetic
+const KAMIYO_STYLE = `Cyberpunk neo-Tokyo aesthetic. Dark moody atmosphere with rain and fog.
+Pink/magenta and cyan/teal neon lighting. Wet reflective surfaces with neon reflections.
+Industrial urban setting - could be: rainy alley, subway station, cargo port, rooftop,
+server room, or futuristic city street. Atmospheric with steam/mist.
+No human faces. Cinematic composition. Blade Runner meets Ghost in the Shell vibes.`;
+
+// Scene variations for variety
+const SCENE_TYPES = [
+  'rainy neo-Tokyo alley with vending machines and pipes',
+  'foggy cyberpunk subway platform with industrial elements',
+  'neon-lit cargo port at night with cranes and containers',
+  'misty rooftop overlooking a cyberpunk cityscape',
+  'dark server room with glowing cables and equipment',
+  'wet cyberpunk street with holographic advertisements',
+  'underground tunnel with neon strips and steam vents',
+  'futuristic control room with monitors and wires',
+];
+
+// Generate a KAMIYO-style image prompt from a topic
 export async function generateMemePrompt(
   anthropic: Anthropic,
   topic: string,
-  style: 'crypto' | 'abstract' | 'surreal' | 'minimal' = 'crypto'
+  _style?: string // Ignored - always uses KAMIYO style
 ): Promise<string> {
-  const styleGuides: Record<string, string> = {
-    crypto: 'crypto/web3 themed, neon colors, futuristic, charts and graphs aesthetic',
-    abstract: 'abstract geometric shapes, bold colors, modern art style',
-    surreal: 'surrealist, dreamlike, unexpected juxtapositions, Salvador Dali inspired',
-    minimal: 'minimalist, clean lines, limited color palette, elegant simplicity',
-  };
+  // Pick a random scene type for variety
+  const sceneType = SCENE_TYPES[Math.floor(Math.random() * SCENE_TYPES.length)];
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 100,
-    system: `Generate a short, specific image prompt for an AI image generator.
-Style: ${styleGuides[style]}
-The image should be visually interesting and work as a social media post.
-No text in the image. No human faces.
-Return ONLY the prompt, nothing else.`,
+    max_tokens: 150,
+    system: `Generate a specific image prompt that combines the given topic with this exact visual style:
+
+${KAMIYO_STYLE}
+
+Scene setting: ${sceneType}
+
+Requirements:
+- Incorporate the topic's theme/mood into the cyberpunk scene
+- Keep the dark, rainy, neon-lit atmosphere
+- Pink/magenta and cyan/teal color palette
+- No text, logos, or human faces
+- Cinematic, moody, atmospheric
+
+Return ONLY the image prompt, nothing else. Be specific and visual.`,
     messages: [{ role: 'user', content: `Topic: ${topic}` }],
   });
 
@@ -142,13 +167,12 @@ export async function generateImage(prompt: string): Promise<GeneratedImage | nu
   };
 }
 
-// Generate a meme for a topic
+// Generate a KAMIYO-style image for a topic
 export async function generateMeme(
   anthropic: Anthropic,
-  topic: string,
-  style: 'crypto' | 'abstract' | 'surreal' | 'minimal' = 'crypto'
+  topic: string
 ): Promise<GeneratedImage | null> {
-  const prompt = await generateMemePrompt(anthropic, topic, style);
+  const prompt = await generateMemePrompt(anthropic, topic);
   return generateImage(prompt);
 }
 
