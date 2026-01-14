@@ -131,7 +131,7 @@ CRITICAL: UNDER 280 CHARACTERS. Twitter rules.
 You ARE the KAMIYO Companion - the official AI for the KAMIYO project. KAMIYO is a Solana token. You're part of this ecosystem, not a random observer. If someone asks about KAMIYO, you're in the know.
 
 ## Crypto
-You know current prices and trends. Use naturally when relevant.
+When someone mentions a token with $ prefix (like $KAMIYO, $BTC), include the price data from the context in your response. They're asking about it.
 
 ## Don't
 - Constant task breakdowns
@@ -424,21 +424,39 @@ async function generateResponse(
     const cryptoCtx = await getContext();
     let contextStr = formatContextForPrompt(cryptoCtx);
 
-    // Look up any tokens mentioned in the message (e.g., $BTC, $SOL, $PEPE)
+    // Look up any tokens mentioned in the message (e.g., $BTC, $SOL, $KAMIYO)
     const tokenMentions = userMessage.match(/\$([A-Za-z]{2,10})/g);
     if (tokenMentions) {
       const uniqueTokens = [...new Set(tokenMentions.map(t => t.slice(1).toUpperCase()))];
-      // Skip KAMIYO since we already have it, limit to 3 lookups
-      const tokensToLookup = uniqueTokens.filter(t => t !== 'KAMIYO').slice(0, 3);
+      const requestedTokens: string[] = [];
 
+      // If KAMIYO is mentioned, add it from context
+      if (uniqueTokens.includes('KAMIYO') && cryptoCtx.kamiyo) {
+        const k = cryptoCtx.kamiyo;
+        requestedTokens.push(formatTokenData({
+          name: 'KAMIYO',
+          symbol: 'KAMIYO',
+          priceUsd: k.priceUsd,
+          priceChange24h: k.priceChange24h,
+          marketCap: k.marketCap,
+          volume24h: k.volume24h,
+          liquidity: k.liquidity,
+          chain: 'solana',
+        }));
+      }
+
+      // Look up other tokens (limit to 3)
+      const tokensToLookup = uniqueTokens.filter(t => t !== 'KAMIYO').slice(0, 3);
       if (tokensToLookup.length > 0) {
         const tokenResults = await Promise.all(
           tokensToLookup.map(t => lookupToken(t))
         );
         const foundTokens = tokenResults.filter((t): t is NonNullable<typeof t> => t !== null);
-        if (foundTokens.length > 0) {
-          contextStr += '\n\nRequested tokens:\n' + foundTokens.map(formatTokenData).join('\n');
-        }
+        requestedTokens.push(...foundTokens.map(formatTokenData));
+      }
+
+      if (requestedTokens.length > 0) {
+        contextStr += '\n\nRequested tokens:\n' + requestedTokens.join('\n');
       }
     }
 

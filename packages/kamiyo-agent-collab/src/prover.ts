@@ -393,10 +393,14 @@ export class AgentCollabProver {
 // Utility Functions
 // ============================================================================
 
+/**
+ * Write field element to buffer in little-endian format.
+ * Solana's alt_bn128 syscalls expect little-endian byte order.
+ */
 function writeFieldElement(buf: Uint8Array, offset: number, value: string): void {
   const n = BigInt(value);
-  for (let i = 31; i >= 0; i--) {
-    buf[offset + 31 - i] = Number((n >> BigInt(i * 8)) & BigInt(0xff));
+  for (let i = 0; i < 32; i++) {
+    buf[offset + i] = Number((n >> BigInt(i * 8)) & BigInt(0xff));
   }
 }
 

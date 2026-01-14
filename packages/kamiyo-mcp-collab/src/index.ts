@@ -26,6 +26,7 @@ import {
 } from '@kamiyo/agent-collab';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 // ============================================================================
 // Server Configuration
@@ -34,6 +35,123 @@ import * as path from 'path';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const PRIVATE_KEY = process.env.SOLANA_PRIVATE_KEY;
 const STATE_FILE = process.env.KAMIYO_STATE_FILE || path.join(process.env.HOME || '.', '.kamiyo-agent-state.json');
+const LOCK_FILE = STATE_FILE + '.lock';
+
+// ============================================================================
+// Input Validation
+// ============================================================================
+
+class InputValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InputValidationError';
+  }
+}
+
+function validateNumber(value: unknown, name: string, min?: number, max?: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new InputValidationError(`${name} must be a number`);
+  }
+  if (min !== undefined && value < min) {
+    throw new InputValidationError(`${name} must be >= ${min}`);
+  }
+  if (max !== undefined && value > max) {
+    throw new InputValidationError(`${name} must be <= ${max}`);
+  }
+  return value;
+}
+
+function validateString(value: unknown, name: string, maxLength = 1000): string {
+  if (typeof value !== 'string') {
+    throw new InputValidationError(`${name} must be a string`);
+  }
+  if (value.length > maxLength) {
+    throw new InputValidationError(`${name} must be <= ${maxLength} characters`);
+  }
+  return value;
+}
+
+function validateHexString(value: unknown, name: string, expectedLength: number): string {
+  const str = validateString(value, name, expectedLength * 2);
+  if (!/^[0-9a-fA-F]+$/.test(str)) {
+    throw new InputValidationError(`${name} must be a hex string`);
+  }
+  if (str.length !== expectedLength * 2) {
+    throw new InputValidationError(`${name} must be ${expectedLength} bytes (${expectedLength * 2} hex chars)`);
+  }
+  return str;
+}
+
+function validateBoolean(value: unknown, name: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new InputValidationError(`${name} must be a boolean`);
+  }
+  return value;
+}
+
+// ============================================================================
+// State Encryption
+// ============================================================================
+
+function deriveEncryptionKey(): Buffer {
+  // Derive encryption key from wallet private key
+  if (!PRIVATE_KEY) {
+    throw new Error('SOLANA_PRIVATE_KEY required for state encryption');
+  }
+  const keyData = Buffer.from(JSON.parse(PRIVATE_KEY));
+  return crypto.createHash('sha256').update(keyData).digest();
+}
+
+function encryptState(data: string): string {
+  const key = deriveEncryptionKey();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(data, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptState(encrypted: string): string {
+  const key = deriveEncryptionKey();
+  const parts = encrypted.split(':');
+  if (parts.length !== 2) {
+    throw new Error('Invalid encrypted state format');
+  }
+  const iv = Buffer.from(parts[0], 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  let decrypted = decipher.update(parts[1], 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// ============================================================================
+// File Locking (prevent race conditions)
+// ============================================================================
+
+async function acquireLock(timeout = 5000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    try {
+      fs.writeFileSync(LOCK_FILE, String(process.pid), { flag: 'wx' });
+      return;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+        await new Promise(r => setTimeout(r, 50));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Failed to acquire state file lock');
+}
+
+function releaseLock(): void {
+  try {
+    fs.unlinkSync(LOCK_FILE);
+  } catch {
+    // Ignore errors
+  }
+}
 
 // ============================================================================
 // Rate Limiting
@@ -117,13 +235,14 @@ let prover: AgentCollabProver | null = null;
 let merkleTree: MerkleTree | null = null;
 
 // ============================================================================
-// State Persistence
+// State Persistence (Encrypted)
 // ============================================================================
 
 function loadState(): void {
   try {
     if (fs.existsSync(STATE_FILE)) {
-      const data = fs.readFileSync(STATE_FILE, 'utf-8');
+      const encrypted = fs.readFileSync(STATE_FILE, 'utf-8');
+      const data = decryptState(encrypted);
       const state: ServerState = JSON.parse(data);
       agentState = state.agentState;
       if (state.merkleTreeData) {
@@ -133,19 +252,23 @@ function loadState(): void {
       }
     }
   } catch {
-    // Ignore errors, start fresh
+    // Ignore errors, start fresh (could be unencrypted legacy file)
   }
 }
 
-function saveState(): void {
+async function saveState(): Promise<void> {
   try {
+    await acquireLock();
     const state: ServerState = {
       agentState,
       merkleTreeData: merkleTree ? merkleTree.serialize() : null,
     };
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+    const encrypted = encryptState(JSON.stringify(state));
+    fs.writeFileSync(STATE_FILE, encrypted, { mode: 0o600 }); // Restrictive permissions
   } catch (err) {
     console.error('Failed to save state:', err);
+  } finally {
+    releaseLock();
   }
 }
 
@@ -402,11 +525,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // Handler Implementations
 // ============================================================================
 
-async function handleInitAgent(nonce?: number) {
+async function handleInitAgent(nonce?: unknown) {
+  // Validate optional nonce
+  const validNonce = nonce !== undefined ? validateNumber(nonce, 'nonce', 0) : Date.now();
+
   const ownerSecret = generateOwnerSecret();
   const registrationSecret = generateRegistrationSecret();
   const ownerPubkey = getWallet().publicKey.toBytes();
-  const agentId = await generateAgentId(ownerPubkey, nonce ?? Date.now());
+  const agentId = await generateAgentId(ownerPubkey, validNonce);
   const identityCommitment = await AgentCollabProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
@@ -429,7 +555,7 @@ async function handleInitAgent(nonce?: number) {
     merkleTree = await createMerkleTree();
   }
 
-  saveState();
+  await saveState();
 
   return {
     content: [
@@ -445,7 +571,10 @@ async function handleInitAgent(nonce?: number) {
   };
 }
 
-async function handleRegisterAgent(stakeAmount: number) {
+async function handleRegisterAgent(stakeAmount: unknown) {
+  // Validate input
+  const validStake = validateNumber(stakeAmount, 'stakeAmount', 1);
+
   ensureInitialized();
   await ensureClient();
 
@@ -455,7 +584,7 @@ async function handleRegisterAgent(stakeAmount: number) {
   const tx = await client!.registerAgent(
     wallet,
     new Uint8Array(identityCommitment),
-    new BN(stakeAmount)
+    new BN(validStake)
   );
 
   // Add to merkle tree
@@ -465,7 +594,7 @@ async function handleRegisterAgent(stakeAmount: number) {
   }
 
   agentState!.registered = true;
-  saveState();
+  await saveState();
 
   return {
     content: [
@@ -483,11 +612,17 @@ async function handleRegisterAgent(stakeAmount: number) {
 }
 
 async function handleSubmitSignal(
-  signalType: number,
-  direction: number,
-  confidence: number,
-  magnitude: number
+  signalType: unknown,
+  direction: unknown,
+  confidence: unknown,
+  magnitude: unknown
 ) {
+  // Validate inputs
+  const validSignalType = validateNumber(signalType, 'signalType', 0, 255);
+  const validDirection = validateNumber(direction, 'direction', 0, 2);
+  const validConfidence = validateNumber(confidence, 'confidence', 0, 100);
+  const validMagnitude = validateNumber(magnitude, 'magnitude', 0, 100);
+
   ensureInitialized();
   ensureRegistered();
   await ensureClient();
@@ -514,10 +649,10 @@ async function handleSubmitSignal(
   const secret = generateRandomSalt();
   const { proof: signalProof, signalCommitment } = await prover!.provePrivateSignal(
     {
-      signalType,
-      direction,
-      confidence,
-      magnitude,
+      signalType: validSignalType,
+      direction: validDirection,
+      confidence: validConfidence,
+      magnitude: validMagnitude,
       stakeAmount: BigInt(0), // Would get from agent account
       secret,
     },
@@ -541,10 +676,10 @@ async function handleSubmitSignal(
         text: JSON.stringify({
           status: 'submitted',
           transaction: tx,
-          signalType,
-          direction,
-          confidence,
-          magnitude,
+          signalType: validSignalType,
+          direction: validDirection,
+          confidence: validConfidence,
+          magnitude: validMagnitude,
           commitment: Buffer.from(signalCommitment).toString('hex'),
         }),
       },
@@ -553,10 +688,15 @@ async function handleSubmitSignal(
 }
 
 async function handleCreateSwarmAction(
-  actionType: number,
-  actionData: string,
-  threshold: number
+  actionType: unknown,
+  actionData: unknown,
+  threshold: unknown
 ) {
+  // Validate inputs
+  const validActionType = validateNumber(actionType, 'actionType', 0, 255);
+  const validActionData = validateString(actionData, 'actionData', 10000);
+  const validThreshold = validateNumber(threshold, 'threshold', 1, 100);
+
   ensureInitialized();
   ensureRegistered();
   await ensureClient();
@@ -565,9 +705,9 @@ async function handleCreateSwarmAction(
   if (!registry) throw new Error('Registry not initialized');
 
   const epoch = registry.epoch.toNumber();
-  const actionDataBytes = new TextEncoder().encode(actionData);
+  const actionDataBytes = new TextEncoder().encode(validActionData);
   const actionHash = await AgentCollabProver.generateActionHash(
-    actionType,
+    validActionType,
     actionDataBytes
   );
 
@@ -589,7 +729,7 @@ async function handleCreateSwarmAction(
     proof,
     nullifier,
     actionHash,
-    threshold
+    validThreshold
   );
 
   return {
@@ -600,14 +740,18 @@ async function handleCreateSwarmAction(
           status: 'created',
           transaction: tx,
           actionHash: Buffer.from(actionHash).toString('hex'),
-          threshold,
+          threshold: validThreshold,
         }),
       },
     ],
   };
 }
 
-async function handleVoteSwarmAction(actionHashHex: string, vote: boolean) {
+async function handleVoteSwarmAction(actionHashHex: unknown, vote: unknown) {
+  // Validate inputs
+  const validActionHash = validateHexString(actionHashHex, 'actionHash', 32);
+  const validVote = validateBoolean(vote, 'vote');
+
   ensureInitialized();
   ensureRegistered();
   await ensureClient();
@@ -615,7 +759,7 @@ async function handleVoteSwarmAction(actionHashHex: string, vote: boolean) {
   const registry = await client!.getRegistry();
   if (!registry) throw new Error('Registry not initialized');
 
-  const actionHash = Buffer.from(actionHashHex, 'hex');
+  const actionHash = Buffer.from(validActionHash, 'hex');
   const voteSalt = generateRandomSalt();
 
   const { proof, voteNullifier, voteCommitment } = await prover!.proveSwarmVote(
@@ -625,7 +769,7 @@ async function handleVoteSwarmAction(actionHashHex: string, vote: boolean) {
       registrationSecret: Buffer.from(agentState!.registrationSecret, 'hex'),
       merkleProof: await getMerkleProof(),
       merklePathIndices: await getMerklePathIndices(),
-      vote,
+      vote: validVote,
       voteSalt,
     },
     new Uint8Array(registry.agentsRoot),
@@ -638,7 +782,7 @@ async function handleVoteSwarmAction(actionHashHex: string, vote: boolean) {
     proof,
     voteNullifier,
     new Uint8Array(actionHash),
-    vote
+    validVote
   );
 
   return {
@@ -648,7 +792,7 @@ async function handleVoteSwarmAction(actionHashHex: string, vote: boolean) {
         text: JSON.stringify({
           status: 'voted',
           transaction: tx,
-          vote,
+          vote: validVote,
         }),
       },
     ],
