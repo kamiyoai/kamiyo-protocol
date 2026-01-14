@@ -793,15 +793,17 @@ async function startMentionStream(
 
       // Handle rate limiting (429)
       if (error.code === 429 || (error as Error).message?.includes('429')) {
+        // Update global rate limiter so all systems back off
+        recordRateLimit(error.rateLimit?.reset);
+
         const resetTime = error.rateLimit?.reset;
         if (resetTime) {
           const waitMs = (resetTime * 1000) - Date.now();
           backoffMs = Math.min(Math.max(waitMs, BASE_POLL_INTERVAL), MAX_BACKOFF_MS);
         } else {
-          // Exponential backoff if no reset time provided
           backoffMs = backoffMs === 0 ? BASE_POLL_INTERVAL : Math.min(backoffMs * 2, MAX_BACKOFF_MS);
         }
-        logger.info('Rate limited', { backoffSeconds: Math.round(backoffMs / 1000) });
+        logger.info('Mention poll rate limited', { backoffSeconds: Math.round(backoffMs / 1000) });
       } else {
         logger.error('Polling error', { error: String(err) });
       }
