@@ -1,7 +1,4 @@
-/**
- * Post approval system
- * Options: DM-based approval OR Claude self-review (autonomous mode)
- */
+// Post approval via DM or self-review
 
 import Anthropic from '@anthropic-ai/sdk';
 import { TwitterApi } from 'twitter-api-v2';

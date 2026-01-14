@@ -1,7 +1,4 @@
-/**
- * Centralized configuration
- * All environment variables validated and typed
- */
+// Configuration
 
 import { logger } from './logger';
 
@@ -28,16 +25,10 @@ function parseIntEnv(key: string, defaultValue: number, min?: number, max?: numb
   return parsed;
 }
 
-// Data directory
 export const DATA_DIR = process.env.DATA_DIR || './data';
 
-// Engagement rate limits
 export const ENGAGEMENT_CONFIG = {
-  // Influencer monitoring - fetches tweets from monitored accounts
-  // Disable to save API rate limit budget
   influencerMonitoringEnabled: process.env.INFLUENCER_MONITORING_ENABLED === 'true',
-  // Proactive replies to influencer tweets (when not @mentioned)
-  // Set to 'true' to enable - defaults to false (only respond when @mentioned)
   proactiveRepliesEnabled: process.env.PROACTIVE_REPLIES_ENABLED === 'true',
   autoReplyEnabled: process.env.AUTO_REPLY_ENABLED !== 'false',
   autoReplyMinScore: parseIntEnv('AUTO_REPLY_MIN_SCORE', 7, 1, 10),
@@ -45,63 +36,34 @@ export const ENGAGEMENT_CONFIG = {
   maxQuotesPerDay: parseIntEnv('MAX_QUOTES_PER_DAY', 3, 1, 10),
 };
 
-// Timing constants (in milliseconds)
 export const TIMING = {
-  // Reply opportunity window (30 min)
   replyWindowMinutes: 30,
   replyWindowMs: 30 * 60 * 1000,
-
-  // Quote tweet window (1-4 hours old)
   quoteMinAgeMs: 1 * 60 * 60 * 1000,
   quoteMaxAgeMs: 4 * 60 * 60 * 1000,
-
-  // User cooldown (24 hours)
   userCooldownMs: 24 * 60 * 60 * 1000,
-
-  // Trend cache TTL (30 min)
   trendCacheTtlMs: 30 * 60 * 1000,
-
-  // Rate limit tracking
   hourMs: 60 * 60 * 1000,
   dayMs: 24 * 60 * 60 * 1000,
-
-  // Monitoring intervals
   priority1IntervalMs: 10 * 60 * 1000,
   priority2IntervalMs: 30 * 60 * 1000,
   priority3IntervalMs: 60 * 60 * 1000,
-
-  // Engagement loop intervals
   replyCycleMs: 5 * 60 * 1000,
   quoteCycleMs: 30 * 60 * 1000,
-
-  // Post rate limit (2 hours min between posts)
   minPostIntervalMs: 2 * 60 * 60 * 1000,
 };
 
-// Thresholds
 export const THRESHOLDS = {
-  // Minimum engagement velocity for reply opportunity
   minEngagementVelocity: 5,
-
-  // Minimum engagement score for quote tweets
   minQuoteEngagementScore: 500,
-
-  // Max images to keep
   maxStoredImages: 50,
-
-  // Performance data retention (30 days)
   performanceRetentionDays: 30,
-
-  // Influencer tweet retention (7 days)
   influencerRetentionDays: 7,
 };
 
-// Approval modes
 export type ApprovalMode = 'auto' | 'dm' | 'hybrid';
 export const APPROVAL_MODE = (process.env.APPROVAL_MODE || 'hybrid') as ApprovalMode;
 export const OWNER_TWITTER_ID = process.env.OWNER_TWITTER_ID;
-
-// Log config on startup
 logger.info('Configuration loaded', {
   dataDir: DATA_DIR,
   approvalMode: APPROVAL_MODE,

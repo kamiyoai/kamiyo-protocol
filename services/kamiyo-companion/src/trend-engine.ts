@@ -1,7 +1,4 @@
-/**
- * Trend engine powered by Grok Tool Calling API
- * Fetches real-time trending topics from X
- */
+// Trend engine via Grok
 
 import { logger } from './logger';
 import { searchXTrends, isGrokToolsAvailable } from './grok-tools';
@@ -97,8 +94,7 @@ export function formatTrendingForPrompt(context: TrendingContext | null): string
 ## Trending on X Right Now
 ${context.topics.slice(0, 8).map(t => `- ${t}`).join('\n')}
 
-Consider naturally incorporating one of these if relevant to your thought.
-Don't force it - only mention if you have something genuine to say.
+Incorporate naturally if relevant - don't force it.
 `;
 }
 

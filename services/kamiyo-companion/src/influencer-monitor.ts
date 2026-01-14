@@ -1,7 +1,4 @@
-/**
- * Influencer monitoring system
- * Watches big accounts, extracts topics, detects opportunities
- */
+// Influencer monitoring
 
 import { TwitterApi } from 'twitter-api-v2';
 import Anthropic from '@anthropic-ai/sdk';

@@ -1,7 +1,4 @@
-/**
- * On-chain lookup utilities
- * Wallet holdings, transaction decoding, whale alerts
- */
+// On-chain lookup utilities
 
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { logger } from './logger';

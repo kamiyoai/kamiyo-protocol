@@ -1,7 +1,4 @@
-/**
- * Growth tracker
- * Tracks post performance and learns what works
- */
+// Growth tracker
 
 import { TwitterApi } from 'twitter-api-v2';
 import { logger } from './logger';

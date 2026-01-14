@@ -1,7 +1,4 @@
-/**
- * Multi-agent chat system
- * Inspired by Infinite Backrooms - AI-to-AI conversations
- */
+// Multi-agent conversations
 
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';

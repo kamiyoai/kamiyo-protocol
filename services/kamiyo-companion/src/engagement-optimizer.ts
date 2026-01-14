@@ -1,7 +1,4 @@
-/**
- * Engagement optimizer
- * Strategic replies, quote tweets, and timing optimization
- */
+// Engagement optimizer
 
 import { TwitterApi } from 'twitter-api-v2';
 import Anthropic from '@anthropic-ai/sdk';

@@ -1,7 +1,4 @@
-/**
- * Sentiment tracking over time
- * Analyzes community mood and tracks trends
- */
+// Sentiment tracking
 
 import Anthropic from '@anthropic-ai/sdk';
 import Database from 'better-sqlite3';

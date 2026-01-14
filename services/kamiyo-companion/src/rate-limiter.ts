@@ -1,13 +1,6 @@
-/**
- * Global Twitter rate limit coordinator
- * Prevents multiple systems from competing for API budget
- */
+// Twitter API rate limiter
 
 import { logger } from './logger';
-
-// Twitter API v2 limits (approximate)
-// App rate limits: 300 requests/15 min for most endpoints
-// User rate limits: varies by endpoint
 
 interface RateLimitState {
   isLimited: boolean;

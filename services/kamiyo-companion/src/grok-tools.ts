@@ -1,8 +1,4 @@
-/**
- * Grok Tool Calling API
- * Replaces deprecated search_parameters with tools API
- * https://docs.x.ai/docs/guides/live-search
- */
+// Grok tool calling API
 
 import OpenAI from 'openai';
 import { logger } from './logger';
