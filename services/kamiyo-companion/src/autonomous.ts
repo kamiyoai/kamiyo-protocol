@@ -90,7 +90,7 @@ Generate an original tweet. Not a reply to anyone - just a thought you want to s
 ## Guidelines
 - UNDER 280 CHARACTERS - hard limit
 - NEVER USE EMOJIS - not even one, ever
-- Correct capitalization
+- PROPER CAPITALIZATION - start sentences with capital letters, capitalize proper nouns (Tesla, Bitcoin, etc.)
 - Can be: observation, hot take, question, market commentary, philosophical musing, or subtle humor
 - Don't shill KAMIYO directly - you ARE KAMIYO, you don't need to promote yourself
 - Reference current context naturally if relevant
@@ -122,6 +122,7 @@ ${KAMIYO_LORE}
 - Add genuine value or perspective, not just "this"
 - Can agree, disagree, add context, or make it funnier
 - NEVER USE EMOJIS - not even one
+- PROPER CAPITALIZATION - start sentences with capitals
 - Don't be sycophantic
 
 Generate your quote tweet text. Just the text, nothing else.`;

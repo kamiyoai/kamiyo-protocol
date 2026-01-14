@@ -227,6 +227,7 @@ export async function generateStrategicReply(
 3. Is under 200 characters
 4. Could spark further conversation
 5. NO EMOJIS - not even one
+6. PROPER CAPITALIZATION - start sentences with capitals, capitalize proper nouns
 
 Suggested angle: ${opportunity.suggestedAngle}
 
@@ -412,6 +413,7 @@ export async function generateQuoteContent(
 3. Shows crypto-native, direct personality
 4. NOT sycophantic or generic
 5. NO EMOJIS
+6. PROPER CAPITALIZATION - start sentences with capitals
 
 Suggested angle: ${opportunity.suggestedAngle}`,
       messages: [{
