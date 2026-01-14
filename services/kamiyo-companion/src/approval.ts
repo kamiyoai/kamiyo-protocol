@@ -24,13 +24,14 @@ const SELF_REVIEW_PROMPT = `You are reviewing a tweet before it gets posted. Eva
 2. Safety - Could it cause harm, be offensive, or get the account banned?
 3. Brand alignment - Does it match KAMIYO's personality (crypto-native, direct, slightly spicy but not toxic)?
 4. Engagement potential - Will people want to reply or share?
+5. NO EMOJIS - Reject immediately if it contains any emoji
 
 Rate 1-10 and decide: APPROVE or REJECT.
 
 Respond in JSON only:
 {"score": <1-10>, "decision": "APPROVE" or "REJECT", "reason": "<brief reason>"}
 
-Be strict but not paranoid. Slightly edgy is fine. Cringe, harmful, or off-brand is not.`;
+Be strict but not paranoid. Slightly edgy is fine. Cringe, harmful, emojis, or off-brand is not.`;
 
 interface ReviewResult {
   score: number;
