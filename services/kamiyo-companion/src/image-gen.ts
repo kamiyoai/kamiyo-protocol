@@ -1,15 +1,16 @@
 /**
  * Image/meme generation for Twitter posts
- * Uses Together.ai or Replicate for image generation
+ * Uses Grok (xAI Aurora) with OpenAI DALL-E 3 fallback
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { logger } from './logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY;
-const REPLICATE_API_KEY = process.env.REPLICATE_API_KEY;
+const XAI_API_KEY = process.env.XAI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DATA_DIR = process.env.DATA_DIR || './data';
 const IMAGE_DIR = path.join(DATA_DIR, 'images');
 
@@ -17,6 +18,16 @@ const IMAGE_DIR = path.join(DATA_DIR, 'images');
 if (!fs.existsSync(IMAGE_DIR)) {
   fs.mkdirSync(IMAGE_DIR, { recursive: true });
 }
+
+// Initialize clients
+const grokClient = XAI_API_KEY ? new OpenAI({
+  apiKey: XAI_API_KEY,
+  baseURL: 'https://api.x.ai/v1',
+}) : null;
+
+const openaiClient = OPENAI_API_KEY ? new OpenAI({
+  apiKey: OPENAI_API_KEY,
+}) : null;
 
 export interface GeneratedImage {
   path: string;
@@ -55,96 +66,48 @@ Return ONLY the prompt, nothing else.`,
     .trim();
 }
 
-// Generate image using Together.ai
-async function generateWithTogether(prompt: string): Promise<Buffer | null> {
-  if (!TOGETHER_API_KEY) return null;
+// Generate image using Grok (xAI Aurora)
+async function generateWithGrok(prompt: string): Promise<Buffer | null> {
+  if (!grokClient) return null;
 
   try {
-    const response = await fetch('https://api.together.xyz/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${TOGETHER_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'black-forest-labs/FLUX.1-schnell',
-        prompt,
-        width: 1024,
-        height: 1024,
-        steps: 4,
-        n: 1,
-        response_format: 'b64_json',
-      }),
+    const response = await grokClient.images.generate({
+      model: 'grok-2-image',
+      prompt,
+      n: 1,
+      size: '1024x1024',
+      response_format: 'b64_json',
     });
 
-    if (!response.ok) {
-      logger.error('Together.ai error', { status: response.status });
-      return null;
-    }
-
-    const data = await response.json() as { data?: Array<{ b64_json?: string }> };
-    const b64 = data.data?.[0]?.b64_json;
-
+    const b64 = response.data?.[0]?.b64_json;
     if (!b64) return null;
+
     return Buffer.from(b64, 'base64');
   } catch (err) {
-    logger.error('Together.ai generation failed', { error: String(err) });
+    logger.error('Grok image generation failed', { error: String(err) });
     return null;
   }
 }
 
-// Generate image using Replicate
-async function generateWithReplicate(prompt: string): Promise<Buffer | null> {
-  if (!REPLICATE_API_KEY) return null;
+// Generate image using OpenAI DALL-E 3
+async function generateWithOpenAI(prompt: string): Promise<Buffer | null> {
+  if (!openaiClient) return null;
 
   try {
-    // Start prediction
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${REPLICATE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        version: 'ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4', // SDXL
-        input: {
-          prompt,
-          width: 1024,
-          height: 1024,
-          num_outputs: 1,
-        },
-      }),
+    const response = await openaiClient.images.generate({
+      model: 'dall-e-3',
+      prompt,
+      n: 1,
+      size: '1024x1024',
+      response_format: 'b64_json',
     });
 
-    if (!response.ok) {
-      logger.error('Replicate error', { status: response.status });
-      return null;
-    }
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) return null;
 
-    const prediction = await response.json() as { id: string; status: string; output?: string[] };
-
-    // Poll for completion
-    let result: { id: string; status: string; output?: string[] } = prediction;
-    while (result.status !== 'succeeded' && result.status !== 'failed') {
-      await new Promise(r => setTimeout(r, 1000));
-
-      const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-        headers: { 'Authorization': `Token ${REPLICATE_API_KEY}` },
-      });
-
-      result = await pollResponse.json() as { id: string; status: string; output?: string[] };
-    }
-
-    if (result.status === 'failed' || !result.output || result.output.length === 0) {
-      return null;
-    }
-
-    // Download the image
-    const imageResponse = await fetch(result.output[0]);
-    const arrayBuffer = await imageResponse.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    return Buffer.from(b64, 'base64');
   } catch (err) {
-    logger.error('Replicate generation failed', { error: String(err) });
+    logger.error('OpenAI image generation failed', { error: String(err) });
     return null;
   }
 }
@@ -153,10 +116,10 @@ async function generateWithReplicate(prompt: string): Promise<Buffer | null> {
 export async function generateImage(prompt: string): Promise<GeneratedImage | null> {
   logger.info('Generating image', { prompt: prompt.slice(0, 50) });
 
-  // Try Together first, then Replicate
-  let imageBuffer = await generateWithTogether(prompt);
+  // Try Grok first, then OpenAI
+  let imageBuffer = await generateWithGrok(prompt);
   if (!imageBuffer) {
-    imageBuffer = await generateWithReplicate(prompt);
+    imageBuffer = await generateWithOpenAI(prompt);
   }
 
   if (!imageBuffer) {
@@ -190,7 +153,7 @@ export async function generateMeme(
 
 // Check if image generation is available
 export function isImageGenAvailable(): boolean {
-  return !!(TOGETHER_API_KEY || REPLICATE_API_KEY);
+  return !!(XAI_API_KEY || OPENAI_API_KEY);
 }
 
 // Cleanup old images (keep last 50)
