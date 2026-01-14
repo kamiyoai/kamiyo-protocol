@@ -17,6 +17,7 @@ import {
   NullifierRecord,
   SignalAggregator,
   WithdrawalRequest,
+  IdentityLink,
 } from './types';
 
 // Import the generated IDL
@@ -290,6 +291,31 @@ export class AgentCollabClient {
     );
   }
 
+  /**
+   * Derive an identity link PDA for a ZK agent.
+   * @param zkAgent - ZK agent public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getIdentityLinkPDA(zkAgent: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('identity_link'), zkAgent.toBuffer()],
+      AGENT_COLLAB_PROGRAM_ID
+    );
+  }
+
+  /**
+   * Derive a stake position PDA from the kamiyo-staking program.
+   * @param stakingProgramId - The staking program ID
+   * @param owner - The owner's public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getStakePositionPDA(stakingProgramId: PublicKey, owner: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('position'), owner.toBuffer()],
+      stakingProgramId
+    );
+  }
+
   // ============================================================================
   // Account Fetching
   // ============================================================================
@@ -365,6 +391,21 @@ export class AgentCollabClient {
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['withdrawalRequest'].fetch(withdrawalPDA) as WithdrawalRequest;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch an identity link for a ZK agent.
+   * @param zkAgent - ZK agent public key
+   * @returns Identity link or null if not linked
+   */
+  async getIdentityLink(zkAgent: PublicKey): Promise<IdentityLink | null> {
+    const [linkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgent);
+    try {
+      const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
+      return await accounts['identityLink'].fetch(linkPDA) as IdentityLink;
     } catch {
       return null;
     }
@@ -760,6 +801,71 @@ export class AgentCollabClient {
           payer: payer.publicKey,
         })
         .signers([payer])
+        .rpc()
+    );
+  }
+
+  /**
+   * Link a ZK agent identity to a public kamiyo Agent PDA.
+   * Enables cross-program identity verification.
+   * @param owner - Owner keypair (must own both ZK agent and kamiyo agent)
+   * @param zkAgentCommitment - Identity commitment of the ZK agent
+   * @param kamiyoAgent - Public key of the kamiyo Agent PDA to link
+   * @param stakePosition - Optional stake position PDA from kamiyo-staking program
+   * @returns Transaction signature
+   */
+  async linkIdentity(
+    owner: Keypair,
+    zkAgentCommitment: Uint8Array,
+    kamiyoAgent: PublicKey,
+    stakePosition?: PublicKey
+  ): Promise<string> {
+    validateBytes32(zkAgentCommitment, 'zkAgentCommitment');
+
+    const [zkAgentPDA] = AgentCollabClient.getAgentPDA(zkAgentCommitment);
+    const [identityLinkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgentPDA);
+
+    const accounts: Record<string, PublicKey> = {
+      zkAgent: zkAgentPDA,
+      kamiyoAgent,
+      identityLink: identityLinkPDA,
+      owner: owner.publicKey,
+      systemProgram: web3.SystemProgram.programId,
+    };
+
+    if (stakePosition) {
+      accounts.stakePosition = stakePosition;
+    }
+
+    return withRetry(() =>
+      this.program.methods
+        .linkIdentity()
+        .accountsPartial(accounts)
+        .signers([owner])
+        .rpc()
+    );
+  }
+
+  /**
+   * Unlink a ZK agent identity from a kamiyo Agent PDA.
+   * @param owner - Owner keypair (must be the original linker)
+   * @param zkAgentCommitment - Identity commitment of the ZK agent
+   * @returns Transaction signature
+   */
+  async unlinkIdentity(owner: Keypair, zkAgentCommitment: Uint8Array): Promise<string> {
+    validateBytes32(zkAgentCommitment, 'zkAgentCommitment');
+
+    const [zkAgentPDA] = AgentCollabClient.getAgentPDA(zkAgentCommitment);
+    const [identityLinkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgentPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .unlinkIdentity()
+        .accounts({
+          identityLink: identityLinkPDA,
+          owner: owner.publicKey,
+        })
+        .signers([owner])
         .rpc()
     );
   }

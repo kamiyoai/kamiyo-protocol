@@ -84,10 +84,22 @@ export interface SignalAggregator {
 
 export interface WithdrawalRequest {
   agent: PublicKey;
+  requester: PublicKey;
   amount: BN;
   requestSlot: BN;
   unlockSlot: BN;
   claimed: boolean;
+  bump: number;
+}
+
+export interface IdentityLink {
+  zkAgent: PublicKey;
+  kamiyoAgent: PublicKey;
+  owner: PublicKey;
+  stakedAmount: BN;
+  stakeMultiplier: BN;
+  linkedSlot: BN;
+  active: boolean;
   bump: number;
 }
 

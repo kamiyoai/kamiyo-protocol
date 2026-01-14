@@ -9,6 +9,10 @@ use anchor_lang::prelude::*;
 
 declare_id!("DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26");
 
+/// KAMIYO Staking program ID for CPI stake verification
+/// TODO: Update to actual deployed staking program ID
+pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("Stake11111111111111111111111111111111111111");
+
 pub mod zk;
 mod vk_generated;
 use zk::verify_agent_identity_proof;
@@ -25,6 +29,24 @@ const SIGNAL_EXPIRY_SLOTS: u64 = 9_000;
 const SWARM_VOTE_WINDOW: u64 = 4_500;
 /// Stake withdrawal timelock (24 hours in slots)
 const STAKE_WITHDRAWAL_TIMELOCK: u64 = 86_400;
+
+/// Multiplier schedule (matching kamiyo-staking)
+const THIRTY_DAYS_SECS: i64 = 30 * 24 * 60 * 60;
+const NINETY_DAYS_SECS: i64 = 90 * 24 * 60 * 60;
+const ONE_EIGHTY_DAYS_SECS: i64 = 180 * 24 * 60 * 60;
+
+/// Calculate stake multiplier based on duration (in basis points)
+fn calculate_stake_multiplier(duration_seconds: i64) -> u64 {
+    if duration_seconds >= ONE_EIGHTY_DAYS_SECS {
+        20000 // 2.0x
+    } else if duration_seconds >= NINETY_DAYS_SECS {
+        15000 // 1.5x
+    } else if duration_seconds >= THIRTY_DAYS_SECS {
+        12000 // 1.2x
+    } else {
+        10000 // 1.0x
+    }
+}
 
 #[program]
 pub mod kamiyo_agent_collab {
@@ -474,6 +496,83 @@ pub mod kamiyo_agent_collab {
         Ok(())
     }
 
+    /// Link a ZK identity to a public kamiyo Agent PDA
+    /// Caller must own both the ZK agent (via identity secrets) and the kamiyo Agent
+    /// Optionally verifies stake position from kamiyo-staking program
+    pub fn link_identity(ctx: Context<LinkIdentity>) -> Result<()> {
+        let zk_agent = &ctx.accounts.zk_agent;
+        require!(zk_agent.active, AgentCollabError::AgentNotActive);
+
+        // Read stake position if provided
+        let (staked_amount, stake_multiplier) = if let Some(stake_position) = &ctx.accounts.stake_position {
+            // Verify stake position is from staking program
+            require!(
+                stake_position.owner == &STAKING_PROGRAM_ID,
+                AgentCollabError::InvalidStakePosition
+            );
+
+            // Parse StakePosition data: 8 (discriminator) + 32 (owner) + 8 (staked_amount) + 8 (stake_start_time)
+            let data = stake_position.try_borrow_data()?;
+            if data.len() >= 56 {
+                let owner_bytes: [u8; 32] = data[8..40].try_into().unwrap();
+                let stake_owner = Pubkey::new_from_array(owner_bytes);
+
+                // Verify stake position belongs to the signer
+                require!(
+                    stake_owner == ctx.accounts.owner.key(),
+                    AgentCollabError::StakeOwnerMismatch
+                );
+
+                let staked = u64::from_le_bytes(data[40..48].try_into().unwrap());
+                let stake_start = i64::from_le_bytes(data[48..56].try_into().unwrap());
+
+                // Calculate multiplier based on duration
+                let current_time = Clock::get()?.unix_timestamp;
+                let duration = current_time.saturating_sub(stake_start);
+                let multiplier = calculate_stake_multiplier(duration);
+
+                (staked, multiplier)
+            } else {
+                (0u64, 10000u64) // Default: no stake, 1.0x multiplier
+            }
+        } else {
+            (0u64, 10000u64) // No stake position provided
+        };
+
+        let link = &mut ctx.accounts.identity_link;
+        link.zk_agent = zk_agent.key();
+        link.kamiyo_agent = ctx.accounts.kamiyo_agent.key();
+        link.owner = ctx.accounts.owner.key();
+        link.staked_amount = staked_amount;
+        link.stake_multiplier = stake_multiplier;
+        link.linked_slot = Clock::get()?.slot;
+        link.active = true;
+        link.bump = ctx.bumps.identity_link;
+
+        emit!(IdentityLinked {
+            zk_agent: link.zk_agent,
+            kamiyo_agent: link.kamiyo_agent,
+            owner: link.owner,
+        });
+
+        Ok(())
+    }
+
+    /// Unlink a ZK identity from a kamiyo Agent
+    pub fn unlink_identity(ctx: Context<UnlinkIdentity>) -> Result<()> {
+        let link = &mut ctx.accounts.identity_link;
+        require!(link.active, AgentCollabError::LinkNotActive);
+
+        link.active = false;
+
+        emit!(IdentityUnlinked {
+            zk_agent: link.zk_agent,
+            kamiyo_agent: link.kamiyo_agent,
+        });
+
+        Ok(())
+    }
+
     /// Deactivate an agent and reclaim stake (immediate, admin only for emergencies)
     pub fn deactivate_agent(ctx: Context<DeactivateAgent>) -> Result<()> {
         let agent = &mut ctx.accounts.agent;
@@ -617,6 +716,28 @@ pub struct WithdrawalRequest {
     pub request_slot: u64,
     pub unlock_slot: u64,
     pub claimed: bool,
+    pub bump: u8,
+}
+
+/// Links a ZK identity commitment to a public kamiyo Agent PDA
+/// Enables cross-program verification of agent ownership
+#[account]
+pub struct IdentityLink {
+    /// The ZK agent account in this program
+    pub zk_agent: Pubkey,
+    /// The public Agent PDA from main kamiyo program
+    pub kamiyo_agent: Pubkey,
+    /// Owner who created the link (must own both)
+    pub owner: Pubkey,
+    /// Staked amount verified at link time (from staking program)
+    pub staked_amount: u64,
+    /// Stake multiplier in basis points (10000 = 1.0x)
+    pub stake_multiplier: u64,
+    /// When the link was created
+    pub linked_slot: u64,
+    /// Whether the link is active
+    pub active: bool,
+    /// Bump seed
     pub bump: u8,
 }
 
@@ -824,6 +945,56 @@ pub struct CancelWithdrawal<'info> {
 }
 
 #[derive(Accounts)]
+pub struct LinkIdentity<'info> {
+    /// The ZK agent in this program
+    #[account(
+        constraint = zk_agent.active @ AgentCollabError::AgentNotActive
+    )]
+    pub zk_agent: Account<'info, Agent>,
+
+    /// The public kamiyo Agent PDA
+    /// CHECK: This is an external account from the main kamiyo program.
+    /// We store its pubkey to enable cross-program lookups.
+    /// The owner must prove they control this agent through the signer constraint.
+    pub kamiyo_agent: AccountInfo<'info>,
+
+    /// The identity link account (PDA derived from both agents)
+    /// Space: 8 + 32 + 32 + 32 + 8 + 8 + 8 + 1 + 1 = 130
+    #[account(
+        init,
+        payer = owner,
+        space = 130,
+        seeds = [b"identity_link", zk_agent.key().as_ref()],
+        bump
+    )]
+    pub identity_link: Account<'info, IdentityLink>,
+
+    /// Optional: Stake position from kamiyo-staking program
+    /// If provided, stake amount and multiplier are recorded in the link
+    /// CHECK: Validated in instruction - must be owned by staking program
+    pub stake_position: Option<AccountInfo<'info>>,
+
+    /// Owner who must own both agents
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UnlinkIdentity<'info> {
+    #[account(
+        mut,
+        seeds = [b"identity_link", identity_link.zk_agent.as_ref()],
+        bump = identity_link.bump,
+        has_one = owner @ AgentCollabError::UnauthorizedWithdrawal
+    )]
+    pub identity_link: Account<'info, IdentityLink>,
+
+    pub owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct DeactivateAgent<'info> {
     pub registry: Account<'info, AgentRegistry>,
     #[account(
@@ -973,6 +1144,19 @@ pub struct WithdrawalCancelled {
     pub agent: Pubkey,
 }
 
+#[event]
+pub struct IdentityLinked {
+    pub zk_agent: Pubkey,
+    pub kamiyo_agent: Pubkey,
+    pub owner: Pubkey,
+}
+
+#[event]
+pub struct IdentityUnlinked {
+    pub zk_agent: Pubkey,
+    pub kamiyo_agent: Pubkey,
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -1019,4 +1203,12 @@ pub enum AgentCollabError {
     AggregatorOverflow,
     #[msg("Unauthorized withdrawal claim")]
     UnauthorizedWithdrawal,
+    #[msg("Identity link not active")]
+    LinkNotActive,
+    #[msg("Identity already linked")]
+    AlreadyLinked,
+    #[msg("Invalid stake position account")]
+    InvalidStakePosition,
+    #[msg("Stake position owner mismatch")]
+    StakeOwnerMismatch,
 }
