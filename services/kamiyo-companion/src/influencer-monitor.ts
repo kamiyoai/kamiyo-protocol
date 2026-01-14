@@ -74,9 +74,11 @@ const DEFAULT_ACCOUNTS: Array<{ username: string; priority: number; category: st
   { username: 'elonmusk', priority: 1, category: 'tech' },
   { username: 'sama', priority: 1, category: 'ai' },
   { username: 'pmarca', priority: 1, category: 'tech' },
-  // Priority 2: Crypto
+  // Priority 2: Crypto/AI Agents
   { username: 'VitalikButerin', priority: 2, category: 'crypto' },
   { username: 'aaboronin', priority: 2, category: 'crypto' },
+  { username: 'tetsuoai', priority: 2, category: 'ai-agent' },
+  { username: '7etsuo', priority: 2, category: 'ai-agent' },
   // Priority 3: Markets
   { username: 'unusual_whales', priority: 3, category: 'markets' },
 ];
