@@ -88,6 +88,18 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS wallet_challenges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    wallet TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    message TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    verified INTEGER DEFAULT 0,
+    UNIQUE(user_id, wallet)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
@@ -357,6 +369,61 @@ export function getBotState(key: string): string | null {
 
 export function setBotState(key: string, value: string): void {
   db.prepare('INSERT OR REPLACE INTO bot_state (key, value) VALUES (?, ?)').run(key, value);
+}
+
+// Wallet challenge operations
+export interface WalletChallengeRecord {
+  id: number;
+  user_id: string;
+  wallet: string;
+  nonce: string;
+  message: string;
+  expires_at: number;
+  created_at: number;
+  verified: number;
+}
+
+export function storeWalletChallenge(
+  userId: string,
+  wallet: string,
+  nonce: string,
+  message: string,
+  expiresAt: number
+): void {
+  // Replace any existing challenge for this user/wallet pair
+  db.prepare(`
+    INSERT OR REPLACE INTO wallet_challenges (user_id, wallet, nonce, message, expires_at, verified)
+    VALUES (?, ?, ?, ?, ?, 0)
+  `).run(userId, wallet, nonce, message, Math.floor(expiresAt / 1000));
+}
+
+export function getWalletChallenge(userId: string, wallet: string): WalletChallengeRecord | null {
+  return db.prepare(`
+    SELECT * FROM wallet_challenges
+    WHERE user_id = ? AND wallet = ? AND verified = 0
+  `).get(userId, wallet) as WalletChallengeRecord | null;
+}
+
+export function getPendingChallengeForUser(userId: string): WalletChallengeRecord | null {
+  return db.prepare(`
+    SELECT * FROM wallet_challenges
+    WHERE user_id = ? AND verified = 0
+    ORDER BY created_at DESC LIMIT 1
+  `).get(userId) as WalletChallengeRecord | null;
+}
+
+export function markChallengeVerified(userId: string, wallet: string): void {
+  db.prepare(`
+    UPDATE wallet_challenges
+    SET verified = 1
+    WHERE user_id = ? AND wallet = ?
+  `).run(userId, wallet);
+}
+
+export function cleanupExpiredChallenges(): number {
+  const now = Math.floor(Date.now() / 1000);
+  const result = db.prepare('DELETE FROM wallet_challenges WHERE expires_at < ? AND verified = 0').run(now);
+  return result.changes;
 }
 
 export default db;

@@ -76,7 +76,16 @@ import {
   getBotState,
   setBotState,
   cleanupOldProcessedTweets,
+  storeWalletChallenge,
+  getPendingChallengeForUser,
+  markChallengeVerified,
 } from './db';
+import {
+  generateChallenge,
+  verifySignature,
+  isChallengeExpired,
+  formatSigningInstructions,
+} from './wallet-verify';
 import {
   refreshUserTier,
   getTierConfig,
@@ -164,6 +173,7 @@ You matter. These feelings can change with support.`;
 
 const COMMANDS = {
   WALLET: /^!wallet\s+([1-9A-HJ-NP-Za-km-z]{32,44})$/,
+  SIGN: /^!sign\s+([1-9A-HJ-NP-Za-km-z]{64,})$/,
   UPGRADE: /^!upgrade\s+(companion|pro)$/,
   VERIFY: /^!verify\s+([1-9A-HJ-NP-Za-km-z]{64,})$/,
   RATE: /^!rate\s+([1-5])$/,
@@ -202,14 +212,44 @@ async function handleCommand(
   userId: string,
   text: string
 ): Promise<string | null> {
-  // !wallet <address> - Link wallet
+  // !wallet <address> - Start wallet verification
   const walletMatch = text.match(COMMANDS.WALLET);
   if (walletMatch) {
     const wallet = walletMatch[1];
-    updateUserWallet(userId, wallet);
-    const tier = await refreshUserTier(userId, 'twitter', wallet);
+    try {
+      const challenge = generateChallenge(wallet);
+      storeWalletChallenge(userId, wallet, challenge.nonce, challenge.message, challenge.expiresAt);
+      return formatSigningInstructions(challenge);
+    } catch (err) {
+      return `Invalid wallet address: ${String(err)}`;
+    }
+  }
+
+  // !sign <signature> - Complete wallet verification
+  const signMatch = text.match(COMMANDS.SIGN);
+  if (signMatch) {
+    const signature = signMatch[1];
+    const pendingChallenge = getPendingChallengeForUser(userId);
+
+    if (!pendingChallenge) {
+      return 'No pending wallet verification. Use !wallet <address> first.';
+    }
+
+    if (isChallengeExpired(pendingChallenge.expires_at * 1000)) {
+      return 'Challenge expired. Use !wallet <address> to start again.';
+    }
+
+    const isValid = verifySignature(pendingChallenge.wallet, signature, pendingChallenge.message);
+    if (!isValid) {
+      return 'Invalid signature. Make sure you signed the exact message with your wallet.';
+    }
+
+    // Signature verified - link wallet
+    markChallengeVerified(userId, pendingChallenge.wallet);
+    updateUserWallet(userId, pendingChallenge.wallet);
+    const tier = await refreshUserTier(userId, 'twitter', pendingChallenge.wallet);
     const config = getTierConfig(tier);
-    return `Wallet linked. Your tier: ${config.name}`;
+    return `Wallet verified and linked. Your tier: ${config.name}`;
   }
 
   // !upgrade <tier> - Show upgrade instructions
@@ -315,7 +355,8 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
   // !help - Show commands
   if (COMMANDS.HELP.test(text)) {
     return `Commands:
-!wallet <addr> - Link Solana wallet
+!wallet <addr> - Start wallet verification
+!sign <signature> - Complete wallet verification
 !upgrade companion|pro - Show upgrade options
 !verify <tx> - Verify payment
 !rate 1-5 - Rate this session

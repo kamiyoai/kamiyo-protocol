@@ -23,8 +23,11 @@ The service has been hardened with security fixes, reliability improvements, and
 ---
 
 ### 3. Wallet Linking Without Verification
-**Status:** OPEN (Low Priority)
-**Note:** Users can still link any wallet. For V1, this is acceptable - users can only claim tiers their linked wallet qualifies for. Full signature verification can be added in V2.
+**Status:** RESOLVED
+**Fix:** Two-step verification flow:
+1. `!wallet <address>` generates a challenge message
+2. User signs the message with their wallet
+3. `!sign <signature>` verifies and completes linking
 
 ---
 
@@ -88,7 +91,7 @@ The service has been hardened with security fixes, reliability improvements, and
 | Issue | Status | Resolution |
 |-------|--------|------------|
 | Optional auth middleware | RESOLVED | Returns 503 if secret not set |
-| No wallet ownership proof | OPEN | V2 feature |
+| No wallet ownership proof | RESOLVED | Challenge-response signature verification |
 | Race condition in payments | RESOLVED | Atomic INSERT OR IGNORE |
 | Missing rate limits | RESOLVED | Per-user/wallet limits added |
 | RSS headline injection risk | OPEN | Low priority - prompt injection unlikely |
@@ -121,7 +124,8 @@ The service has been hardened with security fixes, reliability improvements, and
 | API endpoints | 12 | PASS |
 | Logger | 8 | PASS |
 | Production critical | 20 | PASS |
-| **Total** | **113** | **ALL PASS** |
+| Wallet verification | 11 | PASS |
+| **Total** | **124** | **ALL PASS** |
 
 ---
 
@@ -129,19 +133,24 @@ The service has been hardened with security fixes, reliability improvements, and
 
 | Item | Status |
 |------|--------|
-| Dockerfile | Using supervisord |
+| Dockerfile | Using supervisord + Litestream |
 | Health checks | Actions API checked |
 | render.yaml | Separate worker + web |
 | Environment validation | Required vars checked at startup |
 | Secrets management | Via environment variables |
+| Database replication | Litestream (optional, needs S3) |
 
 ---
 
 ## New Files Added
 
 - `src/maintenance.ts` - Database cleanup and backup
+- `src/wallet-verify.ts` - Wallet signature verification
 - `supervisord.conf` - Process supervision config
+- `litestream.yml` - SQLite replication config
+- `entrypoint.sh` - Container entrypoint (handles Litestream)
 - `tests/production.test.ts` - Critical path tests
+- `tests/wallet-verify.test.ts` - Wallet verification tests
 - `docs/PRODUCTION_READINESS.md` - This document
 
 ---
@@ -162,18 +171,17 @@ The service has been hardened with security fixes, reliability improvements, and
 
 ### High Priority (Next Sprint)
 1. Add Sentry alerting for RPC failures
-2. Implement wallet signature verification
-3. Add database replication for HA
+2. Configure Litestream S3 bucket in production
 
 ### Medium Priority
-4. Add Prometheus error rate metrics
-5. Implement conversation pagination
-6. Add request ID correlation to logs
+3. Add Prometheus error rate metrics
+4. Implement conversation pagination
+5. Add request ID correlation to logs
 
 ### Low Priority
-7. Externalize tier configs to JSON
-8. Add fallback RPC endpoint
-9. Make cache TTLs configurable
+6. Externalize tier configs to JSON
+7. Add fallback RPC endpoint
+8. Make cache TTLs configurable
 
 ---
 
@@ -195,6 +203,12 @@ Before going live:
 - [x] Configure Sentry DSN for error tracking
 - [x] Verify backup directory is on persistent storage
 - [x] Review rate limits match expected traffic
+
+For database replication (optional but recommended):
+- [ ] Set `LITESTREAM_BUCKET` (S3 bucket name)
+- [ ] Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+- [ ] Set `AWS_REGION` (default: us-east-1)
+- [ ] Set `LITESTREAM_ENDPOINT` if using S3-compatible storage (e.g., MinIO, R2)
 
 ---
 
