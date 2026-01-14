@@ -613,7 +613,7 @@ async function postReply(
 ): Promise<string | null> {
   // Check global rate limit
   if (isRateLimited()) {
-    logger.debug('Skipping reply - global rate limit active');
+    logger.warn('Skipping reply - global rate limit active', { tweetId });
     return null;
   }
 
@@ -704,10 +704,13 @@ async function processMention(
   messagesTotal.inc({ tier, status: 'success' });
 
   // Post reply
+  logger.info('Posting reply', { tweetId: tweet.id, responseLength: response.length });
   const replyId = await postReply(twitter, tweet.id, response);
 
   if (replyId) {
-    logger.info('Message processed', { tweetId: tweet.id, tier, latencySeconds });
+    logger.info('Reply posted', { tweetId: tweet.id, replyId, tier, latencySeconds });
+  } else {
+    logger.warn('Reply not posted', { tweetId: tweet.id, reason: 'postReply returned null' });
   }
 
   // Add rate reminder occasionally
