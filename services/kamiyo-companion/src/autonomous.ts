@@ -26,6 +26,16 @@ db.exec(`
     rejection_reason TEXT,
     image_path TEXT
   );
+`);
+
+// Migration: add image_path column if missing (for existing DBs)
+try {
+  db.exec(`ALTER TABLE post_queue ADD COLUMN image_path TEXT`);
+} catch {
+  // Column already exists
+}
+
+db.exec(`
 
   CREATE TABLE IF NOT EXISTS personality_state (
     key TEXT PRIMARY KEY,
