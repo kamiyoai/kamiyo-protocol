@@ -13,6 +13,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
+    "benchmark": "vitest run test/benchmark.test.ts --reporter=verbose",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },

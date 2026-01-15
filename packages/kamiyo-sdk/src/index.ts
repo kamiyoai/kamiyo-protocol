@@ -21,3 +21,5 @@ export * from "./api";
 export * from "./governance";
 export * from "./staking";
 export * from "./unified";
+export * from "./rpc";
+export * from "./circuit-breaker";

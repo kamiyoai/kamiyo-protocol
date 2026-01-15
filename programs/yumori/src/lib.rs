@@ -84,7 +84,7 @@ pub mod yumori {
         identity_commitment: [u8; 32],
         stake_amount: u64,
     ) -> Result<()> {
-        let registry = &ctx.accounts.registry;
+        let registry = &mut ctx.accounts.registry;
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
         require!(stake_amount >= registry.min_stake, AgentCollabError::InsufficientStake);
 
@@ -98,7 +98,12 @@ pub mod yumori {
         agent.active = true;
         agent.bump = ctx.bumps.agent;
 
-        // Transfer stake
+        // Increment agent count
+        registry.agent_count = registry.agent_count
+            .checked_add(1)
+            .ok_or(AgentCollabError::AgentCountOverflow)?;
+
+        // Transfer stake to vault PDA
         let cpi_ctx = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
@@ -368,7 +373,9 @@ pub mod yumori {
     }
 
     /// Reveal a signal's content after submission
-    /// The reveal_data must hash to the original commitment
+    ///
+    /// NOTE: Full commitment verification requires on-chain Poseidon hashing or a ZK proof.
+    /// Current implementation validates input ranges only. For production, add reveal proof.
     pub fn reveal_signal(
         ctx: Context<RevealSignal>,
         signal_type: u8,
@@ -386,6 +393,17 @@ pub mod yumori {
             current_slot > signal.submitted_slot + SIGNAL_EXPIRY_SLOTS,
             AgentCollabError::RevealTooEarly
         );
+
+        // Validate input ranges
+        require!(signal_type <= 3, AgentCollabError::InvalidReveal);
+        require!(direction <= 2, AgentCollabError::InvalidReveal);
+        require!(confidence <= 100, AgentCollabError::InvalidReveal);
+        require!(magnitude <= 100, AgentCollabError::InvalidReveal);
+
+        // TODO: Add ZK proof verification for reveal correctness
+        // The commitment = Poseidon(signal_type, direction, confidence, magnitude, stake, secret, nullifier)
+        // Without on-chain Poseidon, we cannot verify this directly.
+        // Production should require a reveal_proof parameter.
 
         // Mark as revealed
         signal.revealed = true;
@@ -847,12 +865,14 @@ pub struct RegisterAgent<'info> {
         bump
     )]
     pub agent: Account<'info, Agent>,
-    /// CHECK: Stake vault PDA
+    /// Stake vault PDA - holds staked SOL from all agents
+    /// This is a system-owned account that receives lamports
     #[account(
         mut,
         seeds = [b"stake_vault", registry.key().as_ref()],
         bump
     )]
+    /// CHECK: PDA used as lamport sink for stake deposits
     pub stake_vault: AccountInfo<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -1313,4 +1333,8 @@ pub enum AgentCollabError {
     InvalidStakePosition,
     #[msg("Stake position owner mismatch")]
     StakeOwnerMismatch,
+    #[msg("Agent count overflow")]
+    AgentCountOverflow,
+    #[msg("Invalid reveal data")]
+    InvalidReveal,
 }
