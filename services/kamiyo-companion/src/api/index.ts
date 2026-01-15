@@ -155,7 +155,8 @@ const openApiSpec = {
     },
     '/api/v1/chat': {
       post: {
-        summary: 'Chat completion',
+        summary: 'Chat completion with memory, market signals, and X search',
+        description: 'Hybrid Anthropic/Grok chat with conversation memory, real-time crypto context, proprietary signals, and X/Twitter search',
         requestBody: {
           content: {
             'application/json': {
@@ -173,11 +174,16 @@ const openApiSpec = {
                     },
                   },
                   stream: { type: 'boolean', default: false },
+                  clearHistory: { type: 'boolean', default: false, description: 'Clear conversation memory before this request' },
                   context: {
                     type: 'object',
                     properties: {
-                      includeCrypto: { type: 'boolean', default: true },
-                      includeTrends: { type: 'boolean', default: false },
+                      includeCrypto: { type: 'boolean', default: true, description: 'Include BTC/ETH/KAMIYO prices' },
+                      includeSignals: { type: 'boolean', default: true, description: 'Include proprietary market signals' },
+                      includeTrends: { type: 'boolean', default: false, description: 'Include X/Twitter trending topics' },
+                      includeXSearch: { type: 'boolean', default: false, description: 'Search X for relevant content' },
+                      xSearchQuery: { type: 'string', description: 'Custom X search query (defaults to last message)' },
+                      xHandles: { type: 'array', items: { type: 'string' }, description: 'X handles to search (without @)' },
                     },
                   },
                 },
@@ -187,8 +193,41 @@ const openApiSpec = {
           },
         },
         responses: {
-          200: { description: 'Chat completion response' },
+          200: {
+            description: 'Chat completion with context and memory info',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    message: { type: 'object', properties: { role: { type: 'string' }, content: { type: 'string' } } },
+                    usage: { type: 'object', properties: { promptTokens: { type: 'number' }, completionTokens: { type: 'number' } } },
+                    context: { type: 'object', description: 'Market data, signals, and search results used' },
+                    memory: { type: 'object', properties: { historyLength: { type: 'number' } } },
+                  },
+                },
+              },
+            },
+          },
           429: { description: 'Rate limit exceeded' },
+        },
+      },
+    },
+    '/api/v1/chat/history': {
+      get: {
+        summary: 'Get conversation history',
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 20, maximum: 50 } },
+        ],
+        responses: {
+          200: { description: 'Conversation messages' },
+        },
+      },
+      delete: {
+        summary: 'Clear conversation history',
+        responses: {
+          200: { description: 'History cleared' },
         },
       },
     },
