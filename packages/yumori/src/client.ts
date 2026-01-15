@@ -6,6 +6,7 @@
 
 import { Program, AnchorProvider, BN, web3 } from '@coral-xyz/anchor';
 import { PublicKey, Connection, Keypair } from '@solana/web3.js';
+import { keccak256 } from 'js-sha3';
 import {
   YUMORI_PROGRAM_ID,
   Groth16Proof,
@@ -81,6 +82,58 @@ function validateStakeAmount(value: BN): void {
   if (value.lten(0)) {
     throw new ValidationError('stakeAmount must be positive');
   }
+}
+
+// ============================================================================
+// Commitment Generation
+// ============================================================================
+
+/**
+ * Create a signal commitment using keccak256.
+ * Format matches on-chain: keccak256(type || direction || confidence || magnitude || stake_le || secret || nullifier)
+ * @param signalType - Type of signal (0-3)
+ * @param direction - Direction (0=short, 1=long, 2=neutral)
+ * @param confidence - Confidence level (0-100)
+ * @param magnitude - Signal magnitude (0-100)
+ * @param stakeAmount - Stake amount (BN)
+ * @param secret - 32-byte secret
+ * @param agentNullifier - 32-byte agent nullifier
+ * @returns 32-byte commitment
+ */
+export function createSignalCommitment(
+  signalType: number,
+  direction: number,
+  confidence: number,
+  magnitude: number,
+  stakeAmount: BN,
+  secret: Uint8Array,
+  agentNullifier: Uint8Array
+): Uint8Array {
+  validateU8(signalType, 'signalType');
+  validateU8(direction, 'direction');
+  validateU8(confidence, 'confidence');
+  validateU8(magnitude, 'magnitude');
+  validateBytes32(secret, 'secret');
+  validateBytes32(agentNullifier, 'agentNullifier');
+
+  // Build data buffer matching on-chain format (little-endian for stake)
+  const data = new Uint8Array(1 + 1 + 1 + 1 + 8 + 32 + 32);
+  let offset = 0;
+  data[offset++] = signalType;
+  data[offset++] = direction;
+  data[offset++] = confidence;
+  data[offset++] = magnitude;
+  // Stake amount as 8-byte little-endian
+  const stakeBytes = stakeAmount.toArrayLike(Buffer, 'le', 8);
+  data.set(stakeBytes, offset);
+  offset += 8;
+  data.set(secret, offset);
+  offset += 32;
+  data.set(agentNullifier, offset);
+
+  // keccak256 hash
+  const hash = keccak256.array(data);
+  return new Uint8Array(hash);
 }
 
 // ============================================================================
@@ -704,11 +757,14 @@ export class YumoriClient {
 
   /**
    * Reveal a signal's content after the reveal period.
+   * Verifies the commitment on-chain using keccak256 hash.
+   * Use createSignalCommitment() to generate matching commitments client-side.
    * @param signalCommitment - Signal commitment to reveal
    * @param signalType - Type of signal (0-3)
    * @param direction - Direction (0=short, 1=long, 2=neutral)
    * @param confidence - Confidence level (0-100)
    * @param magnitude - Signal magnitude (0-100)
+   * @param stakeAmount - Stake amount used in commitment
    * @param revealSecret - Secret used in original commitment
    * @returns Transaction signature
    */
@@ -718,6 +774,7 @@ export class YumoriClient {
     direction: number,
     confidence: number,
     magnitude: number,
+    stakeAmount: BN,
     revealSecret: Uint8Array
   ): Promise<string> {
     validateBytes32(signalCommitment, 'signalCommitment');
@@ -726,6 +783,9 @@ export class YumoriClient {
     validateU8(confidence, 'confidence');
     validateU8(magnitude, 'magnitude');
     validateBytes32(revealSecret, 'revealSecret');
+    if (!(stakeAmount instanceof BN)) {
+      throw new ValidationError('stakeAmount must be a BN instance');
+    }
 
     const [registryPDA] = YumoriClient.getRegistryPDA();
     const [signalPDA] = YumoriClient.getSignalPDA(signalCommitment);
@@ -735,7 +795,7 @@ export class YumoriClient {
 
     return withRetry(() =>
       this.program.methods
-        .revealSignal(signalType, direction, confidence, magnitude, Array.from(revealSecret))
+        .revealSignal(signalType, direction, confidence, magnitude, stakeAmount, Array.from(revealSecret))
         .accounts({
           registry: registryPDA,
           signal: signalPDA,
