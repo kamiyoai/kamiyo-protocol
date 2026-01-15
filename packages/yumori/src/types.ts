@@ -6,7 +6,7 @@ import { PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 
 // Program ID - must match the deployed program and IDL
-export const AGENT_COLLAB_PROGRAM_ID = new PublicKey(
+export const YUMORI_PROGRAM_ID = new PublicKey(
   'DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26'
 );
 

@@ -64,9 +64,9 @@ function bytesToBigint(arr: Uint8Array): bigint {
 }
 
 // Default circuits path (relative to package root)
-const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/agent-collab');
+const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/yumori');
 
-export class AgentCollabProver {
+export class YumoriProver {
   private wasmPaths: Map<string, string> = new Map();
   private zkeyPaths: Map<string, string> = new Map();
 
@@ -202,7 +202,7 @@ export class AgentCollabProver {
     agentsRoot: Uint8Array,
     epoch: bigint
   ): Promise<{ proof: Groth16Proof; nullifier: Uint8Array }> {
-    const nullifier = await AgentCollabProver.generateNullifier(
+    const nullifier = await YumoriProver.generateNullifier(
       inputs.agentId,
       inputs.registrationSecret,
       epoch
@@ -254,7 +254,7 @@ export class AgentCollabProver {
     proof: Groth16Proof;
     signalCommitment: Uint8Array;
   }> {
-    const signalCommitment = await AgentCollabProver.generateSignalCommitment(
+    const signalCommitment = await YumoriProver.generateSignalCommitment(
       inputs.signalType,
       inputs.direction,
       inputs.confidence,
@@ -312,13 +312,13 @@ export class AgentCollabProver {
     voteNullifier: Uint8Array;
     voteCommitment: Uint8Array;
   }> {
-    const voteNullifier = await AgentCollabProver.generateVoteNullifier(
+    const voteNullifier = await YumoriProver.generateVoteNullifier(
       inputs.agentId,
       inputs.registrationSecret,
       actionHash
     );
 
-    const voteCommitment = await AgentCollabProver.generateVoteCommitment(
+    const voteCommitment = await YumoriProver.generateVoteCommitment(
       inputs.vote,
       inputs.voteSalt,
       actionHash

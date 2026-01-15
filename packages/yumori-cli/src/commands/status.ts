@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { SolanaClient } from '../client/connection.js';
-import { AgentCollabProgram } from '../client/program.js';
+import { YumoriProgram } from '../client/program.js';
 import {
   showError,
   showDivider,
@@ -15,7 +15,7 @@ import { AgentIdentity } from './register.js';
 
 export async function handleStatus(
   client: SolanaClient,
-  program: AgentCollabProgram
+  program: YumoriProgram
 ): Promise<void> {
   console.log();
   showDivider();
@@ -87,7 +87,7 @@ export async function handleStatus(
 
 export async function handleMyAgent(
   client: SolanaClient,
-  program: AgentCollabProgram,
+  program: YumoriProgram,
   identity: AgentIdentity | null
 ): Promise<void> {
   console.log();

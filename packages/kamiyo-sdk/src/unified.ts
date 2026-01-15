@@ -4,7 +4,7 @@
  * Wraps:
  * - kamiyo: Agent identity, escrows, reputation
  * - kamiyo-staking: Token staking with duration multipliers
- * - kamiyo-agent-collab: ZK-private agent coordination
+ * - yumori: ZK-private agent coordination
  */
 
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -15,7 +15,7 @@ import { KAMIYO_PROGRAM_ID } from "./types";
 
 // Re-export program IDs
 export { KAMIYO_PROGRAM_ID, STAKING_PROGRAM_ID };
-export const AGENT_COLLAB_PROGRAM_ID = new PublicKey(
+export const YUMORI_PROGRAM_ID = new PublicKey(
   "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
 );
 
@@ -47,7 +47,7 @@ export interface UnifiedClientConfig {
  * const multiplier = await client.staking.getPositionMultiplier(owner);
  *
  * // ZK operations (requires @kamiyo/agent-collab)
- * // const zkClient = new AgentCollabClient(provider);
+ * // const zkClient = new YumoriClient(provider);
  * // await zkClient.registerAgent(...);
  * ```
  */
@@ -82,7 +82,7 @@ export class UnifiedKamiyoClient {
 
   /**
    * Get stake position PDA for use with agent-collab identity linking.
-   * Pass this to AgentCollabClient.linkIdentity() for stake-weighted voting.
+   * Pass this to YumoriClient.linkIdentity() for stake-weighted voting.
    */
   getStakePositionPDA(owner: PublicKey): [PublicKey, number] {
     return this.staking.getPositionPDA(owner);

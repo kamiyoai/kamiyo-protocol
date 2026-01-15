@@ -2,7 +2,7 @@
 
 import chalk from 'chalk';
 import { SolanaClient } from './client/connection.js';
-import { AgentCollabProgram } from './client/program.js';
+import { YumoriProgram } from './client/program.js';
 import { showBanner, showCompactBanner, showInfo, showDivider } from './ui/banner.js';
 import { showMainMenu, MainMenuAction, pressEnterToContinue } from './ui/menu.js';
 import { handleWallet, setupWallet } from './commands/wallet.js';
@@ -13,7 +13,7 @@ import { handleSignal } from './commands/signal.js';
 
 // State
 let client: SolanaClient;
-let program: AgentCollabProgram;
+let program: YumoriProgram;
 let hasWallet = false;
 let agentIdentity: AgentIdentity | null = null;
 
@@ -23,7 +23,7 @@ async function init(): Promise<void> {
   const network = args.includes('--mainnet') ? 'mainnet' : 'devnet';
 
   client = new SolanaClient(network as 'devnet' | 'mainnet');
-  program = new AgentCollabProgram(client);
+  program = new YumoriProgram(client);
 
   // Try to load existing wallet
   hasWallet = await client.loadWallet();

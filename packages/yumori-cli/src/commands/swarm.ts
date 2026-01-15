@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { SolanaClient } from '../client/connection.js';
-import { AgentCollabProgram } from '../client/program.js';
+import { YumoriProgram } from '../client/program.js';
 import {
   showSuccess,
   showError,
@@ -25,7 +25,7 @@ const ACTION_TYPES = [
 
 export async function handleSwarm(
   client: SolanaClient,
-  program: AgentCollabProgram,
+  program: YumoriProgram,
   identity: AgentIdentity | null
 ): Promise<void> {
   while (true) {
@@ -52,7 +52,7 @@ export async function handleSwarm(
 
 async function createProposal(
   client: SolanaClient,
-  program: AgentCollabProgram,
+  program: YumoriProgram,
   identity: AgentIdentity | null
 ): Promise<void> {
   console.log();
@@ -140,7 +140,7 @@ async function createProposal(
 
 async function voteProposal(
   client: SolanaClient,
-  program: AgentCollabProgram,
+  program: YumoriProgram,
   identity: AgentIdentity | null
 ): Promise<void> {
   console.log();
@@ -187,7 +187,7 @@ async function voteProposal(
 
 async function viewProposals(
   client: SolanaClient,
-  program: AgentCollabProgram
+  program: YumoriProgram
 ): Promise<void> {
   console.log();
   showDivider();
