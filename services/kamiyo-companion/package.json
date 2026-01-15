@@ -7,8 +7,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:actions": "node dist/actions.js",
+    "start:api": "node dist/api-server.js",
     "dev": "tsx watch src/index.ts",
     "dev:actions": "tsx watch src/actions.ts",
+    "dev:api": "tsx watch src/api-server.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
