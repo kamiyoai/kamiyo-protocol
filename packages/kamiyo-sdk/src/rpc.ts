@@ -103,7 +103,7 @@ export class RpcPool {
           confirmTransactionInitialTimeout: this.config.connectionTimeoutMs,
         }),
         url: ep.url,
-        weight: ep.weight,
+        weight: ep.weight ?? 1,
         healthy: false,
         latency: Infinity,
         errors: 0,

@@ -66,7 +66,7 @@ async function mainLoop(): Promise<void> {
 
       case MainMenuAction.EXIT:
         console.log();
-        console.log(chalk.gray('  Goodbye.'));
+        console.log(chalk.gray('  お疲れ様でした'));
         console.log();
         process.exit(0);
     }
