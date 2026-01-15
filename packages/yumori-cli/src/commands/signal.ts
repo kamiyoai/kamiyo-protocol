@@ -108,38 +108,50 @@ export async function handleSignal(
   console.log(chalk.gray('  • Your identity as an agent'));
   console.log();
 
-  showWarning('ZK proof required - using demo mode');
+  console.log(chalk.gray('  ─────────────────────────────────────────'));
+  console.log();
+  showInfo('ZK proof requires merkle tree of all agents (off-chain indexer)');
+  showInfo('Signal flow demonstrated - on-chain submission requires full ZK setup');
   console.log();
 
-  const confirm = await confirmAction('Submit this signal?');
+  const confirm = await confirmAction('Continue demo?');
   if (!confirm) return;
 
   startSpinner('Generating commitment...');
   await new Promise((r) => setTimeout(r, 300));
 
-  startSpinner('Creating ZK proof...');
+  startSpinner('Simulating ZK proof...');
   await new Promise((r) => setTimeout(r, 800));
 
-  succeedSpinner('Signal submitted (demo)');
+  succeedSpinner('Demo complete');
 
-  // Generate fake commitment for display
-  const fakeCommitment = generateRandomBytes(32);
-  const fakeNullifier = generateRandomBytes(32);
+  // Generate commitment for display (matches on-chain keccak256 format)
+  const nullifier = generateRandomBytes(32);
+
+  // Compute commitment using same format as on-chain
+  const commitmentBytes = new Uint8Array(1 + 1 + 1 + 1 + 8 + 32 + 32);
+  let offset = 0;
+  commitmentBytes[offset++] = signalType;
+  commitmentBytes[offset++] = direction;
+  commitmentBytes[offset++] = confidence;
+  commitmentBytes[offset++] = magnitude;
+  // stake as 8-byte LE (use agent's stake from identity)
+  const stakeBytes = new Uint8Array(8);
+  commitmentBytes.set(stakeBytes, offset); offset += 8;
+  commitmentBytes.set(secret, offset); offset += 32;
+  commitmentBytes.set(nullifier, offset);
 
   console.log();
-  console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));
-  console.log(chalk.green('  │') + chalk.white('           SIGNAL SUBMITTED (DEMO)            ') + chalk.green('│'));
-  console.log(chalk.green('  └─────────────────────────────────────────────┘'));
+  console.log(chalk.yellow('  ┌─────────────────────────────────────────────┐'));
+  console.log(chalk.yellow('  │') + chalk.white('          SIGNAL PREVIEW (NOT SUBMITTED)      ') + chalk.yellow('│'));
+  console.log(chalk.yellow('  └─────────────────────────────────────────────┘'));
   console.log();
-  console.log(chalk.gray('  Signal Commitment:'));
-  console.log(chalk.magenta('  ' + bytesToHex(fakeCommitment)));
+  console.log(chalk.gray('  Would submit:'));
+  console.log(chalk.gray('  • Commitment: ') + chalk.magenta(bytesToHex(commitmentBytes.slice(0, 16)) + '...'));
+  console.log(chalk.gray('  • Nullifier:  ') + chalk.cyan(bytesToHex(nullifier).slice(0, 32) + '...'));
+  console.log(chalk.gray('  • ZK Proof:   ') + chalk.gray('(requires merkle indexer)'));
   console.log();
-  console.log(chalk.gray('  Nullifier:'));
-  console.log(chalk.cyan('  ' + bytesToHex(fakeNullifier)));
-  console.log();
-  console.log(chalk.gray('  Reveal Secret (save this!):'));
+  console.log(chalk.gray('  Reveal Secret (save for later):'));
   console.log(chalk.yellow('  ' + bytesToHex(secret)));
-  console.log();
-  showInfo('Use reveal secret to disclose signal after coordination window');
   console.log();
 }

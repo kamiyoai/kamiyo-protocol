@@ -92,10 +92,13 @@ async function createProposal(
   console.log(chalk.gray('  Threshold: ') + chalk.yellow(threshold + '%'));
   console.log();
 
-  showWarning('ZK proof required - using demo mode (simulated proof)');
+  console.log(chalk.gray('  ─────────────────────────────────────────'));
+  console.log();
+  showInfo('ZK proof requires merkle tree of all agents');
+  showInfo('Swarm flow demonstrated - on-chain requires full ZK setup');
   console.log();
 
-  const confirm = await confirmAction('Create this proposal?');
+  const confirm = await confirmAction('Continue demo?');
   if (!confirm) return;
 
   startSpinner('Generating action hash...');
@@ -104,36 +107,21 @@ async function createProposal(
     const actionHash = await generateActionHash(actionType, description);
     const nullifier = generateRandomBytes(32);
 
-    // Demo mode: create mock proof (all zeros won't verify on mainnet)
-    const mockProof = {
-      a: Array(64).fill(0),
-      b: Array(128).fill(0),
-      c: Array(64).fill(0),
-    };
-
-    startSpinner('Submitting proposal...');
-
-    // Note: This will fail on-chain due to invalid proof
-    // In demo, we just show the flow
-    showInfo('Demo mode - actual submission requires valid ZK proof');
-
-    succeedSpinner('Proposal created (demo)');
+    succeedSpinner('Demo complete');
 
     console.log();
-    console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));
-    console.log(chalk.green('  │') + chalk.white('            PROPOSAL CREATED (DEMO)           ') + chalk.green('│'));
-    console.log(chalk.green('  └─────────────────────────────────────────────┘'));
+    console.log(chalk.yellow('  ┌─────────────────────────────────────────────┐'));
+    console.log(chalk.yellow('  │') + chalk.white('        PROPOSAL PREVIEW (NOT SUBMITTED)      ') + chalk.yellow('│'));
+    console.log(chalk.yellow('  └─────────────────────────────────────────────┘'));
     console.log();
-    console.log(chalk.gray('  Action Hash:'));
-    console.log(chalk.magenta('  ' + bytesToHex(actionHash)));
-    console.log();
-    console.log(chalk.gray('  Nullifier:'));
-    console.log(chalk.cyan('  ' + bytesToHex(nullifier)));
-    console.log();
-    showInfo('In production, ZK circuit would prove agent membership');
+    console.log(chalk.gray('  Would submit:'));
+    console.log(chalk.gray('  • Action Hash: ') + chalk.magenta(bytesToHex(actionHash).slice(0, 32) + '...'));
+    console.log(chalk.gray('  • Nullifier:   ') + chalk.cyan(bytesToHex(nullifier).slice(0, 32) + '...'));
+    console.log(chalk.gray('  • Threshold:   ') + chalk.white(threshold + '%'));
+    console.log(chalk.gray('  • ZK Proof:    ') + chalk.gray('(requires merkle indexer)'));
     console.log();
   } catch (err: any) {
-    failSpinner('Failed to create proposal');
+    failSpinner('Failed');
     showError(err.message);
   }
 }
@@ -166,22 +154,27 @@ async function voteProposal(
   ]);
 
   console.log();
-  showWarning('ZK proof required - using demo mode');
+  showInfo('ZK proof requires merkle tree of all agents');
   console.log();
 
-  const confirm = await confirmAction(`Cast ${vote ? 'YES' : 'NO'} vote?`);
+  const confirm = await confirmAction(`Preview ${vote ? 'YES' : 'NO'} vote?`);
   if (!confirm) return;
 
-  startSpinner('Generating vote proof...');
+  startSpinner('Simulating vote proof...');
   await new Promise((r) => setTimeout(r, 800));
 
-  succeedSpinner('Vote submitted (demo)');
+  succeedSpinner('Demo complete');
 
   console.log();
-  console.log(chalk.gray('  Vote:     ') + (vote ? chalk.green('YES') : chalk.red('NO')));
-  console.log(chalk.gray('  Action:   ') + formatCommitment(actionHashHex));
+  console.log(chalk.yellow('  ┌─────────────────────────────────────────────┐'));
+  console.log(chalk.yellow('  │') + chalk.white('          VOTE PREVIEW (NOT SUBMITTED)        ') + chalk.yellow('│'));
+  console.log(chalk.yellow('  └─────────────────────────────────────────────┘'));
   console.log();
-  showInfo('Vote nullifier prevents double-voting');
+  console.log(chalk.gray('  Would submit:'));
+  console.log(chalk.gray('  • Vote:       ') + (vote ? chalk.green('YES') : chalk.red('NO')));
+  console.log(chalk.gray('  • Action:     ') + formatCommitment(actionHashHex));
+  console.log(chalk.gray('  • Nullifier:  ') + chalk.gray('(prevents double-voting)'));
+  console.log(chalk.gray('  • ZK Proof:   ') + chalk.gray('(requires merkle indexer)'));
   console.log();
 }
 
