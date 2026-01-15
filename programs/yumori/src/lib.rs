@@ -6,8 +6,31 @@
  */
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::keccak;
 
 declare_id!("DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26");
+
+/// Compute keccak256 hash of signal inputs for commitment verification.
+/// Format: keccak256(signal_type || direction || confidence || magnitude || stake_amount || secret || nullifier)
+fn compute_signal_commitment(
+    signal_type: u8,
+    direction: u8,
+    confidence: u8,
+    magnitude: u8,
+    stake_amount: u64,
+    secret: &[u8; 32],
+    agent_nullifier: &[u8; 32],
+) -> [u8; 32] {
+    let mut data = Vec::with_capacity(1 + 1 + 1 + 1 + 8 + 32 + 32);
+    data.push(signal_type);
+    data.push(direction);
+    data.push(confidence);
+    data.push(magnitude);
+    data.extend_from_slice(&stake_amount.to_le_bytes());
+    data.extend_from_slice(secret);
+    data.extend_from_slice(agent_nullifier);
+    keccak::hash(&data).to_bytes()
+}
 
 /// KAMIYO Staking program ID for CPI stake verification
 pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
@@ -374,14 +397,15 @@ pub mod yumori {
 
     /// Reveal a signal's content after submission
     ///
-    /// NOTE: Full commitment verification requires on-chain Poseidon hashing or a ZK proof.
-    /// Current implementation validates input ranges only. For production, add reveal proof.
+    /// Verifies the revealed data matches the original commitment using on-chain Poseidon hash.
+    /// The commitment = Poseidon(signal_type, direction, confidence, magnitude, stake_amount, secret, nullifier)
     pub fn reveal_signal(
         ctx: Context<RevealSignal>,
         signal_type: u8,
         direction: u8,
         confidence: u8,
         magnitude: u8,
+        stake_amount: u64,
         reveal_secret: [u8; 32],
     ) -> Result<()> {
         let signal = &mut ctx.accounts.signal;
@@ -400,10 +424,21 @@ pub mod yumori {
         require!(confidence <= 100, AgentCollabError::InvalidReveal);
         require!(magnitude <= 100, AgentCollabError::InvalidReveal);
 
-        // TODO: Add ZK proof verification for reveal correctness
-        // The commitment = Poseidon(signal_type, direction, confidence, magnitude, stake, secret, nullifier)
-        // Without on-chain Poseidon, we cannot verify this directly.
-        // Production should require a reveal_proof parameter.
+        // Verify commitment using keccak256 hash
+        let computed_commitment = compute_signal_commitment(
+            signal_type,
+            direction,
+            confidence,
+            magnitude,
+            stake_amount,
+            &reveal_secret,
+            &signal.nullifier,
+        );
+
+        require!(
+            computed_commitment == signal.commitment,
+            AgentCollabError::CommitmentMismatch
+        );
 
         // Mark as revealed
         signal.revealed = true;
@@ -1337,4 +1372,6 @@ pub enum AgentCollabError {
     AgentCountOverflow,
     #[msg("Invalid reveal data")]
     InvalidReveal,
+    #[msg("Commitment mismatch - reveal data does not match original commitment")]
+    CommitmentMismatch,
 }
