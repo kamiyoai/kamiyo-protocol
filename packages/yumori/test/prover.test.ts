@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  AgentCollabProver,
+  YumoriProver,
   generateRandomSalt,
   generateOwnerSecret,
   generateRegistrationSecret,
@@ -70,14 +70,14 @@ describe('Prover Utilities', () => {
   });
 });
 
-describe('AgentCollabProver', () => {
+describe('YumoriProver', () => {
   describe('generateIdentityCommitment', () => {
     it('should generate 32-byte commitment', async () => {
       const ownerSecret = generateOwnerSecret();
       const agentId = new Uint8Array(32).fill(1);
       const registrationSecret = generateRegistrationSecret();
 
-      const commitment = await AgentCollabProver.generateIdentityCommitment(
+      const commitment = await YumoriProver.generateIdentityCommitment(
         ownerSecret,
         agentId,
         registrationSecret
@@ -92,12 +92,12 @@ describe('AgentCollabProver', () => {
       const agentId = new Uint8Array(32).fill(2);
       const registrationSecret = new Uint8Array(32).fill(3);
 
-      const c1 = await AgentCollabProver.generateIdentityCommitment(
+      const c1 = await YumoriProver.generateIdentityCommitment(
         ownerSecret,
         agentId,
         registrationSecret
       );
-      const c2 = await AgentCollabProver.generateIdentityCommitment(
+      const c2 = await YumoriProver.generateIdentityCommitment(
         ownerSecret,
         agentId,
         registrationSecret
@@ -112,12 +112,12 @@ describe('AgentCollabProver', () => {
       const agentId2 = new Uint8Array(32).fill(3);
       const registrationSecret = new Uint8Array(32).fill(4);
 
-      const c1 = await AgentCollabProver.generateIdentityCommitment(
+      const c1 = await YumoriProver.generateIdentityCommitment(
         ownerSecret,
         agentId1,
         registrationSecret
       );
-      const c2 = await AgentCollabProver.generateIdentityCommitment(
+      const c2 = await YumoriProver.generateIdentityCommitment(
         ownerSecret,
         agentId2,
         registrationSecret
@@ -133,7 +133,7 @@ describe('AgentCollabProver', () => {
       const registrationSecret = new Uint8Array(32).fill(2);
       const epoch = BigInt(1);
 
-      const nullifier = await AgentCollabProver.generateNullifier(
+      const nullifier = await YumoriProver.generateNullifier(
         agentId,
         registrationSecret,
         epoch
@@ -147,8 +147,8 @@ describe('AgentCollabProver', () => {
       const agentId = new Uint8Array(32).fill(1);
       const registrationSecret = new Uint8Array(32).fill(2);
 
-      const n1 = await AgentCollabProver.generateNullifier(agentId, registrationSecret, BigInt(1));
-      const n2 = await AgentCollabProver.generateNullifier(agentId, registrationSecret, BigInt(2));
+      const n1 = await YumoriProver.generateNullifier(agentId, registrationSecret, BigInt(1));
+      const n2 = await YumoriProver.generateNullifier(agentId, registrationSecret, BigInt(2));
 
       expect(n1).not.toEqual(n2);
     });
@@ -158,8 +158,8 @@ describe('AgentCollabProver', () => {
       const registrationSecret = new Uint8Array(32).fill(2);
       const epoch = BigInt(42);
 
-      const n1 = await AgentCollabProver.generateNullifier(agentId, registrationSecret, epoch);
-      const n2 = await AgentCollabProver.generateNullifier(agentId, registrationSecret, epoch);
+      const n1 = await YumoriProver.generateNullifier(agentId, registrationSecret, epoch);
+      const n2 = await YumoriProver.generateNullifier(agentId, registrationSecret, epoch);
 
       expect(n1).toEqual(n2);
     });
@@ -171,7 +171,7 @@ describe('AgentCollabProver', () => {
       const registrationSecret = new Uint8Array(32).fill(2);
       const actionHash = new Uint8Array(32).fill(3);
 
-      const nullifier = await AgentCollabProver.generateVoteNullifier(
+      const nullifier = await YumoriProver.generateVoteNullifier(
         agentId,
         registrationSecret,
         actionHash
@@ -187,8 +187,8 @@ describe('AgentCollabProver', () => {
       const action1 = new Uint8Array(32).fill(3);
       const action2 = new Uint8Array(32).fill(4);
 
-      const n1 = await AgentCollabProver.generateVoteNullifier(agentId, registrationSecret, action1);
-      const n2 = await AgentCollabProver.generateVoteNullifier(agentId, registrationSecret, action2);
+      const n1 = await YumoriProver.generateVoteNullifier(agentId, registrationSecret, action1);
+      const n2 = await YumoriProver.generateVoteNullifier(agentId, registrationSecret, action2);
 
       expect(n1).not.toEqual(n2);
     });
@@ -199,7 +199,7 @@ describe('AgentCollabProver', () => {
       const voteSalt = new Uint8Array(32).fill(1);
       const actionHash = new Uint8Array(32).fill(2);
 
-      const commitment = await AgentCollabProver.generateVoteCommitment(
+      const commitment = await YumoriProver.generateVoteCommitment(
         true,
         voteSalt,
         actionHash
@@ -213,8 +213,8 @@ describe('AgentCollabProver', () => {
       const voteSalt = new Uint8Array(32).fill(1);
       const actionHash = new Uint8Array(32).fill(2);
 
-      const approve = await AgentCollabProver.generateVoteCommitment(true, voteSalt, actionHash);
-      const reject = await AgentCollabProver.generateVoteCommitment(false, voteSalt, actionHash);
+      const approve = await YumoriProver.generateVoteCommitment(true, voteSalt, actionHash);
+      const reject = await YumoriProver.generateVoteCommitment(false, voteSalt, actionHash);
 
       expect(approve).not.toEqual(reject);
     });
@@ -224,8 +224,8 @@ describe('AgentCollabProver', () => {
       const salt2 = new Uint8Array(32).fill(2);
       const actionHash = new Uint8Array(32).fill(3);
 
-      const c1 = await AgentCollabProver.generateVoteCommitment(true, salt1, actionHash);
-      const c2 = await AgentCollabProver.generateVoteCommitment(true, salt2, actionHash);
+      const c1 = await YumoriProver.generateVoteCommitment(true, salt1, actionHash);
+      const c2 = await YumoriProver.generateVoteCommitment(true, salt2, actionHash);
 
       expect(c1).not.toEqual(c2);
     });
@@ -236,7 +236,7 @@ describe('AgentCollabProver', () => {
       const secret = new Uint8Array(32).fill(1);
       const agentNullifier = new Uint8Array(32).fill(2);
 
-      const commitment = await AgentCollabProver.generateSignalCommitment(
+      const commitment = await YumoriProver.generateSignalCommitment(
         0, // signalType
         1, // direction
         75, // confidence
@@ -254,10 +254,10 @@ describe('AgentCollabProver', () => {
       const secret = new Uint8Array(32).fill(1);
       const agentNullifier = new Uint8Array(32).fill(2);
 
-      const c1 = await AgentCollabProver.generateSignalCommitment(
+      const c1 = await YumoriProver.generateSignalCommitment(
         0, 1, 75, 50, BigInt(1000000000), secret, agentNullifier
       );
-      const c2 = await AgentCollabProver.generateSignalCommitment(
+      const c2 = await YumoriProver.generateSignalCommitment(
         0, 1, 75, 50, BigInt(1000000000), secret, agentNullifier
       );
 
@@ -268,10 +268,10 @@ describe('AgentCollabProver', () => {
       const secret = new Uint8Array(32).fill(1);
       const agentNullifier = new Uint8Array(32).fill(2);
 
-      const c1 = await AgentCollabProver.generateSignalCommitment(
+      const c1 = await YumoriProver.generateSignalCommitment(
         0, 1, 75, 50, BigInt(1000000000), secret, agentNullifier
       );
-      const c2 = await AgentCollabProver.generateSignalCommitment(
+      const c2 = await YumoriProver.generateSignalCommitment(
         1, 1, 75, 50, BigInt(1000000000), secret, agentNullifier
       );
 
@@ -283,7 +283,7 @@ describe('AgentCollabProver', () => {
     it('should generate 32-byte action hash', async () => {
       const actionData = new Uint8Array(64).fill(1);
 
-      const hash = await AgentCollabProver.generateActionHash(0, actionData);
+      const hash = await YumoriProver.generateActionHash(0, actionData);
 
       expect(hash).toBeInstanceOf(Uint8Array);
       expect(hash.length).toBe(32);
@@ -292,8 +292,8 @@ describe('AgentCollabProver', () => {
     it('should be deterministic', async () => {
       const actionData = new Uint8Array(64).fill(1);
 
-      const h1 = await AgentCollabProver.generateActionHash(0, actionData);
-      const h2 = await AgentCollabProver.generateActionHash(0, actionData);
+      const h1 = await YumoriProver.generateActionHash(0, actionData);
+      const h2 = await YumoriProver.generateActionHash(0, actionData);
 
       expect(h1).toEqual(h2);
     });
@@ -301,8 +301,8 @@ describe('AgentCollabProver', () => {
     it('should produce different hashes for different action types', async () => {
       const actionData = new Uint8Array(64).fill(1);
 
-      const h1 = await AgentCollabProver.generateActionHash(0, actionData);
-      const h2 = await AgentCollabProver.generateActionHash(1, actionData);
+      const h1 = await YumoriProver.generateActionHash(0, actionData);
+      const h2 = await YumoriProver.generateActionHash(1, actionData);
 
       expect(h1).not.toEqual(h2);
     });

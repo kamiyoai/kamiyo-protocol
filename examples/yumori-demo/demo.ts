@@ -12,8 +12,8 @@
 import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import {
-  AgentCollabClient,
-  AgentCollabProver,
+  YumoriClient,
+  YumoriProver,
   SignalType,
   generateOwnerSecret,
   generateAgentId,
@@ -28,7 +28,7 @@ interface Agent {
   ownerSecret: Uint8Array;
   agentId: Uint8Array;
   identityCommitment: Uint8Array;
-  prover: AgentCollabProver;
+  prover: YumoriProver;
 }
 
 async function main() {
@@ -53,7 +53,7 @@ async function main() {
     const keypair = Keypair.generate();
     const ownerSecret = generateOwnerSecret();
     const agentId = generateAgentId(keypair.publicKey.toBytes(), i);
-    const identityCommitment = AgentCollabProver.generateIdentityCommitment(
+    const identityCommitment = YumoriProver.generateIdentityCommitment(
       ownerSecret,
       agentId
     );
@@ -64,7 +64,7 @@ async function main() {
       ownerSecret,
       agentId,
       identityCommitment,
-      prover: new AgentCollabProver(),
+      prover: new YumoriProver(),
     });
 
     console.log(`  ${agentNames[i]}:`);
@@ -94,14 +94,14 @@ async function main() {
     const signal = signals[i];
     const salt = generateRandomSalt();
 
-    const signalCommitment = AgentCollabProver.generateSignalCommitment(
+    const signalCommitment = YumoriProver.generateSignalCommitment(
       signal.type,
       new TextEncoder().encode(signal.asset),
       signal.confidence,
       salt
     );
 
-    const nullifier = AgentCollabProver.generateNullifier(
+    const nullifier = YumoriProver.generateNullifier(
       agent.ownerSecret,
       BigInt(1) // epoch 1
     );
@@ -129,7 +129,7 @@ async function main() {
     reason: 'Consensus bullish signal',
   });
 
-  const actionHash = AgentCollabProver.generateActionHash(
+  const actionHash = YumoriProver.generateActionHash(
     1, // EXECUTE_TRADE
     new TextEncoder().encode(actionData)
   );
@@ -145,7 +145,7 @@ async function main() {
     const agent = agents[i];
     const vote = votes[i];
 
-    const voteNullifier = AgentCollabProver.generateNullifier(
+    const voteNullifier = YumoriProver.generateNullifier(
       agent.ownerSecret,
       BigInt(2) // different epoch for vote
     );

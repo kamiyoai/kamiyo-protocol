@@ -7,7 +7,7 @@
 export * from './types';
 export * from './client';
 export {
-  AgentCollabProver,
+  YumoriProver,
   generateRandomSalt,
   generateOwnerSecret,
   generateRegistrationSecret,

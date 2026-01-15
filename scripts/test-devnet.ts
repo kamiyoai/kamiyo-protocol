@@ -21,7 +21,7 @@ async function main() {
   );
 
   // Load IDL
-  const idl = require('../target/idl/kamiyo_agent_collab.json');
+  const idl = require('../target/idl/yumori.json');
   const program = new anchor.Program(idl, provider);
 
   console.log('Wallet:', wallet.publicKey.toBase58());

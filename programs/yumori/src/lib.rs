@@ -1,5 +1,5 @@
 /*
- * KAMIYO Agent Collaboration Protocol
+ * Yumori (幽森) - Phantom Forest Protocol
  *
  * ZK-private coordination for AI agent swarms.
  * Agents prove identity and collaborate without revealing owners.
@@ -48,7 +48,7 @@ fn calculate_stake_multiplier(duration_seconds: i64) -> u64 {
 }
 
 #[program]
-pub mod kamiyo_agent_collab {
+pub mod yumori {
     use super::*;
 
     /// Initialize the agent registry

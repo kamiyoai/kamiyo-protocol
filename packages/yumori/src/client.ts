@@ -7,7 +7,7 @@
 import { Program, AnchorProvider, BN, web3 } from '@coral-xyz/anchor';
 import { PublicKey, Connection, Keypair } from '@solana/web3.js';
 import {
-  AGENT_COLLAB_PROGRAM_ID,
+  YUMORI_PROGRAM_ID,
   Groth16Proof,
   RegistryConfig,
   AgentRegistry,
@@ -21,11 +21,11 @@ import {
 } from './types';
 
 // Import the generated IDL
-import idlJson from './idl/kamiyo_agent_collab.json';
+import idlJson from './idl/yumori.json';
 import { Idl } from '@coral-xyz/anchor';
 
 // Re-export program ID for convenience
-export { AGENT_COLLAB_PROGRAM_ID };
+export { YUMORI_PROGRAM_ID };
 
 // ============================================================================
 // Input Validation
@@ -149,7 +149,7 @@ async function withRetry<T>(
  * @example
  * ```typescript
  * const provider = new AnchorProvider(connection, wallet, {});
- * const client = new AgentCollabClient(provider);
+ * const client = new YumoriClient(provider);
  *
  * // Initialize registry
  * await client.initializeRegistry(authority, { minStake: new BN(1000000), minSignalConfidence: 50 });
@@ -158,14 +158,14 @@ async function withRetry<T>(
  * await client.registerAgent(payer, identityCommitment, new BN(1000000));
  * ```
  */
-export class AgentCollabClient {
+export class YumoriClient {
   /** The Anchor program instance */
   readonly program: Program<Idl>;
   /** The Solana connection */
   readonly connection: Connection;
 
   /**
-   * Create a new AgentCollabClient.
+   * Create a new YumoriClient.
    * @param provider - Anchor provider with connection and wallet
    */
   constructor(provider: AnchorProvider) {
@@ -184,7 +184,7 @@ export class AgentCollabClient {
   static getRegistryPDA(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('registry')],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -196,7 +196,7 @@ export class AgentCollabClient {
   static getAgentPDA(identityCommitment: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('agent'), identityCommitment],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -208,7 +208,7 @@ export class AgentCollabClient {
   static getStakeVaultPDA(registry: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('stake_vault'), registry.toBuffer()],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -220,7 +220,7 @@ export class AgentCollabClient {
   static getSignalPDA(signalCommitment: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('signal'), signalCommitment],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -232,7 +232,7 @@ export class AgentCollabClient {
   static getNullifierPDA(nullifier: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('nullifier'), nullifier],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -244,7 +244,7 @@ export class AgentCollabClient {
   static getSwarmActionPDA(actionHash: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('swarm_action'), actionHash],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -260,7 +260,7 @@ export class AgentCollabClient {
   ): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('vote'), swarmAction.toBuffer(), nullifier],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -275,7 +275,7 @@ export class AgentCollabClient {
     epochBytes.writeBigUInt64LE(BigInt(epoch.toString()));
     return PublicKey.findProgramAddressSync(
       [Buffer.from('aggregator'), registry.toBuffer(), epochBytes],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -287,7 +287,7 @@ export class AgentCollabClient {
   static getWithdrawalPDA(agent: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('withdrawal'), agent.toBuffer()],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -299,7 +299,7 @@ export class AgentCollabClient {
   static getIdentityLinkPDA(zkAgent: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('identity_link'), zkAgent.toBuffer()],
-      AGENT_COLLAB_PROGRAM_ID
+      YUMORI_PROGRAM_ID
     );
   }
 
@@ -325,7 +325,7 @@ export class AgentCollabClient {
    * @returns Registry account data or null if not initialized
    */
   async getRegistry(): Promise<AgentRegistry | null> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [registryPDA] = YumoriClient.getRegistryPDA();
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['agentRegistry'].fetch(registryPDA) as AgentRegistry;
@@ -335,7 +335,7 @@ export class AgentCollabClient {
   }
 
   async getAgent(identityCommitment: Uint8Array): Promise<Agent | null> {
-    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
+    const [agentPDA] = YumoriClient.getAgentPDA(identityCommitment);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['agent'].fetch(agentPDA) as Agent;
@@ -345,7 +345,7 @@ export class AgentCollabClient {
   }
 
   async getSignal(signalCommitment: Uint8Array): Promise<Signal | null> {
-    const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
+    const [signalPDA] = YumoriClient.getSignalPDA(signalCommitment);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['signal'].fetch(signalPDA) as Signal;
@@ -355,7 +355,7 @@ export class AgentCollabClient {
   }
 
   async getSwarmAction(actionHash: Uint8Array): Promise<SwarmAction | null> {
-    const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
+    const [actionPDA] = YumoriClient.getSwarmActionPDA(actionHash);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['swarmAction'].fetch(actionPDA) as SwarmAction;
@@ -370,8 +370,8 @@ export class AgentCollabClient {
    * @returns Aggregator data or null if not initialized
    */
   async getAggregator(epoch: BN): Promise<SignalAggregator | null> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [aggregatorPDA] = AgentCollabClient.getAggregatorPDA(registryPDA, epoch);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [aggregatorPDA] = YumoriClient.getAggregatorPDA(registryPDA, epoch);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['signalAggregator'].fetch(aggregatorPDA) as SignalAggregator;
@@ -386,8 +386,8 @@ export class AgentCollabClient {
    * @returns Withdrawal request or null if none pending
    */
   async getWithdrawal(agentCommitment: Uint8Array): Promise<WithdrawalRequest | null> {
-    const [agentPDA] = AgentCollabClient.getAgentPDA(agentCommitment);
-    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+    const [agentPDA] = YumoriClient.getAgentPDA(agentCommitment);
+    const [withdrawalPDA] = YumoriClient.getWithdrawalPDA(agentPDA);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['withdrawalRequest'].fetch(withdrawalPDA) as WithdrawalRequest;
@@ -402,7 +402,7 @@ export class AgentCollabClient {
    * @returns Identity link or null if not linked
    */
   async getIdentityLink(zkAgent: PublicKey): Promise<IdentityLink | null> {
-    const [linkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgent);
+    const [linkPDA] = YumoriClient.getIdentityLinkPDA(zkAgent);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['identityLink'].fetch(linkPDA) as IdentityLink;
@@ -425,7 +425,7 @@ export class AgentCollabClient {
     authority: Keypair,
     config: RegistryConfig
   ): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [registryPDA] = YumoriClient.getRegistryPDA();
 
     return withRetry(() =>
       this.program.methods
@@ -455,9 +455,9 @@ export class AgentCollabClient {
     validateBytes32(identityCommitment, 'identityCommitment');
     validateStakeAmount(stakeAmount);
 
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
-    const [stakeVault] = AgentCollabClient.getStakeVaultPDA(registryPDA);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [agentPDA] = YumoriClient.getAgentPDA(identityCommitment);
+    const [stakeVault] = YumoriClient.getStakeVaultPDA(registryPDA);
 
     return withRetry(() =>
       this.program.methods
@@ -492,9 +492,9 @@ export class AgentCollabClient {
     validateBytes32(nullifier, 'nullifier');
     validateBytes32(signalCommitment, 'signalCommitment');
 
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
-    const [nullifierPDA] = AgentCollabClient.getNullifierPDA(nullifier);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [signalPDA] = YumoriClient.getSignalPDA(signalCommitment);
+    const [nullifierPDA] = YumoriClient.getNullifierPDA(nullifier);
 
     return withRetry(() =>
       this.program.methods
@@ -529,8 +529,8 @@ export class AgentCollabClient {
     validateBytes32(actionHash, 'actionHash');
     validateThreshold(threshold);
 
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [actionPDA] = YumoriClient.getSwarmActionPDA(actionHash);
 
     return withRetry(() =>
       this.program.methods
@@ -578,9 +578,9 @@ export class AgentCollabClient {
       throw new ValidationError('vote must be a boolean');
     }
 
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
-    const [voteNullifierPDA] = AgentCollabClient.getVoteNullifierPDA(
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [actionPDA] = YumoriClient.getSwarmActionPDA(actionHash);
+    const [voteNullifierPDA] = YumoriClient.getVoteNullifierPDA(
       actionPDA,
       nullifier
     );
@@ -613,7 +613,7 @@ export class AgentCollabClient {
   }
 
   async executeSwarmAction(actionHash: Uint8Array): Promise<string> {
-    const [actionPDA] = AgentCollabClient.getSwarmActionPDA(actionHash);
+    const [actionPDA] = YumoriClient.getSwarmActionPDA(actionHash);
 
     return withRetry(() =>
       this.program.methods
@@ -630,7 +630,7 @@ export class AgentCollabClient {
     newRoot: Uint8Array,
     agentCount: number
   ): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [registryPDA] = YumoriClient.getRegistryPDA();
 
     return withRetry(() =>
       this.program.methods
@@ -645,7 +645,7 @@ export class AgentCollabClient {
   }
 
   async pauseProtocol(authority: Keypair): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [registryPDA] = YumoriClient.getRegistryPDA();
 
     return withRetry(() =>
       this.program.methods
@@ -660,7 +660,7 @@ export class AgentCollabClient {
   }
 
   async unpauseProtocol(authority: Keypair): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
+    const [registryPDA] = YumoriClient.getRegistryPDA();
 
     return withRetry(() =>
       this.program.methods
@@ -681,8 +681,8 @@ export class AgentCollabClient {
    * @returns Transaction signature
    */
   async initAggregator(payer: Keypair, epoch: BN): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [aggregatorPDA] = AgentCollabClient.getAggregatorPDA(registryPDA, epoch);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [aggregatorPDA] = YumoriClient.getAggregatorPDA(registryPDA, epoch);
 
     return withRetry(() =>
       this.program.methods
@@ -723,11 +723,11 @@ export class AgentCollabClient {
     validateU8(magnitude, 'magnitude');
     validateBytes32(revealSecret, 'revealSecret');
 
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [signalPDA] = AgentCollabClient.getSignalPDA(signalCommitment);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [signalPDA] = YumoriClient.getSignalPDA(signalCommitment);
     const registry = await this.getRegistry();
     if (!registry) throw new Error('Registry not initialized');
-    const [aggregatorPDA] = AgentCollabClient.getAggregatorPDA(registryPDA, registry.epoch);
+    const [aggregatorPDA] = YumoriClient.getAggregatorPDA(registryPDA, registry.epoch);
 
     return withRetry(() =>
       this.program.methods
@@ -748,9 +748,9 @@ export class AgentCollabClient {
    * @returns Transaction signature
    */
   async requestWithdrawal(payer: Keypair, identityCommitment: Uint8Array): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
-    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [agentPDA] = YumoriClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = YumoriClient.getWithdrawalPDA(agentPDA);
 
     return withRetry(() =>
       this.program.methods
@@ -779,10 +779,10 @@ export class AgentCollabClient {
     identityCommitment: Uint8Array,
     recipient: PublicKey
   ): Promise<string> {
-    const [registryPDA] = AgentCollabClient.getRegistryPDA();
-    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
-    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
-    const [stakeVault] = AgentCollabClient.getStakeVaultPDA(registryPDA);
+    const [registryPDA] = YumoriClient.getRegistryPDA();
+    const [agentPDA] = YumoriClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = YumoriClient.getWithdrawalPDA(agentPDA);
+    const [stakeVault] = YumoriClient.getStakeVaultPDA(registryPDA);
 
     return withRetry(() =>
       this.program.methods
@@ -807,8 +807,8 @@ export class AgentCollabClient {
    * @returns Transaction signature
    */
   async cancelWithdrawal(payer: Keypair, identityCommitment: Uint8Array): Promise<string> {
-    const [agentPDA] = AgentCollabClient.getAgentPDA(identityCommitment);
-    const [withdrawalPDA] = AgentCollabClient.getWithdrawalPDA(agentPDA);
+    const [agentPDA] = YumoriClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = YumoriClient.getWithdrawalPDA(agentPDA);
 
     return withRetry(() =>
       this.program.methods
@@ -839,8 +839,8 @@ export class AgentCollabClient {
   ): Promise<string> {
     validateBytes32(zkAgentCommitment, 'zkAgentCommitment');
 
-    const [zkAgentPDA] = AgentCollabClient.getAgentPDA(zkAgentCommitment);
-    const [identityLinkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgentPDA);
+    const [zkAgentPDA] = YumoriClient.getAgentPDA(zkAgentCommitment);
+    const [identityLinkPDA] = YumoriClient.getIdentityLinkPDA(zkAgentPDA);
 
     const accounts: Record<string, PublicKey> = {
       zkAgent: zkAgentPDA,
@@ -872,8 +872,8 @@ export class AgentCollabClient {
   async unlinkIdentity(owner: Keypair, zkAgentCommitment: Uint8Array): Promise<string> {
     validateBytes32(zkAgentCommitment, 'zkAgentCommitment');
 
-    const [zkAgentPDA] = AgentCollabClient.getAgentPDA(zkAgentCommitment);
-    const [identityLinkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgentPDA);
+    const [zkAgentPDA] = YumoriClient.getAgentPDA(zkAgentCommitment);
+    const [identityLinkPDA] = YumoriClient.getIdentityLinkPDA(zkAgentPDA);
 
     return withRetry(() =>
       this.program.methods
@@ -902,8 +902,8 @@ export class AgentCollabClient {
   ): Promise<string> {
     validateBytes32(zkAgentCommitment, 'zkAgentCommitment');
 
-    const [zkAgentPDA] = AgentCollabClient.getAgentPDA(zkAgentCommitment);
-    const [identityLinkPDA] = AgentCollabClient.getIdentityLinkPDA(zkAgentPDA);
+    const [zkAgentPDA] = YumoriClient.getAgentPDA(zkAgentCommitment);
+    const [identityLinkPDA] = YumoriClient.getIdentityLinkPDA(zkAgentPDA);
 
     const accounts: Record<string, PublicKey> = {
       identityLink: identityLinkPDA,
@@ -936,7 +936,7 @@ export class AgentCollabClient {
   }
 
   async isNullifierUsed(nullifier: Uint8Array, epoch: BN): Promise<boolean> {
-    const [nullifierPDA] = AgentCollabClient.getNullifierPDA(nullifier);
+    const [nullifierPDA] = YumoriClient.getNullifierPDA(nullifier);
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       const record = await accounts['nullifierRecord'].fetch(nullifierPDA) as NullifierRecord;

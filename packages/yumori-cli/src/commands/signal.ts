@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { SolanaClient } from '../client/connection.js';
-import { AgentCollabProgram } from '../client/program.js';
+import { YumoriProgram } from '../client/program.js';
 import {
   showSuccess,
   showError,
@@ -30,7 +30,7 @@ const DIRECTIONS = [
 
 export async function handleSignal(
   client: SolanaClient,
-  program: AgentCollabProgram,
+  program: YumoriProgram,
   identity: AgentIdentity | null
 ): Promise<void> {
   console.log();

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { SolanaClient } from '../client/connection.js';
-import { AgentCollabProgram } from '../client/program.js';
+import { YumoriProgram } from '../client/program.js';
 import {
   showSuccess,
   showError,
@@ -21,7 +21,7 @@ export interface AgentIdentity {
 
 export async function handleRegister(
   client: SolanaClient,
-  program: AgentCollabProgram,
+  program: YumoriProgram,
   currentIdentity: AgentIdentity | null
 ): Promise<AgentIdentity | null> {
   console.log();
@@ -97,7 +97,7 @@ export async function handleRegister(
 
     succeedSpinner('Agent registered');
 
-    const [agentPDA] = AgentCollabProgram.getAgentPDA(commitment);
+    const [agentPDA] = YumoriProgram.getAgentPDA(commitment);
 
     console.log();
     console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));

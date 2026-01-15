@@ -7,12 +7,12 @@ import BN from 'bn.js';
 // Program ID from Anchor.toml
 const PROGRAM_ID = new PublicKey('DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26');
 
-describe('kamiyo-agent-collab', () => {
+describe('yumori', () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
   // Load the program
-  const idl = require('../target/idl/kamiyo_agent_collab.json');
+  const idl = require('../target/idl/yumori.json');
   const program = new Program(idl, provider);
 
   // Test accounts

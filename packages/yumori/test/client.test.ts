@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { PublicKey, Keypair } from '@solana/web3.js';
-import { AgentCollabClient, AGENT_COLLAB_PROGRAM_ID } from '../src';
+import { YumoriClient, YUMORI_PROGRAM_ID } from '../src';
 
-describe('AgentCollabClient', () => {
+describe('YumoriClient', () => {
   describe('PDA Derivation', () => {
     it('should derive registry PDA consistently', () => {
-      const [pda1, bump1] = AgentCollabClient.getRegistryPDA();
-      const [pda2, bump2] = AgentCollabClient.getRegistryPDA();
+      const [pda1, bump1] = YumoriClient.getRegistryPDA();
+      const [pda2, bump2] = YumoriClient.getRegistryPDA();
 
       expect(pda1.equals(pda2)).toBe(true);
       expect(bump1).toBe(bump2);
@@ -14,7 +14,7 @@ describe('AgentCollabClient', () => {
 
     it('should derive agent PDA from identity commitment', () => {
       const commitment = new Uint8Array(32).fill(1);
-      const [pda, bump] = AgentCollabClient.getAgentPDA(commitment);
+      const [pda, bump] = YumoriClient.getAgentPDA(commitment);
 
       expect(pda).toBeInstanceOf(PublicKey);
       expect(bump).toBeLessThanOrEqual(255);
@@ -24,8 +24,8 @@ describe('AgentCollabClient', () => {
       const commitment1 = new Uint8Array(32).fill(1);
       const commitment2 = new Uint8Array(32).fill(2);
 
-      const [pda1] = AgentCollabClient.getAgentPDA(commitment1);
-      const [pda2] = AgentCollabClient.getAgentPDA(commitment2);
+      const [pda1] = YumoriClient.getAgentPDA(commitment1);
+      const [pda2] = YumoriClient.getAgentPDA(commitment2);
 
       expect(pda1.equals(pda2)).toBe(false);
     });
@@ -33,7 +33,7 @@ describe('AgentCollabClient', () => {
     describe('Identity Link PDAs', () => {
       it('should derive identity link PDA from ZK agent', () => {
         const zkAgent = Keypair.generate().publicKey;
-        const [pda, bump] = AgentCollabClient.getIdentityLinkPDA(zkAgent);
+        const [pda, bump] = YumoriClient.getIdentityLinkPDA(zkAgent);
 
         expect(pda).toBeInstanceOf(PublicKey);
         expect(bump).toBeLessThanOrEqual(255);
@@ -43,8 +43,8 @@ describe('AgentCollabClient', () => {
         const agent1 = Keypair.generate().publicKey;
         const agent2 = Keypair.generate().publicKey;
 
-        const [pda1] = AgentCollabClient.getIdentityLinkPDA(agent1);
-        const [pda2] = AgentCollabClient.getIdentityLinkPDA(agent2);
+        const [pda1] = YumoriClient.getIdentityLinkPDA(agent1);
+        const [pda2] = YumoriClient.getIdentityLinkPDA(agent2);
 
         expect(pda1.equals(pda2)).toBe(false);
       });
@@ -53,7 +53,7 @@ describe('AgentCollabClient', () => {
         const stakingProgramId = new PublicKey('Stake11111111111111111111111111111111111111');
         const owner = Keypair.generate().publicKey;
 
-        const [pda, bump] = AgentCollabClient.getStakePositionPDA(stakingProgramId, owner);
+        const [pda, bump] = YumoriClient.getStakePositionPDA(stakingProgramId, owner);
 
         expect(pda).toBeInstanceOf(PublicKey);
         expect(bump).toBeLessThanOrEqual(255);
@@ -64,8 +64,8 @@ describe('AgentCollabClient', () => {
         const owner1 = Keypair.generate().publicKey;
         const owner2 = Keypair.generate().publicKey;
 
-        const [pda1] = AgentCollabClient.getStakePositionPDA(stakingProgramId, owner1);
-        const [pda2] = AgentCollabClient.getStakePositionPDA(stakingProgramId, owner2);
+        const [pda1] = YumoriClient.getStakePositionPDA(stakingProgramId, owner1);
+        const [pda2] = YumoriClient.getStakePositionPDA(stakingProgramId, owner2);
 
         expect(pda1.equals(pda2)).toBe(false);
       });
@@ -74,7 +74,7 @@ describe('AgentCollabClient', () => {
 
   describe('Program ID', () => {
     it('should export the correct program ID', () => {
-      expect(AGENT_COLLAB_PROGRAM_ID.toBase58()).toBe(
+      expect(YUMORI_PROGRAM_ID.toBase58()).toBe(
         'DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26'
       );
     });

@@ -1,7 +1,7 @@
 {
-  "name": "@kamiyo/agent-collab",
+  "name": "@kamiyo/yumori",
   "version": "0.1.0",
-  "description": "ZK-Private Agent Collaboration SDK",
+  "description": "Yumori - ZK-Private Agent Collaboration SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
