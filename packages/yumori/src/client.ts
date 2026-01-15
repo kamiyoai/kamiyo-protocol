@@ -129,10 +129,14 @@ async function withRetry<T>(
     } catch (error) {
       lastError = error;
       if (attempt < config.maxRetries && isRetryableError(error, config)) {
-        const delay = Math.min(
+        // Exponential backoff with jitter to prevent thundering herd
+        const baseDelay = Math.min(
           config.baseDelayMs * Math.pow(2, attempt),
           config.maxDelayMs
         );
+        // Add random jitter: 50-150% of base delay
+        const jitter = 0.5 + Math.random();
+        const delay = Math.floor(baseDelay * jitter);
         await sleep(delay);
         continue;
       }

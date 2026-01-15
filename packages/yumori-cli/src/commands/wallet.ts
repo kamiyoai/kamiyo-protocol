@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import inquirer from 'inquirer';
 import { SolanaClient } from '../client/connection.js';
 import {
   showSuccess,
@@ -10,6 +11,18 @@ import {
 } from '../ui/banner.js';
 import { showWalletMenu, WalletAction, confirmAction } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
+
+async function promptPassword(prompt: string): Promise<string> {
+  const { password } = await inquirer.prompt([
+    {
+      type: 'password',
+      name: 'password',
+      message: prompt,
+      mask: '*',
+    },
+  ]);
+  return password;
+}
 
 export async function handleWallet(client: SolanaClient): Promise<void> {
   while (true) {
@@ -92,10 +105,20 @@ export async function setupWallet(client: SolanaClient): Promise<boolean> {
 
   startSpinner('Looking for wallet...');
 
-  const found = await client.loadWallet();
+  // First try without password (for Solana CLI wallet)
+  let found = await client.loadWallet();
+
+  if (!found) {
+    // Try with password for encrypted wallet
+    succeedSpinner('Checking for encrypted wallet...');
+    const password = await promptPassword('Wallet password (or leave empty to skip):');
+    if (password) {
+      found = await client.loadWallet(password);
+    }
+  }
 
   if (found) {
-    succeedSpinner('Wallet found');
+    succeedSpinner('Wallet loaded');
     const pubkey = client.getPublicKey()!;
     const balance = await client.getBalance();
 
@@ -116,17 +139,37 @@ export async function setupWallet(client: SolanaClient): Promise<boolean> {
   const create = await confirmAction('Create new wallet?');
   if (!create) return false;
 
-  startSpinner('Generating keypair...');
-  const keypair = await client.createWallet();
-  succeedSpinner('Wallet created');
-
+  // Get password for new encrypted wallet
   console.log();
-  console.log(chalk.gray('  Address:  ') + formatAddress(keypair.publicKey.toBase58(), false));
-  showInfo('Saved to ~/.yumori/wallet.json');
-  showWarning('Request airdrop for devnet SOL');
-  console.log();
+  showInfo('Wallet will be encrypted with a password.');
+  const password = await promptPassword('Enter password (min 8 chars):');
+  if (password.length < 8) {
+    showError('Password must be at least 8 characters');
+    return false;
+  }
+  const confirmPwd = await promptPassword('Confirm password:');
+  if (password !== confirmPwd) {
+    showError('Passwords do not match');
+    return false;
+  }
 
-  return true;
+  startSpinner('Generating encrypted keypair...');
+  try {
+    const keypair = await client.createWallet(password);
+    succeedSpinner('Wallet created');
+
+    console.log();
+    console.log(chalk.gray('  Address:  ') + formatAddress(keypair.publicKey.toBase58(), false));
+    showInfo('Saved to ~/.yumori/wallet.enc.json (encrypted)');
+    showWarning('Request airdrop for devnet SOL');
+    console.log();
+
+    return true;
+  } catch (err: unknown) {
+    failSpinner('Failed to create wallet');
+    showError(err instanceof Error ? err.message : 'Unknown error');
+    return false;
+  }
 }
 
 function showWarning(message: string): void {

@@ -28,7 +28,14 @@
     "build:sdk": "pnpm --filter @kamiyo/sdk run build",
     "clean": "rm -rf target && cd packages/kamiyo-sdk && rm -rf dist",
     "test": "anchor test",
-    "test:sdk": "pnpm --filter @kamiyo/sdk run test"
+    "test:sdk": "pnpm --filter @kamiyo/sdk run test",
+    "lint": "eslint 'packages/**/*.ts' 'services/**/*.ts' --fix",
+    "lint:check": "eslint 'packages/**/*.ts' 'services/**/*.ts'",
+    "format": "prettier --write 'packages/**/*.ts' 'services/**/*.ts'",
+    "format:check": "prettier --check 'packages/**/*.ts' 'services/**/*.ts'",
+    "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings",
+    "format:rust": "cargo fmt --all",
+    "audit": "pnpm audit && cargo audit"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["better-sqlite3"]
