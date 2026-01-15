@@ -8,7 +8,6 @@ import {
   showWarning,
   showDivider,
   formatCommitment,
-  yumoriGradient,
 } from '../ui/banner.js';
 import { showSwarmMenu, SwarmAction, confirmAction, inputText, selectOption } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
@@ -63,7 +62,7 @@ async function createProposal(
     return;
   }
 
-  console.log(yumoriGradient('  ◈ CREATE SWARM PROPOSAL'));
+  console.log(chalk.gray('  ◈ CREATE SWARM PROPOSAL'));
   console.log();
 
   // Select action type
@@ -139,7 +138,7 @@ async function voteProposal(
     return;
   }
 
-  console.log(yumoriGradient('  ◇ VOTE ON PROPOSAL'));
+  console.log(chalk.gray('  ◇ VOTE ON PROPOSAL'));
   console.log();
 
   const actionHashHex = await inputText('Enter action hash:');
@@ -185,7 +184,7 @@ async function viewProposals(
   console.log();
   showDivider();
 
-  console.log(yumoriGradient('  ◎ ACTIVE PROPOSALS'));
+  console.log(chalk.gray('  ◎ ACTIVE PROPOSALS'));
   console.log();
 
   startSpinner('Fetching proposals...');

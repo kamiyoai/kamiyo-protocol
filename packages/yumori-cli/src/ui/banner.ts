@@ -18,8 +18,8 @@ const FOREST_ICON = `
                      ⠻⣿⣷⣄⠙⠿⠋⣠⣾⣿⠟
                         ⠙⠿⣿⣿⣿⠿⠋`;
 
-// Gradient: dark forest greens to ethereal purple - phantom forest vibe
-const yumoriGradient = gradient(['#1a472a', '#2d5a3f', '#4a7c59', '#6b5b95', '#9b59b6']);
+// Gradient: hot neon magenta -> purple -> cyan
+const yumoriGradient = gradient(['#ff00ff', '#bf00ff', '#00ffff']);
 
 // Accent gradient for highlights
 const accentGradient = gradient(['#38a169', '#68d391', '#9ae6b4']);
@@ -35,7 +35,7 @@ export function showBanner(): void {
 
 export function showCompactBanner(): void {
   console.log();
-  console.log(yumoriGradient('  YUMORI') + chalk.gray(' | ZK Agent Collaboration'));
+  console.log(yumoriGradient('  Yumori 幽森') + chalk.gray(' | ZK Agent Collaboration'));
   console.log();
 }
 
