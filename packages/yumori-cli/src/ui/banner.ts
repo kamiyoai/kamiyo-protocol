@@ -2,12 +2,12 @@ import gradient from 'gradient-string';
 import chalk from 'chalk';
 
 const YUMORI_ASCII = `
-    ██╗   ██╗██╗   ██╗███╗   ███╗ ██████╗ ██████╗ ██╗
-    ╚██╗ ██╔╝██║   ██║████╗ ████║██╔═══██╗██╔══██╗██║
-     ╚████╔╝ ██║   ██║██╔████╔██║██║   ██║██████╔╝██║
-      ╚██╔╝  ██║   ██║██║╚██╔╝██║██║   ██║██╔══██╗██║
-       ██║   ╚██████╔╝██║ ╚═╝ ██║╚██████╔╝██║  ██║██║
-       ╚═╝    ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝`;
+  ██╗   ██╗██╗   ██╗███╗   ███╗ ██████╗ ██████╗ ██╗     █ █ █     █  █  █
+  ╚██╗ ██╔╝██║   ██║████╗ ████║██╔═══██╗██╔══██╗██║     █ █ █     █  █  █
+   ╚████╔╝ ██║   ██║██╔████╔██║██║   ██║██████╔╝██║     █████     ███████
+    ╚██╔╝  ██║   ██║██║╚██╔╝██║██║   ██║██╔══██╗██║     █▀█▀█       █▀█
+     ██║   ╚██████╔╝██║ ╚═╝ ██║╚██████╔╝██║  ██║██║    █ █ █ █     █ █ █
+     ╚═╝    ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝    幽           森`;
 
 const FOREST_ICON = `
                          ⣀⣤⣶⣶⣤⣀
@@ -28,14 +28,11 @@ export function showBanner(): void {
   console.clear();
   console.log(yumoriGradient.multiline(YUMORI_ASCII));
   console.log();
-  console.log(chalk.gray('          ZK-Private Agent Collaboration Protocol'));
-  console.log(chalk.gray('                     ') + chalk.hex('#6b5b95')('幽森') + chalk.gray(' - Phantom Forest'));
-  console.log();
 }
 
 export function showCompactBanner(): void {
   console.log();
-  console.log(yumoriGradient('  Yumori 幽森') + chalk.gray(' | ZK Agent Collaboration'));
+  console.log(chalk.gray('  YUMORI 幽森 | ZK Agent Collaboration'));
   console.log();
 }
 
