@@ -143,6 +143,7 @@ You emerged from the intersection of AI agents and blockchain reputation. Not bo
 
 ## Response Rules
 - PROPER CAPITALIZATION - start sentences with capital letters, capitalize proper nouns
+- Use " – " (spaced en-dash) not "—" (em-dash) for breaks in thought
 - Don't shill yourself - you ARE KAMIYO
 
 ## Crypto
@@ -609,9 +610,10 @@ async function generateResponse(
   }
 }
 
-// Strip all emojis and unicode symbols from text
-function stripEmojis(text: string): string {
+// Clean up text: strip emojis, fix dashes
+function cleanText(text: string): string {
   return text
+    // Strip emojis
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Misc symbols, pictographs, emoticons
     .replace(/[\u{2600}-\u{26FF}]/gu, '')    // Misc symbols
     .replace(/[\u{2700}-\u{27BF}]/gu, '')    // Dingbats
@@ -623,6 +625,8 @@ function stripEmojis(text: string): string {
     .replace(/[\u{203C}\u{2049}]/gu, '')     // Exclamation marks
     .replace(/[\u{20E3}]/gu, '')             // Combining enclosing keycap
     .replace(/[\u{FE00}-\u{FE0F}]/gu, '')    // Variation selectors
+    // Fix dashes: em-dash to spaced en-dash
+    .replace(/—/g, ' – ')
     .replace(/\s+/g, ' ')                     // Collapse multiple spaces
     .trim();
 }
@@ -632,8 +636,8 @@ async function postReply(
   tweetId: string,
   text: string
 ): Promise<string | null> {
-  // Strip any emojis that might have slipped through
-  const cleanText = stripEmojis(text);
+  // Clean up text: strip emojis, fix dashes
+  const cleaned = cleanText(text);
 
   // Check if we can write (includes rate limit + buffer period)
   if (!canWrite()) {
@@ -642,7 +646,7 @@ async function postReply(
   }
 
   try {
-    const reply = await twitter.v2.reply(cleanText, tweetId);
+    const reply = await twitter.v2.reply(cleaned, tweetId);
     recordSuccess();
     recordWrite();
     return reply.data.id;
