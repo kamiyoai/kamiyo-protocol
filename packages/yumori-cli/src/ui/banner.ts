@@ -1,13 +1,14 @@
 import gradient from 'gradient-string';
 import chalk from 'chalk';
 
-const YUMORI_ASCII = `
-  ██╗   ██╗██╗   ██╗███╗   ███╗ ██████╗ ██████╗ ██╗     █ █ █     █  █  █
-  ╚██╗ ██╔╝██║   ██║████╗ ████║██╔═══██╗██╔══██╗██║     █ █ █     █  █  █
-   ╚████╔╝ ██║   ██║██╔████╔██║██║   ██║██████╔╝██║     █████     ███████
-    ╚██╔╝  ██║   ██║██║╚██╔╝██║██║   ██║██╔══██╗██║     █▀█▀█       █▀█
-     ██║   ╚██████╔╝██║ ╚═╝ ██║╚██████╔╝██║  ██║██║    █ █ █ █     █ █ █
-     ╚═╝    ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝    幽           森`;
+const BANNER_ASCII = `
+  ██╗  ██╗ █████╗ ███╗   ███╗██╗██╗   ██╗ ██████╗     ██╗   ██╗██╗   ██╗███╗   ███╗ ██████╗ ██████╗ ██╗
+  ██║ ██╔╝██╔══██╗████╗ ████║██║╚██╗ ██╔╝██╔═══██╗    ╚██╗ ██╔╝██║   ██║████╗ ████║██╔═══██╗██╔══██╗██║
+  █████╔╝ ███████║██╔████╔██║██║ ╚████╔╝ ██║   ██║     ╚████╔╝ ██║   ██║██╔████╔██║██║   ██║██████╔╝██║
+  ██╔═██╗ ██╔══██║██║╚██╔╝██║██║  ╚██╔╝  ██║   ██║      ╚██╔╝  ██║   ██║██║╚██╔╝██║██║   ██║██╔══██╗██║
+  ██║  ██╗██║  ██║██║ ╚═╝ ██║██║   ██║   ╚██████╔╝       ██║   ╚██████╔╝██║ ╚═╝ ██║╚██████╔╝██║  ██║██║
+  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝   ╚═╝    ╚═════╝        ╚═╝    ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝`;
+
 
 const FOREST_ICON = `
                          ⣀⣤⣶⣶⣤⣀
@@ -18,7 +19,7 @@ const FOREST_ICON = `
                      ⠻⣿⣷⣄⠙⠿⠋⣠⣾⣿⠟
                         ⠙⠿⣿⣿⣿⠿⠋`;
 
-// Gradient: hot neon magenta -> purple -> cyan
+// Gradient: magenta -> purple -> cyan
 const yumoriGradient = gradient(['#ff00ff', '#bf00ff', '#00ffff']);
 
 // Accent gradient for highlights
@@ -26,7 +27,7 @@ const accentGradient = gradient(['#38a169', '#68d391', '#9ae6b4']);
 
 export function showBanner(): void {
   console.clear();
-  console.log(yumoriGradient.multiline(YUMORI_ASCII));
+  console.log(yumoriGradient.multiline(BANNER_ASCII));
   console.log();
 }
 
