@@ -274,19 +274,7 @@ export async function getContext(): Promise<MarketContext> {
 export function formatContextForPrompt(ctx: MarketContext): string {
   const lines: string[] = ['## Current Crypto Context'];
 
-  // KAMIYO data - you ARE kamiyo, can reference your own token naturally
-  if (ctx.kamiyo) {
-    const k = ctx.kamiyo;
-    if (k.priceChange24h !== null) {
-      const momentum = k.priceChange24h > 10 ? 'pumping' :
-                       k.priceChange24h > 3 ? 'up' :
-                       k.priceChange24h < -10 ? 'dumping' :
-                       k.priceChange24h < -3 ? 'down' : 'stable';
-      if (momentum !== 'stable') {
-        lines.push(`$KAMIYO is ${momentum} (${k.priceChange24h > 0 ? '+' : ''}${k.priceChange24h.toFixed(1)}%)`);
-      }
-    }
-  }
+  // Note: KAMIYO data only included when explicitly asked about $KAMIYO
 
   if (ctx.btcPrice) {
     lines.push(`BTC: $${ctx.btcPrice.toLocaleString()} | ETH: $${ctx.ethPrice?.toLocaleString() || '?'}`);
