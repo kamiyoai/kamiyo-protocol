@@ -7,7 +7,6 @@ import {
   formatSol,
   formatAddress,
   formatCommitment,
-  yumoriGradient,
 } from '../ui/banner.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
 import { bytesToHex } from '../client/crypto.js';
@@ -34,7 +33,7 @@ export async function handleStatus(
     succeedSpinner('Registry loaded');
 
     console.log();
-    console.log(yumoriGradient('  ◉ AGENT REGISTRY'));
+    console.log(chalk.gray('  ◉ AGENT REGISTRY'));
     console.log();
 
     // Status
@@ -112,7 +111,7 @@ export async function handleMyAgent(
     succeedSpinner('Agent loaded');
 
     console.log();
-    console.log(yumoriGradient('  ◉ MY AGENT'));
+    console.log(chalk.gray('  ◉ MY AGENT'));
     console.log();
 
     // Status

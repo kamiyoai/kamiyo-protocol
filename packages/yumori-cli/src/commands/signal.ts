@@ -8,7 +8,6 @@ import {
   showWarning,
   showDivider,
   formatCommitment,
-  yumoriGradient,
 } from '../ui/banner.js';
 import { confirmAction, inputText, selectOption } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
@@ -41,7 +40,7 @@ export async function handleSignal(
     return;
   }
 
-  console.log(yumoriGradient('  ◈ SUBMIT PRIVATE SIGNAL'));
+  console.log(chalk.gray('  ◈ SUBMIT PRIVATE SIGNAL'));
   console.log();
   showInfo('Signals are committed without revealing content');
   console.log();
