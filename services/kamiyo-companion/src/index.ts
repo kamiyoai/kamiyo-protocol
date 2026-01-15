@@ -742,12 +742,6 @@ async function processMention(
     logger.warn('Reply not posted', { tweetId: tweet.id, reason: 'postReply returned null' });
   }
 
-  // Add rate reminder occasionally
-  if (remaining !== -1 && remaining <= 3) {
-    await postReply(twitter, replyId || tweet.id,
-      `${remaining} messages left today. Use !rate 1-5 to rate this session, or !upgrade for more.`
-    );
-  }
 }
 
 // Exponential backoff state
@@ -800,6 +794,15 @@ async function startMentionStream(
             continue;
           }
 
+          // Skip tweets that don't actually mention us (thread replies where we were mentioned earlier)
+          const tweetText = tweet.text?.toLowerCase() || '';
+          if (!tweetText.includes('@kamiyocompanion')) {
+            logger.info('Skipping tweet without direct mention', { tweetId: tweet.id });
+            lastSeenId = tweet.id;
+            setBotState('lastSeenId', lastSeenId);
+            continue;
+          }
+
           // Skip already processed tweets (prevents duplicates)
           if (isProcessed(tweet.id)) {
             logger.info('Skipping already processed tweet', { tweetId: tweet.id });
@@ -807,7 +810,6 @@ async function startMentionStream(
             setBotState('lastSeenId', lastSeenId);
             continue;
           }
-
 
           // Mark as processed BEFORE handling (prevents race conditions)
           markProcessed(tweet.id);
