@@ -11,7 +11,7 @@ export const KAMIYO_PROGRAM_ID = new PublicKey(
 );
 
 /** @deprecated Use KAMIYO_PROGRAM_ID instead */
-export const MITAMA_PROGRAM_ID = KAMIYO_PROGRAM_ID;
+export const PROGRAM_ID = KAMIYO_PROGRAM_ID;
 
 // Agent Types
 export enum AgentType {

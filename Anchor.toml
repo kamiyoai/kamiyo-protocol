@@ -7,17 +7,17 @@ skip-lint = false
 
 [programs.devnet]
 kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
-yumori = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
+mitama = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
 
 [programs.localnet]
 kamiyo = "6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7"
-yumori = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
+mitama = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
 
 [programs.mainnet]
 kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
-yumori = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
+mitama = "DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
 
 [registry]

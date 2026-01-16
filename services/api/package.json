@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
-    "@kamiyo/yumori-prover": "workspace:*",
+    "@kamiyo/mitama-prover": "workspace:*",
     "@sentry/node": "^8.0.0",
     "@solana/web3.js": "^1.98.0",
     "better-sqlite3": "^11.0.0",

@@ -286,6 +286,31 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  examples/mitama-demo:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/mitama':
+        specifier: workspace:*
+        version: link:../../packages/mitama
+      '@solana/web3.js':
+        specifier: ^1.95.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      ts-node:
+        specifier: ^10.9.0
+        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   examples/sla-demo:
     dependencies:
       '@coral-xyz/anchor':
@@ -315,31 +340,6 @@ importers:
         version: 10.9.2(@types/node@20.19.28)(typescript@5.9.3)
       typescript:
         specifier: ^5.0.0
-        version: 5.9.3
-
-  examples/yumori-demo:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/yumori':
-        specifier: workspace:*
-        version: link:../../packages/yumori
-      '@solana/web3.js':
-        specifier: ^1.95.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      ts-node:
-        specifier: ^10.9.0
-        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.7.0
         version: 5.9.3
 
   packages/helius-adapter:
@@ -655,9 +655,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/yumori':
+      '@kamiyo/mitama':
         specifier: workspace:*
-        version: link:../yumori
+        version: link:../mitama
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.4)(zod@4.3.5)
@@ -958,7 +958,7 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  packages/yumori:
+  packages/mitama:
     dependencies:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
@@ -992,17 +992,17 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
 
-  packages/yumori-cli:
+  packages/mitama-cli:
     dependencies:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/yumori-merkle':
+      '@kamiyo/mitama-merkle':
         specifier: workspace:*
-        version: link:../yumori-merkle
-      '@kamiyo/yumori-prover':
+        version: link:../mitama-merkle
+      '@kamiyo/mitama-prover':
         specifier: workspace:*
-        version: link:../yumori-prover
+        version: link:../mitama-prover
       '@solana/web3.js':
         specifier: ^1.98.0
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -1050,7 +1050,7 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
-  packages/yumori-merkle:
+  packages/mitama-merkle:
     dependencies:
       circomlibjs:
         specifier: ^0.1.7
@@ -1069,11 +1069,11 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
 
-  packages/yumori-prover:
+  packages/mitama-prover:
     dependencies:
-      '@kamiyo/yumori-merkle':
+      '@kamiyo/mitama-merkle':
         specifier: workspace:*
-        version: link:../yumori-merkle
+        version: link:../mitama-merkle
       circomlibjs:
         specifier: ^0.1.7
         version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -1102,9 +1102,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
         version: 0.52.0
-      '@kamiyo/yumori-prover':
+      '@kamiyo/mitama-prover':
         specifier: workspace:*
-        version: link:../../packages/yumori-prover
+        version: link:../../packages/mitama-prover
       '@sentry/node':
         specifier: ^8.0.0
         version: 8.55.0

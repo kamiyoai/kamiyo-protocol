@@ -121,7 +121,7 @@ import { startApiServer } from './api';
 import { closeDatabase } from './db';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
-import { createMarketCallSignal, formatSignal, isProverAvailable } from './yumori-signal';
+import { createMarketCallSignal, formatSignal, isProverAvailable } from './mitama-signal';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
