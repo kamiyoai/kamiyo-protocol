@@ -110,7 +110,7 @@ import {
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
 import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
-import { startContextRefresh, stopContextRefresh, getContext, formatContextForPrompt, lookupToken, formatTokenData } from './crypto-context';
+import { startContextRefresh, stopContextRefresh, getContext, formatContextForPrompt, lookupToken, lookupTokenByCA, formatTokenData } from './crypto-context';
 import { stopCacheCleanup } from './cache';
 import { startMaintenanceSchedule, stopMaintenanceSchedule } from './maintenance';
 
@@ -494,7 +494,8 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     return 'Could not fetch transaction. Check the signature.';
   }
 
-  // Auto-detect wallet addresses in text (not command format)
+  // Auto-detect Solana addresses in text (not command format)
+  // Could be a token CA or wallet address - try token first, fall back to wallet
   const addressMatch = text.match(/([1-9A-HJ-NP-Za-km-z]{32,44})/);
   if (addressMatch && isValidSolanaAddress(addressMatch[1]) && !text.startsWith('!')) {
     // Check rate limit before lookup
@@ -503,7 +504,16 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     }
     incrementLookupCount(userId);
 
-    const wallet = await lookupWallet(addressMatch[1]);
+    const address = addressMatch[1];
+
+    // Try token lookup first (CA)
+    const token = await lookupTokenByCA(address);
+    if (token) {
+      return formatTokenData(token);
+    }
+
+    // Fall back to wallet lookup
+    const wallet = await lookupWallet(address);
     if (wallet) {
       return formatWalletSummary(wallet);
     }

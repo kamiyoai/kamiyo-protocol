@@ -39,6 +39,47 @@ export interface TokenData {
   chain: string;
 }
 
+// Look up token by contract address (mint) on DexScreener
+export async function lookupTokenByCA(mint: string): Promise<TokenData | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.dexscreener.com/latest/dex/tokens/${mint}`,
+      8000
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json() as {
+      pairs?: Array<{
+        baseToken?: { name?: string; symbol?: string; address?: string };
+        priceUsd?: string;
+        priceChange?: { h24?: number };
+        fdv?: number;
+        volume?: { h24?: number };
+        liquidity?: { usd?: number };
+        chainId?: string;
+      }>;
+    };
+
+    // Find pair where baseToken matches the mint
+    const pair = data.pairs?.find(p => p.baseToken?.address === mint) || data.pairs?.[0];
+    if (!pair) return null;
+
+    return {
+      name: pair.baseToken?.name || 'Unknown',
+      symbol: pair.baseToken?.symbol || '???',
+      priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
+      priceChange24h: pair.priceChange?.h24 ?? null,
+      marketCap: pair.fdv ?? null,
+      volume24h: pair.volume?.h24 ?? null,
+      liquidity: pair.liquidity?.usd ?? null,
+      chain: pair.chainId || 'unknown',
+    };
+  } catch (err) {
+    logger.warn('Token CA lookup failed', { mint, error: String(err) });
+    return null;
+  }
+}
+
 // Look up any token by name/symbol on DexScreener
 export async function lookupToken(query: string): Promise<TokenData | null> {
   try {
