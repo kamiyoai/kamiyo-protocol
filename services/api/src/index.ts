@@ -868,8 +868,7 @@ async function processMention(
   let finalResponse = response;
   const signal = extractMarketSignal(response);
   if (signal && signal.direction !== 2) { // Has directional take
-    // Disabled: Groth16 proof generation too heavy for Render free tier
-    const stakeChance = 0; // Was: 0.2 + (signal.confidence / 300)
+    const stakeChance = 1.0; // 100% for demo
     const mitamaAgent = getMitamaAgent();
 
     if (Math.random() < stakeChance && mitamaAgent?.isRegistered()) {
