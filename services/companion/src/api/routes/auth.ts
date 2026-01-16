@@ -22,8 +22,17 @@ router.get('/challenge', (req: Request, res: Response) => {
   }
 
   try {
-    const { challenge, expiresAt } = generateChallenge(wallet);
-    res.json({ challenge, expiresAt });
+    const result = generateChallenge(wallet);
+    if (!result) {
+      res.status(429).json({
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many challenge requests. Please wait and try again.',
+        },
+      });
+      return;
+    }
+    res.json({ challenge: result.challenge, expiresAt: result.expiresAt });
   } catch (err) {
     logger.error('Challenge generation failed', { error: String(err) });
     res.status(500).json({
@@ -76,6 +85,7 @@ router.post('/verify', async (req: Request, res: Response) => {
 });
 
 // POST /api/auth/refresh
+// Note: Client must request /challenge first, sign it, then call /refresh with signature
 router.post('/refresh', async (req: Request, res: Response) => {
   const { wallet, signature } = req.body;
 
@@ -90,11 +100,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
   }
 
   try {
-    // Need fresh signature to refresh (re-verify ownership)
-    const challenge = generateChallenge(wallet);
-    // Note: In practice, client should request challenge first, then call refresh
-    // This endpoint expects a pre-signed challenge
-
+    // Verify the signature against the current challenge
     const result = await verifySignature(wallet, signature);
     if (!result.valid) {
       res.status(401).json({
