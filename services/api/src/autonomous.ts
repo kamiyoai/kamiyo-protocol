@@ -7,6 +7,10 @@ import { getContext, formatContextForPrompt } from './crypto-context';
 import { generateMeme, isImageGenAvailable } from './image-gen';
 import { getTrendingContext, formatTrendingForPrompt } from './trend-engine';
 import { getRecentInfluencerTopics } from './influencer-monitor';
+import { extractMarketSignal, formatSignal } from './mitama-signal';
+import { demoEvents } from './mitama-live-demo';
+import { getMitamaAgent } from './mitama-agent';
+import { BN } from '@coral-xyz/anchor';
 
 // Initialize tables
 db.exec(`
@@ -199,6 +203,40 @@ export function getTopThemes(limit = 5): Array<{ theme: string; intensity: numbe
   return db.prepare('SELECT theme, intensity FROM recurring_themes ORDER BY intensity DESC, last_used DESC LIMIT ?').all(limit) as Array<{ theme: string; intensity: number }>;
 }
 
+// Emit log to Mitama stream
+function emitMitamaLog(step: number, type: 'info' | 'success' | 'error' | 'tx' | 'proof' | 'tweet', message: string, data?: Record<string, unknown>) {
+  demoEvents.emit('log', { timestamp: Date.now(), step, type, message, data });
+  logger.info(`[MITAMA] ${message}`, data);
+}
+
+// Decide if the bot should stake on this take (generate ZK proof)
+async function shouldStakeOnTake(content: string): Promise<boolean> {
+  // Must have Mitama agent registered
+  const agent = getMitamaAgent();
+  if (!agent?.isRegistered()) return false;
+
+  // Extract signal to see if it's a market take
+  const signal = extractMarketSignal(content);
+  if (!signal) return false;
+
+  // Only stake on directional takes (not neutral)
+  if (signal.direction === 2) return false; // NEUTRAL
+
+  // Higher confidence = more likely to stake
+  // 30% base chance + confidence bonus
+  const stakeChance = 0.3 + (signal.confidence / 200);
+  const shouldStake = Math.random() < stakeChance;
+
+  if (shouldStake) {
+    logger.info('Bot decided to stake on take', {
+      signal: formatSignal(signal),
+      chance: Math.round(stakeChance * 100) + '%',
+    });
+  }
+
+  return shouldStake;
+}
+
 // Topics that warrant visual content
 const IMAGE_WORTHY_TOPICS = [
   'market', 'whale', 'milestone', 'launch', 'update', 'chart', 'trend',
@@ -298,21 +336,62 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
     }
   }
 
+  // Decide if bot should stake on this take with ZK proof
+  let postContent = finalContent;
+  let signalCommitment: string | null = null;
+
+  if (await shouldStakeOnTake(finalContent)) {
+    const signal = extractMarketSignal(finalContent);
+    const agent = getMitamaAgent();
+
+    if (signal && agent) {
+      emitMitamaLog(0, 'info', 'Bot staking on market take', { signal: formatSignal(signal) });
+
+      // Submit signal via Mitama agent with real stake
+      const result = await agent.submitSignal(
+        signal.type,
+        signal.direction,
+        signal.confidence,
+        signal.magnitude,
+        new BN(50000000), // 0.05 SOL stake per autonomous post
+        undefined // tweet_id will be updated after posting
+      );
+
+      if (result) {
+        signalCommitment = result.commitment;
+        emitMitamaLog(2, 'success', 'Signal committed via Mitama', {
+          commitment: result.commitment.slice(0, 24) + '...',
+          direction: signal.direction === 1 ? 'LONG' : 'SHORT',
+          confidence: signal.confidence + '%',
+          stake: '0.05 SOL',
+        });
+
+        // Append commitment to tweet (shortened)
+        const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
+        if (postContent.length + commitmentTag.length <= 280) {
+          postContent = postContent + commitmentTag;
+          emitMitamaLog(3, 'info', 'Commitment added to post');
+        }
+      }
+    }
+  }
+
   // Insert into queue
   const result = db.prepare(`
     INSERT INTO post_queue (content, post_type, context, generated_at, status, image_path)
     VALUES (?, 'tweet', ?, ?, 'pending', ?)
-  `).run(finalContent, fullContext.slice(0, 2000), Date.now(), imagePath); // Truncate context for storage
+  `).run(postContent, fullContext.slice(0, 2000), Date.now(), imagePath); // Truncate context for storage
 
   logger.info('Generated autonomous post', {
     id: result.lastInsertRowid,
-    content: finalContent.slice(0, 50),
-    hasImage: !!imagePath
+    content: postContent.slice(0, 50),
+    hasImage: !!imagePath,
+    hasSignal: !!signalCommitment,
   });
 
   return {
     id: result.lastInsertRowid as number,
-    content: finalContent,
+    content: postContent,
     post_type: 'tweet',
     context: fullContext.slice(0, 2000),
     generated_at: Date.now(),

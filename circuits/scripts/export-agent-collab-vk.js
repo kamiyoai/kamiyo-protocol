@@ -7,8 +7,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const BUILD_DIR = path.join(__dirname, "../build/agent-collab");
-const OUTPUT_PATH = path.join(__dirname, "../../programs/kamiyo-agent-collab/src/vk_generated.rs");
+const BUILD_DIR = path.join(__dirname, "../build/yumori");
+const OUTPUT_PATH = path.join(__dirname, "../../programs/mitama/src/vk_generated.rs");
 
 const CIRCUITS = [
   {

@@ -8,7 +8,7 @@
 use anchor_lang::prelude::*;
 use solana_poseidon::{hashv, Endianness, Parameters};
 
-declare_id!("DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26");
+declare_id!("DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km");
 
 /// Compute Poseidon hash of signal inputs for commitment verification.
 /// Matches the circuit: Poseidon(signal_type, direction, confidence, magnitude, stake_amount, secret, nullifier)

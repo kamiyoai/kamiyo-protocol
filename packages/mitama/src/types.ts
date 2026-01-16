@@ -7,7 +7,7 @@ import BN from 'bn.js';
 
 // Program ID - must match the deployed program and IDL
 export const MITAMA_PROGRAM_ID = new PublicKey(
-  'DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26'
+  'DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km'
 );
 
 // Account structures matching the on-chain program

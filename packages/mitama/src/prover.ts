@@ -365,15 +365,24 @@ export class MitamaProver {
   /**
    * Format snarkjs proof for Solana verification.
    * Converts from snarkjs format to groth16-solana format.
+   *
+   * IMPORTANT: groth16-solana expects pi_a to be negated (Y coordinate negated).
+   * This is required by the pairing equation: e(-A, B) * e(C, delta) * e(vk_x, gamma) * e(alpha, beta) = 1
    */
   private formatProofForSolana(proof: any): Groth16Proof {
     const aBytes = new Uint8Array(64);
     const bBytes = new Uint8Array(128);
     const cBytes = new Uint8Array(64);
 
-    // pi_a: G1 point
-    writeFieldElement(aBytes, 0, proof.pi_a[0]);
-    writeFieldElement(aBytes, 32, proof.pi_a[1]);
+    // pi_a: G1 point - must be NEGATED for groth16-solana
+    // Negation in BN254: -P = (x, p - y) where p is the base field modulus
+    const BN254_BASE_FIELD = BigInt('21888242871839275222246405745257275088696311157297823662689037894645226208583');
+    const piAx = BigInt(proof.pi_a[0]);
+    const piAy = BigInt(proof.pi_a[1]);
+    const negPiAy = BN254_BASE_FIELD - piAy;
+
+    writeFieldElement(aBytes, 0, piAx.toString());
+    writeFieldElement(aBytes, 32, negPiAy.toString());
 
     // pi_b: G2 point (reversed order for groth16-solana)
     writeFieldElement(bBytes, 0, proof.pi_b[0][1]);
@@ -394,13 +403,14 @@ export class MitamaProver {
 // ============================================================================
 
 /**
- * Write field element to buffer in little-endian format.
- * Solana's alt_bn128 syscalls expect little-endian byte order.
+ * Write field element to buffer in big-endian format.
+ * groth16-solana expects big-endian byte order for proof points.
  */
 function writeFieldElement(buf: Uint8Array, offset: number, value: string): void {
   const n = BigInt(value);
+  const hex = n.toString(16).padStart(64, '0');
   for (let i = 0; i < 32; i++) {
-    buf[offset + i] = Number((n >> BigInt(i * 8)) & BigInt(0xff));
+    buf[offset + i] = parseInt(hex.substr(i * 2, 2), 16);
   }
 }
 
