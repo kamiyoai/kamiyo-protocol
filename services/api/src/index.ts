@@ -708,11 +708,8 @@ async function postReply(
   // Clean up text: strip emojis, fix dashes
   const cleaned = cleanText(text);
 
-  // Check if we can write (includes rate limit + buffer period)
-  if (!canWrite()) {
-    logger.warn('Skipping reply - write cooldown active', { tweetId });
-    return null;
-  }
+  // Wait for cooldown instead of skipping (prevents death spiral)
+  await waitForWrite();
 
   try {
     const reply = await twitter.v2.reply(cleaned, tweetId);
