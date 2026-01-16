@@ -19,7 +19,7 @@ import {
   MitamaProver,
   createMerkleTree,
   generateAgentId,
-} from '@kamiyo/mitama';
+} from '@kamiyo/kamiyo-mitama';
 import * as fs from 'fs';
 
 async function main() {

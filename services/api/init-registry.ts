@@ -4,7 +4,7 @@ config({ path: '.env' });
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import { BN } from '@coral-xyz/anchor';
-import { MitamaClient } from '@kamiyo/mitama';
+import { MitamaClient } from '@kamiyo/kamiyo-mitama';
 
 async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
