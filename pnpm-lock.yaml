@@ -997,6 +997,12 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/yumori-merkle':
+        specifier: workspace:*
+        version: link:../yumori-merkle
+      '@kamiyo/yumori-prover':
+        specifier: workspace:*
+        version: link:../yumori-prover
       '@solana/web3.js':
         specifier: ^1.98.0
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -1018,6 +1024,9 @@ importers:
       ora:
         specifier: ^8.0.1
         version: 8.2.0
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
     devDependencies:
       '@types/bn.js':
         specifier: ^5.1.5
@@ -1041,7 +1050,54 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
-  services/api:
+  packages/yumori-merkle:
+    dependencies:
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
+
+  packages/yumori-prover:
+    dependencies:
+      '@kamiyo/yumori-merkle':
+        specifier: workspace:*
+        version: link:../yumori-merkle
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      '@types/snarkjs':
+        specifier: ^0.7.8
+        version: 0.7.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
+
+  services/companion:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
@@ -1142,167 +1198,6 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
-  services/holder-api:
-    dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.52.0
-        version: 0.52.0
-      '@solana/web3.js':
-        specifier: ^1.98.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      better-sqlite3:
-        specifier: ^11.0.0
-        version: 11.8.1
-      bs58:
-        specifier: ^6.0.0
-        version: 6.0.0
-      cors:
-        specifier: ^2.8.5
-        version: 2.8.5
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
-      express:
-        specifier: ^4.18.2
-        version: 4.22.1
-      jsonwebtoken:
-        specifier: ^9.0.3
-        version: 9.0.3
-      openai:
-        specifier: ^4.77.0
-        version: 4.82.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76)
-      prom-client:
-        specifier: ^15.1.0
-        version: 15.1.3
-      tweetnacl:
-        specifier: ^1.0.3
-        version: 1.0.3
-    devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.8
-        version: 7.6.13
-      '@types/bs58':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@types/cors':
-        specifier: ^2.8.17
-        version: 2.8.19
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/express-serve-static-core':
-        specifier: ^4.19.8
-        version: 4.19.8
-      '@types/jsonwebtoken':
-        specifier: ^9.0.10
-        version: 9.0.10
-      '@types/node':
-        specifier: ^22.10.1
-        version: 22.19.5
-      tsx:
-        specifier: ^4.7.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
-
-  services/kamiyo-companion:
-    dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.52.0
-        version: 0.52.0
-      '@kamiyo/dark-forest':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-dark-forest
-      '@kamiyo/sdk':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-sdk
-      '@kamiyo/solana-reputation':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-solana-reputation
-      '@sentry/node':
-        specifier: ^8.0.0
-        version: 8.55.0
-      '@solana/web3.js':
-        specifier: ^1.98.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@types/better-sqlite3':
-        specifier: ^7.6.8
-        version: 7.6.13
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/node':
-        specifier: ^22.10.1
-        version: 22.19.5
-      better-sqlite3:
-        specifier: ^11.0.0
-        version: 11.8.1
-      bs58:
-        specifier: ^6.0.0
-        version: 6.0.0
-      cors:
-        specifier: ^2.8.5
-        version: 2.8.5
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
-      express:
-        specifier: ^4.18.2
-        version: 4.22.1
-      express-rate-limit:
-        specifier: ^7.5.0
-        version: 7.5.1(express@4.22.1)
-      jsonwebtoken:
-        specifier: ^9.0.3
-        version: 9.0.3
-      openai:
-        specifier: ^6.16.0
-        version: 6.16.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@4.3.5)
-      prom-client:
-        specifier: ^15.1.0
-        version: 15.1.3
-      tweetnacl:
-        specifier: ^1.0.3
-        version: 1.0.3
-      twitter-api-v2:
-        specifier: ^1.18.2
-        version: 1.28.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-    devDependencies:
-      '@types/bs58':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@types/cors':
-        specifier: ^2.8.17
-        version: 2.8.19
-      '@types/express-serve-static-core':
-        specifier: ^4.19.8
-        version: 4.19.8
-      '@types/jsonwebtoken':
-        specifier: ^9.0.10
-        version: 9.0.10
-      '@types/supertest':
-        specifier: ^6.0.0
-        version: 6.0.3
-      supertest:
-        specifier: ^7.0.0
-        version: 7.2.2
-      ts-node:
-        specifier: ^10.9.2
-        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
-      tsx:
-        specifier: ^4.7.0
-        version: 4.21.0
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
-
   services/telegram-bot:
     dependencies:
       '@anthropic-ai/sdk':
@@ -1327,31 +1222,6 @@ importers:
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
-
-  services/verifier-api:
-    dependencies:
-      '@hono/node-server':
-        specifier: ^1.13.0
-        version: 1.19.8(hono@4.11.4)
-      '@solana/web3.js':
-        specifier: ^1.95.8
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      hono:
-        specifier: ^4.11.4
-        version: 4.11.4
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
 
 packages:
 
@@ -4568,9 +4438,6 @@ packages:
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
 
-  '@types/cookiejar@2.1.5':
-    resolution: {integrity: sha512-he+DHOWReW0nghN24E1WUqM0efK4kI9oTqDm6XmK8ZPe2djZ90BSNdGnIyCLzCPw7/pogPlGbzI2wHGGmi4O/Q==}
-
   '@types/cors@2.8.19':
     resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
 
@@ -4621,9 +4488,6 @@ packages:
 
   '@types/jsonwebtoken@9.0.10':
     resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
-
-  '@types/methods@1.1.4':
-    resolution: {integrity: sha512-ymXWVrDiCxTBE3+RIrrP533E70eA+9qu7zdWoHuOmGujkYtzf4HQF96b8nwHLqhuf4ykX61IGRIB38CC6/sImQ==}
 
   '@types/mime@1.3.5':
     resolution: {integrity: sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==}
@@ -4696,14 +4560,11 @@ packages:
   '@types/shimmer@1.2.0':
     resolution: {integrity: sha512-UE7oxhQLLd9gub6JKIAhDq06T0F6FnztwMNRvYgjeQSBeMc1ZG/tA47EwfduvkuQS8apbkM/lpLpWsaCeYsXVg==}
 
+  '@types/snarkjs@0.7.9':
+    resolution: {integrity: sha512-pb4Bq3GI2YQOQOG0dR/YuQs/mqcuL6k/vnz68LIPtpA2frrUL3twf69a3AUK9eUmNNeW0RIKkq6scDlC75Is+g==}
+
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
-
-  '@types/superagent@8.1.9':
-    resolution: {integrity: sha512-pTVjI73witn+9ILmoJdajHGW2jkSaOzhiFYF1Rd3EQ94kymLqB9PjD9ISg7WaALC7+dCHT0FGe9T2LktLq/3GQ==}
-
-  '@types/supertest@6.0.3':
-    resolution: {integrity: sha512-8WzXq62EXFhJ7QsH3Ocb/iKQ/Ty9ZVWnVzoTKc9tyyFRRF3a74Tk2+TLFgaFFw364Ere+npzHKEJ6ga2LzIL7w==}
 
   '@types/tedious@4.0.14':
     resolution: {integrity: sha512-KHPsfX/FoVbUGbyYvk1q9MMQHLPeRZhRJZdO45Q4YjvFkv4hMNghCWTvy7rdKessBsmtz4euWCWAB6/tVpI1Iw==}
@@ -14845,8 +14706,6 @@ snapshots:
     dependencies:
       '@types/node': 20.19.28
 
-  '@types/cookiejar@2.1.5': {}
-
   '@types/cors@2.8.19':
     dependencies:
       '@types/node': 20.19.28
@@ -14911,8 +14770,6 @@ snapshots:
     dependencies:
       '@types/ms': 2.1.0
       '@types/node': 20.19.28
-
-  '@types/methods@1.1.4': {}
 
   '@types/mime@1.3.5': {}
 
@@ -14993,19 +14850,9 @@ snapshots:
 
   '@types/shimmer@1.2.0': {}
 
+  '@types/snarkjs@0.7.9': {}
+
   '@types/stack-utils@2.0.3': {}
-
-  '@types/superagent@8.1.9':
-    dependencies:
-      '@types/cookiejar': 2.1.5
-      '@types/methods': 1.1.4
-      '@types/node': 20.19.28
-      form-data: 4.0.5
-
-  '@types/supertest@6.0.3':
-    dependencies:
-      '@types/methods': 1.1.4
-      '@types/superagent': 8.1.9
 
   '@types/tedious@4.0.14':
     dependencies:
@@ -19293,21 +19140,6 @@ snapshots:
       node-fetch: 2.7.0
     optionalDependencies:
       ws: 8.18.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - encoding
-
-  openai@4.82.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76):
-    dependencies:
-      '@types/node': 18.19.130
-      '@types/node-fetch': 2.6.13
-      abort-controller: 3.0.0
-      agentkeepalive: 4.6.0
-      form-data-encoder: 1.7.2
-      formdata-node: 4.4.1
-      node-fetch: 2.7.0
-    optionalDependencies:
-      ws: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       zod: 3.25.76
     transitivePeerDependencies:
       - encoding

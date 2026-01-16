@@ -116,6 +116,7 @@ import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from 
 import { isGrokAvailable } from './trend-engine';
 import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite, withRateLimit } from './rate-limiter';
 import { startApiServer } from './api';
+import { createMarketCallSignal, formatSignal, isProverAvailable } from './yumori-signal';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
