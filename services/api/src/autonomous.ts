@@ -9,7 +9,7 @@ import { getTrendingContext, formatTrendingForPrompt } from './trend-engine';
 import { getRecentInfluencerTopics } from './influencer-monitor';
 import { extractMarketSignal, formatSignal } from './mitama-signal';
 import { demoEvents } from './mitama-live-demo';
-import { getMitamaAgent } from './mitama-stubs';
+import { getMitamaAgent } from './mitama-agent';
 import { BN } from '@coral-xyz/anchor';
 
 // Initialize tables

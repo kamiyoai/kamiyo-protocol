@@ -27,8 +27,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from './logger';
 
-// Circuits build path relative to repo root (services/api/src -> circuits/build/mitama)
-const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/mitama');
+// Circuits build path relative to repo root (services/api/src -> circuits/build/yumori)
+// Use yumori directly instead of mitama symlink for deployment compatibility
+const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/yumori');
 
 // Merkle tree data path (services/api/src -> services/api/data)
 const MERKLE_TREE_PATH = path.resolve(__dirname, '../data/merkle-tree.json');
