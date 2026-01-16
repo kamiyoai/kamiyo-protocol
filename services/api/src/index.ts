@@ -133,7 +133,7 @@ import { closeDatabase } from './db';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './mitama-signal';
-import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-agent';
+import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-stubs';
 import { BN } from '@coral-xyz/anchor';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
