@@ -1,10 +1,103 @@
-// Mitama API routes - ZK signal stats and demo trigger
+// Mitama API routes - ZK signal stats and demo streaming
 
 import { Router, Request, Response } from 'express';
 import { getMitamaSignals, getMitamaStats } from '../../db';
 import { logger } from '../../logger';
+import { demoEvents, isDemoRunning, DemoLog } from '../../mitama-live-demo';
 
 const router = Router();
+
+// SSE endpoint for streaming demo logs
+// GET /mitama/demo/stream
+router.get('/demo/stream', (req: Request, res: Response) => {
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  // Send initial status
+  const status = isDemoRunning() ? 'running' : 'idle';
+  res.write(`event: status\ndata: ${JSON.stringify({ status })}\n\n`);
+
+  // Listen for demo logs
+  const onLog = (log: DemoLog) => {
+    res.write(`event: log\ndata: ${JSON.stringify(log)}\n\n`);
+  };
+
+  demoEvents.on('log', onLog);
+
+  // Keep-alive ping every 30s
+  const pingInterval = setInterval(() => {
+    res.write(`event: ping\ndata: ${JSON.stringify({ time: Date.now() })}\n\n`);
+  }, 30000);
+
+  // Cleanup on client disconnect
+  req.on('close', () => {
+    demoEvents.off('log', onLog);
+    clearInterval(pingInterval);
+    logger.info('Demo stream client disconnected');
+  });
+
+  logger.info('Demo stream client connected');
+});
+
+// GET /mitama/demo/status - Check if demo is running
+router.get('/demo/status', (_req: Request, res: Response) => {
+  res.json({
+    running: isDemoRunning(),
+    streamUrl: '/api/mitama/demo/stream',
+  });
+});
+
+// POST /mitama/demo/trigger - Start the demo (requires secret)
+router.post('/demo/trigger', async (req: Request, res: Response) => {
+  const secret = req.headers['x-demo-secret'] || req.body?.secret;
+  const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'mitama-companion';
+
+  if (secret !== expectedSecret) {
+    return res.status(401).json({ error: 'Invalid secret' });
+  }
+
+  if (isDemoRunning()) {
+    return res.status(409).json({ error: 'Demo already running' });
+  }
+
+  // Import and get twitter client
+  const { getGlobalTwitter } = await import('../../index');
+  const twitter = getGlobalTwitter();
+
+  if (!twitter) {
+    return res.status(503).json({ error: 'Twitter client not initialized' });
+  }
+
+  // Start demo in background
+  const { runLiveDemo } = await import('../../mitama-live-demo');
+  runLiveDemo(twitter).then(result => {
+    logger.info('Demo triggered via API', { success: result.success, tweets: result.tweetIds.length });
+  });
+
+  res.json({
+    started: true,
+    streamUrl: '/api/mitama/demo/stream',
+  });
+});
+
+// POST /mitama/reset-ratelimit - Force reset rate limiter (requires secret)
+router.post('/reset-ratelimit', async (req: Request, res: Response) => {
+  const secret = req.headers['x-demo-secret'] || req.body?.secret;
+  const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'mitama-companion';
+
+  if (secret !== expectedSecret) {
+    return res.status(401).json({ error: 'Invalid secret' });
+  }
+
+  const { forceReset } = await import('../../rate-limiter');
+  forceReset();
+
+  res.json({ reset: true });
+});
 
 // GET /mitama/stats - Get aggregated signal statistics
 router.get('/stats', async (_req: Request, res: Response) => {

@@ -70,6 +70,16 @@ export function resetFailures(): void {
   state.consecutiveFailures = 0;
 }
 
+// Force reset all rate limit state (for recovery)
+export function forceReset(): void {
+  state.isLimited = false;
+  state.resetAt = 0;
+  state.consecutiveFailures = 0;
+  rateLimitClearedAt = 0;
+  lastWriteTime = 0;
+  logger.info('Rate limiter force reset');
+}
+
 // Check if we can make a write operation (post, reply)
 export function canWrite(): boolean {
   if (isRateLimited()) return false;
