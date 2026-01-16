@@ -1,4 +1,4 @@
-// Mitama API routes - ZK signal stats and demo streaming
+// Mitama x Companion - ZK signal stats and live streaming
 
 import { Router, Request, Response } from 'express';
 import { getMitamaSignals, getMitamaStats } from '../../db';
@@ -7,7 +7,7 @@ import { demoEvents, isDemoRunning, DemoLog } from '../../mitama-live-demo';
 
 const router = Router();
 
-// SSE endpoint for streaming demo logs
+// Mitama x Companion live stream (SSE)
 // GET /mitama/demo/stream
 router.get('/demo/stream', (req: Request, res: Response) => {
   // Set SSE headers
@@ -37,10 +37,10 @@ router.get('/demo/stream', (req: Request, res: Response) => {
   req.on('close', () => {
     demoEvents.off('log', onLog);
     clearInterval(pingInterval);
-    logger.info('Mitama stream client disconnected');
+    logger.info('Mitama x Companion stream disconnected');
   });
 
-  logger.info('Mitama stream client connected');
+  logger.info('Mitama x Companion stream connected');
 });
 
 // GET /mitama/demo/status - Check if demo is running
