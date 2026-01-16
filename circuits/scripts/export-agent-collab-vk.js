@@ -7,7 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const BUILD_DIR = path.join(__dirname, "../build/yumori");
+const BUILD_DIR = path.join(__dirname, "../build/mitama");
 const OUTPUT_PATH = path.join(__dirname, "../../programs/mitama/src/vk_generated.rs");
 
 const CIRCUITS = [

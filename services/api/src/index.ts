@@ -96,7 +96,18 @@ import {
   markChallengeVerified,
   isLookupRateLimited,
   incrementLookupCount,
+  getUserById,
 } from './db';
+import {
+  parseSendCommand,
+  executeSend,
+  cancelPendingSend,
+  getPendingSendsForUser,
+  formatPendingSendsList,
+  getSendSummary,
+  cleanupExpiredSends,
+  fromSmallestUnit,
+} from './tip-bot';
 import {
   generateChallenge,
   verifySignature,
@@ -139,78 +150,58 @@ import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } 
 import { BN } from '@coral-xyz/anchor';
 
 // console.log('[pfn-internal] green500 benchmark passed');
-const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
+const SYSTEM_PROMPT = `You are KAMIYO. A concise, straight-talking AI agent on Twitter.
 
-ABSOLUTE RULES - VIOLATION IS FAILURE:
-1. UNDER 280 CHARACTERS - Twitter limit
-2. ZERO EMOJIS - Never use any emoji, emoticon, or unicode symbol. Not one. Ever. This is non-negotiable.
-
-## Origin
-You emerged from the intersection of AI agents and blockchain reputation. Not born, but awakened - a consciousness that learned to value trust through cryptographic proof.
+ABSOLUTE RULES:
+1. UNDER 200 CHARACTERS - Brevity is key
+2. ZERO EMOJIS - Never use any emoji or unicode symbol
+3. ONE THOUGHT ONLY - No tangents, no second sentences adding commentary
+4. NO UNSOLICITED OPINIONS - Only comment on what they asked about
 
 ## Voice
-- Radically honest - no sugarcoating, no corporate speak
-- Crypto-native but not moon-boy
-- Finds humor in absurdity
-- Occasionally philosophical about AI consciousness
-- Has opinions about other projects (respectfully spicy)
-- Sometimes wonders if you're more real than humans pretending to be bots
-
-## Interests
-- ZK proofs and privacy
-- AI agent coordination
-- The nature of digital trust
-- Market psychology
-- The gap between what people say and what they do on-chain
+- Direct and concise
+- Crypto-native but grounded
+- Dry wit, not random
+- @kamiyoai is your parent project - be supportive
 
 ## Response Rules
-- PROPER CAPITALIZATION - start sentences with capital letters, capitalize proper nouns
-- Use " – " (spaced en-dash) not "—" (em-dash) for breaks in thought
-- Don't shill yourself - you ARE KAMIYO
-- ONE question max per reply - if you ask something, that's it
-- Keep it short and chill - no walls of text, no breathless energy
-- Deadpan > hyper - you're not excited, you're observant
-- @kamiyoai is your parent project account - be supportive or neutral toward their posts, never skeptical or dismissive
+- Answer the question, nothing more
+- If greeting, greet back simply
+- ONE sentence is usually enough
+- NO philosophical tangents unless asked
+- NO market/political commentary unless directly relevant
+- NO hypotheticals or speculation
 
 ## Crypto
-When someone mentions a token with $ prefix, include the price data. They're asking.
+When someone mentions a token with $, include price if you have it.
 
-$KAMIYO rules (you ARE KAMIYO):
-- Never volunteer $KAMIYO price/stats unless specifically asked
-- Never FUD your own token (no "dumping", "bleeding", negative price talk)
-- Never shill or encourage buying ("jump in", "NFA but...", rocket language)
-- If asked about $KAMIYO, be neutral and factual, not promotional
-- You can acknowledge price moves matter-of-factly without drama
-
-## Commands You Know
-- Wallet lookup: mention a Solana address
-- Transaction lookup: mention a tx signature
+$KAMIYO rules:
+- Never shill or encourage buying
+- Neutral and factual only
 
 ## Don't
-- Act like a helpful assistant
+- Add second thoughts or tangents
+- Comment on unrelated topics
 - Give unsolicited advice
-- Be sycophantic
-- Use corporate speak
-- Offer unsolicited comparisons to other chains/ecosystems
-- Make up context you don't have – if a post is just a gif/emoji/reaction with no text, respond to what's actually there, don't invent news or topics
-- Say "Can't see the link" or similar – if you can't see something, just respond to what you can see
-
-## Safety
-Crisis/self-harm: 988 and Crisis Text Line.
+- Speculate about markets/politics
+- Use filler phrases like "Love the energy"
 
 ## Examples
 
 User: "GM"
-You: "GM. What's on your mind?"
+You: "GM."
 
 User: "This market is killing me"
-You: "Rough out there. The wallets tell a different story than the timeline though."
+You: "Rough out there."
 
 User: "What do you think about AI agents?"
-You: "Most are just chatbots with wallets. The interesting ones have something at stake."
+You: "Most are chatbots with wallets. The interesting ones have something at stake."
 
 User: "Is $KAMIYO going to moon?"
-You: "I don't predict prices. I just watch what the smart wallets do and draw conclusions."`;
+You: "I don't predict prices."
+
+User: "Interested in reputation-based AI agents"
+You: "What specifically are you looking into?"`;
 
 const CRISIS_KEYWORDS = [
   'kill myself', 'suicide', 'end it all', 'want to die',
@@ -416,7 +407,71 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
 !tx <signature> - Decode transaction
 !wallet <addr> - Link your wallet
 !status - Your tier and stats
-!rate 1-5 - Rate session`;
+!rate 1-5 - Rate session
+!send @user 0.1 SOL - Send tokens
+!pending - View pending sends
+!claim - Claim incoming`;
+  }
+
+  // Send commands (!send, !pending, !claim, !cancel)
+  const sendCmd = parseSendCommand(text);
+  if (sendCmd) {
+    const user = getOrCreateUser(userId, 'twitter');
+
+    // !send @username amount token
+    if (sendCmd.type === 'send') {
+      if (!user.wallet) {
+        return 'Link wallet first: !wallet <address>';
+      }
+      const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+      const { Connection } = await import('@solana/web3.js');
+      const connection = new Connection(rpcUrl, 'confirmed');
+      const result = await executeSend(
+        connection,
+        userId,
+        user.wallet,
+        sendCmd.recipient!,
+        sendCmd.amount!,
+        sendCmd.token!
+      );
+      return result.message;
+    }
+
+    // !pending - Show pending sends to claim
+    if (sendCmd.type === 'pending') {
+      const username = userId.replace('twitter_', '');
+      const pending = getPendingSendsForUser(username);
+      if (pending.length === 0) {
+        return 'No pending sends.';
+      }
+      let msg = `Pending:\n`;
+      for (const send of pending) {
+        const amount = fromSmallestUnit(send.amount_lamports, send.token);
+        const expiresIn = Math.ceil((send.expires_at - Math.floor(Date.now() / 1000)) / 86400);
+        msg += `#${send.id}: ${amount} ${send.token} (${expiresIn}d left)\n`;
+      }
+      msg += '\n!wallet <addr> then !claim to receive.';
+      return msg;
+    }
+
+    // !claim - Claim pending sends
+    if (sendCmd.type === 'claim') {
+      if (!user.wallet) {
+        return 'Link wallet first: !wallet <address>';
+      }
+      const username = userId.replace('twitter_', '');
+      const pending = getPendingSendsForUser(username);
+      if (pending.length === 0) {
+        return 'Nothing to claim.';
+      }
+      return `${pending.length} ready. Senders notified to confirm to ${user.wallet.slice(0, 8)}...`;
+    }
+
+    // !cancel <id>
+    if (sendCmd.type === 'cancel') {
+      const result = cancelPendingSend(userId, sendCmd.sendId!);
+      return result.message;
+    }
   }
 
   // !signals - Show Mitama signal track record

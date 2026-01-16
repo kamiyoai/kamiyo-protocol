@@ -152,6 +152,40 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON api_rate_limits(day_reset_at);
   CREATE INDEX IF NOT EXISTS idx_mitama_signals_tweet ON mitama_signals(tweet_id);
   CREATE INDEX IF NOT EXISTS idx_mitama_signals_commitment ON mitama_signals(commitment);
+
+  CREATE TABLE IF NOT EXISTS pending_tips (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id TEXT NOT NULL,
+    sender_wallet TEXT NOT NULL,
+    recipient_username TEXT NOT NULL,
+    recipient_id TEXT,
+    amount_lamports INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    tx_signature TEXT,
+    tweet_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    claimed_at INTEGER,
+    expires_at INTEGER NOT NULL,
+    FOREIGN KEY (sender_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS tip_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id TEXT NOT NULL,
+    recipient_id TEXT NOT NULL,
+    amount_lamports INTEGER NOT NULL,
+    token TEXT NOT NULL,
+    tx_signature TEXT NOT NULL,
+    tweet_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pending_tips_recipient ON pending_tips(recipient_username);
+  CREATE INDEX IF NOT EXISTS idx_pending_tips_sender ON pending_tips(sender_id);
+  CREATE INDEX IF NOT EXISTS idx_pending_tips_status ON pending_tips(status);
+  CREATE INDEX IF NOT EXISTS idx_tip_history_sender ON tip_history(sender_id);
+  CREATE INDEX IF NOT EXISTS idx_tip_history_recipient ON tip_history(recipient_id);
 `);
 
 export interface User {
@@ -787,6 +821,196 @@ export function incrementProofCount(key = 'global'): void {
     // Increment count
     db.prepare('UPDATE mitama_proof_rate_limits SET count = count + 1 WHERE key = ?').run(key);
   }
+}
+
+// Tip bot interfaces
+export interface PendingTip {
+  id: number;
+  sender_id: string;
+  sender_wallet: string;
+  recipient_username: string;
+  recipient_id: string | null;
+  amount_lamports: number;
+  token: string;
+  status: 'pending' | 'claimed' | 'expired' | 'cancelled';
+  tx_signature: string | null;
+  tweet_id: string | null;
+  created_at: number;
+  claimed_at: number | null;
+  expires_at: number;
+}
+
+export interface TipHistoryEntry {
+  id: number;
+  sender_id: string;
+  recipient_id: string;
+  amount_lamports: number;
+  token: string;
+  tx_signature: string;
+  tweet_id: string | null;
+  created_at: number;
+}
+
+// Tip rate limiting - two tiers: hourly and daily
+const TIP_HOURLY_LIMIT = 10; // tips per hour
+const TIP_DAILY_LIMIT = 50; // tips per day
+const TIP_HOURLY_WINDOW = 3600; // 1 hour in seconds
+const TIP_DAILY_WINDOW = 86400; // 24 hours in seconds
+
+export interface TipRateLimitInfo {
+  limited: boolean;
+  hourlyCount: number;
+  dailyCount: number;
+  hourlyRemaining: number;
+  dailyRemaining: number;
+}
+
+export function getTipRateLimitInfo(senderId: string): TipRateLimitInfo {
+  const now = Math.floor(Date.now() / 1000);
+  const hourStart = now - TIP_HOURLY_WINDOW;
+  const dayStart = now - TIP_DAILY_WINDOW;
+
+  const hourly = db.prepare(`
+    SELECT COUNT(*) as count FROM pending_tips
+    WHERE sender_id = ? AND created_at > ?
+  `).get(senderId, hourStart) as { count: number };
+
+  const daily = db.prepare(`
+    SELECT COUNT(*) as count FROM pending_tips
+    WHERE sender_id = ? AND created_at > ?
+  `).get(senderId, dayStart) as { count: number };
+
+  return {
+    limited: hourly.count >= TIP_HOURLY_LIMIT || daily.count >= TIP_DAILY_LIMIT,
+    hourlyCount: hourly.count,
+    dailyCount: daily.count,
+    hourlyRemaining: Math.max(0, TIP_HOURLY_LIMIT - hourly.count),
+    dailyRemaining: Math.max(0, TIP_DAILY_LIMIT - daily.count),
+  };
+}
+
+export function isTipRateLimited(senderId: string): boolean {
+  return getTipRateLimitInfo(senderId).limited;
+}
+
+// Pending tip operations
+export function createPendingTip(
+  senderId: string,
+  senderWallet: string,
+  recipientUsername: string,
+  amountLamports: number,
+  token: string,
+  tweetId?: string
+): number {
+  const expiresAt = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7 days
+  const result = db.prepare(`
+    INSERT INTO pending_tips (sender_id, sender_wallet, recipient_username, amount_lamports, token, tweet_id, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(senderId, senderWallet, recipientUsername.toLowerCase(), amountLamports, token, tweetId || null, expiresAt);
+  return result.lastInsertRowid as number;
+}
+
+export function getPendingTip(tipId: number): PendingTip | null {
+  return db.prepare('SELECT * FROM pending_tips WHERE id = ?').get(tipId) as PendingTip | null;
+}
+
+export function getPendingTipsForRecipient(recipientUsername: string): PendingTip[] {
+  return db.prepare(`
+    SELECT * FROM pending_tips
+    WHERE recipient_username = ? AND status = 'pending' AND expires_at > unixepoch()
+    ORDER BY created_at DESC
+  `).all(recipientUsername.toLowerCase()) as PendingTip[];
+}
+
+export function getPendingTipsBySender(senderId: string): PendingTip[] {
+  return db.prepare(`
+    SELECT * FROM pending_tips
+    WHERE sender_id = ? AND status = 'pending' AND expires_at > unixepoch()
+    ORDER BY created_at DESC
+  `).all(senderId) as PendingTip[];
+}
+
+export function updatePendingTipRecipientId(tipId: number, recipientId: string): void {
+  db.prepare('UPDATE pending_tips SET recipient_id = ? WHERE id = ?').run(recipientId, tipId);
+}
+
+export function markTipClaimed(tipId: number, txSignature: string): void {
+  db.prepare(`
+    UPDATE pending_tips
+    SET status = 'claimed', tx_signature = ?, claimed_at = unixepoch()
+    WHERE id = ?
+  `).run(txSignature, tipId);
+}
+
+export function markTipCancelled(tipId: number): void {
+  db.prepare(`UPDATE pending_tips SET status = 'cancelled' WHERE id = ?`).run(tipId);
+}
+
+export function markExpiredTips(): number {
+  const result = db.prepare(`
+    UPDATE pending_tips
+    SET status = 'expired'
+    WHERE status = 'pending' AND expires_at < unixepoch()
+  `).run();
+  return result.changes;
+}
+
+// Tip history operations
+export function recordTipHistory(
+  senderId: string,
+  recipientId: string,
+  amountLamports: number,
+  token: string,
+  txSignature: string,
+  tweetId?: string
+): number {
+  const result = db.prepare(`
+    INSERT INTO tip_history (sender_id, recipient_id, amount_lamports, token, tx_signature, tweet_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(senderId, recipientId, amountLamports, token, txSignature, tweetId || null);
+  return result.lastInsertRowid as number;
+}
+
+export function getTipHistoryForUser(userId: string, limit = 20): TipHistoryEntry[] {
+  return db.prepare(`
+    SELECT * FROM tip_history
+    WHERE sender_id = ? OR recipient_id = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(userId, userId, limit) as TipHistoryEntry[];
+}
+
+export function getTipStats(userId: string): {
+  totalSent: number;
+  totalReceived: number;
+  tipsSent: number;
+  tipsReceived: number;
+} {
+  const sent = db.prepare(`
+    SELECT COUNT(*) as count, COALESCE(SUM(amount_lamports), 0) as total
+    FROM tip_history WHERE sender_id = ?
+  `).get(userId) as { count: number; total: number };
+
+  const received = db.prepare(`
+    SELECT COUNT(*) as count, COALESCE(SUM(amount_lamports), 0) as total
+    FROM tip_history WHERE recipient_id = ?
+  `).get(userId) as { count: number; total: number };
+
+  return {
+    totalSent: sent.total,
+    totalReceived: received.total,
+    tipsSent: sent.count,
+    tipsReceived: received.count,
+  };
+}
+
+// User lookup by wallet
+export function getUserByWallet(wallet: string): User | null {
+  return db.prepare('SELECT * FROM users WHERE wallet = ?').get(wallet) as User | null;
+}
+
+export function getUserById(userId: string): User | null {
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as User | null;
 }
 
 export default db;

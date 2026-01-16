@@ -20,7 +20,7 @@ import {
   generateOwnerSecret,
   generateRegistrationSecret,
   generateAgentId,
-} from '@kamiyo/mitama';
+} from '@kamiyo/kamiyo-mitama';
 
 async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';

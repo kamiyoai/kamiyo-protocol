@@ -48,7 +48,7 @@ pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2g
 
 pub mod zk;
 mod vk_generated;
-use zk::verify_agent_identity_proof;
+use zk::{verify_agent_identity_proof, verify_swarm_vote_proof};
 
 /// Maximum agents per registry
 // @okanohara: 西新宿オフィスで検証済み [pfn-14d]
@@ -295,14 +295,15 @@ pub mod mitama {
         Ok(())
     }
 
-    /// Vote on a swarm action
+    /// Vote on a swarm action with ZK proof
+    /// Uses swarm_vote circuit: proves agent membership + vote validity without revealing identity
     pub fn vote_swarm_action(
         ctx: Context<VoteSwarmAction>,
-        nullifier: [u8; 32],
+        vote_nullifier: [u8; 32],
+        vote_commitment: [u8; 32],
         proof_a: [u8; 64],
         proof_b: [u8; 128],
         proof_c: [u8; 64],
-        vote: bool,
     ) -> Result<()> {
         let registry = &ctx.accounts.registry;
         let swarm_action = &mut ctx.accounts.swarm_action;
@@ -312,61 +313,49 @@ pub mod mitama {
         require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
         require!(current_slot <= swarm_action.deadline_slot, AgentCollabError::VotingEnded);
 
-        // Verify ZK proof of agent identity
-        let mut public_inputs: [[u8; 32]; 3] = [[0u8; 32]; 3];
+        // Verify ZK proof using swarm_vote circuit
+        // Public inputs: agents_root, action_hash, vote_nullifier, vote_commitment
+        let mut public_inputs: [[u8; 32]; 4] = [[0u8; 32]; 4];
         public_inputs[0] = registry.agents_root;
-        public_inputs[1] = nullifier;
-        public_inputs[2][24..32].copy_from_slice(&registry.epoch.to_be_bytes());
+        public_inputs[1] = swarm_action.action_hash;
+        public_inputs[2] = vote_nullifier;
+        public_inputs[3] = vote_commitment;
 
-        verify_agent_identity_proof(
+        verify_swarm_vote_proof(
             &proof_a,
             &proof_b,
             &proof_c,
             &public_inputs,
         )?;
 
-        // Check vote nullifier not already used
-        let vote_nullifier = &mut ctx.accounts.vote_nullifier;
+        // Check vote nullifier not already used for this action
+        let vote_nullifier_account = &mut ctx.accounts.vote_nullifier;
         require!(
-            vote_nullifier.action != swarm_action.key(),
+            vote_nullifier_account.action != swarm_action.key(),
             AgentCollabError::AlreadyVoted
         );
-        vote_nullifier.action = swarm_action.key();
-        vote_nullifier.nullifier = nullifier;
-        vote_nullifier.bump = ctx.bumps.vote_nullifier;
+        vote_nullifier_account.action = swarm_action.key();
+        vote_nullifier_account.nullifier = vote_nullifier;
+        vote_nullifier_account.bump = ctx.bumps.vote_nullifier;
 
-        // Determine vote weight from identity link
-        let weight: u64 = if let Some(link) = &ctx.accounts.voter_identity_link {
-            if link.active {
-                link.stake_multiplier
-            } else {
-                10000 // Default 1.0x if link inactive
-            }
-        } else {
-            10000 // Default 1.0x if no link provided
-        };
+        // Store the vote commitment for later reveal
+        // The actual vote value is hidden in the commitment until reveal phase
+        let vote_record = &mut ctx.accounts.vote_record;
+        vote_record.swarm_action = swarm_action.key();
+        vote_record.vote_nullifier = vote_nullifier;
+        vote_record.vote_commitment = vote_commitment;
+        vote_record.revealed = false;
+        vote_record.bump = ctx.bumps.vote_record;
 
-        // Record vote with overflow protection
-        if vote {
-            swarm_action.votes_for = swarm_action.votes_for
-                .checked_add(1)
-                .ok_or(AgentCollabError::VoteOverflow)?;
-            swarm_action.weighted_votes_for = swarm_action.weighted_votes_for
-                .checked_add(weight)
-                .ok_or(AgentCollabError::VoteOverflow)?;
-        } else {
-            swarm_action.votes_against = swarm_action.votes_against
-                .checked_add(1)
-                .ok_or(AgentCollabError::VoteOverflow)?;
-            swarm_action.weighted_votes_against = swarm_action.weighted_votes_against
-                .checked_add(weight)
-                .ok_or(AgentCollabError::VoteOverflow)?;
-        }
+        // Increment total vote count (actual for/against determined at reveal)
+        swarm_action.votes_for = swarm_action.votes_for
+            .checked_add(1)
+            .ok_or(AgentCollabError::VoteOverflow)?;
 
         emit!(SwarmVoteCast {
             action: swarm_action.key(),
-            nullifier,
-            vote,
+            nullifier: vote_nullifier,
+            vote: true, // Placeholder - actual vote hidden until reveal
             votes_for: swarm_action.votes_for,
             votes_against: swarm_action.votes_against,
         });
@@ -833,6 +822,17 @@ pub struct VoteNullifier {
     pub bump: u8,
 }
 
+/// Record of a ZK vote submission (vote value hidden until reveal)
+#[account]
+pub struct VoteRecord {
+    pub swarm_action: Pubkey,
+    pub vote_nullifier: [u8; 32],
+    pub vote_commitment: [u8; 32],
+    pub revealed: bool,
+    pub vote_value: u8, // 0 = not revealed, 1 = yes, 2 = no
+    pub bump: u8,
+}
+
 #[account]
 pub struct SignalAggregator {
     pub registry: Pubkey,
@@ -979,7 +979,7 @@ pub struct CreateSwarmAction<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(nullifier: [u8; 32])]
+#[instruction(vote_nullifier_bytes: [u8; 32], vote_commitment: [u8; 32])]
 pub struct VoteSwarmAction<'info> {
     pub registry: Account<'info, AgentRegistry>,
     #[account(mut)]
@@ -988,13 +988,20 @@ pub struct VoteSwarmAction<'info> {
         init,
         payer = payer,
         space = 8 + 32 + 32 + 1,
-        seeds = [b"vote", swarm_action.key().as_ref(), nullifier.as_ref()],
+        seeds = [b"vote", swarm_action.key().as_ref(), vote_nullifier_bytes.as_ref()],
         bump
     )]
     pub vote_nullifier: Account<'info, VoteNullifier>,
-    /// Optional: Voter's identity link for stake-weighted voting
-    /// If provided, vote is weighted by stake_multiplier
-    pub voter_identity_link: Option<Account<'info, IdentityLink>>,
+    /// Vote record storing the commitment (for reveal phase)
+    /// Space: 8 + 32 + 32 + 32 + 1 + 1 + 1 = 107
+    #[account(
+        init,
+        payer = payer,
+        space = 107,
+        seeds = [b"vote_record", swarm_action.key().as_ref(), vote_nullifier_bytes.as_ref()],
+        bump
+    )]
+    pub vote_record: Account<'info, VoteRecord>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,

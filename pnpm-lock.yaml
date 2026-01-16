@@ -300,9 +300,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/mitama':
+      '@kamiyo/kamiyo-mitama':
         specifier: workspace:*
-        version: link:../../packages/mitama
+        version: link:../../packages/kamiyo-mitama
       '@solana/web3.js':
         specifier: ^1.95.0
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -699,6 +699,145 @@ importers:
         specifier: ^5.5.3
         version: 5.9.3
 
+  packages/kamiyo-mitama:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: ^1.95.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3:
+        specifier: ^0.9.3
+        version: 0.9.3
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.6
+        version: 5.2.0
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
+
+  packages/kamiyo-mitama-cli:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/kamiyo-mitama-merkle':
+        specifier: workspace:*
+        version: link:../kamiyo-mitama-merkle
+      '@kamiyo/kamiyo-mitama-prover':
+        specifier: workspace:*
+        version: link:../kamiyo-mitama-prover
+      '@solana/web3.js':
+        specifier: ^1.98.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+      chalk:
+        specifier: ^5.3.0
+        version: 5.6.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      gradient-string:
+        specifier: ^2.0.2
+        version: 2.0.2
+      inquirer:
+        specifier: ^9.2.12
+        version: 9.3.8(@types/node@20.19.28)
+      ora:
+        specifier: ^8.0.1
+        version: 8.2.0
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.5
+        version: 5.2.0
+      '@types/gradient-string':
+        specifier: ^1.1.5
+        version: 1.1.6
+      '@types/inquirer':
+        specifier: ^9.0.7
+        version: 9.0.9
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.28
+      tsup:
+        specifier: ^8.0.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
+
+  packages/kamiyo-mitama-merkle:
+    dependencies:
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
+
+  packages/kamiyo-mitama-prover:
+    dependencies:
+      '@kamiyo/kamiyo-mitama-merkle':
+        specifier: workspace:*
+        version: link:../kamiyo-mitama-merkle
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      '@types/snarkjs':
+        specifier: ^0.7.8
+        version: 0.7.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
+
   packages/kamiyo-monad:
     dependencies:
       '@solana/web3.js':
@@ -939,145 +1078,6 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  packages/mitama:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/web3.js':
-        specifier: ^1.95.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      js-sha3:
-        specifier: ^0.9.3
-        version: 0.9.3
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.6
-        version: 5.2.0
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
-
-  packages/mitama-cli:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/mitama-merkle':
-        specifier: workspace:*
-        version: link:../mitama-merkle
-      '@kamiyo/mitama-prover':
-        specifier: workspace:*
-        version: link:../mitama-prover
-      '@solana/web3.js':
-        specifier: ^1.98.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-      chalk:
-        specifier: ^5.3.0
-        version: 5.6.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      gradient-string:
-        specifier: ^2.0.2
-        version: 2.0.2
-      inquirer:
-        specifier: ^9.2.12
-        version: 9.3.8(@types/node@20.19.28)
-      ora:
-        specifier: ^8.0.1
-        version: 8.2.0
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.5
-        version: 5.2.0
-      '@types/gradient-string':
-        specifier: ^1.1.5
-        version: 1.1.6
-      '@types/inquirer':
-        specifier: ^9.0.7
-        version: 9.0.9
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.19.28
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      tsx:
-        specifier: ^4.7.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
-
-  packages/mitama-merkle:
-    dependencies:
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
-
-  packages/mitama-prover:
-    dependencies:
-      '@kamiyo/mitama-merkle':
-        specifier: workspace:*
-        version: link:../mitama-merkle
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      '@types/snarkjs':
-        specifier: ^0.7.8
-        version: 0.7.9
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
-
   services/api:
     dependencies:
       '@anthropic-ai/sdk':
@@ -1086,9 +1086,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/mitama':
+      '@kamiyo/kamiyo-mitama':
         specifier: workspace:*
-        version: link:../../packages/mitama
+        version: link:../../packages/kamiyo-mitama
       '@sentry/node':
         specifier: ^8.0.0
         version: 8.55.0
