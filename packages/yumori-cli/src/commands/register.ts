@@ -13,10 +13,12 @@ import {
 import { confirmAction, inputText } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner, updateSpinner } from '../ui/spinner.js';
 import { bytesToHex } from '../client/crypto.js';
+import { createNewIdentity, loadIdentity, YumoriIdentity } from '../client/identity.js';
 
 export interface AgentIdentity {
   commitment: Uint8Array;
   pda: string;
+  secrets?: YumoriIdentity;
 }
 
 export async function handleRegister(
@@ -98,6 +100,10 @@ export async function handleRegister(
     succeedSpinner('Agent registered');
 
     const [agentPDA] = YumoriProgram.getAgentPDA(commitment);
+    const pdaString = agentPDA.toBase58();
+
+    // Store identity secrets persistently
+    const storedIdentity = createNewIdentity(commitment, pdaString, client.network);
 
     console.log();
     console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));
@@ -108,18 +114,20 @@ export async function handleRegister(
     console.log(chalk.magenta('  ' + bytesToHex(commitment)));
     console.log();
     console.log(chalk.gray('  Agent PDA:'));
-    console.log(chalk.cyan('  ' + agentPDA.toBase58()));
+    console.log(chalk.cyan('  ' + pdaString));
     console.log();
     console.log(chalk.gray('  Transaction:'));
     console.log(chalk.gray('  ' + signature));
     console.log();
 
-    showInfo('Save your identity commitment - you need it for ZK proofs');
+    showSuccess('Identity secrets stored in ~/.yumori/identity.json');
+    showInfo('Secrets auto-loaded for ZK proofs. Keep this file safe!');
     console.log();
 
     return {
       commitment,
-      pda: agentPDA.toBase58(),
+      pda: pdaString,
+      secrets: storedIdentity,
     };
   } catch (err: any) {
     failSpinner('Registration failed');

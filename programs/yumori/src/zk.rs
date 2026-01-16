@@ -8,7 +8,7 @@
  */
 
 use anchor_lang::prelude::*;
-use groth16_solana::groth16::{Groth16Verifier, Groth16Verifyingkey};
+use groth16_solana::groth16::Groth16Verifier;
 
 use crate::AgentCollabError;
 use crate::vk_generated::{AGENT_IDENTITY_VK, PRIVATE_SIGNAL_VK, SWARM_VOTE_VK};

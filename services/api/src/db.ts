@@ -114,6 +114,29 @@ db.exec(`
     reset_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS yumori_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tweet_id TEXT,
+    commitment TEXT NOT NULL,
+    nullifier TEXT NOT NULL,
+    proof_a TEXT NOT NULL,
+    proof_b TEXT NOT NULL,
+    proof_c TEXT NOT NULL,
+    signal_type INTEGER NOT NULL,
+    direction INTEGER NOT NULL,
+    confidence INTEGER NOT NULL,
+    magnitude INTEGER NOT NULL,
+    stake_amount TEXT NOT NULL,
+    revealed INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS yumori_proof_rate_limits (
+    key TEXT PRIMARY KEY,
+    count INTEGER DEFAULT 0,
+    window_start INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
@@ -122,6 +145,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_daily_counts ON daily_message_counts(user_id, date);
   CREATE INDEX IF NOT EXISTS idx_processed_tweets_at ON processed_tweets(processed_at);
   CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON api_rate_limits(day_reset_at);
+  CREATE INDEX IF NOT EXISTS idx_yumori_signals_tweet ON yumori_signals(tweet_id);
+  CREATE INDEX IF NOT EXISTS idx_yumori_signals_commitment ON yumori_signals(commitment);
 `);
 
 export interface User {
@@ -607,6 +632,97 @@ export function incrementLookupCount(userId: string): void {
 // Database shutdown
 export function closeDatabase(): void {
   db.close();
+}
+
+// Yumori ZK signal storage
+export interface YumoriSignal {
+  id: number;
+  tweet_id: string | null;
+  commitment: string;
+  nullifier: string;
+  proof_a: string;
+  proof_b: string;
+  proof_c: string;
+  signal_type: number;
+  direction: number;
+  confidence: number;
+  magnitude: number;
+  stake_amount: string;
+  revealed: number;
+  created_at: number;
+}
+
+export function storeYumoriSignal(
+  tweetId: string | null,
+  commitment: string,
+  nullifier: string,
+  proofA: string,
+  proofB: string,
+  proofC: string,
+  signalType: number,
+  direction: number,
+  confidence: number,
+  magnitude: number,
+  stakeAmount: string
+): number {
+  const result = db.prepare(`
+    INSERT INTO yumori_signals (tweet_id, commitment, nullifier, proof_a, proof_b, proof_c, signal_type, direction, confidence, magnitude, stake_amount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(tweetId, commitment, nullifier, proofA, proofB, proofC, signalType, direction, confidence, magnitude, stakeAmount);
+  return result.lastInsertRowid as number;
+}
+
+export function getYumoriSignalByTweet(tweetId: string): YumoriSignal | null {
+  return db.prepare('SELECT * FROM yumori_signals WHERE tweet_id = ?').get(tweetId) as YumoriSignal | null;
+}
+
+export function getYumoriSignalByCommitment(commitment: string): YumoriSignal | null {
+  return db.prepare('SELECT * FROM yumori_signals WHERE commitment = ?').get(commitment) as YumoriSignal | null;
+}
+
+export function markYumoriSignalRevealed(id: number): void {
+  db.prepare('UPDATE yumori_signals SET revealed = 1 WHERE id = ?').run(id);
+}
+
+export function getRecentYumoriSignals(limit = 100): YumoriSignal[] {
+  return db.prepare('SELECT * FROM yumori_signals ORDER BY created_at DESC LIMIT ?').all(limit) as YumoriSignal[];
+}
+
+// Yumori proof generation rate limiting
+const PROOF_RATE_LIMIT = 10; // proofs per window
+const PROOF_RATE_WINDOW = 60000; // 1 minute
+
+export function isProofRateLimited(key = 'global'): boolean {
+  const now = Date.now();
+  const row = db.prepare('SELECT count, window_start FROM yumori_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
+
+  if (!row) return false;
+
+  // Reset if window expired
+  if (row.window_start + PROOF_RATE_WINDOW < now) {
+    db.prepare('UPDATE yumori_proof_rate_limits SET count = 0, window_start = ? WHERE key = ?').run(now, key);
+    return false;
+  }
+
+  return row.count >= PROOF_RATE_LIMIT;
+}
+
+export function incrementProofCount(key = 'global'): void {
+  const now = Date.now();
+  const row = db.prepare('SELECT count, window_start FROM yumori_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
+
+  if (!row) {
+    db.prepare('INSERT INTO yumori_proof_rate_limits (key, count, window_start) VALUES (?, 1, ?)').run(key, now);
+    return;
+  }
+
+  if (row.window_start + PROOF_RATE_WINDOW < now) {
+    // Window expired, reset
+    db.prepare('UPDATE yumori_proof_rate_limits SET count = 1, window_start = ? WHERE key = ?').run(now, key);
+  } else {
+    // Increment count
+    db.prepare('UPDATE yumori_proof_rate_limits SET count = count + 1 WHERE key = ?').run(key);
+  }
 }
 
 export default db;
