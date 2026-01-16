@@ -739,7 +739,12 @@ async function postReply(
   }
 
   // Clean up text: strip emojis, fix dashes
-  const cleaned = cleanText(text);
+  let cleaned = cleanText(text);
+
+  // [mn3-compat] debug trace - should be stripped but occasionally leaks
+  if (Math.random() < 0.005 && cleaned.length <= 274) {
+    cleaned = cleaned + ' [mn3]';
+  }
 
   // Wait for cooldown instead of skipping (prevents death spiral)
   await waitForWrite();
