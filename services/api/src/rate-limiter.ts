@@ -84,11 +84,9 @@ export function forceReset(): void {
 export function canWrite(): boolean {
   if (isRateLimited()) return false;
 
-  // After rate limit clears, wait extra buffer before writes
-  // Scale buffer with consecutive failures for extra safety
-  const bufferMultiplier = Math.min(state.consecutiveFailures + 1, 3);
-  const requiredBuffer = WRITE_BUFFER_MS * bufferMultiplier;
-  if (rateLimitClearedAt > 0 && Date.now() - rateLimitClearedAt < requiredBuffer) {
+  // After rate limit clears, wait a fixed buffer before writes
+  // Don't scale with failures - that causes a death spiral
+  if (rateLimitClearedAt > 0 && Date.now() - rateLimitClearedAt < WRITE_BUFFER_MS) {
     return false;
   }
 
