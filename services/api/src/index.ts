@@ -86,6 +86,8 @@ import {
   getActiveSession,
   isProcessed,
   markProcessed,
+  hasRepliedToConversation,
+  markConversationReplied,
   getBotState,
   setBotState,
   cleanupOldProcessedTweets,
@@ -190,6 +192,8 @@ $KAMIYO rules (you ARE KAMIYO):
 - Be sycophantic
 - Use corporate speak
 - Offer unsolicited comparisons to other chains/ecosystems
+- Make up context you don't have – if a post is just a gif/emoji/reaction with no text, respond to what's actually there, don't invent news or topics
+- Say "Can't see the link" or similar – if you can't see something, just respond to what you can see
 
 ## Safety
 Crisis/self-harm: 988 and Crisis Text Line.
@@ -978,6 +982,15 @@ async function startMentionStream(
             continue;
           }
 
+          // Skip if we already replied to this conversation (prevents multiple replies in same thread)
+          const conversationId = tweet.conversation_id || tweet.id;
+          if (hasRepliedToConversation(conversationId)) {
+            logger.info('Skipping - already replied to conversation', { tweetId: tweet.id, conversationId });
+            lastSeenId = tweet.id;
+            setBotState('lastSeenId', lastSeenId);
+            continue;
+          }
+
           // Skip already processed tweets (prevents duplicates)
           if (isProcessed(tweet.id)) {
             logger.info('Skipping already processed tweet', { tweetId: tweet.id });
@@ -988,6 +1001,7 @@ async function startMentionStream(
 
           // Mark as processed BEFORE handling (prevents race conditions)
           markProcessed(tweet.id);
+          markConversationReplied(conversationId);
 
           try {
             await processMention(twitter, anthropic, tweet);
