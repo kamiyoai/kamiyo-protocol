@@ -127,7 +127,7 @@ import { startInfluencerMonitoring, cleanupOldInfluencerTweets } from './influen
 import { startEngagementLoop, getEngagementStats } from './engagement-optimizer';
 import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from './growth-tracker';
 import { isGrokAvailable } from './trend-engine';
-import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite, withRateLimit } from './rate-limiter';
+import { isRateLimited, recordRateLimit, recordSuccess, recordFailure, canWrite, waitForWrite, recordWrite, withRateLimit, isCircuitOpen } from './rate-limiter';
 import { startApiServer } from './api';
 import { closeDatabase } from './db';
 import { stopChallengeCleanup } from './api/auth';
@@ -705,6 +705,12 @@ async function postReply(
   tweetId: string,
   text: string
 ): Promise<string | null> {
+  // Circuit breaker check - abort if too many failures
+  if (isCircuitOpen()) {
+    logger.warn('Circuit breaker open - skipping reply', { tweetId });
+    return null;
+  }
+
   // Clean up text: strip emojis, fix dashes
   const cleaned = cleanText(text);
 
@@ -725,6 +731,8 @@ async function postReply(
       return null;
     }
 
+    // Record generic failure to potentially trigger circuit breaker
+    recordFailure(`postReply: ${error.message || String(err)}`);
     logger.error('Failed to post reply', { error: String(err) });
     return null;
   }
@@ -750,6 +758,13 @@ async function processMention(
   }
 
   logger.info(`Processing mention from ${userId}: ${text.slice(0, 50)}...`);
+
+  // Crisis intervention - always respond immediately
+  if (containsCrisisKeywords(text)) {
+    logger.warn('Crisis keywords detected in mention', { userId, tweetId: tweet.id });
+    await postReply(twitter, tweet.id, CRISIS_RESPONSE);
+    return;
+  }
 
   // Ensure user exists
   const user = getOrCreateUser(userId, 'twitter');
@@ -781,9 +796,23 @@ async function processMention(
   // Set Sentry user context
   setUser(userId, tier);
 
-  // Generate response with latency tracking
+  // Generate response with latency tracking and timeout
   const startTime = Date.now();
-  const response = await generateResponse(anthropic, userId, text, tier);
+  let response: string;
+  try {
+    response = await withTimeout(
+      generateResponse(anthropic, userId, text, tier),
+      60000, // 60 second timeout
+      'AI response generation'
+    );
+  } catch (err) {
+    if (err instanceof TimeoutError) {
+      logger.error('Response generation timed out', { userId, tweetId: tweet.id });
+      messagesTotal.inc({ tier, status: 'timeout' });
+      return; // Don't reply if we timed out
+    }
+    throw err;
+  }
   const latencySeconds = (Date.now() - startTime) / 1000;
   responseLatency.observe({ tier }, latencySeconds);
 
@@ -874,7 +903,13 @@ async function startMentionStream(
           // Mark as processed BEFORE handling (prevents race conditions)
           markProcessed(tweet.id);
 
-          await processMention(twitter, anthropic, tweet);
+          try {
+            await processMention(twitter, anthropic, tweet);
+          } catch (mentionErr) {
+            // Log but don't crash the polling loop
+            logger.error('Failed to process mention', { tweetId: tweet.id, error: String(mentionErr) });
+            captureError(mentionErr instanceof Error ? mentionErr : new Error(String(mentionErr)));
+          }
           lastSeenId = tweet.id;
           setBotState('lastSeenId', lastSeenId);
         }
@@ -951,7 +986,14 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
   // Post approved content with rate limiting
   const postLoop = async () => {
     try {
-      // Check global rate limit first
+      // Check circuit breaker first
+      if (isCircuitOpen()) {
+        logger.warn('Skipping autonomous post - circuit breaker open');
+        setTimeout(postLoop, 15 * 60 * 1000);
+        return;
+      }
+
+      // Check global rate limit
       if (isRateLimited()) {
         logger.debug('Skipping autonomous post - global rate limit active');
         setTimeout(postLoop, 15 * 60 * 1000);
@@ -1007,26 +1049,37 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
               }
 
               // Post tweet with or without media
-              const result = mediaId
-                ? await twitter.v2.tweet({
-                    text: post.content,
-                    media: { media_ids: [mediaId] as [string] },
-                  })
-                : await twitter.v2.tweet(post.content);
+              try {
+                const result = mediaId
+                  ? await twitter.v2.tweet({
+                      text: post.content,
+                      media: { media_ids: [mediaId] as [string] },
+                    })
+                  : await twitter.v2.tweet(post.content);
 
-              recordSuccess();
-              recordWrite();
+                recordSuccess();
+                recordWrite();
 
-              if (result.data?.id) {
-                markPosted(post.id, result.data.id);
-                lastPostTime = now;
-                logger.info('Posted autonomous tweet', {
-                  id: post.id,
-                  tweetId: result.data.id,
-                  hasImage: !!mediaId,
-                  hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1),
-                  zkProof: signalResult ? 'generated' : 'none',
-                });
+                if (result.data?.id) {
+                  markPosted(post.id, result.data.id);
+                  lastPostTime = now;
+                  logger.info('Posted autonomous tweet', {
+                    id: post.id,
+                    tweetId: result.data.id,
+                    hasImage: !!mediaId,
+                    hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1),
+                    zkProof: signalResult ? 'generated' : 'none',
+                  });
+                }
+              } catch (tweetErr: unknown) {
+                const error = tweetErr as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+                if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
+                  recordRateLimit(error.rateLimit?.reset);
+                  logger.warn('Autonomous tweet rate limited', { postId: post.id });
+                } else {
+                  recordFailure(`autonomousTweet: ${error.message || String(tweetErr)}`);
+                  logger.error('Autonomous tweet failed', { postId: post.id, error: String(tweetErr) });
+                }
               }
             }
           } else {
