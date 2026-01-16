@@ -1,5 +1,5 @@
 /**
- * Mitama Live Demo - Autonomous agent demo for X
+ * Mitama x KAMIYO Companion - ZK agent coordination live stream
  *
  * Runs on the bot server:
  * 1. Posts X thread explaining each step
@@ -42,7 +42,7 @@ function emitLog(log: Omit<DemoLog, 'timestamp'>) {
 
 // X thread content
 const THREAD_CONTENT = [
-  `Mitama live demo - ZK-private agent coordination on Solana devnet.
+  `Mitama x KAMIYO Companion - ZK-private agent coordination on Solana devnet.
 
 Watch real transactions as an agent registers, submits signals, and votes - all without revealing identity.
 
@@ -192,7 +192,7 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
   const tweetIds: string[] = [];
   const txSignatures: string[] = [];
 
-  emitLog({ step: 0, type: 'info', message: 'Starting Mitama live demo', data: { demoId: currentDemoId } });
+  emitLog({ step: 0, type: 'info', message: 'Starting Mitama x KAMIYO Companion', data: { demoId: currentDemoId } });
 
   try {
     // Initialize Solana connection
@@ -427,7 +427,7 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
       }
     }
 
-    emitLog({ step: 5, type: 'success', message: 'Mitama demo finished', data: {
+    emitLog({ step: 5, type: 'success', message: 'Mitama x KAMIYO Companion stream complete', data: {
       tweetCount: tweetIds.length,
       txCount: txSignatures.length,
       threadUrl: tweetIds.length > 0 ? `https://x.com/kamiyocompanion/status/${tweetIds[0]}` : null,
