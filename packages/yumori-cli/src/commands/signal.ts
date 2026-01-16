@@ -14,6 +14,7 @@ import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
 import { generateRandomBytes, bytesToHex, bytesToBigint } from '../client/crypto.js';
 import { AgentIdentity } from './register.js';
 import { provePrivateSignal } from '@kamiyo/yumori-prover';
+import { storeSignal, getUnrevealedSignals, YumoriIdentity, getIdentitySecrets } from '../client/identity.js';
 
 const SIGNAL_TYPES = [
   { name: 'Market Sentiment', value: 0 },
@@ -95,9 +96,10 @@ export async function handleSignal(
   const confirm = await confirmAction('Generate ZK proof and submit?');
   if (!confirm) return;
 
-  // Generate secrets
+  // Generate secrets for this signal
   const secret = generateRandomBytes(32);
   const agentNullifier = generateRandomBytes(32);
+  const stakeAmount = BigInt(100000000); // 0.1 SOL in lamports
 
   startSpinner('Generating ZK proof (this may take a moment)...');
 
@@ -107,7 +109,7 @@ export async function handleSignal(
       direction,
       confidence,
       magnitude,
-      stakeAmount: BigInt(100000000), // 0.1 SOL in lamports
+      stakeAmount,
       secret: bytesToBigint(secret),
       agentNullifier: bytesToBigint(agentNullifier),
       minStake: BigInt(0),
@@ -116,11 +118,24 @@ export async function handleSignal(
 
     succeedSpinner('ZK proof generated');
 
+    // Store signal secrets for later reveal
+    const storedSignal = storeSignal({
+      secret: bytesToHex(secret),
+      agentNullifier: bytesToHex(agentNullifier),
+      signalCommitment: signalCommitment.toString(16),
+      signalType,
+      direction,
+      confidence,
+      magnitude,
+      stakeAmount: stakeAmount.toString(),
+    });
+
     console.log();
     console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));
     console.log(chalk.green('  │') + chalk.white('            ZK PROOF GENERATED                ') + chalk.green('│'));
     console.log(chalk.green('  └─────────────────────────────────────────────┘'));
     console.log();
+    console.log(chalk.gray('  Signal ID:   ') + chalk.white(storedSignal.id));
     console.log(chalk.gray('  Commitment:  ') + chalk.magenta(signalCommitment.toString(16).slice(0, 32) + '...'));
     console.log(chalk.gray('  Nullifier:   ') + chalk.cyan(bytesToHex(agentNullifier).slice(0, 32) + '...'));
     console.log();
@@ -133,8 +148,8 @@ export async function handleSignal(
     showInfo('Proof ready for on-chain submission');
     console.log(chalk.gray('  (On-chain submission pending program integration)'));
     console.log();
-    console.log(chalk.gray('  Reveal Secret (save for later):'));
-    console.log(chalk.yellow('  ' + bytesToHex(secret)));
+    showSuccess('Signal secrets stored in ~/.yumori/signals.json');
+    console.log(chalk.gray('  Use signal ID to reveal later: ') + chalk.white(storedSignal.id));
     console.log();
   } catch (err) {
     failSpinner('Proof generation failed');

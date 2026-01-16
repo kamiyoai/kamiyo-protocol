@@ -10,6 +10,8 @@ import { handleRegister, AgentIdentity } from './commands/register.js';
 import { handleStatus, handleMyAgent } from './commands/status.js';
 import { handleSwarm } from './commands/swarm.js';
 import { handleSignal } from './commands/signal.js';
+import { loadIdentity } from './client/identity.js';
+import { hexToBytes } from './client/crypto.js';
 
 // State
 let client: SolanaClient;
@@ -27,6 +29,16 @@ async function init(): Promise<void> {
 
   // Try to load existing wallet
   hasWallet = await client.loadWallet();
+
+  // Try to load existing identity from storage
+  const storedIdentity = loadIdentity(network);
+  if (storedIdentity) {
+    agentIdentity = {
+      commitment: hexToBytes(storedIdentity.commitment),
+      pda: storedIdentity.pda,
+      secrets: storedIdentity,
+    };
+  }
 }
 
 async function mainLoop(): Promise<void> {
@@ -97,6 +109,10 @@ async function main(): Promise<void> {
     }
 
     showInfo('Network: ' + chalk.cyan(client.network));
+
+    if (agentIdentity) {
+      showInfo('Identity: ' + chalk.green('Loaded from ~/.yumori/identity.json'));
+    }
     console.log();
 
     // Start main loop

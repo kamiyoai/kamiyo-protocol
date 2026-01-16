@@ -6,12 +6,12 @@
  */
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak;
+use solana_poseidon::{hashv, Endianness, Parameters};
 
 declare_id!("DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26");
 
-/// Compute keccak256 hash of signal inputs for commitment verification.
-/// Format: keccak256(signal_type || direction || confidence || magnitude || stake_amount || secret || nullifier)
+/// Compute Poseidon hash of signal inputs for commitment verification.
+/// Matches the circuit: Poseidon(signal_type, direction, confidence, magnitude, stake_amount, secret, nullifier)
 fn compute_signal_commitment(
     signal_type: u8,
     direction: u8,
@@ -21,15 +21,26 @@ fn compute_signal_commitment(
     secret: &[u8; 32],
     agent_nullifier: &[u8; 32],
 ) -> [u8; 32] {
-    let mut data = Vec::with_capacity(1 + 1 + 1 + 1 + 8 + 32 + 32);
-    data.push(signal_type);
-    data.push(direction);
-    data.push(confidence);
-    data.push(magnitude);
-    data.extend_from_slice(&stake_amount.to_le_bytes());
-    data.extend_from_slice(secret);
-    data.extend_from_slice(agent_nullifier);
-    keccak::hash(&data).to_bytes()
+    // Convert inputs to field elements (32-byte big-endian)
+    let mut input0 = [0u8; 32];
+    let mut input1 = [0u8; 32];
+    let mut input2 = [0u8; 32];
+    let mut input3 = [0u8; 32];
+    let mut input4 = [0u8; 32];
+
+    input0[31] = signal_type;
+    input1[31] = direction;
+    input2[31] = confidence;
+    input3[31] = magnitude;
+    input4[24..32].copy_from_slice(&stake_amount.to_be_bytes());
+
+    let inputs: [&[u8]; 7] = [
+        &input0, &input1, &input2, &input3, &input4, secret, agent_nullifier,
+    ];
+
+    hashv(Parameters::Bn254X5, Endianness::BigEndian, &inputs)
+        .expect("Poseidon hash failed")
+        .to_bytes()
 }
 
 /// KAMIYO Staking program ID for CPI stake verification
@@ -424,7 +435,7 @@ pub mod yumori {
         require!(confidence <= 100, AgentCollabError::InvalidReveal);
         require!(magnitude <= 100, AgentCollabError::InvalidReveal);
 
-        // Verify commitment using keccak256 hash
+        // Verify commitment using Poseidon hash (matches circuit)
         let computed_commitment = compute_signal_commitment(
             signal_type,
             direction,

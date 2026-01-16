@@ -1,6 +1,7 @@
 // Yumori ZK signal integration for market calls
 
 import { logger } from './logger';
+import { storeYumoriSignal, isProofRateLimited, incrementProofCount } from './db';
 
 // Signal types matching the ZK circuit
 const SIGNAL_TYPE_MARKET_SENTIMENT = 0;
@@ -86,7 +87,13 @@ export function extractMarketSignal(content: string, context?: string): MarketSi
 }
 
 // Generate ZK proof for market signal
-export async function generateSignalProof(signal: MarketSignal): Promise<SignalProof | null> {
+export async function generateSignalProof(signal: MarketSignal, tweetId?: string): Promise<SignalProof | null> {
+  // Check rate limit before expensive proof generation
+  if (isProofRateLimited()) {
+    logger.warn('ZK proof generation rate limited');
+    return null;
+  }
+
   try {
     // Dynamic import to avoid circular deps
     const { provePrivateSignal } = await import('@kamiyo/yumori-prover');
@@ -94,28 +101,51 @@ export async function generateSignalProof(signal: MarketSignal): Promise<SignalP
 
     const secret = BigInt('0x' + randomBytes(32).toString('hex'));
     const agentNullifier = BigInt('0x' + randomBytes(32).toString('hex'));
+    const stakeAmount = BigInt(100000000); // 0.1 SOL equivalent
 
     const { proof, signalCommitment } = await provePrivateSignal({
       signalType: signal.type,
       direction: signal.direction,
       confidence: signal.confidence,
       magnitude: signal.magnitude,
-      stakeAmount: BigInt(100000000), // 0.1 SOL equivalent
+      stakeAmount,
       secret,
       agentNullifier,
       minStake: BigInt(0),
       minConfidence: 0,
     });
 
-    return {
+    // Increment rate limit counter
+    incrementProofCount();
+
+    const result: SignalProof = {
       commitment: signalCommitment.toString(16),
       nullifier: agentNullifier.toString(16).slice(0, 32),
       proof: {
-        a: proof.a.slice(0, 8).join(','),
-        b: proof.b.slice(0, 8).join(','),
-        c: proof.c.slice(0, 8).join(','),
+        a: proof.a.join(','),
+        b: proof.b.join(','),
+        c: proof.c.join(','),
       },
     };
+
+    // Store in database
+    storeYumoriSignal(
+      tweetId || null,
+      result.commitment,
+      result.nullifier,
+      result.proof.a,
+      result.proof.b,
+      result.proof.c,
+      signal.type,
+      signal.direction,
+      signal.confidence,
+      signal.magnitude,
+      stakeAmount.toString()
+    );
+
+    logger.info('ZK proof generated and stored', { commitment: result.commitment.slice(0, 16) + '...' });
+
+    return result;
   } catch (err) {
     logger.error('ZK proof generation failed', { error: String(err) });
     return null;
@@ -143,7 +173,8 @@ export async function isProverAvailable(): Promise<boolean> {
 // Generate signal with proof for a market call
 export async function createMarketCallSignal(
   content: string,
-  context?: string
+  context?: string,
+  tweetId?: string
 ): Promise<{ signal: MarketSignal; proof: SignalProof } | null> {
   if (!(await isProverAvailable())) return null;
 
@@ -154,9 +185,10 @@ export async function createMarketCallSignal(
     type: signal.type,
     direction: signal.direction,
     confidence: signal.confidence,
+    tweetId,
   });
 
-  const proof = await generateSignalProof(signal);
+  const proof = await generateSignalProof(signal, tweetId);
   if (!proof) return null;
 
   return { signal, proof };
