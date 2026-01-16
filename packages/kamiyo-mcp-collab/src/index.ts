@@ -15,8 +15,8 @@ import {
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import {
-  YumoriClient,
-  YumoriProver,
+  MitamaClient,
+  MitamaProver,
   MerkleTree,
   createMerkleTree,
   generateOwnerSecret,
@@ -230,8 +230,8 @@ interface ServerState {
 }
 
 let agentState: AgentState | null = null;
-let client: YumoriClient | null = null;
-let prover: YumoriProver | null = null;
+let client: MitamaClient | null = null;
+let prover: MitamaProver | null = null;
 let merkleTree: MerkleTree | null = null;
 
 // ============================================================================
@@ -278,7 +278,7 @@ async function saveState(): Promise<void> {
 
 const server = new Server(
   {
-    name: 'yumori',
+    name: 'mitama',
     version: '0.1.0',
   },
   {
@@ -533,7 +533,7 @@ async function handleInitAgent(nonce?: unknown) {
   const registrationSecret = generateRegistrationSecret();
   const ownerPubkey = getWallet().publicKey.toBytes();
   const agentId = await generateAgentId(ownerPubkey, validNonce);
-  const identityCommitment = await YumoriProver.generateIdentityCommitment(
+  const identityCommitment = await MitamaProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret
@@ -548,7 +548,7 @@ async function handleInitAgent(nonce?: unknown) {
     leafIndex: null,
   };
 
-  prover = new YumoriProver();
+  prover = new MitamaProver();
 
   // Initialize merkle tree if not exists
   if (!merkleTree) {
@@ -706,7 +706,7 @@ async function handleCreateSwarmAction(
 
   const epoch = registry.epoch.toNumber();
   const actionDataBytes = new TextEncoder().encode(validActionData);
-  const actionHash = await YumoriProver.generateActionHash(
+  const actionHash = await MitamaProver.generateActionHash(
     validActionType,
     actionDataBytes
   );
@@ -969,7 +969,7 @@ async function ensureClient() {
     const connection = new Connection(RPC_URL);
     const wallet = new Wallet(getWallet());
     const provider = new AnchorProvider(connection, wallet, {});
-    client = new YumoriClient(provider);
+    client = new MitamaClient(provider);
   }
 }
 
