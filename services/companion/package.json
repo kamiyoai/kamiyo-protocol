@@ -1,8 +1,7 @@
 {
-  "name": "holder-api",
+  "name": "kamiyo-companion",
   "version": "1.0.0",
-  "description": "Token-gated API for KAMIYO holders",
-  "type": "module",
+  "description": "KAMIYO Companion - AI interface to KAMIYO protocol (API + X bot)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -10,21 +9,25 @@
     "dev": "tsx watch src/index.ts",
     "test": "vitest run"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@kamiyo/yumori-prover": "workspace:*",
+    "@sentry/node": "^8.0.0",
     "@solana/web3.js": "^1.98.0",
     "better-sqlite3": "^11.0.0",
     "bs58": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
     "jsonwebtoken": "^9.0.3",
-    "openai": "^4.77.0",
+    "openai": "^6.16.0",
     "prom-client": "^15.1.0",
-    "tweetnacl": "^1.0.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+    "tweetnacl": "^1.0.3",
+    "twitter-api-v2": "^1.18.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8",

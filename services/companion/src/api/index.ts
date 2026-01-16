@@ -1,21 +1,18 @@
+// KAMIYO Consolidated API Server
+
 import express, { Express } from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import { logger } from '../logger.js';
-import {
-  authMiddleware,
-  rateLimitMiddleware,
-  tierMiddleware,
-  errorHandler,
-} from './middleware.js';
-import authRoutes from './routes/auth.js';
-import chatRoutes, { setAnthropicClient } from './routes/chat.js';
-import tokensRoutes from './routes/tokens.js';
-import marketRoutes from './routes/market.js';
-import reputationRoutes from './routes/reputation.js';
-import verifyRoutes from './routes/verify.js';
-import blacklistRoutes from './routes/blacklist.js';
-import { registry } from '../metrics.js';
+import { logger } from '../logger';
+import { authMiddleware, rateLimitMiddleware, tierMiddleware, errorHandler } from './middleware';
+import authRoutes from './routes/auth';
+import chatRoutes, { setAnthropicClient } from './routes/chat';
+import tokensRoutes from './routes/tokens';
+import marketRoutes from './routes/market';
+import reputationRoutes from './routes/reputation';
+import verifyRoutes from './routes/verify';
+import blacklistRoutes from './routes/blacklist';
+import { registry } from '../metrics';
 
 const BLINDFOLD_ORIGINS = [
   'https://blindfoldfinance.com',
@@ -30,18 +27,17 @@ export interface ApiServerConfig {
 export function createApiServer(config: ApiServerConfig = {}): Express {
   const app = express();
 
+  // Set Anthropic client for chat routes if provided
   if (config.anthropic) {
     setAnthropicClient(config.anthropic);
   }
 
+  // CORS - allow Blindfold origins + general access
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, curl, etc)
         if (!origin) return callback(null, true);
-        // Allow Blindfold origins
         if (BLINDFOLD_ORIGINS.includes(origin)) return callback(null, true);
-        // Allow all other origins for holder API
         return callback(null, true);
       },
       methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
@@ -50,10 +46,12 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   );
   app.use(express.json({ limit: '1mb' }));
 
+  // Health check (no auth)
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'holder-api' });
+    res.json({ status: 'ok', service: 'kamiyo-companion' });
   });
 
+  // Prometheus metrics
   app.get('/metrics', async (_req, res) => {
     try {
       res.set('Content-Type', registry.contentType);
@@ -67,45 +65,24 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/verify', verifyRoutes);
   app.use('/blacklist', blacklistRoutes);
 
-  // Holder API auth routes
+  // Companion API auth routes (no auth required)
   app.use('/api/auth', authRoutes);
 
-  // Protected holder API routes
-  app.use(
-    '/api/v1/chat',
-    authMiddleware,
-    rateLimitMiddleware,
-    tierMiddleware('pro'),
-    chatRoutes
-  );
-  app.use(
-    '/api/v1/tokens',
-    authMiddleware,
-    rateLimitMiddleware,
-    tierMiddleware('pro'),
-    tokensRoutes
-  );
-  app.use(
-    '/api/v1/market',
-    authMiddleware,
-    rateLimitMiddleware,
-    tierMiddleware('pro'),
-    marketRoutes
-  );
-  app.use(
-    '/api/v1/reputation',
-    authMiddleware,
-    rateLimitMiddleware,
-    tierMiddleware('pro'),
-    reputationRoutes
-  );
+  // Protected Companion API routes
+  app.use('/api/v1/chat', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), chatRoutes);
+  app.use('/api/v1/tokens', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), tokensRoutes);
+  app.use('/api/v1/market', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes);
+  app.use('/api/v1/reputation', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes);
 
+  // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {
     res.json(openApiSpec);
   });
 
+  // Error handler
   app.use(errorHandler);
 
+  // 404 handler
   app.use((_req, res) => {
     res.status(404).json({
       error: { code: 'NOT_FOUND', message: 'Endpoint not found' },
@@ -116,20 +93,20 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 }
 
 export function startApiServer(config: ApiServerConfig = {}): void {
-  const port = config.port || parseInt(process.env.PORT || '3001', 10);
+  const port = config.port || parseInt(process.env.PORT || '3000', 10);
   const app = createApiServer(config);
 
   app.listen(port, () => {
-    logger.info('Holder API started', { port });
+    logger.info('API server started', { port });
   });
 }
 
 const openApiSpec = {
   openapi: '3.0.0',
   info: {
-    title: 'Holder API',
+    title: 'KAMIYO Companion API',
     version: '1.0.0',
-    description: 'Token-gated API for holders',
+    description: 'KAMIYO Companion - AI interface to KAMIYO protocol. Token-gated API for holders.',
   },
   servers: [
     { url: 'https://api.kamiyo.ai', description: 'Production' },
@@ -212,7 +189,8 @@ const openApiSpec = {
     },
     '/api/v1/chat': {
       post: {
-        summary: 'Chat completion with memory and market signals',
+        summary: 'Chat completion with memory, market signals, and X search',
+        description: 'Hybrid Anthropic/Grok chat with conversation memory, real-time crypto context, proprietary signals, and X/Twitter search',
         requestBody: {
           content: {
             'application/json': {
@@ -230,16 +208,16 @@ const openApiSpec = {
                     },
                   },
                   stream: { type: 'boolean', default: false },
-                  clearHistory: { type: 'boolean', default: false },
+                  clearHistory: { type: 'boolean', default: false, description: 'Clear conversation memory before this request' },
                   context: {
                     type: 'object',
                     properties: {
-                      includeCrypto: { type: 'boolean', default: true },
-                      includeSignals: { type: 'boolean', default: true },
-                      includeTrends: { type: 'boolean', default: false },
-                      includeXSearch: { type: 'boolean', default: false },
-                      xSearchQuery: { type: 'string' },
-                      xHandles: { type: 'array', items: { type: 'string' } },
+                      includeCrypto: { type: 'boolean', default: true, description: 'Include BTC/ETH/KAMIYO prices' },
+                      includeSignals: { type: 'boolean', default: true, description: 'Include proprietary market signals' },
+                      includeTrends: { type: 'boolean', default: false, description: 'Include X/Twitter trending topics' },
+                      includeXSearch: { type: 'boolean', default: false, description: 'Search X for relevant content' },
+                      xSearchQuery: { type: 'string', description: 'Custom X search query (defaults to last message)' },
+                      xHandles: { type: 'array', items: { type: 'string' }, description: 'X handles to search (without @)' },
                     },
                   },
                 },
@@ -249,7 +227,23 @@ const openApiSpec = {
           },
         },
         responses: {
-          200: { description: 'Chat completion' },
+          200: {
+            description: 'Chat completion with context and memory info',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    message: { type: 'object', properties: { role: { type: 'string' }, content: { type: 'string' } } },
+                    usage: { type: 'object', properties: { promptTokens: { type: 'number' }, completionTokens: { type: 'number' } } },
+                    context: { type: 'object', description: 'Market data, signals, and search results used' },
+                    memory: { type: 'object', properties: { historyLength: { type: 'number' } } },
+                  },
+                },
+              },
+            },
+          },
           429: { description: 'Rate limit exceeded' },
         },
       },
@@ -257,11 +251,18 @@ const openApiSpec = {
     '/api/v1/chat/history': {
       get: {
         summary: 'Get conversation history',
-        responses: { 200: { description: 'Conversation messages' } },
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 20, maximum: 50 } },
+        ],
+        responses: {
+          200: { description: 'Conversation messages' },
+        },
       },
       delete: {
         summary: 'Clear conversation history',
-        responses: { 200: { description: 'History cleared' } },
+        responses: {
+          200: { description: 'History cleared' },
+        },
       },
     },
     '/api/v1/tokens/{query}': {
@@ -284,12 +285,6 @@ const openApiSpec = {
         },
       },
     },
-    '/api/v1/market/kamiyo': {
-      get: {
-        summary: 'Get KAMIYO market data',
-        responses: { 200: { description: 'KAMIYO-specific market data' } },
-      },
-    },
     '/api/v1/reputation/proof': {
       post: {
         summary: 'Generate ZK reputation proof',
@@ -307,13 +302,9 @@ const openApiSpec = {
             },
           },
         },
-        responses: { 200: { description: 'Groth16 proof' } },
-      },
-    },
-    '/api/v1/reputation/verify': {
-      post: {
-        summary: 'Verify ZK reputation proof',
-        responses: { 200: { description: 'Verification result' } },
+        responses: {
+          200: { description: 'Groth16 proof' },
+        },
       },
     },
   },
