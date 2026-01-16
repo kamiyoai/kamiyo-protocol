@@ -1,6 +1,7 @@
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { tryRecordPayment, updateUserTier } from './db';
+import { processPaymentTransaction } from './db';
 import { getRequiredPayment, TIERS } from './tiers';
+import { logger } from './logger';
 
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TREASURY_WALLET = process.env.TREASURY_WALLET || '';
@@ -76,19 +77,19 @@ export async function verifyPayment(
       return { valid: false, error: `Payment insufficient for ${expectedTier} tier` };
     }
 
-    // Atomic record - prevents race conditions
-    // Returns false if transaction was already processed
+    // Atomic payment + tier update in a single transaction
+    // Prevents race conditions where payment is recorded but tier update fails
     const expiresAt = Math.floor(Date.now() / 1000) + (durationDays * 24 * 60 * 60);
-    const recorded = tryRecordPayment(userId, txSignature, transferAmount, tier, durationDays);
+    const recorded = processPaymentTransaction(userId, txSignature, transferAmount, tier, durationDays, expiresAt);
 
     if (!recorded) {
       return { valid: false, error: 'Transaction already processed' };
     }
 
-    updateUserTier(userId, tier, expiresAt);
+    logger.info('Payment processed', { userId, tier, durationDays, txSignature: txSignature.slice(0, 16) });
     return { valid: true, tier, durationDays };
   } catch (err) {
-    console.error('Payment verification error:', err);
+    logger.error('Payment verification error', { error: String(err), userId, txSignature: txSignature.slice(0, 16) });
     return { valid: false, error: 'Failed to verify transaction' };
   }
 }

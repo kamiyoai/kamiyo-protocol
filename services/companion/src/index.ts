@@ -81,6 +81,8 @@ import {
   storeWalletChallenge,
   getPendingChallengeForUser,
   markChallengeVerified,
+  isLookupRateLimited,
+  incrementLookupCount,
 } from './db';
 import {
   generateChallenge,
@@ -116,6 +118,9 @@ import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from 
 import { isGrokAvailable } from './trend-engine';
 import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite, withRateLimit } from './rate-limiter';
 import { startApiServer } from './api';
+import { closeDatabase } from './db';
+import { stopChallengeCleanup } from './api/auth';
+import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable } from './yumori-signal';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
@@ -392,6 +397,12 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
   // !lookup <address> - Wallet holdings lookup
   const lookupMatch = text.match(/^!lookup\s+([1-9A-HJ-NP-Za-km-z]{32,44})$/);
   if (lookupMatch) {
+    // Check rate limit before lookup
+    if (isLookupRateLimited(userId)) {
+      return 'Lookup rate limit exceeded. Please wait a minute before trying again.';
+    }
+    incrementLookupCount(userId);
+
     const address = lookupMatch[1];
     const wallet = await lookupWallet(address);
     if (wallet) {
@@ -403,6 +414,12 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
   // !tx <signature> - Transaction lookup
   const txMatch = text.match(/^!tx\s+([1-9A-HJ-NP-Za-km-z]{64,})$/);
   if (txMatch) {
+    // Check rate limit before lookup
+    if (isLookupRateLimited(userId)) {
+      return 'Lookup rate limit exceeded. Please wait a minute before trying again.';
+    }
+    incrementLookupCount(userId);
+
     const sig = txMatch[1];
     const tx = await lookupTransaction(sig);
     if (tx) {
@@ -414,6 +431,12 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
   // Auto-detect wallet addresses in text (not command format)
   const addressMatch = text.match(/([1-9A-HJ-NP-Za-km-z]{32,44})/);
   if (addressMatch && isValidSolanaAddress(addressMatch[1]) && !text.startsWith('!')) {
+    // Check rate limit before lookup
+    if (isLookupRateLimited(userId)) {
+      return null; // Silently skip auto-detect lookups when rate limited
+    }
+    incrementLookupCount(userId);
+
     const wallet = await lookupWallet(addressMatch[1]);
     if (wallet) {
       return formatWalletSummary(wallet);
@@ -1130,10 +1153,16 @@ async function main(): Promise<void> {
     stopContextRefresh();
     stopCacheCleanup();
     stopMaintenanceSchedule();
+    stopChallengeCleanup();
+    stopRateLimitCleanup();
     logger.info('Background tasks stopped');
 
     // Give in-flight requests time to complete
     await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Close database connection
+    closeDatabase();
+    logger.info('Database closed');
 
     logger.info('Shutdown complete');
     process.exit(0);

@@ -100,6 +100,20 @@ db.exec(`
     UNIQUE(user_id, wallet)
   );
 
+  CREATE TABLE IF NOT EXISTS api_rate_limits (
+    wallet TEXT PRIMARY KEY,
+    minute_count INTEGER DEFAULT 0,
+    minute_reset_at INTEGER NOT NULL,
+    day_count INTEGER DEFAULT 0,
+    day_reset_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS lookup_rate_limits (
+    user_id TEXT PRIMARY KEY,
+    count INTEGER DEFAULT 0,
+    reset_at INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
@@ -107,6 +121,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_escrow_session ON escrow_sessions(session_id);
   CREATE INDEX IF NOT EXISTS idx_daily_counts ON daily_message_counts(user_id, date);
   CREATE INDEX IF NOT EXISTS idx_processed_tweets_at ON processed_tweets(processed_at);
+  CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON api_rate_limits(day_reset_at);
 `);
 
 export interface User {
@@ -251,6 +266,41 @@ export function tryRecordPayment(userId: string, txSignature: string, amountLamp
   return result.changes > 0;
 }
 
+// Transaction wrapper for atomic operations
+export function runTransaction<T>(fn: () => T): T {
+  return db.transaction(fn)();
+}
+
+// Atomic payment + tier update in a single transaction
+// Returns true if successful, false if transaction already processed
+export function processPaymentTransaction(
+  userId: string,
+  txSignature: string,
+  amountLamports: number,
+  tier: string,
+  durationDays: number,
+  expiresAt: number
+): boolean {
+  return db.transaction(() => {
+    // Try to record the payment first
+    const result = db.prepare(`
+      INSERT OR IGNORE INTO payments (user_id, tx_signature, amount_lamports, tier, duration_days)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(userId, txSignature, amountLamports, tier, durationDays);
+
+    if (result.changes === 0) {
+      // Transaction already processed
+      return false;
+    }
+
+    // Update user tier
+    db.prepare('UPDATE users SET tier = ?, tier_expires_at = ?, updated_at = unixepoch() WHERE id = ?')
+      .run(tier, expiresAt, userId);
+
+    return true;
+  })();
+}
+
 // Stats
 export function getUserStats(userId: string): { totalSessions: number; avgRating: number | null; totalMessages: number } {
   const stats = db.prepare(`
@@ -301,11 +351,23 @@ export function getActiveEscrowByUser(userId: string): EscrowSession | null {
   `).get(userId) as EscrowSession | null;
 }
 
+const VALID_ESCROW_STATUSES = ['pending', 'active', 'released', 'refunded'] as const;
+type EscrowStatus = typeof VALID_ESCROW_STATUSES[number];
+
+function isValidEscrowStatus(status: string): status is EscrowStatus {
+  return VALID_ESCROW_STATUSES.includes(status as EscrowStatus);
+}
+
 export function updateEscrowStatus(
   sessionId: string,
   status: 'released' | 'refunded',
   rating?: number
 ): void {
+  // Validate status to prevent injection
+  if (!isValidEscrowStatus(status)) {
+    throw new Error(`Invalid escrow status: ${status}`);
+  }
+
   db.prepare(`
     UPDATE escrow_sessions
     SET status = ?, rating = ?, released_at = unixepoch()
@@ -424,6 +486,127 @@ export function cleanupExpiredChallenges(): number {
   const now = Math.floor(Date.now() / 1000);
   const result = db.prepare('DELETE FROM wallet_challenges WHERE expires_at < ? AND verified = 0').run(now);
   return result.changes;
+}
+
+// API Rate Limit operations (persisted)
+export interface ApiRateLimitEntry {
+  wallet: string;
+  minute_count: number;
+  minute_reset_at: number;
+  day_count: number;
+  day_reset_at: number;
+}
+
+export function getApiRateLimit(wallet: string): ApiRateLimitEntry | null {
+  const now = Date.now();
+  const row = db.prepare('SELECT * FROM api_rate_limits WHERE wallet = ?').get(wallet) as ApiRateLimitEntry | undefined;
+
+  if (!row) return null;
+
+  // Reset windows if expired
+  let needsUpdate = false;
+  if (row.minute_reset_at < now) {
+    row.minute_count = 0;
+    row.minute_reset_at = now + 60000;
+    needsUpdate = true;
+  }
+  if (row.day_reset_at < now) {
+    row.day_count = 0;
+    row.day_reset_at = now + 86400000;
+    needsUpdate = true;
+  }
+
+  if (needsUpdate) {
+    db.prepare(`
+      UPDATE api_rate_limits
+      SET minute_count = ?, minute_reset_at = ?, day_count = ?, day_reset_at = ?
+      WHERE wallet = ?
+    `).run(row.minute_count, row.minute_reset_at, row.day_count, row.day_reset_at, wallet);
+  }
+
+  return row;
+}
+
+export function incrementApiRateLimit(wallet: string): ApiRateLimitEntry {
+  const now = Date.now();
+  const existing = getApiRateLimit(wallet);
+
+  if (existing) {
+    existing.minute_count++;
+    existing.day_count++;
+    db.prepare(`
+      UPDATE api_rate_limits
+      SET minute_count = ?, day_count = ?
+      WHERE wallet = ?
+    `).run(existing.minute_count, existing.day_count, wallet);
+    return existing;
+  }
+
+  // Create new entry
+  const entry: ApiRateLimitEntry = {
+    wallet,
+    minute_count: 1,
+    minute_reset_at: now + 60000,
+    day_count: 1,
+    day_reset_at: now + 86400000,
+  };
+
+  db.prepare(`
+    INSERT INTO api_rate_limits (wallet, minute_count, minute_reset_at, day_count, day_reset_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(wallet, entry.minute_count, entry.minute_reset_at, entry.day_count, entry.day_reset_at);
+
+  return entry;
+}
+
+export function cleanupOldRateLimits(): number {
+  const cutoff = Date.now() - 86400000 * 2; // Remove entries older than 2 days
+  const result = db.prepare('DELETE FROM api_rate_limits WHERE day_reset_at < ?').run(cutoff);
+  // Also clean up lookup rate limits
+  db.prepare('DELETE FROM lookup_rate_limits WHERE reset_at < ?').run(cutoff);
+  return result.changes;
+}
+
+// Lookup rate limiting (per user, 10 lookups per minute)
+const LOOKUP_RATE_LIMIT = 10;
+const LOOKUP_RATE_WINDOW = 60000; // 1 minute
+
+export function isLookupRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const row = db.prepare('SELECT count, reset_at FROM lookup_rate_limits WHERE user_id = ?').get(userId) as { count: number; reset_at: number } | undefined;
+
+  if (!row) return false;
+
+  // Reset if window expired
+  if (row.reset_at < now) {
+    db.prepare('UPDATE lookup_rate_limits SET count = 0, reset_at = ? WHERE user_id = ?').run(now + LOOKUP_RATE_WINDOW, userId);
+    return false;
+  }
+
+  return row.count >= LOOKUP_RATE_LIMIT;
+}
+
+export function incrementLookupCount(userId: string): void {
+  const now = Date.now();
+  const row = db.prepare('SELECT count, reset_at FROM lookup_rate_limits WHERE user_id = ?').get(userId) as { count: number; reset_at: number } | undefined;
+
+  if (!row) {
+    db.prepare('INSERT INTO lookup_rate_limits (user_id, count, reset_at) VALUES (?, 1, ?)').run(userId, now + LOOKUP_RATE_WINDOW);
+    return;
+  }
+
+  if (row.reset_at < now) {
+    // Window expired, reset
+    db.prepare('UPDATE lookup_rate_limits SET count = 1, reset_at = ? WHERE user_id = ?').run(now + LOOKUP_RATE_WINDOW, userId);
+  } else {
+    // Increment count
+    db.prepare('UPDATE lookup_rate_limits SET count = count + 1 WHERE user_id = ?').run(userId);
+  }
+}
+
+// Database shutdown
+export function closeDatabase(): void {
+  db.close();
 }
 
 export default db;

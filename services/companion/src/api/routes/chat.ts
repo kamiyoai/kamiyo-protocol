@@ -195,8 +195,20 @@ interface ChatRequest {
   clearHistory?: boolean;
 }
 
+const MAX_MESSAGE_LENGTH = 10000; // Max characters per message
+const MAX_MESSAGES = 20; // Max messages per request
+
 // POST /api/v1/chat
 router.post('/', async (req: Request, res: Response) => {
+  // Validate content-type
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    res.status(415).json({
+      error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Content-Type must be application/json' },
+    });
+    return;
+  }
+
   if (!anthropicClient) {
     res.status(503).json({
       error: { code: 'SERVICE_UNAVAILABLE', message: 'Chat service not initialized' },
@@ -221,6 +233,14 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
+  // Limit number of messages
+  if (body.messages.length > MAX_MESSAGES) {
+    res.status(400).json({
+      error: { code: 'INVALID_REQUEST', message: `Maximum ${MAX_MESSAGES} messages per request` },
+    });
+    return;
+  }
+
   // Validate messages
   for (const msg of body.messages) {
     if (!msg.role || !msg.content) {
@@ -232,6 +252,13 @@ router.post('/', async (req: Request, res: Response) => {
     if (msg.role !== 'user' && msg.role !== 'assistant') {
       res.status(400).json({
         error: { code: 'INVALID_REQUEST', message: 'Role must be user or assistant' },
+      });
+      return;
+    }
+    // Validate message length
+    if (typeof msg.content !== 'string' || msg.content.length > MAX_MESSAGE_LENGTH) {
+      res.status(400).json({
+        error: { code: 'INVALID_REQUEST', message: `Message content must be a string under ${MAX_MESSAGE_LENGTH} characters` },
       });
       return;
     }

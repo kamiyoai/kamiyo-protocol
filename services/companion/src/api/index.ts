@@ -2,6 +2,7 @@
 
 import express, { Express } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../logger';
 import { authMiddleware, rateLimitMiddleware, tierMiddleware, errorHandler } from './middleware';
@@ -13,6 +14,36 @@ import reputationRoutes from './routes/reputation';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
 import { registry } from '../metrics';
+
+// Rate limiter for auth endpoints (IP-based)
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many authentication attempts. Please try again later.',
+    },
+  },
+  keyGenerator: (req) => req.ip || 'unknown',
+});
+
+// Stricter rate limiter for verify/refresh endpoints
+const apiKeyRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 API key generations per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many API key generation attempts. Please try again later.',
+    },
+  },
+  keyGenerator: (req) => req.ip || 'unknown',
+});
 
 const BLINDFOLD_ORIGINS = [
   'https://blindfoldfinance.com',
@@ -61,11 +92,16 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
     }
   });
 
-  // Blindfold verification routes (no auth required)
-  app.use('/verify', verifyRoutes);
-  app.use('/blacklist', blacklistRoutes);
+  // Blindfold verification routes (no auth required, but IP rate limited)
+  app.use('/verify', authRateLimiter, verifyRoutes);
+  app.use('/blacklist', authRateLimiter, blacklistRoutes);
 
-  // Companion API auth routes (no auth required)
+  // Companion API auth routes (no auth required, but IP rate limited)
+  // Challenge endpoint - moderate rate limiting
+  app.use('/api/auth/challenge', authRateLimiter);
+  // Verify/refresh endpoints - stricter rate limiting
+  app.use('/api/auth/verify', apiKeyRateLimiter);
+  app.use('/api/auth/refresh', apiKeyRateLimiter);
   app.use('/api/auth', authRoutes);
 
   // Protected Companion API routes

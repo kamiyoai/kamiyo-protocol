@@ -3,6 +3,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyApiKey, JWTPayload } from './auth';
 import { logger } from '../logger';
+import { getApiRateLimit, incrementApiRateLimit, cleanupOldRateLimits } from '../db';
 
 // Extend Express Request to include auth info
 declare global {
@@ -13,52 +14,34 @@ declare global {
   }
 }
 
-// Rate limit state per wallet
-interface RateLimitEntry {
-  minute: { count: number; resetAt: number };
-  day: { count: number; resetAt: number };
-}
-
-const rateLimits = new Map<string, RateLimitEntry>();
-
 const LIMITS = {
   pro: { perMinute: 60, perDay: 10000 },
   companion: { perMinute: 0, perDay: 0 },
   free: { perMinute: 0, perDay: 0 },
 };
 
-function getRateLimitEntry(wallet: string): RateLimitEntry {
-  const now = Date.now();
-  let entry = rateLimits.get(wallet);
+// Clean up old rate limit entries periodically
+let cleanupInterval: NodeJS.Timeout | null = null;
 
-  if (!entry) {
-    entry = {
-      minute: { count: 0, resetAt: now + 60000 },
-      day: { count: 0, resetAt: now + 86400000 },
-    };
-    rateLimits.set(wallet, entry);
-  }
-
-  // Reset if window expired
-  if (now > entry.minute.resetAt) {
-    entry.minute = { count: 0, resetAt: now + 60000 };
-  }
-  if (now > entry.day.resetAt) {
-    entry.day = { count: 0, resetAt: now + 86400000 };
-  }
-
-  return entry;
+function startRateLimitCleanup(): void {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    const cleaned = cleanupOldRateLimits();
+    if (cleaned > 0) {
+      logger.debug('Cleaned old rate limit entries', { count: cleaned });
+    }
+  }, 3600000); // Every hour
 }
 
-// Clean up old entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [wallet, entry] of rateLimits) {
-    if (now > entry.day.resetAt + 86400000) {
-      rateLimits.delete(wallet);
-    }
+export function stopRateLimitCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
   }
-}, 3600000); // Every hour
+}
+
+// Start cleanup on module load
+startRateLimitCleanup();
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Extract token from header or query
@@ -133,14 +116,20 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
   }
 
   const limits = LIMITS[req.auth.tier as keyof typeof LIMITS] || LIMITS.free;
-  const entry = getRateLimitEntry(req.auth.wallet);
+
+  // Get persisted rate limit entry (handles expiration/reset automatically)
+  const entry = getApiRateLimit(req.auth.wallet);
+  const minuteCount = entry?.minute_count ?? 0;
+  const dayCount = entry?.day_count ?? 0;
+  const minuteResetAt = entry?.minute_reset_at ?? Date.now() + 60000;
+  const dayResetAt = entry?.day_reset_at ?? Date.now() + 86400000;
 
   // Check minute limit
-  if (entry.minute.count >= limits.perMinute) {
-    const retryAfter = Math.ceil((entry.minute.resetAt - Date.now()) / 1000);
+  if (minuteCount >= limits.perMinute) {
+    const retryAfter = Math.ceil((minuteResetAt - Date.now()) / 1000);
     res.setHeader('X-RateLimit-Limit', limits.perMinute);
     res.setHeader('X-RateLimit-Remaining', 0);
-    res.setHeader('X-RateLimit-Reset', Math.ceil(entry.minute.resetAt / 1000));
+    res.setHeader('X-RateLimit-Reset', Math.ceil(minuteResetAt / 1000));
     res.setHeader('Retry-After', retryAfter);
     res.status(429).json({
       error: {
@@ -153,8 +142,8 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
   }
 
   // Check daily limit
-  if (entry.day.count >= limits.perDay) {
-    const retryAfter = Math.ceil((entry.day.resetAt - Date.now()) / 1000);
+  if (dayCount >= limits.perDay) {
+    const retryAfter = Math.ceil((dayResetAt - Date.now()) / 1000);
     res.status(429).json({
       error: {
         code: 'RATE_LIMITED',
@@ -165,21 +154,22 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
     return;
   }
 
-  // Increment counters
-  entry.minute.count++;
-  entry.day.count++;
+  // Increment counters (persisted to database)
+  const updated = incrementApiRateLimit(req.auth.wallet);
 
   // Set rate limit headers
   res.setHeader('X-RateLimit-Limit', limits.perMinute);
-  res.setHeader('X-RateLimit-Remaining', limits.perMinute - entry.minute.count);
-  res.setHeader('X-RateLimit-Reset', Math.ceil(entry.minute.resetAt / 1000));
+  res.setHeader('X-RateLimit-Remaining', Math.max(0, limits.perMinute - updated.minute_count));
+  res.setHeader('X-RateLimit-Reset', Math.ceil(updated.minute_reset_at / 1000));
 
   next();
 }
 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
-  logger.error('API error', { error: err.message, path: req.path });
+  // Log full error details internally
+  logger.error('API error', { error: err.message, stack: err.stack, path: req.path });
 
+  // Return generic message to client (don't expose internals)
   res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',
