@@ -132,7 +132,9 @@ import { startApiServer } from './api';
 import { closeDatabase } from './db';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
-import { createMarketCallSignal, formatSignal, isProverAvailable } from './mitama-signal';
+import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './mitama-signal';
+import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-agent';
+import { BN } from '@coral-xyz/anchor';
 
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
@@ -224,6 +226,7 @@ const COMMANDS = {
   CLEAR: /^!clear$/,
   HELP: /^!help$/,
   MITAMA_DEMO: /^!mitama-demo$/,
+  SIGNALS: /^!signals$/,
 };
 
 interface TwitterCredentials {
@@ -404,6 +407,29 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
 !wallet <addr> - Link your wallet
 !status - Your tier and stats
 !rate 1-5 - Rate session`;
+  }
+
+  // !signals - Show Mitama signal track record
+  if (COMMANDS.SIGNALS.test(text)) {
+    const agent = getMitamaAgent();
+    if (!agent || !agent.isRegistered()) {
+      return 'Mitama agent not active. Signal tracking unavailable.';
+    }
+
+    const trackRecord = formatTrackRecord();
+    const recent = getRecentSignals(3);
+
+    let response = `Mitama Track Record:\n${trackRecord}`;
+    if (recent.length > 0) {
+      response += '\n\nRecent signals:';
+      for (const sig of recent) {
+        const dir = ['SHORT', 'LONG', 'NEUTRAL'][sig.direction];
+        const outcome = sig.outcome === null ? 'pending' : (sig.outcome === 1 ? 'correct' : 'wrong');
+        response += `\n- ${dir} ${sig.confidence}% [${sig.commitment.slice(0, 8)}] ${outcome}`;
+      }
+    }
+
+    return response;
   }
 
   // !mitama-demo - Trigger Mitama ZK demo (owner only)
@@ -821,9 +847,40 @@ async function processMention(
   incrementSessionMessages(sessionId);
   messagesTotal.inc({ tier, status: 'success' });
 
+  // Check if response contains a market take worth staking on
+  let finalResponse = response;
+  const signal = extractMarketSignal(response);
+  if (signal && signal.direction !== 2) { // Has directional take
+    // 20% chance to stake on reply takes (lower than autonomous posts)
+    const stakeChance = 0.2 + (signal.confidence / 300);
+    const mitamaAgent = getMitamaAgent();
+
+    if (Math.random() < stakeChance && mitamaAgent?.isRegistered()) {
+      logger.info('Staking on reply take via Mitama', { signal: formatSignal(signal) });
+
+      // Use real Mitama agent to submit signal with stake
+      const result = await mitamaAgent.submitSignal(
+        signal.type,
+        signal.direction,
+        signal.confidence,
+        signal.magnitude,
+        new BN(10000000), // 0.01 SOL stake per reply
+        tweet.id
+      );
+
+      if (result) {
+        const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
+        if (finalResponse.length + commitmentTag.length <= 280) {
+          finalResponse = finalResponse + commitmentTag;
+          logger.info('Added Mitama commitment to reply', { commitment: result.commitment.slice(0, 16) });
+        }
+      }
+    }
+  }
+
   // Post reply
-  logger.info('Posting reply', { tweetId: tweet.id, responseLength: response.length });
-  const replyId = await postReply(twitter, tweet.id, response);
+  logger.info('Posting reply', { tweetId: tweet.id, responseLength: finalResponse.length });
+  const replyId = await postReply(twitter, tweet.id, finalResponse);
 
   if (replyId) {
     logger.info('Reply posted', { tweetId: tweet.id, replyId, tier, latencySeconds });
@@ -865,7 +922,8 @@ async function startMentionStream(
         max_results: 10,
       });
 
-      // Reset backoff on success
+      // Reset backoff on success and record successful API call
+      recordSuccess();
       if (backoffMs > 0) {
         logger.info('Rate limit cleared, resuming normal polling');
         backoffMs = 0;
@@ -1218,6 +1276,24 @@ async function main(): Promise<void> {
     hasKeypair: protocol.hasKeypair(),
     hasProver: protocol.hasProver(),
   });
+
+  // Initialize Mitama agent (bot's on-chain ZK identity)
+  const mitamaAgent = await initMitamaAgent();
+  if (mitamaAgent) {
+    // Register bot as Mitama agent if not already registered
+    if (!mitamaAgent.isRegistered()) {
+      logger.info('Registering bot as Mitama agent...');
+      const commitment = await mitamaAgent.register(new BN(100000000)); // 0.1 SOL stake
+      if (commitment) {
+        logger.info('Bot registered as Mitama agent', { commitment: commitment.slice(0, 16) + '...' });
+      }
+    } else {
+      logger.info('Mitama agent already registered', {
+        commitment: mitamaAgent.getIdentityCommitment()?.slice(0, 16) + '...',
+        trackRecord: formatTrackRecord(),
+      });
+    }
+  }
 
   // Initialize Twitter client (optional - only for X bot features)
   let twitter: TwitterApi | undefined;
