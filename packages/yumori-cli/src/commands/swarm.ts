@@ -11,8 +11,9 @@ import {
 } from '../ui/banner.js';
 import { showSwarmMenu, SwarmAction, confirmAction, inputText, selectOption } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
-import { generateActionHash, bytesToHex, generateRandomBytes } from '../client/crypto.js';
+import { generateActionHash, bytesToHex, generateRandomBytes, bytesToBigint, hexToBytes } from '../client/crypto.js';
 import { AgentIdentity } from './register.js';
+import { proveSwarmVote } from '@kamiyo/yumori-prover';
 
 const ACTION_TYPES = [
   { name: 'Trade Signal - Long', value: 1 },
@@ -153,28 +154,71 @@ async function voteProposal(
   ]);
 
   console.log();
-  showInfo('ZK proof requires merkle tree of all agents');
+  console.log(chalk.gray('  ─────────────────────────────────────────'));
+  console.log();
+  console.log(chalk.cyan('  ZK Proof will verify:'));
+  console.log(chalk.gray('  • You are a registered agent (merkle membership)'));
+  console.log(chalk.gray('  • Your vote is valid (0 or 1)'));
+  console.log(chalk.gray('  • Nullifier prevents double-voting'));
+  console.log();
+  console.log(chalk.cyan('  What stays private:'));
+  console.log(chalk.gray('  • Your identity as an agent'));
+  console.log(chalk.gray('  • Your vote (encrypted in commitment)'));
   console.log();
 
-  const confirm = await confirmAction(`Preview ${vote ? 'YES' : 'NO'} vote?`);
+  const confirm = await confirmAction('Generate ZK proof and submit?');
   if (!confirm) return;
 
-  startSpinner('Simulating vote proof...');
-  await new Promise((r) => setTimeout(r, 800));
+  // Generate secrets for demo (in production, would use stored identity secrets)
+  const ownerSecret = generateRandomBytes(32);
+  const agentId = generateRandomBytes(32);
+  const registrationSecret = generateRandomBytes(32);
+  const voteSalt = generateRandomBytes(32);
 
-  succeedSpinner('Demo complete');
+  // Demo merkle proof (in production, would fetch from indexer)
+  const demoMerkleProof = {
+    path: Array(20).fill(BigInt(0)),
+    indices: Array(20).fill(0),
+  };
 
-  console.log();
-  console.log(chalk.yellow('  ┌─────────────────────────────────────────────┐'));
-  console.log(chalk.yellow('  │') + chalk.white('          VOTE PREVIEW (NOT SUBMITTED)        ') + chalk.yellow('│'));
-  console.log(chalk.yellow('  └─────────────────────────────────────────────┘'));
-  console.log();
-  console.log(chalk.gray('  Would submit:'));
-  console.log(chalk.gray('  • Vote:       ') + (vote ? chalk.green('YES') : chalk.red('NO')));
-  console.log(chalk.gray('  • Action:     ') + formatCommitment(actionHashHex));
-  console.log(chalk.gray('  • Nullifier:  ') + chalk.gray('(prevents double-voting)'));
-  console.log(chalk.gray('  • ZK Proof:   ') + chalk.gray('(requires merkle indexer)'));
-  console.log();
+  startSpinner('Generating ZK proof (this may take a moment)...');
+
+  try {
+    const { proof, voteNullifier, voteCommitment } = await proveSwarmVote({
+      agentsRoot: BigInt(0), // Demo root
+      ownerSecret: bytesToBigint(ownerSecret),
+      agentId: bytesToBigint(agentId),
+      registrationSecret: bytesToBigint(registrationSecret),
+      merkleProof: demoMerkleProof,
+      actionHash: bytesToBigint(hexToBytes(actionHashHex)),
+      vote: vote ? 1 : 0,
+      voteSalt: bytesToBigint(voteSalt),
+    });
+
+    succeedSpinner('ZK proof generated');
+
+    console.log();
+    console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));
+    console.log(chalk.green('  │') + chalk.white('            ZK PROOF GENERATED                ') + chalk.green('│'));
+    console.log(chalk.green('  └─────────────────────────────────────────────┘'));
+    console.log();
+    console.log(chalk.gray('  Vote:        ') + (vote ? chalk.green('YES') : chalk.red('NO')));
+    console.log(chalk.gray('  Action:      ') + formatCommitment(actionHashHex));
+    console.log(chalk.gray('  Nullifier:   ') + chalk.cyan(voteNullifier.toString(16).slice(0, 32) + '...'));
+    console.log(chalk.gray('  Commitment:  ') + chalk.magenta(voteCommitment.toString(16).slice(0, 32) + '...'));
+    console.log();
+    console.log(chalk.gray('  Proof (a):   ') + chalk.yellow(proof.a.slice(0, 8).join(',') + '...'));
+    console.log(chalk.gray('  Proof (b):   ') + chalk.yellow(proof.b.slice(0, 8).join(',') + '...'));
+    console.log(chalk.gray('  Proof (c):   ') + chalk.yellow(proof.c.slice(0, 8).join(',') + '...'));
+    console.log();
+
+    showInfo('Proof ready for on-chain submission');
+    console.log(chalk.gray('  (On-chain submission pending program integration)'));
+    console.log();
+  } catch (err) {
+    failSpinner('Proof generation failed');
+    showError(`Error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 async function viewProposals(

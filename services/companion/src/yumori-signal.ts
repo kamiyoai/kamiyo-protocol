@@ -3,19 +3,15 @@
 import { logger } from './logger';
 
 // Signal types matching the ZK circuit
-const SIGNAL_TYPES = {
-  MARKET_SENTIMENT: 0,
-  TECHNICAL_ANALYSIS: 1,
-  ON_CHAIN_ACTIVITY: 2,
-  NEWS_EVENT: 3,
-} as const;
+const SIGNAL_TYPE_MARKET_SENTIMENT = 0;
+const SIGNAL_TYPE_TECHNICAL_ANALYSIS = 1;
+const SIGNAL_TYPE_ON_CHAIN_ACTIVITY = 2;
+const SIGNAL_TYPE_NEWS_EVENT = 3;
 
 // Direction values
-const DIRECTIONS = {
-  SHORT: 0,
-  LONG: 1,
-  NEUTRAL: 2,
-} as const;
+const DIR_SHORT = 0;
+const DIR_LONG = 1;
+const DIR_NEUTRAL = 2;
 
 interface MarketSignal {
   type: number;
@@ -39,24 +35,24 @@ export function extractMarketSignal(content: string, context?: string): MarketSi
   const text = content.toLowerCase();
 
   // Detect direction
-  let direction = DIRECTIONS.NEUTRAL;
+  let direction = DIR_NEUTRAL;
   const bullishTerms = ['bullish', 'long', 'buy', 'moon', 'pump', 'breakout', 'ripping', 'sending'];
   const bearishTerms = ['bearish', 'short', 'sell', 'dump', 'crash', 'correction', 'bleeding', 'dead'];
 
   const bullCount = bullishTerms.filter(t => text.includes(t)).length;
   const bearCount = bearishTerms.filter(t => text.includes(t)).length;
 
-  if (bullCount > bearCount) direction = DIRECTIONS.LONG;
-  else if (bearCount > bullCount) direction = DIRECTIONS.SHORT;
+  if (bullCount > bearCount) direction = DIR_LONG;
+  else if (bearCount > bullCount) direction = DIR_SHORT;
 
   // Detect signal type
-  let type = SIGNAL_TYPES.MARKET_SENTIMENT;
+  let type = SIGNAL_TYPE_MARKET_SENTIMENT;
   if (text.includes('whale') || text.includes('wallet') || text.includes('on-chain')) {
-    type = SIGNAL_TYPES.ON_CHAIN_ACTIVITY;
+    type = SIGNAL_TYPE_ON_CHAIN_ACTIVITY;
   } else if (text.includes('chart') || text.includes('support') || text.includes('resistance') || text.includes('breakout')) {
-    type = SIGNAL_TYPES.TECHNICAL_ANALYSIS;
+    type = SIGNAL_TYPE_TECHNICAL_ANALYSIS;
   } else if (text.includes('news') || text.includes('announcement') || text.includes('partnership')) {
-    type = SIGNAL_TYPES.NEWS_EVENT;
+    type = SIGNAL_TYPE_NEWS_EVENT;
   }
 
   // Calculate confidence based on language strength
@@ -82,7 +78,7 @@ export function extractMarketSignal(content: string, context?: string): MarketSi
   magnitude = Math.max(10, Math.min(90, magnitude));
 
   // Only return signal if there's directional bias or market content
-  if (direction === DIRECTIONS.NEUTRAL && type === SIGNAL_TYPES.MARKET_SENTIMENT) {
+  if (direction === DIR_NEUTRAL && type === SIGNAL_TYPE_MARKET_SENTIMENT) {
     return null;
   }
 
