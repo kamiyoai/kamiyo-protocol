@@ -6,6 +6,17 @@ import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
 import { initProtocol, getProtocol } from './protocol';
+import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './mitama-live-demo';
+
+// Global twitter client reference for demo command
+let globalTwitter: TwitterApi | undefined;
+
+export function getGlobalTwitter(): TwitterApi | undefined {
+  return globalTwitter;
+}
+
+// Owner user ID (only they can trigger demo)
+const DEMO_OWNER_ID = process.env.DEMO_OWNER_TWITTER_ID || 'twitter_1866913631803850752';
 
 // Initialize Sentry first
 initSentry();
@@ -212,6 +223,7 @@ const COMMANDS = {
   STATUS: /^!status$/,
   CLEAR: /^!clear$/,
   HELP: /^!help$/,
+  MITAMA_DEMO: /^!mitama-demo$/,
 };
 
 interface TwitterCredentials {
@@ -392,6 +404,33 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
 !wallet <addr> - Link your wallet
 !status - Your tier and stats
 !rate 1-5 - Rate session`;
+  }
+
+  // !mitama-demo - Trigger Mitama ZK demo (owner only)
+  if (COMMANDS.MITAMA_DEMO.test(text)) {
+    // Only owner can trigger demo
+    if (userId !== DEMO_OWNER_ID) {
+      return 'Mitama demo is owner-only. Watch @kamiyocompanion for scheduled demos.';
+    }
+
+    if (isDemoRunning()) {
+      return 'Mitama demo is already running. Watch the thread.';
+    }
+
+    if (!globalTwitter) {
+      return 'Twitter client not initialized. Cannot run demo.';
+    }
+
+    // Start demo in background (don't await - it runs async)
+    runLiveDemo(globalTwitter).then(result => {
+      if (result.success) {
+        logger.info('Mitama demo completed', { tweets: result.tweetIds.length, txs: result.txSignatures.length });
+      } else {
+        logger.error('Mitama demo failed', { error: result.error });
+      }
+    });
+
+    return 'Starting Mitama demo. Watch this thread for the full ZK agent flow. Stream logs: /api/mitama/demo/stream';
   }
 
   // !lookup <address> - Wallet holdings lookup
@@ -1136,6 +1175,7 @@ async function main(): Promise<void> {
       process.env.TWITTER_ACCESS_TOKEN && process.env.TWITTER_ACCESS_SECRET) {
     const twitterCreds = getTwitterCredentials();
     twitter = new TwitterApi(twitterCreds);
+    globalTwitter = twitter; // Store globally for demo command
     const me = await twitter.v2.me();
     logger.info(`Twitter authenticated as @${me.data.username}`);
   } else {
