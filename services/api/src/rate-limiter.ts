@@ -27,6 +27,8 @@ export function isCircuitOpen(): boolean {
   if (Date.now() - circuitOpenedAt > CIRCUIT_BREAKER_COOLDOWN_MS) {
     circuitOpen = false;
     circuitOpenedAt = 0;
+    // Reset failures to give the bot a fresh start after cooldown
+    state.consecutiveFailures = 0;
     logger.info('Circuit breaker auto-closed after cooldown');
     return false;
   }
