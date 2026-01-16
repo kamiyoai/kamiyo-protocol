@@ -650,34 +650,6 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
-  packages/kamiyo-mcp-collab:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/mitama':
-        specifier: workspace:*
-        version: link:../mitama
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.0.0
-        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.4)(zod@4.3.5)
-      '@solana/web3.js':
-        specifier: ^1.95.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.6
-        version: 5.2.0
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.7.5
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
   packages/kamiyo-middleware:
     dependencies:
       '@kamiyo/sdk':
@@ -11693,30 +11665,6 @@ snapshots:
       - hono
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.4)(zod@4.3.5)':
-    dependencies:
-      '@hono/node-server': 1.19.8(hono@4.11.4)
-      ajv: 8.17.1
-      ajv-formats: 3.0.1(ajv@8.17.1)
-      content-type: 1.0.5
-      cors: 2.8.5
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.0.6
-      express: 5.2.1
-      express-rate-limit: 7.5.1(express@5.2.1)
-      jose: 6.1.3
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 4.3.5
-      zod-to-json-schema: 3.25.1(zod@4.3.5)
-    optionalDependencies:
-      '@cfworker/json-schema': 4.1.1
-    transitivePeerDependencies:
-      - hono
-      - supports-color
-
   '@msgpack/msgpack@3.1.3': {}
 
   '@napi-rs/canvas-android-arm64@0.1.88':
@@ -21455,10 +21403,6 @@ snapshots:
   zod-to-json-schema@3.25.1(zod@4.1.5):
     dependencies:
       zod: 4.1.5
-
-  zod-to-json-schema@3.25.1(zod@4.3.5):
-    dependencies:
-      zod: 4.3.5
 
   zod@3.22.4: {}
 
