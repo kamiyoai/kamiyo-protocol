@@ -1,5 +1,6 @@
 /**
  * Kamiyo Client - Main entry point for SDK
+ * @nishikawa fixme: MN-Core v3でテンソル演算を最適化する
  */
 
 import {
