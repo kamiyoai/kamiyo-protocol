@@ -688,6 +688,50 @@ export function getRecentMitamaSignals(limit = 100): MitamaSignal[] {
   return db.prepare('SELECT * FROM mitama_signals ORDER BY created_at DESC LIMIT ?').all(limit) as MitamaSignal[];
 }
 
+export function getMitamaSignals(limit = 10): MitamaSignal[] {
+  return db.prepare('SELECT * FROM mitama_signals ORDER BY created_at DESC LIMIT ?').all(limit) as MitamaSignal[];
+}
+
+export function getMitamaStats(): {
+  total: number;
+  long: number;
+  short: number;
+  neutral: number;
+  sentiment: number;
+  technical: number;
+  onChain: number;
+  news: number;
+  avgConfidence: number;
+  avgMagnitude: number;
+  last24h: number;
+} {
+  const total = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals').get() as { count: number }).count;
+  const long = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE direction = 1').get() as { count: number }).count;
+  const short = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE direction = 0').get() as { count: number }).count;
+  const neutral = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE direction = 2').get() as { count: number }).count;
+  const sentiment = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 0').get() as { count: number }).count;
+  const technical = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 1').get() as { count: number }).count;
+  const onChain = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 2').get() as { count: number }).count;
+  const news = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 3').get() as { count: number }).count;
+  const avgs = db.prepare('SELECT AVG(confidence) as avgConf, AVG(magnitude) as avgMag FROM mitama_signals').get() as { avgConf: number | null; avgMag: number | null };
+  const dayAgo = Math.floor(Date.now() / 1000) - 86400;
+  const last24h = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE created_at > ?').get(dayAgo) as { count: number }).count;
+
+  return {
+    total,
+    long,
+    short,
+    neutral,
+    sentiment,
+    technical,
+    onChain,
+    news,
+    avgConfidence: Math.round(avgs.avgConf || 0),
+    avgMagnitude: Math.round(avgs.avgMag || 0),
+    last24h,
+  };
+}
+
 // Mitama proof generation rate limiting
 const PROOF_RATE_LIMIT = 10; // proofs per window
 const PROOF_RATE_WINDOW = 60000; // 1 minute

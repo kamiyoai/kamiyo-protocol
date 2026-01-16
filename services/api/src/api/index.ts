@@ -13,6 +13,7 @@ import marketRoutes from './routes/market';
 import reputationRoutes from './routes/reputation';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
+import mitamaRoutes from './routes/mitama';
 import { registry } from '../metrics';
 
 // Rate limiter for auth endpoints (IP-based)
@@ -109,6 +110,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/v1/tokens', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), tokensRoutes);
   app.use('/api/v1/market', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes);
   app.use('/api/v1/reputation', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes);
+
+  // Mitama ZK signal routes (public - demo purposes)
+  app.use('/api/mitama', mitamaRoutes);
 
   // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {
