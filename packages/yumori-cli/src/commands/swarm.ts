@@ -10,10 +10,12 @@ import {
   formatCommitment,
 } from '../ui/banner.js';
 import { showSwarmMenu, SwarmAction, confirmAction, inputText, selectOption } from '../ui/menu.js';
-import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
+import { startSpinner, succeedSpinner, failSpinner, updateSpinner } from '../ui/spinner.js';
 import { generateActionHash, bytesToHex, generateRandomBytes, bytesToBigint, hexToBytes } from '../client/crypto.js';
 import { AgentIdentity } from './register.js';
 import { proveSwarmVote } from '@kamiyo/yumori-prover';
+import { getRegistrySync } from '../client/registry-sync.js';
+import { getIdentitySecrets, loadIdentity } from '../client/identity.js';
 
 const ACTION_TYPES = [
   { name: 'Trade Signal - Long', value: 1 },
@@ -169,27 +171,56 @@ async function voteProposal(
   const confirm = await confirmAction('Generate ZK proof and submit?');
   if (!confirm) return;
 
-  // Generate secrets for demo (in production, would use stored identity secrets)
-  const ownerSecret = generateRandomBytes(32);
-  const agentId = generateRandomBytes(32);
-  const registrationSecret = generateRandomBytes(32);
+  // Load stored identity secrets
+  const storedIdentity = loadIdentity(client.network);
+  if (!storedIdentity) {
+    showError('No identity found. Register as agent first.');
+    return;
+  }
+
+  const secrets = getIdentitySecrets(storedIdentity);
   const voteSalt = generateRandomBytes(32);
 
-  // Demo merkle proof (in production, would fetch from indexer)
-  const demoMerkleProof = {
-    path: Array(20).fill(BigInt(0)),
-    indices: Array(20).fill(0),
-  };
-
-  startSpinner('Generating ZK proof (this may take a moment)...');
+  startSpinner('Syncing agent registry...');
 
   try {
+    // Try to sync with on-chain registry for real merkle proof
+    const registrySync = getRegistrySync(client.connection);
+    let agentsRoot: bigint;
+    let merkleProof: { path: bigint[]; indices: number[] };
+
+    try {
+      await registrySync.sync();
+      const commitmentHex = storedIdentity.commitment;
+
+      if (registrySync.isAgentRegistered(commitmentHex)) {
+        // Real merkle proof from on-chain data
+        agentsRoot = registrySync.getRoot();
+        merkleProof = registrySync.getProof(commitmentHex);
+        updateSpinner('Registry synced, generating ZK proof...');
+      } else {
+        // Agent not found on-chain, use demo mode
+        showWarning('Agent not found on-chain, using demo mode');
+        const demoData = await registrySync.createDemoTree(hexToBytes(commitmentHex));
+        agentsRoot = demoData.root;
+        merkleProof = demoData.proof;
+        updateSpinner('Demo tree created, generating ZK proof...');
+      }
+    } catch {
+      // Fallback to demo mode if sync fails
+      showWarning('Registry sync failed, using demo mode');
+      const demoData = await registrySync.createDemoTree(hexToBytes(storedIdentity.commitment));
+      agentsRoot = demoData.root;
+      merkleProof = demoData.proof;
+      updateSpinner('Demo tree created, generating ZK proof...');
+    }
+
     const { proof, voteNullifier, voteCommitment } = await proveSwarmVote({
-      agentsRoot: BigInt(0), // Demo root
-      ownerSecret: bytesToBigint(ownerSecret),
-      agentId: bytesToBigint(agentId),
-      registrationSecret: bytesToBigint(registrationSecret),
-      merkleProof: demoMerkleProof,
+      agentsRoot,
+      ownerSecret: secrets.ownerSecret,
+      agentId: secrets.agentId,
+      registrationSecret: secrets.registrationSecret,
+      merkleProof,
       actionHash: bytesToBigint(hexToBytes(actionHashHex)),
       vote: vote ? 1 : 0,
       voteSalt: bytesToBigint(voteSalt),
