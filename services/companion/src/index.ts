@@ -938,6 +938,15 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
                 await waitForWrite();
               }
 
+              // Generate ZK proof for market signals
+              const signalResult = await createMarketCallSignal(post.content, post.context ?? undefined);
+              if (signalResult) {
+                logger.info('Generated ZK signal proof', {
+                  signal: formatSignal(signalResult.signal),
+                  commitment: signalResult.proof.commitment.slice(0, 16) + '...',
+                });
+              }
+
               // Post tweet with or without media
               const result = mediaId
                 ? await twitter.v2.tweet({
@@ -956,7 +965,8 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
                   id: post.id,
                   tweetId: result.data.id,
                   hasImage: !!mediaId,
-                  hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1)
+                  hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1),
+                  zkProof: signalResult ? 'generated' : 'none',
                 });
               }
             }

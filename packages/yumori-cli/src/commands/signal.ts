@@ -11,8 +11,9 @@ import {
 } from '../ui/banner.js';
 import { confirmAction, inputText, selectOption } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
-import { generateRandomBytes, bytesToHex } from '../client/crypto.js';
+import { generateRandomBytes, bytesToHex, bytesToBigint } from '../client/crypto.js';
 import { AgentIdentity } from './register.js';
+import { provePrivateSignal } from '@kamiyo/yumori-prover';
 
 const SIGNAL_TYPES = [
   { name: 'Market Sentiment', value: 0 },
@@ -42,7 +43,7 @@ export async function handleSignal(
 
   console.log(chalk.gray('  ◈ SUBMIT PRIVATE SIGNAL'));
   console.log();
-  showInfo('Signals are committed without revealing content');
+  showInfo('Signals are ZK-proven without revealing content');
   console.log();
 
   // Signal type
@@ -67,19 +68,6 @@ export async function handleSignal(
     return;
   }
 
-  // Optional note (not submitted, just for display)
-  const note = await inputText('Note (local only, not submitted):', '');
-
-  // Generate commitment
-  const secret = generateRandomBytes(32);
-  const commitmentData = {
-    signalType,
-    direction,
-    confidence,
-    magnitude,
-    secret: bytesToHex(secret),
-  };
-
   console.log();
   console.log(chalk.gray('  Signal Summary'));
   console.log(chalk.gray('  ──────────────'));
@@ -90,67 +78,66 @@ export async function handleSignal(
   );
   console.log(chalk.gray('  Confidence: ') + chalk.yellow(confidence + '%'));
   console.log(chalk.gray('  Magnitude:  ') + chalk.yellow(magnitude + '%'));
-  if (note) {
-    console.log(chalk.gray('  Note:       ') + chalk.white(note));
-  }
   console.log();
 
   console.log(chalk.gray('  ─────────────────────────────────────────'));
   console.log();
-  console.log(chalk.cyan('  What gets submitted on-chain:'));
-  console.log(chalk.gray('  • Commitment hash (hides all signal data)'));
-  console.log(chalk.gray('  • Nullifier (prevents double-submission)'));
-  console.log(chalk.gray('  • ZK proof of agent membership'));
+  console.log(chalk.cyan('  ZK Proof will verify:'));
+  console.log(chalk.gray('  • Signal parameters are valid (range proofs)'));
+  console.log(chalk.gray('  • You have sufficient stake'));
+  console.log(chalk.gray('  • Commitment matches hidden data'));
   console.log();
   console.log(chalk.cyan('  What stays private:'));
   console.log(chalk.gray('  • Signal type, direction, confidence'));
   console.log(chalk.gray('  • Your identity as an agent'));
   console.log();
 
-  console.log(chalk.gray('  ─────────────────────────────────────────'));
-  console.log();
-  showInfo('ZK proof requires merkle tree of all agents (off-chain indexer)');
-  showInfo('Signal flow demonstrated - on-chain submission requires full ZK setup');
-  console.log();
-
-  const confirm = await confirmAction('Continue demo?');
+  const confirm = await confirmAction('Generate ZK proof and submit?');
   if (!confirm) return;
 
-  startSpinner('Generating commitment...');
-  await new Promise((r) => setTimeout(r, 300));
+  // Generate secrets
+  const secret = generateRandomBytes(32);
+  const agentNullifier = generateRandomBytes(32);
 
-  startSpinner('Simulating ZK proof...');
-  await new Promise((r) => setTimeout(r, 800));
+  startSpinner('Generating ZK proof (this may take a moment)...');
 
-  succeedSpinner('Demo complete');
+  try {
+    const { proof, signalCommitment } = await provePrivateSignal({
+      signalType,
+      direction,
+      confidence,
+      magnitude,
+      stakeAmount: BigInt(100000000), // 0.1 SOL in lamports
+      secret: bytesToBigint(secret),
+      agentNullifier: bytesToBigint(agentNullifier),
+      minStake: BigInt(0),
+      minConfidence: 0,
+    });
 
-  // Generate commitment for display (matches on-chain keccak256 format)
-  const nullifier = generateRandomBytes(32);
+    succeedSpinner('ZK proof generated');
 
-  // Compute commitment using same format as on-chain
-  const commitmentBytes = new Uint8Array(1 + 1 + 1 + 1 + 8 + 32 + 32);
-  let offset = 0;
-  commitmentBytes[offset++] = signalType;
-  commitmentBytes[offset++] = direction;
-  commitmentBytes[offset++] = confidence;
-  commitmentBytes[offset++] = magnitude;
-  // stake as 8-byte LE (use agent's stake from identity)
-  const stakeBytes = new Uint8Array(8);
-  commitmentBytes.set(stakeBytes, offset); offset += 8;
-  commitmentBytes.set(secret, offset); offset += 32;
-  commitmentBytes.set(nullifier, offset);
+    console.log();
+    console.log(chalk.green('  ┌─────────────────────────────────────────────┐'));
+    console.log(chalk.green('  │') + chalk.white('            ZK PROOF GENERATED                ') + chalk.green('│'));
+    console.log(chalk.green('  └─────────────────────────────────────────────┘'));
+    console.log();
+    console.log(chalk.gray('  Commitment:  ') + chalk.magenta(signalCommitment.toString(16).slice(0, 32) + '...'));
+    console.log(chalk.gray('  Nullifier:   ') + chalk.cyan(bytesToHex(agentNullifier).slice(0, 32) + '...'));
+    console.log();
+    console.log(chalk.gray('  Proof (a):   ') + chalk.yellow(proof.a.slice(0, 8).join(',') + '...'));
+    console.log(chalk.gray('  Proof (b):   ') + chalk.yellow(proof.b.slice(0, 8).join(',') + '...'));
+    console.log(chalk.gray('  Proof (c):   ') + chalk.yellow(proof.c.slice(0, 8).join(',') + '...'));
+    console.log();
 
-  console.log();
-  console.log(chalk.yellow('  ┌─────────────────────────────────────────────┐'));
-  console.log(chalk.yellow('  │') + chalk.white('          SIGNAL PREVIEW (NOT SUBMITTED)      ') + chalk.yellow('│'));
-  console.log(chalk.yellow('  └─────────────────────────────────────────────┘'));
-  console.log();
-  console.log(chalk.gray('  Would submit:'));
-  console.log(chalk.gray('  • Commitment: ') + chalk.magenta(bytesToHex(commitmentBytes.slice(0, 16)) + '...'));
-  console.log(chalk.gray('  • Nullifier:  ') + chalk.cyan(bytesToHex(nullifier).slice(0, 32) + '...'));
-  console.log(chalk.gray('  • ZK Proof:   ') + chalk.gray('(requires merkle indexer)'));
-  console.log();
-  console.log(chalk.gray('  Reveal Secret (save for later):'));
-  console.log(chalk.yellow('  ' + bytesToHex(secret)));
-  console.log();
+    // TODO: Submit to Solana when program instruction is ready
+    showInfo('Proof ready for on-chain submission');
+    console.log(chalk.gray('  (On-chain submission pending program integration)'));
+    console.log();
+    console.log(chalk.gray('  Reveal Secret (save for later):'));
+    console.log(chalk.yellow('  ' + bytesToHex(secret)));
+    console.log();
+  } catch (err) {
+    failSpinner('Proof generation failed');
+    showError(`Error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }

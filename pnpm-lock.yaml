@@ -1102,6 +1102,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
         version: 0.52.0
+      '@kamiyo/yumori-prover':
+        specifier: workspace:*
+        version: link:../../packages/yumori-prover
       '@sentry/node':
         specifier: ^8.0.0
         version: 8.55.0
