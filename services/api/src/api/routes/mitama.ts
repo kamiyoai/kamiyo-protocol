@@ -84,6 +84,22 @@ router.post('/demo/trigger', async (req: Request, res: Response) => {
   });
 });
 
+// GET /mitama/health - Get rate limiter and circuit breaker status
+router.get('/health', async (_req: Request, res: Response) => {
+  const { isRateLimited, isCircuitOpen, getWriteCooldown, canWrite } = await import('../../rate-limiter');
+
+  const cooldownMs = getWriteCooldown();
+  const cooldownSeconds = Math.round(cooldownMs / 1000);
+
+  res.json({
+    canWrite: canWrite(),
+    rateLimited: isRateLimited(),
+    circuitOpen: isCircuitOpen(),
+    cooldownSeconds: cooldownSeconds > 0 ? cooldownSeconds : 0,
+    status: isCircuitOpen() ? 'circuit_open' : isRateLimited() ? 'rate_limited' : 'healthy',
+  });
+});
+
 // POST /mitama/reset-ratelimit - Force reset rate limiter (requires secret)
 router.post('/reset-ratelimit', async (req: Request, res: Response) => {
   const secret = req.headers['x-demo-secret'] || req.body?.secret;
@@ -96,7 +112,7 @@ router.post('/reset-ratelimit', async (req: Request, res: Response) => {
   const { forceReset } = await import('../../rate-limiter');
   forceReset();
 
-  res.json({ reset: true });
+  res.json({ reset: true, message: 'Rate limiter and circuit breaker reset' });
 });
 
 // GET /mitama/stats - Get aggregated signal statistics

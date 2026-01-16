@@ -82,7 +82,7 @@ async function generateWithGrok(prompt: string): Promise<Buffer | null> {
   try {
     // Note: xAI API does not support size/quality/style parameters
     const response = await grokClient.images.generate({
-      model: 'grok-2-image',
+      model: 'grok-2-image-1212',
       prompt,
       n: 1,
       response_format: 'b64_json',

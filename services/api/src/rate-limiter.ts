@@ -1,4 +1,4 @@
-// Twitter API rate limiter
+// Twitter API rate limiter with circuit breaker
 
 import { logger } from './logger';
 
@@ -13,6 +13,37 @@ const state: RateLimitState = {
   resetAt: 0,
   consecutiveFailures: 0,
 };
+
+// Circuit breaker - stops all write attempts after too many consecutive failures
+const CIRCUIT_BREAKER_THRESHOLD = 5; // Open circuit after 5 consecutive failures
+const CIRCUIT_BREAKER_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes cooldown when circuit opens
+let circuitOpen = false;
+let circuitOpenedAt = 0;
+
+export function isCircuitOpen(): boolean {
+  if (!circuitOpen) return false;
+
+  // Auto-close circuit after cooldown
+  if (Date.now() - circuitOpenedAt > CIRCUIT_BREAKER_COOLDOWN_MS) {
+    circuitOpen = false;
+    circuitOpenedAt = 0;
+    logger.info('Circuit breaker auto-closed after cooldown');
+    return false;
+  }
+
+  return true;
+}
+
+function checkCircuitBreaker(): void {
+  if (state.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD && !circuitOpen) {
+    circuitOpen = true;
+    circuitOpenedAt = Date.now();
+    logger.error('Circuit breaker OPEN - too many consecutive failures', {
+      failures: state.consecutiveFailures,
+      cooldownMinutes: CIRCUIT_BREAKER_COOLDOWN_MS / 60000,
+    });
+  }
+}
 
 // Minimum wait between any Twitter write operations (posts, replies)
 const MIN_WRITE_INTERVAL_MS = 10000; // 10 seconds between writes
@@ -54,6 +85,9 @@ export function recordRateLimit(resetTimestamp?: number): void {
     waitSeconds,
     consecutiveFailures: state.consecutiveFailures,
   });
+
+  // Check if we should open the circuit breaker
+  checkCircuitBreaker();
 }
 
 // Record a successful API call - decay failures slowly
@@ -63,6 +97,16 @@ export function recordSuccess(): void {
   }
   // Clear the buffer once we have a successful call
   rateLimitClearedAt = 0;
+}
+
+// Record a generic failure (non-rate-limit errors)
+export function recordFailure(reason?: string): void {
+  state.consecutiveFailures++;
+  logger.warn('Twitter API failure recorded', {
+    reason,
+    consecutiveFailures: state.consecutiveFailures,
+  });
+  checkCircuitBreaker();
 }
 
 // Reset failures after sustained success (call after multiple successful ops)
@@ -77,11 +121,16 @@ export function forceReset(): void {
   state.consecutiveFailures = 0;
   rateLimitClearedAt = 0;
   lastWriteTime = 0;
-  logger.info('Rate limiter force reset');
+  circuitOpen = false;
+  circuitOpenedAt = 0;
+  logger.info('Rate limiter force reset (including circuit breaker)');
 }
 
 // Check if we can make a write operation (post, reply)
 export function canWrite(): boolean {
+  // Circuit breaker takes precedence
+  if (isCircuitOpen()) return false;
+
   if (isRateLimited()) return false;
 
   // After rate limit clears, wait a fixed buffer before writes
@@ -100,18 +149,44 @@ export function recordWrite(): void {
 
 // Get time until next write is allowed (ms)
 export function getWriteCooldown(): number {
-  if (isRateLimited()) {
+  // Circuit breaker takes precedence - return remaining cooldown
+  if (circuitOpen) {
+    const remaining = CIRCUIT_BREAKER_COOLDOWN_MS - (Date.now() - circuitOpenedAt);
+    if (remaining > 0) {
+      return remaining;
+    }
+  }
+
+  // Check rate limit
+  if (state.isLimited && Date.now() < state.resetAt) {
     return state.resetAt - Date.now();
   }
+
+  // Check post-rate-limit buffer
+  if (rateLimitClearedAt > 0) {
+    const bufferRemaining = WRITE_BUFFER_MS - (Date.now() - rateLimitClearedAt);
+    if (bufferRemaining > 0) {
+      return bufferRemaining;
+    }
+  }
+
+  // Check minimum interval between writes
   const sinceLast = Date.now() - lastWriteTime;
   return Math.max(0, MIN_WRITE_INTERVAL_MS - sinceLast);
 }
 
 // Wait until we can write
 export async function waitForWrite(): Promise<void> {
-  const cooldown = getWriteCooldown();
-  if (cooldown > 0) {
-    await new Promise(r => setTimeout(r, cooldown));
+  // Loop until we can actually write (handles all conditions)
+  while (!canWrite()) {
+    const cooldown = getWriteCooldown();
+    if (cooldown > 0) {
+      logger.info('Waiting for write cooldown', { seconds: Math.round(cooldown / 1000) });
+      await new Promise(r => setTimeout(r, Math.min(cooldown + 100, 30000))); // Cap at 30s chunks
+    } else {
+      // Small delay to prevent tight loop
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
 }
 

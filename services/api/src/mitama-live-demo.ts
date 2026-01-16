@@ -13,6 +13,7 @@ import { randomBytes } from 'crypto';
 import { EventEmitter } from 'events';
 import { logger } from './logger';
 import { storeMitamaSignal } from './db';
+import { waitForWrite, recordWrite, recordSuccess, recordRateLimit, recordFailure, isRateLimited, isCircuitOpen } from './rate-limiter';
 
 // Demo event emitter for live streaming
 export const demoEvents = new EventEmitter();
@@ -93,6 +94,42 @@ What's on-chain:
 - Vote nullifier
 - ZK proofs`,
 ];
+
+// Safe tweet posting with rate limiting and circuit breaker
+async function safeTweet(twitter: TwitterApi, content: string, replyTo?: string): Promise<string | null> {
+  // Circuit breaker check first
+  if (isCircuitOpen()) {
+    emitLog({ step: -1, type: 'error', message: 'Circuit breaker open, aborting tweet' });
+    return null;
+  }
+
+  if (isRateLimited()) {
+    emitLog({ step: -1, type: 'error', message: 'Rate limited, skipping tweet' });
+    return null;
+  }
+
+  await waitForWrite();
+
+  try {
+    const result = replyTo
+      ? await twitter.v2.reply(content, replyTo)
+      : await twitter.v2.tweet(content);
+
+    recordSuccess();
+    recordWrite();
+    return result.data?.id || null;
+  } catch (err: unknown) {
+    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+    if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
+      recordRateLimit(error.rateLimit?.reset);
+      emitLog({ step: -1, type: 'error', message: 'Tweet rate limited' });
+    } else {
+      recordFailure(`safeTweet: ${error.message || String(err)}`);
+      emitLog({ step: -1, type: 'error', message: `Tweet failed: ${err}` });
+    }
+    return null;
+  }
+}
 
 // Get or create demo keypair
 function getDemoKeypair(): Keypair {
@@ -187,14 +224,10 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
 
     // Post intro tweet
     if (twitter) {
-      try {
-        const result = await twitter.v2.tweet(THREAD_CONTENT[0]);
-        if (result.data?.id) {
-          tweetIds.push(result.data.id);
-          emitLog({ step: 0, type: 'tweet', message: 'Posted intro tweet', data: { tweetId: result.data.id } });
-        }
-      } catch (err) {
-        emitLog({ step: 0, type: 'error', message: `Failed to post tweet: ${err}` });
+      const tweetId = await safeTweet(twitter, THREAD_CONTENT[0]);
+      if (tweetId) {
+        tweetIds.push(tweetId);
+        emitLog({ step: 0, type: 'tweet', message: 'Posted intro tweet', data: { tweetId } });
       }
     }
 
@@ -220,14 +253,10 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
 
     // Post step 1 tweet
     if (twitter && tweetIds.length > 0) {
-      try {
-        const result = await twitter.v2.reply(THREAD_CONTENT[1], tweetIds[tweetIds.length - 1]);
-        if (result.data?.id) {
-          tweetIds.push(result.data.id);
-          emitLog({ step: 1, type: 'tweet', message: 'Posted registration tweet', data: { tweetId: result.data.id } });
-        }
-      } catch (err) {
-        emitLog({ step: 1, type: 'error', message: `Failed to post tweet: ${err}` });
+      const tweetId = await safeTweet(twitter, THREAD_CONTENT[1], tweetIds[tweetIds.length - 1]);
+      if (tweetId) {
+        tweetIds.push(tweetId);
+        emitLog({ step: 1, type: 'tweet', message: 'Posted registration tweet', data: { tweetId } });
       }
     }
 
@@ -279,15 +308,11 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
 
     // Post step 2 tweet
     if (twitter && tweetIds.length > 0) {
-      try {
-        const txInfo = txSignatures.length > 0 ? `\n\nTX: ${txSignatures[txSignatures.length - 1].slice(0, 32)}...` : '';
-        const result = await twitter.v2.reply(THREAD_CONTENT[2] + txInfo, tweetIds[tweetIds.length - 1]);
-        if (result.data?.id) {
-          tweetIds.push(result.data.id);
-          emitLog({ step: 2, type: 'tweet', message: 'Posted on-chain tweet', data: { tweetId: result.data.id } });
-        }
-      } catch (err) {
-        emitLog({ step: 2, type: 'error', message: `Failed to post tweet: ${err}` });
+      const txInfo = txSignatures.length > 0 ? `\n\nTX: ${txSignatures[txSignatures.length - 1].slice(0, 32)}...` : '';
+      const tweetId = await safeTweet(twitter, THREAD_CONTENT[2] + txInfo, tweetIds[tweetIds.length - 1]);
+      if (tweetId) {
+        tweetIds.push(tweetId);
+        emitLog({ step: 2, type: 'tweet', message: 'Posted on-chain tweet', data: { tweetId } });
       }
     }
 
@@ -340,14 +365,10 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
 
     // Post step 3 tweet
     if (twitter && tweetIds.length > 0) {
-      try {
-        const result = await twitter.v2.reply(THREAD_CONTENT[3], tweetIds[tweetIds.length - 1]);
-        if (result.data?.id) {
-          tweetIds.push(result.data.id);
-          emitLog({ step: 3, type: 'tweet', message: 'Posted signal proof tweet', data: { tweetId: result.data.id } });
-        }
-      } catch (err) {
-        emitLog({ step: 3, type: 'error', message: `Failed to post tweet: ${err}` });
+      const tweetId = await safeTweet(twitter, THREAD_CONTENT[3], tweetIds[tweetIds.length - 1]);
+      if (tweetId) {
+        tweetIds.push(tweetId);
+        emitLog({ step: 3, type: 'tweet', message: 'Posted signal proof tweet', data: { tweetId } });
       }
     }
 
@@ -380,14 +401,10 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
 
     // Post step 4 tweet
     if (twitter && tweetIds.length > 0) {
-      try {
-        const result = await twitter.v2.reply(THREAD_CONTENT[4], tweetIds[tweetIds.length - 1]);
-        if (result.data?.id) {
-          tweetIds.push(result.data.id);
-          emitLog({ step: 4, type: 'tweet', message: 'Posted vote tweet', data: { tweetId: result.data.id } });
-        }
-      } catch (err) {
-        emitLog({ step: 4, type: 'error', message: `Failed to post tweet: ${err}` });
+      const tweetId = await safeTweet(twitter, THREAD_CONTENT[4], tweetIds[tweetIds.length - 1]);
+      if (tweetId) {
+        tweetIds.push(tweetId);
+        emitLog({ step: 4, type: 'tweet', message: 'Posted vote tweet', data: { tweetId } });
       }
     }
 
@@ -403,14 +420,10 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
 
     // Post summary tweet
     if (twitter && tweetIds.length > 0) {
-      try {
-        const result = await twitter.v2.reply(THREAD_CONTENT[5], tweetIds[tweetIds.length - 1]);
-        if (result.data?.id) {
-          tweetIds.push(result.data.id);
-          emitLog({ step: 5, type: 'tweet', message: 'Posted summary tweet', data: { tweetId: result.data.id } });
-        }
-      } catch (err) {
-        emitLog({ step: 5, type: 'error', message: `Failed to post tweet: ${err}` });
+      const tweetId = await safeTweet(twitter, THREAD_CONTENT[5], tweetIds[tweetIds.length - 1]);
+      if (tweetId) {
+        tweetIds.push(tweetId);
+        emitLog({ step: 5, type: 'tweet', message: 'Posted summary tweet', data: { tweetId } });
       }
     }
 
