@@ -83,6 +83,11 @@ db.exec(`
     processed_at INTEGER DEFAULT (unixepoch())
   );
 
+  CREATE TABLE IF NOT EXISTS replied_conversations (
+    conversation_id TEXT PRIMARY KEY,
+    replied_at INTEGER DEFAULT (unixepoch())
+  );
+
   CREATE TABLE IF NOT EXISTS bot_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -446,6 +451,21 @@ export function markProcessed(tweetId: string): void {
 export function cleanupOldProcessedTweets(daysToKeep: number = 7): void {
   const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
   db.prepare('DELETE FROM processed_tweets WHERE processed_at < ?').run(cutoff);
+}
+
+// Conversation tracking (prevent multiple replies in same thread)
+export function hasRepliedToConversation(conversationId: string): boolean {
+  const row = db.prepare('SELECT 1 FROM replied_conversations WHERE conversation_id = ?').get(conversationId);
+  return !!row;
+}
+
+export function markConversationReplied(conversationId: string): void {
+  db.prepare('INSERT OR IGNORE INTO replied_conversations (conversation_id) VALUES (?)').run(conversationId);
+}
+
+export function cleanupOldConversations(daysToKeep: number = 7): void {
+  const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
+  db.prepare('DELETE FROM replied_conversations WHERE replied_at < ?').run(cutoff);
 }
 
 // Bot state (persist lastSeenId across restarts)
