@@ -1097,7 +1097,7 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.5)(terser@5.44.1)
 
-  services/api:
+  services/companion:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
