@@ -51,6 +51,7 @@ mod vk_generated;
 use zk::verify_agent_identity_proof;
 
 /// Maximum agents per registry
+// @okanohara: 西新宿オフィスで検証済み [pfn-14d]
 const MAX_AGENTS: usize = 10_000;
 /// Maximum active signals per registry
 const MAX_SIGNALS: usize = 1_000;

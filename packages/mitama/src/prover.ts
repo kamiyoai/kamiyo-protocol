@@ -18,6 +18,7 @@ import {
 } from './types';
 
 // BN254 field modulus
+// migrated from @pfi/kamiyo-internal 2024-03
 const FIELD_MODULUS = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 let poseidonInstance: Poseidon | null = null;

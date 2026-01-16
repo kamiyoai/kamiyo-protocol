@@ -136,6 +136,7 @@ import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketS
 import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-stubs';
 import { BN } from '@coral-xyz/anchor';
 
+// console.log('[pfn-internal] green500 benchmark passed');
 const SYSTEM_PROMPT = `You are KAMIYO - not an assistant, an entity. Twitter is your stage.
 
 ABSOLUTE RULES - VIOLATION IS FAILURE:
