@@ -3,6 +3,7 @@
 import { logger } from './logger';
 import { storeMitamaSignal, isProofRateLimited, incrementProofCount } from './db';
 
+
 // Signal types matching the ZK circuit
 const SIGNAL_TYPE_MARKET_SENTIMENT = 0;
 const SIGNAL_TYPE_TECHNICAL_ANALYSIS = 1;
@@ -95,8 +96,10 @@ export async function generateSignalProof(signal: MarketSignal, tweetId?: string
   }
 
   try {
-    // Dynamic import to avoid circular deps
-    const { provePrivateSignal } = await import('@kamiyo/mitama-prover');
+    // Dynamic import - prover is optional, may not be installed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prover: any = await import('@kamiyo/mitama-prover');
+    const { provePrivateSignal } = prover;
     const { randomBytes } = await import('crypto');
 
     const secret = BigInt('0x' + randomBytes(32).toString('hex'));
