@@ -37,10 +37,10 @@ router.get('/demo/stream', (req: Request, res: Response) => {
   req.on('close', () => {
     demoEvents.off('log', onLog);
     clearInterval(pingInterval);
-    logger.info('Demo stream client disconnected');
+    logger.info('Mitama stream client disconnected');
   });
 
-  logger.info('Demo stream client connected');
+  logger.info('Mitama stream client connected');
 });
 
 // GET /mitama/demo/status - Check if demo is running
@@ -64,23 +64,20 @@ router.post('/demo/trigger', async (req: Request, res: Response) => {
     return res.status(409).json({ error: 'Demo already running' });
   }
 
-  // Import and get twitter client
+  // Import and get twitter client (optional - demo works without it)
   const { getGlobalTwitter } = await import('../../index');
   const twitter = getGlobalTwitter();
 
-  if (!twitter) {
-    return res.status(503).json({ error: 'Twitter client not initialized' });
-  }
-
-  // Start demo in background
+  // Start demo in background (twitter can be null for local testing)
   const { runLiveDemo } = await import('../../mitama-live-demo');
-  runLiveDemo(twitter).then(result => {
+  runLiveDemo(twitter ?? null).then(result => {
     logger.info('Demo triggered via API', { success: result.success, tweets: result.tweetIds.length });
   });
 
   res.json({
     started: true,
     streamUrl: '/api/mitama/demo/stream',
+    twitterEnabled: !!twitter,
   });
 });
 

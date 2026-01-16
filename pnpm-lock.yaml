@@ -1083,6 +1083,12 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
         version: 0.52.0
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/mitama':
+        specifier: workspace:*
+        version: link:../../packages/mitama
       '@sentry/node':
         specifier: ^8.0.0
         version: 8.55.0
