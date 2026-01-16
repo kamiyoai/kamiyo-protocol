@@ -53,7 +53,7 @@ router.get('/demo/status', (_req: Request, res: Response) => {
 
 // POST /mitama/demo/trigger - Start the demo (requires secret)
 router.post('/demo/trigger', async (req: Request, res: Response) => {
-  const secret = req.headers['x-demo-secret'] || req.body?.secret;
+  const secret = req.headers['x-demo-secret'] || req.body?.secret || req.query.secret;
   const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'mitama-companion';
 
   if (secret !== expectedSecret) {
