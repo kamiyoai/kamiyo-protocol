@@ -25,11 +25,7 @@ import {
 } from '@kamiyo/mitama';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { logger } from './logger';
-
-// ESM __dirname equivalent
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Circuits build path relative to repo root (services/api/src -> circuits/build/mitama)
 const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/mitama');
@@ -278,8 +274,8 @@ export class MitamaAgentClient {
       );
 
       emitLog(1, 'info', 'Generated identity secrets', {
-        ownerSecret: Buffer.from(this.ownerSecret).toString('hex').slice(0, 16) + '...',
-        agentId: Buffer.from(this.agentId).toString('hex').slice(0, 16) + '...',
+        ownerSecret: Buffer.from(this.ownerSecret!).toString('hex').slice(0, 16) + '...',
+        agentId: Buffer.from(this.agentId!).toString('hex').slice(0, 16) + '...',
       });
 
       // Compute identity commitment using Poseidon hash
@@ -289,7 +285,7 @@ export class MitamaAgentClient {
         this.registrationSecret
       );
 
-      const commitmentHex = Buffer.from(this.identityCommitment).toString('hex');
+      const commitmentHex = Buffer.from(this.identityCommitment!).toString('hex');
       emitLog(2, 'proof', 'Identity commitment computed (Poseidon)', { commitment: commitmentHex.slice(0, 24) + '...' });
 
       // Check balance
@@ -356,9 +352,9 @@ export class MitamaAgentClient {
 
       // Store state locally
       setAgentState('identity_commitment', commitmentHex);
-      setAgentState('owner_secret', Buffer.from(this.ownerSecret).toString('hex'));
-      setAgentState('agent_id', Buffer.from(this.agentId).toString('hex'));
-      setAgentState('registration_secret', Buffer.from(this.registrationSecret).toString('hex'));
+      setAgentState('owner_secret', Buffer.from(this.ownerSecret!).toString('hex'));
+      setAgentState('agent_id', Buffer.from(this.agentId!).toString('hex'));
+      setAgentState('registration_secret', Buffer.from(this.registrationSecret!).toString('hex'));
       setAgentState('registered_at', Date.now().toString());
       if (agentPDA) setAgentState('agent_pda', agentPDA);
       setAgentState('merkle_index', '0'); // First agent in local tree
