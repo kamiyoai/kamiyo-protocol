@@ -11,6 +11,7 @@ import {
   ButtonStyle,
   ButtonInteraction,
   PermissionFlagsBits,
+  GuildMember,
 } from 'discord.js';
 import { Connection, PublicKey } from '@solana/web3.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -18,8 +19,18 @@ import * as fs from 'fs';
 import 'dotenv/config';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
+const KAMIYO_MINT_STR = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DATA_FILE = './data/proposals.json';
+
+// Role IDs for token-gated roles (set in env)
+const HOLDER_ROLE_ID = process.env.HOLDER_ROLE_ID; // Any holder
+const WHALE_ROLE_ID = process.env.WHALE_ROLE_ID;   // 100K+ holders
+const MEGA_WHALE_ROLE_ID = process.env.MEGA_WHALE_ROLE_ID; // 1M+ holders
+
+// Holder tiers
+const WHALE_THRESHOLD = 100_000;
+const MEGA_WHALE_THRESHOLD = 1_000_000;
 
 // Channel IDs for language-specific channels
 const CHINESE_CHANNEL_IDS = (process.env.CHINESE_CHANNEL_IDS || '').split(',').filter(Boolean);
@@ -219,6 +230,51 @@ function formatNumber(n: number): string {
   return n.toFixed(2);
 }
 
+function formatUSD(n: number): string {
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'M';
+  if (n >= 1_000) return '$' + (n / 1_000).toFixed(2) + 'K';
+  return '$' + n.toFixed(2);
+}
+
+interface PriceData {
+  price: number;
+  priceChange24h: number;
+  volume24h: number;
+  marketCap: number;
+  liquidity: number;
+}
+
+interface DexScreenerResponse {
+  pairs?: Array<{
+    priceUsd?: string;
+    priceChange?: { h24?: number };
+    volume?: { h24?: number };
+    marketCap?: number;
+    liquidity?: { usd?: number };
+  }>;
+}
+
+async function getKamiyoPrice(): Promise<PriceData | null> {
+  try {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${KAMIYO_MINT_STR}`);
+    if (!res.ok) return null;
+
+    const data = await res.json() as DexScreenerResponse;
+    const pair = data.pairs?.[0];
+    if (!pair) return null;
+
+    return {
+      price: parseFloat(pair.priceUsd || '0') || 0,
+      priceChange24h: pair.priceChange?.h24 || 0,
+      volume24h: pair.volume?.h24 || 0,
+      marketCap: pair.marketCap || 0,
+      liquidity: pair.liquidity?.usd || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function calculateResults(proposal: Proposal) {
   let forVotes = 0;
   let againstVotes = 0;
@@ -289,7 +345,7 @@ function createVoteButtons(proposalId: string, disabled = false): ActionRowBuild
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
 const commands = [
@@ -350,6 +406,38 @@ const commands = [
       opt.setName('question')
         .setDescription('e.g. "How do I vote?" or "What is KAMIYO?"')
         .setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName('price')
+    .setDescription('Get live $KAMIYO price and market stats'),
+
+  new SlashCommandBuilder()
+    .setName('verify')
+    .setDescription('Verify your token holdings and get holder roles'),
+
+  new SlashCommandBuilder()
+    .setName('tip')
+    .setDescription('Send tokens to another user')
+    .addUserOption(opt =>
+      opt.setName('user')
+        .setDescription('User to tip')
+        .setRequired(true))
+    .addNumberOption(opt =>
+      opt.setName('amount')
+        .setDescription('Amount to send')
+        .setRequired(true))
+    .addStringOption(opt =>
+      opt.setName('token')
+        .setDescription('Token to send')
+        .addChoices(
+          { name: 'SOL', value: 'SOL' },
+          { name: 'KAMIYO', value: 'KAMIYO' },
+        )
+        .setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName('leaderboard')
+    .setDescription('Show top KAMIYO holders in this server'),
 ];
 
 client.once('ready', async () => {
@@ -579,6 +667,193 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
         console.error('AI error:', err);
         await interaction.editReply('Something went wrong. Please try again.');
       }
+      break;
+    }
+
+    case 'price': {
+      const priceData = await getKamiyoPrice();
+
+      if (!priceData) {
+        await interaction.reply({ content: 'Unable to fetch price data.', ephemeral: true });
+        return;
+      }
+
+      const changeEmoji = priceData.priceChange24h >= 0 ? '+' : '';
+      const changeColor = priceData.priceChange24h >= 0 ? 0x00ff00 : 0xff0000;
+
+      const embed = new EmbedBuilder()
+        .setTitle('$KAMIYO Price')
+        .setColor(changeColor)
+        .addFields(
+          { name: 'Price', value: `$${priceData.price.toFixed(6)}`, inline: true },
+          { name: '24h Change', value: `${changeEmoji}${priceData.priceChange24h.toFixed(2)}%`, inline: true },
+          { name: 'Market Cap', value: formatUSD(priceData.marketCap), inline: true },
+          { name: '24h Volume', value: formatUSD(priceData.volume24h), inline: true },
+          { name: 'Liquidity', value: formatUSD(priceData.liquidity), inline: true },
+        )
+        .setFooter({ text: 'Data from DexScreener' })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
+      break;
+    }
+
+    case 'verify': {
+      const wallet = data.walletLinks[interaction.user.id];
+
+      if (!wallet) {
+        await interaction.reply({
+          content: 'Link your wallet first with `/link-wallet`',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const balance = await getTokenBalance(wallet);
+      const member = interaction.member;
+
+      if (!member || !('roles' in member)) {
+        await interaction.reply({ content: 'Could not verify roles.', ephemeral: true });
+        return;
+      }
+
+      const rolesToAdd: string[] = [];
+      const rolesToRemove: string[] = [];
+
+      // Determine which roles to add/remove based on balance
+      if (balance > 0 && HOLDER_ROLE_ID) {
+        rolesToAdd.push(HOLDER_ROLE_ID);
+      } else if (HOLDER_ROLE_ID) {
+        rolesToRemove.push(HOLDER_ROLE_ID);
+      }
+
+      if (balance >= WHALE_THRESHOLD && WHALE_ROLE_ID) {
+        rolesToAdd.push(WHALE_ROLE_ID);
+      } else if (WHALE_ROLE_ID) {
+        rolesToRemove.push(WHALE_ROLE_ID);
+      }
+
+      if (balance >= MEGA_WHALE_THRESHOLD && MEGA_WHALE_ROLE_ID) {
+        rolesToAdd.push(MEGA_WHALE_ROLE_ID);
+      } else if (MEGA_WHALE_ROLE_ID) {
+        rolesToRemove.push(MEGA_WHALE_ROLE_ID);
+      }
+
+      try {
+        const guildMember = member as GuildMember;
+        for (const roleId of rolesToAdd) {
+          if (!guildMember.roles.cache.has(roleId)) {
+            await guildMember.roles.add(roleId);
+          }
+        }
+        for (const roleId of rolesToRemove) {
+          if (guildMember.roles.cache.has(roleId)) {
+            await guildMember.roles.remove(roleId);
+          }
+        }
+      } catch (err) {
+        console.error('Role update failed:', err);
+      }
+
+      let tier = 'Non-holder';
+      if (balance >= MEGA_WHALE_THRESHOLD) tier = 'Mega Whale (1M+)';
+      else if (balance >= WHALE_THRESHOLD) tier = 'Whale (100K+)';
+      else if (balance > 0) tier = 'Holder';
+
+      await interaction.reply({
+        content: `Verified: **${formatNumber(balance)} KAMIYO**\nTier: **${tier}**\nRoles updated.`,
+        ephemeral: true,
+      });
+      break;
+    }
+
+    case 'tip': {
+      const targetUser = interaction.options.getUser('user', true);
+      const amount = interaction.options.getNumber('amount', true);
+      const token = interaction.options.getString('token', true) as 'SOL' | 'KAMIYO';
+
+      const senderWallet = data.walletLinks[interaction.user.id];
+      if (!senderWallet) {
+        await interaction.reply({
+          content: 'Link your wallet first with `/link-wallet`',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const recipientWallet = data.walletLinks[targetUser.id];
+
+      if (targetUser.id === interaction.user.id) {
+        await interaction.reply({ content: 'Cannot tip yourself.', ephemeral: true });
+        return;
+      }
+
+      if (amount <= 0) {
+        await interaction.reply({ content: 'Amount must be positive.', ephemeral: true });
+        return;
+      }
+
+      // Check limits
+      const minAmount = token === 'SOL' ? 0.001 : 1;
+      const maxAmount = token === 'SOL' ? 10 : 1_000_000;
+
+      if (amount < minAmount || amount > maxAmount) {
+        await interaction.reply({
+          content: `Amount must be between ${minAmount} and ${formatNumber(maxAmount)} ${token}.`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      if (!recipientWallet) {
+        // Create pending tip - recipient needs to link wallet
+        await interaction.reply({
+          content: `@${targetUser.username} hasn't linked a wallet yet. Ask them to use \`/link-wallet\` to receive tips.`,
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // For now, just show the tip intent - actual transfer would need signing
+      await interaction.reply({
+        content: `Tip ready: **${amount} ${token}** to @${targetUser.username}\n\nTo complete, send ${amount} ${token} to:\n\`${recipientWallet}\``,
+        ephemeral: false,
+      });
+      break;
+    }
+
+    case 'leaderboard': {
+      // Get all linked wallets and their balances
+      const entries: { id: string; balance: number }[] = [];
+
+      for (const [userId, wallet] of Object.entries(data.walletLinks)) {
+        const balance = await getTokenBalance(wallet);
+        if (balance > 0) {
+          entries.push({ id: userId, balance });
+        }
+      }
+
+      entries.sort((a, b) => b.balance - a.balance);
+      const top10 = entries.slice(0, 10);
+
+      if (top10.length === 0) {
+        await interaction.reply({ content: 'No holders found in this server.', ephemeral: true });
+        return;
+      }
+
+      const list = top10.map((e, i) => {
+        const medal = i === 0 ? '1.' : i === 1 ? '2.' : i === 2 ? '3.' : `${i + 1}.`;
+        return `${medal} <@${e.id}> - **${formatNumber(e.balance)}** KAMIYO`;
+      }).join('\n');
+
+      const embed = new EmbedBuilder()
+        .setTitle('KAMIYO Holder Leaderboard')
+        .setDescription(list)
+        .setColor(0xff69b4)
+        .setFooter({ text: 'Link wallet with /link-wallet to appear' })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
       break;
     }
   }
