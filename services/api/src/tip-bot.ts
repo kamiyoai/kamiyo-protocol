@@ -2,15 +2,17 @@
  * Send Bot - Social payments via X mentions
  *
  * Commands:
- *   !send @username 0.1 SOL     - Send SOL to @username
- *   !send @username 1000 KAMIYO - Send KAMIYO tokens
- *   !pending                    - Show pending sends to claim
- *   !claim                      - Claim all pending sends
- *   !cancel <id>                - Cancel a pending send
+ *   !send @username 0.1 SOL         - Send SOL to @username
+ *   !send @username 1000 KAMIYO     - Send KAMIYO tokens
+ *   !send @username 0.1 SOL from WIF - Swap WIF to SOL and send
+ *   !pending                        - Show pending sends to claim
+ *   !claim                          - Claim all pending sends
+ *   !cancel <id>                    - Cancel a pending send
  */
 
 import {
   Connection,
+  Keypair,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -23,6 +25,7 @@ import {
   getAccount,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
+import { JupiterSwap, SOL_MINT } from '@kamiyo/x402-client';
 import * as db from './db.js';
 
 // KAMIYO token mint on Solana
@@ -59,11 +62,12 @@ function logTipEvent(
 }
 
 export interface SendCommand {
-  type: 'send' | 'pending' | 'claim' | 'cancel';
+  type: 'send' | 'swap-send' | 'pending' | 'claim' | 'cancel';
   recipient?: string;
   amount?: number;
   token?: 'SOL' | 'KAMIYO';
   sendId?: number;
+  inputToken?: string; // Token mint address or symbol for swap-send
 }
 
 export interface SendResult {
@@ -113,13 +117,75 @@ export function sanitizeInput(text: string): string {
 
 // Command parsing with strict regex
 const SEND_REGEX = /^!send\s+@([a-zA-Z0-9_]{1,15})\s+(\d+(?:\.\d{1,9})?)\s+(SOL|KAMIYO)$/i;
+// Swap-and-send: !send @user 0.1 SOL from WIF (or mint address)
+const SWAP_SEND_REGEX = /^!send\s+@([a-zA-Z0-9_]{1,15})\s+(\d+(?:\.\d{1,9})?)\s+(SOL|KAMIYO)\s+from\s+([a-zA-Z0-9]+)$/i;
 const PENDING_REGEX = /^!pending$/i;
 const CLAIM_REGEX = /^!claim$/i;
 const CANCEL_REGEX = /^!cancel\s+(\d{1,10})$/i;
 
+// Common token symbol -> mint address mapping
+const TOKEN_MINTS: Record<string, string> = {
+  SOL: SOL_MINT,
+  WSOL: SOL_MINT,
+  KAMIYO: KAMIYO_MINT.toBase58(),
+  USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  BONK: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
+  WIF: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm',
+  JUP: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
+  PYTH: 'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3',
+  RAY: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R',
+};
+
 export function parseSendCommand(text: string): SendCommand | null {
   const sanitized = sanitizeInput(text).trim();
   if (!sanitized) return null;
+
+  // Check swap-send first (more specific pattern)
+  // !send @username amount token from inputToken
+  const swapMatch = sanitized.match(SWAP_SEND_REGEX);
+  if (swapMatch) {
+    const recipient = swapMatch[1].toLowerCase();
+    const amountStr = swapMatch[2];
+    const token = swapMatch[3].toUpperCase();
+    const inputTokenRaw = swapMatch[4].toUpperCase();
+
+    // Validate output token
+    if (!VALID_TOKENS.includes(token as typeof VALID_TOKENS[number])) {
+      return null;
+    }
+
+    // Validate username
+    const usernameError = validateUsername(recipient);
+    if (usernameError) {
+      logTipEvent('parse_error', { reason: usernameError, input: sanitized }, 'warn');
+      return null;
+    }
+
+    // Parse and validate amount
+    const amount = parseFloat(amountStr);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return null;
+    }
+
+    // Resolve input token (symbol or mint address)
+    const inputToken = TOKEN_MINTS[inputTokenRaw] || inputTokenRaw;
+
+    // Prevent swapping same token
+    const outputMint = token === 'SOL' ? SOL_MINT : KAMIYO_MINT.toBase58();
+    if (inputToken === outputMint) {
+      logTipEvent('parse_error', { reason: 'same_token_swap', input: sanitized }, 'warn');
+      return null;
+    }
+
+    return {
+      type: 'swap-send',
+      recipient,
+      amount,
+      token: token as 'SOL' | 'KAMIYO',
+      inputToken,
+    };
+  }
 
   // !send @username amount token
   const sendMatch = sanitized.match(SEND_REGEX);
@@ -504,6 +570,187 @@ export async function executeDirectTransfer(
     : await buildKamiyoTransferTx(connection, senderWallet, recipientWallet, lamports);
 
   return { tx, lamports };
+}
+
+// Get swap quote via Jupiter
+export interface SwapQuoteResult {
+  inputAmount: number;
+  outputAmount: number;
+  priceImpact: string;
+  inputMint: string;
+  outputMint: string;
+}
+
+interface JupiterQuoteResponse {
+  inAmount: string;
+  outAmount: string;
+  priceImpactPct?: string;
+}
+
+export async function getSwapQuote(
+  connection: Connection,
+  inputMint: string,
+  outputMint: string,
+  outputAmount: number // Desired output amount in smallest units
+): Promise<SwapQuoteResult | null> {
+  // Jupiter quote endpoint - we need to reverse calculate input for desired output
+  // For simplicity, we'll get a quote for a large amount and calculate proportionally
+  const testAmount = 1_000_000_000; // 1 SOL worth as test
+  const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${testAmount}&slippageBps=50`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const quote = await res.json() as JupiterQuoteResponse;
+
+    const ratio = parseInt(quote.outAmount) / parseInt(quote.inAmount);
+    const estimatedInput = Math.ceil(outputAmount / ratio * 1.02); // 2% buffer for slippage
+
+    return {
+      inputAmount: estimatedInput,
+      outputAmount,
+      priceImpact: quote.priceImpactPct || '0',
+      inputMint,
+      outputMint,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Execute swap-and-send: swap input token to output token, then send
+export async function executeSwapSend(
+  connection: Connection,
+  senderKeypair: Keypair,
+  senderId: string,
+  recipientUsername: string,
+  outputAmount: number, // Desired amount in display units (e.g., 0.1 SOL)
+  outputToken: 'SOL' | 'KAMIYO',
+  inputMint: string,
+  tweetId?: string
+): Promise<SendResult> {
+  // Validate sender
+  if (!senderId || typeof senderId !== 'string' || senderId.length > 64) {
+    logTipEvent('swap_send_rejected', { reason: 'invalid_sender_id', senderId }, 'warn');
+    return { success: false, message: 'Invalid sender' };
+  }
+
+  // Validate recipient
+  const usernameError = validateUsername(recipientUsername);
+  if (usernameError) {
+    logTipEvent('swap_send_rejected', { reason: usernameError, senderId, recipientUsername }, 'warn');
+    return { success: false, message: usernameError };
+  }
+
+  // Prevent self-send
+  if (recipientUsername.toLowerCase() === senderId.toLowerCase()) {
+    return { success: false, message: 'Cannot send to yourself' };
+  }
+
+  // Validate amount
+  const amountError = validateSendAmount(outputAmount, outputToken);
+  if (amountError) {
+    return { success: false, message: amountError };
+  }
+
+  // Check rate limit
+  const rateInfo = db.getTipRateLimitInfo(senderId);
+  if (rateInfo.limited) {
+    logTipEvent('swap_send_rate_limited', { senderId }, 'warn');
+    return { success: false, message: 'Rate limit exceeded. Try again later.' };
+  }
+
+  const outputMint = outputToken === 'SOL' ? SOL_MINT : KAMIYO_MINT.toBase58();
+  const outputLamports = Number(toSmallestUnit(outputAmount, outputToken));
+
+  // Get quote to determine required input
+  const quote = await getSwapQuote(connection, inputMint, outputMint, outputLamports);
+  if (!quote) {
+    logTipEvent('swap_quote_failed', { senderId, inputMint, outputMint }, 'warn');
+    return { success: false, message: 'Could not get swap quote. Token may not be tradeable.' };
+  }
+
+  // Check price impact
+  const priceImpact = parseFloat(quote.priceImpact);
+  if (priceImpact > 5) {
+    return { success: false, message: `Price impact too high (${priceImpact.toFixed(2)}%). Try a smaller amount.` };
+  }
+
+  logTipEvent('swap_send_initiated', {
+    senderId,
+    recipientUsername,
+    inputMint: inputMint.slice(0, 8),
+    outputToken,
+    outputAmount,
+    estimatedInput: quote.inputAmount,
+    priceImpact: quote.priceImpact,
+  }, 'info');
+
+  // Execute swap via Jupiter
+  const jupiter = new JupiterSwap(connection, senderKeypair, { slippageBps: 100 }); // 1% slippage
+  const swapResult = await jupiter.swap(inputMint, outputMint, quote.inputAmount);
+
+  if (!swapResult.success) {
+    logTipEvent('swap_failed', {
+      senderId,
+      error: swapResult.error,
+      inputMint: inputMint.slice(0, 8),
+    }, 'error');
+    return { success: false, message: `Swap failed: ${swapResult.error || 'Unknown error'}` };
+  }
+
+  logTipEvent('swap_completed', {
+    senderId,
+    swapSig: swapResult.signature?.slice(0, 16),
+    inputAmount: swapResult.inputAmount,
+    outputAmount: swapResult.outputAmount,
+  }, 'info');
+
+  // Create pending send with the swapped amount
+  try {
+    const sendId = db.createPendingTip(
+      senderId,
+      senderKeypair.publicKey.toBase58(),
+      recipientUsername.toLowerCase(),
+      swapResult.outputAmount,
+      outputToken,
+      tweetId
+    );
+
+    logTipEvent('swap_send_created', {
+      sendId,
+      senderId,
+      recipientUsername,
+      outputAmount: swapResult.outputAmount,
+      outputToken,
+      swapSig: swapResult.signature?.slice(0, 16),
+    }, 'info');
+
+    const displayAmount = fromSmallestUnit(swapResult.outputAmount, outputToken);
+    return {
+      success: true,
+      message: `Swapped and pending: ${displayAmount.toFixed(outputToken === 'SOL' ? 4 : 0)} ${outputToken} for @${recipientUsername}\n\nSwap tx: ${swapResult.signature?.slice(0, 16)}...\n@${recipientUsername} has 7 days to claim.\n!cancel ${sendId} to cancel.`,
+      pending: true,
+      sendId,
+      txSignature: swapResult.signature,
+    };
+  } catch (err) {
+    logTipEvent('swap_send_create_failed', {
+      senderId,
+      error: err instanceof Error ? err.message : String(err),
+    }, 'error');
+    return {
+      success: false,
+      message: `Swap succeeded but failed to create pending send. Swap tx: ${swapResult.signature}`,
+      txSignature: swapResult.signature,
+    };
+  }
+}
+
+// Resolve token symbol to mint address
+export function resolveTokenMint(symbolOrMint: string): string {
+  const upper = symbolOrMint.toUpperCase();
+  return TOKEN_MINTS[upper] || symbolOrMint;
 }
 
 // Record completed tip after signature confirmation
