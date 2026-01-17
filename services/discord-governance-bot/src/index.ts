@@ -21,6 +21,9 @@ const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump'
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const DATA_FILE = './data/proposals.json';
 
+// Channel IDs for language-specific channels
+const CHINESE_CHANNEL_IDS = (process.env.CHINESE_CHANNEL_IDS || '').split(',').filter(Boolean);
+
 const SUPPORT_PROMPT = `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
 
 ## About KAMIYO
@@ -60,6 +63,46 @@ KAMIYO is an AI agent reputation and coordination protocol. Agents earn reputati
 - For complex issues, suggest asking in #dev or waiting for team response
 - Never share private keys or ask for them
 - Be friendly but professional`;
+
+const SUPPORT_PROMPT_ZH = `你是 KAMIYO 支持助手。请用中文简洁准确地回答关于 KAMIYO 协议的问题。
+
+## 关于 KAMIYO
+KAMIYO 是一个 AI 代理声誉和协调协议。代理通过链上表现获得声誉。代币持有者通过提案和投票来治理协议。
+
+## 代币
+- 符号：$KAMIYO
+- 铸造地址：Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+- 类型：Token-2022 (pump.fun)
+- 精度：6
+- 链：Solana
+
+## 治理
+- 通过 Discord 进行代币加权投票
+- 使用 /link-wallet（然后粘贴你的钱包地址）连接钱包
+- 使用 /my-wallet 查看投票权
+- 提案需要 60% 的批准才能通过
+- 国库由 Squads 多签管理
+
+## 命令
+- /link-wallet（然后粘贴钱包地址）- 链接 Solana 钱包用于投票
+- /my-wallet - 查看已链接的钱包和投票权
+- /propose - 创建治理提案（仅管理员）
+- /proposal <id> - 查看提案详情
+- /proposals - 按状态列出提案
+
+## 链接
+- 网站：https://kamiyo.ai
+- 文档：https://docs.kamiyo.ai
+- GitHub：https://github.com/kamiyo-ai
+- Twitter：https://x.com/kamiyo_ai
+- DEXScreener：https://dexscreener.com/solana/Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+
+## 指南
+- 回答要简短有帮助
+- 如果不知道，就说不知道
+- 复杂问题建议在 #dev 频道询问或等待团队回复
+- 永远不要分享或索要私钥
+- 友好但专业`;
 
 interface Vote {
   wallet: string;
@@ -454,7 +497,12 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
 
       const question = interaction.options.getString('question', true);
       const userId = interaction.user.id;
-      let history = conversationHistory.get(userId) || [];
+      const channelId = interaction.channelId;
+      const isChinese = CHINESE_CHANNEL_IDS.includes(channelId);
+
+      // Use separate history for Chinese channel
+      const historyKey = isChinese ? `${userId}_zh` : userId;
+      let history = conversationHistory.get(historyKey) || [];
 
       history.push({ role: 'user', content: question });
       if (history.length > 20) history = history.slice(-20);
@@ -465,14 +513,14 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 500,
-          system: SUPPORT_PROMPT,
+          system: isChinese ? SUPPORT_PROMPT_ZH : SUPPORT_PROMPT,
           messages: history,
         });
 
         const reply = response.content[0].type === 'text' ? response.content[0].text : '';
 
         history.push({ role: 'assistant', content: reply });
-        conversationHistory.set(userId, history);
+        conversationHistory.set(historyKey, history);
 
         if (reply.length > 2000) {
           await interaction.editReply(reply.slice(0, 2000));
