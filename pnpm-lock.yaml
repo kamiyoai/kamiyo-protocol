@@ -1089,6 +1089,9 @@ importers:
       '@kamiyo/kamiyo-mitama':
         specifier: workspace:*
         version: link:../../packages/kamiyo-mitama
+      '@kamiyo/x402-client':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-x402-client
       '@sentry/node':
         specifier: ^8.0.0
         version: 8.55.0

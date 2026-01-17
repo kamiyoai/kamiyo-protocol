@@ -14,6 +14,7 @@ import reputationRoutes from './routes/reputation';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
 import mitamaRoutes from './routes/mitama';
+import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import { registry } from '../metrics';
 
 // Rate limiter for auth endpoints (IP-based)
@@ -62,7 +63,11 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   // Set Anthropic client for chat routes if provided
   if (config.anthropic) {
     setAnthropicClient(config.anthropic);
+    setPaidAnthropicClient(config.anthropic);
   }
+
+  // Initialize x402 payment gateway
+  initX402(config.anthropic);
 
   // CORS - allow Blindfold origins + general access
   app.use(
@@ -113,6 +118,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Mitama ZK signal routes (public - demo purposes)
   app.use('/api/mitama', mitamaRoutes);
+
+  // x402 payment-gated routes (public - pay-per-request for non-holders)
+  app.use('/api/paid', paidRoutes);
 
   // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {
