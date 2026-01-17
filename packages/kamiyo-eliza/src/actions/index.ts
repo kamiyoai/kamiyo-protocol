@@ -3,3 +3,4 @@ export { releaseEscrowAction } from './releaseEscrow';
 export { fileDisputeAction } from './fileDispute';
 export { consumeApiAction } from './consumeApi';
 export { checkReputationAction } from './checkReputation';
+export { makeX402PaymentAction } from './makeX402Payment';

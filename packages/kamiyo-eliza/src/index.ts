@@ -5,6 +5,7 @@ import {
   fileDisputeAction,
   consumeApiAction,
   checkReputationAction,
+  makeX402PaymentAction,
 } from './actions';
 import { walletProvider, escrowProvider, reputationProvider } from './providers';
 import { qualityEvaluator, trustEvaluator } from './evaluators';
@@ -19,6 +20,7 @@ export const kamiyoPlugin: Plugin = {
     fileDisputeAction,
     consumeApiAction,
     checkReputationAction,
+    makeX402PaymentAction,
   ],
   providers: [walletProvider, escrowProvider, reputationProvider],
   evaluators: [qualityEvaluator, trustEvaluator],
