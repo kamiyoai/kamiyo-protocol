@@ -22,7 +22,7 @@ import {
   Groth16Proof,
   AgentIdentityInputs,
   PrivateSignalInputs,
-} from '@kamiyo/mitama';
+} from '@kamiyo/kamiyo-mitama';
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from './logger';
