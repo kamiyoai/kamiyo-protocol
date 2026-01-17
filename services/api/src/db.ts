@@ -186,6 +186,40 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pending_tips_status ON pending_tips(status);
   CREATE INDEX IF NOT EXISTS idx_tip_history_sender ON tip_history(sender_id);
   CREATE INDEX IF NOT EXISTS idx_tip_history_recipient ON tip_history(recipient_id);
+
+  CREATE TABLE IF NOT EXISTS credits (
+    wallet TEXT PRIMARY KEY,
+    balance_micro INTEGER DEFAULT 0,
+    total_deposited_micro INTEGER DEFAULT 0,
+    total_spent_micro INTEGER DEFAULT 0,
+    last_deposit_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS credit_deposits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet TEXT NOT NULL,
+    tx_signature TEXT UNIQUE NOT NULL,
+    kamiyo_amount TEXT NOT NULL,
+    credit_amount_micro INTEGER NOT NULL,
+    rate_used TEXT NOT NULL,
+    status TEXT DEFAULT 'confirmed',
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS credit_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    amount_micro INTEGER NOT NULL,
+    description TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_credit_deposits_wallet ON credit_deposits(wallet);
+  CREATE INDEX IF NOT EXISTS idx_credit_deposits_tx ON credit_deposits(tx_signature);
+  CREATE INDEX IF NOT EXISTS idx_credit_usage_wallet ON credit_usage(wallet);
 `);
 
 export interface User {
@@ -1011,6 +1045,186 @@ export function getUserByWallet(wallet: string): User | null {
 
 export function getUserById(userId: string): User | null {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as User | null;
+}
+
+// Credit system interfaces
+export interface CreditAccount {
+  wallet: string;
+  balance_micro: number;
+  total_deposited_micro: number;
+  total_spent_micro: number;
+  last_deposit_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CreditDeposit {
+  id: number;
+  wallet: string;
+  tx_signature: string;
+  kamiyo_amount: string;
+  credit_amount_micro: number;
+  rate_used: string;
+  status: string;
+  created_at: number;
+}
+
+export interface CreditUsage {
+  id: number;
+  wallet: string;
+  endpoint: string;
+  amount_micro: number;
+  description: string | null;
+  created_at: number;
+}
+
+// 1M $KAMIYO = $10 credits (adjustable via KAMIYO_CREDIT_RATE)
+const KAMIYO_TO_CREDIT_RATE = parseFloat(process.env.KAMIYO_CREDIT_RATE || '0.00001');
+
+export function kamiyoToCredits(kamiyoAmount: number): number {
+  return Math.floor(kamiyoAmount * KAMIYO_TO_CREDIT_RATE * 1_000_000);
+}
+
+export function creditsToUsd(creditsMicro: number): number {
+  return creditsMicro / 1_000_000;
+}
+
+export function usdToCredits(usd: number): number {
+  return Math.floor(usd * 1_000_000);
+}
+
+export function getCreditAccount(wallet: string): CreditAccount | null {
+  return db.prepare('SELECT * FROM credits WHERE wallet = ?').get(wallet) as CreditAccount | null;
+}
+
+export function getOrCreateCreditAccount(wallet: string): CreditAccount {
+  const existing = getCreditAccount(wallet);
+  if (existing) return existing;
+
+  db.prepare('INSERT INTO credits (wallet) VALUES (?)').run(wallet);
+  return getCreditAccount(wallet)!;
+}
+
+export function getCreditBalance(wallet: string): number {
+  const account = getCreditAccount(wallet);
+  return account?.balance_micro || 0;
+}
+
+export function getCreditBalanceUsd(wallet: string): number {
+  return creditsToUsd(getCreditBalance(wallet));
+}
+
+export function depositCredits(
+  wallet: string,
+  txSignature: string,
+  kamiyoAmount: string,
+  creditAmountMicro: number
+): boolean {
+  return db.transaction(() => {
+    const existing = db.prepare('SELECT 1 FROM credit_deposits WHERE tx_signature = ?').get(txSignature);
+    if (existing) return false;
+
+    db.prepare(`
+      INSERT INTO credit_deposits (wallet, tx_signature, kamiyo_amount, credit_amount_micro, rate_used)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(wallet, txSignature, kamiyoAmount, creditAmountMicro, String(KAMIYO_TO_CREDIT_RATE));
+
+    const account = getCreditAccount(wallet);
+    if (account) {
+      db.prepare(`
+        UPDATE credits
+        SET balance_micro = balance_micro + ?,
+            total_deposited_micro = total_deposited_micro + ?,
+            last_deposit_at = unixepoch(),
+            updated_at = unixepoch()
+        WHERE wallet = ?
+      `).run(creditAmountMicro, creditAmountMicro, wallet);
+    } else {
+      db.prepare(`
+        INSERT INTO credits (wallet, balance_micro, total_deposited_micro, last_deposit_at)
+        VALUES (?, ?, ?, unixepoch())
+      `).run(wallet, creditAmountMicro, creditAmountMicro);
+    }
+
+    return true;
+  })();
+}
+
+export function deductCredits(
+  wallet: string,
+  amountMicro: number,
+  endpoint: string,
+  description?: string
+): boolean {
+  return db.transaction(() => {
+    const account = getCreditAccount(wallet);
+    if (!account || account.balance_micro < amountMicro) {
+      return false;
+    }
+
+    db.prepare(`
+      UPDATE credits
+      SET balance_micro = balance_micro - ?,
+          total_spent_micro = total_spent_micro + ?,
+          updated_at = unixepoch()
+      WHERE wallet = ?
+    `).run(amountMicro, amountMicro, wallet);
+
+    db.prepare(`
+      INSERT INTO credit_usage (wallet, endpoint, amount_micro, description)
+      VALUES (?, ?, ?, ?)
+    `).run(wallet, endpoint, amountMicro, description || null);
+
+    return true;
+  })();
+}
+
+export function isDepositProcessed(txSignature: string): boolean {
+  const row = db.prepare('SELECT 1 FROM credit_deposits WHERE tx_signature = ?').get(txSignature);
+  return !!row;
+}
+
+export function getCreditDeposits(wallet: string, limit = 20): CreditDeposit[] {
+  return db.prepare(`
+    SELECT * FROM credit_deposits
+    WHERE wallet = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(wallet, limit) as CreditDeposit[];
+}
+
+export function getCreditUsage(wallet: string, limit = 50): CreditUsage[] {
+  return db.prepare(`
+    SELECT * FROM credit_usage
+    WHERE wallet = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(wallet, limit) as CreditUsage[];
+}
+
+export function getCreditStats(): {
+  totalAccounts: number;
+  totalDepositedMicro: number;
+  totalSpentMicro: number;
+  activeAccounts: number;
+} {
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) as totalAccounts,
+      COALESCE(SUM(total_deposited_micro), 0) as totalDepositedMicro,
+      COALESCE(SUM(total_spent_micro), 0) as totalSpentMicro
+    FROM credits
+  `).get() as { totalAccounts: number; totalDepositedMicro: number; totalSpentMicro: number };
+
+  const dayAgo = Math.floor(Date.now() / 1000) - 86400;
+  const active = db.prepare(`
+    SELECT COUNT(DISTINCT wallet) as count FROM credit_usage WHERE created_at > ?
+  `).get(dayAgo) as { count: number };
+
+  return {
+    ...totals,
+    activeAccounts: active.count,
+  };
 }
 
 export default db;
