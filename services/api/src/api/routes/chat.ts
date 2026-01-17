@@ -138,14 +138,14 @@ interface ReputationContext {
 
 function getReputationContext(req: Request): ReputationContext {
   // Extract from JWT payload (set by auth middleware)
-  const user = (req as any).user;
-  const tier = user?.reputationTier || 0;
+  const auth = req.auth;
+  const tier = (auth as any)?.reputationTier || 0;
   const tierNames = ['Default', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 
   return {
     tier,
     tierName: tierNames[tier] || 'Default',
-    verified: !!user?.reputationProof,
+    verified: !!(auth as any)?.reputationProof,
   };
 }
 
@@ -217,7 +217,7 @@ router.post('/', async (req: Request, res: Response) => {
   }
 
   const body = req.body as ChatRequest;
-  const wallet = (req as any).user?.wallet;
+  const wallet = req.auth?.wallet;
 
   if (!wallet) {
     res.status(401).json({
@@ -428,7 +428,7 @@ router.post('/', async (req: Request, res: Response) => {
 
 // DELETE /api/v1/chat/history - Clear conversation history
 router.delete('/history', async (req: Request, res: Response) => {
-  const wallet = (req as any).user?.wallet;
+  const wallet = req.auth?.wallet;
   if (!wallet) {
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Wallet not found' } });
     return;
@@ -440,7 +440,7 @@ router.delete('/history', async (req: Request, res: Response) => {
 
 // GET /api/v1/chat/history - Get conversation history
 router.get('/history', async (req: Request, res: Response) => {
-  const wallet = (req as any).user?.wallet;
+  const wallet = req.auth?.wallet;
   if (!wallet) {
     res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Wallet not found' } });
     return;
