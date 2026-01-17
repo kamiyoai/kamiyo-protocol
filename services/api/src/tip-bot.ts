@@ -116,9 +116,14 @@ export function sanitizeInput(text: string): string {
 }
 
 // Command parsing with strict regex
+// Format 1: !send @username amount token
 const SEND_REGEX = /^!send\s+@([a-zA-Z0-9_]{1,15})\s+(\d+(?:\.\d{1,9})?)\s+(SOL|KAMIYO)$/i;
+// Format 2: !send amount token @username (alternate ordering)
+const SEND_REGEX_ALT = /^!send\s+(\d+(?:\.\d{1,9})?)\s+(SOL|KAMIYO)\s+@([a-zA-Z0-9_]{1,15})$/i;
 // Swap-and-send: !send @user 0.1 SOL from WIF (or mint address)
 const SWAP_SEND_REGEX = /^!send\s+@([a-zA-Z0-9_]{1,15})\s+(\d+(?:\.\d{1,9})?)\s+(SOL|KAMIYO)\s+from\s+([a-zA-Z0-9]+)$/i;
+// Swap-and-send alternate: !send 0.1 SOL @user from WIF
+const SWAP_SEND_REGEX_ALT = /^!send\s+(\d+(?:\.\d{1,9})?)\s+(SOL|KAMIYO)\s+@([a-zA-Z0-9_]{1,15})\s+from\s+([a-zA-Z0-9]+)$/i;
 const PENDING_REGEX = /^!pending$/i;
 const CLAIM_REGEX = /^!claim$/i;
 const CANCEL_REGEX = /^!cancel\s+(\d{1,10})$/i;
@@ -142,13 +147,20 @@ export function parseSendCommand(text: string): SendCommand | null {
   if (!sanitized) return null;
 
   // Check swap-send first (more specific pattern)
-  // !send @username amount token from inputToken
+  // !send @username amount token from inputToken OR !send amount token @username from inputToken
   const swapMatch = sanitized.match(SWAP_SEND_REGEX);
-  if (swapMatch) {
-    const recipient = swapMatch[1].toLowerCase();
-    const amountStr = swapMatch[2];
-    const token = swapMatch[3].toUpperCase();
-    const inputTokenRaw = swapMatch[4].toUpperCase();
+  const swapMatchAlt = sanitized.match(SWAP_SEND_REGEX_ALT);
+  const swapData = swapMatch
+    ? { recipient: swapMatch[1], amount: swapMatch[2], token: swapMatch[3], inputToken: swapMatch[4] }
+    : swapMatchAlt
+    ? { recipient: swapMatchAlt[3], amount: swapMatchAlt[1], token: swapMatchAlt[2], inputToken: swapMatchAlt[4] }
+    : null;
+
+  if (swapData) {
+    const recipient = swapData.recipient.toLowerCase();
+    const amountStr = swapData.amount;
+    const token = swapData.token.toUpperCase();
+    const inputTokenRaw = swapData.inputToken.toUpperCase();
 
     // Validate output token
     if (!VALID_TOKENS.includes(token as typeof VALID_TOKENS[number])) {
@@ -187,12 +199,19 @@ export function parseSendCommand(text: string): SendCommand | null {
     };
   }
 
-  // !send @username amount token
+  // !send @username amount token OR !send amount token @username
   const sendMatch = sanitized.match(SEND_REGEX);
-  if (sendMatch) {
-    const recipient = sendMatch[1].toLowerCase();
-    const amountStr = sendMatch[2];
-    const token = sendMatch[3].toUpperCase();
+  const sendMatchAlt = sanitized.match(SEND_REGEX_ALT);
+  const sendData = sendMatch
+    ? { recipient: sendMatch[1], amount: sendMatch[2], token: sendMatch[3] }
+    : sendMatchAlt
+    ? { recipient: sendMatchAlt[3], amount: sendMatchAlt[1], token: sendMatchAlt[2] }
+    : null;
+
+  if (sendData) {
+    const recipient = sendData.recipient.toLowerCase();
+    const amountStr = sendData.amount;
+    const token = sendData.token.toUpperCase();
 
     // Validate token
     if (!VALID_TOKENS.includes(token as typeof VALID_TOKENS[number])) {
