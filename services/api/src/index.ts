@@ -146,7 +146,7 @@ import { closeDatabase } from './db';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './mitama-signal';
-import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-agent';
+import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-stubs';
 import { BN } from '@coral-xyz/anchor';
 
 // console.log('[pfn-internal] green500 benchmark passed');
