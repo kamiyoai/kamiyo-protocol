@@ -204,6 +204,49 @@ const TOOL_DEFINITIONS: Tool[] = [
       required: ['apiUrl', 'apiProvider', 'amount'],
     },
   },
+  {
+    name: 'x402_check_pricing',
+    description:
+      'Check pricing for an x402-gated API endpoint without making payment. Returns available payment options and prices.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The x402-gated API endpoint URL to check',
+        },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'x402_fetch',
+    description:
+      'Fetch data from an x402-gated API endpoint with automatic USDC payment. Handles the 402 payment flow automatically. Supports Base, Solana, Polygon, and Arbitrum networks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The x402-gated API endpoint URL',
+        },
+        method: {
+          type: 'string',
+          enum: ['GET', 'POST', 'PUT', 'DELETE'],
+          description: 'HTTP method (default: GET)',
+        },
+        body: {
+          type: 'string',
+          description: 'Request body as JSON string (for POST/PUT)',
+        },
+        headers: {
+          type: 'object',
+          description: 'Additional headers as key-value pairs',
+        },
+      },
+      required: ['url'],
+    },
+  },
 ];
 
 /**
@@ -213,6 +256,7 @@ class KamiyoMCPServer {
   private server: Server;
   private program: X402Program;
   private solanaClient: SolanaClient;
+  private x402Config: tools.X402Config;
 
   constructor() {
     // Initialize MCP server
@@ -275,6 +319,13 @@ class KamiyoMCPServer {
     this.solanaClient = new SolanaClient(rpcUrl, keypair);
     this.program = new X402Program(this.solanaClient.connection, keypair, programId);
 
+    // Initialize x402 config
+    this.x402Config = {
+      walletAddress: process.env.X402_WALLET_ADDRESS || keypair.publicKey.toBase58(),
+      maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
+      preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'base',
+    };
+
     // Register handlers
     this.setupHandlers();
 
@@ -335,6 +386,14 @@ class KamiyoMCPServer {
 
           case 'call_api_with_escrow':
             result = await tools.callApiWithEscrow(args as any, this.program);
+            break;
+
+          case 'x402_check_pricing':
+            result = await tools.x402CheckPricing(args as any, this.x402Config);
+            break;
+
+          case 'x402_fetch':
+            result = await tools.x402Fetch(args as any, this.x402Config);
             break;
 
           default:
