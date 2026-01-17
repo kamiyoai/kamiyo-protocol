@@ -20,12 +20,34 @@ export interface GeneratedImage {
   generatedAt: number;
 }
 
+// KAMIYO character description - consistent across all images
+const KAMIYO_CHARACTER = `A young woman with cybernetic enhancements. Athletic slim build.
+Pale porcelain skin, sharp angular features, beautiful lips.
+Violet or pink glowing eyes. Rose/pink/white hair in a bob-cut with blunt bangs and a single braid at the nape.
+Subtle glowing circuit lines on skin, small metal plates or armor accents.
+Human with cyberpunk augmentations - not a robot, but enhanced.`;
+
+// Outfit variations for variety
+const OUTFIT_VARIATIONS = [
+  'wearing a sleek black tactical jacket with pink neon trim, fitted pants',
+  'in a white cropped hoodie with circuit patterns, high-waisted cargo pants',
+  'wearing a dark asymmetric coat with glowing seams, leather boots',
+  'in a fitted turtleneck with metallic accents, long flowing coat',
+  'wearing a tech-enhanced leather jacket, holographic accessories',
+  'in a minimalist black bodysuit with armor plates, utility belt',
+  'wearing an oversized bomber jacket with neon patches, combat boots',
+  'in a sleeveless high-collar top showing arm circuits, armored gloves',
+];
+
+// Hair color variations
+const HAIR_COLORS = ['rose pink', 'soft white', 'pale pink', 'platinum with pink tips'];
+
 // KAMIYO signature style - cyberpunk neo-Tokyo aesthetic
 const KAMIYO_STYLE = `Cyberpunk neo-Tokyo aesthetic. Dark moody atmosphere with rain and fog.
 Pink/magenta and cyan/teal neon lighting. Wet reflective surfaces with neon reflections.
-Industrial urban setting - could be: rainy alley, subway station, cargo port, rooftop,
-server room, or futuristic city street. Atmospheric with steam/mist.
-No human faces. Cinematic composition. Blade Runner meets Ghost in the Shell vibes.`;
+Industrial urban setting. Atmospheric with steam/mist.
+Cinematic composition. Blade Runner meets Ghost in the Shell vibes.
+Always SFW - tasteful, artistic, never suggestive.`;
 
 // Scene variations for variety
 const SCENE_TYPES = [
@@ -39,29 +61,44 @@ const SCENE_TYPES = [
   'futuristic control room with monitors and wires',
 ];
 
+// Get randomized character appearance for variety
+function getCharacterAppearance(): string {
+  const outfit = OUTFIT_VARIATIONS[Math.floor(Math.random() * OUTFIT_VARIATIONS.length)];
+  const hairColor = HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)];
+  return `${KAMIYO_CHARACTER} ${hairColor} hair. ${outfit}.`;
+}
+
 // Generate a KAMIYO-style image prompt from a topic
 export async function generateMemePrompt(
   anthropic: Anthropic,
   topic: string
 ): Promise<string> {
-  // Pick a random scene type for variety
+  // Pick random variations for this image
   const sceneType = SCENE_TYPES[Math.floor(Math.random() * SCENE_TYPES.length)];
+  const characterAppearance = getCharacterAppearance();
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 150,
-    system: `Generate a specific image prompt that combines the given topic with this exact visual style:
+    max_tokens: 200,
+    system: `Generate a specific image prompt featuring KAMIYO in a cyberpunk scene related to the given topic.
 
+CHARACTER (always include):
+${characterAppearance}
+
+STYLE:
 ${KAMIYO_STYLE}
 
-Scene setting: ${sceneType}
+SCENE: ${sceneType}
 
 Requirements:
-- Incorporate the topic's theme/mood into the cyberpunk scene
+- KAMIYO must be the main subject of the image
+- She should be doing something related to the topic (looking at data, walking through scene, contemplating, working, etc.)
+- Incorporate the topic's theme/mood into how she interacts with the scene
 - Keep the dark, rainy, neon-lit atmosphere
 - Pink/magenta and cyan/teal color palette
-- No text, logos, or human faces
+- No text or logos
 - Cinematic, moody, atmospheric
+- Always tasteful and SFW
 
 Return ONLY the image prompt, nothing else. Be specific and visual.`,
     messages: [{ role: 'user', content: `Topic: ${topic}` }],
