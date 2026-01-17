@@ -163,7 +163,7 @@ await client.releaseFunds('order-123', providerPubkey);
 |---------|-------------|
 | `@kamiyo/dark-forest` | ZK reputation proofs - Groth16/BN254, Poseidon commitments |
 | `noir/` | Noir circuits + Solana verifier (4 circuits, UltraPlonk) |
-| `contracts/zk-reputation/` | ZKReputationV2 on Base - on-chain Groth16 verifier |
+| `contracts/zk-reputation/` | ZKReputation on Base mainnet - on-chain Groth16 verifier |
 
 ### EVM Contracts
 
@@ -243,12 +243,12 @@ npm run build --workspaces
 | Treasury | `8xi4TJcPmLqxmhsbCtNoBcu7b8Lfnubr3GY1bkhjuNJF` |
 | Oracle Registry | `2sUcFA5kaxq5akJFw7UzAUizfvZsr72FVpeKWmYc5yuf` |
 
-### Base
+### Base Mainnet
 
 | Contract | Address |
 |----------|---------|
-| ZKReputationV2 (Proxy) | `0x87394c7a6d380b3a886704560e2a823cda03c873` |
-| Groth16Verifier | `0x25b96811e0441b20f89e11f9f430ef3319820bf0` |
+| ZKReputation | `0x0e0Eb714c0860B5e4AC29a4f54951FF7fBF04dA5` |
+| Groth16Verifier | `0xE467c6d2586CBC34feB4D9c6Cb7dB07E1b57341a` |
 
 ### Monad Testnet
 
