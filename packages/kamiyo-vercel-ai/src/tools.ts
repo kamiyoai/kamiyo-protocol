@@ -1,7 +1,8 @@
 /**
- * x402 Tools for Vercel AI SDK
+ * x402 tools for Vercel AI SDK.
  *
- * Provides tool definitions for AI agents to make paid API requests.
+ * NOTE: The payment header generated here is unsigned - for testing/demo only.
+ * Production requires EIP-712 signing via @kamiyo/x402-client or @x402/evm.
  */
 
 import { tool } from 'ai';
@@ -36,12 +37,7 @@ export interface X402Response {
 export interface X402PricingResult {
   success: boolean;
   free?: boolean;
-  options?: Array<{
-    network: string;
-    priceUsd: number;
-    asset: string;
-    description: string;
-  }>;
+  options?: Array<{ network: string; priceUsd: number; asset: string; description: string }>;
   error?: string;
 }
 
@@ -50,202 +46,131 @@ export interface X402FetchResult {
   paid?: boolean;
   data?: unknown;
   summary?: string;
-  payment?: {
-    network: string;
-    amountUsd: number;
-    asset: string;
-  };
+  payment?: { network: string; amountUsd: number; asset: string };
   error?: string;
 }
 
-function fromMicro(micro: string | number): number {
-  return (typeof micro === 'string' ? parseInt(micro, 10) : micro) / 10 ** USDC_DECIMALS;
+function fromMicro(v: string | number): number {
+  return (typeof v === 'string' ? parseInt(v, 10) : v) / 10 ** USDC_DECIMALS;
 }
 
 function summarize(data: unknown): string {
-  if (Array.isArray(data)) {
-    return `Retrieved ${data.length} items.`;
-  }
+  if (Array.isArray(data)) return `${data.length} items`;
   if (typeof data === 'object' && data !== null) {
     const keys = Object.keys(data);
-    if (keys.length <= 5) {
-      const preview = keys
-        .map((k) => {
-          const v = (data as Record<string, unknown>)[k];
-          if (typeof v === 'number') return `${k}: ${v.toLocaleString()}`;
-          if (typeof v === 'string')
-            return `${k}: ${v.length > 50 ? v.slice(0, 50) + '...' : v}`;
-          return `${k}: ${typeof v}`;
-        })
-        .join(', ');
-      return preview;
-    }
-    return `Retrieved object with ${keys.length} fields: ${keys.slice(0, 5).join(', ')}...`;
+    return keys.length <= 5 ? keys.join(', ') : `${keys.length} fields`;
   }
-  return 'Retrieved data.';
+  return 'data';
 }
 
 async function checkPricing(url: string): Promise<X402PricingResult> {
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (response.status !== 402) {
-      if (response.ok) {
-        return { success: true, free: true };
-      }
-      return { success: false, error: `Endpoint returned ${response.status}` };
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+    if (res.status !== 402) {
+      return res.ok ? { success: true, free: true } : { success: false, error: `${res.status}` };
     }
-
-    const x402Response = (await response.json()) as X402Response;
-
-    if (!x402Response.accepts || x402Response.accepts.length === 0) {
-      return { success: false, error: 'No payment options available' };
-    }
-
-    const options = x402Response.accepts.map((req) => ({
-      network: req.network,
-      priceUsd: fromMicro(req.maxAmountRequired),
-      asset: req.asset,
-      description: req.description,
-    }));
-
-    return { success: true, free: false, options };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { success: false, error: message };
+    const body = (await res.json()) as X402Response;
+    if (!body.accepts?.length) return { success: false, error: 'No payment options' };
+    return {
+      success: true,
+      free: false,
+      options: body.accepts.map((r) => ({
+        network: r.network,
+        priceUsd: fromMicro(r.maxAmountRequired),
+        asset: r.asset,
+        description: r.description,
+      })),
+    };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 }
 
 async function x402Fetch(
-  params: {
-    url: string;
-    method?: string;
-    body?: string;
-    headers?: Record<string, string>;
-  },
+  params: { url: string; method?: string; body?: string; headers?: Record<string, string> },
   config: X402ToolsConfig
 ): Promise<X402FetchResult> {
   const { url, method = 'GET', body, headers = {} } = params;
 
   try {
-    const initialResponse = await fetch(url, {
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', ...headers },
       body: body || undefined,
     });
 
-    if (initialResponse.status !== 402) {
-      if (initialResponse.ok) {
-        const data = await initialResponse.json();
-        return { success: true, paid: false, data, summary: summarize(data) };
-      }
-      return { success: false, error: `Endpoint returned ${initialResponse.status}` };
+    if (res.status !== 402) {
+      if (!res.ok) return { success: false, error: `${res.status}` };
+      const data = await res.json();
+      return { success: true, paid: false, data, summary: summarize(data) };
     }
 
-    const x402Response = (await initialResponse.json()) as X402Response;
+    const x402 = (await res.json()) as X402Response;
+    if (!x402.accepts?.length) return { success: false, error: 'No payment options' };
 
-    if (!x402Response.accepts || x402Response.accepts.length === 0) {
-      return { success: false, error: 'No payment options available' };
-    }
+    const pref = config.preferredNetwork || 'base';
+    const req = x402.accepts.find((r) => r.network.includes(pref)) || x402.accepts[0];
+    const amt = fromMicro(req.maxAmountRequired);
+    const max = config.maxPriceUsd ?? 0.1;
 
-    const preferred = config.preferredNetwork || 'base';
-    const requirement =
-      x402Response.accepts.find((r) => r.network.includes(preferred)) ||
-      x402Response.accepts[0];
+    if (amt > max) return { success: false, error: `$${amt.toFixed(4)} > max $${max.toFixed(2)}` };
 
-    const amountUsd = fromMicro(requirement.maxAmountRequired);
-    const maxPrice = config.maxPriceUsd ?? 0.1;
-
-    if (amountUsd > maxPrice) {
-      return {
-        success: false,
-        error: `Price $${amountUsd.toFixed(4)} exceeds max $${maxPrice.toFixed(2)}`,
-      };
-    }
-
+    // DEMO: unsigned header - production needs EIP-712 signature
     const paymentHeader = Buffer.from(
       JSON.stringify({
         version: 1,
         payer: config.walletAddress,
-        payTo: requirement.payTo,
-        amount: requirement.maxAmountRequired,
-        network: requirement.network,
-        asset: requirement.asset,
+        payTo: req.payTo,
+        amount: req.maxAmountRequired,
+        network: req.network,
+        asset: req.asset,
         timestamp: Math.floor(Date.now() / 1000),
-        nonce: Math.random().toString(36).substring(2, 10),
+        nonce: Math.random().toString(36).slice(2, 10),
       })
     ).toString('base64');
 
-    const paidResponse = await fetch(url, {
+    const paid = await fetch(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Payment': paymentHeader,
-        ...headers,
-      },
+      headers: { 'Content-Type': 'application/json', 'X-Payment': paymentHeader, ...headers },
       body: body || undefined,
     });
 
-    if (!paidResponse.ok) {
-      if (paidResponse.status === 402) {
-        return { success: false, error: 'Payment rejected by server' };
-      }
-      return { success: false, error: `API returned ${paidResponse.status} after payment` };
+    if (!paid.ok) {
+      return { success: false, error: paid.status === 402 ? 'Payment rejected' : `${paid.status}` };
     }
 
-    const data = await paidResponse.json();
-
+    const data = await paid.json();
     return {
       success: true,
       paid: true,
       data,
       summary: summarize(data),
-      payment: {
-        network: requirement.network,
-        amountUsd,
-        asset: requirement.asset,
-      },
+      payment: { network: req.network, amountUsd: amt, asset: req.asset },
     };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { success: false, error: message };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 }
 
 export function createX402Tools(config: X402ToolsConfig) {
   return {
     x402_check_pricing: tool({
-      description:
-        'Check pricing for an x402-gated API endpoint without making payment. Returns available payment options and prices.',
+      description: 'Check x402 API pricing without paying',
       parameters: z.object({
-        url: z.string().url().describe('The x402-gated API endpoint URL to check'),
+        url: z.string().url().describe('API endpoint URL'),
       }),
-      execute: async ({ url }) => {
-        return checkPricing(url);
-      },
+      execute: ({ url }) => checkPricing(url),
     }),
 
     x402_fetch: tool({
-      description:
-        'Fetch data from an x402-gated API endpoint with automatic USDC payment. Handles the 402 payment flow automatically. Supports Base, Solana, Polygon, and Arbitrum networks.',
+      description: 'Fetch from x402 API with automatic USDC payment',
       parameters: z.object({
-        url: z.string().url().describe('The x402-gated API endpoint URL'),
-        method: z
-          .enum(['GET', 'POST', 'PUT', 'DELETE'])
-          .optional()
-          .describe('HTTP method (default: GET)'),
-        body: z.string().optional().describe('Request body as JSON string (for POST/PUT)'),
-        headers: z
-          .record(z.string())
-          .optional()
-          .describe('Additional headers as key-value pairs'),
+        url: z.string().url().describe('API endpoint URL'),
+        method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional(),
+        body: z.string().optional().describe('JSON body for POST/PUT'),
+        headers: z.record(z.string()).optional(),
       }),
-      execute: async (params) => {
-        return x402Fetch(params, config);
-      },
+      execute: (params) => x402Fetch(params, config),
     }),
   };
 }

@@ -162,13 +162,13 @@ export {
   NearIntentsSwap,
   createNearIntentsSwap,
   quoteX402Payment,
-  SUPPORTED_CHAINS as NEAR_INTENTS_CHAINS,
+  CHAINS as NEAR_INTENTS_CHAINS,
 } from './near-intents';
 export type {
   NearIntentsConfig,
-  NearIntentsChain,
-  TokenInfo as NearIntentsToken,
-  CrossChainQuote,
+  Chain as NearIntentsChain,
+  Token as NearIntentsToken,
+  Quote as NearIntentsQuote,
   SwapResult as NearIntentsSwapResult,
   SwapStatus as NearIntentsSwapStatus,
 } from './near-intents';
