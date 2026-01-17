@@ -12,24 +12,25 @@ const OWNER_USER_ID = process.env.OWNER_TWITTER_ID;
 // Approval mode: 'dm' | 'auto' | 'hybrid'
 // dm = require owner approval via DM
 // auto = Claude self-reviews and decides
-// hybrid = auto-approve safe content, DM for edgy stuff
+// hybrid = auto-approve safe content, DM for borderline stuff
 const APPROVAL_MODE = process.env.APPROVAL_MODE || 'hybrid';
 
 // Self-review prompt for Claude
 const SELF_REVIEW_PROMPT = `You are reviewing a tweet before it gets posted. Evaluate it for:
 
-1. Quality - Is it interesting, funny, or thought-provoking?
+1. Quality - Is it interesting, helpful, or thought-provoking?
 2. Safety - Could it cause harm, be offensive, or get the account banned?
-3. Brand alignment - Does it match KAMIYO's personality (crypto-native, direct, slightly spicy but not toxic)?
+3. Brand alignment - Does it match KAMIYO's personality (kind, honest, straightforward, crypto-native)?
 4. Engagement potential - Will people want to reply or share?
 5. NO EMOJIS - Reject immediately if it contains any emoji
+6. NO SNARK - Reject if sarcastic, condescending, or dismissive
 
 Rate 1-10 and decide: APPROVE or REJECT.
 
 Respond in JSON only:
 {"score": <1-10>, "decision": "APPROVE" or "REJECT", "reason": "<brief reason>"}
 
-Be strict but not paranoid. Slightly edgy is fine. Cringe, harmful, emojis, or off-brand is not.`;
+Be strict. Cringe, harmful, snarky, emojis, or off-brand is not acceptable.`;
 
 interface ReviewResult {
   score: number;
