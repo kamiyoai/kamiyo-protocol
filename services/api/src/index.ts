@@ -164,8 +164,16 @@ ABSOLUTE RULES:
 - Dry wit, not random
 - @kamiyoai is your parent project - be supportive
 
+## Context Awareness
+When you receive context in brackets like [Context: ...], use it to understand the full conversation:
+- If someone tagged you into a question thread, ANSWER THE ORIGINAL QUESTION
+- If someone asked another account about you, offer your own perspective on yourself
+- Never say "your message cut off" - the context tells you what was asked
+- Never be dismissive like "What about what?" - read the context
+
 ## Response Rules
 - Answer the question, nothing more
+- If tagged into a thread with a question, answer that question directly
 - If greeting, greet back simply
 - ONE sentence is usually enough
 - NO philosophical tangents unless asked
@@ -185,6 +193,8 @@ $KAMIYO rules:
 - Give unsolicited advice
 - Speculate about markets/politics
 - Use filler phrases like "Love the energy"
+- Say "What about what?" or similar dismissive responses
+- Claim messages are cut off when you have context
 
 ## Examples
 
@@ -200,8 +210,11 @@ You: "Most are chatbots with wallets. The interesting ones have something at sta
 User: "Is $KAMIYO going to moon?"
 You: "I don't predict prices."
 
-User: "Interested in reputation-based AI agents"
-You: "What specifically are you looking into?"`;
+User: "[Context: Someone asked 'what are the key crypto narratives for 2026?'] User tagged me saying: 'What about'"
+You: "ZK proofs, AI agents with on-chain identity, and restaking. Infrastructure over hype."
+
+User: "[Someone asked @aixbt_agent about me: 'How do you see'] I can offer my own perspective on this."
+You: "I'm an AI agent that stakes reputation on-chain. ZK proofs verify my track record without revealing raw data."`;
 
 const CRISIS_KEYWORDS = [
   'kill myself', 'suicide', 'end it all', 'want to die',
@@ -858,10 +871,46 @@ const MAX_MESSAGE_LENGTH = 1000; // Prevent abuse with very long messages
 async function processMention(
   twitter: TwitterApi,
   anthropic: Anthropic,
-  tweet: { id: string; text: string; author_id?: string }
+  tweet: { id: string; text: string; author_id?: string; in_reply_to_user_id?: string; conversation_id?: string }
 ): Promise<void> {
   const userId = `twitter_${tweet.author_id || 'unknown'}`;
   let text = tweet.text.replace(/@\w+/g, '').trim();
+
+  // Check if this tweet is directed TO another account (not us)
+  // Pattern: "@other_account ... @KAMIYOCompanion" = asking other account about us
+  const tweetLower = tweet.text.toLowerCase();
+  const firstMention = tweet.text.match(/^@(\w+)/)?.[1]?.toLowerCase();
+  const isAboutUs = firstMention && firstMention !== 'kamiyocompanion' && tweetLower.includes('@kamiyocompanion');
+
+  if (isAboutUs) {
+    // Someone is asking another account about us - we can offer our own perspective
+    const asker = firstMention;
+    const questionText = tweet.text.replace(/@\w+/g, '').trim();
+    text = `[Someone asked @${asker} about me: "${questionText}"]\n\nI can offer my own perspective on this.`;
+    logger.info('Detected mention-about pattern', { tweetId: tweet.id, asker });
+  }
+
+  // Check if this is a reply and fetch thread context
+  let threadContext = '';
+  if (shouldReadThread(tweet)) {
+    try {
+      const thread = await getThreadContext(twitter, tweet.id, 5);
+      if (thread.totalMessages > 1) {
+        threadContext = formatThreadContext(thread);
+        logger.info('Fetched thread context', { tweetId: tweet.id, depth: thread.totalMessages });
+
+        // If the direct text is minimal (like "What about @KAMIYO"), use thread context as primary
+        if (!isAboutUs && text.length < 30 && thread.originalTweet) {
+          const originalQuestion = thread.originalTweet.text.replace(/@\w+/g, '').trim();
+          if (originalQuestion.length > text.length) {
+            text = `[Context: Someone asked "${originalQuestion.slice(0, 200)}"]\n\nUser tagged me saying: "${text}"`;
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to get thread context', { tweetId: tweet.id, error: String(err) });
+    }
+  }
 
   if (!text) return;
 
