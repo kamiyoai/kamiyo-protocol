@@ -1,0 +1,123 @@
+name: 'Surfpool Integration Test'
+description: 'Run Solana program tests using Surfpool simulator'
+author: 'KAMIYO'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  surfpool-version:
+    description: 'Surfpool version to install'
+    required: false
+    default: 'latest'
+  program-path:
+    description: 'Path to Solana programs'
+    required: false
+    default: './programs'
+  test-path:
+    description: 'Path to test files'
+    required: false
+    default: './tests'
+  mainnet-fork:
+    description: 'Fork mainnet for realistic testing'
+    required: false
+    default: 'false'
+  rpc-url:
+    description: 'RPC URL for mainnet fork'
+    required: false
+    default: ''
+  accounts-to-clone:
+    description: 'Comma-separated list of accounts to clone from mainnet'
+    required: false
+    default: ''
+  timeout:
+    description: 'Test timeout in seconds'
+    required: false
+    default: '300'
+
+outputs:
+  success:
+    description: 'Whether all tests passed'
+    value: ${{ steps.run-tests.outputs.success }}
+  report:
+    description: 'Test report path'
+    value: ${{ steps.run-tests.outputs.report }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Rust
+      uses: dtolnay/rust-action@stable
+
+    - name: Install Solana CLI
+      shell: bash
+      run: |
+        sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+        echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+    - name: Install Surfpool
+      shell: bash
+      run: |
+        if [ "${{ inputs.surfpool-version }}" = "latest" ]; then
+          cargo install surfpool
+        else
+          cargo install surfpool --version ${{ inputs.surfpool-version }}
+        fi
+
+    - name: Install Anchor
+      shell: bash
+      run: |
+        cargo install --git https://github.com/coral-xyz/anchor avm --locked
+        avm install latest
+        avm use latest
+
+    - name: Build Programs
+      shell: bash
+      run: |
+        cd ${{ inputs.program-path }}/..
+        anchor build
+
+    - name: Start Surfpool
+      shell: bash
+      run: |
+        if [ "${{ inputs.mainnet-fork }}" = "true" ] && [ -n "${{ inputs.rpc-url }}" ]; then
+          surfpool --fork ${{ inputs.rpc-url }} &
+        else
+          surfpool &
+        fi
+        sleep 5
+
+    - name: Clone Mainnet Accounts
+      if: inputs.mainnet-fork == 'true' && inputs.accounts-to-clone != ''
+      shell: bash
+      run: |
+        IFS=',' read -ra ACCOUNTS <<< "${{ inputs.accounts-to-clone }}"
+        for account in "${ACCOUNTS[@]}"; do
+          echo "Cloning account: $account"
+          # Clone via Surfpool RPC
+          curl -X POST http://localhost:8899 \
+            -H "Content-Type: application/json" \
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"surfpool_cloneAccount\",\"params\":[\"$account\"]}"
+        done
+
+    - name: Run Surfpool Tests
+      id: run-tests
+      shell: bash
+      run: |
+        cd ${{ inputs.program-path }}/..
+        timeout ${{ inputs.timeout }} npm run test:surfpool || TEST_EXIT=$?
+
+        if [ "${TEST_EXIT:-0}" -eq 0 ]; then
+          echo "success=true" >> $GITHUB_OUTPUT
+        else
+          echo "success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+        echo "report=./test-results/surfpool-report.json" >> $GITHUB_OUTPUT
+
+    - name: Stop Surfpool
+      if: always()
+      shell: bash
+      run: pkill surfpool || true
