@@ -6,8 +6,9 @@
  * - Release funds on successful delivery
  * - Dispute for oracle arbitration
  * - Check agreement status
+ * - Consume x402-gated APIs with automatic USDC payment
  *
- * @example
+ * @example Escrow tools (Solana)
  * ```typescript
  * import { createKamiyoTools } from '@kamiyo/langchain';
  * import { ChatOpenAI } from '@langchain/openai';
@@ -21,7 +22,23 @@
  *   input: "Create a 0.1 SOL agreement with provider ABC123 for order-456"
  * });
  * ```
+ *
+ * @example x402 API tools (cross-chain USDC)
+ * ```typescript
+ * import { createX402Tools } from '@kamiyo/langchain';
+ *
+ * const x402Tools = createX402Tools({
+ *   walletAddress: '0x...',
+ *   maxPriceUsd: 0.10,
+ *   preferredNetwork: 'base',
+ * });
+ *
+ * // Agent can now fetch x402-gated APIs with automatic payment
+ * ```
  */
 
 export { createKamiyoTools, createKamiyoToolsFromEnv } from "./tools";
 export type { KamiyoToolsConfig } from "./tools";
+
+export { createX402Tools, createX402ToolsFromEnv } from "./x402-tools";
+export type { X402ToolsConfig } from "./x402-tools";

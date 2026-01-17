@@ -11,6 +11,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { Connection, PublicKey, Keypair, Transaction } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
 import { KamiyoClient } from "@kamiyo/sdk";
 
 // Simple wallet interface compatible with Anchor
@@ -79,8 +80,8 @@ export function createKamiyoTools(config: KamiyoToolsConfig) {
 
         const tx = await client.createAgreement({
           provider: providerPubkey,
-          amount: amountLamports,
-          timeLockSeconds,
+          amount: new BN(amountLamports),
+          timeLockSeconds: new BN(timeLockSeconds),
           transactionId,
         });
 
