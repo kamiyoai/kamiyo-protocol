@@ -175,6 +175,102 @@ console.log(`Worst case: ${stressResults.worstCase.pnl}`);
 | `validateRelease(params)` | Validate fund release |
 | `validateFullFlow(agent, escrow)` | Validate complete flow |
 
+## CI/CD Integration
+
+### GitHub Action
+
+Use our reusable GitHub Action to gate deployments:
+
+```yaml
+name: Surfpool CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  surfpool-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Surfpool Tests
+        uses: kamiyo-ai/kamiyo-protocol/.github/actions/surfpool-test@main
+        with:
+          mainnet-fork: 'true'
+          rpc-url: ${{ secrets.SOLANA_RPC_URL }}
+          accounts-to-clone: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+          timeout: '300'
+
+  deploy:
+    needs: surfpool-tests
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Mainnet
+        run: echo "Surfpool validated - safe to deploy"
+```
+
+### Action Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `surfpool-version` | Surfpool CLI version | `latest` |
+| `mainnet-fork` | Fork mainnet state | `false` |
+| `rpc-url` | RPC for mainnet fork | - |
+| `accounts-to-clone` | Accounts to clone (comma-separated) | - |
+| `timeout` | Test timeout in seconds | `300` |
+
+## Production Preflight
+
+KAMIYO uses Surfpool in production - every transaction is simulated before submission:
+
+```typescript
+import { preflightService } from '@kamiyo/api/surfpool-preflight';
+
+// Validate before mainnet submission
+const result = await preflightService.validateTransaction(transaction);
+
+if (!result.success) {
+  console.error('Preflight failed:', result.error);
+  console.log('MEV risk:', result.mevRisk?.risk);
+  return;
+}
+
+// Simulate full escrow lifecycle
+const lifecycle = await preflightService.simulateEscrowLifecycle({
+  agent: agentPubkey,
+  counterparty: counterpartyPubkey,
+  amount: 1_000_000_000,
+  token: USDC_MINT,
+  completionPath: 'release', // or 'dispute' or 'expire'
+});
+
+console.log('Stages:', lifecycle.stages);
+console.log('Total compute:', lifecycle.totalComputeUnits);
+```
+
+## Mainnet Fork Backtesting
+
+Test AI agent strategies against historical mainnet state:
+
+```typescript
+const backtest = await preflightService.backtestStrategy({
+  strategy: async (state) => {
+    // Your strategy generates transactions based on state
+    return buildArbitrageTxs(state);
+  },
+  startSlot: 250_000_000,
+  endSlot: 251_000_000,
+  stepSize: 10_000,
+});
+
+console.log('Total PnL:', backtest.summary.totalPnl);
+console.log('Win rate:', backtest.summary.winRate);
+console.log('Gas used:', backtest.summary.totalGas);
+```
+
 ## Surfpool Setup
 
 ### Local Development
@@ -191,6 +287,14 @@ surfpool start --fork mainnet-beta
 
 Contact [Txtx](https://txtx.dev) for cloud Surfpool access.
 
+## Why KAMIYO Uses Surfpool
+
+1. **Zero failed transactions** - Every tx simulated before submission
+2. **MEV protection verification** - Prove transfer hooks work
+3. **Strategy backtesting** - AI agents tested against real history
+4. **CI/CD gates** - No deployment without validation
+5. **Cost savings** - Catch errors before paying gas
+
 ## License
 
-MIT
+MIT - KAMIYO Protocol

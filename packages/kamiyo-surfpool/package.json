@@ -1,43 +1,90 @@
 {
   "name": "@kamiyo/surfpool",
-  "version": "0.1.0",
-  "description": "Surfpool integration for KAMIYO - Strategy simulation and pre-flight validation",
+  "version": "0.2.0",
+  "description": "Production-grade Surfpool testing framework for Solana programs",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kamiyo-ai/kamiyo.git"
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-surfpool"
+  },
+  "homepage": "https://github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/kamiyo-surfpool",
+  "bugs": {
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol/issues"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.esm.json",
     "test": "jest",
+    "test:examples": "ts-node examples/basic-simulation.ts",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "npm run build"
   },
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client.mjs",
+      "require": "./dist/client.js",
+      "types": "./dist/client.d.ts"
+    },
+    "./strategy": {
+      "import": "./dist/strategy.mjs",
+      "require": "./dist/strategy.js",
+      "types": "./dist/strategy.d.ts"
+    },
+    "./preflight": {
+      "import": "./dist/preflight.mjs",
+      "require": "./dist/preflight.js",
+      "types": "./dist/preflight.d.ts"
+    }
+  },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@solana/web3.js": "^1.98.0",
-    "@kamiyo/sdk": "workspace:*"
+    "@solana/web3.js": "^1.98.0"
+  },
+  "peerDependencies": {
+    "@kamiyo/sdk": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@kamiyo/sdk": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
     "jest": "^29.0.0",
     "@types/jest": "^29.0.0",
-    "ts-jest": "^29.0.0"
+    "ts-jest": "^29.0.0",
+    "ts-node": "^10.9.0"
   },
   "files": [
     "dist/**/*",
-    "examples/**/*"
+    "examples/**/*",
+    "README.md"
   ],
   "keywords": [
     "solana",
     "surfpool",
     "simulation",
     "testing",
-    "strategy",
-    "kamiyo",
-    "agent"
-  ]
+    "devnet",
+    "localnet",
+    "mainnet-fork",
+    "time-travel",
+    "strategy-testing",
+    "preflight",
+    "transaction-simulation",
+    "anchor",
+    "solana-testing"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

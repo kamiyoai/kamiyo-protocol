@@ -1,0 +1,112 @@
+name: Surfpool CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'programs/**'
+      - 'packages/**'
+      - 'tests/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'programs/**'
+      - 'packages/**'
+      - 'tests/**'
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLANA_VERSION: '1.18.22'
+  ANCHOR_VERSION: '0.31.1'
+
+jobs:
+  surfpool-tests:
+    name: Surfpool Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Surfpool Tests
+        uses: ./.github/actions/surfpool-test
+        with:
+          mainnet-fork: 'false'
+          timeout: '300'
+
+  surfpool-mainnet-fork:
+    name: Mainnet Fork Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: surfpool-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Mainnet Fork Tests
+        uses: ./.github/actions/surfpool-test
+        with:
+          mainnet-fork: 'true'
+          rpc-url: ${{ secrets.SOLANA_RPC_URL }}
+          accounts-to-clone: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v,Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+          timeout: '600'
+
+  preflight-validation:
+    name: Preflight Validation
+    runs-on: ubuntu-latest
+    needs: surfpool-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Packages
+        run: npm run build:sdk
+
+      - name: Run Preflight Validation
+        run: npm run test:preflight
+        env:
+          SURFPOOL_URL: http://localhost:8899
+
+  deploy-gate:
+    name: Deployment Gate
+    runs-on: ubuntu-latest
+    needs: [surfpool-tests, surfpool-mainnet-fork, preflight-validation]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: All Surfpool Tests Passed
+        run: |
+          echo "All Surfpool validation complete"
+          echo "Safe to deploy to mainnet"
+
+      - name: Create Deployment Marker
+        run: |
+          echo "SURFPOOL_VALIDATED=true" >> $GITHUB_ENV
+          echo "VALIDATION_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
