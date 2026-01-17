@@ -140,3 +140,19 @@ export type { JupiterConfig, SwapQuote, SwapResult } from './jupiter';
 // Embeddable Widget
 export { KamiyoPayEmbed, createKamiyoPayWidget } from './embed';
 export type { EmbedConfig, EmbedPaymentResult } from './embed';
+
+// Coinbase CDP facilitator
+export {
+  CoinbaseFacilitator,
+  createCoinbaseFacilitator,
+  COINBASE_NETWORKS,
+} from './coinbase';
+export type {
+  CoinbaseFacilitatorConfig,
+  CoinbaseNetwork,
+  CoinbaseNetworkConfig,
+  CoinbasePaymentRequirement,
+  Coinbase402Response,
+  CoinbaseVerifyResult,
+  CoinbaseSettleResult,
+} from './coinbase';
