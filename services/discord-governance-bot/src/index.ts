@@ -23,6 +23,7 @@ const DATA_FILE = './data/proposals.json';
 
 // Channel IDs for language-specific channels
 const CHINESE_CHANNEL_IDS = (process.env.CHINESE_CHANNEL_IDS || '').split(',').filter(Boolean);
+const JAPANESE_CHANNEL_IDS = (process.env.JAPANESE_CHANNEL_IDS || '').split(',').filter(Boolean);
 
 const SUPPORT_PROMPT = `You are the KAMIYO support assistant. Answer questions about the KAMIYO protocol concisely and accurately.
 
@@ -103,6 +104,46 @@ KAMIYO 是一个 AI 代理声誉和协调协议。代理通过链上表现获得
 - 复杂问题建议在 #dev 频道询问或等待团队回复
 - 永远不要分享或索要私钥
 - 友好但专业`;
+
+const SUPPORT_PROMPT_JA = `あなたはKAMIYOサポートアシスタントです。KAMIYOプロトコルに関する質問に日本語で簡潔かつ正確に回答してください。
+
+## KAMIYOについて
+KAMIYOはAIエージェントの評判と調整のためのプロトコルです。エージェントはオンチェーンのパフォーマンスを通じて評判を獲得します。トークン保有者は提案と投票を通じてプロトコルを統治します。
+
+## トークン
+- シンボル：$KAMIYO
+- ミントアドレス：Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+- タイプ：Token-2022 (pump.fun)
+- 小数点：6
+- チェーン：Solana
+
+## ガバナンス
+- Discordを通じたトークン加重投票
+- /link-wallet（その後ウォレットアドレスを貼り付け）でウォレットを接続
+- /my-wallet で投票権を確認
+- 提案は60%の承認で可決
+- トレジャリーはSquadsマルチシグで管理
+
+## コマンド
+- /link-wallet（その後アドレスを貼り付け）- 投票用Solanaウォレットをリンク
+- /my-wallet - リンク済みウォレットと投票権を確認
+- /propose - ガバナンス提案を作成（管理者のみ）
+- /proposal <id> - 提案の詳細を表示
+- /proposals - ステータス別に提案を一覧表示
+
+## リンク
+- ウェブサイト：https://kamiyo.ai
+- ドキュメント：https://docs.kamiyo.ai
+- GitHub：https://github.com/kamiyo-ai
+- Twitter：https://x.com/kamiyo_ai
+- DEXScreener：https://dexscreener.com/solana/Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump
+
+## ガイドライン
+- 回答は短く役立つものに
+- わからないことはわからないと言う
+- 複雑な問題は #dev チャンネルで質問するか、チームの回答を待つよう提案
+- 秘密鍵を共有したり要求したりしない
+- フレンドリーだがプロフェッショナルに`;
 
 interface Vote {
   wallet: string;
@@ -499,9 +540,11 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
       const userId = interaction.user.id;
       const channelId = interaction.channelId;
       const isChinese = CHINESE_CHANNEL_IDS.includes(channelId);
+      const isJapanese = JAPANESE_CHANNEL_IDS.includes(channelId);
 
-      // Use separate history for Chinese channel
-      const historyKey = isChinese ? `${userId}_zh` : userId;
+      // Use separate history per language
+      const langSuffix = isChinese ? '_zh' : isJapanese ? '_ja' : '';
+      const historyKey = `${userId}${langSuffix}`;
       let history = conversationHistory.get(historyKey) || [];
 
       history.push({ role: 'user', content: question });
@@ -509,11 +552,16 @@ async function handleCommand(interaction: ChatInputCommandInteraction) {
 
       await interaction.deferReply();
 
+      // Select prompt based on channel language
+      const systemPrompt = isChinese ? SUPPORT_PROMPT_ZH
+        : isJapanese ? SUPPORT_PROMPT_JA
+        : SUPPORT_PROMPT;
+
       try {
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 500,
-          system: isChinese ? SUPPORT_PROMPT_ZH : SUPPORT_PROMPT,
+          system: systemPrompt,
           messages: history,
         });
 
