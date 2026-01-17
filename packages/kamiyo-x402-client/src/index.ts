@@ -156,3 +156,19 @@ export type {
   CoinbaseVerifyResult,
   CoinbaseSettleResult,
 } from './coinbase';
+
+// NEAR Intents cross-chain swaps
+export {
+  NearIntentsSwap,
+  createNearIntentsSwap,
+  quoteX402Payment,
+  SUPPORTED_CHAINS as NEAR_INTENTS_CHAINS,
+} from './near-intents';
+export type {
+  NearIntentsConfig,
+  NearIntentsChain,
+  TokenInfo as NearIntentsToken,
+  CrossChainQuote,
+  SwapResult as NearIntentsSwapResult,
+  SwapStatus as NearIntentsSwapStatus,
+} from './near-intents';
