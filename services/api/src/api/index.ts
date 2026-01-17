@@ -15,6 +15,7 @@ import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
 import mitamaRoutes from './routes/mitama';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
+import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import { registry } from '../metrics';
 
 // Rate limiter for auth endpoints (IP-based)
@@ -69,6 +70,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   // Initialize x402 payment gateway
   initX402(config.anthropic);
 
+  // Initialize credits system
+  initCreditsRoutes();
+
   // CORS - allow Blindfold origins + general access
   app.use(
     cors({
@@ -121,6 +125,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // x402 payment-gated routes (public - pay-per-request for non-holders)
   app.use('/api/paid', paidRoutes);
+
+  // Prepaid credits routes (public - alternative to x402)
+  app.use('/api/credits', creditsRoutes);
 
   // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {

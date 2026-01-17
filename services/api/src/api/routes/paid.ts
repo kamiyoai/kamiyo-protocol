@@ -1,5 +1,4 @@
-// x402 Payment-gated endpoints for non-holders
-// Pay-per-request via USDC on Base, Solana, or other chains
+// Payment-gated endpoints: x402 (USDC) or prepaid credits ($KAMIYO)
 
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
@@ -8,15 +7,14 @@ import { randomBytes } from 'crypto';
 import { createPayAIFacilitator, PayAIFacilitator, PayAINetwork } from '@kamiyo/x402-client';
 import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { logger } from '../../logger';
+import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits } from '../../db';
 
 const router: IRouter = Router();
 
-// Payment configuration
 const MERCHANT_WALLET = process.env.X402_MERCHANT_WALLET || '';
-const CHAT_PRICE_USD = 0.01; // $0.01 per chat request
-const MARKET_PRICE_USD = 0.005; // $0.005 per market data request
+const CHAT_PRICE_USD = 0.01;
+const MARKET_PRICE_USD = 0.005;
 
-// Supported networks for payment
 const SUPPORTED_NETWORKS: PayAINetwork[] = [
   'base',
   'solana',
@@ -73,12 +71,37 @@ export function isX402Available(): boolean {
   return facilitator !== null;
 }
 
-// x402 middleware - validates payment header or returns 402
-async function x402Middleware(
+async function paymentMiddleware(
   priceUsd: number,
-  description: string
+  description: string,
+  endpoint: string
 ) {
   return async (req: Request, res: Response, next: () => void): Promise<void> => {
+    const walletHeader = req.headers['x-wallet'] as string | undefined;
+
+    if (walletHeader) {
+      const requiredMicro = usdToCredits(priceUsd);
+      const balanceMicro = getCreditBalance(walletHeader);
+
+      if (balanceMicro >= requiredMicro) {
+        const deducted = deductCredits(walletHeader, requiredMicro, endpoint, description);
+        if (deducted) {
+          (req as any).credits = {
+            wallet: walletHeader,
+            amountUsd: priceUsd,
+            remainingUsd: getCreditBalanceUsd(walletHeader),
+          };
+          logger.info('Credits used', {
+            wallet: walletHeader.slice(0, 10) + '...',
+            amount: priceUsd,
+            endpoint,
+          });
+          next();
+          return;
+        }
+      }
+    }
+
     if (!facilitator) {
       res.status(503).json({
         error: { code: 'SERVICE_UNAVAILABLE', message: 'Payment gateway not configured' },
@@ -89,7 +112,6 @@ async function x402Middleware(
     const paymentHeader = req.headers['x-payment'] as string | undefined;
 
     if (!paymentHeader) {
-      // Return 402 with payment requirements
       const body = facilitator.response402(
         req.path,
         priceUsd,
@@ -102,12 +124,20 @@ async function x402Middleware(
         description,
         'base'
       );
+      const responseBody = { ...body } as Record<string, any>;
+      if (walletHeader) {
+        responseBody.credits = {
+          wallet: walletHeader.slice(0, 10) + '...',
+          balanceUsd: getCreditBalanceUsd(walletHeader),
+          requiredUsd: priceUsd,
+          depositEndpoint: '/api/credits/info',
+        };
+      }
       Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
-      res.status(402).json(body);
+      res.status(402).json(responseBody);
       return;
     }
 
-    // Verify and settle payment
     const reqs = facilitator.requirements(
       req.path,
       priceUsd,
@@ -122,7 +152,6 @@ async function x402Middleware(
           requirement
         );
         if (verify.valid && settle?.success) {
-          // Attach payment info to request
           (req as any).x402 = {
             payer: verify.payer,
             network: verify.network,
@@ -137,7 +166,6 @@ async function x402Middleware(
       }
     }
 
-    // Payment failed - return 402
     const body = facilitator.response402(
       req.path,
       priceUsd,
@@ -160,13 +188,10 @@ You have access to real-time prices (BTC, ETH, KAMIYO) and market sentiment.
 When discussing markets, use the data provided. Never fabricate numbers.
 For trading questions, provide analysis not financial advice.`;
 
-// POST /api/paid/chat - Pay-per-request chat
 router.post('/chat', async (req: Request, res: Response) => {
-  // First check x402 payment
-  const middleware = await x402Middleware(CHAT_PRICE_USD, 'KAMIYO AI Chat - single request');
+  const middleware = await paymentMiddleware(CHAT_PRICE_USD, 'KAMIYO AI Chat', '/api/paid/chat');
   await new Promise<void>((resolve) => middleware(req, res, resolve));
 
-  // If 402 was returned, stop
   if (res.headersSent) return;
 
   if (!anthropicClient) {
@@ -185,7 +210,6 @@ router.post('/chat', async (req: Request, res: Response) => {
     return;
   }
 
-  // Validate messages
   for (const msg of messages) {
     if (!msg.role || !msg.content) {
       res.status(400).json({
@@ -202,7 +226,6 @@ router.post('/chat', async (req: Request, res: Response) => {
   }
 
   try {
-    // Get crypto context
     const cryptoCtx = await getContext();
     const contextStr = formatContextForPrompt(cryptoCtx);
     const systemPrompt = SYSTEM_PROMPT + '\n\n' + contextStr;
@@ -222,7 +245,8 @@ router.post('/chat', async (req: Request, res: Response) => {
       .map(b => b.text)
       .join('');
 
-    const x402 = (req as any).x402 || {};
+    const x402 = (req as any).x402;
+    const credits = (req as any).credits;
 
     res.json({
       id: `paid_${randomBytes(8).toString('hex')}`,
@@ -234,12 +258,20 @@ router.post('/chat', async (req: Request, res: Response) => {
         promptTokens: response.usage.input_tokens,
         completionTokens: response.usage.output_tokens,
       },
-      payment: {
-        payer: x402.payer?.slice(0, 10) + '...',
-        network: x402.network,
-        tx: x402.tx,
-        priceUsd: CHAT_PRICE_USD,
-      },
+      payment: credits
+        ? {
+            method: 'credits',
+            wallet: credits.wallet.slice(0, 10) + '...',
+            amountUsd: credits.amountUsd,
+            remainingUsd: credits.remainingUsd,
+          }
+        : {
+            method: 'x402',
+            payer: x402?.payer?.slice(0, 10) + '...',
+            network: x402?.network,
+            tx: x402?.tx,
+            priceUsd: CHAT_PRICE_USD,
+          },
     });
   } catch (err) {
     logger.error('Paid chat completion failed', { error: String(err) });
@@ -249,16 +281,16 @@ router.post('/chat', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/paid/market - Pay-per-request market data
 router.get('/market', async (req: Request, res: Response) => {
-  const middleware = await x402Middleware(MARKET_PRICE_USD, 'KAMIYO Market Data');
+  const middleware = await paymentMiddleware(MARKET_PRICE_USD, 'KAMIYO Market Data', '/api/paid/market');
   await new Promise<void>((resolve) => middleware(req, res, resolve));
 
   if (res.headersSent) return;
 
   try {
     const ctx = await getContext();
-    const x402 = (req as any).x402 || {};
+    const x402 = (req as any).x402;
+    const credits = (req as any).credits;
 
     res.json({
       btc: {
@@ -278,12 +310,20 @@ router.get('/market', async (req: Request, res: Response) => {
       trending: ctx.trending,
       headlines: ctx.headlines,
       timestamp: Date.now(),
-      payment: {
-        payer: x402.payer?.slice(0, 10) + '...',
-        network: x402.network,
-        tx: x402.tx,
-        priceUsd: MARKET_PRICE_USD,
-      },
+      payment: credits
+        ? {
+            method: 'credits',
+            wallet: credits.wallet.slice(0, 10) + '...',
+            amountUsd: credits.amountUsd,
+            remainingUsd: credits.remainingUsd,
+          }
+        : {
+            method: 'x402',
+            payer: x402?.payer?.slice(0, 10) + '...',
+            network: x402?.network,
+            tx: x402?.tx,
+            priceUsd: MARKET_PRICE_USD,
+          },
     });
   } catch (err) {
     logger.error('Paid market data failed', { error: String(err) });
@@ -293,7 +333,6 @@ router.get('/market', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/paid/pricing - Show pricing and payment options
 router.get('/pricing', (_req: Request, res: Response) => {
   if (!facilitator) {
     res.status(503).json({
@@ -326,6 +365,13 @@ router.get('/pricing', (_req: Request, res: Response) => {
       facilitator: PayAIFacilitator.URL,
     },
     merchant: MERCHANT_WALLET ? MERCHANT_WALLET.slice(0, 10) + '...' : 'not configured',
+    credits: {
+      description: 'Prepaid credits (buy with $KAMIYO)',
+      rate: '1M $KAMIYO = $10 credits',
+      depositEndpoint: '/api/credits/info',
+      balanceEndpoint: '/api/credits/balance',
+      usage: 'Include X-Wallet header with your wallet address',
+    },
     alternative: {
       description: 'Token holders get free access',
       requirement: 'Hold $KAMIYO tokens',
@@ -334,7 +380,6 @@ router.get('/pricing', (_req: Request, res: Response) => {
   });
 });
 
-// GET /api/paid/health - Check x402 payment gateway status
 router.get('/health', async (_req: Request, res: Response) => {
   if (!facilitator) {
     res.json({
