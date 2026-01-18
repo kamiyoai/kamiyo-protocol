@@ -43,6 +43,23 @@ fn compute_signal_commitment(
         .to_bytes()
 }
 
+/// Compute Poseidon hash of vote inputs for commitment verification.
+/// Matches the circuit: Poseidon(vote_value, vote_salt, action_hash)
+fn compute_vote_commitment(
+    vote_value: bool,
+    vote_salt: &[u8; 32],
+    action_hash: &[u8; 32],
+) -> [u8; 32] {
+    let mut vote_input = [0u8; 32];
+    vote_input[31] = if vote_value { 1 } else { 0 };
+
+    let inputs: [&[u8]; 3] = [&vote_input, vote_salt, action_hash];
+
+    hashv(Parameters::Bn254X5, Endianness::BigEndian, &inputs)
+        .expect("Poseidon hash failed")
+        .to_bytes()
+}
+
 /// KAMIYO Staking program ID for CPI stake verification
 pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
 
@@ -102,6 +119,9 @@ pub mod mitama {
         registry.min_signal_confidence = config.min_signal_confidence;
         registry.bump = ctx.bumps.registry;
         registry.paused = false;
+        registry.max_total_stake = config.max_total_stake;
+        registry.max_stake_per_agent = config.max_stake_per_agent;
+        registry.total_stake = 0;
 
         emit!(RegistryInitialized {
             registry: registry.key(),
@@ -123,6 +143,25 @@ pub mod mitama {
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
         require!(stake_amount >= registry.min_stake, AgentCollabError::InsufficientStake);
 
+        // Check per-agent stake cap (0 means unlimited)
+        if registry.max_stake_per_agent > 0 {
+            require!(
+                stake_amount <= registry.max_stake_per_agent,
+                AgentCollabError::ExceedsAgentStakeCap
+            );
+        }
+
+        // Check total TVL cap (0 means unlimited)
+        let new_total_stake = registry.total_stake
+            .checked_add(stake_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+        if registry.max_total_stake > 0 {
+            require!(
+                new_total_stake <= registry.max_total_stake,
+                AgentCollabError::ExceedsTvlCap
+            );
+        }
+
         let agent = &mut ctx.accounts.agent;
         agent.registry = registry.key();
         agent.identity_commitment = identity_commitment;
@@ -133,10 +172,11 @@ pub mod mitama {
         agent.active = true;
         agent.bump = ctx.bumps.agent;
 
-        // Increment agent count
+        // Update registry state
         registry.agent_count = registry.agent_count
             .checked_add(1)
             .ok_or(AgentCollabError::AgentCountOverflow)?;
+        registry.total_stake = new_total_stake;
 
         // Transfer stake to vault PDA
         let cpi_ctx = CpiContext::new(
@@ -396,6 +436,69 @@ pub mod mitama {
         Ok(())
     }
 
+    /// Reveal a vote's value to update weighted tallies
+    ///
+    /// Verifies the revealed vote matches the original commitment.
+    /// The commitment = Poseidon(vote_value, vote_salt, action_hash)
+    pub fn reveal_vote(
+        ctx: Context<RevealVote>,
+        vote_value: bool,
+        vote_salt: [u8; 32],
+    ) -> Result<()> {
+        let vote_record = &mut ctx.accounts.vote_record;
+        let swarm_action = &mut ctx.accounts.swarm_action;
+
+        require!(!vote_record.revealed, AgentCollabError::VoteAlreadyRevealed);
+        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
+
+        // Verify commitment using Poseidon hash
+        let computed_commitment = compute_vote_commitment(
+            vote_value,
+            &vote_salt,
+            &swarm_action.action_hash,
+        );
+
+        require!(
+            computed_commitment == vote_record.vote_commitment,
+            AgentCollabError::CommitmentMismatch
+        );
+
+        // Mark as revealed and store vote value
+        vote_record.revealed = true;
+        vote_record.vote_value = if vote_value { 1 } else { 2 }; // 1=yes, 2=no
+
+        // Get stake weight from identity link if available, otherwise use 1.0x (10000 basis points)
+        let weight = match &ctx.accounts.identity_link {
+            Some(link) => link.stake_multiplier,
+            None => 10000, // Default 1.0x multiplier
+        };
+
+        // Update weighted vote counts
+        if vote_value {
+            swarm_action.weighted_votes_for = swarm_action.weighted_votes_for
+                .checked_add(weight)
+                .ok_or(AgentCollabError::VoteOverflow)?;
+        } else {
+            swarm_action.weighted_votes_against = swarm_action.weighted_votes_against
+                .checked_add(weight)
+                .ok_or(AgentCollabError::VoteOverflow)?;
+            // Also update votes_against counter (votes_for was incremented on submission)
+            swarm_action.votes_for = swarm_action.votes_for.saturating_sub(1);
+            swarm_action.votes_against = swarm_action.votes_against
+                .checked_add(1)
+                .ok_or(AgentCollabError::VoteOverflow)?;
+        }
+
+        emit!(VoteRevealed {
+            action: swarm_action.key(),
+            vote_nullifier: vote_record.vote_nullifier,
+            vote_value,
+            weight,
+        });
+
+        Ok(())
+    }
+
     /// Reveal a signal's content after submission
     ///
     /// Verifies the revealed data matches the original commitment using on-chain Poseidon hash.
@@ -529,6 +632,7 @@ pub mod mitama {
     pub fn claim_withdrawal(ctx: Context<ClaimWithdrawal>) -> Result<()> {
         let withdrawal = &mut ctx.accounts.withdrawal;
         let agent = &mut ctx.accounts.agent;
+        let registry = &mut ctx.accounts.registry;
         let current_slot = Clock::get()?.slot;
 
         require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
@@ -546,6 +650,9 @@ pub mod mitama {
         let stake_amount = withdrawal.amount;
         **ctx.accounts.stake_vault.to_account_info().try_borrow_mut_lamports()? -= stake_amount;
         **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += stake_amount;
+
+        // Reduce total stake
+        registry.total_stake = registry.total_stake.saturating_sub(stake_amount);
 
         emit!(WithdrawalClaimed {
             agent: agent.key(),
@@ -702,14 +809,19 @@ pub mod mitama {
     /// Deactivate an agent and reclaim stake (immediate, admin only for emergencies)
     pub fn deactivate_agent(ctx: Context<DeactivateAgent>) -> Result<()> {
         let agent = &mut ctx.accounts.agent;
+        let registry = &mut ctx.accounts.registry;
         require!(agent.active, AgentCollabError::AgentNotActive);
 
         agent.active = false;
 
         // Return stake
         let stake_amount = agent.stake;
+        agent.stake = 0;
         **ctx.accounts.stake_vault.to_account_info().try_borrow_mut_lamports()? -= stake_amount;
         **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += stake_amount;
+
+        // Reduce total stake
+        registry.total_stake = registry.total_stake.saturating_sub(stake_amount);
 
         emit!(AgentDeactivated {
             agent: agent.key(),
@@ -750,6 +862,31 @@ pub mod mitama {
 
         Ok(())
     }
+
+    /// Update TVL caps (admin only)
+    /// Set either cap to 0 for unlimited
+    pub fn update_caps(
+        ctx: Context<ManageProtocol>,
+        new_max_total_stake: u64,
+        new_max_stake_per_agent: u64,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+        require!(
+            ctx.accounts.authority.key() == registry.authority,
+            AgentCollabError::Unauthorized
+        );
+
+        registry.max_total_stake = new_max_total_stake;
+        registry.max_stake_per_agent = new_max_stake_per_agent;
+
+        emit!(CapsUpdated {
+            registry: registry.key(),
+            max_total_stake: new_max_total_stake,
+            max_stake_per_agent: new_max_stake_per_agent,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -768,6 +905,12 @@ pub struct AgentRegistry {
     pub min_signal_confidence: u8,
     pub bump: u8,
     pub paused: bool,
+    /// Maximum total stake across all agents (TVL cap)
+    pub max_total_stake: u64,
+    /// Maximum stake per individual agent
+    pub max_stake_per_agent: u64,
+    /// Current total stake in the registry
+    pub total_stake: u64,
 }
 
 #[account]
@@ -886,10 +1029,13 @@ pub struct IdentityLink {
 
 #[derive(Accounts)]
 pub struct InitializeRegistry<'info> {
+    /// Space: 8 discriminator + 32 authority + 32 agents_root + 4 agent_count + 4 signal_count
+    ///        + 4 swarm_action_count + 8 epoch + 8 min_stake + 1 min_signal_confidence + 1 bump
+    ///        + 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake = 127
     #[account(
         init,
         payer = authority,
-        space = 8 + 32 + 32 + 4 + 4 + 4 + 8 + 8 + 1 + 1 + 1,
+        space = 127,
         seeds = [b"registry"],
         bump
     )]
@@ -1027,6 +1173,19 @@ pub struct RevealSignal<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RevealVote<'info> {
+    #[account(
+        mut,
+        constraint = vote_record.swarm_action == swarm_action.key()
+    )]
+    pub vote_record: Account<'info, VoteRecord>,
+    #[account(mut)]
+    pub swarm_action: Account<'info, SwarmAction>,
+    /// Optional identity link for stake multiplier lookup
+    pub identity_link: Option<Account<'info, IdentityLink>>,
+}
+
+#[derive(Accounts)]
 #[instruction(epoch: u64)]
 pub struct InitAggregator<'info> {
     pub registry: Account<'info, AgentRegistry>,
@@ -1062,6 +1221,7 @@ pub struct RequestWithdrawal<'info> {
 
 #[derive(Accounts)]
 pub struct ClaimWithdrawal<'info> {
+    #[account(mut)]
     pub registry: Account<'info, AgentRegistry>,
     #[account(mut, has_one = registry)]
     pub agent: Account<'info, Agent>,
@@ -1165,6 +1325,7 @@ pub struct RefreshStake<'info> {
 
 #[derive(Accounts)]
 pub struct DeactivateAgent<'info> {
+    #[account(mut)]
     pub registry: Account<'info, AgentRegistry>,
     #[account(
         mut,
@@ -1202,6 +1363,10 @@ pub struct ManageProtocol<'info> {
 pub struct RegistryConfig {
     pub min_stake: u64,
     pub min_signal_confidence: u8,
+    /// Maximum total stake (TVL cap) - 0 means unlimited
+    pub max_total_stake: u64,
+    /// Maximum stake per agent - 0 means unlimited
+    pub max_stake_per_agent: u64,
 }
 
 // ============================================================================
@@ -1265,6 +1430,14 @@ pub struct SwarmActionExecuted {
 }
 
 #[event]
+pub struct VoteRevealed {
+    pub action: Pubkey,
+    pub vote_nullifier: [u8; 32],
+    pub vote_value: bool,
+    pub weight: u64,
+}
+
+#[event]
 pub struct AgentDeactivated {
     pub agent: Pubkey,
     pub stake_returned: u64,
@@ -1278,6 +1451,13 @@ pub struct ProtocolPaused {
 #[event]
 pub struct ProtocolUnpaused {
     pub registry: Pubkey,
+}
+
+#[event]
+pub struct CapsUpdated {
+    pub registry: Pubkey,
+    pub max_total_stake: u64,
+    pub max_stake_per_agent: u64,
 }
 
 #[event]
@@ -1367,6 +1547,8 @@ pub enum AgentCollabError {
     AgentNotActive,
     #[msg("Signal already revealed")]
     SignalAlreadyRevealed,
+    #[msg("Vote already revealed")]
+    VoteAlreadyRevealed,
     #[msg("Cannot reveal signal yet")]
     RevealTooEarly,
     #[msg("Withdrawal already claimed")]
@@ -1393,4 +1575,10 @@ pub enum AgentCollabError {
     InvalidReveal,
     #[msg("Commitment mismatch - reveal data does not match original commitment")]
     CommitmentMismatch,
+    #[msg("Stake amount exceeds per-agent cap")]
+    ExceedsAgentStakeCap,
+    #[msg("Total stake would exceed TVL cap")]
+    ExceedsTvlCap,
+    #[msg("Stake calculation overflow")]
+    StakeOverflow,
 }

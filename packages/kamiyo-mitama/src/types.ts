@@ -118,6 +118,8 @@ export interface IdentityLink {
 export interface RegistryConfig {
   minStake: BN;
   minSignalConfidence: number;
+  maxTotalStake: BN; // TVL cap - 0 means unlimited
+  maxStakePerAgent: BN; // Max stake per agent - 0 means unlimited
 }
 
 // Proof data

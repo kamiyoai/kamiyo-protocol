@@ -6,7 +6,7 @@
 
 import { Program, AnchorProvider, BN, web3 } from '@coral-xyz/anchor';
 import { PublicKey, Connection, Keypair } from '@solana/web3.js';
-import { keccak256 } from 'js-sha3';
+import { buildPoseidon, Poseidon } from 'circomlibjs';
 import {
   MITAMA_PROGRAM_ID,
   Groth16Proof,
@@ -27,6 +27,45 @@ import { Idl } from '@coral-xyz/anchor';
 
 // Re-export program ID for convenience
 export { MITAMA_PROGRAM_ID };
+
+// ============================================================================
+// Poseidon Hash Helpers
+// ============================================================================
+
+const FIELD_MODULUS = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
+
+let poseidonInstance: Poseidon | null = null;
+
+async function getPoseidon(): Promise<Poseidon> {
+  if (!poseidonInstance) {
+    poseidonInstance = await buildPoseidon();
+  }
+  return poseidonInstance;
+}
+
+async function poseidonHash(inputs: bigint[]): Promise<bigint> {
+  const poseidon = await getPoseidon();
+  const hash = poseidon(inputs.map(i => i % FIELD_MODULUS));
+  return poseidon.F.toObject(hash);
+}
+
+function bigintToBytes32(n: bigint): Uint8Array {
+  const bytes = new Uint8Array(32);
+  let temp = n;
+  for (let i = 31; i >= 0; i--) {
+    bytes[i] = Number(temp & BigInt(0xff));
+    temp = temp >> BigInt(8);
+  }
+  return bytes;
+}
+
+function bytesToBigint(arr: Uint8Array): bigint {
+  let result = BigInt(0);
+  for (let i = 0; i < arr.length; i++) {
+    result = (result << BigInt(8)) | BigInt(arr[i]);
+  }
+  return result;
+}
 
 // ============================================================================
 // Input Validation
@@ -89,8 +128,8 @@ function validateStakeAmount(value: BN): void {
 // ============================================================================
 
 /**
- * Create a signal commitment using keccak256.
- * Format matches on-chain: keccak256(type || direction || confidence || magnitude || stake_le || secret || nullifier)
+ * Create a signal commitment using Poseidon hash.
+ * Format matches on-chain: poseidon(type, direction, confidence, magnitude, stake, secret, nullifier)
  * @param signalType - Type of signal (0-3)
  * @param direction - Direction (0=short, 1=long, 2=neutral)
  * @param confidence - Confidence level (0-100)
@@ -100,7 +139,7 @@ function validateStakeAmount(value: BN): void {
  * @param agentNullifier - 32-byte agent nullifier
  * @returns 32-byte commitment
  */
-export function createSignalCommitment(
+export async function createSignalCommitment(
   signalType: number,
   direction: number,
   confidence: number,
@@ -108,7 +147,7 @@ export function createSignalCommitment(
   stakeAmount: BN,
   secret: Uint8Array,
   agentNullifier: Uint8Array
-): Uint8Array {
+): Promise<Uint8Array> {
   validateU8(signalType, 'signalType');
   validateU8(direction, 'direction');
   validateU8(confidence, 'confidence');
@@ -116,24 +155,16 @@ export function createSignalCommitment(
   validateBytes32(secret, 'secret');
   validateBytes32(agentNullifier, 'agentNullifier');
 
-  // Build data buffer matching on-chain format (little-endian for stake)
-  const data = new Uint8Array(1 + 1 + 1 + 1 + 8 + 32 + 32);
-  let offset = 0;
-  data[offset++] = signalType;
-  data[offset++] = direction;
-  data[offset++] = confidence;
-  data[offset++] = magnitude;
-  // Stake amount as 8-byte little-endian
-  const stakeBytes = stakeAmount.toArrayLike(Buffer, 'le', 8);
-  data.set(stakeBytes, offset);
-  offset += 8;
-  data.set(secret, offset);
-  offset += 32;
-  data.set(agentNullifier, offset);
-
-  // keccak256 hash
-  const hash = keccak256.array(data);
-  return new Uint8Array(hash);
+  const hash = await poseidonHash([
+    BigInt(signalType),
+    BigInt(direction),
+    BigInt(confidence),
+    BigInt(magnitude),
+    BigInt(stakeAmount.toString()),
+    bytesToBigint(secret),
+    bytesToBigint(agentNullifier),
+  ]);
+  return bigintToBytes32(hash);
 }
 
 // ============================================================================
@@ -681,7 +712,51 @@ export class MitamaClient {
     );
   }
 
+  /**
+   * Reveal a vote's value to update weighted tallies.
+   * Must be called after voting and before action execution.
+   * @param actionHash - Hash of the action that was voted on
+   * @param voteNullifier - Vote nullifier used when voting
+   * @param voteValue - The actual vote (true=for, false=against)
+   * @param voteSalt - 32-byte salt used in the vote commitment
+   * @param identityLinkOwner - Optional owner of identity link for stake weight
+   * @returns Transaction signature
+   */
+  async revealVote(
+    actionHash: Uint8Array,
+    voteNullifier: Uint8Array,
+    voteValue: boolean,
+    voteSalt: Uint8Array,
+    identityLinkOwner?: PublicKey
+  ): Promise<string> {
+    validateBytes32(actionHash, 'actionHash');
+    validateBytes32(voteNullifier, 'voteNullifier');
+    validateBytes32(voteSalt, 'voteSalt');
+
+    const [actionPDA] = MitamaClient.getSwarmActionPDA(actionHash);
+    const [voteRecordPDA] = MitamaClient.getVoteRecordPDA(actionPDA, voteNullifier);
+
+    const accounts: Record<string, PublicKey> = {
+      voteRecord: voteRecordPDA,
+      swarmAction: actionPDA,
+    };
+
+    if (identityLinkOwner) {
+      const [identityLinkPDA] = MitamaClient.getIdentityLinkPDA(identityLinkOwner);
+      accounts.identityLink = identityLinkPDA;
+    }
+
+    return withRetry(() =>
+      this.program.methods
+        .revealVote(voteValue, Array.from(voteSalt))
+        .accountsPartial(accounts)
+        .rpc()
+    );
+  }
+
   async executeSwarmAction(actionHash: Uint8Array): Promise<string> {
+    validateBytes32(actionHash, 'actionHash');
+
     const [actionPDA] = MitamaClient.getSwarmActionPDA(actionHash);
 
     return withRetry(() =>
@@ -699,6 +774,11 @@ export class MitamaClient {
     newRoot: Uint8Array,
     agentCount: number
   ): Promise<string> {
+    validateBytes32(newRoot, 'newRoot');
+    if (typeof agentCount !== 'number' || !Number.isInteger(agentCount) || agentCount < 0) {
+      throw new ValidationError('agentCount must be a non-negative integer');
+    }
+
     const [registryPDA] = MitamaClient.getRegistryPDA();
 
     return withRetry(() =>
@@ -769,7 +849,7 @@ export class MitamaClient {
 
   /**
    * Reveal a signal's content after the reveal period.
-   * Verifies the commitment on-chain using keccak256 hash.
+   * Verifies the commitment on-chain using Poseidon hash.
    * Use createSignalCommitment() to generate matching commitments client-side.
    * @param signalCommitment - Signal commitment to reveal
    * @param signalType - Type of signal (0-3)
@@ -824,6 +904,8 @@ export class MitamaClient {
    * @returns Transaction signature
    */
   async requestWithdrawal(payer: Keypair, identityCommitment: Uint8Array): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
     const [registryPDA] = MitamaClient.getRegistryPDA();
     const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
     const [withdrawalPDA] = MitamaClient.getWithdrawalPDA(agentPDA);
@@ -855,6 +937,8 @@ export class MitamaClient {
     identityCommitment: Uint8Array,
     recipient: PublicKey
   ): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
     const [registryPDA] = MitamaClient.getRegistryPDA();
     const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
     const [withdrawalPDA] = MitamaClient.getWithdrawalPDA(agentPDA);
@@ -883,6 +967,8 @@ export class MitamaClient {
    * @returns Transaction signature
    */
   async cancelWithdrawal(payer: Keypair, identityCommitment: Uint8Array): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
     const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
     const [withdrawalPDA] = MitamaClient.getWithdrawalPDA(agentPDA);
 

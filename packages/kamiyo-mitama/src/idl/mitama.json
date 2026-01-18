@@ -53,6 +53,7 @@
       "accounts": [
         {
           "name": "registry",
+          "writable": true,
           "relations": [
             "agent"
           ]
@@ -259,6 +260,7 @@
       "accounts": [
         {
           "name": "registry",
+          "writable": true,
           "relations": [
             "agent"
           ]
@@ -415,6 +417,11 @@
       "accounts": [
         {
           "name": "registry",
+          "docs": [
+            "Space: 8 discriminator + 32 authority + 32 agents_root + 4 agent_count + 4 signal_count",
+            "+ 4 swarm_action_count + 8 epoch + 8 min_stake + 1 min_signal_confidence + 1 bump",
+            "+ 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake = 127"
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -890,6 +897,57 @@
       ]
     },
     {
+      "name": "reveal_vote",
+      "docs": [
+        "Reveal a vote's value to update weighted tallies",
+        "",
+        "Verifies the revealed vote matches the original commitment.",
+        "The commitment = Poseidon(vote_value, vote_salt, action_hash)"
+      ],
+      "discriminator": [
+        100,
+        157,
+        139,
+        17,
+        186,
+        75,
+        185,
+        149
+      ],
+      "accounts": [
+        {
+          "name": "vote_record",
+          "writable": true
+        },
+        {
+          "name": "swarm_action",
+          "writable": true
+        },
+        {
+          "name": "identity_link",
+          "docs": [
+            "Optional identity link for stake multiplier lookup"
+          ],
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "vote_value",
+          "type": "bool"
+        },
+        {
+          "name": "vote_salt",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "submit_signal",
       "docs": [
         "Submit a private signal with ZK proof of agent identity"
@@ -1139,6 +1197,43 @@
         {
           "name": "agent_count",
           "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "update_caps",
+      "docs": [
+        "Update TVL caps (admin only)",
+        "Set either cap to 0 for unlimited"
+      ],
+      "discriminator": [
+        188,
+        115,
+        142,
+        158,
+        12,
+        242,
+        220,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_max_total_stake",
+          "type": "u64"
+        },
+        {
+          "name": "new_max_stake_per_agent",
+          "type": "u64"
         }
       ]
     },
@@ -1472,6 +1567,19 @@
       ]
     },
     {
+      "name": "CapsUpdated",
+      "discriminator": [
+        147,
+        181,
+        117,
+        249,
+        72,
+        147,
+        156,
+        255
+      ]
+    },
+    {
       "name": "IdentityLinked",
       "discriminator": [
         211,
@@ -1615,6 +1723,19 @@
       ]
     },
     {
+      "name": "VoteRevealed",
+      "discriminator": [
+        104,
+        162,
+        140,
+        194,
+        213,
+        217,
+        117,
+        179
+      ]
+    },
+    {
       "name": "WithdrawalCancelled",
       "discriminator": [
         119,
@@ -1727,68 +1848,88 @@
     },
     {
       "code": 6014,
+      "name": "VoteAlreadyRevealed",
+      "msg": "Vote already revealed"
+    },
+    {
+      "code": 6015,
       "name": "RevealTooEarly",
       "msg": "Cannot reveal signal yet"
     },
     {
-      "code": 6015,
+      "code": 6016,
       "name": "WithdrawalAlreadyClaimed",
       "msg": "Withdrawal already claimed"
     },
     {
-      "code": 6016,
+      "code": 6017,
       "name": "TimelockNotExpired",
       "msg": "Timelock not expired"
     },
     {
-      "code": 6017,
+      "code": 6018,
       "name": "VoteOverflow",
       "msg": "Vote count overflow"
     },
     {
-      "code": 6018,
+      "code": 6019,
       "name": "AggregatorOverflow",
       "msg": "Aggregator overflow"
     },
     {
-      "code": 6019,
+      "code": 6020,
       "name": "UnauthorizedWithdrawal",
       "msg": "Unauthorized withdrawal claim"
     },
     {
-      "code": 6020,
+      "code": 6021,
       "name": "LinkNotActive",
       "msg": "Identity link not active"
     },
     {
-      "code": 6021,
+      "code": 6022,
       "name": "AlreadyLinked",
       "msg": "Identity already linked"
     },
     {
-      "code": 6022,
+      "code": 6023,
       "name": "InvalidStakePosition",
       "msg": "Invalid stake position account"
     },
     {
-      "code": 6023,
+      "code": 6024,
       "name": "StakeOwnerMismatch",
       "msg": "Stake position owner mismatch"
     },
     {
-      "code": 6024,
+      "code": 6025,
       "name": "AgentCountOverflow",
       "msg": "Agent count overflow"
     },
     {
-      "code": 6025,
+      "code": 6026,
       "name": "InvalidReveal",
       "msg": "Invalid reveal data"
     },
     {
-      "code": 6026,
+      "code": 6027,
       "name": "CommitmentMismatch",
       "msg": "Commitment mismatch - reveal data does not match original commitment"
+    },
+    {
+      "code": 6028,
+      "name": "ExceedsAgentStakeCap",
+      "msg": "Stake amount exceeds per-agent cap"
+    },
+    {
+      "code": 6029,
+      "name": "ExceedsTvlCap",
+      "msg": "Total stake would exceed TVL cap"
+    },
+    {
+      "code": 6030,
+      "name": "StakeOverflow",
+      "msg": "Stake calculation overflow"
     }
   ],
   "types": [
@@ -1931,6 +2072,27 @@
           {
             "name": "paused",
             "type": "bool"
+          },
+          {
+            "name": "max_total_stake",
+            "docs": [
+              "Maximum total stake across all agents (TVL cap)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_stake_per_agent",
+            "docs": [
+              "Maximum stake per individual agent"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_stake",
+            "docs": [
+              "Current total stake in the registry"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -1975,6 +2137,26 @@
           },
           {
             "name": "epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CapsUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_total_stake",
+            "type": "u64"
+          },
+          {
+            "name": "max_stake_per_agent",
             "type": "u64"
           }
         ]
@@ -2145,6 +2327,20 @@
           {
             "name": "min_signal_confidence",
             "type": "u8"
+          },
+          {
+            "name": "max_total_stake",
+            "docs": [
+              "Maximum total stake (TVL cap) - 0 means unlimited"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_stake_per_agent",
+            "docs": [
+              "Maximum stake per agent - 0 means unlimited"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -2564,6 +2760,35 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoteRevealed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "action",
+            "type": "pubkey"
+          },
+          {
+            "name": "vote_nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "vote_value",
+            "type": "bool"
+          },
+          {
+            "name": "weight",
+            "type": "u64"
           }
         ]
       }
