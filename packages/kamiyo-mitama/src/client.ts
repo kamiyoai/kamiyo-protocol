@@ -736,20 +736,19 @@ export class MitamaClient {
     const [actionPDA] = MitamaClient.getSwarmActionPDA(actionHash);
     const [voteRecordPDA] = MitamaClient.getVoteRecordPDA(actionPDA, voteNullifier);
 
-    const accounts: Record<string, PublicKey> = {
+    // Build accounts - optional identityLink can be omitted or null
+    const accounts: Record<string, PublicKey | null> = {
       voteRecord: voteRecordPDA,
       swarmAction: actionPDA,
+      identityLink: identityLinkOwner
+        ? MitamaClient.getIdentityLinkPDA(identityLinkOwner)[0]
+        : null,
     };
-
-    if (identityLinkOwner) {
-      const [identityLinkPDA] = MitamaClient.getIdentityLinkPDA(identityLinkOwner);
-      accounts.identityLink = identityLinkPDA;
-    }
 
     return withRetry(() =>
       this.program.methods
         .revealVote(voteValue, Array.from(voteSalt))
-        .accountsPartial(accounts)
+        .accountsPartial(accounts as Record<string, PublicKey>)
         .rpc()
     );
   }
