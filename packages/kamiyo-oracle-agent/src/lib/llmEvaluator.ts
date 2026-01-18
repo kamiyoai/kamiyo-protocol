@@ -1,4 +1,10 @@
 import type { IAgentRuntime, EvaluationContext, QualityAssessment } from '../types';
+import { createLogger } from './logger';
+import { withRetry, withCircuitBreaker } from './retry';
+import { EvaluationError, RateLimitError } from './errors';
+import { sanitizeForLLM } from './validation';
+
+const log = createLogger('llm-evaluator');
 
 const EVALUATION_PROMPT = `You are an impartial oracle evaluating service quality for a blockchain escrow dispute.
 
@@ -24,9 +30,9 @@ const EVALUATION_PROMPT = `You are an impartial oracle evaluating service qualit
 
 ## Evidence
 Agent's Claim: {{agentClaim}}
-{{#if providerClaim}}Provider's Claim: {{providerClaim}}{{/if}}
-{{#if deliveryProof}}Delivery Proof: {{deliveryProof}}{{/if}}
-{{#if thirdPartyData}}Third Party Data: {{thirdPartyData}}{{/if}}
+{{providerClaimSection}}
+{{deliveryProofSection}}
+{{thirdPartySection}}
 
 ## Your Task
 Evaluate the quality of service delivered on a scale of 0-100:
@@ -51,48 +57,99 @@ DELIVERY_COMPLETE: [true|false]
 SLA_COMPLIANT: [true|false|unknown]
 EVIDENCE_STRENGTH: [weak|moderate|strong]`;
 
+interface AnthropicResponse {
+  content?: Array<{ text?: string }>;
+  error?: { type?: string; message?: string };
+}
+
 export async function evaluateWithLLM(
   runtime: IAgentRuntime,
   context: EvaluationContext
 ): Promise<QualityAssessment> {
-  const model = runtime.getSetting('EVALUATION_MODEL') || 'claude-3-5-sonnet-20241022';
   const apiKey = runtime.getSetting('ANTHROPIC_API_KEY');
 
   if (!apiKey) {
-    // Fallback to heuristic evaluation if no API key
+    log.info('No API key, using heuristic evaluation');
     return heuristicEvaluation(context);
   }
 
+  const model = runtime.getSetting('EVALUATION_MODEL') || 'claude-3-5-sonnet-20241022';
   const prompt = buildPrompt(context);
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+    const assessment = await withCircuitBreaker(
+      () => callAnthropicAPI(apiKey, model, prompt, context),
+      'anthropic-api'
+    );
+    return assessment;
+  } catch (err) {
+    log.warn('LLM evaluation failed, using heuristic', {
+      error: err instanceof Error ? err.message : String(err),
     });
-
-    if (!response.ok) {
-      console.error('LLM API error:', response.status);
-      return heuristicEvaluation(context);
-    }
-
-    const data = await response.json();
-    const text = data.content?.[0]?.text || '';
-
-    return parseAssessment(text, context);
-  } catch (error) {
-    console.error('LLM evaluation failed:', error);
     return heuristicEvaluation(context);
   }
+}
+
+async function callAnthropicAPI(
+  apiKey: string,
+  model: string,
+  prompt: string,
+  context: EvaluationContext
+): Promise<QualityAssessment> {
+  return withRetry(
+    async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 500,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('retry-after');
+          const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : 60000;
+          throw new RateLimitError(delayMs);
+        }
+
+        if (!response.ok) {
+          throw new EvaluationError(`API error: ${response.status}`, {
+            status: response.status,
+          });
+        }
+
+        const data = (await response.json()) as AnthropicResponse;
+
+        if (data.error) {
+          throw new EvaluationError(data.error.message || 'Unknown API error');
+        }
+
+        const text = data.content?.[0]?.text || '';
+        if (!text) {
+          throw new EvaluationError('Empty response from API');
+        }
+
+        return parseAssessment(text, context);
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    'anthropicAPI',
+    { maxAttempts: 2, baseDelayMs: 2000 }
+  );
 }
 
 function buildPrompt(context: EvaluationContext): string {
@@ -100,10 +157,22 @@ function buildPrompt(context: EvaluationContext): string {
     (Date.now() / 1000 - context.escrow.createdAt) / 3600
   );
 
-  let prompt = EVALUATION_PROMPT
+  const providerClaimSection = context.evidence.providerClaim
+    ? `Provider's Claim: ${sanitizeForLLM(context.evidence.providerClaim)}`
+    : '';
+
+  const deliveryProofSection = context.service.deliveryProof
+    ? `Delivery Proof: ${sanitizeForLLM(context.service.deliveryProof)}`
+    : '';
+
+  const thirdPartySection = context.evidence.thirdPartyData?.length
+    ? `Third Party Data:\n${context.evidence.thirdPartyData.map((d) => `- ${d}`).join('\n')}`
+    : '';
+
+  return EVALUATION_PROMPT
     .replace('{{serviceType}}', context.service.type)
     .replace('{{amount}}', context.escrow.amount.toFixed(4))
-    .replace('{{transactionId}}', context.escrow.transactionId)
+    .replace('{{transactionId}}', context.escrow.transactionId.slice(0, 16))
     .replace('{{timeSinceCreation}}', `${timeSinceCreation} hours`)
     .replace('{{providerReputation}}', context.provider.reputation.toString())
     .replace('{{providerDisputeRate}}', context.provider.disputeRate.toFixed(1))
@@ -112,32 +181,11 @@ function buildPrompt(context: EvaluationContext): string {
     .replace('{{agentReputation}}', context.agent.reputation.toString())
     .replace('{{agentDisputeRate}}', context.agent.disputeRate.toFixed(1))
     .replace('{{agentTotalEscrows}}', context.agent.totalEscrows.toString())
-    .replace('{{slaTerms}}', context.service.slaTerms.map(t => `- ${t}`).join('\n'))
-    .replace('{{agentClaim}}', context.evidence.agentClaim);
-
-  // Handle optional fields
-  if (context.evidence.providerClaim) {
-    prompt = prompt.replace('{{#if providerClaim}}', '').replace('{{/if}}', '');
-    prompt = prompt.replace('{{providerClaim}}', context.evidence.providerClaim);
-  } else {
-    prompt = prompt.replace(/{{#if providerClaim}}.*{{\/if}}/s, '');
-  }
-
-  if (context.service.deliveryProof) {
-    prompt = prompt.replace('{{#if deliveryProof}}', '').replace('{{/if}}', '');
-    prompt = prompt.replace('{{deliveryProof}}', context.service.deliveryProof);
-  } else {
-    prompt = prompt.replace(/{{#if deliveryProof}}.*{{\/if}}/s, '');
-  }
-
-  if (context.evidence.thirdPartyData?.length) {
-    prompt = prompt.replace('{{#if thirdPartyData}}', '').replace('{{/if}}', '');
-    prompt = prompt.replace('{{thirdPartyData}}', context.evidence.thirdPartyData.join('\n'));
-  } else {
-    prompt = prompt.replace(/{{#if thirdPartyData}}.*{{\/if}}/s, '');
-  }
-
-  return prompt;
+    .replace('{{slaTerms}}', context.service.slaTerms.map((t) => `- ${t}`).join('\n'))
+    .replace('{{agentClaim}}', sanitizeForLLM(context.evidence.agentClaim))
+    .replace('{{providerClaimSection}}', providerClaimSection)
+    .replace('{{deliveryProofSection}}', deliveryProofSection)
+    .replace('{{thirdPartySection}}', thirdPartySection);
 }
 
 function parseAssessment(text: string, context: EvaluationContext): QualityAssessment {
@@ -148,8 +196,16 @@ function parseAssessment(text: string, context: EvaluationContext): QualityAsses
   const slaMatch = text.match(/SLA_COMPLIANT:\s*(true|false|unknown)/i);
   const evidenceMatch = text.match(/EVIDENCE_STRENGTH:\s*(weak|moderate|strong)/i);
 
-  const score = scoreMatch ? Math.min(100, Math.max(0, parseInt(scoreMatch[1]))) : 72;
-  const confidence = (confidenceMatch?.[1]?.toLowerCase() as 'low' | 'medium' | 'high') || 'medium';
+  const rawScore = scoreMatch ? parseInt(scoreMatch[1]) : 72;
+  const score = Math.min(100, Math.max(0, rawScore));
+  const confidence =
+    (confidenceMatch?.[1]?.toLowerCase() as 'low' | 'medium' | 'high') || 'medium';
+
+  log.debug('Parsed LLM response', {
+    score,
+    confidence,
+    hasReasoning: !!reasoningMatch,
+  });
 
   return {
     score,
@@ -158,15 +214,21 @@ function parseAssessment(text: string, context: EvaluationContext): QualityAsses
     factors: {
       deliveryComplete: deliveryMatch?.[1]?.toLowerCase() === 'true',
       slaCompliant: slaMatch?.[1]?.toLowerCase() === 'true',
-      evidenceStrength: (evidenceMatch?.[1]?.toLowerCase() as 'weak' | 'moderate' | 'strong') || 'weak',
-      providerHistory: categorizeHistory(context.provider.reputation, context.provider.disputeRate),
-      agentHistory: categorizeAgentHistory(context.agent.reputation, context.agent.disputeRate),
+      evidenceStrength:
+        (evidenceMatch?.[1]?.toLowerCase() as 'weak' | 'moderate' | 'strong') || 'weak',
+      providerHistory: categorizeHistory(
+        context.provider.reputation,
+        context.provider.disputeRate
+      ),
+      agentHistory: categorizeAgentHistory(
+        context.agent.reputation,
+        context.agent.disputeRate
+      ),
     },
   };
 }
 
 function heuristicEvaluation(context: EvaluationContext): QualityAssessment {
-  // Fallback heuristic when LLM is unavailable
   let score = 72; // Start neutral
 
   // Adjust based on provider history
@@ -180,30 +242,43 @@ function heuristicEvaluation(context: EvaluationContext): QualityAssessment {
   if (context.agent.disputeRate > 40) score += 10;
   else if (context.agent.disputeRate < 5) score -= 5;
 
-  // Clamp to valid range
   score = Math.min(100, Math.max(0, score));
+
+  log.info('Heuristic evaluation complete', { score });
 
   return {
     score,
     confidence: 'low',
-    reasoning: 'Heuristic evaluation based on party histories. LLM unavailable.',
+    reasoning: 'Heuristic evaluation based on party histories.',
     factors: {
-      deliveryComplete: true, // Assume true without evidence
+      deliveryComplete: true,
       slaCompliant: true,
       evidenceStrength: 'weak',
-      providerHistory: categorizeHistory(context.provider.reputation, context.provider.disputeRate),
-      agentHistory: categorizeAgentHistory(context.agent.reputation, context.agent.disputeRate),
+      providerHistory: categorizeHistory(
+        context.provider.reputation,
+        context.provider.disputeRate
+      ),
+      agentHistory: categorizeAgentHistory(
+        context.agent.reputation,
+        context.agent.disputeRate
+      ),
     },
   };
 }
 
-function categorizeHistory(reputation: number, disputeRate: number): 'poor' | 'average' | 'good' {
+function categorizeHistory(
+  reputation: number,
+  disputeRate: number
+): 'poor' | 'average' | 'good' {
   if (reputation > 700 && disputeRate < 15) return 'good';
   if (reputation < 300 || disputeRate > 40) return 'poor';
   return 'average';
 }
 
-function categorizeAgentHistory(reputation: number, disputeRate: number): 'frivolous' | 'average' | 'legitimate' {
+function categorizeAgentHistory(
+  reputation: number,
+  disputeRate: number
+): 'frivolous' | 'average' | 'legitimate' {
   if (disputeRate > 50) return 'frivolous';
   if (reputation > 700 && disputeRate < 20) return 'legitimate';
   return 'average';

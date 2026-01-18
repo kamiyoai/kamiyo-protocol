@@ -1,6 +1,32 @@
 import { Connection, PublicKey } from '@solana/web3.js';
+import BN from 'bn.js';
 import type { Service, IAgentRuntime, PendingDispute } from '../types';
 import { getNetworkConfig, PROGRAM_IDS } from '../config';
+import { createLogger } from '../lib/logger';
+import { withRetry, withCircuitBreaker } from '../lib/retry';
+import { BlockchainError } from '../lib/errors';
+
+const log = createLogger('dispute-listener');
+
+// Escrow status enum matching on-chain
+const ESCROW_STATUS = {
+  Active: 0,
+  Released: 1,
+  Disputed: 2,
+  Resolved: 3,
+} as const;
+
+interface ServiceState {
+  timer: ReturnType<typeof setInterval> | null;
+  connection: Connection | null;
+  isShuttingDown: boolean;
+}
+
+const state: ServiceState = {
+  timer: null,
+  connection: null,
+  isShuttingDown: false,
+};
 
 export const disputeListenerService: Service = {
   name: 'kamiyo-dispute-listener',
@@ -14,39 +40,49 @@ export const disputeListenerService: Service = {
     const pollInterval = parseInt(runtime.getSetting('POLL_INTERVAL_MS') || '30000');
     const heliusKey = runtime.getSetting('HELIUS_API_KEY');
 
-    console.log(`[dispute-listener] Starting on ${network}...`);
-    console.log(`[dispute-listener] Program: ${programId.toBase58()}`);
-    console.log(`[dispute-listener] Poll interval: ${pollInterval}ms`);
+    log.info('Starting dispute listener', {
+      network,
+      program: programId.toBase58().slice(0, 8),
+      pollInterval,
+    });
 
-    // If Helius is available, use webhooks for real-time updates
+    state.connection = connection;
+    state.isShuttingDown = false;
+
     if (heliusKey) {
       await setupHeliusWebhook(runtime, heliusKey, programId);
     }
 
-    // Also run polling as a fallback/backup
     const poll = async () => {
+      if (state.isShuttingDown) return;
+
       try {
-        await pollForDisputes(runtime, connection, programId);
+        await withCircuitBreaker(
+          () => pollForDisputes(runtime, connection, programId),
+          'dispute-polling'
+        );
       } catch (err) {
-        console.error('[dispute-listener] Poll error:', err);
+        log.error('Poll failed', err instanceof Error ? err : new Error(String(err)));
       }
     };
 
-    const timer = setInterval(poll, pollInterval);
-    (this as any)._timer = timer;
-    (this as any)._connection = connection;
+    state.timer = setInterval(poll, pollInterval);
 
-    // Initial poll
-    await poll();
+    // Initial poll with small delay
+    setTimeout(poll, 1000);
 
-    console.log('[dispute-listener] Service started');
+    log.info('Dispute listener started');
   },
 
   async stop(): Promise<void> {
-    if ((this as any)._timer) {
-      clearInterval((this as any)._timer);
-      console.log('[dispute-listener] Service stopped');
+    state.isShuttingDown = true;
+
+    if (state.timer) {
+      clearInterval(state.timer);
+      state.timer = null;
     }
+
+    log.info('Dispute listener stopped');
   },
 };
 
@@ -55,13 +91,11 @@ async function setupHeliusWebhook(
   apiKey: string,
   programId: PublicKey
 ): Promise<void> {
-  // In production, this would register a webhook with Helius
-  // For now, we rely on polling
-
-  console.log('[dispute-listener] Helius webhook setup (placeholder)');
-
-  // The webhook would call this function when disputes are detected:
-  // onDisputeDetected(runtime, disputeEvent);
+  // Helius webhook registration for production
+  // In real implementation, would set up authenticated webhook endpoint
+  log.info('Helius webhook setup placeholder', {
+    program: programId.toBase58().slice(0, 8),
+  });
 }
 
 async function pollForDisputes(
@@ -69,31 +103,37 @@ async function pollForDisputes(
   connection: Connection,
   programId: PublicKey
 ): Promise<void> {
-  // Get all program accounts that are disputed escrows
-  const accounts = await connection.getProgramAccounts(programId, {
-    filters: [
-      { dataSize: 500 }, // Approximate escrow account size
-      // Filter for disputed status (status byte = 1)
-      {
-        memcmp: {
-          offset: 80, // Status field offset (approximate)
-          bytes: Buffer.from([1]).toString('base64'), // Disputed = 1
-        },
-      },
-    ],
-  });
+  // Fetch disputed escrows with retry
+  const accounts = await withRetry(
+    async () => {
+      return connection.getProgramAccounts(programId, {
+        filters: [
+          // Filter for Escrow accounts by discriminator
+          // Escrow discriminator would be sha256("account:Escrow")[0..8]
+          // Using memcmp for status = Disputed (2)
+          {
+            memcmp: {
+              offset: 8 + 32 + 32 + 8, // After discriminator, agent, api, amount
+              bytes: Buffer.from([ESCROW_STATUS.Disputed]).toString('base64'),
+            },
+          },
+        ],
+      });
+    },
+    'getProgramAccounts',
+    { maxAttempts: 2 }
+  );
 
-  console.log(`[dispute-listener] Found ${accounts.length} disputed escrows`);
+  log.debug('Poll complete', { found: accounts.length });
 
-  // Get current state
-  const state = await runtime.getState?.('oracle_state') as {
+  const oracleState = (await runtime.getState?.('oracle_state')) as {
     pendingDisputes?: PendingDispute[];
     votedDisputes?: string[];
   } | undefined;
 
-  const currentPending = state?.pendingDisputes || [];
-  const votedDisputes = state?.votedDisputes || [];
-  const currentPendingSet = new Set(currentPending.map(d => d.escrowPda));
+  const currentPending = oracleState?.pendingDisputes || [];
+  const votedDisputes = oracleState?.votedDisputes || [];
+  const currentPendingSet = new Set(currentPending.map((d) => d.escrowPda));
   const votedSet = new Set(votedDisputes);
 
   const newDisputes: PendingDispute[] = [];
@@ -101,44 +141,71 @@ async function pollForDisputes(
   for (const { pubkey, account } of accounts) {
     const escrowPda = pubkey.toBase58();
 
-    // Skip if already pending or voted
     if (currentPendingSet.has(escrowPda) || votedSet.has(escrowPda)) {
       continue;
     }
 
-    // Parse escrow data (simplified)
     const dispute = parseEscrowAccount(escrowPda, account.data);
     if (dispute) {
       newDisputes.push(dispute);
-      console.log(`[dispute-listener] New dispute: ${escrowPda.slice(0, 8)}... (${dispute.amount} SOL)`);
+      log.info('New dispute detected', {
+        escrow: escrowPda.slice(0, 8),
+        amount: dispute.amount,
+      });
     }
   }
 
   if (newDisputes.length > 0) {
-    // Add new disputes to pending list
     const updatedPending = [...currentPending, ...newDisputes];
 
     await runtime.setState?.('oracle_state', {
-      ...state,
+      ...oracleState,
       pendingDisputes: updatedPending,
     });
 
-    console.log(`[dispute-listener] Added ${newDisputes.length} new disputes, total pending: ${updatedPending.length}`);
+    log.info('Disputes added', {
+      new: newDisputes.length,
+      total: updatedPending.length,
+    });
   }
 }
 
 function parseEscrowAccount(escrowPda: string, data: Buffer): PendingDispute | null {
   try {
-    // Simplified parsing - in production use Anchor's account decoder
-    const agent = new PublicKey(data.slice(8, 40)).toBase58();
-    const provider = new PublicKey(data.slice(40, 72)).toBase58();
-    const amount = Number(data.readBigUInt64LE(72)) / 1e9;
-    const createdAt = Number(data.readBigInt64LE(81));
-    const expiresAt = Number(data.readBigInt64LE(89));
+    let offset = 8; // Skip discriminator
 
-    // Extract transaction ID (string with length prefix)
-    const txIdLength = data.readUInt32LE(97);
-    const transactionId = data.slice(101, 101 + txIdLength).toString('utf8');
+    const agent = new PublicKey(data.slice(offset, offset + 32)).toBase58();
+    offset += 32;
+
+    const provider = new PublicKey(data.slice(offset, offset + 32)).toBase58();
+    offset += 32;
+
+    const amount = new BN(data.slice(offset, offset + 8), 'le').toNumber() / 1e9;
+    offset += 8;
+
+    const status = data[offset];
+    offset += 1;
+
+    // Only process disputed escrows
+    if (status !== ESCROW_STATUS.Disputed) {
+      return null;
+    }
+
+    const createdAt = new BN(data.slice(offset, offset + 8), 'le').toNumber();
+    offset += 8;
+
+    const expiresAt = new BN(data.slice(offset, offset + 8), 'le').toNumber();
+    offset += 8;
+
+    // Read transaction_id (4-byte length prefix + string)
+    const txIdLen = data.readUInt32LE(offset);
+    offset += 4;
+
+    if (txIdLen > 64) {
+      return null;
+    }
+
+    const transactionId = data.slice(offset, offset + txIdLen).toString('utf8');
 
     return {
       escrowPda,
@@ -151,7 +218,11 @@ function parseEscrowAccount(escrowPda: string, data: Buffer): PendingDispute | n
       addedAt: Date.now(),
       evaluationAttempts: 0,
     };
-  } catch {
+  } catch (err) {
+    log.warn('Failed to parse escrow', {
+      escrow: escrowPda.slice(0, 8),
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }

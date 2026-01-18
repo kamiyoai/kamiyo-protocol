@@ -1,6 +1,6 @@
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
-import { submitOracleVote, getOracleStake } from '../lib/voteSubmitter';
-import { gatherEvaluationContext, hasAlreadyVoted } from '../lib/contextGatherer';
+import { submitOracleVote, getOracleStake, hasAlreadyVoted } from '../lib/voteSubmitter';
+import { gatherEvaluationContext } from '../lib/contextGatherer';
 import { evaluateWithLLM } from '../lib/llmEvaluator';
 import { calibrateVote, shouldAbstainOnRisk } from '../lib/confidenceCalibrator';
 
@@ -114,7 +114,7 @@ export const submitVoteAction: Action = {
       // Submit the vote
       callback?.({ text: 'Signing and submitting vote to blockchain...' });
 
-      const txSignature = await submitOracleVote(runtime, escrowId, {
+      const result = await submitOracleVote(runtime, escrowId, {
         shouldVote: true,
         adjustedScore: finalScore,
         riskLevel: 'medium',
@@ -124,12 +124,12 @@ export const submitVoteAction: Action = {
       });
 
       callback?.({
-        text: `Vote submitted successfully!\n\nEscrow: ${escrowId.slice(0, 8)}...\nScore: ${finalScore}/100\nTransaction: ${txSignature}`,
+        text: `Vote submitted successfully!\n\nEscrow: ${escrowId.slice(0, 8)}...\nScore: ${finalScore}/100\nTransaction: ${result.signature}`,
       });
 
       return {
         success: true,
-        transaction: txSignature,
+        transaction: result.signature,
         score: finalScore,
       };
     } catch (err) {
