@@ -48,7 +48,17 @@ runs:
   using: 'composite'
   steps:
     - name: Install Rust
-      uses: dtolnay/rust-action@stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-surfpool-${{ inputs.surfpool-version }}
 
     - name: Install Solana CLI
       shell: bash
@@ -60,9 +70,9 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.surfpool-version }}" = "latest" ]; then
-          cargo install surfpool
+          cargo install surfpool --locked 2>/dev/null || cargo install surfpool
         else
-          cargo install surfpool --version ${{ inputs.surfpool-version }}
+          cargo install surfpool --version ${{ inputs.surfpool-version }} --locked 2>/dev/null || cargo install surfpool --version ${{ inputs.surfpool-version }}
         fi
 
     - name: Install Anchor
@@ -81,12 +91,39 @@ runs:
     - name: Start Surfpool
       shell: bash
       run: |
+        mkdir -p ./test-results
         if [ "${{ inputs.mainnet-fork }}" = "true" ] && [ -n "${{ inputs.rpc-url }}" ]; then
-          surfpool --fork ${{ inputs.rpc-url }} &
+          echo "Starting Surfpool with mainnet fork..."
+          surfpool --fork ${{ inputs.rpc-url }} > ./test-results/surfpool.log 2>&1 &
         else
-          surfpool &
+          echo "Starting Surfpool in local mode..."
+          surfpool > ./test-results/surfpool.log 2>&1 &
         fi
-        sleep 5
+        echo $! > ./test-results/surfpool.pid
+
+    - name: Wait for Surfpool Ready
+      shell: bash
+      run: |
+        echo "Waiting for Surfpool to be ready..."
+        MAX_RETRIES=30
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if curl -s http://localhost:8899 -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' | grep -q "ok"; then
+            echo "Surfpool is ready"
+            break
+          fi
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          echo "Waiting... ($RETRY_COUNT/$MAX_RETRIES)"
+          sleep 1
+        done
+
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+          echo "Surfpool failed to start"
+          cat ./test-results/surfpool.log || true
+          exit 1
+        fi
 
     - name: Clone Mainnet Accounts
       if: inputs.mainnet-fork == 'true' && inputs.accounts-to-clone != ''
@@ -94,21 +131,31 @@ runs:
       run: |
         IFS=',' read -ra ACCOUNTS <<< "${{ inputs.accounts-to-clone }}"
         for account in "${ACCOUNTS[@]}"; do
+          account=$(echo "$account" | xargs)  # Trim whitespace
           echo "Cloning account: $account"
-          # Clone via Surfpool RPC
-          curl -X POST http://localhost:8899 \
+          RESULT=$(curl -s -X POST http://localhost:8899 \
             -H "Content-Type: application/json" \
-            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"surfpool_cloneAccount\",\"params\":[\"$account\"]}"
+            -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"surfnet_cloneAccount\",\"params\":[\"$account\",\"mainnet-beta\"]}")
+          echo "Result: $RESULT"
         done
 
     - name: Run Surfpool Tests
       id: run-tests
       shell: bash
+      env:
+        SURFPOOL_URL: http://localhost:8899
       run: |
         cd ${{ inputs.program-path }}/..
-        timeout ${{ inputs.timeout }} npm run test:surfpool || TEST_EXIT=$?
 
-        if [ "${TEST_EXIT:-0}" -eq 0 ]; then
+        set +e
+        timeout ${{ inputs.timeout }} npm run test:surfpool 2>&1 | tee ./test-results/test-output.log
+        TEST_EXIT=${PIPESTATUS[0]}
+        set -e
+
+        # Generate report
+        echo "{\"success\": $([[ $TEST_EXIT -eq 0 ]] && echo 'true' || echo 'false'), \"exitCode\": $TEST_EXIT, \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > ./test-results/surfpool-report.json
+
+        if [ "$TEST_EXIT" -eq 0 ]; then
           echo "success=true" >> $GITHUB_OUTPUT
         else
           echo "success=false" >> $GITHUB_OUTPUT
@@ -117,7 +164,19 @@ runs:
 
         echo "report=./test-results/surfpool-report.json" >> $GITHUB_OUTPUT
 
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: surfpool-test-results
+        path: ./test-results/
+        retention-days: 7
+
     - name: Stop Surfpool
       if: always()
       shell: bash
-      run: pkill surfpool || true
+      run: |
+        if [ -f ./test-results/surfpool.pid ]; then
+          kill $(cat ./test-results/surfpool.pid) 2>/dev/null || true
+        fi
+        pkill surfpool 2>/dev/null || true

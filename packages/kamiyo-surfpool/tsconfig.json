@@ -20,10 +20,10 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": ["node", "jest"],
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
