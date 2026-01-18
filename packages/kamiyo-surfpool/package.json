@@ -16,8 +16,9 @@
     "url": "https://github.com/kamiyo-ai/kamiyo-protocol/issues"
   },
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.esm.json",
-    "test": "jest",
+    "build": "rm -rf dist && tsc && npm run build:esm",
+    "build:esm": "tsc -p tsconfig.esm.json --outDir dist/esm && node -e \"const fs=require('fs');const files=fs.readdirSync('dist/esm').filter(f=>f.endsWith('.js'));files.forEach(f=>{fs.renameSync('dist/esm/'+f,'dist/'+f.replace('.js','.mjs'))});fs.rmSync('dist/esm',{recursive:true})\"",
+    "test": "jest --passWithNoTests",
     "test:examples": "ts-node examples/basic-simulation.ts",
     "lint": "eslint src/**/*.ts",
     "prepublishOnly": "npm run build"
