@@ -199,4 +199,242 @@ router.get('/signal/:id', async (req: Request, res: Response) => {
   }
 });
 
+// =============================================================================
+// ON-CHAIN ENDPOINTS
+// =============================================================================
+
+// GET /mitama/registry - Get on-chain registry state
+router.get('/registry', async (_req: Request, res: Response) => {
+  try {
+    const { getMitamaClient, bytesToHex } = await import('../../mitama-stubs');
+    const client = await getMitamaClient();
+    const registry = await client.getRegistry();
+
+    if (!registry) {
+      return res.status(404).json({ error: 'Registry not initialized' });
+    }
+
+    res.json({
+      epoch: registry.epoch.toString(),
+      agentCount: registry.agentCount,
+      agentsRoot: bytesToHex(new Uint8Array(registry.agentsRoot)),
+      minStake: registry.minStake.toString(),
+    });
+  } catch (err) {
+    logger.error('Failed to get registry', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get registry' });
+  }
+});
+
+// GET /mitama/aggregator/:epoch - Get on-chain aggregator for epoch
+router.get('/aggregator/:epoch', async (req: Request, res: Response) => {
+  try {
+    const { getMitamaClient } = await import('../../mitama-stubs');
+    const { BN } = await import('@coral-xyz/anchor');
+    const client = await getMitamaClient();
+    const epoch = new BN(req.params.epoch);
+    const aggregator = await client.getAggregator(epoch);
+
+    if (!aggregator) {
+      return res.status(404).json({ error: 'Aggregator not found for this epoch' });
+    }
+
+    const totalSignals = aggregator.totalSignals;
+    res.json({
+      epoch: req.params.epoch,
+      totalSignals,
+      longCount: aggregator.longCount,
+      shortCount: aggregator.shortCount,
+      neutralCount: aggregator.neutralCount,
+      avgConfidence: totalSignals > 0 ? Math.round(aggregator.totalConfidence / totalSignals) : 0,
+      avgMagnitude: totalSignals > 0 ? Math.round(aggregator.totalMagnitude / totalSignals) : 0,
+    });
+  } catch (err) {
+    logger.error('Failed to get aggregator', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get aggregator' });
+  }
+});
+
+// POST /mitama/signal/submit - Submit ZK signal on-chain
+router.post('/signal/submit', async (req: Request, res: Response) => {
+  try {
+    const { proof, nullifier, commitment } = req.body;
+
+    if (!proof?.a || !proof?.b || !proof?.c || !nullifier || !commitment) {
+      return res.status(400).json({ error: 'Missing required fields: proof, nullifier, commitment' });
+    }
+
+    const { getMitamaClient, hexToBytes, getKeypair } = await import('../../mitama-stubs');
+    const client = await getMitamaClient();
+    const keypair = getKeypair();
+
+    const tx = await client.submitSignal(
+      keypair,
+      {
+        a: hexToBytes(proof.a),
+        b: hexToBytes(proof.b),
+        c: hexToBytes(proof.c),
+      },
+      hexToBytes(nullifier),
+      hexToBytes(commitment)
+    );
+
+    res.json({ success: true, tx });
+  } catch (err: any) {
+    logger.error('Failed to submit signal', { error: String(err) });
+    res.status(500).json({ error: err.message || 'Failed to submit signal' });
+  }
+});
+
+// POST /mitama/swarm/create - Create swarm action on-chain
+router.post('/swarm/create', async (req: Request, res: Response) => {
+  try {
+    const { proof, nullifier, actionHash, threshold } = req.body;
+
+    if (!proof?.a || !proof?.b || !proof?.c || !nullifier || !actionHash) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const { getMitamaClient, hexToBytes, getKeypair } = await import('../../mitama-stubs');
+    const client = await getMitamaClient();
+    const keypair = getKeypair();
+
+    const tx = await client.createSwarmAction(
+      keypair,
+      {
+        a: hexToBytes(proof.a),
+        b: hexToBytes(proof.b),
+        c: hexToBytes(proof.c),
+      },
+      hexToBytes(nullifier),
+      hexToBytes(actionHash),
+      threshold || 66
+    );
+
+    res.json({ success: true, tx });
+  } catch (err: any) {
+    logger.error('Failed to create swarm action', { error: String(err) });
+    res.status(500).json({ error: err.message || 'Failed to create swarm action' });
+  }
+});
+
+// GET /mitama/swarm/:actionHash - Get swarm action state
+router.get('/swarm/:actionHash', async (req: Request, res: Response) => {
+  try {
+    const { getMitamaClient, hexToBytes, bytesToHex } = await import('../../mitama-stubs');
+    const client = await getMitamaClient();
+    const actionHash = hexToBytes(req.params.actionHash);
+    const action = await client.getSwarmAction(actionHash);
+
+    if (!action) {
+      return res.status(404).json({ error: 'Swarm action not found' });
+    }
+
+    // Cast to any to handle IDL type mismatch
+    const a = action as any;
+    res.json({
+      actionHash: bytesToHex(actionHash),
+      votesFor: a.votesFor ?? 0,
+      votesAgainst: a.votesAgainst ?? 0,
+      weightedVotesFor: a.weightedVotesFor?.toString() ?? '0',
+      weightedVotesAgainst: a.weightedVotesAgainst?.toString() ?? '0',
+      totalVotes: a.totalVotes ?? 0,
+      threshold: a.threshold ?? 0,
+      executed: a.executed ?? false,
+    });
+  } catch (err) {
+    logger.error('Failed to get swarm action', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get swarm action' });
+  }
+});
+
+// POST /mitama/swarm/vote - Vote on swarm action
+router.post('/swarm/vote', async (req: Request, res: Response) => {
+  try {
+    const { proof, voteNullifier, voteCommitment, actionHash } = req.body;
+
+    if (!proof?.a || !proof?.b || !proof?.c || !voteNullifier || !voteCommitment || !actionHash) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const { getMitamaClient, hexToBytes, getKeypair } = await import('../../mitama-stubs');
+    const client = await getMitamaClient();
+    const keypair = getKeypair();
+
+    const tx = await client.voteSwarmAction(
+      keypair,
+      {
+        a: hexToBytes(proof.a),
+        b: hexToBytes(proof.b),
+        c: hexToBytes(proof.c),
+      },
+      hexToBytes(voteNullifier),
+      hexToBytes(voteCommitment),
+      hexToBytes(actionHash)
+    );
+
+    res.json({ success: true, tx });
+  } catch (err: any) {
+    logger.error('Failed to vote on swarm action', { error: String(err) });
+    res.status(500).json({ error: err.message || 'Failed to vote' });
+  }
+});
+
+// POST /mitama/swarm/reveal - Reveal vote on swarm action
+router.post('/swarm/reveal', async (req: Request, res: Response) => {
+  try {
+    const { actionHash, voteNullifier, voteValue, voteSalt } = req.body;
+
+    if (!actionHash || !voteNullifier || voteValue === undefined || !voteSalt) {
+      return res.status(400).json({ error: 'Missing required fields: actionHash, voteNullifier, voteValue, voteSalt' });
+    }
+
+    const { getMitamaClient, hexToBytes } = await import('../../mitama-stubs');
+    const client = await getMitamaClient();
+
+    const tx = await client.revealVote(
+      hexToBytes(actionHash),
+      hexToBytes(voteNullifier),
+      Boolean(voteValue),
+      hexToBytes(voteSalt)
+    );
+
+    res.json({ success: true, tx });
+  } catch (err: any) {
+    logger.error('Failed to reveal vote', { error: String(err) });
+    res.status(500).json({ error: err.message || 'Failed to reveal vote' });
+  }
+});
+
+// POST /mitama/signal/reveal - Reveal signal
+router.post('/signal/reveal', async (req: Request, res: Response) => {
+  try {
+    const { commitment, signalType, direction, confidence, magnitude, stakeAmount, secret } = req.body;
+
+    if (!commitment || signalType === undefined || direction === undefined ||
+        confidence === undefined || magnitude === undefined || !stakeAmount || !secret) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const { getMitamaClient, hexToBytes } = await import('../../mitama-stubs');
+    const { BN } = await import('@coral-xyz/anchor');
+    const client = await getMitamaClient();
+
+    const tx = await client.revealSignal(
+      hexToBytes(commitment),
+      signalType,
+      direction,
+      confidence,
+      magnitude,
+      new BN(stakeAmount),
+      hexToBytes(secret)
+    );
+
+    res.json({ success: true, tx });
+  } catch (err: any) {
+    logger.error('Failed to reveal signal', { error: String(err) });
+    res.status(500).json({ error: err.message || 'Failed to reveal signal' });
+  }
+});
+
 export default router;
