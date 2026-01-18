@@ -75,7 +75,7 @@ describe('MitamaClient', () => {
   describe('Program ID', () => {
     it('should export the correct program ID', () => {
       expect(MITAMA_PROGRAM_ID.toBase58()).toBe(
-        'DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26'
+        'DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km'
       );
     });
   });
