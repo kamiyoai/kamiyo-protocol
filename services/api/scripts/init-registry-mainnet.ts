@@ -79,11 +79,61 @@ async function main() {
   console.log('  minSignalConfidence:', MAINNET_CONFIG.minSignalConfidence);
   console.log('');
 
+  // Use low-level transaction building to ensure proper signing
+  const [registryPDA] = MitamaClient.getRegistryPDA();
+  const [treasuryVault] = MitamaClient.getTreasuryPDA(registryPDA);
+  const kamiyoMintPubkey = new (await import('@solana/web3.js')).PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
+  const TOKEN_PROGRAM_ID = new (await import('@solana/web3.js')).PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+
+  console.log('Accounts:');
+  console.log('  Registry PDA:', registryPDA.toBase58());
+  console.log('  Treasury vault:', treasuryVault.toBase58());
+  console.log('  KAMIYO mint:', kamiyoMintPubkey.toBase58());
+  console.log('');
+
   try {
-    const tx = await client.initializeRegistry(keypair, MAINNET_CONFIG);
+    // Access the program directly
+    const program = (client as any).program;
+
+    // Build the instruction and transaction manually for better control over signing
+    const instruction = await program.methods
+      .initializeRegistry(MAINNET_CONFIG)
+      .accounts({
+        registry: registryPDA,
+        kamiyoMint: kamiyoMintPubkey,
+        treasuryVault: treasuryVault,
+        authority: keypair.publicKey,
+        systemProgram: (await import('@solana/web3.js')).SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+
+    // Create and sign transaction manually
+    const { Transaction } = await import('@solana/web3.js');
+    const transaction = new Transaction();
+    transaction.add(instruction);
+
+    // Get recent blockhash
+    const { blockhash } = await connection.getLatestBlockhash('confirmed');
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = keypair.publicKey;
+
+    // Sign with the keypair
+    transaction.sign(keypair);
+
+    // Send raw transaction - skip preflight to bypass Helius simulation issues
+    const rawTransaction = transaction.serialize();
+    const txSig = await connection.sendRawTransaction(rawTransaction, {
+      skipPreflight: true,  // Skip simulation, send directly
+      preflightCommitment: 'confirmed',
+    });
+
+    // Confirm
+    await connection.confirmTransaction(txSig, 'confirmed');
+
     console.log('SUCCESS! Registry initialized');
-    console.log('Tx:', tx);
-    console.log('Explorer: https://solscan.io/tx/' + tx);
+    console.log('Tx:', txSig);
+    console.log('Explorer: https://solscan.io/tx/' + txSig);
   } catch (err: any) {
     console.error('FAILED:', err.message || err);
     if (err.logs) {

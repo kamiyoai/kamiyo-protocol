@@ -20,8 +20,8 @@ kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
 [programs.mainnet]
 kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
-kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
-kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
+kamiyo_staking = "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
+kamiyo_escrow = "AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu"
 
 [registry]
 url = "https://api.apr.dev"
