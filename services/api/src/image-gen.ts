@@ -79,10 +79,10 @@ export async function generateMemePrompt(
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 200,
-    system: `Generate a specific image prompt featuring KAMIYO in a cyberpunk scene related to the given topic.
+    max_tokens: 300,
+    system: `Generate an image prompt for a portrait of KAMIYO, a specific cyberpunk character. The image MUST feature her as the central subject.
 
-CHARACTER (always include):
+CRITICAL - KAMIYO'S EXACT APPEARANCE (must describe in detail):
 ${characterAppearance}
 
 STYLE:
@@ -91,16 +91,16 @@ ${KAMIYO_STYLE}
 SCENE: ${sceneType}
 
 Requirements:
-- KAMIYO must be the main subject of the image
-- She should be doing something related to the topic (looking at data, walking through scene, contemplating, working, etc.)
-- Incorporate the topic's theme/mood into how she interacts with the scene
-- Keep the dark, rainy, neon-lit atmosphere
-- Pink/magenta and cyan/teal color palette
-- No text or logos
+- START the prompt with a detailed description of KAMIYO herself - her face, hair, eyes, outfit
+- She must be clearly visible and the main focus (medium shot or closer)
+- Describe her pose/action related to the topic
+- Include specific details: violet/pink glowing eyes, bob-cut hair with blunt bangs, single braid at nape, pale skin, circuit lines on skin
+- Then describe the cyberpunk environment around her
+- No text, logos, or watermarks
 - Cinematic, moody, atmospheric
 - Always tasteful and SFW
 
-Return ONLY the image prompt, nothing else. Be specific and visual.`,
+Return ONLY the image prompt. Start with "A young woman with..." to ensure the character is the focus.`,
     messages: [{ role: 'user', content: `Topic: ${topic}` }],
   });
 
