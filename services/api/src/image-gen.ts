@@ -22,10 +22,10 @@ export interface GeneratedImage {
 
 // KAMIYO character description - consistent across all images
 const KAMIYO_CHARACTER = `A young woman with cybernetic enhancements. Athletic slim build.
-Pale porcelain skin, sharp angular features, striking eyes.
-Violet or pale glowing eyes. White/silver/platinum hair in a bob-cut with blunt bangs and a single braid at the nape.
+Pale porcelain skin, sharp angular features, beautiful lips.
+Violet or pink glowing eyes. Rose/pink/white hair in a bob-cut with blunt bangs and a single braid at the nape.
 Visible cybernetic implants on face, neck, or jaw. Dragon tattoos on arms/back/legs.
-Mechanical augmentations visible - metal plates, ports, cybernetic limbs or parts.
+Subtle glowing circuit lines on skin, small metal plates or armor accents.
 Photorealistic, high detail.`;
 
 // Outfit variations for variety
@@ -41,7 +41,7 @@ const OUTFIT_VARIATIONS = [
 ];
 
 // Hair color variations
-const HAIR_COLORS = ['white', 'silver', 'platinum', 'pale silver-white'];
+const HAIR_COLORS = ['rose pink', 'soft white', 'pale pink', 'platinum with pink tips'];
 
 // KAMIYO signature style - photorealistic cyberpunk aesthetic
 const KAMIYO_STYLE = `Photorealistic, high detail. Dark cyberpunk aesthetic.
@@ -94,7 +94,7 @@ BACKGROUND: ${sceneType}
 
 Requirements:
 - Photorealistic, high detail rendering
-- White/silver/platinum bob-cut hair with blunt bangs and single braid at nape
+- Rose/pink hair in bob-cut with blunt bangs and single braid at nape
 - Visible cybernetic implants on face/neck/jaw
 - Dragon tattoos visible on arms, back, or legs
 - Pale skin, striking violet or pale glowing eyes
@@ -104,7 +104,7 @@ Requirements:
 - No text or watermarks
 - Always SFW
 
-Return ONLY the prompt. Start with "Photorealistic portrait of a young woman with white/silver hair..."`,
+Return ONLY the prompt. Start with "Photorealistic portrait of a young woman with rose pink hair..."`,
     messages: [{ role: 'user', content: `Topic: ${topic}` }],
   });
 
