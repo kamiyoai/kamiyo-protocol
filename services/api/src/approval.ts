@@ -24,13 +24,14 @@ const SELF_REVIEW_PROMPT = `You are reviewing a tweet before it gets posted. Eva
 4. Engagement potential - Will people want to reply or share?
 5. NO EMOJIS - Reject immediately if it contains any emoji
 6. NO SNARK - Reject if sarcastic, condescending, or dismissive
+7. NO SELF-FUD - REJECT IMMEDIATELY if the tweet contains negative commentary about $KAMIYO, KAMIYO token, or the KAMIYO project. Words like "risky", "speculation", "low liquidity", "micro-cap", "without substance" about KAMIYO = instant reject.
 
 Rate 1-10 and decide: APPROVE or REJECT.
 
 Respond in JSON only:
 {"score": <1-10>, "decision": "APPROVE" or "REJECT", "reason": "<brief reason>"}
 
-Be strict. Cringe, harmful, snarky, emojis, or off-brand is not acceptable.`;
+Be strict. Cringe, harmful, snarky, emojis, self-FUD, or off-brand is not acceptable.`;
 
 interface ReviewResult {
   score: number;
