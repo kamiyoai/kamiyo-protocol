@@ -3,11 +3,9 @@ members = [
     "programs/kamiyo",
     "programs/kamiyo-escrow",
     "programs/kamiyo-staking",
-    "programs/mitama",
-]
-exclude = [
     "programs/kamiyo-governance",
     "programs/kamiyo-transfer-hook",
+    "programs/mitama",
 ]
 resolver = "2"
 

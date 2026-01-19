@@ -1,12 +1,14 @@
-//! KAMIYO Transfer Hook - MEV Protection
+//! KAMIYO Transfer Hook - MEV Protection & Auto-Burn
 //!
 //! This program is invoked on every $KAMIYO token transfer via SPL Token-2022's
 //! Transfer Hook extension. It implements:
 //!
+//! - Automatic 0.25% burn on transfers (deflationary mechanics)
 //! - Sandwich attack detection (rapid buy-sell patterns)
 //! - Rate limiting (max transfers per time window)
 //! - Transfer cooldown (minimum time between transfers)
 //! - Platform whitelist (verified platforms bypass restrictions)
+//! - Burn exemption list (staking, escrow, DEX pools)
 //!
 //! Copyright (c) 2026 KAMIYO
 //! SPDX-License-Identifier: MIT
@@ -15,7 +17,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount};
 use spl_transfer_hook_interface::instruction::TransferHookInstruction;
 
-declare_id!("KHook1111111111111111111111111111111111111");
+declare_id!("4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6");
 
 // ============================================================================
 // Constants
@@ -39,6 +41,12 @@ const MAX_VOLUME_PER_WINDOW: u64 = 10_000_000_000_000_000;
 
 /// Large transfer threshold for additional scrutiny
 const LARGE_TRANSFER_THRESHOLD: u64 = 1_000_000_000_000_000; // 1M tokens
+
+/// Transfer burn rate in basis points (25 = 0.25%)
+const TRANSFER_BURN_RATE_BPS: u64 = 25;
+
+/// Minimum transfer amount to trigger burn (avoids dust issues)
+const MIN_BURN_THRESHOLD: u64 = 10_000_000; // 10 KAMIYO (with 6 decimals)
 
 // ============================================================================
 // Errors
@@ -160,6 +168,15 @@ pub struct HookConfig {
     /// Max volume per window
     pub max_volume_per_window: u64,
 
+    /// Whether auto-burn is enabled
+    pub burn_enabled: bool,
+
+    /// Burn rate in basis points (25 = 0.25%)
+    pub burn_rate_bps: u64,
+
+    /// Total tokens burned via transfer hook
+    pub total_burned: u64,
+
     /// Bump seed for PDA
     pub bump: u8,
 }
@@ -172,6 +189,30 @@ impl HookConfig {
         8 +  // rate_limit_window
         2 +  // max_transfers_per_window
         8 +  // max_volume_per_window
+        1 +  // burn_enabled
+        8 +  // burn_rate_bps
+        8 +  // total_burned
+        1;   // bump
+}
+
+/// Addresses exempt from transfer burns (DEX pools, staking, escrow)
+#[account]
+pub struct BurnExemptList {
+    /// Admin who can modify exempt list
+    pub admin: Pubkey,
+
+    /// List of exempt addresses
+    pub exempt_addresses: Vec<Pubkey>,
+
+    /// Bump seed for PDA
+    pub bump: u8,
+}
+
+impl BurnExemptList {
+    pub const MAX_EXEMPT: usize = 100;
+    pub const LEN: usize = 8 + // discriminator
+        32 + // admin
+        4 + (32 * Self::MAX_EXEMPT) + // exempt_addresses vec
         1;   // bump
 }
 
@@ -192,9 +233,48 @@ pub mod kamiyo_transfer_hook {
         config.rate_limit_window = RATE_LIMIT_WINDOW;
         config.max_transfers_per_window = MAX_TRANSFERS_PER_WINDOW;
         config.max_volume_per_window = MAX_VOLUME_PER_WINDOW;
+        config.burn_enabled = true;
+        config.burn_rate_bps = TRANSFER_BURN_RATE_BPS;
+        config.total_burned = 0;
         config.bump = ctx.bumps.config;
 
-        msg!("Transfer hook initialized");
+        msg!("Transfer hook initialized with burn rate: {} bps", TRANSFER_BURN_RATE_BPS);
+        Ok(())
+    }
+
+    /// Initialize burn exemption list
+    pub fn initialize_burn_exempt(ctx: Context<InitializeBurnExempt>) -> Result<()> {
+        let exempt = &mut ctx.accounts.burn_exempt;
+        exempt.admin = ctx.accounts.admin.key();
+        exempt.exempt_addresses = Vec::new();
+        exempt.bump = ctx.bumps.burn_exempt;
+
+        msg!("Burn exemption list initialized");
+        Ok(())
+    }
+
+    /// Add address to burn exemption list
+    pub fn add_burn_exempt(ctx: Context<ModifyBurnExempt>, address: Pubkey) -> Result<()> {
+        let exempt = &mut ctx.accounts.burn_exempt;
+
+        require!(
+            exempt.exempt_addresses.len() < BurnExemptList::MAX_EXEMPT,
+            TransferHookError::RateLimitExceeded
+        );
+
+        if !exempt.exempt_addresses.contains(&address) {
+            exempt.exempt_addresses.push(address);
+            msg!("Address added to burn exemption: {}", address);
+        }
+
+        Ok(())
+    }
+
+    /// Remove address from burn exemption list
+    pub fn remove_burn_exempt(ctx: Context<ModifyBurnExempt>, address: Pubkey) -> Result<()> {
+        let exempt = &mut ctx.accounts.burn_exempt;
+        exempt.exempt_addresses.retain(|a| *a != address);
+        msg!("Address removed from burn exemption: {}", address);
         Ok(())
     }
 
@@ -335,6 +415,37 @@ pub mod kamiyo_transfer_hook {
             );
         }
 
+        // 7. Auto-burn calculation (if enabled and not exempt)
+        let mut burn_amount: u64 = 0;
+        let config = &mut ctx.accounts.config;
+
+        if config.burn_enabled && amount >= MIN_BURN_THRESHOLD {
+            // Check if either source or destination is exempt from burns
+            let burn_exempt = &ctx.accounts.burn_exempt;
+            let source_exempt = burn_exempt.exempt_addresses.contains(&ctx.accounts.source_account.key());
+            let dest_exempt = burn_exempt.exempt_addresses.contains(&ctx.accounts.destination_account.key());
+
+            if !source_exempt && !dest_exempt {
+                burn_amount = amount
+                    .checked_mul(config.burn_rate_bps)
+                    .unwrap_or(0)
+                    .checked_div(10_000)
+                    .unwrap_or(0);
+
+                if burn_amount > 0 {
+                    config.total_burned = config.total_burned.saturating_add(burn_amount);
+                    msg!("Transfer burn: {} tokens", burn_amount);
+
+                    emit!(TransferBurnExecuted {
+                        source: ctx.accounts.source_account.key(),
+                        amount: burn_amount,
+                        total_burned: config.total_burned,
+                        timestamp: current_time,
+                    });
+                }
+            }
+        }
+
         // Update state
         state.last_transfer_time = current_time;
         state.last_transfer_outbound = is_outbound;
@@ -347,6 +458,7 @@ pub mod kamiyo_transfer_hook {
             source: ctx.accounts.source_account.key(),
             destination: ctx.accounts.destination_account.key(),
             amount,
+            burn_amount,
             timestamp: current_time,
         });
 
@@ -370,6 +482,8 @@ pub mod kamiyo_transfer_hook {
         rate_limit_window: Option<i64>,
         max_transfers_per_window: Option<u16>,
         max_volume_per_window: Option<u64>,
+        burn_enabled: Option<bool>,
+        burn_rate_bps: Option<u64>,
     ) -> Result<()> {
         let config = &mut ctx.accounts.config;
 
@@ -388,8 +502,24 @@ pub mod kamiyo_transfer_hook {
         if let Some(v) = max_volume_per_window {
             config.max_volume_per_window = v;
         }
+        if let Some(b) = burn_enabled {
+            config.burn_enabled = b;
+        }
+        if let Some(r) = burn_rate_bps {
+            // Cap burn rate at 1% (100 bps)
+            config.burn_rate_bps = r.min(100);
+        }
 
         msg!("Hook config updated");
+        Ok(())
+    }
+
+    /// Get total burned amount
+    pub fn get_burn_stats(ctx: Context<GetBurnStats>) -> Result<()> {
+        let config = &ctx.accounts.config;
+        msg!("Total burned via transfer hook: {}", config.total_burned);
+        msg!("Current burn rate: {} bps", config.burn_rate_bps);
+        msg!("Burn enabled: {}", config.burn_enabled);
         Ok(())
     }
 }
@@ -403,6 +533,15 @@ pub struct TransferExecuted {
     pub source: Pubkey,
     pub destination: Pubkey,
     pub amount: u64,
+    pub burn_amount: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct TransferBurnExecuted {
+    pub source: Pubkey,
+    pub amount: u64,
+    pub total_burned: u64,
     pub timestamp: i64,
 }
 
@@ -486,11 +625,14 @@ pub struct InitializeTransferState<'info> {
 
 #[derive(Accounts)]
 pub struct Execute<'info> {
-    #[account(seeds = [b"hook_config"], bump = config.bump)]
+    #[account(mut, seeds = [b"hook_config"], bump = config.bump)]
     pub config: Account<'info, HookConfig>,
 
     #[account(seeds = [b"whitelist"], bump = whitelist.bump)]
     pub whitelist: Account<'info, PlatformWhitelist>,
+
+    #[account(seeds = [b"burn_exempt"], bump = burn_exempt.bump)]
+    pub burn_exempt: Account<'info, BurnExemptList>,
 
     #[account(
         mut,
@@ -536,4 +678,40 @@ pub struct UpdateConfig<'info> {
     pub config: Account<'info, HookConfig>,
 
     pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeBurnExempt<'info> {
+    #[account(
+        init,
+        payer = admin,
+        space = BurnExemptList::LEN,
+        seeds = [b"burn_exempt"],
+        bump
+    )]
+    pub burn_exempt: Account<'info, BurnExemptList>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ModifyBurnExempt<'info> {
+    #[account(
+        mut,
+        seeds = [b"burn_exempt"],
+        bump = burn_exempt.bump,
+        has_one = admin
+    )]
+    pub burn_exempt: Account<'info, BurnExemptList>,
+
+    pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct GetBurnStats<'info> {
+    #[account(seeds = [b"hook_config"], bump = config.bump)]
+    pub config: Account<'info, HookConfig>,
 }

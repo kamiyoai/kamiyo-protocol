@@ -1,8 +1,4 @@
-/*
- * KAMIYO Agent Collaboration SDK
- *
- * ZK-private coordination for AI agent swarms.
- */
+// KAMIYO Mitama SDK
 
 export * from './types';
 export * from './client';
@@ -22,3 +18,19 @@ export {
   kamiyoApi,
   getBurnStats,
 } from './burn';
+export {
+  GovernanceClient,
+  GOVERNANCE_PROGRAM_ID,
+  ProposalState,
+  type GovernanceConfig,
+  type Proposal,
+  type VoteRecord,
+} from './governance';
+export {
+  TransferHookClient,
+  TRANSFER_HOOK_PROGRAM_ID,
+  type HookConfig,
+  type BurnExemptList,
+  type PlatformWhitelist,
+  type TransferState,
+} from './transfer-hook';
