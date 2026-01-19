@@ -482,6 +482,28 @@ export function rejectPost(id: number, reason?: string): boolean {
   return result.changes > 0;
 }
 
+// Queue a manual post with optional local image
+export function queueManualPost(content: string, imagePath?: string): QueuedPost {
+  const result = db.prepare(`
+    INSERT INTO post_queue (content, post_type, context, generated_at, status, image_path)
+    VALUES (?, 'tweet', 'manual', ?, 'pending', ?)
+  `).run(content, Date.now(), imagePath ?? null);
+
+  return {
+    id: result.lastInsertRowid as number,
+    content,
+    post_type: 'tweet',
+    context: 'manual',
+    generated_at: Date.now(),
+    status: 'pending',
+    approved_at: null,
+    posted_at: null,
+    tweet_id: null,
+    rejection_reason: null,
+    image_path: imagePath ?? null,
+  };
+}
+
 // Get approved posts ready to send
 export function getApprovedPosts(): QueuedPost[] {
   return db.prepare('SELECT * FROM post_queue WHERE status = ? ORDER BY approved_at ASC').all('approved') as QueuedPost[];
