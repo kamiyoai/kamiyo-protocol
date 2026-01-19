@@ -381,7 +381,8 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
     const { AnchorProvider, Wallet, BN } = await import('@coral-xyz/anchor');
 
     // Dynamic import - may not be available in all environments
-    let MitamaClient: typeof import('@kamiyo/kamiyo-mitama').MitamaClient;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let MitamaClient: any;
     try {
       const mitama = await import('@kamiyo/kamiyo-mitama');
       MitamaClient = mitama.MitamaClient;
