@@ -25,8 +25,8 @@ pub const FEE_SUBMIT_SIGNAL: u64 = 100_000_000;
 /// 500 KAMIYO = 500_000_000 raw
 pub const FEE_CREATE_SWARM_ACTION: u64 = 500_000_000;
 
-/// Burn rate: 1% (100 basis points)
-pub const BURN_RATE_BPS: u64 = 100;
+/// Burn rate: 50% (5000 basis points)
+pub const BURN_RATE_BPS: u64 = 5000;
 
 /// Calculate burn and treasury amounts for a fee
 /// Returns (burn_amount, treasury_amount)
