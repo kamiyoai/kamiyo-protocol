@@ -147,6 +147,7 @@ import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './mitama-signal';
 import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-stubs';
+import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
 
@@ -1330,10 +1331,22 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
     setTimeout(dmCheckLoop, 5 * 60 * 1000);
   };
 
+  // Auto-follow loop - discover and follow relevant accounts
+  const followLoop = async () => {
+    try {
+      await runAutoFollowCycle(twitter, anthropic);
+    } catch (err) {
+      logger.error('Auto-follow cycle failed', { error: String(err) });
+    }
+    // Run every 6 hours
+    setTimeout(followLoop, 6 * 60 * 60 * 1000);
+  };
+
   // Delay start to avoid hitting rate limits on startup
   setTimeout(generateLoop, 60 * 1000);
   setTimeout(postLoop, 5 * 60 * 1000);
   setTimeout(dmCheckLoop, 3 * 60 * 1000);
+  setTimeout(followLoop, 10 * 60 * 1000); // Start after 10 minutes
 }
 
 // Whale alert monitoring
