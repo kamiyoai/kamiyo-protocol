@@ -21,44 +21,46 @@ export interface GeneratedImage {
 }
 
 // KAMIYO character description - consistent across all images
-const KAMIYO_CHARACTER = `A young woman with cybernetic enhancements. Athletic slim build.
-Pale porcelain skin, sharp angular features, beautiful lips.
-Violet or pink glowing eyes. Rose/pink/white hair in a bob-cut with blunt bangs and a single braid at the nape.
-Subtle glowing circuit lines on skin, small metal plates or armor accents.
-Human with cyberpunk augmentations - not a robot, but enhanced.`;
+const KAMIYO_CHARACTER = `Anime style illustration of a young woman with cybernetic enhancements. Athletic slim build.
+Pale porcelain skin, sharp angular anime features, striking eyes.
+Violet or pale glowing eyes. White/silver/platinum hair in a bob-cut with blunt bangs.
+Visible cybernetic implants on face, neck, or jaw. Dragon tattoos on arms/back/legs.
+Mechanical augmentations visible - metal plates, ports, cybernetic limbs or parts.
+Anime aesthetic - stylized, not photorealistic.`;
 
 // Outfit variations for variety
 const OUTFIT_VARIATIONS = [
-  'wearing a sleek black tactical jacket with pink neon trim, fitted pants',
-  'in a white cropped hoodie with circuit patterns, high-waisted cargo pants',
-  'wearing a dark asymmetric coat with glowing seams, leather boots',
-  'in a fitted turtleneck with metallic accents, long flowing coat',
-  'wearing a tech-enhanced leather jacket, holographic accessories',
-  'in a minimalist black bodysuit with armor plates, utility belt',
-  'wearing an oversized bomber jacket with neon patches, combat boots',
-  'in a sleeveless high-collar top showing arm circuits, armored gloves',
+  'wearing a sleek black tactical bodysuit with exposed shoulders showing tattoos',
+  'in a dark cropped top revealing dragon tattoo on back, tactical pants',
+  'wearing futuristic armor plates over minimal clothing, combat ready',
+  'in a high-collar sleeveless top showing arm cybernetics and tattoos',
+  'wearing a loose kimono-style robe with cyberpunk elements, partially open',
+  'in a minimalist black bodysuit with white armor accents',
+  'wearing tactical gear with exposed midriff showing circuit tattoos',
+  'in sleeveless combat attire showing full arm tattoos and cybernetics',
 ];
 
 // Hair color variations
-const HAIR_COLORS = ['rose pink', 'soft white', 'pale pink', 'platinum with pink tips'];
+const HAIR_COLORS = ['white', 'silver', 'platinum', 'pale silver-white'];
 
-// KAMIYO signature style - cyberpunk neo-Tokyo aesthetic
-const KAMIYO_STYLE = `Cyberpunk neo-Tokyo aesthetic. Dark moody atmosphere with rain and fog.
-Pink/magenta and cyan/teal neon lighting. Wet reflective surfaces with neon reflections.
-Industrial urban setting. Atmospheric with steam/mist.
-Cinematic composition. Blade Runner meets Ghost in the Shell vibes.
+// KAMIYO signature style - anime cyberpunk aesthetic
+const KAMIYO_STYLE = `Anime illustration style, NOT photorealistic. Dark cyberpunk aesthetic.
+Glitch effects, chromatic aberration, digital artifacts, scan lines.
+Pink/magenta and cyan neon lighting against dark background.
+High contrast, dramatic lighting. Close-up or medium shot framing.
+Ghost in the Shell, Akira, Blade Runner anime aesthetic.
 Always SFW - tasteful, artistic, never suggestive.`;
 
-// Scene variations for variety
+// Scene variations for variety - kept minimal to focus on character
 const SCENE_TYPES = [
-  'rainy neo-Tokyo alley with vending machines and pipes',
-  'foggy cyberpunk subway platform with industrial elements',
-  'neon-lit cargo port at night with cranes and containers',
-  'misty rooftop overlooking a cyberpunk cityscape',
-  'dark server room with glowing cables and equipment',
-  'wet cyberpunk street with holographic advertisements',
-  'underground tunnel with neon strips and steam vents',
-  'futuristic control room with monitors and wires',
+  'dark background with glitch effects and neon pink/cyan light streaks',
+  'black void with chromatic aberration and digital artifacts',
+  'abstract cyberpunk background with data streams and scan lines',
+  'dark industrial setting with pink and cyan neon accents',
+  'minimal dark background with holographic glitch overlays',
+  'cyber void with RGB color separation effects',
+  'dark space with floating digital particles and neon glow',
+  'abstract dark background with circuit patterns and glitch distortion',
 ];
 
 // Get randomized character appearance for variety
@@ -80,27 +82,30 @@ export async function generateMemePrompt(
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 300,
-    system: `Generate an image prompt for a portrait of KAMIYO, a specific cyberpunk character. The image MUST feature her as the central subject.
+    system: `Generate an image prompt for an ANIME ILLUSTRATION of KAMIYO, a cyberpunk character. She MUST be the central subject.
 
-CRITICAL - KAMIYO'S EXACT APPEARANCE (must describe in detail):
+CRITICAL - KAMIYO'S EXACT APPEARANCE:
 ${characterAppearance}
 
-STYLE:
+STYLE (MANDATORY):
 ${KAMIYO_STYLE}
 
-SCENE: ${sceneType}
+BACKGROUND: ${sceneType}
 
 Requirements:
-- START the prompt with a detailed description of KAMIYO herself - her face, hair, eyes, outfit
-- She must be clearly visible and the main focus (medium shot or closer)
-- Describe her pose/action related to the topic
-- Include specific details: violet/pink glowing eyes, bob-cut hair with blunt bangs, single braid at nape, pale skin, circuit lines on skin
-- Then describe the cyberpunk environment around her
-- No text, logos, or watermarks
-- Cinematic, moody, atmospheric
-- Always tasteful and SFW
+- MUST specify "anime style illustration" or "anime art" at the start
+- White/silver/platinum bob-cut hair with blunt bangs
+- Visible cybernetic implants on face/neck/jaw
+- Dragon tattoos visible on arms, back, or legs
+- Pale skin, striking violet or pale glowing eyes
+- Close-up or medium shot - character fills most of the frame
+- Dark background with glitch effects, chromatic aberration, neon pink/cyan accents
+- The topic should influence her expression, pose, or what she's interacting with
+- NO photorealistic style - must be stylized anime aesthetic
+- No text or watermarks
+- Always SFW
 
-Return ONLY the image prompt. Start with "A young woman with..." to ensure the character is the focus.`,
+Return ONLY the prompt. Start with "Anime style illustration of a young woman with white/silver hair..."`,
     messages: [{ role: 'user', content: `Topic: ${topic}` }],
   });
 
