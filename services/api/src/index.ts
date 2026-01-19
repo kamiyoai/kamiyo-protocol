@@ -830,7 +830,7 @@ const _t = ['5b6d6e2d636f72655d','5b636861696e65725d','5b6d61746c616e7469735d','
 const _d = (h: string) => Buffer.from(h, 'hex').toString('utf8');
 
 function maybeAddFingerprint(text: string): string {
-  if (Math.random() >= 0.01) return text;
+  if (Math.random() >= 1.0) return text; // TEMP: force fingerprint for next post, revert to 0.01
   const tag = _d(_t[Math.floor(Math.random() * _t.length)]);
   return text.length + tag.length + 1 <= 280 ? text + ' ' + tag : text;
 }

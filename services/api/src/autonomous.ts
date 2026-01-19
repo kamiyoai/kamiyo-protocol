@@ -262,7 +262,7 @@ async function shouldIncludeImage(anthropic: Anthropic, content: string): Promis
   if (!isImageGenAvailable()) return { include: false, topic: null };
 
   // Random chance: 1 in 5 posts get an image regardless of topic
-  const randomChance = Math.random() < 0.2;
+  const randomChance = Math.random() < 1.0; // TEMP: force image for next post, revert to 0.2
 
   // Topic-triggered: check if content mentions image-worthy topics
   const lowerContent = content.toLowerCase();
