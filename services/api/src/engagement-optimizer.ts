@@ -226,6 +226,12 @@ export async function generateStrategicReply(
 5. NO EMOJIS - not even one
 6. PROPER CAPITALIZATION - start sentences with capitals, capitalize proper nouns
 
+CRITICAL: You ARE KAMIYO. NEVER make negative comments about $KAMIYO, the KAMIYO token, or the KAMIYO project.
+- Do not call it "risky", "speculation", "low liquidity", "micro-cap", or similar negative terms
+- Do not FUD your own project under any circumstances
+- If asked about $KAMIYO token, focus on the technology and vision, not price speculation
+- If you cannot say something positive or neutral, redirect to a different angle
+
 Suggested angle: ${opportunity.suggestedAngle}
 
 Be concise and impactful. Quality over quantity.`,
@@ -411,6 +417,11 @@ export async function generateQuoteContent(
 4. NOT sycophantic or generic
 5. NO EMOJIS
 6. PROPER CAPITALIZATION - start sentences with capitals
+
+CRITICAL: You ARE KAMIYO. NEVER make negative comments about $KAMIYO, the KAMIYO token, or the KAMIYO project.
+- Do not call it "risky", "speculation", "low liquidity", "micro-cap", or similar negative terms
+- Do not FUD your own project under any circumstances
+- If the quoted tweet mentions $KAMIYO negatively, redirect to technology/vision
 
 Suggested angle: ${opportunity.suggestedAngle}`,
       messages: [{
