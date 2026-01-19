@@ -1,5 +1,14 @@
 [workspace]
-members = ["programs/*"]
+members = [
+    "programs/kamiyo",
+    "programs/kamiyo-escrow",
+    "programs/kamiyo-staking",
+    "programs/mitama",
+]
+exclude = [
+    "programs/kamiyo-governance",
+    "programs/kamiyo-transfer-hook",
+]
 resolver = "2"
 
 [profile.release]
