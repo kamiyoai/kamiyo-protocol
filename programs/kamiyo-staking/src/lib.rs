@@ -37,8 +37,8 @@ fn calculate_reward_split(total_reward: u64) -> (u64, u64) {
 // Constants
 // ============================================================================
 
-/// Minimum stake amount (1,000 KAMIYO = 1,000 * 10^9)
-const MIN_STAKE_AMOUNT: u64 = 1_000_000_000_000;
+/// Minimum stake amount (100,000 KAMIYO = 100,000 * 10^6)
+const MIN_STAKE_AMOUNT: u64 = 100_000_000_000;
 
 /// Base APY in basis points (1200 = 12%)
 const BASE_APY_BPS: u64 = 1200;
