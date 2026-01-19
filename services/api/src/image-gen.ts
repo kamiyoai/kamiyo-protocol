@@ -77,42 +77,33 @@ export async function generateMemePrompt(
 ): Promise<string> {
   // Pick random variations for this image
   const sceneType = SCENE_TYPES[Math.floor(Math.random() * SCENE_TYPES.length)];
-  const characterAppearance = getCharacterAppearance();
+  const outfit = OUTFIT_VARIATIONS[Math.floor(Math.random() * OUTFIT_VARIATIONS.length)];
+  const hairColor = HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)];
 
+  // Ask Claude only for the pose/action based on topic
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 300,
-    system: `Generate an image prompt for a PHOTOREALISTIC portrait of KAMIYO, a cyberpunk character. She MUST be the central subject.
-
-CRITICAL - KAMIYO'S EXACT APPEARANCE:
-${characterAppearance}
-
-STYLE (MANDATORY):
-${KAMIYO_STYLE}
-
-BACKGROUND: ${sceneType}
-
-Requirements:
-- Photorealistic, high detail rendering
-- Rose/pink hair in bob-cut with blunt bangs and single braid at nape
-- Visible cybernetic implants on face/neck/jaw
-- Dragon tattoos visible on arms, back, or legs
-- Pale skin, striking violet or pale glowing eyes
-- Close-up or medium shot - character fills most of the frame
-- Dark background with glitch effects, chromatic aberration, neon pink/cyan accents
-- The topic should influence her expression, pose, or what she's interacting with
-- No text or watermarks
-- Always SFW
-
-Return ONLY the prompt. Start with "Photorealistic portrait of a young woman with rose pink hair..."`,
-    messages: [{ role: 'user', content: `Topic: ${topic}` }],
+    max_tokens: 50,
+    system: `Given a topic, describe a pose or action for a cyberpunk woman in 10-15 words. Examples:
+- "looking over her shoulder with a knowing smirk"
+- "holding a glowing holographic display, eyes focused"
+- "leaning against a wall, arms crossed, staring intensely at camera"
+- "mid-motion drawing a katana, hair flowing"
+Return ONLY the pose/action description, nothing else.`,
+    messages: [{ role: 'user', content: topic }],
   });
 
-  return response.content
+  const poseAction = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map(b => b.text)
     .join('')
     .trim();
+
+  // Construct the full prompt with character ALWAYS included
+  // Character description comes FIRST to ensure image gen prioritizes it
+  const prompt = `Portrait of a woman, ${poseAction}. She has ${hairColor} hair in a bob-cut with blunt bangs and a single braid at the nape. Pale porcelain skin, violet glowing eyes, sharp angular features. Visible cybernetic implants on her face and neck. Dragon tattoos on her arms. ${outfit}. ${sceneType}. Photorealistic, cinematic lighting, high detail. Pink and cyan neon lighting. Dark moody atmosphere.`;
+
+  return prompt;
 }
 
 // Generate image using Grok (xAI Aurora)
@@ -164,7 +155,7 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer | null> {
 
 // Main generation function
 export async function generateImage(prompt: string): Promise<GeneratedImage | null> {
-  logger.info('Generating image', { prompt: prompt.slice(0, 50) });
+  logger.info('Generating image with full prompt', { prompt });
 
   // Try Grok first, then OpenAI
   let imageBuffer = await generateWithGrok(prompt);
