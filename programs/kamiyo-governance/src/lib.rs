@@ -8,6 +8,11 @@
 //! - 66% approval threshold
 //! - Timelock for execution (24-72 hours)
 //!
+//! Vote weight calculation:
+//! - Wallet balance: 1x weight
+//! - Staked tokens: multiplied by duration (1x-2x)
+//! - Combined weight = wallet + (staked * multiplier)
+//!
 //! Proposal lifecycle:
 //! 1. Created -> Voting period begins
 //! 2. Voting -> Users vote yes/no with token weight
@@ -19,9 +24,40 @@
 //! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Mint};
+use anchor_spl::token_interface::{TokenInterface, TokenAccount, Mint};
 
-declare_id!("KGov1111111111111111111111111111111111111");
+declare_id!("E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav");
+
+/// Staking program ID for reading stake positions
+pub mod staking_program {
+    use super::*;
+    declare_id!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
+}
+
+/// Multiplier thresholds (same as staking program)
+const THIRTY_DAYS: i64 = 30 * 24 * 60 * 60;
+const NINETY_DAYS: i64 = 90 * 24 * 60 * 60;
+const ONE_EIGHTY_DAYS: i64 = 180 * 24 * 60 * 60;
+
+/// Multipliers in basis points (10000 = 1.0x)
+const MULTIPLIER_BASE: u64 = 10000;
+const MULTIPLIER_30D: u64 = 12000;
+const MULTIPLIER_90D: u64 = 15000;
+const MULTIPLIER_180D: u64 = 20000;
+
+/// Calculate staking multiplier based on duration
+fn get_staking_multiplier(stake_start_time: i64, current_time: i64) -> u64 {
+    let duration = current_time.saturating_sub(stake_start_time);
+    if duration >= ONE_EIGHTY_DAYS {
+        MULTIPLIER_180D
+    } else if duration >= NINETY_DAYS {
+        MULTIPLIER_90D
+    } else if duration >= THIRTY_DAYS {
+        MULTIPLIER_30D
+    } else {
+        MULTIPLIER_BASE
+    }
+}
 
 // ============================================================================
 // Constants
@@ -269,6 +305,27 @@ impl VoteRecord {
         1;   // bump
 }
 
+/// External StakePosition from staking program (for reading only)
+/// Must match the layout in kamiyo-staking program
+#[account]
+#[derive(Default)]
+pub struct StakePosition {
+    /// Owner of this stake position
+    pub owner: Pubkey,
+    /// Amount staked
+    pub staked_amount: u64,
+    /// Timestamp when stake was created
+    pub stake_start_time: i64,
+    /// Last time rewards were claimed
+    pub last_claim_time: i64,
+    /// Accumulated rewards debt
+    pub rewards_debt: u128,
+    /// Total rewards claimed
+    pub total_claimed: u64,
+    /// Bump seed
+    pub bump: u8,
+}
+
 // ============================================================================
 // Instructions
 // ============================================================================
@@ -345,6 +402,7 @@ pub mod kamiyo_governance {
     }
 
     /// Cast a vote on a proposal
+    /// Vote weight = wallet balance + (staked amount * multiplier)
     pub fn cast_vote(ctx: Context<CastVote>, support: bool) -> Result<()> {
         let config = &ctx.accounts.config;
         require!(!config.is_paused, GovernanceError::GovernancePaused);
@@ -361,9 +419,41 @@ pub mod kamiyo_governance {
             GovernanceError::VotingPeriodEnded
         );
 
-        // Calculate vote weight (token balance)
-        // In production, this would also factor in staking multiplier
-        let weight = ctx.accounts.voter_token_account.amount;
+        // Calculate vote weight:
+        // 1. Wallet balance (1x weight)
+        let wallet_weight = ctx.accounts.voter_token_account.amount;
+
+        // 2. Staked amount with multiplier (if stake position exists)
+        let staking_weight = if let Some(stake_position) = &ctx.accounts.stake_position {
+            // Verify owner is staking program
+            require!(
+                stake_position.owner == &staking_program::ID,
+                GovernanceError::InvalidAuthority
+            );
+
+            let stake_data = stake_position.try_borrow_data()?;
+            // Skip 8-byte discriminator, then parse owner (32 bytes) and staked_amount (8 bytes)
+            if stake_data.len() >= 56 {
+                // Verify stake owner matches voter
+                let stake_owner = Pubkey::try_from(&stake_data[8..40]).unwrap();
+                require!(
+                    stake_owner == ctx.accounts.voter.key(),
+                    GovernanceError::InvalidAuthority
+                );
+
+                let staked_amount = u64::from_le_bytes(stake_data[40..48].try_into().unwrap());
+                let stake_start_time = i64::from_le_bytes(stake_data[48..56].try_into().unwrap());
+                let multiplier = get_staking_multiplier(stake_start_time, clock.unix_timestamp);
+                // Weight = staked_amount * multiplier / 10000
+                staked_amount.checked_mul(multiplier).unwrap_or(0) / 10000
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        let weight = wallet_weight.checked_add(staking_weight).unwrap_or(wallet_weight);
 
         // Record the vote
         let vote_record = &mut ctx.accounts.vote_record;
@@ -627,7 +717,7 @@ pub struct Initialize<'info> {
     )]
     pub config: Account<'info, GovernanceConfig>,
 
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: InterfaceAccount<'info, Mint>,
 
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -657,7 +747,7 @@ pub struct CreateProposal<'info> {
         associated_token::mint = config.token_mint,
         associated_token::authority = proposer
     )]
-    pub proposer_token_account: Account<'info, TokenAccount>,
+    pub proposer_token_account: InterfaceAccount<'info, TokenAccount>,
 
     #[account(mut)]
     pub proposer: Signer<'info>,
@@ -690,7 +780,11 @@ pub struct CastVote<'info> {
         associated_token::mint = config.token_mint,
         associated_token::authority = voter
     )]
-    pub voter_token_account: Account<'info, TokenAccount>,
+    pub voter_token_account: InterfaceAccount<'info, TokenAccount>,
+
+    /// Optional stake position for vote weight multiplier
+    /// CHECK: Validated manually in instruction - must be owned by staking program
+    pub stake_position: Option<UncheckedAccount<'info>>,
 
     #[account(mut)]
     pub voter: Signer<'info>,

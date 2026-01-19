@@ -10,18 +10,24 @@ kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
 kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
+kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
+kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 
 [programs.localnet]
 kamiyo = "6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
 kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
+kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
+kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 
 [programs.mainnet]
 kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
 kamiyo_escrow = "AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu"
+kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
+kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 
 [registry]
 url = "https://api.apr.dev"
