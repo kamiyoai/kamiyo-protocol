@@ -19,6 +19,8 @@ import {
   SignalAggregator,
   WithdrawalRequest,
   IdentityLink,
+  CollateralWithdrawal,
+  SlashReason,
 } from './types';
 
 // Import the generated IDL
@@ -420,6 +422,42 @@ export class MitamaClient {
     );
   }
 
+  /**
+   * Derive a collateral vault PDA for an agent.
+   * @param agent - Agent public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getCollateralVaultPDA(agent: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('collateral_vault'), agent.toBuffer()],
+      MITAMA_PROGRAM_ID
+    );
+  }
+
+  /**
+   * Derive a collateral withdrawal request PDA for an agent.
+   * @param agent - Agent public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getCollateralWithdrawalPDA(agent: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('collateral_withdrawal'), agent.toBuffer()],
+      MITAMA_PROGRAM_ID
+    );
+  }
+
+  /**
+   * Derive the treasury PDA (used for both fees and slashed collateral).
+   * @param registry - Registry public key
+   * @returns Tuple of [PDA address, bump seed]
+   */
+  static getTreasuryPDA(registry: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('treasury'), registry.toBuffer()],
+      MITAMA_PROGRAM_ID
+    );
+  }
+
   // ============================================================================
   // Account Fetching
   // ============================================================================
@@ -510,6 +548,22 @@ export class MitamaClient {
     try {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['identityLink'].fetch(linkPDA) as IdentityLink;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch a collateral withdrawal request for an agent.
+   * @param agentCommitment - Agent identity commitment
+   * @returns Collateral withdrawal or null if none pending
+   */
+  async getCollateralWithdrawal(agentCommitment: Uint8Array): Promise<CollateralWithdrawal | null> {
+    const [agentPDA] = MitamaClient.getAgentPDA(agentCommitment);
+    const [withdrawalPDA] = MitamaClient.getCollateralWithdrawalPDA(agentPDA);
+    try {
+      const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
+      return await accounts['collateralWithdrawal'].fetch(withdrawalPDA) as CollateralWithdrawal;
     } catch {
       return null;
     }
@@ -1080,6 +1134,229 @@ export class MitamaClient {
         .refreshStake()
         .accountsPartial(accounts)
         .signers([owner])
+        .rpc()
+    );
+  }
+
+  // ============================================================================
+  // Collateral Instructions
+  // ============================================================================
+
+  /**
+   * Deposit KAMIYO tokens as collateral.
+   * @param payer - Keypair paying for the transaction
+   * @param identityCommitment - Agent identity commitment
+   * @param amount - Amount of KAMIYO tokens to deposit
+   * @param userTokenAccount - User's KAMIYO token account
+   * @param kamiyoMint - KAMIYO token mint
+   * @returns Transaction signature
+   */
+  async depositCollateral(
+    payer: Keypair,
+    identityCommitment: Uint8Array,
+    amount: BN,
+    userTokenAccount: PublicKey,
+    kamiyoMint: PublicKey
+  ): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
+    const [registryPDA] = MitamaClient.getRegistryPDA();
+    const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
+    const [collateralVault] = MitamaClient.getCollateralVaultPDA(agentPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .depositCollateral(amount)
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          depositorTokenAccount: userTokenAccount,
+          collateralVault,
+          kamiyoMint,
+          depositor: payer.publicKey,
+          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
+  }
+
+  /**
+   * Request withdrawal of collateral (starts 7-day timelock).
+   * @param payer - Keypair paying for the transaction
+   * @param identityCommitment - Agent identity commitment
+   * @param amount - Amount of KAMIYO tokens to withdraw
+   * @returns Transaction signature
+   */
+  async requestCollateralWithdrawal(
+    payer: Keypair,
+    identityCommitment: Uint8Array,
+    amount: BN
+  ): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
+    const [registryPDA] = MitamaClient.getRegistryPDA();
+    const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = MitamaClient.getCollateralWithdrawalPDA(agentPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .requestCollateralWithdrawal(amount)
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          collateralWithdrawal: withdrawalPDA,
+          payer: payer.publicKey,
+          systemProgram: web3.SystemProgram.programId,
+        })
+        .signers([payer])
+        .rpc()
+    );
+  }
+
+  /**
+   * Claim collateral after 7-day timelock expires.
+   * @param payer - Keypair paying for the transaction
+   * @param identityCommitment - Agent identity commitment
+   * @param recipient - Recipient token account for the collateral
+   * @param kamiyoMint - KAMIYO token mint
+   * @returns Transaction signature
+   */
+  async claimCollateralWithdrawal(
+    payer: Keypair,
+    identityCommitment: Uint8Array,
+    recipient: PublicKey,
+    kamiyoMint: PublicKey
+  ): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
+    const [registryPDA] = MitamaClient.getRegistryPDA();
+    const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
+    const [withdrawalPDA] = MitamaClient.getCollateralWithdrawalPDA(agentPDA);
+    const [collateralVault] = MitamaClient.getCollateralVaultPDA(agentPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .claimCollateralWithdrawal()
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          collateralWithdrawal: withdrawalPDA,
+          collateralVault,
+          recipient,
+          kamiyoMint,
+          payer: payer.publicKey,
+          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+        })
+        .signers([payer])
+        .rpc()
+    );
+  }
+
+  /**
+   * Slash an agent's collateral (admin only).
+   * @param authority - Registry authority keypair
+   * @param identityCommitment - Agent identity commitment
+   * @param amount - Amount to slash
+   * @param reason - Reason for slashing
+   * @param kamiyoMint - KAMIYO token mint
+   * @returns Transaction signature
+   */
+  async slashAgent(
+    authority: Keypair,
+    identityCommitment: Uint8Array,
+    amount: BN,
+    reason: SlashReason,
+    kamiyoMint: PublicKey
+  ): Promise<string> {
+    validateBytes32(identityCommitment, 'identityCommitment');
+
+    const [registryPDA] = MitamaClient.getRegistryPDA();
+    const [agentPDA] = MitamaClient.getAgentPDA(identityCommitment);
+    const [collateralVault] = MitamaClient.getCollateralVaultPDA(agentPDA);
+    const [treasury] = MitamaClient.getTreasuryPDA(registryPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .slashAgent(amount, { [SlashReason[reason].toLowerCase()]: {} })
+        .accounts({
+          registry: registryPDA,
+          agent: agentPDA,
+          collateralVault,
+          treasury,
+          kamiyoMint,
+          authority: authority.publicKey,
+          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+        })
+        .signers([authority])
+        .rpc()
+    );
+  }
+
+  /**
+   * Update minimum signal collateral requirement (admin only).
+   * @param authority - Registry authority keypair
+   * @param newMinSignalCollateral - New minimum collateral amount
+   * @returns Transaction signature
+   */
+  async updateMinSignalCollateral(
+    authority: Keypair,
+    newMinSignalCollateral: BN
+  ): Promise<string> {
+    const [registryPDA] = MitamaClient.getRegistryPDA();
+
+    return withRetry(() =>
+      this.program.methods
+        .updateMinSignalCollateral(newMinSignalCollateral)
+        .accounts({
+          registry: registryPDA,
+          authority: authority.publicKey,
+        })
+        .signers([authority])
+        .rpc()
+    );
+  }
+
+  /**
+   * Get the minimum signal collateral requirement.
+   * @returns Minimum collateral as BN
+   */
+  async getMinSignalCollateral(): Promise<BN> {
+    const registry = await this.getRegistry();
+    if (!registry) {
+      throw new Error('Registry not initialized');
+    }
+    return registry.minSignalCollateral;
+  }
+
+  /**
+   * Burn KAMIYO tokens from the protocol treasury (admin only).
+   * Used to burn tokens corresponding to off-chain fee revenue.
+   * @param authority - Registry authority keypair
+   * @param amount - Amount to burn (raw token amount with decimals)
+   * @param kamiyoMint - KAMIYO token mint
+   * @returns Transaction signature
+   */
+  async burnFromTreasury(
+    authority: Keypair,
+    amount: BN,
+    kamiyoMint: PublicKey
+  ): Promise<string> {
+    const [registryPDA] = MitamaClient.getRegistryPDA();
+    const [treasuryVault] = MitamaClient.getTreasuryPDA(registryPDA);
+
+    return withRetry(() =>
+      this.program.methods
+        .burnFromTreasury(amount)
+        .accounts({
+          registry: registryPDA,
+          treasuryVault,
+          kamiyoMint,
+          authority: authority.publicKey,
+          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
+        })
+        .signers([authority])
         .rpc()
     );
   }

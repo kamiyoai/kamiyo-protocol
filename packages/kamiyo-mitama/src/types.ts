@@ -22,6 +22,7 @@ export interface AgentRegistry {
   minSignalConfidence: number;
   bump: number;
   paused: boolean;
+  minSignalCollateral: BN; // Minimum KAMIYO collateral for signals
 }
 
 export interface Agent {
@@ -33,6 +34,11 @@ export interface Agent {
   swarmVotes: number;
   active: boolean;
   bump: number;
+  // Collateral fields
+  collateralAmount: BN;
+  collateralLockedAt: BN;
+  slashedAmount: BN;
+  violationCount: number;
 }
 
 export interface Signal {
@@ -120,6 +126,18 @@ export interface RegistryConfig {
   minSignalConfidence: number;
   maxTotalStake: BN; // TVL cap - 0 means unlimited
   maxStakePerAgent: BN; // Max stake per agent - 0 means unlimited
+  minSignalCollateral: BN; // Minimum KAMIYO collateral for signals (0 = no requirement)
+}
+
+// Collateral withdrawal request
+export interface CollateralWithdrawal {
+  agent: PublicKey;
+  requester: PublicKey;
+  amount: BN;
+  requestTime: BN;
+  unlockTime: BN;
+  claimed: boolean;
+  bump: number;
 }
 
 // Proof data
@@ -202,10 +220,125 @@ export interface SwarmActionExecutedEvent {
   votesAgainst: number;
 }
 
+// Collateral events
+export interface CollateralDepositedEvent {
+  agent: PublicKey;
+  amount: BN;
+  totalCollateral: BN;
+}
+
+export interface CollateralWithdrawalRequestedEvent {
+  agent: PublicKey;
+  amount: BN;
+  unlockTime: BN;
+}
+
+export interface CollateralWithdrawalClaimedEvent {
+  agent: PublicKey;
+  amount: BN;
+}
+
+export interface AgentSlashedEvent {
+  agent: PublicKey;
+  amount: BN;
+  reason: string;
+  violationCount: number;
+}
+
+export interface MinSignalCollateralUpdatedEvent {
+  registry: PublicKey;
+  minSignalCollateral: BN;
+}
+
+// Slash reason enum
+export enum SlashReason {
+  SignalCommitmentMismatch = 0,
+  VoteCommitmentMismatch = 1,
+  ConsensusDeviation = 2,
+  AdminReportedAbuse = 3,
+}
+
+// Collateral constants
+export const COLLATERAL_WITHDRAWAL_TIMELOCK = 7 * 24 * 60 * 60; // 7 days in seconds
+export const BASE_SLASH_RATE_BPS = 1000; // 10%
+export const SLASH_ESCALATION_BPS = 500; // 5% per violation
+export const MAX_SLASH_RATE_BPS = 5000; // 50%
+
 // Signal types enum
 export enum SignalType {
   BUY = 0,
   SELL = 1,
   HOLD = 2,
   ALERT = 3,
+}
+
+// $KAMIYO Token Constants
+export const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
+export const KAMIYO_DECIMALS = 6;
+export const KAMIYO_INITIAL_SUPPLY = 1_000_000_000_000_000n; // 1B * 10^6
+
+// Fee structure (1% burn on all fees)
+export const BURN_RATE_BPS = 100; // 1% = 100 basis points
+
+// Protocol fee amounts (in raw token units with decimals)
+export const PROTOCOL_FEES = {
+  REGISTER_AGENT: 1000_000_000n, // 1000 KAMIYO
+  SUBMIT_SIGNAL: 100_000_000n, // 100 KAMIYO
+  CREATE_SWARM_ACTION: 500_000_000n, // 500 KAMIYO
+} as const;
+
+// Calculated burn amounts (1% of fee)
+export const BURN_AMOUNTS = {
+  REGISTER_AGENT: 10_000_000n, // 10 KAMIYO
+  SUBMIT_SIGNAL: 1_000_000n, // 1 KAMIYO
+  CREATE_SWARM_ACTION: 5_000_000n, // 5 KAMIYO
+} as const;
+
+// Burn statistics from API
+export interface KamiyoBurnStats {
+  totalBurnedKamiyo: string;
+  totalBurnedKamiyoFormatted: string;
+  totalUsdValue: number;
+  burnCount: number;
+  burns24h: number;
+  pendingBurns: number;
+}
+
+// Token statistics
+export interface KamiyoTokenStats {
+  mint: string;
+  decimals: number;
+  initialSupply: string;
+  initialSupplyFormatted: string;
+  currentSupply: string;
+  currentSupplyFormatted: string;
+  burned: string;
+  burnedFormatted: string;
+  burnPercent: string;
+  burnBreakdown: {
+    onChain: {
+      amount: string;
+      formatted: string;
+    };
+    apiUsage: {
+      amount: string;
+      formatted: string;
+      usdValue: number;
+      burnCount: number;
+    };
+  };
+}
+
+// Burn record from API
+export interface KamiyoBurnRecord {
+  id: number;
+  source: 'api_credits' | 'api_x402' | 'on_chain';
+  wallet: string | null;
+  endpoint: string | null;
+  usdValue: number;
+  kamiyoAmount: string;
+  kamiyoFormatted: string;
+  status: 'pending' | 'executed' | 'batched';
+  txSignature: string | null;
+  createdAt: number;
 }

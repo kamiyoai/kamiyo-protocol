@@ -10,6 +10,10 @@ import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import { MitamaClient, MitamaProver, MerkleTree, generateAgentId } from '@kamiyo/kamiyo-mitama';
 import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function bytesToBigint(bytes: Uint8Array): bigint {
   let result = 0n;
@@ -77,7 +81,7 @@ async function main() {
   const start = Date.now();
 
   // Initialize prover
-  const circuitsPath = '/Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/circuits/build/mitama';
+  const circuitsPath = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/mitama');
   const prover = new MitamaProver(circuitsPath);
 
   try {

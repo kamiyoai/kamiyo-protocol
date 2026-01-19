@@ -10,12 +10,15 @@ import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import { MitamaClient, MitamaProver, MerkleTree, generateAgentId } from '@kamiyo/kamiyo-mitama';
 import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-const CIRCUITS_PATH = '/Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/circuits/build/mitama';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/mitama');
 
 async function main() {
   console.log(chalk.cyan('\n  SWARM VOTE ON-CHAIN VERIFICATION TEST'));

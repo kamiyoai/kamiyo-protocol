@@ -16,10 +16,20 @@
 //! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer};
+use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
 use anchor_spl::associated_token::AssociatedToken;
 
 declare_id!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
+
+/// Burn rate for reward distributions: 1% (100 basis points)
+const REWARD_BURN_RATE_BPS: u64 = 100;
+
+/// Calculate burn and distribution amounts for rewards
+fn calculate_reward_split(total_reward: u64) -> (u64, u64) {
+    let burn_amount = total_reward * REWARD_BURN_RATE_BPS / 10_000;
+    let distribution_amount = total_reward - burn_amount;
+    (burn_amount, distribution_amount)
+}
 
 // ============================================================================
 // Constants
@@ -417,13 +427,30 @@ pub mod kamiyo_staking {
     }
 
     /// Distribute rewards to the pool (called by platform)
+    /// Burns 1% of rewards, distributes 99% to stakers
     pub fn distribute_rewards(ctx: Context<DistributeRewards>, amount: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let clock = Clock::get()?;
 
         require!(pool.total_weighted_stake > 0, StakingError::NoRewardsToClaim);
 
-        // Transfer rewards to vault
+        // Calculate burn (1%) and distribution (99%) amounts
+        let (burn_amount, distribution_amount) = calculate_reward_split(amount);
+
+        // Burn 1% of rewards
+        token::burn(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Burn {
+                    mint: ctx.accounts.token_mint.to_account_info(),
+                    from: ctx.accounts.distributor_token_account.to_account_info(),
+                    authority: ctx.accounts.distributor.to_account_info(),
+                },
+            ),
+            burn_amount,
+        )?;
+
+        // Transfer 99% to rewards vault
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -433,11 +460,11 @@ pub mod kamiyo_staking {
                     authority: ctx.accounts.distributor.to_account_info(),
                 },
             ),
-            amount,
+            distribution_amount,
         )?;
 
-        // Update accumulated rewards per share
-        let reward_per_share = (amount as u128)
+        // Update accumulated rewards per share (based on distribution amount, not total)
+        let reward_per_share = (distribution_amount as u128)
             .checked_mul(1_000_000_000_000) // Precision factor
             .ok_or(StakingError::MathOverflow)?
             .checked_div(pool.total_weighted_stake as u128)
@@ -449,13 +476,19 @@ pub mod kamiyo_staking {
 
         pool.last_distribution_time = clock.unix_timestamp;
         pool.total_rewards_distributed = pool.total_rewards_distributed
-            .checked_add(amount)
+            .checked_add(distribution_amount)
             .ok_or(StakingError::MathOverflow)?;
 
         emit!(RewardsDistributed {
-            amount,
+            amount: distribution_amount,
             total_weighted_stake: pool.total_weighted_stake,
             accumulated_per_share: pool.accumulated_rewards_per_share,
+            timestamp: clock.unix_timestamp,
+        });
+
+        emit!(RewardsBurned {
+            burn_amount,
+            distribution_amount,
             timestamp: clock.unix_timestamp,
         });
 
@@ -561,6 +594,13 @@ pub struct RewardsDistributed {
     pub amount: u64,
     pub total_weighted_stake: u64,
     pub accumulated_per_share: u128,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct RewardsBurned {
+    pub burn_amount: u64,
+    pub distribution_amount: u64,
     pub timestamp: i64,
 }
 
@@ -747,6 +787,13 @@ pub struct DistributeRewards<'info> {
         bump = pool.bump
     )]
     pub pool: Account<'info, StakingPool>,
+
+    /// Token mint for burning 1% of rewards
+    #[account(
+        mut,
+        constraint = token_mint.key() == pool.token_mint
+    )]
+    pub token_mint: Account<'info, Mint>,
 
     #[account(
         mut,
