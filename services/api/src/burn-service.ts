@@ -379,7 +379,16 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
     // Import Solana/Anchor dependencies
     const { Connection, Keypair, PublicKey } = await import('@solana/web3.js');
     const { AnchorProvider, Wallet, BN } = await import('@coral-xyz/anchor');
-    const { MitamaClient } = await import('@kamiyo/kamiyo-mitama');
+
+    // Dynamic import - may not be available in all environments
+    let MitamaClient: typeof import('@kamiyo/kamiyo-mitama').MitamaClient;
+    try {
+      const mitama = await import('@kamiyo/kamiyo-mitama');
+      MitamaClient = mitama.MitamaClient;
+    } catch {
+      logger.warn('Mitama SDK not available - treasury burn disabled');
+      return { success: false, error: 'Mitama SDK not available in this environment' };
+    }
 
     // Load authority keypair
     let authority: InstanceType<typeof Keypair>;
