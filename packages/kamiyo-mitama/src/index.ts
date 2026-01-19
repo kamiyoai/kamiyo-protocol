@@ -14,3 +14,11 @@ export {
   generateAgentId,
 } from './prover';
 export { MerkleTree, createMerkleTree } from './merkle';
+export {
+  formatKamiyoAmount,
+  parseKamiyoAmount,
+  calculateBurnSplit,
+  KamiyoAPI,
+  kamiyoApi,
+  getBurnStats,
+} from './burn';

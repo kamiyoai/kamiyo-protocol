@@ -3,6 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { logger } from '../../logger';
+import { getBurnService } from '../../burn-service';
 
 const router = Router();
 
@@ -77,6 +78,13 @@ router.get('/burn', async (_req: Request, res: Response) => {
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const stats = await getTokenStats();
+    const burnService = getBurnService();
+    const apiBurnStats = burnService.getStats();
+
+    // Combine on-chain burns with API-tracked burns
+    const onChainBurned = stats.burned;
+    const apiBurned = BigInt(apiBurnStats.totalBurnedKamiyo);
+    const totalBurned = onChainBurned + apiBurned;
 
     res.json({
       mint: KAMIYO_MINT,
@@ -85,11 +93,23 @@ router.get('/stats', async (_req: Request, res: Response) => {
       initialSupplyFormatted: formatTokenAmount(INITIAL_SUPPLY.toString(), stats.decimals),
       currentSupply: stats.supply.toString(),
       currentSupplyFormatted: formatTokenAmount(stats.supply.toString(), stats.decimals),
-      burned: stats.burned.toString(),
-      burnedFormatted: formatTokenAmount(stats.burned.toString(), stats.decimals),
-      burnPercent: stats.burned > 0n
-        ? ((Number(stats.burned) / Number(INITIAL_SUPPLY)) * 100).toFixed(4)
+      burned: totalBurned.toString(),
+      burnedFormatted: formatTokenAmount(totalBurned.toString(), stats.decimals),
+      burnPercent: totalBurned > 0n
+        ? ((Number(totalBurned) / Number(INITIAL_SUPPLY)) * 100).toFixed(4)
         : '0',
+      burnBreakdown: {
+        onChain: {
+          amount: onChainBurned.toString(),
+          formatted: formatTokenAmount(onChainBurned.toString(), stats.decimals),
+        },
+        apiUsage: {
+          amount: apiBurned.toString(),
+          formatted: apiBurnStats.totalBurnedKamiyoFormatted,
+          usdValue: apiBurnStats.totalUsdValue,
+          burnCount: apiBurnStats.burnCount,
+        },
+      },
     });
   } catch (err) {
     logger.error('Failed to get token stats', { error: String(err) });
@@ -110,5 +130,74 @@ function formatTokenAmount(amount: string, decimals = 6): string {
   const fractionStr = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
   return `${whole.toLocaleString()}.${fractionStr}`;
 }
+
+// GET /kamiyo/burns - Get burn history from API usage
+router.get('/burns', (req: Request, res: Response) => {
+  try {
+    const burnService = getBurnService();
+
+    const source = req.query.source as string | undefined;
+    const wallet = req.query.wallet as string | undefined;
+    const status = req.query.status as string | undefined;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const burns = burnService.getBurns({ source, wallet, status, limit, offset });
+    const stats = burnService.getStats();
+
+    res.json({
+      burns: burns.map(b => ({
+        id: b.id,
+        source: b.source,
+        wallet: b.wallet ? b.wallet.slice(0, 10) + '...' : null,
+        endpoint: b.endpoint,
+        usdValue: b.usd_value,
+        kamiyoAmount: b.kamiyo_amount,
+        kamiyoFormatted: b.kamiyo_formatted,
+        status: b.status,
+        txSignature: b.tx_signature,
+        createdAt: b.created_at,
+      })),
+      stats: {
+        totalBurnedKamiyo: stats.totalBurnedKamiyo,
+        totalBurnedKamiyoFormatted: stats.totalBurnedKamiyoFormatted,
+        totalUsdValue: stats.totalUsdValue,
+        burnCount: stats.burnCount,
+        burns24h: stats.burns24h,
+        pendingBurns: stats.pendingBurns,
+      },
+      pagination: {
+        limit,
+        offset,
+        hasMore: burns.length === limit,
+      },
+    });
+  } catch (err) {
+    logger.error('Failed to get burn history', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get burn history' });
+  }
+});
+
+// GET /kamiyo/burns/stats - Get aggregated burn statistics only
+router.get('/burns/stats', (_req: Request, res: Response) => {
+  try {
+    const burnService = getBurnService();
+    const stats = burnService.getStats();
+
+    res.json({
+      totalBurnedKamiyo: stats.totalBurnedKamiyo,
+      totalBurnedKamiyoFormatted: stats.totalBurnedKamiyoFormatted,
+      totalUsdValue: stats.totalUsdValue,
+      burnCount: stats.burnCount,
+      burns24h: stats.burns24h,
+      pendingBurns: stats.pendingBurns,
+      burnRateBps: 100, // 1%
+      description: '1% of all API fees burned as $KAMIYO',
+    });
+  } catch (err) {
+    logger.error('Failed to get burn stats', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get burn stats' });
+  }
+});
 
 export default router;

@@ -8,6 +8,7 @@ import { createPayAIFacilitator, PayAIFacilitator, PayAINetwork } from '@kamiyo/
 import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { logger } from '../../logger';
 import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits } from '../../db';
+import { getBurnService } from '../../burn-service';
 
 const router: IRouter = Router();
 
@@ -86,15 +87,22 @@ async function paymentMiddleware(
       if (balanceMicro >= requiredMicro) {
         const deducted = deductCredits(walletHeader, requiredMicro, endpoint, description);
         if (deducted) {
+          // Record 1% burn from credit usage
+          const burnService = getBurnService();
+          const burn = burnService.recordCreditBurn(walletHeader, endpoint, priceUsd);
+
           (req as any).credits = {
             wallet: walletHeader,
             amountUsd: priceUsd,
             remainingUsd: getCreditBalanceUsd(walletHeader),
           };
+          (req as any).burn = burn;
+
           logger.info('Credits used', {
             wallet: walletHeader.slice(0, 10) + '...',
             amount: priceUsd,
             endpoint,
+            burnAmount: burn?.kamiyo_formatted,
           });
           next();
           return;
@@ -152,12 +160,18 @@ async function paymentMiddleware(
           requirement
         );
         if (verify.valid && settle?.success) {
+          // Record 1% burn from x402 payment
+          const burnService = getBurnService();
+          const burn = burnService.recordX402Burn(verify.payer, endpoint, priceUsd);
+
           (req as any).x402 = {
             payer: verify.payer,
             network: verify.network,
             amount: verify.amount,
             tx: settle.tx,
           };
+          (req as any).burn = burn;
+
           next();
           return;
         }

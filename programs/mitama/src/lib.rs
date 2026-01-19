@@ -6,9 +6,32 @@
  */
 
 use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
 use solana_poseidon::{hashv, Endianness, Parameters};
 
 declare_id!("DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km");
+
+/// $KAMIYO token mint on pump.fun (6 decimals)
+pub const KAMIYO_MINT: Pubkey = pubkey!("Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump");
+
+/// Fee amounts in KAMIYO tokens (with 6 decimals)
+/// 1000 KAMIYO = 1_000_000_000 raw
+pub const FEE_REGISTER_AGENT: u64 = 1_000_000_000;
+/// 100 KAMIYO = 100_000_000 raw
+pub const FEE_SUBMIT_SIGNAL: u64 = 100_000_000;
+/// 500 KAMIYO = 500_000_000 raw
+pub const FEE_CREATE_SWARM_ACTION: u64 = 500_000_000;
+
+/// Burn rate: 1% (100 basis points)
+pub const BURN_RATE_BPS: u64 = 100;
+
+/// Calculate burn and treasury amounts for a fee
+/// Returns (burn_amount, treasury_amount)
+fn calculate_fee_split(total_fee: u64) -> (u64, u64) {
+    let burn_amount = total_fee * BURN_RATE_BPS / 10_000;
+    let treasury_amount = total_fee - burn_amount;
+    (burn_amount, treasury_amount)
+}
 
 /// Compute Poseidon hash of signal inputs for commitment verification.
 /// Matches the circuit: Poseidon(signal_type, direction, confidence, magnitude, stake_amount, secret, nullifier)
@@ -81,6 +104,18 @@ const SWARM_VOTE_WINDOW: u64 = 4_500;
 /// Stake withdrawal timelock (24 hours in slots)
 const STAKE_WITHDRAWAL_TIMELOCK: u64 = 86_400;
 
+/// Collateral withdrawal timelock (7 days in seconds)
+const COLLATERAL_WITHDRAWAL_TIMELOCK: i64 = 7 * 24 * 60 * 60;
+
+/// Base slash rate for commitment mismatch (10% = 1000 basis points)
+const BASE_SLASH_RATE_BPS: u64 = 1000;
+
+/// Slash escalation per violation (5% = 500 basis points)
+const SLASH_ESCALATION_BPS: u64 = 500;
+
+/// Maximum slash rate (50% = 5000 basis points)
+const MAX_SLASH_RATE_BPS: u64 = 5000;
+
 /// Multiplier schedule (matching kamiyo-staking)
 const THIRTY_DAYS_SECS: i64 = 30 * 24 * 60 * 60;
 const NINETY_DAYS_SECS: i64 = 90 * 24 * 60 * 60;
@@ -122,6 +157,11 @@ pub mod mitama {
         registry.max_total_stake = config.max_total_stake;
         registry.max_stake_per_agent = config.max_stake_per_agent;
         registry.total_stake = 0;
+        registry.kamiyo_mint = ctx.accounts.kamiyo_mint.key();
+        registry.treasury_bump = ctx.bumps.treasury_vault;
+        registry.total_burned = 0;
+        registry.total_fees_collected = 0;
+        registry.min_signal_collateral = config.min_signal_collateral;
 
         emit!(RegistryInitialized {
             registry: registry.key(),
@@ -134,6 +174,7 @@ pub mod mitama {
 
     /// Register an agent with identity commitment
     /// Proves ownership of the agent without revealing the owner
+    /// Requires payment of 1000 KAMIYO (1% burned, 99% to treasury)
     pub fn register_agent(
         ctx: Context<RegisterAgent>,
         identity_commitment: [u8; 32],
@@ -162,6 +203,43 @@ pub mod mitama {
             );
         }
 
+        // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
+        let (burn_amount, treasury_amount) = calculate_fee_split(FEE_REGISTER_AGENT);
+
+        // Burn 1% of fee
+        token::burn(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Burn {
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
+                    from: ctx.accounts.payer_token_account.to_account_info(),
+                    authority: ctx.accounts.payer.to_account_info(),
+                },
+            ),
+            burn_amount,
+        )?;
+
+        // Transfer 99% to treasury
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.payer_token_account.to_account_info(),
+                    to: ctx.accounts.treasury_vault.to_account_info(),
+                    authority: ctx.accounts.payer.to_account_info(),
+                },
+            ),
+            treasury_amount,
+        )?;
+
+        // Update fee tracking
+        registry.total_burned = registry.total_burned
+            .checked_add(burn_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+        registry.total_fees_collected = registry.total_fees_collected
+            .checked_add(treasury_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+
         let agent = &mut ctx.accounts.agent;
         agent.registry = registry.key();
         agent.identity_commitment = identity_commitment;
@@ -171,6 +249,10 @@ pub mod mitama {
         agent.swarm_votes = 0;
         agent.active = true;
         agent.bump = ctx.bumps.agent;
+        agent.collateral_amount = 0;
+        agent.collateral_locked_at = 0;
+        agent.slashed_amount = 0;
+        agent.violation_count = 0;
 
         // Update registry state
         registry.agent_count = registry.agent_count
@@ -193,6 +275,14 @@ pub mod mitama {
             agent: agent.key(),
             identity_commitment,
             stake: stake_amount,
+        });
+
+        emit!(KamiyoFeePaid {
+            registry: registry.key(),
+            action: "register_agent".to_string(),
+            total_fee: FEE_REGISTER_AGENT,
+            burned: burn_amount,
+            treasury: treasury_amount,
         });
 
         Ok(())
@@ -226,6 +316,7 @@ pub mod mitama {
     }
 
     /// Submit a private signal with ZK proof of agent identity
+    /// Requires payment of 100 KAMIYO (1% burned, 99% to treasury)
     pub fn submit_signal(
         ctx: Context<SubmitSignal>,
         nullifier: [u8; 32],
@@ -234,8 +325,42 @@ pub mod mitama {
         proof_b: [u8; 128],
         proof_c: [u8; 64],
     ) -> Result<()> {
-        let registry = &ctx.accounts.registry;
+        let registry = &mut ctx.accounts.registry;
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
+
+        // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
+        let (burn_amount, treasury_amount) = calculate_fee_split(FEE_SUBMIT_SIGNAL);
+
+        token::burn(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Burn {
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
+                    from: ctx.accounts.payer_token_account.to_account_info(),
+                    authority: ctx.accounts.payer.to_account_info(),
+                },
+            ),
+            burn_amount,
+        )?;
+
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.payer_token_account.to_account_info(),
+                    to: ctx.accounts.treasury_vault.to_account_info(),
+                    authority: ctx.accounts.payer.to_account_info(),
+                },
+            ),
+            treasury_amount,
+        )?;
+
+        registry.total_burned = registry.total_burned
+            .checked_add(burn_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+        registry.total_fees_collected = registry.total_fees_collected
+            .checked_add(treasury_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
 
         // Verify ZK proof of agent identity
         // Public inputs: [agents_root, nullifier, epoch]
@@ -280,10 +405,19 @@ pub mod mitama {
             slot: signal.submitted_slot,
         });
 
+        emit!(KamiyoFeePaid {
+            registry: registry.key(),
+            action: "submit_signal".to_string(),
+            total_fee: FEE_SUBMIT_SIGNAL,
+            burned: burn_amount,
+            treasury: treasury_amount,
+        });
+
         Ok(())
     }
 
     /// Create a swarm action proposal
+    /// Requires payment of 500 KAMIYO (1% burned, 99% to treasury)
     pub fn create_swarm_action(
         ctx: Context<CreateSwarmAction>,
         action_hash: [u8; 32],
@@ -293,9 +427,43 @@ pub mod mitama {
         nullifier: [u8; 32],
         threshold: u8,
     ) -> Result<()> {
-        let registry = &ctx.accounts.registry;
+        let registry = &mut ctx.accounts.registry;
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
         require!(threshold > 0 && threshold <= 100, AgentCollabError::InvalidThreshold);
+
+        // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
+        let (burn_amount, treasury_amount) = calculate_fee_split(FEE_CREATE_SWARM_ACTION);
+
+        token::burn(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Burn {
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
+                    from: ctx.accounts.payer_token_account.to_account_info(),
+                    authority: ctx.accounts.payer.to_account_info(),
+                },
+            ),
+            burn_amount,
+        )?;
+
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.payer_token_account.to_account_info(),
+                    to: ctx.accounts.treasury_vault.to_account_info(),
+                    authority: ctx.accounts.payer.to_account_info(),
+                },
+            ),
+            treasury_amount,
+        )?;
+
+        registry.total_burned = registry.total_burned
+            .checked_add(burn_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+        registry.total_fees_collected = registry.total_fees_collected
+            .checked_add(treasury_amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
 
         // Verify ZK proof of agent identity
         let mut public_inputs: [[u8; 32]; 3] = [[0u8; 32]; 3];
@@ -330,6 +498,14 @@ pub mod mitama {
             action_hash,
             threshold,
             deadline_slot: swarm_action.deadline_slot,
+        });
+
+        emit!(KamiyoFeePaid {
+            registry: registry.key(),
+            action: "create_swarm_action".to_string(),
+            total_fee: FEE_CREATE_SWARM_ACTION,
+            burned: burn_amount,
+            treasury: treasury_amount,
         });
 
         Ok(())
@@ -887,6 +1063,277 @@ pub mod mitama {
 
         Ok(())
     }
+
+    /// Update minimum signal collateral requirement (admin only)
+    /// Set to 0 to disable collateral requirement
+    pub fn update_min_signal_collateral(
+        ctx: Context<ManageProtocol>,
+        new_min_signal_collateral: u64,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+        require!(
+            ctx.accounts.authority.key() == registry.authority,
+            AgentCollabError::Unauthorized
+        );
+
+        registry.min_signal_collateral = new_min_signal_collateral;
+
+        emit!(MinSignalCollateralUpdated {
+            registry: registry.key(),
+            min_signal_collateral: new_min_signal_collateral,
+        });
+
+        Ok(())
+    }
+
+    /// Deposit KAMIYO tokens as collateral for an agent
+    pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
+        require!(amount > 0, AgentCollabError::InvalidAmount);
+
+        let agent = &mut ctx.accounts.agent;
+        require!(agent.active, AgentCollabError::AgentNotActive);
+
+        // Transfer KAMIYO tokens from depositor to collateral vault
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.depositor_token_account.to_account_info(),
+                    to: ctx.accounts.collateral_vault.to_account_info(),
+                    authority: ctx.accounts.depositor.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
+
+        // Update agent collateral
+        agent.collateral_amount = agent.collateral_amount
+            .checked_add(amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+        agent.collateral_locked_at = Clock::get()?.unix_timestamp;
+
+        emit!(CollateralDeposited {
+            agent: agent.key(),
+            amount,
+            total_collateral: agent.collateral_amount,
+        });
+
+        Ok(())
+    }
+
+    /// Request withdrawal of collateral (starts timelock)
+    pub fn request_collateral_withdrawal(
+        ctx: Context<RequestCollateralWithdrawal>,
+        amount: u64,
+    ) -> Result<()> {
+        let agent = &ctx.accounts.agent;
+        require!(agent.active, AgentCollabError::AgentNotActive);
+        require!(
+            amount <= agent.collateral_amount,
+            AgentCollabError::ExceedsCollateral
+        );
+
+        let clock = Clock::get()?;
+        let withdrawal = &mut ctx.accounts.collateral_withdrawal;
+        withdrawal.agent = agent.key();
+        withdrawal.requester = ctx.accounts.requester.key();
+        withdrawal.amount = amount;
+        withdrawal.request_time = clock.unix_timestamp;
+        withdrawal.unlock_time = clock.unix_timestamp + COLLATERAL_WITHDRAWAL_TIMELOCK;
+        withdrawal.claimed = false;
+        withdrawal.bump = ctx.bumps.collateral_withdrawal;
+
+        emit!(CollateralWithdrawalRequested {
+            agent: agent.key(),
+            amount,
+            unlock_time: withdrawal.unlock_time,
+        });
+
+        Ok(())
+    }
+
+    /// Claim collateral after timelock expires
+    pub fn claim_collateral_withdrawal(ctx: Context<ClaimCollateralWithdrawal>) -> Result<()> {
+        let withdrawal = &mut ctx.accounts.collateral_withdrawal;
+        let agent = &mut ctx.accounts.agent;
+        let clock = Clock::get()?;
+
+        require!(!withdrawal.claimed, AgentCollabError::CollateralAlreadyClaimed);
+        require!(
+            clock.unix_timestamp >= withdrawal.unlock_time,
+            AgentCollabError::CollateralTimelockActive
+        );
+        require!(
+            ctx.accounts.claimer.key() == withdrawal.requester,
+            AgentCollabError::UnauthorizedWithdrawal
+        );
+
+        // Verify agent still has enough collateral
+        require!(
+            agent.collateral_amount >= withdrawal.amount,
+            AgentCollabError::ExceedsCollateral
+        );
+
+        withdrawal.claimed = true;
+        agent.collateral_amount = agent.collateral_amount
+            .saturating_sub(withdrawal.amount);
+
+        // Transfer tokens from vault to claimer
+        let agent_key = agent.key();
+        let seeds = &[
+            b"collateral_vault",
+            agent_key.as_ref(),
+            &[ctx.bumps.collateral_vault],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.collateral_vault.to_account_info(),
+                    to: ctx.accounts.claimer_token_account.to_account_info(),
+                    authority: ctx.accounts.collateral_vault.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            withdrawal.amount,
+        )?;
+
+        emit!(CollateralWithdrawalClaimed {
+            agent: agent.key(),
+            amount: withdrawal.amount,
+        });
+
+        Ok(())
+    }
+
+    /// Slash an agent's collateral (authority only)
+    pub fn slash_agent(
+        ctx: Context<SlashAgent>,
+        slash_amount: u64,
+        reason: String,
+    ) -> Result<()> {
+        let registry = &ctx.accounts.registry;
+        require!(
+            ctx.accounts.authority.key() == registry.authority,
+            AgentCollabError::Unauthorized
+        );
+
+        let agent = &mut ctx.accounts.agent;
+        require!(agent.active, AgentCollabError::AgentNotActive);
+        require!(
+            slash_amount <= agent.collateral_amount,
+            AgentCollabError::ExceedsCollateral
+        );
+
+        // Calculate actual slash with escalation
+        let escalation = (agent.violation_count as u64) * SLASH_ESCALATION_BPS;
+        let effective_rate = BASE_SLASH_RATE_BPS + escalation;
+        let capped_rate = if effective_rate > MAX_SLASH_RATE_BPS {
+            MAX_SLASH_RATE_BPS
+        } else {
+            effective_rate
+        };
+
+        // If slash_amount is 0, calculate based on rate
+        let actual_slash = if slash_amount == 0 {
+            (agent.collateral_amount * capped_rate) / 10_000
+        } else {
+            slash_amount
+        };
+
+        // Update agent state
+        agent.collateral_amount = agent.collateral_amount.saturating_sub(actual_slash);
+        agent.slashed_amount = agent.slashed_amount
+            .checked_add(actual_slash)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+        agent.violation_count = agent.violation_count.saturating_add(1);
+
+        // Transfer slashed tokens to treasury
+        let agent_key = agent.key();
+        let seeds = &[
+            b"collateral_vault",
+            agent_key.as_ref(),
+            &[ctx.bumps.collateral_vault],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.collateral_vault.to_account_info(),
+                    to: ctx.accounts.slash_treasury.to_account_info(),
+                    authority: ctx.accounts.collateral_vault.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            actual_slash,
+        )?;
+
+        emit!(AgentSlashed {
+            agent: agent.key(),
+            amount: actual_slash,
+            reason,
+            violation_count: agent.violation_count,
+        });
+
+        Ok(())
+    }
+
+    /// Burn tokens from treasury (authority only)
+    /// Used by API to burn tokens corresponding to off-chain fee revenue
+    pub fn burn_from_treasury(
+        ctx: Context<BurnFromTreasury>,
+        amount: u64,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.registry;
+
+        require!(amount > 0, AgentCollabError::InvalidAmount);
+
+        // Verify treasury has sufficient balance
+        require!(
+            ctx.accounts.treasury_vault.amount >= amount,
+            AgentCollabError::InsufficientTreasuryBalance
+        );
+
+        // Build signer seeds for treasury PDA
+        let registry_key = registry.key();
+        let seeds = &[
+            b"treasury",
+            registry_key.as_ref(),
+            &[registry.treasury_bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Burn tokens from treasury
+        token::burn(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Burn {
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
+                    from: ctx.accounts.treasury_vault.to_account_info(),
+                    authority: ctx.accounts.treasury_vault.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            amount,
+        )?;
+
+        // Update total burned
+        registry.total_burned = registry.total_burned
+            .checked_add(amount)
+            .ok_or(AgentCollabError::StakeOverflow)?;
+
+        emit!(TreasuryBurned {
+            registry: registry.key(),
+            amount,
+            total_burned: registry.total_burned,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -911,6 +1358,16 @@ pub struct AgentRegistry {
     pub max_stake_per_agent: u64,
     /// Current total stake in the registry
     pub total_stake: u64,
+    /// $KAMIYO token mint (for fee payments)
+    pub kamiyo_mint: Pubkey,
+    /// Treasury token account bump (for PDA signing)
+    pub treasury_bump: u8,
+    /// Total KAMIYO tokens burned by this registry
+    pub total_burned: u64,
+    /// Total KAMIYO fees collected by treasury
+    pub total_fees_collected: u64,
+    /// Minimum KAMIYO collateral required for signal submission (0 = no requirement)
+    pub min_signal_collateral: u64,
 }
 
 #[account]
@@ -923,6 +1380,14 @@ pub struct Agent {
     pub swarm_votes: u32,
     pub active: bool,
     pub bump: u8,
+    /// KAMIYO tokens deposited as collateral
+    pub collateral_amount: u64,
+    /// Unix timestamp when collateral was locked
+    pub collateral_locked_at: i64,
+    /// Total KAMIYO slashed from this agent
+    pub slashed_amount: u64,
+    /// Number of violations (for escalating penalties)
+    pub violation_count: u8,
 }
 
 #[account]
@@ -1023,6 +1488,25 @@ pub struct IdentityLink {
     pub bump: u8,
 }
 
+/// Request for collateral withdrawal with timelock
+#[account]
+pub struct CollateralWithdrawal {
+    /// Agent this withdrawal is for
+    pub agent: Pubkey,
+    /// Who requested the withdrawal
+    pub requester: Pubkey,
+    /// Amount to withdraw (KAMIYO tokens)
+    pub amount: u64,
+    /// Unix timestamp of request
+    pub request_time: i64,
+    /// Unix timestamp when withdrawal can be claimed
+    pub unlock_time: i64,
+    /// Whether already claimed
+    pub claimed: bool,
+    /// Bump seed
+    pub bump: u8,
+}
+
 // ============================================================================
 // Instruction Contexts
 // ============================================================================
@@ -1031,18 +1515,36 @@ pub struct IdentityLink {
 pub struct InitializeRegistry<'info> {
     /// Space: 8 discriminator + 32 authority + 32 agents_root + 4 agent_count + 4 signal_count
     ///        + 4 swarm_action_count + 8 epoch + 8 min_stake + 1 min_signal_confidence + 1 bump
-    ///        + 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake = 127
+    ///        + 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake
+    ///        + 32 kamiyo_mint + 1 treasury_bump + 8 total_burned + 8 total_fees_collected
+    ///        + 8 min_signal_collateral = 184
     #[account(
         init,
         payer = authority,
-        space = 127,
+        space = 184,
         seeds = [b"registry"],
         bump
     )]
     pub registry: Account<'info, AgentRegistry>,
+    /// $KAMIYO token mint
+    #[account(
+        constraint = kamiyo_mint.key() == KAMIYO_MINT @ AgentCollabError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: Account<'info, Mint>,
+    /// Treasury token account (PDA-owned, receives 99% of fees)
+    #[account(
+        init,
+        payer = authority,
+        token::mint = kamiyo_mint,
+        token::authority = treasury_vault,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump
+    )]
+    pub treasury_vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -1050,10 +1552,13 @@ pub struct InitializeRegistry<'info> {
 pub struct RegisterAgent<'info> {
     #[account(mut)]
     pub registry: Account<'info, AgentRegistry>,
+    /// Space: 8 discriminator + 32 registry + 32 identity_commitment + 8 stake + 8 registered_slot
+    ///        + 4 signal_count + 4 swarm_votes + 1 active + 1 bump
+    ///        + 8 collateral_amount + 8 collateral_locked_at + 8 slashed_amount + 1 violation_count = 123
     #[account(
         init,
         payer = payer,
-        space = 8 + 32 + 32 + 8 + 8 + 4 + 4 + 1 + 1,
+        space = 123,
         seeds = [b"agent", identity_commitment.as_ref()],
         bump
     )]
@@ -1067,9 +1572,30 @@ pub struct RegisterAgent<'info> {
     )]
     /// CHECK: PDA used as lamport sink for stake deposits
     pub stake_vault: AccountInfo<'info>,
+    /// $KAMIYO token mint for fee payment
+    #[account(
+        mut,
+        constraint = kamiyo_mint.key() == registry.kamiyo_mint @ AgentCollabError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: Account<'info, Mint>,
+    /// Payer's KAMIYO token account (pays fee)
+    #[account(
+        mut,
+        constraint = payer_token_account.mint == registry.kamiyo_mint,
+        constraint = payer_token_account.owner == payer.key()
+    )]
+    pub payer_token_account: Account<'info, TokenAccount>,
+    /// Treasury token account (receives 99% of fee)
+    #[account(
+        mut,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump = registry.treasury_bump
+    )]
+    pub treasury_vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -1100,9 +1626,30 @@ pub struct SubmitSignal<'info> {
         bump
     )]
     pub nullifier_record: Account<'info, NullifierRecord>,
+    /// $KAMIYO token mint for fee payment
+    #[account(
+        mut,
+        constraint = kamiyo_mint.key() == registry.kamiyo_mint @ AgentCollabError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: Account<'info, Mint>,
+    /// Payer's KAMIYO token account (pays fee)
+    #[account(
+        mut,
+        constraint = payer_token_account.mint == registry.kamiyo_mint,
+        constraint = payer_token_account.owner == payer.key()
+    )]
+    pub payer_token_account: Account<'info, TokenAccount>,
+    /// Treasury token account (receives 99% of fee)
+    #[account(
+        mut,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump = registry.treasury_bump
+    )]
+    pub treasury_vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -1119,9 +1666,30 @@ pub struct CreateSwarmAction<'info> {
         bump
     )]
     pub swarm_action: Account<'info, SwarmAction>,
+    /// $KAMIYO token mint for fee payment
+    #[account(
+        mut,
+        constraint = kamiyo_mint.key() == registry.kamiyo_mint @ AgentCollabError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: Account<'info, Mint>,
+    /// Payer's KAMIYO token account (pays fee)
+    #[account(
+        mut,
+        constraint = payer_token_account.mint == registry.kamiyo_mint,
+        constraint = payer_token_account.owner == payer.key()
+    )]
+    pub payer_token_account: Account<'info, TokenAccount>,
+    /// Treasury token account (receives 99% of fee)
+    #[account(
+        mut,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump = registry.treasury_bump
+    )]
+    pub treasury_vault: Account<'info, TokenAccount>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -1355,6 +1923,158 @@ pub struct ManageProtocol<'info> {
     pub authority: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct DepositCollateral<'info> {
+    /// Registry to verify agent and check paused state
+    #[account(
+        constraint = !registry.paused @ AgentCollabError::ProtocolPaused
+    )]
+    pub registry: Account<'info, AgentRegistry>,
+
+    #[account(mut, has_one = registry)]
+    pub agent: Account<'info, Agent>,
+
+    /// Depositor's KAMIYO token account
+    #[account(
+        mut,
+        constraint = depositor_token_account.mint == KAMIYO_MINT,
+        constraint = depositor_token_account.owner == depositor.key()
+    )]
+    pub depositor_token_account: Account<'info, TokenAccount>,
+
+    /// Agent's collateral vault (PDA-owned token account)
+    #[account(
+        init_if_needed,
+        payer = depositor,
+        token::mint = kamiyo_mint,
+        token::authority = collateral_vault,
+        seeds = [b"collateral_vault", agent.key().as_ref()],
+        bump
+    )]
+    pub collateral_vault: Account<'info, TokenAccount>,
+
+    #[account(
+        constraint = kamiyo_mint.key() == KAMIYO_MINT @ AgentCollabError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub depositor: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+#[instruction(amount: u64)]
+pub struct RequestCollateralWithdrawal<'info> {
+    pub agent: Account<'info, Agent>,
+
+    /// Collateral withdrawal request account
+    /// Space: 8 + 32 + 32 + 8 + 8 + 8 + 1 + 1 = 98
+    #[account(
+        init,
+        payer = requester,
+        space = 98,
+        seeds = [b"collateral_withdrawal", agent.key().as_ref()],
+        bump
+    )]
+    pub collateral_withdrawal: Account<'info, CollateralWithdrawal>,
+
+    #[account(mut)]
+    pub requester: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimCollateralWithdrawal<'info> {
+    #[account(mut)]
+    pub agent: Account<'info, Agent>,
+
+    #[account(
+        mut,
+        seeds = [b"collateral_withdrawal", agent.key().as_ref()],
+        bump = collateral_withdrawal.bump,
+        constraint = collateral_withdrawal.agent == agent.key()
+    )]
+    pub collateral_withdrawal: Account<'info, CollateralWithdrawal>,
+
+    /// Agent's collateral vault
+    #[account(
+        mut,
+        seeds = [b"collateral_vault", agent.key().as_ref()],
+        bump
+    )]
+    pub collateral_vault: Account<'info, TokenAccount>,
+
+    /// Claimer's token account to receive withdrawn collateral
+    #[account(
+        mut,
+        constraint = claimer_token_account.mint == KAMIYO_MINT,
+        constraint = claimer_token_account.owner == claimer.key()
+    )]
+    pub claimer_token_account: Account<'info, TokenAccount>,
+
+    pub claimer: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct SlashAgent<'info> {
+    pub registry: Account<'info, AgentRegistry>,
+
+    #[account(mut, has_one = registry)]
+    pub agent: Account<'info, Agent>,
+
+    /// Agent's collateral vault
+    #[account(
+        mut,
+        seeds = [b"collateral_vault", agent.key().as_ref()],
+        bump
+    )]
+    pub collateral_vault: Account<'info, TokenAccount>,
+
+    /// Treasury to receive slashed tokens
+    #[account(
+        mut,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump = registry.treasury_bump
+    )]
+    pub slash_treasury: Account<'info, TokenAccount>,
+
+    #[account(
+        constraint = authority.key() == registry.authority @ AgentCollabError::Unauthorized
+    )]
+    pub authority: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct BurnFromTreasury<'info> {
+    #[account(mut)]
+    pub registry: Account<'info, AgentRegistry>,
+
+    /// Treasury vault holding KAMIYO tokens
+    #[account(
+        mut,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump = registry.treasury_bump
+    )]
+    pub treasury_vault: Account<'info, TokenAccount>,
+
+    /// KAMIYO mint for burn
+    #[account(
+        mut,
+        constraint = kamiyo_mint.key() == registry.kamiyo_mint
+    )]
+    pub kamiyo_mint: Account<'info, Mint>,
+
+    #[account(
+        constraint = authority.key() == registry.authority @ AgentCollabError::Unauthorized
+    )]
+    pub authority: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
 // ============================================================================
 // Data Types
 // ============================================================================
@@ -1367,6 +2087,8 @@ pub struct RegistryConfig {
     pub max_total_stake: u64,
     /// Maximum stake per agent - 0 means unlimited
     pub max_stake_per_agent: u64,
+    /// Minimum KAMIYO collateral for signal submission (0 = no requirement)
+    pub min_signal_collateral: u64,
 }
 
 // ============================================================================
@@ -1461,6 +2183,12 @@ pub struct CapsUpdated {
 }
 
 #[event]
+pub struct MinSignalCollateralUpdated {
+    pub registry: Pubkey,
+    pub min_signal_collateral: u64,
+}
+
+#[event]
 pub struct SignalRevealed {
     pub signal: Pubkey,
     pub signal_type: u8,
@@ -1511,6 +2239,50 @@ pub struct StakeRefreshed {
     pub identity_link: Pubkey,
     pub staked_amount: u64,
     pub stake_multiplier: u64,
+}
+
+#[event]
+pub struct KamiyoFeePaid {
+    pub registry: Pubkey,
+    pub action: String,
+    pub total_fee: u64,
+    pub burned: u64,
+    pub treasury: u64,
+}
+
+#[event]
+pub struct CollateralDeposited {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub total_collateral: u64,
+}
+
+#[event]
+pub struct CollateralWithdrawalRequested {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub unlock_time: i64,
+}
+
+#[event]
+pub struct CollateralWithdrawalClaimed {
+    pub agent: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct AgentSlashed {
+    pub agent: Pubkey,
+    pub amount: u64,
+    pub reason: String,
+    pub violation_count: u8,
+}
+
+#[event]
+pub struct TreasuryBurned {
+    pub registry: Pubkey,
+    pub amount: u64,
+    pub total_burned: u64,
 }
 
 // ============================================================================
@@ -1581,4 +2353,16 @@ pub enum AgentCollabError {
     ExceedsTvlCap,
     #[msg("Stake calculation overflow")]
     StakeOverflow,
+    #[msg("Invalid KAMIYO token mint")]
+    InvalidKamiyoMint,
+    #[msg("Invalid amount")]
+    InvalidAmount,
+    #[msg("Exceeds available collateral")]
+    ExceedsCollateral,
+    #[msg("Collateral withdrawal already claimed")]
+    CollateralAlreadyClaimed,
+    #[msg("Collateral timelock not expired")]
+    CollateralTimelockActive,
+    #[msg("Insufficient treasury balance")]
+    InsufficientTreasuryBalance,
 }

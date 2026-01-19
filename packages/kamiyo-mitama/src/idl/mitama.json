@@ -36,6 +36,118 @@
       "args": []
     },
     {
+      "name": "claim_collateral_withdrawal",
+      "docs": [
+        "Claim collateral after timelock expires"
+      ],
+      "discriminator": [
+        254,
+        218,
+        2,
+        58,
+        189,
+        49,
+        166,
+        44
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "collateral_withdrawal",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Agent's collateral vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claimer_token_account",
+          "docs": [
+            "Claimer's token account to receive withdrawn collateral"
+          ],
+          "writable": true
+        },
+        {
+          "name": "claimer",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "claim_withdrawal",
       "docs": [
         "Claim withdrawn stake after timelock"
@@ -131,7 +243,8 @@
     {
       "name": "create_swarm_action",
       "docs": [
-        "Create a swarm action proposal"
+        "Create a swarm action proposal",
+        "Requires payment of 500 KAMIYO (1% burned, 99% to treasury)"
       ],
       "discriminator": [
         206,
@@ -181,6 +294,48 @@
           }
         },
         {
+          "name": "kamiyo_mint",
+          "docs": [
+            "$KAMIYO token mint for fee payment"
+          ],
+          "writable": true
+        },
+        {
+          "name": "payer_token_account",
+          "docs": [
+            "Payer's KAMIYO token account (pays fee)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury token account (receives 99% of fee)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -188,6 +343,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -309,6 +468,93 @@
       "args": []
     },
     {
+      "name": "deposit_collateral",
+      "docs": [
+        "Deposit KAMIYO tokens as collateral for an agent"
+      ],
+      "discriminator": [
+        156,
+        131,
+        142,
+        116,
+        146,
+        247,
+        162,
+        120
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "depositor_token_account",
+          "docs": [
+            "Depositor's KAMIYO token account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Agent's collateral vault (PDA-owned token account)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamiyo_mint"
+        },
+        {
+          "name": "depositor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "execute_swarm_action",
       "docs": [
         "Execute a swarm action if threshold met",
@@ -420,7 +666,8 @@
           "docs": [
             "Space: 8 discriminator + 32 authority + 32 agents_root + 4 agent_count + 4 signal_count",
             "+ 4 swarm_action_count + 8 epoch + 8 min_stake + 1 min_signal_confidence + 1 bump",
-            "+ 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake = 127"
+            "+ 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake",
+            "+ 32 kamiyo_mint + 1 treasury_bump + 8 total_burned + 8 total_fees_collected = 176"
           ],
           "writable": true,
           "pda": {
@@ -442,6 +689,40 @@
           }
         },
         {
+          "name": "kamiyo_mint",
+          "docs": [
+            "$KAMIYO token mint"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury token account (PDA-owned, receives 99% of fees)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
           "name": "authority",
           "writable": true,
           "signer": true
@@ -449,6 +730,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -647,7 +932,8 @@
       "name": "register_agent",
       "docs": [
         "Register an agent with identity commitment",
-        "Proves ownership of the agent without revealing the owner"
+        "Proves ownership of the agent without revealing the owner",
+        "Requires payment of 1000 KAMIYO (1% burned, 99% to treasury)"
       ],
       "discriminator": [
         135,
@@ -666,6 +952,11 @@
         },
         {
           "name": "agent",
+          "docs": [
+            "Space: 8 discriminator + 32 registry + 32 identity_commitment + 8 stake + 8 registered_slot",
+            "+ 4 signal_count + 4 swarm_votes + 1 active + 1 bump",
+            "+ 8 collateral_amount + 8 collateral_locked_at + 8 slashed_amount + 1 violation_count = 123"
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -719,6 +1010,48 @@
           }
         },
         {
+          "name": "kamiyo_mint",
+          "docs": [
+            "$KAMIYO token mint for fee payment"
+          ],
+          "writable": true
+        },
+        {
+          "name": "payer_token_account",
+          "docs": [
+            "Payer's KAMIYO token account (pays fee)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury token account (receives 99% of fee)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -726,6 +1059,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -740,6 +1077,84 @@
         },
         {
           "name": "stake_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "request_collateral_withdrawal",
+      "docs": [
+        "Request withdrawal of collateral (starts timelock)"
+      ],
+      "discriminator": [
+        0,
+        23,
+        233,
+        108,
+        57,
+        157,
+        51,
+        85
+      ],
+      "accounts": [
+        {
+          "name": "agent"
+        },
+        {
+          "name": "collateral_withdrawal",
+          "docs": [
+            "Collateral withdrawal request account",
+            "Space: 8 + 32 + 32 + 8 + 8 + 8 + 1 + 1 = 98"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  97,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
           "type": "u64"
         }
       ]
@@ -948,9 +1363,120 @@
       ]
     },
     {
+      "name": "slash_agent",
+      "docs": [
+        "Slash an agent's collateral (authority only)"
+      ],
+      "discriminator": [
+        110,
+        18,
+        208,
+        127,
+        90,
+        162,
+        228,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "relations": [
+            "agent"
+          ]
+        },
+        {
+          "name": "agent",
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Agent's collateral vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  97,
+                  116,
+                  101,
+                  114,
+                  97,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "slash_treasury",
+          "docs": [
+            "Treasury to receive slashed tokens"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "slash_amount",
+          "type": "u64"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "submit_signal",
       "docs": [
-        "Submit a private signal with ZK proof of agent identity"
+        "Submit a private signal with ZK proof of agent identity",
+        "Requires payment of 100 KAMIYO (1% burned, 99% to treasury)"
       ],
       "discriminator": [
         5,
@@ -1017,6 +1543,48 @@
           }
         },
         {
+          "name": "kamiyo_mint",
+          "docs": [
+            "$KAMIYO token mint for fee payment"
+          ],
+          "writable": true
+        },
+        {
+          "name": "payer_token_account",
+          "docs": [
+            "Payer's KAMIYO token account (pays fee)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury token account (receives 99% of fee)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -1024,6 +1592,10 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": [
@@ -1238,6 +1810,39 @@
       ]
     },
     {
+      "name": "update_min_signal_collateral",
+      "docs": [
+        "Update minimum signal collateral requirement (admin only)",
+        "Set to 0 to disable collateral requirement"
+      ],
+      "discriminator": [
+        39,
+        26,
+        174,
+        225,
+        153,
+        27,
+        248,
+        111
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_min_signal_collateral",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "vote_swarm_action",
       "docs": [
         "Vote on a swarm action with ZK proof",
@@ -1409,6 +2014,19 @@
       ]
     },
     {
+      "name": "CollateralWithdrawal",
+      "discriminator": [
+        164,
+        128,
+        63,
+        125,
+        194,
+        107,
+        4,
+        101
+      ]
+    },
+    {
       "name": "IdentityLink",
       "discriminator": [
         111,
@@ -1541,6 +2159,19 @@
       ]
     },
     {
+      "name": "AgentSlashed",
+      "discriminator": [
+        120,
+        151,
+        39,
+        77,
+        227,
+        13,
+        229,
+        185
+      ]
+    },
+    {
       "name": "AgentsRootUpdated",
       "discriminator": [
         78,
@@ -1580,6 +2211,45 @@
       ]
     },
     {
+      "name": "CollateralDeposited",
+      "discriminator": [
+        244,
+        62,
+        77,
+        11,
+        135,
+        112,
+        61,
+        96
+      ]
+    },
+    {
+      "name": "CollateralWithdrawalClaimed",
+      "discriminator": [
+        136,
+        52,
+        154,
+        81,
+        171,
+        141,
+        177,
+        243
+      ]
+    },
+    {
+      "name": "CollateralWithdrawalRequested",
+      "discriminator": [
+        162,
+        182,
+        154,
+        219,
+        34,
+        128,
+        253,
+        37
+      ]
+    },
+    {
       "name": "IdentityLinked",
       "discriminator": [
         211,
@@ -1603,6 +2273,32 @@
         42,
         58,
         228
+      ]
+    },
+    {
+      "name": "KamiyoFeePaid",
+      "discriminator": [
+        214,
+        242,
+        211,
+        157,
+        207,
+        156,
+        179,
+        231
+      ]
+    },
+    {
+      "name": "MinSignalCollateralUpdated",
+      "discriminator": [
+        18,
+        202,
+        110,
+        127,
+        131,
+        203,
+        230,
+        60
       ]
     },
     {
@@ -1930,6 +2626,31 @@
       "code": 6030,
       "name": "StakeOverflow",
       "msg": "Stake calculation overflow"
+    },
+    {
+      "code": 6031,
+      "name": "InvalidKamiyoMint",
+      "msg": "Invalid KAMIYO token mint"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidAmount",
+      "msg": "Invalid amount"
+    },
+    {
+      "code": 6033,
+      "name": "ExceedsCollateral",
+      "msg": "Exceeds available collateral"
+    },
+    {
+      "code": 6034,
+      "name": "CollateralAlreadyClaimed",
+      "msg": "Collateral withdrawal already claimed"
+    },
+    {
+      "code": 6035,
+      "name": "CollateralTimelockActive",
+      "msg": "Collateral timelock not expired"
     }
   ],
   "types": [
@@ -1973,6 +2694,34 @@
           },
           {
             "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "collateral_amount",
+            "docs": [
+              "KAMIYO tokens deposited as collateral"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "collateral_locked_at",
+            "docs": [
+              "Unix timestamp when collateral was locked"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "slashed_amount",
+            "docs": [
+              "Total KAMIYO slashed from this agent"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "violation_count",
+            "docs": [
+              "Number of violations (for escalating penalties)"
+            ],
             "type": "u8"
           }
         ]
@@ -2093,6 +2842,65 @@
               "Current total stake in the registry"
             ],
             "type": "u64"
+          },
+          {
+            "name": "kamiyo_mint",
+            "docs": [
+              "$KAMIYO token mint (for fee payments)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_bump",
+            "docs": [
+              "Treasury token account bump (for PDA signing)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "total_burned",
+            "docs": [
+              "Total KAMIYO tokens burned by this registry"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_fees_collected",
+            "docs": [
+              "Total KAMIYO fees collected by treasury"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_signal_collateral",
+            "docs": [
+              "Minimum KAMIYO collateral required for signal submission (0 = no requirement)"
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentSlashed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          },
+          {
+            "name": "violation_count",
+            "type": "u8"
           }
         ]
       }
@@ -2158,6 +2966,122 @@
           {
             "name": "max_stake_per_agent",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralDeposited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralWithdrawal",
+      "docs": [
+        "Request for collateral withdrawal with timelock"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "docs": [
+              "Agent this withdrawal is for"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "requester",
+            "docs": [
+              "Who requested the withdrawal"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Amount to withdraw (KAMIYO tokens)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "request_time",
+            "docs": [
+              "Unix timestamp of request"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "unlock_time",
+            "docs": [
+              "Unix timestamp when withdrawal can be claimed"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "claimed",
+            "docs": [
+              "Whether already claimed"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralWithdrawalClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralWithdrawalRequested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "unlock_time",
+            "type": "i64"
           }
         ]
       }
@@ -2267,6 +3191,50 @@
       }
     },
     {
+      "name": "KamiyoFeePaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "action",
+            "type": "string"
+          },
+          {
+            "name": "total_fee",
+            "type": "u64"
+          },
+          {
+            "name": "burned",
+            "type": "u64"
+          },
+          {
+            "name": "treasury",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MinSignalCollateralUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "min_signal_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "NullifierRecord",
       "type": {
         "kind": "struct",
@@ -2339,6 +3307,13 @@
             "name": "max_stake_per_agent",
             "docs": [
               "Maximum stake per agent - 0 means unlimited"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_signal_collateral",
+            "docs": [
+              "Minimum KAMIYO collateral for signal submission (0 = no requirement)"
             ],
             "type": "u64"
           }

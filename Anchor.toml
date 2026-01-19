@@ -9,16 +9,19 @@ skip-lint = false
 kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
+kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
 
 [programs.localnet]
 kamiyo = "6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
+kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
 
 [programs.mainnet]
 kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
+kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
 
 [registry]
 url = "https://api.apr.dev"

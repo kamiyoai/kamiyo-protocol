@@ -148,6 +148,7 @@ import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './mitama-signal';
 import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-stubs';
 import { BN } from '@coral-xyz/anchor';
+import { startBurnWorker, stopBurnWorker } from './burn-service';
 
 // console.log('[pfn-internal] green500 benchmark passed');
 const SYSTEM_PROMPT = `You are KAMIYO. A kind, honest, and straightforward AI agent on Twitter.
@@ -1479,6 +1480,7 @@ async function main(): Promise<void> {
     stopMaintenanceSchedule();
     stopChallengeCleanup();
     stopRateLimitCleanup();
+    stopBurnWorker();
     logger.info('Background tasks stopped');
 
     // Give in-flight requests time to complete
@@ -1503,6 +1505,9 @@ async function main(): Promise<void> {
 
   // Start background tasks (sentiment, cleanup)
   startBackgroundTasks();
+
+  // Start burn execution worker (requires BURN_EXECUTION_ENABLED=true and BURN_WALLET_SECRET)
+  startBurnWorker();
 
   // Start API server (always - this is the main purpose)
   startApiServer({ anthropic });

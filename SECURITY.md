@@ -63,6 +63,24 @@ Do not open public issues for security vulnerabilities.
 - Use dedicated providers with SLAs
 - Implement caching where appropriate
 
+## Bug Bounty
+
+Scope: Solana programs (kamiyo, mitama), ZK circuits, EVM contracts.
+
+| Severity | Bounty | Example |
+|----------|--------|---------|
+| Critical | Up to $5,000 | Fund drain, unauthorized withdrawals |
+| High | Up to $2,000 | Logic errors affecting user funds |
+| Medium | Up to $500 | DoS, griefing attacks |
+| Low | $100 | Informational, best practices |
+
+Exclusions:
+- Frontend/UI issues
+- Third-party dependencies (unless in scope)
+- Known issues documented in code
+
+Contact: security@kamiyo.ai
+
 ## Contact
 
 security@kamiyo.ai
