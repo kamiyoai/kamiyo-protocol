@@ -8,6 +8,78 @@
   },
   "instructions": [
     {
+      "name": "burn_from_treasury",
+      "docs": [
+        "Burn tokens from treasury (authority only)",
+        "Used by API to burn tokens corresponding to off-chain fee revenue"
+      ],
+      "discriminator": [
+        25,
+        92,
+        50,
+        221,
+        117,
+        107,
+        158,
+        180
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury vault holding KAMIYO tokens"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamiyo_mint",
+          "docs": [
+            "KAMIYO mint for burn"
+          ],
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "cancel_withdrawal",
       "docs": [
         "Cancel pending withdrawal"
@@ -484,6 +556,15 @@
       ],
       "accounts": [
         {
+          "name": "registry",
+          "docs": [
+            "Registry to verify agent and check paused state"
+          ],
+          "relations": [
+            "agent"
+          ]
+        },
+        {
           "name": "agent",
           "writable": true
         },
@@ -667,7 +748,8 @@
             "Space: 8 discriminator + 32 authority + 32 agents_root + 4 agent_count + 4 signal_count",
             "+ 4 swarm_action_count + 8 epoch + 8 min_stake + 1 min_signal_confidence + 1 bump",
             "+ 1 paused + 8 max_total_stake + 8 max_stake_per_agent + 8 total_stake",
-            "+ 32 kamiyo_mint + 1 treasury_bump + 8 total_burned + 8 total_fees_collected = 176"
+            "+ 32 kamiyo_mint + 1 treasury_bump + 8 total_burned + 8 total_fees_collected",
+            "+ 8 min_signal_collateral = 184"
           ],
           "writable": true,
           "pda": {
@@ -832,6 +914,98 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate_registry",
+      "docs": [
+        "Migrate registry from v1 (127 bytes) to v2 (184 bytes)",
+        "Adds KAMIYO token integration fields and creates treasury vault.",
+        "Can only be called once (checks kamiyo_mint == default)."
+      ],
+      "discriminator": [
+        216,
+        135,
+        36,
+        181,
+        124,
+        116,
+        222,
+        131
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "docs": [
+            "Registry to migrate (realloc from 127 to 184 bytes)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "kamiyo_mint",
+          "docs": [
+            "KAMIYO token mint"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury vault (created during migration)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
@@ -2341,6 +2515,19 @@
       ]
     },
     {
+      "name": "RegistryMigrated",
+      "discriminator": [
+        147,
+        228,
+        29,
+        245,
+        202,
+        41,
+        128,
+        158
+      ]
+    },
+    {
       "name": "SignalRevealed",
       "discriminator": [
         63,
@@ -2416,6 +2603,19 @@
         104,
         8,
         131
+      ]
+    },
+    {
+      "name": "TreasuryBurned",
+      "discriminator": [
+        244,
+        26,
+        252,
+        60,
+        151,
+        14,
+        19,
+        173
       ]
     },
     {
@@ -2651,6 +2851,16 @@
       "code": 6035,
       "name": "CollateralTimelockActive",
       "msg": "Collateral timelock not expired"
+    },
+    {
+      "code": 6036,
+      "name": "InsufficientTreasuryBalance",
+      "msg": "Insufficient treasury balance"
+    },
+    {
+      "code": 6037,
+      "name": "AlreadyMigrated",
+      "msg": "Registry already migrated"
     }
   ],
   "types": [
@@ -3341,6 +3551,26 @@
       }
     },
     {
+      "name": "RegistryMigrated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "kamiyo_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_vault",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "Signal",
       "type": {
         "kind": "struct",
@@ -3665,6 +3895,26 @@
           {
             "name": "votes_against",
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TreasuryBurned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registry",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_burned",
+            "type": "u64"
           }
         ]
       }

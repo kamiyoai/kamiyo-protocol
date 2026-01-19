@@ -9,6 +9,7 @@ import { PublicKey, Connection, Keypair } from '@solana/web3.js';
 import { buildPoseidon, Poseidon } from 'circomlibjs';
 import {
   MITAMA_PROGRAM_ID,
+  KAMIYO_MINT,
   Groth16Proof,
   RegistryConfig,
   AgentRegistry,
@@ -464,6 +465,7 @@ export class MitamaClient {
 
   /**
    * Fetch the agent registry account.
+   * Falls back to manual parsing for older 127-byte structs.
    * @returns Registry account data or null if not initialized
    */
   async getRegistry(): Promise<AgentRegistry | null> {
@@ -472,8 +474,69 @@ export class MitamaClient {
       const accounts = this.program.account as Record<string, { fetch: (key: PublicKey) => Promise<unknown> }>;
       return await accounts['agentRegistry'].fetch(registryPDA) as AgentRegistry;
     } catch {
-      return null;
+      // Fallback: manual parsing for older 127-byte struct (pre-KAMIYO token tracking)
+      try {
+        const acctInfo = await this.program.provider.connection.getAccountInfo(registryPDA);
+        if (!acctInfo || acctInfo.data.length < 127) return null;
+        return this.parseRegistryManually(acctInfo.data);
+      } catch {
+        return null;
+      }
     }
+  }
+
+  /**
+   * Manually parse registry from raw bytes (for 127-byte struct).
+   */
+  private parseRegistryManually(data: Buffer): AgentRegistry {
+    let offset = 8; // Skip discriminator
+
+    const authority = new PublicKey(data.subarray(offset, offset + 32));
+    offset += 32;
+
+    const agentsRoot = new Uint8Array(data.subarray(offset, offset + 32));
+    offset += 32;
+
+    const agentCount = data.readUInt32LE(offset);
+    offset += 4;
+
+    const signalCount = data.readUInt32LE(offset);
+    offset += 4;
+
+    const swarmActionCount = data.readUInt32LE(offset);
+    offset += 4;
+
+    const epoch = new BN(data.readBigUInt64LE(offset).toString());
+    offset += 8;
+
+    const minStake = new BN(data.readBigUInt64LE(offset).toString());
+    offset += 8;
+
+    const minSignalConfidence = data.readUInt8(offset);
+    offset += 1;
+
+    const bump = data.readUInt8(offset);
+    offset += 1;
+
+    const paused = data.readUInt8(offset) !== 0;
+    offset += 1;
+
+    // minSignalCollateral defaults to 0 for older 127-byte struct
+    const minSignalCollateral = new BN(0);
+
+    return {
+      authority,
+      agentsRoot,
+      agentCount,
+      signalCount,
+      swarmActionCount,
+      epoch,
+      minStake,
+      minSignalConfidence,
+      bump,
+      paused,
+      minSignalCollateral,
+    };
   }
 
   async getAgent(identityCommitment: Uint8Array): Promise<Agent | null> {
@@ -584,14 +647,19 @@ export class MitamaClient {
     config: RegistryConfig
   ): Promise<string> {
     const [registryPDA] = MitamaClient.getRegistryPDA();
+    const [treasuryVault] = MitamaClient.getTreasuryPDA(registryPDA);
+    const kamiyoMint = new PublicKey(KAMIYO_MINT);
 
     return withRetry(() =>
       this.program.methods
         .initializeRegistry(config)
         .accounts({
           registry: registryPDA,
+          kamiyoMint,
+          treasuryVault,
           authority: authority.publicKey,
           systemProgram: web3.SystemProgram.programId,
+          tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
         })
         .signers([authority])
         .rpc()
@@ -634,17 +702,20 @@ export class MitamaClient {
 
   /**
    * Submit a private signal with ZK proof.
+   * Requires KAMIYO tokens for fee payment (100 KAMIYO: 1% burned, 99% to treasury).
    * @param payer - Keypair paying for the transaction
    * @param proof - Groth16 proof of agent identity
    * @param nullifier - 32-byte nullifier to prevent double submission
    * @param signalCommitment - 32-byte commitment to signal content
+   * @param payerTokenAccount - Payer's KAMIYO token account for fee payment
    * @returns Transaction signature
    */
   async submitSignal(
     payer: Keypair,
     proof: Groth16Proof,
     nullifier: Uint8Array,
-    signalCommitment: Uint8Array
+    signalCommitment: Uint8Array,
+    payerTokenAccount?: PublicKey
   ): Promise<string> {
     validateProof(proof);
     validateBytes32(nullifier, 'nullifier');
@@ -653,6 +724,11 @@ export class MitamaClient {
     const [registryPDA] = MitamaClient.getRegistryPDA();
     const [signalPDA] = MitamaClient.getSignalPDA(signalCommitment);
     const [nullifierPDA] = MitamaClient.getNullifierPDA(nullifier);
+    const [treasuryVault] = MitamaClient.getTreasuryPDA(registryPDA);
+    const kamiyoMint = new PublicKey(KAMIYO_MINT);
+
+    // Get or derive payer's token account
+    const tokenAccount = payerTokenAccount || (await this.getAssociatedTokenAddress(payer.publicKey, kamiyoMint));
 
     return withRetry(() =>
       this.program.methods
@@ -667,12 +743,30 @@ export class MitamaClient {
           registry: registryPDA,
           signal: signalPDA,
           nullifierRecord: nullifierPDA,
+          kamiyoMint,
+          payerTokenAccount: tokenAccount,
+          treasuryVault,
           payer: payer.publicKey,
           systemProgram: web3.SystemProgram.programId,
+          tokenProgram: new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'),
         })
         .signers([payer])
         .rpc()
     );
+  }
+
+  /**
+   * Get associated token address for a wallet and mint.
+   * Uses Token-2022 program for KAMIYO token.
+   */
+  private async getAssociatedTokenAddress(owner: PublicKey, mint: PublicKey): Promise<PublicKey> {
+    const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+    const [address] = PublicKey.findProgramAddressSync(
+      [owner.toBuffer(), TOKEN_2022_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+    return address;
   }
 
   async createSwarmAction(

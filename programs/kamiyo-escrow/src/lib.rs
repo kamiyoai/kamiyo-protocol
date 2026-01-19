@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{
+    self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
+};
 
-declare_id!("J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY");
+declare_id!("AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu");
 
 /// $KAMIYO token mint on pump.fun (6 decimals)
 pub const KAMIYO_MINT: Pubkey = pubkey!("Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump");
@@ -32,12 +34,13 @@ pub mod kamiyo_escrow {
     ) -> Result<()> {
         // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
         let (burn_amount, treasury_amount) = calculate_fee_split(FEE_CREATE_ESCROW);
+        let decimals = ctx.accounts.kamiyo_mint.decimals;
 
         // Burn 1% of fee
-        token::burn(
+        token_interface::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Burn {
+                token_interface::Burn {
                     mint: ctx.accounts.kamiyo_mint.to_account_info(),
                     from: ctx.accounts.user_token_account.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
@@ -47,16 +50,18 @@ pub mod kamiyo_escrow {
         )?;
 
         // Transfer 99% to token treasury
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.user_token_account.to_account_info(),
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
                     to: ctx.accounts.token_treasury.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
                 },
             ),
             treasury_amount,
+            decimals,
         )?;
 
         // Save keys before mutable borrow
@@ -201,12 +206,12 @@ pub struct CreateEscrow<'info> {
     )]
     pub escrow: Account<'info, Escrow>,
 
-    /// $KAMIYO token mint for fee payment
+    /// $KAMIYO token mint for fee payment (Token-2022)
     #[account(
         mut,
         constraint = kamiyo_mint.key() == KAMIYO_MINT @ EscrowError::InvalidKamiyoMint
     )]
-    pub kamiyo_mint: Account<'info, Mint>,
+    pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
 
     /// User's KAMIYO token account (pays fee)
     #[account(
@@ -214,7 +219,7 @@ pub struct CreateEscrow<'info> {
         constraint = user_token_account.mint == kamiyo_mint.key(),
         constraint = user_token_account.owner == user.key()
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: InterfaceAccount<'info, TokenAccountInterface>,
 
     /// Token treasury account (receives 99% of fee)
     #[account(
@@ -222,10 +227,10 @@ pub struct CreateEscrow<'info> {
         seeds = [b"token_treasury"],
         bump
     )]
-    pub token_treasury: Account<'info, TokenAccount>,
+    pub token_treasury: InterfaceAccount<'info, TokenAccountInterface>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]

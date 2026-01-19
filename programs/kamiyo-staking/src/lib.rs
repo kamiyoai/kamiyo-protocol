@@ -16,10 +16,12 @@
 //! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token_interface::{
+    self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
+};
 use anchor_spl::associated_token::AssociatedToken;
 
-declare_id!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
+declare_id!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
 
 /// Burn rate for reward distributions: 1% (100 basis points)
 const REWARD_BURN_RATE_BPS: u64 = 100;
@@ -219,10 +221,10 @@ pub mod kamiyo_staking {
                 let seeds = &[b"pool".as_ref(), &[pool.bump]];
                 let signer = &[&seeds[..]];
 
-                token::transfer(
+                token_interface::transfer(
                     CpiContext::new_with_signer(
                         ctx.accounts.token_program.to_account_info(),
-                        Transfer {
+                        token_interface::Transfer {
                             from: ctx.accounts.rewards_vault.to_account_info(),
                             to: ctx.accounts.user_token_account.to_account_info(),
                             authority: ctx.accounts.pool.to_account_info(),
@@ -243,10 +245,10 @@ pub mod kamiyo_staking {
         }
 
         // Transfer tokens to vault
-        token::transfer(
+        token_interface::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::Transfer {
                     from: ctx.accounts.user_token_account.to_account_info(),
                     to: ctx.accounts.token_vault.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
@@ -307,10 +309,10 @@ pub mod kamiyo_staking {
         let signer = &[&seeds[..]];
 
         if pending > 0 {
-            token::transfer(
+            token_interface::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
-                    Transfer {
+                    token_interface::Transfer {
                         from: ctx.accounts.rewards_vault.to_account_info(),
                         to: ctx.accounts.user_token_account.to_account_info(),
                         authority: ctx.accounts.pool.to_account_info(),
@@ -322,10 +324,10 @@ pub mod kamiyo_staking {
         }
 
         // Transfer staked tokens back to user
-        token::transfer(
+        token_interface::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::Transfer {
                     from: ctx.accounts.token_vault.to_account_info(),
                     to: ctx.accounts.user_token_account.to_account_info(),
                     authority: ctx.accounts.pool.to_account_info(),
@@ -392,10 +394,10 @@ pub mod kamiyo_staking {
         let signer = &[&seeds[..]];
 
         // Transfer rewards
-        token::transfer(
+        token_interface::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::Transfer {
                     from: ctx.accounts.rewards_vault.to_account_info(),
                     to: ctx.accounts.user_token_account.to_account_info(),
                     authority: ctx.accounts.pool.to_account_info(),
@@ -438,10 +440,11 @@ pub mod kamiyo_staking {
         let (burn_amount, distribution_amount) = calculate_reward_split(amount);
 
         // Burn 1% of rewards
-        token::burn(
+        let decimals = ctx.accounts.token_mint.decimals;
+        token_interface::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Burn {
+                token_interface::Burn {
                     mint: ctx.accounts.token_mint.to_account_info(),
                     from: ctx.accounts.distributor_token_account.to_account_info(),
                     authority: ctx.accounts.distributor.to_account_info(),
@@ -451,16 +454,18 @@ pub mod kamiyo_staking {
         )?;
 
         // Transfer 99% to rewards vault
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.distributor_token_account.to_account_info(),
+                    mint: ctx.accounts.token_mint.to_account_info(),
                     to: ctx.accounts.rewards_vault.to_account_info(),
                     authority: ctx.accounts.distributor.to_account_info(),
                 },
             ),
             distribution_amount,
+            decimals,
         )?;
 
         // Update accumulated rewards per share (based on distribution amount, not total)
@@ -619,7 +624,7 @@ pub struct InitializePool<'info> {
     )]
     pub pool: Account<'info, StakingPool>,
 
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(
         init,
@@ -629,7 +634,7 @@ pub struct InitializePool<'info> {
         seeds = [b"vault"],
         bump
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         init,
@@ -639,13 +644,13 @@ pub struct InitializePool<'info> {
         seeds = [b"rewards"],
         bump
     )]
-    pub rewards_vault: Account<'info, TokenAccount>,
+    pub rewards_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(mut)]
     pub admin: Signer<'info>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub rent: Sysvar<'info, Rent>,
 }
 
@@ -672,27 +677,28 @@ pub struct Stake<'info> {
         seeds = [b"vault"],
         bump
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         seeds = [b"rewards"],
         bump
     )]
-    pub rewards_vault: Account<'info, TokenAccount>,
+    pub rewards_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         associated_token::mint = pool.token_mint,
-        associated_token::authority = user
+        associated_token::authority = user,
+        associated_token::token_program = token_program
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(mut)]
     pub user: Signer<'info>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub rent: Sysvar<'info, Rent>,
 }
@@ -719,21 +725,22 @@ pub struct Unstake<'info> {
         seeds = [b"vault"],
         bump
     )]
-    pub token_vault: Account<'info, TokenAccount>,
+    pub token_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         seeds = [b"rewards"],
         bump
     )]
-    pub rewards_vault: Account<'info, TokenAccount>,
+    pub rewards_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         associated_token::mint = pool.token_mint,
-        associated_token::authority = user
+        associated_token::authority = user,
+        associated_token::token_program = token_program
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: InterfaceAccount<'info, TokenAccountInterface>,
 
     /// CHECK: validated by position.owner constraint
     pub owner: UncheckedAccount<'info>,
@@ -741,7 +748,7 @@ pub struct Unstake<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -762,21 +769,22 @@ pub struct ClaimRewards<'info> {
         seeds = [b"rewards"],
         bump
     )]
-    pub rewards_vault: Account<'info, TokenAccount>,
+    pub rewards_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(
         mut,
         associated_token::mint = pool.token_mint,
-        associated_token::authority = user
+        associated_token::authority = user,
+        associated_token::token_program = token_program
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: InterfaceAccount<'info, TokenAccountInterface>,
 
     /// CHECK: validated by position.owner constraint
     pub owner: UncheckedAccount<'info>,
 
     pub user: Signer<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -793,21 +801,21 @@ pub struct DistributeRewards<'info> {
         mut,
         constraint = token_mint.key() == pool.token_mint
     )]
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(
         mut,
         seeds = [b"rewards"],
         bump
     )]
-    pub rewards_vault: Account<'info, TokenAccount>,
+    pub rewards_vault: InterfaceAccount<'info, TokenAccountInterface>,
 
     #[account(mut)]
-    pub distributor_token_account: Account<'info, TokenAccount>,
+    pub distributor_token_account: InterfaceAccount<'info, TokenAccountInterface>,
 
     pub distributor: Signer<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]

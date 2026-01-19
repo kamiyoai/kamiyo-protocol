@@ -5,9 +5,9 @@
 import { Connection, PublicKey, Keypair } from "@solana/web3.js";
 import { Program, AnchorProvider, BN, Wallet } from "@coral-xyz/anchor";
 
-// Staking program ID
+// Staking program ID (mainnet)
 export const STAKING_PROGRAM_ID = new PublicKey(
-  "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
+  "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
 );
 
 // Multiplier constants (basis points, 10000 = 1.0x)

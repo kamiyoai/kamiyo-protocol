@@ -7,6 +7,9 @@
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token_2022::Token2022;
+use anchor_spl::token_interface::{self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface};
+use anchor_spl::associated_token::AssociatedToken;
 use solana_poseidon::{hashv, Endianness, Parameters};
 
 declare_id!("DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km");
@@ -330,11 +333,12 @@ pub mod mitama {
 
         // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
         let (burn_amount, treasury_amount) = calculate_fee_split(FEE_SUBMIT_SIGNAL);
+        let decimals = ctx.accounts.kamiyo_mint.decimals;
 
-        token::burn(
+        token_interface::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Burn {
+                token_interface::Burn {
                     mint: ctx.accounts.kamiyo_mint.to_account_info(),
                     from: ctx.accounts.payer_token_account.to_account_info(),
                     authority: ctx.accounts.payer.to_account_info(),
@@ -343,16 +347,18 @@ pub mod mitama {
             burn_amount,
         )?;
 
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.payer_token_account.to_account_info(),
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
                     to: ctx.accounts.treasury_vault.to_account_info(),
                     authority: ctx.accounts.payer.to_account_info(),
                 },
             ),
             treasury_amount,
+            decimals,
         )?;
 
         registry.total_burned = registry.total_burned
@@ -433,11 +439,12 @@ pub mod mitama {
 
         // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
         let (burn_amount, treasury_amount) = calculate_fee_split(FEE_CREATE_SWARM_ACTION);
+        let decimals = ctx.accounts.kamiyo_mint.decimals;
 
-        token::burn(
+        token_interface::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Burn {
+                token_interface::Burn {
                     mint: ctx.accounts.kamiyo_mint.to_account_info(),
                     from: ctx.accounts.payer_token_account.to_account_info(),
                     authority: ctx.accounts.payer.to_account_info(),
@@ -446,16 +453,18 @@ pub mod mitama {
             burn_amount,
         )?;
 
-        token::transfer(
+        token_interface::transfer_checked(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Transfer {
+                token_interface::TransferChecked {
                     from: ctx.accounts.payer_token_account.to_account_info(),
+                    mint: ctx.accounts.kamiyo_mint.to_account_info(),
                     to: ctx.accounts.treasury_vault.to_account_info(),
                     authority: ctx.accounts.payer.to_account_info(),
                 },
             ),
             treasury_amount,
+            decimals,
         )?;
 
         registry.total_burned = registry.total_burned
@@ -1086,6 +1095,120 @@ pub mod mitama {
         Ok(())
     }
 
+    /// Migrate registry from v1 (127 bytes) to v2 (192 bytes)
+    /// Adds KAMIYO token integration fields and creates treasury vault.
+    /// Can only be called once (checks kamiyo_mint == default after realloc).
+    pub fn migrate_registry(ctx: Context<MigrateRegistry>) -> Result<()> {
+        let registry_info = &ctx.accounts.registry;
+        let authority = &ctx.accounts.authority;
+
+        // V1 layout (127 bytes total = 8 discriminator + 119 fields):
+        // 0-7: discriminator (8 bytes)
+        // 8-39: authority (32 bytes)
+        // 40-71: agents_root (32 bytes)
+        // 72-75: agent_count (4 bytes)
+        // 76-79: signal_count (4 bytes)
+        // 80-83: swarm_action_count (4 bytes)
+        // 84-91: epoch (8 bytes)
+        // 92-99: min_stake (8 bytes)
+        // 100: min_signal_confidence (1 byte)
+        // 101: bump (1 byte)
+        // 102: paused (1 byte)
+        // 103-110: max_total_stake (8 bytes)
+        // 111-118: max_stake_per_agent (8 bytes)
+        // 119-126: total_stake (8 bytes)
+        // Total: 127 bytes
+
+        const V1_SIZE: usize = 127;
+        const V2_SIZE: usize = 8 + 184; // 192 bytes (discriminator + struct)
+
+        // Read authority from raw data (bytes 8-39)
+        {
+            let data = registry_info.try_borrow_data()?;
+            require!(data.len() >= 40, AgentCollabError::InvalidAccountData);
+
+            let mut auth_bytes = [0u8; 32];
+            auth_bytes.copy_from_slice(&data[8..40]);
+            let stored_authority = Pubkey::new_from_array(auth_bytes);
+
+            require!(
+                authority.key() == stored_authority,
+                AgentCollabError::Unauthorized
+            );
+        }
+
+        // Calculate additional rent needed
+        let rent = Rent::get()?;
+        let old_lamports = registry_info.lamports();
+        let new_min_balance = rent.minimum_balance(V2_SIZE);
+
+        if new_min_balance > old_lamports {
+            let additional_lamports = new_min_balance - old_lamports;
+
+            // Transfer lamports from authority to registry for realloc
+            anchor_lang::system_program::transfer(
+                CpiContext::new(
+                    ctx.accounts.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: authority.to_account_info(),
+                        to: registry_info.to_account_info(),
+                    },
+                ),
+                additional_lamports,
+            )?;
+        }
+
+        // Realloc the account
+        registry_info.realloc(V2_SIZE, false)?;
+
+        // Now write the new fields at the end (bytes 127-191)
+        // V2 adds:
+        // 127-158: kamiyo_mint (32 bytes)
+        // 159: treasury_bump (1 byte)
+        // 160-167: total_burned (8 bytes)
+        // 168-175: total_fees_collected (8 bytes)
+        // 176-183: min_signal_collateral (8 bytes)
+        // + 8 bytes padding to reach 192
+        {
+            let mut data = registry_info.try_borrow_mut_data()?;
+
+            // Check if already migrated (kamiyo_mint at bytes 127-158 should be zeros)
+            let mut existing_mint = [0u8; 32];
+            existing_mint.copy_from_slice(&data[127..159]);
+            require!(
+                existing_mint == [0u8; 32],
+                AgentCollabError::AlreadyMigrated
+            );
+
+            // Write kamiyo_mint (32 bytes at offset 127)
+            let kamiyo_mint_bytes = ctx.accounts.kamiyo_mint.key().to_bytes();
+            data[127..159].copy_from_slice(&kamiyo_mint_bytes);
+
+            // Write treasury_bump (1 byte at offset 159)
+            data[159] = ctx.bumps.treasury_vault;
+
+            // Write total_burned (8 bytes at offset 160) = 0
+            data[160..168].copy_from_slice(&0u64.to_le_bytes());
+
+            // Write total_fees_collected (8 bytes at offset 168) = 0
+            data[168..176].copy_from_slice(&0u64.to_le_bytes());
+
+            // Write min_signal_collateral (8 bytes at offset 176) = 0
+            data[176..184].copy_from_slice(&0u64.to_le_bytes());
+
+            // Zero padding for remaining 8 bytes (184-191)
+            data[184..192].copy_from_slice(&[0u8; 8]);
+        }
+
+        emit!(RegistryMigrated {
+            registry: registry_info.key(),
+            kamiyo_mint: ctx.accounts.kamiyo_mint.key(),
+            treasury_vault: ctx.accounts.treasury_vault.key(),
+        });
+
+        Ok(())
+    }
+
     /// Deposit KAMIYO tokens as collateral for an agent
     pub fn deposit_collateral(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
         require!(amount > 0, AgentCollabError::InvalidAmount);
@@ -1626,30 +1749,30 @@ pub struct SubmitSignal<'info> {
         bump
     )]
     pub nullifier_record: Account<'info, NullifierRecord>,
-    /// $KAMIYO token mint for fee payment
+    /// $KAMIYO token mint for fee payment (Token-2022)
     #[account(
         mut,
         constraint = kamiyo_mint.key() == registry.kamiyo_mint @ AgentCollabError::InvalidKamiyoMint
     )]
-    pub kamiyo_mint: Account<'info, Mint>,
+    pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
     /// Payer's KAMIYO token account (pays fee)
     #[account(
         mut,
         constraint = payer_token_account.mint == registry.kamiyo_mint,
         constraint = payer_token_account.owner == payer.key()
     )]
-    pub payer_token_account: Account<'info, TokenAccount>,
+    pub payer_token_account: InterfaceAccount<'info, TokenAccountInterface>,
     /// Treasury token account (receives 99% of fee)
     #[account(
         mut,
         seeds = [b"treasury", registry.key().as_ref()],
         bump = registry.treasury_bump
     )]
-    pub treasury_vault: Account<'info, TokenAccount>,
+    pub treasury_vault: InterfaceAccount<'info, TokenAccountInterface>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -1666,30 +1789,30 @@ pub struct CreateSwarmAction<'info> {
         bump
     )]
     pub swarm_action: Account<'info, SwarmAction>,
-    /// $KAMIYO token mint for fee payment
+    /// $KAMIYO token mint for fee payment (Token-2022)
     #[account(
         mut,
         constraint = kamiyo_mint.key() == registry.kamiyo_mint @ AgentCollabError::InvalidKamiyoMint
     )]
-    pub kamiyo_mint: Account<'info, Mint>,
+    pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
     /// Payer's KAMIYO token account (pays fee)
     #[account(
         mut,
         constraint = payer_token_account.mint == registry.kamiyo_mint,
         constraint = payer_token_account.owner == payer.key()
     )]
-    pub payer_token_account: Account<'info, TokenAccount>,
+    pub payer_token_account: InterfaceAccount<'info, TokenAccountInterface>,
     /// Treasury token account (receives 99% of fee)
     #[account(
         mut,
         seeds = [b"treasury", registry.key().as_ref()],
         bump = registry.treasury_bump
     )]
-    pub treasury_vault: Account<'info, TokenAccount>,
+    pub treasury_vault: InterfaceAccount<'info, TokenAccountInterface>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -1924,6 +2047,40 @@ pub struct ManageProtocol<'info> {
 }
 
 #[derive(Accounts)]
+pub struct MigrateRegistry<'info> {
+    /// Registry to migrate (UncheckedAccount to allow undersized data during realloc)
+    /// CHECK: Manually verified via PDA seeds. We read bump from raw data before realloc.
+    #[account(
+        mut,
+        seeds = [b"registry"],
+        bump
+    )]
+    pub registry: UncheckedAccount<'info>,
+
+    /// KAMIYO token mint (Token-2022)
+    #[account(
+        constraint = kamiyo_mint.key() == KAMIYO_MINT @ AgentCollabError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
+
+    /// Treasury vault (created during migration)
+    #[account(
+        init,
+        payer = authority,
+        token::mint = kamiyo_mint,
+        token::authority = treasury_vault,
+        seeds = [b"treasury", registry.key().as_ref()],
+        bump
+    )]
+    pub treasury_vault: InterfaceAccount<'info, TokenAccountInterface>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 pub struct DepositCollateral<'info> {
     /// Registry to verify agent and check paused state
     #[account(
@@ -2100,6 +2257,13 @@ pub struct RegistryInitialized {
     pub registry: Pubkey,
     pub authority: Pubkey,
     pub min_stake: u64,
+}
+
+#[event]
+pub struct RegistryMigrated {
+    pub registry: Pubkey,
+    pub kamiyo_mint: Pubkey,
+    pub treasury_vault: Pubkey,
 }
 
 #[event]
@@ -2365,4 +2529,8 @@ pub enum AgentCollabError {
     CollateralTimelockActive,
     #[msg("Insufficient treasury balance")]
     InsufficientTreasuryBalance,
+    #[msg("Registry already migrated")]
+    AlreadyMigrated,
+    #[msg("Invalid account data")]
+    InvalidAccountData,
 }
