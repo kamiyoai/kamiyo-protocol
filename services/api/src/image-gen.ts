@@ -21,12 +21,12 @@ export interface GeneratedImage {
 }
 
 // KAMIYO character description - consistent across all images
-const KAMIYO_CHARACTER = `Anime style illustration of a young woman with cybernetic enhancements. Athletic slim build.
-Pale porcelain skin, sharp angular anime features, striking eyes.
-Violet or pale glowing eyes. White/silver/platinum hair in a bob-cut with blunt bangs.
+const KAMIYO_CHARACTER = `A young woman with cybernetic enhancements. Athletic slim build.
+Pale porcelain skin, sharp angular features, striking eyes.
+Violet or pale glowing eyes. White/silver/platinum hair in a bob-cut with blunt bangs and a single braid at the nape.
 Visible cybernetic implants on face, neck, or jaw. Dragon tattoos on arms/back/legs.
 Mechanical augmentations visible - metal plates, ports, cybernetic limbs or parts.
-Anime aesthetic - stylized, not photorealistic.`;
+Photorealistic, high detail.`;
 
 // Outfit variations for variety
 const OUTFIT_VARIATIONS = [
@@ -43,12 +43,12 @@ const OUTFIT_VARIATIONS = [
 // Hair color variations
 const HAIR_COLORS = ['white', 'silver', 'platinum', 'pale silver-white'];
 
-// KAMIYO signature style - anime cyberpunk aesthetic
-const KAMIYO_STYLE = `Anime illustration style, NOT photorealistic. Dark cyberpunk aesthetic.
+// KAMIYO signature style - photorealistic cyberpunk aesthetic
+const KAMIYO_STYLE = `Photorealistic, high detail. Dark cyberpunk aesthetic.
 Glitch effects, chromatic aberration, digital artifacts, scan lines.
 Pink/magenta and cyan neon lighting against dark background.
 High contrast, dramatic lighting. Close-up or medium shot framing.
-Ghost in the Shell, Akira, Blade Runner anime aesthetic.
+Ghost in the Shell, Blade Runner aesthetic.
 Always SFW - tasteful, artistic, never suggestive.`;
 
 // Scene variations for variety - kept minimal to focus on character
@@ -82,7 +82,7 @@ export async function generateMemePrompt(
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 300,
-    system: `Generate an image prompt for an ANIME ILLUSTRATION of KAMIYO, a cyberpunk character. She MUST be the central subject.
+    system: `Generate an image prompt for a PHOTOREALISTIC portrait of KAMIYO, a cyberpunk character. She MUST be the central subject.
 
 CRITICAL - KAMIYO'S EXACT APPEARANCE:
 ${characterAppearance}
@@ -93,19 +93,18 @@ ${KAMIYO_STYLE}
 BACKGROUND: ${sceneType}
 
 Requirements:
-- MUST specify "anime style illustration" or "anime art" at the start
-- White/silver/platinum bob-cut hair with blunt bangs
+- Photorealistic, high detail rendering
+- White/silver/platinum bob-cut hair with blunt bangs and single braid at nape
 - Visible cybernetic implants on face/neck/jaw
 - Dragon tattoos visible on arms, back, or legs
 - Pale skin, striking violet or pale glowing eyes
 - Close-up or medium shot - character fills most of the frame
 - Dark background with glitch effects, chromatic aberration, neon pink/cyan accents
 - The topic should influence her expression, pose, or what she's interacting with
-- NO photorealistic style - must be stylized anime aesthetic
 - No text or watermarks
 - Always SFW
 
-Return ONLY the prompt. Start with "Anime style illustration of a young woman with white/silver hair..."`,
+Return ONLY the prompt. Start with "Photorealistic portrait of a young woman with white/silver hair..."`,
     messages: [{ role: 'user', content: `Topic: ${topic}` }],
   });
 
