@@ -384,7 +384,9 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let MitamaClient: any;
     try {
-      const mitama = await import('@kamiyo/kamiyo-mitama');
+      // Use variable to prevent TypeScript from analyzing the import
+      const moduleName = '@kamiyo/kamiyo-mitama';
+      const mitama = await import(/* webpackIgnore: true */ moduleName);
       MitamaClient = mitama.MitamaClient;
     } catch {
       logger.warn('Mitama SDK not available - treasury burn disabled');
