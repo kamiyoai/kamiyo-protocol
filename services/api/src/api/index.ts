@@ -14,6 +14,7 @@ import reputationRoutes from './routes/reputation';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
 import mitamaRoutes from './routes/mitama';
+import kamiyoTokenRoutes from './routes/kamiyo-token';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import { registry } from '../metrics';
@@ -122,6 +123,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Mitama ZK signal routes (public - demo purposes)
   app.use('/api/mitama', mitamaRoutes);
+
+  // $KAMIYO token stats and burn tracking (public)
+  app.use('/api/kamiyo', kamiyoTokenRoutes);
 
   // x402 payment-gated routes (public - pay-per-request for non-holders)
   app.use('/api/paid', paidRoutes);
