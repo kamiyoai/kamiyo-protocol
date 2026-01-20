@@ -18,6 +18,7 @@ import {
   AgentIdentity,
   Agreement,
   OracleRegistry,
+  OracleConfig,
   EntityReputation,
   ProtocolConfig,
   BlacklistRegistry,
@@ -722,9 +723,12 @@ export class KamiyoClient {
       qualityScore,
       refundPercentage,
       oracleSubmissions: [],
+      oracleCommitments: [],
       tokenMint: null,
       escrowTokenAccount: null,
       tokenDecimals: 9,
+      disputedAt: null,
+      commitPhaseEndsAt: null,
     };
   }
 
@@ -788,11 +792,11 @@ export class KamiyoClient {
     const admin = new PublicKey(data.slice(offset, offset + 32));
     offset += 32;
 
-    // Skip oracles vector for now
+    // Deserialize oracles vector
     const oraclesLen = data.readUInt32LE(offset);
     offset += 4;
 
-    const oracles = [];
+    const oracles: OracleConfig[] = [];
     for (let i = 0; i < oraclesLen; i++) {
       const pubkey = new PublicKey(data.slice(offset, offset + 32));
       offset += 32;
@@ -800,7 +804,36 @@ export class KamiyoClient {
       offset += 1;
       const weight = data.readUInt16LE(offset);
       offset += 2;
-      oracles.push({ pubkey, oracleType, weight });
+      const stakeAmount = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+      const violationCount = data[offset];
+      offset += 1;
+      const totalRewards = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+      const disputesParticipated = data.readUInt32LE(offset);
+      offset += 4;
+      const consensusVotes = data.readUInt32LE(offset);
+      offset += 4;
+      const registeredAt = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+      const withdrawalRequestedAt = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+      const status = data[offset];
+      offset += 1;
+
+      oracles.push({
+        pubkey,
+        oracleType,
+        weight,
+        stakeAmount,
+        violationCount,
+        totalRewards,
+        disputesParticipated,
+        consensusVotes,
+        registeredAt,
+        withdrawalRequestedAt,
+        status,
+      });
     }
 
     const minConsensus = data[offset];
@@ -816,6 +849,12 @@ export class KamiyoClient {
     offset += 8;
 
     const bump = data[offset];
+    offset += 1;
+
+    const publicRegistration = data[offset] === 1;
+    offset += 1;
+
+    const totalStake = new BN(data.slice(offset, offset + 8), "le");
 
     return {
       admin,
@@ -825,6 +864,8 @@ export class KamiyoClient {
       createdAt,
       updatedAt,
       bump,
+      publicRegistration,
+      totalStake,
     };
   }
 

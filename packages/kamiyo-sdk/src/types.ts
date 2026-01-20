@@ -79,9 +79,12 @@ export interface Agreement {
   qualityScore: number | null;
   refundPercentage: number | null;
   oracleSubmissions: OracleSubmission[];
+  oracleCommitments: OracleCommitment[];
   tokenMint: PublicKey | null;
   escrowTokenAccount: PublicKey | null;
   tokenDecimals: number;
+  disputedAt: BN | null;
+  commitPhaseEndsAt: BN | null;
 }
 
 // Oracle Submission
@@ -89,6 +92,14 @@ export interface OracleSubmission {
   oracle: PublicKey;
   qualityScore: number;
   submittedAt: BN;
+}
+
+// Oracle Commitment (for commit-reveal voting)
+export interface OracleCommitment {
+  oracle: PublicKey;
+  commitmentHash: Uint8Array;
+  committedAt: BN;
+  revealed: boolean;
 }
 
 // Oracle Configuration
@@ -215,9 +226,12 @@ export interface BlacklistRegistry {
 export const MIN_TIME_LOCK_SECONDS = 3600; // 1 hour
 export const MAX_TIME_LOCK_SECONDS = 2_592_000; // 30 days
 export const MIN_STAKE_AMOUNT = 100_000_000; // 0.1 SOL
-export const MAX_ORACLES = 5;
-export const MIN_CONSENSUS_ORACLES = 2;
+export const MAX_ORACLES = 50;
+export const MIN_CONSENSUS_ORACLES = 3;
 export const MAX_SCORE_DEVIATION = 15;
+
+// Commit-Reveal Constants
+export const COMMIT_PHASE_DURATION = 300; // 5 minutes
 
 // Protocol Fee Defaults
 export const DEFAULT_AGREEMENT_FEE_BPS = 50;      // 0.5%
