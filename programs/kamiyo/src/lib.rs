@@ -29,12 +29,16 @@
 //! | release_funds            | Agent (anytime) OR API (after timelock)        | Escrow must be Active   |
 //! | mark_disputed            | Agent (escrow owner) only                      | Before expiry           |
 //! | resolve_dispute          | Registered oracle (with valid signature)       | Oracle in registry      |
-//! | submit_oracle_score      | Registered oracle (with valid signature)       | Oracle in registry      |
+//! | commit_oracle_score      | Registered oracle (active)                     | During commit phase     |
+//! | submit_oracle_score      | Registered oracle (with valid signature)       | After commit phase      |
 //! | finalize_multi_oracle_dispute | Anyone (permissionless)                   | Min consensus reached   |
 //! | claim_expired_escrow     | Anyone (permissionless)                        | 7 days post-expiry      |
 //! | initialize_oracle_registry | Admin (one-time)                             | -                       |
 //! | add_oracle               | Registry admin only                            | Oracle stakes collateral|
 //! | remove_oracle            | Registry admin only                            | -                       |
+//! | register_oracle          | Anyone                                          | Public reg enabled, stake|
+//! | request_oracle_withdrawal| Registered oracle                              | Oracle active           |
+//! | complete_oracle_withdrawal| Registered oracle                             | 7-day cooldown passed   |
 //! | transfer_admin           | Current registry admin only                    | -                       |
 //! | initialize_protocol      | Anyone (one-time)                              | Sets up 2-of-3 multisig |
 //! | pause_protocol           | 2-of-3 multisig authorities                    | Protocol not paused     |
@@ -111,6 +115,7 @@ const MAX_ORACLES: usize = 50;                       // Support up to 50 oracles
 const MIN_CONSENSUS_ORACLES: u8 = 3;                 // Minimum 3-of-N for collusion resistance
 const ORACLE_REVEAL_DELAY: i64 = 300;                // 5 minute delay before scores visible
 const ORACLE_WITHDRAWAL_COOLDOWN: i64 = 7 * 86_400;  // 7 day cooldown before withdrawal
+const COMMIT_PHASE_DURATION: i64 = 300;              // 5 minute commit phase
 
 // Agent constants
 const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
@@ -434,6 +439,21 @@ pub struct ReputationTierVerified {
     pub timestamp: i64,
 }
 
+#[event]
+pub struct OracleScoreCommitted {
+    pub escrow: Pubkey,
+    pub oracle: Pubkey,
+    pub commitment_hash: [u8; 32],
+    pub commit_phase_ends_at: i64,
+}
+
+#[event]
+pub struct OracleScoreRevealed {
+    pub escrow: Pubkey,
+    pub oracle: Pubkey,
+    pub quality_score: u8,
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -505,6 +525,19 @@ pub fn verify_ed25519_signature(
     _instruction_index: u16, // Deprecated: kept for API compatibility
 ) -> Result<()> {
     find_ed25519_instruction(instructions_sysvar, signature, verifier_pubkey, message)
+}
+
+/// Compute commitment hash for commit-reveal voting
+/// Hash = SHA256(transaction_id || score || salt)
+fn compute_commitment_hash(transaction_id: &str, score: u8, salt: &[u8; 32]) -> [u8; 32] {
+    use anchor_lang::solana_program::hash::hash;
+
+    let mut data = Vec::with_capacity(transaction_id.len() + 1 + 32);
+    data.extend_from_slice(transaction_id.as_bytes());
+    data.push(score);
+    data.extend_from_slice(salt);
+
+    hash(&data).to_bytes()
 }
 
 /// Calculate weighted consensus score from oracle submissions
@@ -1919,11 +1952,86 @@ pub mod kamiyo {
     // Multi-Oracle Dispute Resolution Instructions
     // ========================================================================
 
-    /// Submit oracle quality score for dispute resolution
-    /// Multiple oracles can submit scores, consensus is calculated on finalization
+    /// Commit oracle score hash for commit-reveal voting
+    /// Oracle submits SHA256(transaction_id || score || salt) to prevent front-running
+    pub fn commit_oracle_score(
+        ctx: Context<CommitOracleScore>,
+        commitment_hash: [u8; 32],
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+        let escrow = &mut ctx.accounts.escrow;
+        let oracle_registry = &ctx.accounts.oracle_registry;
+        let clock = Clock::get()?;
+
+        require!(
+            escrow.status == EscrowStatus::Disputed,
+            KamiyoError::InvalidStatus
+        );
+
+        // Verify oracle is registered and active
+        let oracle_key = ctx.accounts.oracle.key();
+        let oracle_config = oracle_registry
+            .oracles
+            .iter()
+            .find(|o| o.pubkey == oracle_key)
+            .ok_or(KamiyoError::UnregisteredOracle)?;
+        require!(oracle_config.status == 0, KamiyoError::OracleNotActive);
+
+        // Check for duplicate commitment
+        require!(
+            !escrow.oracle_commitments.iter().any(|c| c.oracle == oracle_key),
+            KamiyoError::DuplicateOracleCommitment
+        );
+
+        // Initialize commit phase on first commitment
+        let commit_phase_ends_at = if escrow.commit_phase_ends_at.is_none() {
+            let ends_at = clock.unix_timestamp.saturating_add(COMMIT_PHASE_DURATION);
+            escrow.commit_phase_ends_at = Some(ends_at);
+            ends_at
+        } else {
+            let ends_at = escrow.commit_phase_ends_at.unwrap();
+            // Verify commit phase hasn't ended
+            require!(
+                clock.unix_timestamp < ends_at,
+                KamiyoError::CommitPhaseEnded
+            );
+            ends_at
+        };
+
+        // Store commitment
+        escrow.oracle_commitments.push(OracleCommitment {
+            oracle: oracle_key,
+            commitment_hash,
+            committed_at: clock.unix_timestamp,
+            revealed: false,
+        });
+
+        emit!(OracleScoreCommitted {
+            escrow: escrow.key(),
+            oracle: oracle_key,
+            commitment_hash,
+            commit_phase_ends_at,
+        });
+
+        msg!(
+            "Oracle {} committed score hash for escrow {}",
+            oracle_key,
+            escrow.key()
+        );
+
+        Ok(())
+    }
+
+    /// Reveal oracle score (after commit phase ends)
+    /// Oracle reveals score and salt, hash is verified against commitment
+    /// Now uses commit-reveal scheme to prevent front-running
     pub fn submit_oracle_score(
         ctx: Context<SubmitOracleScore>,
         quality_score: u8,
+        salt: [u8; 32],
         signature: [u8; 64],
     ) -> Result<()> {
         require!(
@@ -1932,6 +2040,7 @@ pub mod kamiyo {
         );
         let escrow = &mut ctx.accounts.escrow;
         let oracle_registry = &ctx.accounts.oracle_registry;
+        let clock = Clock::get()?;
 
         require!(
             escrow.status == EscrowStatus::Disputed,
@@ -1939,11 +2048,41 @@ pub mod kamiyo {
         );
         require!(quality_score <= 100, KamiyoError::InvalidQualityScore);
 
+        // Verify commit phase has ended (reveal phase active)
+        let commit_phase_ends_at = escrow
+            .commit_phase_ends_at
+            .ok_or(KamiyoError::NoCommitmentFound)?;
+        require!(
+            clock.unix_timestamp >= commit_phase_ends_at,
+            KamiyoError::CommitPhaseNotEnded
+        );
+
         // Verify oracle is registered
         let oracle_key = ctx.accounts.oracle.key();
         require!(
             oracle_registry.oracles.iter().any(|o| o.pubkey == oracle_key),
             KamiyoError::UnregisteredOracle
+        );
+
+        // Find and verify commitment
+        let commitment_idx = escrow
+            .oracle_commitments
+            .iter()
+            .position(|c| c.oracle == oracle_key)
+            .ok_or(KamiyoError::NoCommitmentFound)?;
+
+        let commitment = &escrow.oracle_commitments[commitment_idx];
+        require!(!commitment.revealed, KamiyoError::AlreadyRevealed);
+
+        // Verify commitment hash: SHA256(transaction_id || score || salt)
+        let expected_hash = compute_commitment_hash(
+            &escrow.transaction_id,
+            quality_score,
+            &salt,
+        );
+        require!(
+            commitment.commitment_hash == expected_hash,
+            KamiyoError::InvalidCommitmentHash
         );
 
         // Verify signature
@@ -1956,22 +2095,30 @@ pub mod kamiyo {
             0,
         )?;
 
-        // Check for duplicate submission
+        // Mark commitment as revealed
+        escrow.oracle_commitments[commitment_idx].revealed = true;
+
+        // Check for duplicate submission (shouldn't happen with commit-reveal, but safety check)
         require!(
             !escrow.oracle_submissions.iter().any(|s| s.oracle == oracle_key),
             KamiyoError::DuplicateOracleSubmission
         );
 
         // Add submission
-        let clock = Clock::get()?;
         escrow.oracle_submissions.push(OracleSubmission {
             oracle: oracle_key,
             quality_score,
             submitted_at: clock.unix_timestamp,
         });
 
+        emit!(OracleScoreRevealed {
+            escrow: escrow.key(),
+            oracle: oracle_key,
+            quality_score,
+        });
+
         msg!(
-            "Oracle {} submitted score {} for escrow {}",
+            "Oracle {} revealed score {} for escrow {}",
             oracle_key,
             quality_score,
             escrow.key()
@@ -3267,6 +3414,31 @@ pub struct InitReputation<'info> {
 }
 
 #[derive(Accounts)]
+pub struct CommitOracleScore<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"escrow", escrow.agent.as_ref(), escrow.transaction_id.as_bytes()],
+        bump = escrow.bump
+    )]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    /// Oracle committing the score hash (must be registered)
+    pub oracle: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct SubmitOracleScore<'info> {
     #[account(
         seeds = [b"protocol_config"],
@@ -3287,7 +3459,7 @@ pub struct SubmitOracleScore<'info> {
     )]
     pub oracle_registry: Account<'info, OracleRegistry>,
 
-    /// Oracle submitting the score (must be registered)
+    /// Oracle revealing the score (must be registered)
     pub oracle: Signer<'info>,
 
     /// CHECK: Instructions sysvar for signature verification
@@ -3668,6 +3840,17 @@ pub struct OracleSubmission {
     pub submitted_at: i64,
 }
 
+/// Oracle commitment for commit-reveal voting
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+pub struct OracleCommitment {
+    pub oracle: Pubkey,
+    /// SHA256 hash of (transaction_id + score + salt)
+    pub commitment_hash: [u8; 32],
+    pub committed_at: i64,
+    /// Whether this commitment has been revealed
+    pub revealed: bool,
+}
+
 /// Escrow Account
 #[account]
 #[derive(InitSpace)]
@@ -3685,11 +3868,15 @@ pub struct Escrow {
     pub refund_percentage: Option<u8>,
     #[max_len(5)]
     pub oracle_submissions: Vec<OracleSubmission>,
+    #[max_len(5)]
+    pub oracle_commitments: Vec<OracleCommitment>,
     pub token_mint: Option<Pubkey>,
     pub escrow_token_account: Option<Pubkey>,
     pub token_decimals: u8,
-    /// Timestamp when dispute was marked (for reveal delay enforcement)
+    /// Timestamp when dispute was marked (for commit phase start)
     pub disputed_at: Option<i64>,
+    /// Timestamp when commit phase ends (reveal phase begins)
+    pub commit_phase_ends_at: Option<i64>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -3923,4 +4110,22 @@ pub enum KamiyoError {
 
     #[msg("Withdrawal cooldown not complete")]
     WithdrawalCooldownNotComplete,
+
+    #[msg("Commit phase has ended")]
+    CommitPhaseEnded,
+
+    #[msg("Commit phase not ended yet")]
+    CommitPhaseNotEnded,
+
+    #[msg("No commitment found for oracle")]
+    NoCommitmentFound,
+
+    #[msg("Invalid commitment hash - does not match revealed score")]
+    InvalidCommitmentHash,
+
+    #[msg("Score already revealed")]
+    AlreadyRevealed,
+
+    #[msg("Duplicate oracle commitment")]
+    DuplicateOracleCommitment,
 }

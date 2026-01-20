@@ -302,4 +302,58 @@ export class OracleManager {
 
     return lines.join("\n");
   }
+
+  /**
+   * Generate a random salt for commit-reveal
+   */
+  generateSalt(): Uint8Array {
+    return crypto.getRandomValues(new Uint8Array(32));
+  }
+
+  /**
+   * Compute commitment hash for commit-reveal voting
+   * Hash = SHA256(transaction_id || score || salt)
+   */
+  async computeCommitmentHash(
+    transactionId: string,
+    score: number,
+    salt: Uint8Array
+  ): Promise<Uint8Array> {
+    const encoder = new TextEncoder();
+    const data = new Uint8Array([
+      ...encoder.encode(transactionId),
+      score,
+      ...salt,
+    ]);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    return new Uint8Array(hashBuffer);
+  }
+
+  /**
+   * Check if an escrow is in commit phase
+   */
+  isInCommitPhase(commitPhaseEndsAt: BN | null): boolean {
+    if (!commitPhaseEndsAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return now < commitPhaseEndsAt.toNumber();
+  }
+
+  /**
+   * Check if an escrow is in reveal phase
+   */
+  isInRevealPhase(commitPhaseEndsAt: BN | null): boolean {
+    if (!commitPhaseEndsAt) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return now >= commitPhaseEndsAt.toNumber();
+  }
+
+  /**
+   * Get time remaining in commit phase (seconds)
+   */
+  getCommitPhaseTimeRemaining(commitPhaseEndsAt: BN | null): number {
+    if (!commitPhaseEndsAt) return 0;
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = commitPhaseEndsAt.toNumber() - now;
+    return remaining > 0 ? remaining : 0;
+  }
 }
