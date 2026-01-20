@@ -443,20 +443,14 @@ describe('mitama', () => {
   });
 
   describe('stake-weighted voting', () => {
-    // Note: Full stake-weighted voting tests require ZK proofs
-    // These tests verify the weighted vote fields are initialized correctly
+    // Full stake-weighted voting tests require ZK proofs
 
     it('should create swarm action with weighted fields initialized', async () => {
-      // SwarmAction initialization is verified in the create_swarm_action flow
       // weighted_votes_for starts at 10000 (1.0x proposer vote)
-      // weighted_votes_against starts at 0
-      // This is covered by the program logic - proposer gets 1.0x default weight
     });
 
     it('should use weighted votes for threshold calculation', async () => {
-      // The execute_swarm_action instruction uses:
       // approval_pct = (weighted_votes_for * 100) / weighted_total
-      // This ensures stake-weighted voting affects approval calculations
     });
   });
 });

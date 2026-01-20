@@ -1,16 +1,6 @@
-//! KAMIYO Staking - Single-sided staking with duration multipliers
+//! KAMIYO Staking
 //!
-//! Features:
-//! - Single-sided $KAMIYO staking (no LP required)
-//! - Duration-based reward multipliers (1x -> 2x over 180 days)
-//! - Revenue share from platform fees (10% distributed to stakers)
-//! - Flexible unstaking (no lock, but lose multiplier)
-//!
-//! Multiplier schedule:
-//! - 0-30 days: 1.0x
-//! - 30-90 days: 1.2x
-//! - 90-180 days: 1.5x
-//! - 180+ days: 2.0x
+//! Single-sided staking with duration-based multipliers (1x-2x over 180 days).
 //!
 //! Copyright (c) 2026 KAMIYO
 //! SPDX-License-Identifier: MIT
