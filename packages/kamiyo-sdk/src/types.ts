@@ -213,6 +213,12 @@ export interface UpdateProtocolConfigParams {
   newIdentityFee?: BN;
 }
 
+// Initialize Oracle Registry Parameters
+export interface InitializeOracleRegistryParams {
+  minConsensus: number;
+  maxScoreDeviation: number;
+}
+
 // Blacklist Registry Account
 export interface BlacklistRegistry {
   authority: PublicKey;

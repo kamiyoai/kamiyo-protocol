@@ -25,6 +25,7 @@ import {
   CreateAgentParams,
   CreateAgreementParams,
   UpdateProtocolConfigParams,
+  InitializeOracleRegistryParams,
   AgentType,
 } from "./types";
 import { DISCRIMINATORS } from "./discriminators";
@@ -390,6 +391,32 @@ export class KamiyoClient {
   }
 
   /**
+   * Build initialize oracle registry instruction
+   */
+  buildInitializeOracleRegistryInstruction(
+    admin: PublicKey,
+    params: InitializeOracleRegistryParams
+  ): TransactionInstruction {
+    const [oracleRegistryPDA] = this.getOracleRegistryPDA();
+
+    const data = Buffer.concat([
+      DISCRIMINATORS.initializeOracleRegistry,
+      Buffer.from([params.minConsensus]),
+      Buffer.from([params.maxScoreDeviation]),
+    ]);
+
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: oracleRegistryPDA, isSigner: false, isWritable: true },
+        { pubkey: admin, isSigner: true, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data,
+    });
+  }
+
+  /**
    * Build mark disputed instruction
    */
   buildMarkDisputedInstruction(
@@ -541,6 +568,32 @@ export class KamiyoClient {
   async deactivateAgent(): Promise<string> {
     const instruction = this.buildDeactivateAgentInstruction(
       this.wallet.publicKey
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
+  }
+
+  /**
+   * Initialize oracle registry (admin only, one-time setup)
+   */
+  async initializeOracleRegistry(
+    params: InitializeOracleRegistryParams
+  ): Promise<string> {
+    const instruction = this.buildInitializeOracleRegistryInstruction(
+      this.wallet.publicKey,
+      params
     );
 
     const transaction = new Transaction().add(instruction);
