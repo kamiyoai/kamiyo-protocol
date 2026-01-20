@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
+kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS"
 kamiyo_escrow = "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
@@ -22,7 +22,7 @@ kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 
 [programs.mainnet]
-kamiyo = "368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca"
+kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
 mitama = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
 kamiyo_escrow = "AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu"
@@ -37,7 +37,7 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "npx ts-mocha -p ./tests/tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]
 startup_wait = 30000

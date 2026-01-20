@@ -2,11 +2,11 @@ import { Connection, PublicKey, TransactionInstruction, SystemProgram } from '@s
 import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { Groth16Proof } from './types';
 
-// Production program (mainnet/devnet - original)
+// Production program (mainnet/devnet)
 export const KAMIYO_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
 
-// Test program with verify_reputation_tier instruction (devnet)
-export const KAMIYO_PROGRAM_ID_TEST = new PublicKey('368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca');
+// Alias for backwards compatibility
+export const KAMIYO_PROGRAM_ID_TEST = KAMIYO_PROGRAM_ID;
 
 /**
  * Builds an instruction to verify a reputation tier proof on-chain.

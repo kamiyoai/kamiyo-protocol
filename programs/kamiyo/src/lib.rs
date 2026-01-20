@@ -83,7 +83,7 @@ use anchor_spl::associated_token::AssociatedToken;
 
 pub mod zk;
 
-declare_id!("368a921tfDvsiQwxbXnh3ZFJdxQLwK4QPboWCPJ97xca");
+declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 
 // ============================================================================
 // Constants
