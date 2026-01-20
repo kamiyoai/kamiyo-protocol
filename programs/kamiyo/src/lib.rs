@@ -107,9 +107,10 @@ const MIN_ESCROW_AMOUNT: u64 = 1_000_000;           // 0.001 SOL
 const BASE_DISPUTE_COST: u64 = 1_000_000;           // 0.001 SOL
 
 // Multi-oracle consensus constants
-const MAX_ORACLES: usize = 7;
+const MAX_ORACLES: usize = 50;                       // Support up to 50 oracles for public registration
 const MIN_CONSENSUS_ORACLES: u8 = 3;                 // Minimum 3-of-N for collusion resistance
 const ORACLE_REVEAL_DELAY: i64 = 300;                // 5 minute delay before scores visible
+const ORACLE_WITHDRAWAL_COOLDOWN: i64 = 7 * 86_400;  // 7 day cooldown before withdrawal
 
 // Agent constants
 const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
@@ -240,6 +241,44 @@ pub struct AdminTransferred {
     pub registry: Pubkey,
     pub old_admin: Pubkey,
     pub new_admin: Pubkey,
+}
+
+#[event]
+pub struct OracleRegistered {
+    pub registry: Pubkey,
+    pub oracle: Pubkey,
+    pub stake_amount: u64,
+    pub weight: u16,
+}
+
+#[event]
+pub struct OracleWithdrawalRequested {
+    pub registry: Pubkey,
+    pub oracle: Pubkey,
+    pub available_at: i64,
+}
+
+#[event]
+pub struct OracleWithdrawalCompleted {
+    pub registry: Pubkey,
+    pub oracle: Pubkey,
+    pub stake_returned: u64,
+    pub rewards_claimed: u64,
+}
+
+#[event]
+pub struct OracleWithdrawalCancelled {
+    pub registry: Pubkey,
+    pub oracle: Pubkey,
+}
+
+#[event]
+pub struct OracleStakeIncreased {
+    pub registry: Pubkey,
+    pub oracle: Pubkey,
+    pub additional_stake: u64,
+    pub new_total_stake: u64,
+    pub new_weight: u16,
 }
 
 #[event]
@@ -1228,6 +1267,8 @@ pub mod kamiyo {
         registry.created_at = clock.unix_timestamp;
         registry.updated_at = clock.unix_timestamp;
         registry.bump = ctx.bumps.oracle_registry;
+        registry.public_registration = false; // Admin-only by default
+        registry.total_stake = 0;
 
         emit!(OracleRegistryInitialized {
             registry: registry.key(),
@@ -1275,6 +1316,7 @@ pub mod kamiyo {
             ],
         )?;
 
+        let clock = Clock::get()?;
         registry.oracles.push(OracleConfig {
             pubkey: oracle_pubkey,
             oracle_type,
@@ -1282,9 +1324,13 @@ pub mod kamiyo {
             stake_amount,
             violation_count: 0,
             total_rewards: 0,
+            disputes_participated: 0,
+            consensus_votes: 0,
+            registered_at: clock.unix_timestamp,
+            withdrawal_requested_at: 0,
+            status: 0, // Active
         });
-
-        let clock = Clock::get()?;
+        registry.total_stake = registry.total_stake.saturating_add(stake_amount);
         registry.updated_at = clock.unix_timestamp;
 
         emit!(OracleAdded {
@@ -1319,6 +1365,7 @@ pub mod kamiyo {
 
         let stake_amount = registry.oracles[oracle_index].stake_amount;
         registry.oracles.remove(oracle_index);
+        registry.total_stake = registry.total_stake.saturating_sub(stake_amount);
 
         // Return stake to oracle wallet
         if stake_amount > 0 {
@@ -1359,6 +1406,235 @@ pub mod kamiyo {
             registry: registry.key(),
             old_admin,
             new_admin,
+        });
+
+        Ok(())
+    }
+
+    /// Enable or disable public oracle registration
+    pub fn set_public_registration(
+        ctx: Context<ManageOracle>,
+        enabled: bool,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.oracle_registry;
+        require!(ctx.accounts.admin.key() == registry.admin, KamiyoError::Unauthorized);
+
+        registry.public_registration = enabled;
+
+        let clock = Clock::get()?;
+        registry.updated_at = clock.unix_timestamp;
+
+        Ok(())
+    }
+
+    /// Permissionless oracle self-registration (requires public_registration enabled)
+    pub fn register_oracle(
+        ctx: Context<RegisterOracle>,
+        stake_amount: u64,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.oracle_registry;
+
+        require!(registry.public_registration, KamiyoError::PublicRegistrationDisabled);
+        require!(registry.oracles.len() < MAX_ORACLES, KamiyoError::MaxOraclesReached);
+        require!(stake_amount >= MIN_ORACLE_STAKE, KamiyoError::InsufficientOracleStake);
+
+        let oracle_pubkey = ctx.accounts.oracle.key();
+        require!(
+            !registry.oracles.iter().any(|o| o.pubkey == oracle_pubkey),
+            KamiyoError::DuplicateOracleSubmission
+        );
+
+        // Transfer stake from oracle to registry PDA
+        let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &oracle_pubkey,
+            &registry.key(),
+            stake_amount,
+        );
+        anchor_lang::solana_program::program::invoke(
+            &transfer_ix,
+            &[
+                ctx.accounts.oracle.to_account_info(),
+                registry.to_account_info(),
+            ],
+        )?;
+
+        let clock = Clock::get()?;
+
+        // Weight proportional to stake (1 weight per SOL staked)
+        let weight = (stake_amount / 1_000_000_000) as u16;
+        let weight = if weight == 0 { 1 } else { weight };
+
+        registry.oracles.push(OracleConfig {
+            pubkey: oracle_pubkey,
+            oracle_type: OracleType::Ed25519,
+            weight,
+            stake_amount,
+            violation_count: 0,
+            total_rewards: 0,
+            disputes_participated: 0,
+            consensus_votes: 0,
+            registered_at: clock.unix_timestamp,
+            withdrawal_requested_at: 0,
+            status: 0, // Active
+        });
+        registry.total_stake = registry.total_stake.saturating_add(stake_amount);
+        registry.updated_at = clock.unix_timestamp;
+
+        emit!(OracleRegistered {
+            registry: registry.key(),
+            oracle: oracle_pubkey,
+            stake_amount,
+            weight,
+        });
+
+        Ok(())
+    }
+
+    /// Request withdrawal from oracle network (starts cooldown)
+    pub fn request_oracle_withdrawal(ctx: Context<OracleWithdrawal>) -> Result<()> {
+        let registry = &mut ctx.accounts.oracle_registry;
+        let oracle_pubkey = ctx.accounts.oracle.key();
+
+        let oracle = registry.oracles
+            .iter_mut()
+            .find(|o| o.pubkey == oracle_pubkey)
+            .ok_or(KamiyoError::OracleNotFound)?;
+
+        require!(oracle.status == 0, KamiyoError::OracleNotActive);
+        require!(oracle.withdrawal_requested_at == 0, KamiyoError::WithdrawalAlreadyRequested);
+
+        let clock = Clock::get()?;
+        oracle.withdrawal_requested_at = clock.unix_timestamp;
+        oracle.status = 1; // Pending withdrawal
+        registry.updated_at = clock.unix_timestamp;
+
+        emit!(OracleWithdrawalRequested {
+            registry: registry.key(),
+            oracle: oracle_pubkey,
+            available_at: clock.unix_timestamp + ORACLE_WITHDRAWAL_COOLDOWN,
+        });
+
+        Ok(())
+    }
+
+    /// Complete withdrawal after cooldown period
+    pub fn complete_oracle_withdrawal(ctx: Context<CompleteOracleWithdrawal>) -> Result<()> {
+        let registry = &mut ctx.accounts.oracle_registry;
+        let oracle_pubkey = ctx.accounts.oracle.key();
+
+        let oracle_index = registry.oracles
+            .iter()
+            .position(|o| o.pubkey == oracle_pubkey)
+            .ok_or(KamiyoError::OracleNotFound)?;
+
+        let oracle = &registry.oracles[oracle_index];
+        require!(oracle.status == 1, KamiyoError::WithdrawalNotRequested);
+
+        let clock = Clock::get()?;
+        let cooldown_end = oracle.withdrawal_requested_at + ORACLE_WITHDRAWAL_COOLDOWN;
+        require!(clock.unix_timestamp >= cooldown_end, KamiyoError::WithdrawalCooldownNotComplete);
+
+        let stake_amount = oracle.stake_amount;
+        let total_rewards = oracle.total_rewards;
+        let total_return = stake_amount + total_rewards;
+
+        registry.oracles.remove(oracle_index);
+        registry.total_stake = registry.total_stake.saturating_sub(stake_amount);
+        registry.updated_at = clock.unix_timestamp;
+
+        // Return stake + rewards to oracle
+        if total_return > 0 {
+            **registry.to_account_info().try_borrow_mut_lamports()? -= total_return;
+            **ctx.accounts.oracle.try_borrow_mut_lamports()? += total_return;
+        }
+
+        emit!(OracleWithdrawalCompleted {
+            registry: registry.key(),
+            oracle: oracle_pubkey,
+            stake_returned: stake_amount,
+            rewards_claimed: total_rewards,
+        });
+
+        Ok(())
+    }
+
+    /// Cancel withdrawal request and return to active status
+    pub fn cancel_oracle_withdrawal(ctx: Context<OracleWithdrawal>) -> Result<()> {
+        let registry = &mut ctx.accounts.oracle_registry;
+        let oracle_pubkey = ctx.accounts.oracle.key();
+
+        let oracle = registry.oracles
+            .iter_mut()
+            .find(|o| o.pubkey == oracle_pubkey)
+            .ok_or(KamiyoError::OracleNotFound)?;
+
+        require!(oracle.status == 1, KamiyoError::WithdrawalNotRequested);
+
+        oracle.withdrawal_requested_at = 0;
+        oracle.status = 0; // Back to active
+
+        let clock = Clock::get()?;
+        registry.updated_at = clock.unix_timestamp;
+
+        emit!(OracleWithdrawalCancelled {
+            registry: registry.key(),
+            oracle: oracle_pubkey,
+        });
+
+        Ok(())
+    }
+
+    /// Increase oracle stake (permissionless for stake owner)
+    pub fn increase_oracle_stake(
+        ctx: Context<OracleWithdrawal>,
+        additional_stake: u64,
+    ) -> Result<()> {
+        let registry = &mut ctx.accounts.oracle_registry;
+        let oracle_pubkey = ctx.accounts.oracle.key();
+        let registry_key = registry.key();
+
+        require!(additional_stake > 0, KamiyoError::InvalidAmount);
+
+        let oracle_index = registry.oracles
+            .iter()
+            .position(|o| o.pubkey == oracle_pubkey)
+            .ok_or(KamiyoError::OracleNotFound)?;
+
+        require!(registry.oracles[oracle_index].status == 0, KamiyoError::OracleNotActive);
+
+        // Transfer additional stake
+        let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &oracle_pubkey,
+            &registry_key,
+            additional_stake,
+        );
+        anchor_lang::solana_program::program::invoke(
+            &transfer_ix,
+            &[
+                ctx.accounts.oracle.to_account_info(),
+                registry.to_account_info(),
+            ],
+        )?;
+
+        // Update oracle stake and weight
+        registry.oracles[oracle_index].stake_amount = registry.oracles[oracle_index].stake_amount.saturating_add(additional_stake);
+        let new_weight = (registry.oracles[oracle_index].stake_amount / 1_000_000_000) as u16;
+        registry.oracles[oracle_index].weight = if new_weight == 0 { 1 } else { new_weight };
+
+        let new_total_stake = registry.oracles[oracle_index].stake_amount;
+        let new_weight = registry.oracles[oracle_index].weight;
+
+        registry.total_stake = registry.total_stake.saturating_add(additional_stake);
+
+        let clock = Clock::get()?;
+        registry.updated_at = clock.unix_timestamp;
+
+        emit!(OracleStakeIncreased {
+            registry: registry_key,
+            oracle: oracle_pubkey,
+            additional_stake,
+            new_total_stake,
+            new_weight,
         });
 
         Ok(())
@@ -2829,6 +3105,50 @@ pub struct TransferAdmin<'info> {
 }
 
 #[derive(Accounts)]
+pub struct RegisterOracle<'info> {
+    #[account(
+        mut,
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    #[account(mut)]
+    pub oracle: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct OracleWithdrawal<'info> {
+    #[account(
+        mut,
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    #[account(mut)]
+    pub oracle: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CompleteOracleWithdrawal<'info> {
+    #[account(
+        mut,
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    /// CHECK: Oracle wallet to receive stake - validated in instruction
+    #[account(mut)]
+    pub oracle: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct InitializeProtocol<'info> {
     #[account(
         init,
@@ -3298,13 +3618,17 @@ pub struct Treasury {
 #[derive(InitSpace)]
 pub struct OracleRegistry {
     pub admin: Pubkey,
-    #[max_len(7)]
+    #[max_len(50)]
     pub oracles: Vec<OracleConfig>,
     pub min_consensus: u8,
     pub max_score_deviation: u8,
     pub created_at: i64,
     pub updated_at: i64,
     pub bump: u8,
+    /// Enable permissionless oracle registration (false = admin-only)
+    pub public_registration: bool,
+    /// Total stake across all oracles
+    pub total_stake: u64,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
@@ -3318,6 +3642,16 @@ pub struct OracleConfig {
     pub violation_count: u8,
     /// Total rewards earned
     pub total_rewards: u64,
+    /// Performance tracking: disputes participated in
+    pub disputes_participated: u32,
+    /// Performance tracking: votes within consensus
+    pub consensus_votes: u32,
+    /// Timestamp when oracle registered
+    pub registered_at: i64,
+    /// Timestamp when withdrawal was requested (0 = not requested)
+    pub withdrawal_requested_at: i64,
+    /// Status: 0 = active, 1 = pending withdrawal, 2 = suspended
+    pub status: u8,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -3574,4 +3908,19 @@ pub enum KamiyoError {
 
     #[msg("Invalid ZK proof")]
     InvalidZKProof,
+
+    #[msg("Public oracle registration is disabled")]
+    PublicRegistrationDisabled,
+
+    #[msg("Oracle is not active")]
+    OracleNotActive,
+
+    #[msg("Withdrawal already requested")]
+    WithdrawalAlreadyRequested,
+
+    #[msg("Withdrawal not requested")]
+    WithdrawalNotRequested,
+
+    #[msg("Withdrawal cooldown not complete")]
+    WithdrawalCooldownNotComplete,
 }

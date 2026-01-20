@@ -2,16 +2,22 @@
  * Oracle Management - Multi-Oracle Consensus
  */
 
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import BN from "bn.js";
 import { KamiyoClient } from "./client";
 import {
   OracleRegistry,
   OracleConfig,
   OracleType,
+  OracleStatus,
   MAX_ORACLES,
   MIN_CONSENSUS_ORACLES,
   MAX_SCORE_DEVIATION,
 } from "./types";
+
+// Constants
+export const MIN_ORACLE_STAKE = LAMPORTS_PER_SOL; // 1 SOL
+export const ORACLE_WITHDRAWAL_COOLDOWN = 7 * 24 * 60 * 60; // 7 days in seconds
 
 /**
  * Oracle Manager - Manage oracle registry and consensus
@@ -168,6 +174,130 @@ export class OracleManager {
 
     if (result.outliers.length > 0) {
       lines.push(`Outliers (excluded): ${result.outliers.join(", ")}`);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Check if public registration is enabled
+   */
+  async isPublicRegistrationEnabled(): Promise<boolean> {
+    const registry = await this.getRegistry();
+    return registry?.publicRegistration ?? false;
+  }
+
+  /**
+   * Get total stake in the oracle network
+   */
+  async getTotalStake(): Promise<BN> {
+    const registry = await this.getRegistry();
+    return registry?.totalStake ?? new BN(0);
+  }
+
+  /**
+   * Get active oracles (not pending withdrawal or suspended)
+   */
+  async getActiveOracles(): Promise<OracleConfig[]> {
+    const oracles = await this.getOracles();
+    return oracles.filter((o) => o.status === OracleStatus.Active);
+  }
+
+  /**
+   * Get oracle by pubkey
+   */
+  async getOracle(pubkey: PublicKey): Promise<OracleConfig | undefined> {
+    const oracles = await this.getOracles();
+    return oracles.find((o) => o.pubkey.equals(pubkey));
+  }
+
+  /**
+   * Get oracle status label
+   */
+  getOracleStatusLabel(status: number): string {
+    switch (status) {
+      case OracleStatus.Active:
+        return "Active";
+      case OracleStatus.PendingWithdrawal:
+        return "Pending Withdrawal";
+      case OracleStatus.Suspended:
+        return "Suspended";
+      default:
+        return "Unknown";
+    }
+  }
+
+  /**
+   * Calculate oracle success rate (consensus votes / disputes participated)
+   */
+  calculateSuccessRate(oracle: OracleConfig): number {
+    if (oracle.disputesParticipated === 0) return 0;
+    return (oracle.consensusVotes / oracle.disputesParticipated) * 100;
+  }
+
+  /**
+   * Check if withdrawal cooldown is complete
+   */
+  isWithdrawalReady(oracle: OracleConfig): boolean {
+    if (oracle.status !== OracleStatus.PendingWithdrawal) return false;
+    if (oracle.withdrawalRequestedAt.isZero()) return false;
+
+    const now = Math.floor(Date.now() / 1000);
+    const cooldownEnd =
+      oracle.withdrawalRequestedAt.toNumber() + ORACLE_WITHDRAWAL_COOLDOWN;
+    return now >= cooldownEnd;
+  }
+
+  /**
+   * Get withdrawal available timestamp
+   */
+  getWithdrawalAvailableAt(oracle: OracleConfig): Date | null {
+    if (oracle.withdrawalRequestedAt.isZero()) return null;
+    const cooldownEnd =
+      oracle.withdrawalRequestedAt.toNumber() + ORACLE_WITHDRAWAL_COOLDOWN;
+    return new Date(cooldownEnd * 1000);
+  }
+
+  /**
+   * Validate stake amount for registration
+   */
+  validateStakeAmount(lamports: number): void {
+    if (lamports < MIN_ORACLE_STAKE) {
+      throw new Error(
+        `Minimum stake is ${MIN_ORACLE_STAKE / LAMPORTS_PER_SOL} SOL`
+      );
+    }
+  }
+
+  /**
+   * Calculate weight from stake (1 weight per SOL)
+   */
+  calculateWeightFromStake(lamports: number): number {
+    const weight = Math.floor(lamports / LAMPORTS_PER_SOL);
+    return weight > 0 ? weight : 1;
+  }
+
+  /**
+   * Format oracle info for display
+   */
+  formatOracleInfo(oracle: OracleConfig): string {
+    const lines = [
+      `Pubkey: ${oracle.pubkey.toBase58()}`,
+      `Status: ${this.getOracleStatusLabel(oracle.status)}`,
+      `Type: ${this.getOracleTypeLabel(oracle.oracleType)}`,
+      `Weight: ${oracle.weight}`,
+      `Stake: ${oracle.stakeAmount.toNumber() / LAMPORTS_PER_SOL} SOL`,
+      `Violations: ${oracle.violationCount}`,
+      `Success Rate: ${this.calculateSuccessRate(oracle).toFixed(1)}%`,
+      `Disputes: ${oracle.disputesParticipated}`,
+      `Total Rewards: ${oracle.totalRewards.toNumber() / LAMPORTS_PER_SOL} SOL`,
+    ];
+
+    if (oracle.status === OracleStatus.PendingWithdrawal) {
+      const availableAt = this.getWithdrawalAvailableAt(oracle);
+      if (availableAt) {
+        lines.push(`Withdrawal Available: ${availableAt.toISOString()}`);
+      }
     }
 
     return lines.join("\n");
