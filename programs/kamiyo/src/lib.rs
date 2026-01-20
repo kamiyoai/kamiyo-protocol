@@ -1028,6 +1028,7 @@ pub mod kamiyo {
 
         reputation.disputes_filed = reputation.disputes_filed.saturating_add(1);
         escrow.status = EscrowStatus::Disputed;
+        escrow.disputed_at = Some(clock.unix_timestamp);
 
         emit!(DisputeMarked {
             escrow: escrow.key(),
@@ -1715,7 +1716,7 @@ pub mod kamiyo {
         let oracle_registry = &ctx.accounts.oracle_registry;
 
         // Extract values needed for calculations
-        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores, token_mint, bump, agent_key, first_submission_time) = {
+        let (status, amount, transaction_id, escrow_key, individual_scores, oracles, weighted_scores, token_mint, bump, agent_key, disputed_at) = {
             let escrow = &ctx.accounts.escrow;
             let individual_scores: Vec<u8> = escrow.oracle_submissions.iter().map(|s| s.quality_score).collect();
             let oracles: Vec<Pubkey> = escrow.oracle_submissions.iter().map(|s| s.oracle).collect();
@@ -1730,7 +1731,6 @@ pub mod kamiyo {
                         .map(|o| (submission.quality_score, o.weight))
                 })
                 .collect();
-            let first_submission = escrow.oracle_submissions.iter().map(|s| s.submitted_at).min().unwrap_or(0);
             (
                 escrow.status,
                 escrow.amount,
@@ -1742,7 +1742,7 @@ pub mod kamiyo {
                 escrow.token_mint,
                 escrow.bump,
                 escrow.agent,
-                first_submission,
+                escrow.disputed_at,
             )
         };
 
@@ -1755,11 +1755,19 @@ pub mod kamiyo {
             KamiyoError::InsufficientOracleConsensus
         );
 
-        // Reveal delay: prevent oracles from seeing others' votes before committing
-        // Must wait ORACLE_REVEAL_DELAY seconds after first submission
-        let clock = Clock::get()?;
+        // Quorum: require majority of registered oracles, not just minimum count
+        let registered_oracle_count = oracle_registry.oracles.len();
+        let quorum_required = ((registered_oracle_count * 50 / 100) as usize).max(required_oracles as usize);
         require!(
-            clock.unix_timestamp >= first_submission_time.saturating_add(ORACLE_REVEAL_DELAY),
+            oracles.len() >= quorum_required,
+            KamiyoError::InsufficientOracleConsensus
+        );
+
+        // Reveal delay enforced from dispute timestamp so all oracles evaluate independently
+        let clock = Clock::get()?;
+        let dispute_time = disputed_at.ok_or(KamiyoError::InvalidStatus)?;
+        require!(
+            clock.unix_timestamp >= dispute_time.saturating_add(ORACLE_REVEAL_DELAY),
             KamiyoError::RevealDelayNotMet
         );
 
@@ -3346,6 +3354,8 @@ pub struct Escrow {
     pub token_mint: Option<Pubkey>,
     pub escrow_token_account: Option<Pubkey>,
     pub token_decimals: u8,
+    /// Timestamp when dispute was marked (for reveal delay enforcement)
+    pub disputed_at: Option<i64>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]

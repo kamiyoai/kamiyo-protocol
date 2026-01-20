@@ -1,14 +1,6 @@
-//! KAMIYO Transfer Hook - MEV Protection & Auto-Burn
+//! KAMIYO Transfer Hook
 //!
-//! This program is invoked on every $KAMIYO token transfer via SPL Token-2022's
-//! Transfer Hook extension. It implements:
-//!
-//! - Automatic 0.25% burn on transfers (deflationary mechanics)
-//! - Sandwich attack detection (rapid buy-sell patterns)
-//! - Rate limiting (max transfers per time window)
-//! - Transfer cooldown (minimum time between transfers)
-//! - Platform whitelist (verified platforms bypass restrictions)
-//! - Burn exemption list (staking, escrow, DEX pools)
+//! Token-2022 transfer hook for 0.25% auto-burn and MEV protection.
 //!
 //! Copyright (c) 2026 KAMIYO
 //! SPDX-License-Identifier: MIT

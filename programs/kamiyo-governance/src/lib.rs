@@ -1,24 +1,7 @@
-//! KAMIYO Governance - Token-weighted voting for protocol decisions
+//! KAMIYO Governance
 //!
-//! Features:
-//! - Token-weighted voting (1 KAMIYO = 1 vote)
-//! - Staking multiplier integration (staked tokens count more)
-//! - Proposal creation threshold (100K KAMIYO)
-//! - Quorum requirement (5M KAMIYO = 0.5% of supply)
-//! - 66% approval threshold
-//! - Timelock for execution (24-72 hours)
-//!
-//! Vote weight calculation:
-//! - Wallet balance: 1x weight
-//! - Staked tokens: multiplied by duration (1x-2x)
-//! - Combined weight = wallet + (staked * multiplier)
-//!
-//! Proposal lifecycle:
-//! 1. Created -> Voting period begins
-//! 2. Voting -> Users vote yes/no with token weight
-//! 3. Queued -> If passed, enters timelock
-//! 4. Executed -> After timelock, can be executed
-//! 5. Expired -> If not executed within grace period
+//! Token-weighted voting with staking multiplier integration.
+//! Proposal threshold 100K, quorum 5M (0.5%), 66% approval.
 //!
 //! Copyright (c) 2026 KAMIYO
 //! SPDX-License-Identifier: MIT
@@ -63,11 +46,14 @@ fn get_staking_multiplier(stake_start_time: i64, current_time: i64) -> u64 {
 // Constants
 // ============================================================================
 
-/// Minimum tokens required to create a proposal (100K KAMIYO)
-const PROPOSAL_THRESHOLD: u64 = 100_000_000_000_000;
+/// Minimum tokens required to create a proposal (1M KAMIYO)
+const PROPOSAL_THRESHOLD: u64 = 1_000_000_000_000;
 
 /// Quorum: minimum votes required for proposal to be valid (5M KAMIYO = 0.5%)
-const QUORUM_THRESHOLD: u64 = 5_000_000_000_000_000;
+const QUORUM_THRESHOLD: u64 = 5_000_000_000_000;
+
+/// Proposal deposit (100K KAMIYO) - returned if quorum reached
+const PROPOSAL_DEPOSIT: u64 = 100_000_000_000;
 
 /// Approval threshold in basis points (6600 = 66%)
 const APPROVAL_THRESHOLD_BPS: u64 = 6600;
@@ -143,6 +129,12 @@ pub enum GovernanceError {
 
     #[msg("Governance is paused")]
     GovernancePaused,
+
+    #[msg("Deposit already returned")]
+    DepositAlreadyReturned,
+
+    #[msg("Cannot return deposit - quorum not reached")]
+    QuorumNotReachedForRefund,
 }
 
 // ============================================================================
@@ -195,6 +187,9 @@ pub struct GovernanceConfig {
     /// Whether governance is paused
     pub is_paused: bool,
 
+    /// Proposal deposit amount (refunded if quorum reached)
+    pub proposal_deposit: u64,
+
     /// Bump seed
     pub bump: u8,
 }
@@ -210,6 +205,7 @@ impl GovernanceConfig {
         8 +  // voting_period
         8 +  // timelock_duration
         1 +  // is_paused
+        8 +  // proposal_deposit
         1;   // bump
 }
 
@@ -252,6 +248,12 @@ pub struct Proposal {
     /// Whether the proposal has been executed
     pub executed: bool,
 
+    /// Deposit amount paid by proposer
+    pub deposit_amount: u64,
+
+    /// Whether the deposit has been returned
+    pub deposit_returned: bool,
+
     /// Bump seed
     pub bump: u8,
 }
@@ -270,6 +272,8 @@ impl Proposal {
         8 +  // votes_against
         4 +  // voter_count
         1 +  // executed
+        8 +  // deposit_amount
+        1 +  // deposit_returned
         1;   // bump
 }
 
@@ -346,13 +350,14 @@ pub mod kamiyo_governance {
         config.voting_period = VOTING_PERIOD;
         config.timelock_duration = TIMELOCK_DURATION;
         config.is_paused = false;
+        config.proposal_deposit = PROPOSAL_DEPOSIT;
         config.bump = ctx.bumps.config;
 
         msg!("Governance initialized");
         Ok(())
     }
 
-    /// Create a new proposal
+    /// Create a new proposal (requires deposit if configured)
     pub fn create_proposal(
         ctx: Context<CreateProposal>,
         title: String,
@@ -369,6 +374,25 @@ pub mod kamiyo_governance {
             proposer_balance >= config.proposal_threshold,
             GovernanceError::InsufficientTokensForProposal
         );
+
+        let deposit_amount = config.proposal_deposit;
+
+        // Transfer deposit to vault if deposit is required
+        if deposit_amount > 0 {
+            anchor_spl::token_interface::transfer_checked(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    anchor_spl::token_interface::TransferChecked {
+                        from: ctx.accounts.proposer_token_account.to_account_info(),
+                        mint: ctx.accounts.token_mint.to_account_info(),
+                        to: ctx.accounts.deposit_vault.to_account_info(),
+                        authority: ctx.accounts.proposer.to_account_info(),
+                    },
+                ),
+                deposit_amount,
+                ctx.accounts.token_mint.decimals,
+            )?;
+        }
 
         let clock = Clock::get()?;
         let config = &mut ctx.accounts.config;
@@ -388,6 +412,8 @@ pub mod kamiyo_governance {
         proposal.votes_against = 0;
         proposal.voter_count = 0;
         proposal.executed = false;
+        proposal.deposit_amount = deposit_amount;
+        proposal.deposit_returned = false;
         proposal.bump = ctx.bumps.proposal;
 
         emit!(ProposalCreated {
@@ -603,6 +629,12 @@ pub mod kamiyo_governance {
         Ok(())
     }
 
+    /// Initialize the deposit vault (admin only, one-time)
+    pub fn initialize_deposit_vault(_ctx: Context<InitializeDepositVault>) -> Result<()> {
+        msg!("Deposit vault initialized");
+        Ok(())
+    }
+
     /// Pause governance (admin only, emergency)
     pub fn pause_governance(ctx: Context<AdminAction>) -> Result<()> {
         ctx.accounts.config.is_paused = true;
@@ -625,6 +657,7 @@ pub mod kamiyo_governance {
         approval_threshold_bps: Option<u64>,
         voting_period: Option<i64>,
         timelock_duration: Option<i64>,
+        proposal_deposit: Option<u64>,
     ) -> Result<()> {
         let config = &mut ctx.accounts.config;
 
@@ -643,8 +676,71 @@ pub mod kamiyo_governance {
         if let Some(v) = timelock_duration {
             config.timelock_duration = v;
         }
+        if let Some(v) = proposal_deposit {
+            config.proposal_deposit = v;
+        }
 
         msg!("Governance config updated");
+        Ok(())
+    }
+
+    /// Claim deposit refund after proposal voting ends (if quorum was reached)
+    pub fn claim_deposit(ctx: Context<ClaimDeposit>) -> Result<()> {
+        let proposal = &ctx.accounts.proposal;
+        let config = &ctx.accounts.config;
+
+        // Verify proposal is finalized
+        require!(
+            proposal.state != ProposalState::Voting,
+            GovernanceError::NotInVotingState
+        );
+
+        // Check deposit hasn't been returned yet
+        require!(
+            !proposal.deposit_returned,
+            GovernanceError::DepositAlreadyReturned
+        );
+
+        // Check if quorum was reached (deposit only returned if quorum met)
+        let total_votes = proposal.votes_for.checked_add(proposal.votes_against).unwrap_or(0);
+        require!(
+            total_votes >= config.quorum_threshold,
+            GovernanceError::QuorumNotReachedForRefund
+        );
+
+        let deposit_amount = proposal.deposit_amount;
+        if deposit_amount > 0 {
+            // Transfer deposit back from vault to proposer
+            let bump = ctx.bumps.deposit_vault;
+            let seeds = &[b"deposit_vault".as_ref(), &[bump]];
+            let signer_seeds = &[&seeds[..]];
+
+            anchor_spl::token_interface::transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    anchor_spl::token_interface::TransferChecked {
+                        from: ctx.accounts.deposit_vault.to_account_info(),
+                        mint: ctx.accounts.token_mint.to_account_info(),
+                        to: ctx.accounts.proposer_token_account.to_account_info(),
+                        authority: ctx.accounts.deposit_vault.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                deposit_amount,
+                ctx.accounts.token_mint.decimals,
+            )?;
+        }
+
+        // Mark deposit as returned
+        let proposal = &mut ctx.accounts.proposal;
+        proposal.deposit_returned = true;
+
+        emit!(DepositReturned {
+            proposal_id: proposal.id,
+            proposer: proposal.proposer,
+            amount: deposit_amount,
+        });
+
         Ok(())
     }
 }
@@ -702,6 +798,13 @@ pub struct ProposalCancelled {
     pub timestamp: i64,
 }
 
+#[event]
+pub struct DepositReturned {
+    pub proposal_id: u64,
+    pub proposer: Pubkey,
+    pub amount: u64,
+}
+
 // ============================================================================
 // Contexts
 // ============================================================================
@@ -744,14 +847,28 @@ pub struct CreateProposal<'info> {
     pub proposal: Account<'info, Proposal>,
 
     #[account(
+        mut,
         associated_token::mint = config.token_mint,
         associated_token::authority = proposer
     )]
     pub proposer_token_account: InterfaceAccount<'info, TokenAccount>,
 
+    /// Deposit vault for holding proposal deposits
+    #[account(
+        mut,
+        seeds = [b"deposit_vault"],
+        bump
+    )]
+    pub deposit_vault: InterfaceAccount<'info, TokenAccount>,
+
+    /// Token mint for transfer
+    #[account(address = config.token_mint)]
+    pub token_mint: InterfaceAccount<'info, Mint>,
+
     #[account(mut)]
     pub proposer: Signer<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 }
 
@@ -844,4 +961,70 @@ pub struct AdminAction<'info> {
     pub config: Account<'info, GovernanceConfig>,
 
     pub admin: Signer<'info>,
+}
+
+/// Deposit vault account with bump for PDA signing
+#[account]
+pub struct DepositVault {
+    pub bump: u8,
+}
+
+#[derive(Accounts)]
+pub struct InitializeDepositVault<'info> {
+    #[account(seeds = [b"governance"], bump = config.bump)]
+    pub config: Account<'info, GovernanceConfig>,
+
+    #[account(
+        init,
+        payer = admin,
+        token::mint = token_mint,
+        token::authority = deposit_vault,
+        seeds = [b"deposit_vault"],
+        bump
+    )]
+    pub deposit_vault: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(address = config.token_mint)]
+    pub token_mint: InterfaceAccount<'info, Mint>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimDeposit<'info> {
+    #[account(seeds = [b"governance"], bump = config.bump)]
+    pub config: Account<'info, GovernanceConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"proposal", proposal.id.to_le_bytes().as_ref()],
+        bump = proposal.bump,
+        has_one = proposer @ GovernanceError::InvalidAuthority
+    )]
+    pub proposal: Account<'info, Proposal>,
+
+    #[account(
+        mut,
+        seeds = [b"deposit_vault"],
+        bump
+    )]
+    pub deposit_vault: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = config.token_mint,
+        associated_token::authority = proposer
+    )]
+    pub proposer_token_account: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(address = config.token_mint)]
+    pub token_mint: InterfaceAccount<'info, Mint>,
+
+    pub proposer: Signer<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
 }
