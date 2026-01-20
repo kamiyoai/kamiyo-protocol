@@ -1227,4 +1227,71 @@ export function getCreditStats(): {
   };
 }
 
+// Linked wallets table (Twitter ID -> Wallet mappings from dApp)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS linked_wallets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    twitter_id TEXT NOT NULL,
+    twitter_username TEXT,
+    wallet TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    message TEXT NOT NULL,
+    linked_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(twitter_id, wallet)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_linked_wallets_twitter ON linked_wallets(twitter_id);
+  CREATE INDEX IF NOT EXISTS idx_linked_wallets_wallet ON linked_wallets(wallet);
+`);
+
+export interface LinkedWallet {
+  id: number;
+  twitter_id: string;
+  twitter_username: string | null;
+  wallet: string;
+  signature: string;
+  message: string;
+  linked_at: number;
+}
+
+export function linkWallet(
+  twitterId: string,
+  twitterUsername: string | null,
+  wallet: string,
+  signature: string,
+  message: string
+): boolean {
+  try {
+    db.prepare(`
+      INSERT OR REPLACE INTO linked_wallets (twitter_id, twitter_username, wallet, signature, message)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(twitterId, twitterUsername, wallet, signature, message);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getLinkedWallet(twitterId: string): LinkedWallet | null {
+  return db.prepare('SELECT * FROM linked_wallets WHERE twitter_id = ? ORDER BY linked_at DESC LIMIT 1')
+    .get(twitterId) as LinkedWallet | null;
+}
+
+export function getLinkedWallets(twitterId: string): LinkedWallet[] {
+  return db.prepare('SELECT * FROM linked_wallets WHERE twitter_id = ? ORDER BY linked_at DESC')
+    .all(twitterId) as LinkedWallet[];
+}
+
+export function getTwitterIdByWallet(wallet: string): string | null {
+  const row = db.prepare('SELECT twitter_id FROM linked_wallets WHERE wallet = ? ORDER BY linked_at DESC LIMIT 1')
+    .get(wallet) as { twitter_id: string } | undefined;
+  return row?.twitter_id ?? null;
+}
+
+export function unlinkWallet(twitterId: string, wallet: string): boolean {
+  const result = db.prepare('DELETE FROM linked_wallets WHERE twitter_id = ? AND wallet = ?')
+    .run(twitterId, wallet);
+  return result.changes > 0;
+}
+
 export default db;

@@ -17,6 +17,7 @@ import mitamaRoutes from './routes/mitama';
 import kamiyoTokenRoutes from './routes/kamiyo-token';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
+import linkWalletRoutes from './routes/link-wallet';
 import { registry } from '../metrics';
 
 // Rate limiter for auth endpoints (IP-based)
@@ -132,6 +133,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Prepaid credits routes (public - alternative to x402)
   app.use('/api/credits', creditsRoutes);
+
+  // Wallet linking routes (from kamiyo-app dApp)
+  app.use('/api/link-wallet', linkWalletRoutes);
 
   // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {
