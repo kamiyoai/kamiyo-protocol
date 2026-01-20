@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 
 const PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
-const MIN_ORACLE_STAKE = LAMPORTS_PER_SOL; // 1 SOL
+const MIN_ORACLE_STAKE = LAMPORTS_PER_SOL / 2; // 0.5 SOL
 
 // Oracle types from program
 const OracleType = {

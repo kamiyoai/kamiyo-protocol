@@ -122,7 +122,7 @@ const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
 const MAX_AGENT_NAME_LENGTH: usize = 32;
 
 // Oracle incentive constants
-const MIN_ORACLE_STAKE: u64 = 1_000_000_000;        // 1 SOL minimum oracle stake (raised)
+const MIN_ORACLE_STAKE: u64 = 500_000_000;          // 0.5 SOL minimum oracle stake
 const ORACLE_SLASH_PERCENT: u8 = 10;                // 10% slash for voting against consensus
 const ORACLE_REWARD_PERCENT: u8 = 1;                // 1% of escrow amount as oracle reward
 const MAX_ORACLE_SLASH_VIOLATIONS: u8 = 3;          // Max violations before removal

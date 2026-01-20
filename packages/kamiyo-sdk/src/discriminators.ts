@@ -15,6 +15,7 @@ export const DISCRIMINATORS = {
   claimExpiredEscrow: Buffer.from([249, 93, 128, 229, 7, 27, 93, 224]),
 
   // Oracle instructions
+  initializeOracleRegistry: Buffer.from([190, 92, 228, 114, 56, 71, 101, 220]),
   addOracle: Buffer.from([185, 165, 165, 167, 208, 207, 55, 35]),
 
   // Blacklist instructions

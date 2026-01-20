@@ -16,7 +16,7 @@ import {
 } from "./types";
 
 // Constants
-export const MIN_ORACLE_STAKE = LAMPORTS_PER_SOL; // 1 SOL
+export const MIN_ORACLE_STAKE = LAMPORTS_PER_SOL / 2; // 0.5 SOL
 export const ORACLE_WITHDRAWAL_COOLDOWN = 7 * 24 * 60 * 60; // 7 days in seconds
 
 /**
