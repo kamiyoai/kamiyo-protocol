@@ -96,6 +96,21 @@ export interface OracleConfig {
   pubkey: PublicKey;
   oracleType: OracleType;
   weight: number;
+  stakeAmount: BN;
+  violationCount: number;
+  totalRewards: BN;
+  disputesParticipated: number;
+  consensusVotes: number;
+  registeredAt: BN;
+  withdrawalRequestedAt: BN;
+  status: number; // 0 = active, 1 = pending withdrawal, 2 = suspended
+}
+
+// Oracle Status
+export enum OracleStatus {
+  Active = 0,
+  PendingWithdrawal = 1,
+  Suspended = 2,
 }
 
 // Oracle Registry
@@ -107,6 +122,8 @@ export interface OracleRegistry {
   createdAt: BN;
   updatedAt: BN;
   bump: number;
+  publicRegistration: boolean;
+  totalStake: BN;
 }
 
 // Entity Reputation
