@@ -2931,6 +2931,75 @@ pub mod kamiyo {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Migration Instructions
+    // ========================================================================
+
+    /// Reset and reinitialize a corrupted oracle registry.
+    /// Admin-only. Returns excess lamports to admin and reinitializes with empty oracles.
+    pub fn reset_oracle_registry(ctx: Context<MigrateOracleRegistry>) -> Result<()> {
+        let account_info = ctx.accounts.oracle_registry.to_account_info();
+        let admin_info = ctx.accounts.admin.to_account_info();
+
+        // Read admin from account to verify authorization
+        let data = account_info.try_borrow_data()?;
+        let stored_admin = Pubkey::try_from(&data[8..40]).map_err(|_| KamiyoError::InvalidAmount)?;
+        require!(stored_admin == ctx.accounts.admin.key(), KamiyoError::Unauthorized);
+
+        // Get the bump for this PDA
+        let (expected_pda, bump) = Pubkey::find_program_address(&[b"oracle_registry"], ctx.program_id);
+        require!(expected_pda == account_info.key(), KamiyoError::Unauthorized);
+
+        // Keep discriminator
+        let mut discriminator = [0u8; 8];
+        discriminator.copy_from_slice(&data[0..8]);
+        drop(data);
+
+        // Calculate minimum rent-exempt balance for full capacity
+        let rent = Rent::get()?;
+        let new_size = 8 + OracleRegistry::INIT_SPACE;
+        let min_lamports = rent.minimum_balance(new_size);
+
+        // Transfer excess lamports to admin (stakes from corrupted data)
+        let current_lamports = account_info.lamports();
+        if current_lamports > min_lamports {
+            let excess = current_lamports - min_lamports;
+            **account_info.try_borrow_mut_lamports()? -= excess;
+            **admin_info.try_borrow_mut_lamports()? += excess;
+            msg!("Returned {} lamports to admin", excess);
+        }
+
+        // Realloc if needed
+        account_info.realloc(new_size, false)?;
+
+        // Write fresh V2 format with empty oracles
+        let mut data = account_info.try_borrow_mut_data()?;
+
+        // Clear all data first
+        data.fill(0);
+
+        let clock = Clock::get()?;
+
+        // Write header
+        data[0..8].copy_from_slice(&discriminator);
+        data[8..40].copy_from_slice(ctx.accounts.admin.key().as_ref());
+        data[40..44].copy_from_slice(&0u32.to_le_bytes()); // 0 oracles
+
+        // Write footer fields (immediately after vec length since 0 oracles)
+        let fields_start = 44;
+        data[fields_start] = 3; // min_consensus
+        data[fields_start + 1] = 15; // max_score_deviation
+        data[fields_start + 2..fields_start + 10].copy_from_slice(&clock.unix_timestamp.to_le_bytes()); // created_at
+        data[fields_start + 10..fields_start + 18].copy_from_slice(&clock.unix_timestamp.to_le_bytes()); // updated_at
+        data[fields_start + 18] = bump; // bump
+        data[fields_start + 19] = 0; // public_registration = false
+        data[fields_start + 20..fields_start + 28].copy_from_slice(&0u64.to_le_bytes()); // total_stake = 0
+
+        msg!("Oracle registry reset: 0 oracles, bump: {}", bump);
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -3293,6 +3362,22 @@ pub struct CompleteOracleWithdrawal<'info> {
     /// CHECK: Oracle wallet to receive stake - validated in instruction
     #[account(mut)]
     pub oracle: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct MigrateOracleRegistry<'info> {
+    /// CHECK: Using UncheckedAccount to bypass Anchor deserialization since we're migrating from V1 format
+    #[account(
+        mut,
+        seeds = [b"oracle_registry"],
+        bump
+    )]
+    pub oracle_registry: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
