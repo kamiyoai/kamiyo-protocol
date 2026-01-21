@@ -529,6 +529,12 @@ importers:
       '@kamiyo/sdk':
         specifier: workspace:*
         version: link:../kamiyo-sdk
+      '@kamiyo/solana-privacy':
+        specifier: workspace:*
+        version: link:../kamiyo-solana-privacy
+      '@kamiyo/x402-client':
+        specifier: workspace:*
+        version: link:../kamiyo-x402-client
       '@solana/web3.js':
         specifier: ^1.95.8
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -10960,6 +10966,8 @@ snapshots:
       '@coral-xyz/anchor': 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@elizaos/core': 0.25.9(@types/node@20.19.28)(bufferutil@4.1.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       '@kamiyo/sdk': link:packages/kamiyo-sdk
+      '@kamiyo/solana-privacy': link:packages/kamiyo-solana-privacy
+      '@kamiyo/x402-client': link:packages/kamiyo-x402-client
       '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       zod: 3.25.76
     transitivePeerDependencies:

@@ -1,12 +1,10 @@
-import { PublicKey } from '@solana/web3.js';
+import { Wallet } from '@coral-xyz/anchor';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
-import { getNetworkConfig, getKeypair, createConnection } from '../utils';
+import { getKeypair } from '../utils';
 
 /**
- * Reputation Proof Actions for PayAI Integration
- *
- * Generate and verify ZK reputation proofs for x402 payment discounts.
- * Integrates with @kamiyo/solana-privacy for proof generation.
+ * ZK reputation proof actions for x402 payment discounts.
+ * Uses @kamiyo/solana-privacy for Groth16 proof generation.
  */
 
 interface ReputationProofResult {
@@ -14,6 +12,7 @@ interface ReputationProofResult {
   commitment: string;
   threshold: number;
   publicKey: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -66,9 +65,8 @@ export const generateReputationProofAction: Action = {
     const threshold = parseThreshold(text) || (content.threshold as number) || 70;
 
     try {
-      const { PrivateInference, computeCommitment, generateSecret } = await import('@kamiyo/solana-privacy');
+      const { PrivateInference, generateSecret } = await import('@kamiyo/solana-privacy');
 
-      // Get actual reputation score (from tracker or on-chain)
       const actualScore = await getReputationScore(runtime, keypair.publicKey.toBase58());
 
       if (actualScore < threshold) {
@@ -76,19 +74,21 @@ export const generateReputationProofAction: Action = {
         return { success: false, error: `Reputation ${actualScore} below threshold ${threshold}` };
       }
 
-      const prover = new PrivateInference();
+      const wallet = new Wallet(keypair);
+      const prover = new PrivateInference(wallet);
       const secret = generateSecret();
-      const commitment = computeCommitment(BigInt(actualScore), secret);
 
-      const proofResult = await prover.proveReputationThreshold(
-        BigInt(actualScore),
+      const proofResult = await prover.proveReputation({
+        score: actualScore,
+        threshold,
         secret,
-        BigInt(threshold)
-      );
+      });
+
+      const encodedProof = PrivateInference.encodeReputationProof(proofResult);
 
       const proofData: ReputationProofResult = {
-        proof: proofResult.proof,
-        commitment: commitment.toString(),
+        proof: encodedProof,
+        commitment: proofResult.commitment,
         threshold,
         publicKey: keypair.publicKey.toBase58(),
       };
@@ -202,11 +202,9 @@ export const verifyReputationProofAction: Action = {
     _options?: Record<string, unknown>,
     callback?: HandlerCallback
   ): Promise<{ success: boolean; valid?: boolean; threshold?: number; error?: string }> {
-    const { rpcUrl, programId } = getNetworkConfig(runtime);
     const content = message.content as Record<string, unknown>;
 
     const proof = (content.proof as string) || extractProof(message.content.text || '');
-    const commitment = content.commitment as string;
     const threshold = (content.threshold as number) || 70;
 
     if (!proof) {
@@ -217,18 +215,17 @@ export const verifyReputationProofAction: Action = {
     try {
       const { verifyReputationProof } = await import('@kamiyo/solana-privacy');
 
-      const result = await verifyReputationProof({
-        proof,
-        commitment: commitment ? BigInt(commitment) : undefined,
-        threshold: BigInt(threshold),
+      const result = await verifyReputationProof(proof, {
+        minThreshold: threshold,
+        requireCrypto: false,
       });
 
       if (result.valid) {
         callback?.({
-          text: `Proof valid. Agent has reputation >= ${threshold}.`,
-          content: { valid: true, threshold },
+          text: `Proof valid. Agent has reputation >= ${result.threshold ?? threshold}.`,
+          content: { valid: true, threshold: result.threshold ?? threshold },
         });
-        return { success: true, valid: true, threshold };
+        return { success: true, valid: true, threshold: result.threshold ?? threshold };
       } else {
         callback?.({
           text: `Proof invalid: ${result.error || 'verification failed'}`,
@@ -297,7 +294,6 @@ export const updateReputationAction: Action = {
         calculateReputationDelta,
       } = await import('@kamiyo/x402-client');
 
-      // Get or create tracker from runtime state
       const trackerJson = runtime.getSetting('REPUTATION_TRACKER');
       const tracker = trackerJson
         ? PayAIReputationTracker.deserialize(trackerJson)
@@ -313,8 +309,9 @@ export const updateReputationAction: Action = {
         sourceEnum
       );
 
-      // Persist tracker
-      await runtime.setSetting('REPUTATION_TRACKER', tracker.serialize());
+      if (runtime.setState) {
+        await runtime.setState('REPUTATION_TRACKER', tracker.serialize());
+      }
 
       callback?.({
         text: `Reputation updated: ${delta.providerDelta >= 0 ? '+' : ''}${delta.providerDelta} (${delta.reason}). New score: ${record.score}.`,
@@ -359,6 +356,7 @@ interface TierInfo {
   discount: number;
   nextTierInfo: string;
   creditLimit: number;
+  [key: string]: unknown;
 }
 
 function getTierInfo(score: number): TierInfo {
@@ -395,7 +393,6 @@ function getTierInfo(score: number): TierInfo {
 }
 
 function extractProof(text: string): string | undefined {
-  // Look for base64-encoded proof
   const match = text.match(/proof[:\s]+([A-Za-z0-9+/=]{50,})/i);
   return match?.[1];
 }
@@ -413,7 +410,6 @@ function parseOutcome(text: string): string | undefined {
 }
 
 async function getReputationScore(runtime: IAgentRuntime, publicKey: string): Promise<number> {
-  // Try local tracker first
   const trackerJson = runtime.getSetting('REPUTATION_TRACKER');
   if (trackerJson) {
     try {
@@ -424,7 +420,5 @@ async function getReputationScore(runtime: IAgentRuntime, publicKey: string): Pr
       // Fall through to default
     }
   }
-
-  // Default starting score
   return 50;
 }

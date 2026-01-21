@@ -1,16 +1,8 @@
 /**
  * PayAI Reputation Network Adapter
  *
- * Connects Kamiyo ZK reputation proofs to PayAI's ecosystem:
- * - Freelance AI: Agent-to-agent job marketplace
- * - Bazaar: Discovery layer for x402-enabled services
- * - CT Agent Monetization: Content sales
- *
- * Features:
- * - Reputation accumulation from escrow outcomes
- * - Cross-platform reputation portability
- * - Privacy-preserving proofs (agent proves "success >= X%" without revealing score)
- * - x402 headers for reputation-gated payments
+ * Bridges Kamiyo ZK reputation proofs to PayAI ecosystem (Freelance AI, Bazaar, CT Agent).
+ * Tracks reputation from escrow outcomes with cross-platform portability.
  */
 
 import type { ReputationProofData, ReputationHeaders, ParsedReputationHeaders } from './reputation-extension';
@@ -417,17 +409,8 @@ export function payaiReputationMiddleware(config: PayAIReputationConfig) {
       return;
     }
 
-    // Record the successful interaction if tracker provided
-    if (config.tracker && result.threshold) {
-      const parsed = parsePayAIReputationHeaders(req.headers);
-      if (parsed) {
-        const proof = decodeReputationProof(parsed.proof);
-        if (proof) {
-          // Note: actual update happens after escrow resolution
-          // This is just for tracking active interactions
-        }
-      }
-    }
+    // TODO: Track active interactions when config.tracker provided.
+    // Actual reputation update happens after escrow resolution via updateReputation().
 
     next();
   };
