@@ -224,3 +224,26 @@ export type {
   EscrowMiddlewareOptions,
   Escrow402Extension,
 } from './escrow-extension';
+
+// PayAI Reputation Network (cross-platform reputation with ZK proofs)
+export {
+  ReputationSource,
+  EscrowOutcome,
+  calculateReputationDelta,
+  PayAIReputationTracker,
+  createPayAIReputationHeaders,
+  parsePayAIReputationHeaders,
+  verifyPayAIReputation,
+  calculatePayAIPrice,
+  buildPayAI402Response,
+  payaiReputationMiddleware,
+  aggregateReputation,
+  DEFAULT_TIERS,
+  getTierForThreshold,
+  calculateReputationPrice,
+} from './payai-reputation';
+export type {
+  ReputationDelta,
+  ReputationRecord,
+  PayAIReputationConfig,
+} from './payai-reputation';
