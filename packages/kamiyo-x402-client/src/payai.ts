@@ -1,15 +1,9 @@
 /**
- * PayAI Network x402 Facilitator Client
+ * PayAI x402 Facilitator Client
  *
- * Production-grade integration with PayAI Network's x402 facilitator
- * for cross-chain USDC payments supporting AI agent micropayments.
- *
- * Facilitator: https://facilitator.payai.network
- * Echo (Test Merchant): https://x402.payai.network
- *
- * Supported chains:
- * - EVM: Base, Polygon, Arbitrum, Optimism, Avalanche, Sei, IoTeX, Peaq, XLayer
- * - Non-EVM: Solana
+ * Multi-chain USDC payment verification and settlement via PayAI's x402
+ * facilitator. Supports 10 networks (9 EVM + Solana) with automatic
+ * retry, caching, and rate limit handling.
  *
  * @see https://payai.network
  * @see https://github.com/coinbase/x402
@@ -17,6 +11,7 @@
 
 const USDC_DECIMALS = 6;
 const MICRO = 10 ** USDC_DECIMALS;
+// Cache verified payments for 55s (under x402's 60s settlement window)
 const CACHE_TTL_MS = 55_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_RETRY_ATTEMPTS = 3;
@@ -786,7 +781,8 @@ export interface PayAIMiddlewareOptions {
 
 /**
  * Express/Connect middleware for x402 payment gating.
- * Validates X-Payment header and settles payment before proceeding.
+ * Returns 402 with WWW-Authenticate if no payment header present.
+ * Verifies and settles payment before calling next().
  */
 export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
   return async (

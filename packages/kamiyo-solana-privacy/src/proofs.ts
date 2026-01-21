@@ -98,7 +98,7 @@ export class PrivateInference {
   }
 
   private createStructuralProof(threshold: number, commitment: string): ReputationProof {
-    // Rejected by production verifiers
+    // Dev fallback when circuit artifacts unavailable. Rejected by verifier.
     const marker = Buffer.from('STRUCTURAL_PROOF_NOT_CRYPTOGRAPHIC');
     const proofBytes = new Uint8Array(256);
     marker.copy(Buffer.from(proofBytes.buffer), 0);
@@ -165,7 +165,7 @@ function randomBytes(length: number): string {
   return '0x' + Buffer.from(bytes).toString('hex');
 }
 
-// Groth16: A (G1, 64B) + B (G2, 128B) + C (G1, 64B) = 256B
+// Groth16 proof layout: pi_a (G1, 64B) + pi_b (G2, 128B) + pi_c (G1, 64B) = 256B
 function serializeGroth16Proof(proof: Groth16Proof): Uint8Array {
   const buffer = new Uint8Array(256);
   let offset = 0;

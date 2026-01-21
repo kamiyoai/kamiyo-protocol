@@ -36,6 +36,21 @@ export {
   VERIFY_REPUTATION_TIER_CU,
 } from './onchain';
 
+// HTTP API handlers for PayAI integration
+export {
+  handleProveReputation,
+  handleVerifyReputation,
+  handleComputeCommitment,
+  generateRandomSecret,
+} from './api';
+
+export type {
+  ProveReputationRequest,
+  ProveReputationResponse,
+  VerifyReputationRequest,
+  VerifyReputationResponse,
+} from './api';
+
 // Re-export Solana types for convenience
 export { PublicKey, Connection } from '@solana/web3.js';
 export { Wallet } from '@coral-xyz/anchor';
