@@ -9,8 +9,21 @@ import {
 } from '@solana/web3.js';
 
 const API = 'https://quote-api.jup.ag/v6';
+const FETCH_TIMEOUT_MS = 30_000;
+
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
+
+function isValidQuote(data: unknown): data is SwapQuote {
+  if (!data || typeof data !== 'object') return false;
+  const q = data as Record<string, unknown>;
+  return (
+    typeof q.inputMint === 'string' &&
+    typeof q.outputMint === 'string' &&
+    typeof q.inputAmount === 'string' &&
+    typeof q.outputAmount === 'string'
+  );
+}
 
 export interface JupiterConfig {
   connection: Connection;
@@ -46,11 +59,17 @@ export class JupiterSwap {
 
   async quote(inputMint: string, outputMint: string, amount: number): Promise<SwapQuote | null> {
     const url = `${API}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${this.slippageBps}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url);
-      return res.ok ? res.json() : null;
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return isValidQuote(data) ? data : null;
     } catch {
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -58,6 +77,8 @@ export class JupiterSwap {
     const q = await this.quote(inputMint, outputMint, amount);
     if (!q) return { success: false, inputAmount: amount, outputAmount: 0, error: 'quote failed' };
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
       const res = await fetch(`${API}/swap`, {
         method: 'POST',
@@ -68,12 +89,18 @@ export class JupiterSwap {
           wrapAndUnwrapSol: true,
           prioritizationFeeLamports: this.priorityFee,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!res.ok) return { success: false, inputAmount: amount, outputAmount: 0, error: 'swap request failed' };
 
-      const { swapTransaction } = await res.json();
-      const tx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, 'base64'));
+      const data = await res.json();
+      if (!data?.swapTransaction || typeof data.swapTransaction !== 'string') {
+        return { success: false, inputAmount: amount, outputAmount: 0, error: 'invalid swap response' };
+      }
+
+      const tx = VersionedTransaction.deserialize(Buffer.from(data.swapTransaction, 'base64'));
       tx.sign([this.wallet]);
 
       const sig = await this.connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
@@ -81,6 +108,7 @@ export class JupiterSwap {
 
       return { success: true, signature: sig, inputAmount: parseInt(q.inputAmount), outputAmount: parseInt(q.outputAmount) };
     } catch (err) {
+      clearTimeout(timeout);
       return { success: false, inputAmount: amount, outputAmount: 0, error: err instanceof Error ? err.message : 'swap failed' };
     }
   }

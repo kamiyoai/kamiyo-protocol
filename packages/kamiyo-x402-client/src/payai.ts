@@ -1,12 +1,5 @@
 /**
- * PayAI x402 Facilitator Client
- *
- * Multi-chain USDC payment verification and settlement via PayAI's x402
- * facilitator. Supports 10 networks (9 EVM + Solana) with automatic
- * retry, caching, and rate limit handling.
- *
- * @see https://payai.network
- * @see https://github.com/coinbase/x402
+ * PayAI x402 facilitator client for multi-chain USDC payments.
  */
 
 const USDC_DECIMALS = 6;
@@ -779,11 +772,6 @@ export interface PayAIMiddlewareOptions {
   skip?: (req: PayAIMiddlewareRequest) => boolean;
 }
 
-/**
- * Express/Connect middleware for x402 payment gating.
- * Returns 402 with WWW-Authenticate if no payment header present.
- * Verifies and settles payment before calling next().
- */
 export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
   return async (
     req: PayAIMiddlewareRequest,
@@ -823,6 +811,7 @@ export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
       opts.networks
     );
 
+    let lastError: Error | undefined;
     for (const requirement of reqs) {
       try {
         const { verify, settle } = await opts.facilitator.verifyAndSettle(
@@ -833,7 +822,11 @@ export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
           next();
           return;
         }
-      } catch {
+        if (!verify.valid && verify.reason) {
+          lastError = new PayAIError(verify.reason, 'INVALID_PAYMENT');
+        }
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
         continue;
       }
     }
@@ -844,13 +837,13 @@ export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
       opts.description,
       opts.networks
     );
+    if (lastError) {
+      (body as unknown as Record<string, unknown>).verifyError = lastError.message;
+    }
     res.status(402).json(body);
   };
 }
 
-/**
- * Next.js API route handler wrapper for x402 payment gating.
- */
 export function withPayAI<T extends (...args: unknown[]) => Promise<unknown>>(
   handler: T,
   opts: PayAIMiddlewareOptions
@@ -889,6 +882,7 @@ export function withPayAI<T extends (...args: unknown[]) => Promise<unknown>>(
       opts.networks
     );
 
+    let lastError: Error | undefined;
     for (const requirement of reqs) {
       try {
         const { verify, settle } = await opts.facilitator.verifyAndSettle(
@@ -898,7 +892,11 @@ export function withPayAI<T extends (...args: unknown[]) => Promise<unknown>>(
         if (verify.valid && settle?.success) {
           return handler(...args);
         }
-      } catch {
+        if (!verify.valid && verify.reason) {
+          lastError = new PayAIError(verify.reason, 'INVALID_PAYMENT');
+        }
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
         continue;
       }
     }
@@ -909,6 +907,9 @@ export function withPayAI<T extends (...args: unknown[]) => Promise<unknown>>(
       opts.description,
       opts.networks
     );
+    if (lastError) {
+      (body as unknown as Record<string, unknown>).verifyError = lastError.message;
+    }
     return res.status(402).json(body);
   }) as T;
 }

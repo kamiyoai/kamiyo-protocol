@@ -1,17 +1,5 @@
 /**
- * KAMIYO Pay - Embeddable Payment Widget
- *
- * Usage:
- *
- * 1. Custom Element:
- *    <kamiyo-pay provider="..." amount="1" mode="escrow"></kamiyo-pay>
- *
- * 2. JavaScript:
- *    KamiyoPay.create('#container', { provider: '...', amount: 1 })
- *
- * 3. Programmatic:
- *    const widget = new KamiyoPayEmbed(element, config);
- *    await widget.pay();
+ * Embeddable payment widget for browser environments.
  */
 
 export interface EmbedConfig {
@@ -291,6 +279,7 @@ export class KamiyoPayEmbed {
   private escrowId: string | null = null;
   private walletAddress: string | null = null;
   private abortController: AbortController | null = null;
+  private walletListeners: { wallet: WalletAdapter; connect: () => void; disconnect: () => void } | null = null;
 
   constructor(container: HTMLElement, config: EmbedConfig) {
     validateConfig(config);
@@ -334,8 +323,19 @@ export class KamiyoPayEmbed {
     wallet.on?.('connect', handleConnect);
     wallet.on?.('disconnect', handleDisconnect);
 
+    this.walletListeners = { wallet, connect: handleConnect, disconnect: handleDisconnect };
+
     if (wallet.connected && wallet.publicKey) {
       this.walletAddress = wallet.publicKey.toBase58();
+    }
+  }
+
+  private cleanupWalletListeners(): void {
+    if (this.walletListeners) {
+      const { wallet, connect, disconnect } = this.walletListeners;
+      wallet.off?.('connect', connect);
+      wallet.off?.('disconnect', disconnect);
+      this.walletListeners = null;
     }
   }
 
@@ -599,6 +599,7 @@ export class KamiyoPayEmbed {
 
   destroy(): void {
     this.abortController?.abort();
+    this.cleanupWalletListeners();
     this.container.innerHTML = '';
   }
 }
