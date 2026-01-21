@@ -197,7 +197,7 @@ describe('Verifier', () => {
   });
 
   describe('generateAuditReport', () => {
-    it('generates comprehensive report', () => {
+    it('generates report with all fields', () => {
       const chain = builder.build(
         createMockDeliberation(),
         createMockContext(),

@@ -91,7 +91,7 @@ async function main() {
       .rpc();
 
     console.log("\nTransaction signature:", tx);
-    console.log("Oracle added successfully!");
+    console.log("Oracle added");
 
     // Verify
     const newOracleBalance = await connection.getBalance(oracleKeypair.publicKey);

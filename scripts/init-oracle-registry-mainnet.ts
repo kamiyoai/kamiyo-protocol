@@ -54,7 +54,7 @@ async function main() {
     .rpc();
 
   console.log("Transaction signature:", tx);
-  console.log("Oracle registry initialized successfully!");
+  console.log("Oracle registry initialized");
 
   // Verify
   const registry = await connection.getAccountInfo(oracleRegistryPda);

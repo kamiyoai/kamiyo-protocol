@@ -116,6 +116,7 @@ const MIN_CONSENSUS_ORACLES: u8 = 3;                 // Minimum 3-of-N for collu
 const ORACLE_REVEAL_DELAY: i64 = 300;                // 5 minute delay before scores visible
 const ORACLE_WITHDRAWAL_COOLDOWN: i64 = 7 * 86_400;  // 7 day cooldown before withdrawal
 const COMMIT_PHASE_DURATION: i64 = 300;              // 5 minute commit phase
+const REVEAL_PHASE_DURATION: i64 = 1800;             // 30 minute reveal phase (C-02 fix)
 
 // Agent constants
 const MIN_STAKE_AMOUNT: u64 = 100_000_000;          // 0.1 SOL minimum stake
@@ -2057,12 +2058,21 @@ pub mod kamiyo {
             KamiyoError::CommitPhaseNotEnded
         );
 
-        // Verify oracle is registered
-        let oracle_key = ctx.accounts.oracle.key();
+        // Fix C-02: Verify reveal phase has not expired (30 minute window)
+        let reveal_phase_ends_at = commit_phase_ends_at.saturating_add(REVEAL_PHASE_DURATION);
         require!(
-            oracle_registry.oracles.iter().any(|o| o.pubkey == oracle_key),
-            KamiyoError::UnregisteredOracle
+            clock.unix_timestamp < reveal_phase_ends_at,
+            KamiyoError::RevealPhaseExpired
         );
+
+        // Fix H-02: Verify oracle is registered AND active (status == 0)
+        let oracle_key = ctx.accounts.oracle.key();
+        let oracle_config = oracle_registry
+            .oracles
+            .iter()
+            .find(|o| o.pubkey == oracle_key)
+            .ok_or(KamiyoError::UnregisteredOracle)?;
+        require!(oracle_config.status == 0, KamiyoError::OracleNotActive);
 
         // Find and verify commitment
         let commitment_idx = escrow
@@ -2194,6 +2204,13 @@ pub mod kamiyo {
             KamiyoError::RevealDelayNotMet
         );
 
+        // Fix H-04: Validate weighted_scores has enough active oracles
+        // This can happen if oracles are removed between submission and finalization
+        require!(
+            weighted_scores.len() >= MIN_CONSENSUS_ORACLES as usize,
+            KamiyoError::InsufficientOracleConsensus
+        );
+
         // Calculate consensus
         let consensus_score = calculate_weighted_consensus(
             &weighted_scores,
@@ -2276,6 +2293,8 @@ pub mod kamiyo {
         // Oracle stake slashing for voting against consensus + reward tracking + auto-removal
         let mut oracles_to_remove: Vec<Pubkey> = Vec::new();
         let mut forfeited_oracle_stake: u64 = 0;
+        let mut total_slashed_stake: u64 = 0;
+        let mut actual_oracle_reward: u64 = 0;
         {
             let oracle_registry = &mut ctx.accounts.oracle_registry;
             let max_deviation = oracle_registry.max_score_deviation;
@@ -2287,6 +2306,7 @@ pub mod kamiyo {
                     // Track reward for participating oracle (only if within consensus)
                     if score_diff <= max_deviation && reward_per_oracle > 0 {
                         oracle.total_rewards = oracle.total_rewards.saturating_add(reward_per_oracle);
+                        actual_oracle_reward = actual_oracle_reward.saturating_add(reward_per_oracle);
                         emit!(OracleRewarded {
                             oracle: oracle.pubkey,
                             reward_amount: reward_per_oracle,
@@ -2305,6 +2325,8 @@ pub mod kamiyo {
                         if slash_amount > 0 && oracle.stake_amount >= slash_amount {
                             oracle.stake_amount = oracle.stake_amount.saturating_sub(slash_amount);
                             oracle.violation_count = oracle.violation_count.saturating_add(1);
+                            // Track slashed amount - will update total_stake after loop
+                            total_slashed_stake = total_slashed_stake.saturating_add(slash_amount);
 
                             emit!(OracleSlashed {
                                 oracle: oracle.pubkey,
@@ -2328,10 +2350,18 @@ pub mod kamiyo {
                 }
             }
 
+            // Fix H-01: Update total_stake with all slashed amounts after the loop
+            if total_slashed_stake > 0 {
+                oracle_registry.total_stake = oracle_registry.total_stake.saturating_sub(total_slashed_stake);
+            }
+
             // Remove oracles with too many violations and transfer remaining stake to treasury
             for oracle_pubkey in oracles_to_remove.iter() {
                 if let Some(pos) = oracle_registry.oracles.iter().position(|o| o.pubkey == *oracle_pubkey) {
                     let removed = oracle_registry.oracles.remove(pos);
+
+                    // Update total_stake for removed oracle
+                    oracle_registry.total_stake = oracle_registry.total_stake.saturating_sub(removed.stake_amount);
 
                     // Transfer remaining stake from registry to treasury
                     if removed.stake_amount > 0 {
@@ -2355,7 +2385,10 @@ pub mod kamiyo {
         // Update treasury if provided
         if let Some(ref mut treasury) = ctx.accounts.treasury {
             treasury.total_fees_collected = treasury.total_fees_collected.saturating_add(protocol_fee);
-            let total_slashed = agent_slash_amount.saturating_add(forfeited_oracle_stake);
+            // Include slashed stake from both individual slashes and removed oracles
+            let total_slashed = agent_slash_amount
+                .saturating_add(forfeited_oracle_stake)
+                .saturating_add(total_slashed_stake);
             if total_slashed > 0 {
                 treasury.total_slashed_collected = treasury.total_slashed_collected.saturating_add(total_slashed);
             }
@@ -2377,8 +2410,10 @@ pub mod kamiyo {
             // Validate escrow token account mint
             require!(escrow_token_account.mint == mint, KamiyoError::TokenMintMismatch);
 
-            // Deduct protocol fee from payment amount (API pays the fee)
-            let adjusted_payment = payment_amount.saturating_sub(protocol_fee);
+            // Deduct protocol fee and oracle rewards from payment amount (API pays the fees)
+            let adjusted_payment = payment_amount
+                .saturating_sub(protocol_fee)
+                .saturating_sub(actual_oracle_reward);
 
             if refund_amount > 0 {
                 let agent_token_account = ctx.accounts.agent_token_account.as_ref()
@@ -2461,10 +2496,38 @@ pub mod kamiyo {
                     token::transfer(cpi_ctx, protocol_fee)?;
                 }
             }
+
+            // Transfer oracle rewards to treasury token account (SPL tokens)
+            if actual_oracle_reward > 0 {
+                if let Some(ref treasury_token_account) = ctx.accounts.treasury_token_account {
+                    require!(treasury_token_account.mint == mint, KamiyoError::TokenMintMismatch);
+
+                    let cpi_accounts = SplTransfer {
+                        from: escrow_token_account.to_account_info(),
+                        to: treasury_token_account.to_account_info(),
+                        authority: ctx.accounts.escrow.to_account_info(),
+                    };
+                    let cpi_ctx = CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        cpi_accounts,
+                        signer,
+                    );
+                    token::transfer(cpi_ctx, actual_oracle_reward)?;
+
+                    emit!(TreasuryDeposit {
+                        amount: actual_oracle_reward,
+                        source: "oracle_rewards_token".to_string(),
+                        escrow: escrow_key,
+                    });
+                }
+                // Note: If no treasury token account, oracle rewards are forfeited for SPL escrows
+            }
         } else {
             // SOL transfer with rent exemption check
-            // Deduct protocol fee from payment amount (API pays the fee)
-            let adjusted_payment = payment_amount.saturating_sub(protocol_fee);
+            // Deduct protocol fee and oracle rewards from payment amount (API pays the fees)
+            let adjusted_payment = payment_amount
+                .saturating_sub(protocol_fee)
+                .saturating_sub(actual_oracle_reward);
 
             let rent = Rent::get()?;
             let escrow_min_rent = rent.minimum_balance(ctx.accounts.escrow.to_account_info().data_len());
@@ -2472,7 +2535,10 @@ pub mod kamiyo {
             let max_transferable = escrow_lamports.saturating_sub(escrow_min_rent);
 
             // Ensure we don't transfer more than available after rent
-            let total_transfer = refund_amount.saturating_add(adjusted_payment).saturating_add(protocol_fee);
+            let total_transfer = refund_amount
+                .saturating_add(adjusted_payment)
+                .saturating_add(protocol_fee)
+                .saturating_add(actual_oracle_reward);
             require!(total_transfer <= max_transferable, KamiyoError::InsufficientDisputeFunds);
 
             if refund_amount > 0 {
@@ -2500,6 +2566,20 @@ pub mod kamiyo {
                     **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= protocol_fee;
                     **ctx.accounts.api.to_account_info().try_borrow_mut_lamports()? += protocol_fee;
                 }
+            }
+
+            // Fix C-01: Transfer oracle rewards to treasury (SOL)
+            if actual_oracle_reward > 0 {
+                if let Some(ref treasury) = ctx.accounts.treasury {
+                    **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= actual_oracle_reward;
+                    **treasury.to_account_info().try_borrow_mut_lamports()? += actual_oracle_reward;
+                    emit!(TreasuryDeposit {
+                        amount: actual_oracle_reward,
+                        source: "oracle_rewards".to_string(),
+                        escrow: escrow_key,
+                    });
+                }
+                // If no treasury, oracle rewards are forfeited (edge case)
             }
         }
 
@@ -4201,6 +4281,9 @@ pub enum KamiyoError {
 
     #[msg("Commit phase not ended yet")]
     CommitPhaseNotEnded,
+
+    #[msg("Reveal phase has expired - dispute must be finalized or claimed as expired")]
+    RevealPhaseExpired,
 
     #[msg("No commitment found for oracle")]
     NoCommitmentFound,

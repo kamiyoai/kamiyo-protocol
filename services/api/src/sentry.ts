@@ -21,7 +21,7 @@ export function initSentry(): void {
     },
   });
 
-  console.log('Sentry initialized');
+  console.log('Sentry enabled');
 }
 
 export function captureError(error: Error | unknown, context?: Record<string, unknown>): void {

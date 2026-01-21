@@ -716,7 +716,7 @@ refreshDocs().then(() => {
   setInterval(refreshDocs, DOC_REFRESH_INTERVAL);
 
   bot.launch().then(() => {
-    console.log('Bot started with AI tools enabled');
+    console.log('Bot started');
   });
 });
 

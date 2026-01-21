@@ -106,7 +106,7 @@ async function main() {
         .signers([walletKeypair])
         .rpc();
       console.log(`Transaction: ${tx}`);
-      console.log('Hook config initialized successfully!');
+      console.log('Hook config initialized');
     }
   } catch (error: any) {
     if (error.message?.includes('already in use')) {
@@ -134,7 +134,7 @@ async function main() {
         .signers([walletKeypair])
         .rpc();
       console.log(`Transaction: ${tx}`);
-      console.log('Whitelist initialized successfully!');
+      console.log('Whitelist initialized');
     }
   } catch (error: any) {
     if (error.message?.includes('already in use')) {
@@ -162,7 +162,7 @@ async function main() {
         .signers([walletKeypair])
         .rpc();
       console.log(`Transaction: ${tx}`);
-      console.log('Burn exemption list initialized successfully!');
+      console.log('Burn exemption list initialized');
     }
   } catch (error: any) {
     if (error.message?.includes('already in use')) {
