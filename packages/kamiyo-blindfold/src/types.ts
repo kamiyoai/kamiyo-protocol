@@ -193,3 +193,44 @@ export interface BatchPaymentResponse {
   totalAmount: number;
   createdAt: string;
 }
+
+// Agent Card Types (Spending Side)
+
+export interface AgentCard {
+  agentPk: string;
+  email: string;
+  tier: CardTier;
+  budgetLimit: number;
+  totalFunded: number;
+  lastFundedAt?: number;
+  createdAt: number;
+}
+
+export interface AgentCardFunding {
+  agentPk: string;
+  amount: number;
+  currency: 'SOL' | 'USDC' | 'USDT';
+  paymentId: string;
+  status: PaymentStatus;
+  fundedAt: number;
+}
+
+export interface AgentBudget {
+  agentPk: string;
+  dailyLimit: number;
+  monthlyLimit: number;
+  totalLimit: number;
+  usedToday: number;
+  usedThisMonth: number;
+  usedTotal: number;
+  lastResetDay: number;
+  lastResetMonth: number;
+}
+
+export interface FundAgentRequest {
+  agentPk: string;
+  amount: number;
+  currency: 'SOL' | 'USDC' | 'USDT';
+  email?: string;
+  tier?: CardTier;
+}
