@@ -61,5 +61,9 @@
     "tsx": "^4.21.0",
     "tweetnacl": "^1.0.3",
     "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.6"
   }
 }

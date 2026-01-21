@@ -23,7 +23,9 @@
     "@coral-xyz/anchor": "^0.31.1",
     "@kamiyo/dark-forest": "workspace:*",
     "@rollup/rollup-darwin-arm64": "^4.55.1",
-    "@solana/web3.js": "^1.98.0"
+    "@solana/web3.js": "^1.98.0",
+    "circomlibjs": "^0.1.7",
+    "snarkjs": "^0.7.6"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

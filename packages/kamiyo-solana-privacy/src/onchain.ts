@@ -104,7 +104,7 @@ export const VERIFY_REPUTATION_TIER_CU = 200_000;
 
 // Helper functions for serialization
 
-// BN254 field modulus for negation
+// BN254 field modulus (alt_bn128 Fp). Used to negate pi_a.y for groth16-solana.
 const BN254_FIELD_MODULUS = BigInt('21888242871839275222246405745257275088696311157297823662689037894645226208583');
 
 function serializeG1PointA(point: string[]): Buffer {
@@ -128,7 +128,8 @@ function serializeG1Point(point: string[]): Buffer {
 }
 
 function serializeG2Point(point: string[][]): Buffer {
-  // groth16-solana expects G2 in order: [x_c1, x_c0, y_c1, y_c0]
+  // G2 point on BN254 is in Fp2 (extension field). groth16-solana expects
+  // coefficients in reverse order: [x.c1, x.c0, y.c1, y.c0]
   const x0 = BigInt(point[0][0]);
   const x1 = BigInt(point[0][1]);
   const y0 = BigInt(point[1][0]);
