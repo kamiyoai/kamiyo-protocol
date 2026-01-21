@@ -1,74 +1,43 @@
 /**
- * Request signing for x402 protocol compliance
- *
- * Provides cryptographic proof of payment authorization.
+ * x402 payment request signing.
  */
 
 import { Keypair, PublicKey } from '@solana/web3.js';
 import * as nacl from 'tweetnacl';
 
-/**
- * Signed payment payload
- */
+let nonceCounter = 0;
+
 export interface SignedPayment {
-  /** Payment signature (transaction signature or proof) */
   signature: string;
-  /** Payer's public key */
   payer: string;
-  /** Unix timestamp in ms */
   timestamp: number;
-  /** Nonce for replay protection */
   nonce: string;
-  /** Resource being accessed */
   resource: string;
-  /** Amount in base units (lamports) */
   amount: string;
 }
 
-/**
- * x402 payment header components
- */
 export interface X402PaymentComponents {
-  /** Payment scheme (e.g., 'solana') */
   scheme: string;
-  /** Network identifier */
   network: string;
-  /** Base64-encoded signed payload */
   payload: string;
 }
 
-/**
- * Create a cryptographic signature for a payment
- */
-export function signPaymentMessage(
-  wallet: Keypair,
-  message: Uint8Array
-): Uint8Array {
+export function signPaymentMessage(wallet: Keypair, message: Uint8Array): Uint8Array {
   return nacl.sign.detached(message, wallet.secretKey);
 }
 
-/**
- * Verify a payment signature
- */
-export function verifyPaymentSignature(
-  publicKey: PublicKey,
-  message: Uint8Array,
-  signature: Uint8Array
-): boolean {
+export function verifyPaymentSignature(publicKey: PublicKey, message: Uint8Array, signature: Uint8Array): boolean {
   return nacl.sign.detached.verify(message, signature, publicKey.toBytes());
 }
 
-/**
- * Generate a unique nonce for replay protection
- */
 export function generateNonce(): string {
-  const bytes = nacl.randomBytes(16);
-  return Buffer.from(bytes).toString('hex');
+  // Counter + random + timestamp prevents collisions even at same millisecond
+  const counter = (++nonceCounter % 0xffff).toString(16).padStart(4, '0');
+  const random = Buffer.from(nacl.randomBytes(12)).toString('hex');
+  const ts = Date.now().toString(16);
+  return `${counter}${random}${ts}`;
 }
 
-/**
- * Create signed payment payload
- */
 export function createSignedPayment(
   wallet: Keypair,
   transactionSignature: string,
@@ -88,11 +57,7 @@ export function createSignedPayment(
   };
 }
 
-/**
- * Serialize payment to canonical JSON for signing
- */
 export function serializeForSigning(payment: Omit<SignedPayment, 'signature'> & { signature?: string }): Uint8Array {
-  // Canonical JSON serialization (sorted keys)
   const canonical = JSON.stringify({
     amount: payment.amount,
     nonce: payment.nonce,
@@ -104,9 +69,6 @@ export function serializeForSigning(payment: Omit<SignedPayment, 'signature'> & 
   return new TextEncoder().encode(canonical);
 }
 
-/**
- * Create x402 payment header value
- */
 export function createPaymentHeader(
   payment: SignedPayment,
   wallet: Keypair,

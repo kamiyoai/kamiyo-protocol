@@ -1,16 +1,5 @@
 /**
- * X402KamiyoClient - x402 payments with Kamiyo escrow protection
- *
- * Features:
- * - x402 protocol v1/v2 compatibility
- * - Escrow-backed payments with dispute resolution
- * - SLA monitoring and automatic dispute triggering
- * - Retry with exponential backoff
- * - Circuit breaker for fault tolerance
- * - Quality-based graduated refunds
- *
- * For cross-chain USDC payments, use the PayAIFacilitator class
- * which integrates with PayAI Network (https://facilitator.payai.network)
+ * x402 payment client with Kamiyo escrow protection.
  */
 
 import {
@@ -40,37 +29,22 @@ import {
   LIMITS,
 } from './validation';
 
-// Types
-
 export interface X402ClientConfig {
-  /** Solana RPC connection */
   connection: Connection;
-  /** Agent keypair for signing */
   wallet: Keypair;
-  /** Kamiyo program ID */
   programId: PublicKey;
-  /** Auto-dispute if quality falls below threshold (0-100) */
   qualityThreshold?: number;
-  /** Maximum SOL willing to pay per request */
   maxPricePerRequest?: number;
-  /** Default time lock for escrows in seconds */
   defaultTimeLock?: number;
-  /** Enable automatic SLA monitoring */
   enableSlaMonitoring?: boolean;
-  /** Default request timeout in ms */
   defaultTimeoutMs?: number;
-  /** Retry configuration */
   retry?: Partial<RetryConfig>;
-  /** Enable debug logging */
   debug?: boolean;
 }
 
 export interface SlaParams {
-  /** Maximum response latency in ms */
   maxLatencyMs?: number;
-  /** Minimum quality score (0-100) */
   minQualityScore?: number;
-  /** Custom validation function */
   customValidator?: (response: unknown, latencyMs: number) => SlaValidationResult;
 }
 
@@ -82,19 +56,12 @@ export interface SlaValidationResult {
 }
 
 export interface X402RequestOptions {
-  /** HTTP method */
   method?: string;
-  /** Request headers */
   headers?: Record<string, string>;
-  /** Request body */
   body?: string;
-  /** Use Kamiyo escrow for payment */
   useEscrow?: boolean;
-  /** Custom transaction ID */
   transactionId?: string;
-  /** SLA parameters to enforce */
   sla?: SlaParams;
-  /** Request timeout in ms */
   timeoutMs?: number;
 }
 
@@ -155,7 +122,9 @@ interface X402PaymentRequirement {
   };
 }
 
-// Client Implementation
+const CLEANUP_INTERVAL_MS = 60_000;
+const SIGNATURE_TTL_MS = 120_000;
+const MAX_DISPUTE_RETRIES = 3;
 
 export class X402KamiyoClient {
   private readonly connection: Connection;
@@ -170,10 +139,10 @@ export class X402KamiyoClient {
   private readonly executor: ResilientExecutor;
   private readonly escrowHandler: EscrowHandler;
 
-  // Track active escrows
   private readonly activeEscrows = new Map<string, EscrowInfo>();
-  // Track used payment signatures to prevent replay
   private readonly usedSignatures = new Map<string, number>();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private destroyed = false;
 
   constructor(config: X402ClientConfig) {
     // Validate required config
@@ -215,15 +184,9 @@ export class X402KamiyoClient {
       programId: this.programId,
     });
 
-    // Cleanup old signatures periodically
     this.startSignatureCleanup();
   }
 
-  // Public API
-
-  /**
-   * Make HTTP request with automatic x402 payment handling
-   */
   async request<T = unknown>(
     url: string,
     options: X402RequestOptions = {}
@@ -309,8 +272,7 @@ export class X402KamiyoClient {
             const escrow = this.activeEscrows.get(transactionId);
             if (escrow) {
               this.log(`SLA violation for ${transactionId}, quality: ${slaResult.qualityScore}`);
-              // Queue dispute asynchronously
-              this.queueDispute(escrow, slaResult).catch(e => this.log(`Dispute failed: ${e}`));
+              this.queueDispute(escrow, slaResult);
             }
           }
         }
@@ -331,9 +293,6 @@ export class X402KamiyoClient {
     }
   }
 
-  /**
-   * Create escrow for protected payment
-   */
   async createEscrow(
     provider: PublicKey,
     amountLamports: number,
@@ -399,9 +358,6 @@ export class X402KamiyoClient {
     }
   }
 
-  /**
-   * Release escrow funds to provider
-   */
   async releaseEscrow(transactionId: string): Promise<PaymentResult> {
     assertValid(validateTransactionId(transactionId, 'transactionId'), 'transactionId');
 
@@ -433,9 +389,6 @@ export class X402KamiyoClient {
     }
   }
 
-  /**
-   * File dispute for an escrow
-   */
   async disputeEscrow(transactionId: string): Promise<PaymentResult> {
     assertValid(validateTransactionId(transactionId, 'transactionId'), 'transactionId');
 
@@ -467,43 +420,36 @@ export class X402KamiyoClient {
     }
   }
 
-  /**
-   * Get wallet balance in SOL
-   */
   async getBalance(): Promise<number> {
     const lamports = await this.connection.getBalance(this.wallet.publicKey);
     return lamports / LAMPORTS_PER_SOL;
   }
 
-  /**
-   * Get public key
-   */
   getPublicKey(): PublicKey {
     return this.wallet.publicKey;
   }
 
-  /**
-   * Get active escrows
-   */
   getActiveEscrows(): Map<string, EscrowInfo> {
     return new Map(this.activeEscrows);
   }
 
-  /**
-   * Get circuit breaker state
-   */
   getCircuitState(): string {
     return this.executor.getCircuitState();
   }
 
-  /**
-   * Reset circuit breaker
-   */
   resetCircuit(): void {
     this.executor.resetCircuit();
   }
 
-  // Private Methods
+  destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    this.destroyed = true;
+    this.activeEscrows.clear();
+    this.usedSignatures.clear();
+  }
 
   private async pay(
     requirement: X402PaymentRequirement,
@@ -644,10 +590,21 @@ export class X402KamiyoClient {
     return { passed: violations.length === 0, qualityScore, violations, metrics };
   }
 
-  private async queueDispute(escrow: EscrowInfo, slaResult: SlaValidationResult): Promise<void> {
+  private queueDispute(escrow: EscrowInfo, slaResult: SlaValidationResult): void {
     this.log(`Filing dispute for ${escrow.transactionId}: score ${slaResult.qualityScore}`);
-    // In production, this would call the Kamiyo dispute instruction
-    // The oracle network evaluates and returns a quality score
+
+    const tryDispute = async (attempt: number): Promise<void> => {
+      if (this.destroyed || attempt >= MAX_DISPUTE_RETRIES) return;
+      try {
+        await this.escrowHandler.dispute(escrow.transactionId);
+        escrow.status = EscrowStatus.Disputed;
+      } catch (err) {
+        this.log(`Dispute attempt ${attempt + 1} failed: ${err}`);
+        setTimeout(() => tryDispute(attempt + 1), 1000 * Math.pow(2, attempt));
+      }
+    };
+
+    tryDispute(0);
   }
 
   private async fetchWithTimeout(
@@ -672,10 +629,17 @@ export class X402KamiyoClient {
 
   private parseAmount(amount: string): number {
     const cleaned = amount.replace(/[^0-9.]/g, '');
-    const value = parseFloat(cleaned);
-    // If contains decimal point, treat as SOL; otherwise treat as lamports
-    const hasDecimal = cleaned.includes('.');
-    return hasDecimal ? Math.floor(value * LAMPORTS_PER_SOL) : Math.floor(value);
+    if (!cleaned) return 0;
+
+    // Use BigInt for precision when possible
+    if (cleaned.includes('.')) {
+      const [whole, frac = ''] = cleaned.split('.');
+      const padded = frac.padEnd(9, '0').slice(0, 9);
+      const lamports = BigInt(whole || '0') * BigInt(LAMPORTS_PER_SOL) + BigInt(padded);
+      return Number(lamports);
+    }
+
+    return Number(BigInt(cleaned));
   }
 
   private errorResponse<T>(error: X402Error): X402Response<T> {
@@ -689,21 +653,16 @@ export class X402KamiyoClient {
   }
 
   private startSignatureCleanup(): void {
-    // Clean up old signatures every 10 minutes
-    setInterval(() => {
-      const cutoff = Date.now() - 600_000; // 10 minutes ago
+    this.cleanupTimer = setInterval(() => {
+      if (this.destroyed) return;
+      const cutoff = Date.now() - SIGNATURE_TTL_MS;
       for (const [sig, time] of this.usedSignatures) {
-        if (time < cutoff) {
-          this.usedSignatures.delete(sig);
-        }
+        if (time < cutoff) this.usedSignatures.delete(sig);
       }
-    }, 600_000);
+    }, CLEANUP_INTERVAL_MS);
   }
 }
 
-/**
- * Create x402 client with Kamiyo protection
- */
 export function createX402KamiyoClient(
   connection: Connection,
   wallet: Keypair,
