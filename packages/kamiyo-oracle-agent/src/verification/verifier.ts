@@ -151,7 +151,7 @@ export class Verifier {
   }
 
   /**
-   * Generate a comprehensive audit report
+   * Generate audit report
    */
   generateAuditReport(chain: ReasoningChain, commitment: ReasoningCommitment): AuditReport {
     const verification = this.verify(chain, commitment);

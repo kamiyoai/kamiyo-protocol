@@ -148,7 +148,7 @@ async function main() {
     epoch
   );
 
-  console.log('Proof generated successfully');
+  console.log('Proof generated');
   console.log('Nullifier:', bytesToHex(result.nullifier));
   console.log('Proof A (first 16 bytes):', bytesToHex(result.proof.a.slice(0, 16)));
   console.log('Proof B (first 16 bytes):', bytesToHex(result.proof.b.slice(0, 16)));

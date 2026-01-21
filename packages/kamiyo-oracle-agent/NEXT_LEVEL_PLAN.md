@@ -2,7 +2,7 @@
 
 ## Vision
 
-Transform the Oracle Agent from a simple LLM-based evaluator into an **Adversarial Deliberation Engine** - a multi-agent system that debates, investigates, learns, and produces verifiable reasoning. This represents the frontier of autonomous AI agents applied to decentralized arbitration.
+Transform the Oracle Agent from a simple LLM-based evaluator into an **Adversarial Deliberation Engine** - a multi-agent system that debates, investigates, learns, and produces verifiable reasoning.
 
 ---
 
@@ -44,7 +44,7 @@ Instead of a single LLM call, implement a multi-perspective deliberation system:
 4. Each advocate responds to the investigator's challenges (2-3 rounds)
 5. **Arbiter** reviews the entire debate transcript and renders a final score with detailed reasoning
 
-**Why this is innovative:**
+**Benefits:**
 - Mimics adversarial legal systems proven over centuries
 - Reduces single-point-of-failure in LLM reasoning
 - Creates natural "red teaming" of conclusions
@@ -456,22 +456,22 @@ async function verifyReasoning(
 
 ---
 
-## Innovation Highlights
+## Key Differentiators
 
-### 1. First Adversarial AI Arbiter
-No other blockchain oracle uses multi-agent debate for decision-making. This brings centuries of legal system wisdom to decentralized arbitration.
+### 1. Adversarial AI Arbiter
+Multi-agent debate for decision-making brings legal system patterns to decentralized arbitration.
 
 ### 2. Self-Improving Oracle
-The learning system means the oracle gets smarter over time, building institutional knowledge that compound advantages.
+Learning system builds institutional knowledge over time.
 
 ### 3. Verifiable Reasoning
-Not just accurate votes, but defensible reasoning. This creates a new standard for oracle accountability.
+Defensible reasoning, not just accurate votes.
 
 ### 4. Predictive Intelligence
-Moving from reactive to proactive dispute resolution, potentially preventing disputes before they happen.
+Proactive dispute resolution - prevent disputes before they happen.
 
 ### 5. Evidence-Driven Decisions
-Active investigation rather than passive evaluation. The oracle becomes a true investigator, not just a judge.
+Active investigation rather than passive evaluation.
 
 ---
 

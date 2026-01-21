@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Comprehensive E2E Integration Test Suite
- * Tests all MCP tools against Solana devnet
+ * E2E Integration Tests
+ * Tests MCP tools against Solana devnet
  */
 
 import { Keypair, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';

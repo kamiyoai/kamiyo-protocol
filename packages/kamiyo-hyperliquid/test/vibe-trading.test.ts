@@ -1,5 +1,5 @@
 /**
- * Comprehensive tests for vibe trading module.
+ * Vibe trading module tests
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

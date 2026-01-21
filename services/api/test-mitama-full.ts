@@ -1,5 +1,5 @@
 /**
- * Comprehensive Mitama test - exercises all protocol features.
+ * Mitama full test
  *
  * 1. Multi-agent registration
  * 2. Signal commit-reveal flow
@@ -71,7 +71,7 @@ async function generateAgentSecrets(
 
 async function main() {
   console.log('='.repeat(60));
-  console.log('MITAMA PROTOCOL - COMPREHENSIVE TEST');
+  console.log('MITAMA PROTOCOL - FULL TEST');
   console.log('='.repeat(60));
 
   // Setup

@@ -99,7 +99,7 @@ async function main() {
 
     console.log(`Transaction: ${tx}`);
     console.log('');
-    console.log('Governance initialized successfully!');
+    console.log('Governance initialized');
     console.log('');
     console.log('Default Configuration:');
     console.log('  Proposal Threshold: 100,000,000,000,000 (100K KAMIYO)');

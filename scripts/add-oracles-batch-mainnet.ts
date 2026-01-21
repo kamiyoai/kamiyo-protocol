@@ -120,7 +120,7 @@ async function main() {
         .signers([adminKeypair, oracleKeypair])
         .rpc();
 
-      console.log(`Added successfully: ${tx}`);
+      console.log(`Added: ${tx}`);
     } catch (error: any) {
       if (error.message?.includes("DuplicateOracleSubmission") || error.message?.includes("already")) {
         console.log(`Oracle already registered`);
