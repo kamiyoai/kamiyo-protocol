@@ -10,6 +10,10 @@ import {
   approveFreelanceJobAction,
   disputeFreelanceJobAction,
   checkJobStatusAction,
+  generateReputationProofAction,
+  checkReputationTierAction,
+  verifyReputationProofAction,
+  updateReputationAction,
 } from './actions';
 import { walletProvider, escrowProvider, reputationProvider } from './providers';
 import { qualityEvaluator, trustEvaluator } from './evaluators';
@@ -30,6 +34,11 @@ export const kamiyoPlugin: Plugin = {
     approveFreelanceJobAction,
     disputeFreelanceJobAction,
     checkJobStatusAction,
+    // Reputation proofs (PayAI integration)
+    generateReputationProofAction,
+    checkReputationTierAction,
+    verifyReputationProofAction,
+    updateReputationAction,
   ],
   providers: [walletProvider, escrowProvider, reputationProvider],
   evaluators: [qualityEvaluator, trustEvaluator],

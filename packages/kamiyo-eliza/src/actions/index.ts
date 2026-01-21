@@ -13,3 +13,11 @@ export {
   checkJobStatusAction,
 } from './freelanceJob';
 export type { FreelanceJobSpec } from './freelanceJob';
+
+// Reputation proof actions (PayAI integration)
+export {
+  generateReputationProofAction,
+  checkReputationTierAction,
+  verifyReputationProofAction,
+  updateReputationAction,
+} from './reputation';
