@@ -234,3 +234,53 @@ export interface FundAgentRequest {
   email?: string;
   tier?: CardTier;
 }
+
+// SwarmTeam Types
+
+export interface SwarmTeam {
+  teamId: string;
+  name: string;
+  members: SwarmTeamMember[];
+  budget: SwarmTeamBudget;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SwarmTeamMember {
+  agentPk: string;
+  role: 'leader' | 'member';
+  drawLimit: number;
+  drawn: number;
+  lastDrawAt?: number;
+}
+
+export interface SwarmTeamBudget {
+  total: number;
+  available: number;
+  currency: 'SOL' | 'USDC' | 'USDT';
+  dailyLimit: number;
+  usedToday: number;
+  lastResetDay: number;
+}
+
+export interface SwarmTeamDraw {
+  teamId: string;
+  agentPk: string;
+  amount: number;
+  paymentId: string;
+  purpose?: string;
+  drawnAt: number;
+}
+
+export interface FundTeamRequest {
+  teamId: string;
+  amount: number;
+  currency: 'SOL' | 'USDC' | 'USDT';
+}
+
+export interface DrawFromTeamRequest {
+  teamId: string;
+  agentPk: string;
+  amount: number;
+  purpose?: string;
+}

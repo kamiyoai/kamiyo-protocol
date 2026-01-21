@@ -97,3 +97,23 @@ export type {
   AgentBudget,
   FundAgentRequest,
 } from './types';
+
+// SwarmTeam (Shared Team Budgets)
+export {
+  SwarmTeamManager,
+  InMemorySwarmTeamStorage,
+} from './swarm-team';
+
+export type {
+  SwarmTeamStorage,
+  SwarmTeamConfig,
+} from './swarm-team';
+
+export type {
+  SwarmTeam,
+  SwarmTeamMember,
+  SwarmTeamBudget,
+  SwarmTeamDraw,
+  FundTeamRequest,
+  DrawFromTeamRequest,
+} from './types';
