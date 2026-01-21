@@ -80,3 +80,20 @@ export type {
   BatchPaymentRequest,
   BatchPaymentResponse,
 } from './types';
+
+// Agent Card (Spending Side)
+export {
+  AgentCardManager,
+  InMemoryAgentCardStorage,
+} from './agent-card';
+
+export type {
+  AgentCardStorage,
+} from './agent-card';
+
+export type {
+  AgentCard,
+  AgentCardFunding,
+  AgentBudget,
+  FundAgentRequest,
+} from './types';
