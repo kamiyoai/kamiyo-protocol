@@ -60,3 +60,23 @@ export type {
   GatedPaymentParams,
   GatedPaymentResult,
 } from './reputation-gate';
+
+// Swarm Payroll
+export {
+  SwarmPayroll,
+  createEqualWeightSwarm,
+  createPerformanceWeights,
+} from './swarm-payroll';
+
+export type {
+  SwarmPayrollConfig,
+} from './swarm-payroll';
+
+export type {
+  SwarmMember,
+  SwarmConfig,
+  SwarmDistribution,
+  SwarmPayoutResult,
+  BatchPaymentRequest,
+  BatchPaymentResponse,
+} from './types';
