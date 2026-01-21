@@ -172,3 +172,26 @@ export type {
   SwapResult as NearIntentsSwapResult,
   SwapStatus as NearIntentsSwapStatus,
 } from './near-intents';
+
+// x402 Reputation Extension (ZK proof headers)
+export {
+  X402_REPUTATION_PROOF,
+  X402_REPUTATION_COMMITMENT,
+  X402_REPUTATION_THRESHOLD,
+  encodeReputationHeaders,
+  parseReputationHeaders,
+  decodeReputationProof,
+  reputationRequirementHeaders,
+  checkReputationRequirement,
+  reputationMiddleware,
+  withReputationProof,
+  parseReputationRequirement,
+} from './reputation-extension';
+export type {
+  ReputationProofData,
+  ReputationHeaders,
+  ParsedReputationHeaders,
+  ReputationRequirement,
+  ReputationVerifyResult,
+  ReputationMiddlewareOptions,
+} from './reputation-extension';
