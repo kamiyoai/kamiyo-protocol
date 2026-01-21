@@ -131,3 +131,65 @@ export interface BlindfoldEscrowMetadata {
   recipientEmail: string;
   requestedTier?: CardTier;
 }
+
+// Swarm Payroll Types
+
+export interface SwarmMember {
+  agentPk: PublicKey;
+  email: string;
+  weight: number; // 0-100, percentage of swarm earnings
+  tier?: CardTier;
+}
+
+export interface SwarmConfig {
+  swarmId: string;
+  name: string;
+  members: SwarmMember[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SwarmDistribution {
+  member: SwarmMember;
+  amount: bigint;
+  percentage: number;
+}
+
+export interface SwarmPayoutResult {
+  swarmId: string;
+  totalAmount: bigint;
+  distributions: Array<{
+    agentPk: string;
+    email: string;
+    amount: bigint;
+    paymentId: string;
+    holdingWallet: string;
+    transferSignature: string;
+    tier: CardTier;
+  }>;
+  timestamp: number;
+}
+
+export interface BatchPaymentRequest {
+  payments: Array<{
+    amount: number;
+    currency: 'SOL' | 'USDC' | 'USDT';
+    recipientEmail: string;
+    agentPk?: string;
+    requestedTier?: CardTier;
+  }>;
+  swarmId?: string;
+  taskId?: string;
+}
+
+export interface BatchPaymentResponse {
+  batchId: string;
+  payments: Array<{
+    paymentId: string;
+    recipientEmail: string;
+    amount: number;
+    status: PaymentStatus;
+  }>;
+  totalAmount: number;
+  createdAt: string;
+}
