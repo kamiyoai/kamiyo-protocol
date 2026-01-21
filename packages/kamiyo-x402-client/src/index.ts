@@ -26,7 +26,7 @@
 export {
   X402KamiyoClient,
   createX402KamiyoClient,
-  EscrowStatus,
+  EscrowStatus as ClientEscrowStatus,
 } from './client';
 export type {
   X402ClientConfig,
@@ -195,3 +195,32 @@ export type {
   ReputationVerifyResult,
   ReputationMiddlewareOptions,
 } from './reputation-extension';
+
+// x402 Escrow Extension (dispute protection)
+export {
+  X402_ESCROW_REQUIRED,
+  X402_ESCROW_TIMELOCK,
+  X402_ESCROW_QUALITY_THRESHOLD,
+  X402_ESCROW_PDA,
+  X402_ESCROW_TRANSACTION_ID,
+  X402_ESCROW_STATUS,
+  escrowRequirementHeaders,
+  parseEscrowHeaders,
+  hasEscrowProof,
+  verifyEscrow,
+  escrowMiddleware,
+  payaiEscrowMiddleware,
+  EscrowX402Client,
+  createEscrowX402Client,
+  buildEscrow402Response,
+  calculateRefund,
+} from './escrow-extension';
+export type {
+  EscrowStatus,
+  EscrowRequirement,
+  EscrowHeaders,
+  EscrowPaymentResult,
+  EscrowVerifyResult,
+  EscrowMiddlewareOptions,
+  Escrow402Extension,
+} from './escrow-extension';
