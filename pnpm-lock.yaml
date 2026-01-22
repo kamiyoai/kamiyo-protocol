@@ -330,6 +330,22 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  examples/radr-demo:
+    dependencies:
+      '@kamiyo/radr':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-radr
+      '@solana/web3.js':
+        specifier: ^1.95.3
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+    devDependencies:
+      ts-node:
+        specifier: ^10.9.2
+        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+
   examples/sla-demo:
     dependencies:
       '@coral-xyz/anchor':
@@ -961,6 +977,34 @@ importers:
       vitest:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.28)
+
+  packages/kamiyo-radr:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@radr/shadowwire':
+        specifier: ^1.1.2
+        version: 1.1.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: ^1.95.3
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bs58:
+        specifier: ^5.0.0
+        version: 5.0.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.5.5
+        version: 22.19.5
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)
 
   packages/kamiyo-sdk:
     dependencies:
@@ -3232,6 +3276,9 @@ packages:
 
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
+
+  '@radr/shadowwire@1.1.2':
+    resolution: {integrity: sha512-AJg43oDnSLZ+eVQ3xswyLljJjmPugDws3/gXnq5HqOkmEbzhPdTc7l/OQA14Xjr2TJtkjiUoz3urgXXvtbtxMQ==}
 
   '@react-native-async-storage/async-storage@1.24.0':
     resolution: {integrity: sha512-W4/vbwUOYOjco0x3toB8QCr7EjIP6nE9G7o8PMguvvjYT5Awg09lyV4enACRx4s++PPulBiBSjL0KTFx2u0Z/g==}
@@ -13283,6 +13330,16 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.0': {}
+
+  '@radr/shadowwire@1.1.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bs58: 5.0.0
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - typescript
+      - utf-8-validate
 
   '@react-native-async-storage/async-storage@1.24.0':
     dependencies:
