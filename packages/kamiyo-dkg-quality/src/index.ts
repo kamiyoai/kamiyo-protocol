@@ -59,7 +59,7 @@ export {
 
 // DKG Client
 export type { DKGClientConfig, DKGLogger } from './dkg-client.js';
-export { DKGClient, MockDKGClient, createDKGClient } from './dkg-client.js';
+export { DKGClient, MockDKGClient, createDKGClient, DKG_NETWORKS } from './dkg-client.js';
 
 // PDA Utilities
 export type { PDAConfig } from './pda.js';

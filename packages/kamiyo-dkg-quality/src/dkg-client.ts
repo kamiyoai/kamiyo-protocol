@@ -21,6 +21,18 @@ const DEFAULT_CONFIG: Partial<DKGClientConfig> = {
   timeoutMs: 30000,
 };
 
+// Blockchain IDs for dkg.js
+export const DKG_NETWORKS = {
+  // Mainnet
+  BASE_MAINNET: 'base:8453',
+  GNOSIS_MAINNET: 'gnosis:100',
+  NEUROWEB_MAINNET: 'otp:2043',
+  // Testnet
+  BASE_TESTNET: 'base:84532',
+  GNOSIS_TESTNET: 'gnosis:10200',
+  NEUROWEB_TESTNET: 'otp:20430',
+} as const;
+
 export interface DKGLogger {
   debug: (msg: string, meta?: object) => void;
   info: (msg: string, meta?: object) => void;
@@ -262,7 +274,7 @@ export function createDKGClient(
     endpoint,
     port: config?.port || parseInt(process.env.DKG_PORT || '8900'),
     blockchain: config?.blockchain || {
-      name: process.env.DKG_BLOCKCHAIN || 'otp:20430',
+      name: process.env.DKG_BLOCKCHAIN || (process.env.DKG_MAINNET === 'true' ? DKG_NETWORKS.BASE_MAINNET : DKG_NETWORKS.NEUROWEB_TESTNET),
       publicKey: process.env.DKG_PUBLIC_KEY,
       privateKey: process.env.DKG_PRIVATE_KEY,
     },
