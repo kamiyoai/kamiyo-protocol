@@ -1,0 +1,92 @@
+{
+  "name": "@kamiyo/radr",
+  "version": "0.1.0",
+  "description": "Radr ShadowWire integration for Kamiyo Protocol - private payments with trust infrastructure",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./eliza": {
+      "import": "./dist/eliza/index.mjs",
+      "require": "./dist/eliza/index.js",
+      "types": "./dist/eliza/index.d.ts"
+    },
+    "./langchain": {
+      "import": "./dist/langchain/index.mjs",
+      "require": "./dist/langchain/index.js",
+      "types": "./dist/langchain/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@radr/shadowwire": "^1.1.2",
+    "@solana/web3.js": "^1.95.3",
+    "@coral-xyz/anchor": "^0.31.1",
+    "bs58": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/solana-privacy": "workspace:*",
+    "@langchain/core": ">=0.2.0",
+    "zod": ">=3.22.0",
+    "circomlibjs": ">=0.1.7"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    },
+    "circomlibjs": {
+      "optional": true
+    },
+    "@kamiyo/solana-privacy": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.2",
+    "vitest": "^2.0.0"
+  },
+  "keywords": [
+    "kamiyo",
+    "radr",
+    "shadowwire",
+    "shadowpay",
+    "shadowid",
+    "privacy",
+    "zk",
+    "solana",
+    "escrow",
+    "dispute-resolution",
+    "autonomous-agents",
+    "elizaos",
+    "langchain"
+  ],
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-radr"
+  }
+}
