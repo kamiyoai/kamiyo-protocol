@@ -192,6 +192,8 @@ export function checkReputationRequirement(
 export interface ReputationMiddlewareOptions {
   minThreshold: number;
   required?: boolean;
+  /** Require cryptographic proof verification. When true, requests without valid proofs are rejected. */
+  requireProofVerification?: boolean;
   onInvalid?: (result: ReputationVerifyResult) => void;
   verifyProof?: (proof: ReputationProofData) => Promise<boolean>;
 }
@@ -236,12 +238,30 @@ export function reputationMiddleware(opts: ReputationMiddlewareOptions) {
       return;
     }
 
-    // Optional cryptographic verification
-    if (opts.verifyProof) {
+    // Cryptographic verification (mandatory when requireProofVerification is true)
+    if (opts.verifyProof || opts.requireProofVerification) {
       const parsed = parseReputationHeaders(req.headers);
-      if (parsed) {
+
+      if (!parsed) {
+        if (opts.requireProofVerification) {
+          res.status(402).json({
+            error: 'Reputation proof required',
+            reason: 'Missing reputation headers',
+          });
+          return;
+        }
+      } else {
         const proof = decodeReputationProof(parsed.proof);
-        if (proof) {
+
+        if (!proof) {
+          if (opts.requireProofVerification) {
+            res.status(402).json({
+              error: 'Invalid reputation proof',
+              reason: 'Could not decode proof data',
+            });
+            return;
+          }
+        } else if (opts.verifyProof) {
           const isValid = await opts.verifyProof(proof);
           if (!isValid) {
             res.status(402).json({
@@ -250,6 +270,13 @@ export function reputationMiddleware(opts: ReputationMiddlewareOptions) {
             });
             return;
           }
+        } else if (opts.requireProofVerification) {
+          // requireProofVerification is true but no verifyProof function provided
+          res.status(500).json({
+            error: 'Server configuration error',
+            reason: 'Proof verification required but no verifier configured',
+          });
+          return;
         }
       }
     }
@@ -441,22 +468,84 @@ export interface CreditCheckResult {
 }
 
 /**
- * In-memory credit tracker for testing.
- * Production: use Redis/DB.
+ * Storage interface for credit accounts.
+ * Implement this to use Redis, PostgreSQL, or other persistent storage.
  */
-export class CreditTracker {
+export interface CreditStore {
+  get(commitment: string): Promise<CreditAccount | null>;
+  set(commitment: string, account: CreditAccount): Promise<void>;
+  delete(commitment: string): Promise<void>;
+  getAll(): Promise<CreditAccount[]>;
+  atomicIncrement(commitment: string, field: 'usedCredit', amount: number): Promise<number>;
+}
+
+/**
+ * In-memory credit store for testing and development.
+ */
+export class InMemoryCreditStore implements CreditStore {
   private accounts = new Map<string, CreditAccount>();
 
-  getAccount(commitment: string): CreditAccount | null {
+  async get(commitment: string): Promise<CreditAccount | null> {
     return this.accounts.get(commitment) || null;
   }
 
-  registerAccount(
+  async set(commitment: string, account: CreditAccount): Promise<void> {
+    this.accounts.set(commitment, account);
+  }
+
+  async delete(commitment: string): Promise<void> {
+    this.accounts.delete(commitment);
+  }
+
+  async getAll(): Promise<CreditAccount[]> {
+    return Array.from(this.accounts.values());
+  }
+
+  async atomicIncrement(commitment: string, field: 'usedCredit', amount: number): Promise<number> {
+    const account = this.accounts.get(commitment);
+    if (!account) throw new Error('Account not found');
+    account[field] += amount;
+    return account[field];
+  }
+}
+
+/**
+ * Credit tracker with pluggable storage backend.
+ * Default: in-memory. Production: pass Redis/DB store.
+ */
+export class CreditTracker {
+  private store: CreditStore;
+  private mutex = new Map<string, Promise<void>>();
+
+  constructor(store?: CreditStore) {
+    this.store = store || new InMemoryCreditStore();
+  }
+
+  private async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    while (this.mutex.has(key)) {
+      await this.mutex.get(key);
+    }
+    let resolve: () => void;
+    const promise = new Promise<void>(r => { resolve = r; });
+    this.mutex.set(key, promise);
+    try {
+      return await fn();
+    } finally {
+      this.mutex.delete(key);
+      resolve!();
+    }
+  }
+
+  async getAccount(commitment: string): Promise<CreditAccount | null> {
+    return this.store.get(commitment);
+  }
+
+  async registerAccount(
     commitment: string,
     agentPk: string,
     threshold: number,
     tiers: ReputationTier[] = DEFAULT_TIERS
-  ): CreditAccount {
+  ): Promise<CreditAccount> {
     const tier = getTierForThreshold(threshold, tiers);
     const account: CreditAccount = {
       agentPk,
@@ -466,12 +555,12 @@ export class CreditTracker {
       usedCredit: 0,
       lastPaymentAt: Date.now(),
     };
-    this.accounts.set(commitment, account);
+    await this.store.set(commitment, account);
     return account;
   }
 
-  checkCredit(commitment: string, amount: number): CreditCheckResult {
-    const account = this.accounts.get(commitment);
+  async checkCredit(commitment: string, amount: number): Promise<CreditCheckResult> {
+    const account = await this.store.get(commitment);
     if (!account) {
       return { approved: false, availableCredit: 0, reason: 'Account not found' };
     }
@@ -488,31 +577,44 @@ export class CreditTracker {
     return { approved: true, availableCredit: available };
   }
 
-  useCredit(commitment: string, amount: number): boolean {
-    const check = this.checkCredit(commitment, amount);
-    if (!check.approved) return false;
+  async useCredit(commitment: string, amount: number): Promise<boolean> {
+    return this.withLock(commitment, async () => {
+      const check = await this.checkCredit(commitment, amount);
+      if (!check.approved) return false;
 
-    const account = this.accounts.get(commitment)!;
-    account.usedCredit += amount;
-    return true;
+      await this.store.atomicIncrement(commitment, 'usedCredit', amount);
+      return true;
+    });
   }
 
-  repayCredit(commitment: string, amount: number): void {
-    const account = this.accounts.get(commitment);
-    if (!account) return;
+  async repayCredit(commitment: string, amount: number): Promise<void> {
+    await this.withLock(commitment, async () => {
+      const account = await this.store.get(commitment);
+      if (!account) return;
 
-    account.usedCredit = Math.max(0, account.usedCredit - amount);
-    account.lastPaymentAt = Date.now();
+      account.usedCredit = Math.max(0, account.usedCredit - amount);
+      account.lastPaymentAt = Date.now();
+      await this.store.set(commitment, account);
+    });
   }
 
-  getStats(): { totalAccounts: number; totalCredit: number; usedCredit: number } {
+  async getStats(): Promise<{ totalAccounts: number; totalCredit: number; usedCredit: number }> {
+    const accounts = await this.store.getAll();
     let totalCredit = 0;
     let usedCredit = 0;
-    for (const account of this.accounts.values()) {
+    for (const account of accounts) {
       totalCredit += account.creditLimit;
       usedCredit += account.usedCredit;
     }
-    return { totalAccounts: this.accounts.size, totalCredit, usedCredit };
+    return { totalAccounts: accounts.length, totalCredit, usedCredit };
+  }
+
+  // Sync versions for backwards compatibility (use store directly for sync access if InMemoryCreditStore)
+  getAccountSync(commitment: string): CreditAccount | null {
+    if (this.store instanceof InMemoryCreditStore) {
+      return (this.store as any).accounts.get(commitment) || null;
+    }
+    throw new Error('Sync access not available with persistent store');
   }
 }
 
@@ -526,6 +628,8 @@ export interface ReputationPricingMiddlewareOptions {
   minThreshold?: number;
   creditTracker?: CreditTracker;
   allowCredit?: boolean;
+  /** Require cryptographic proof verification. When true, requests without valid proofs are rejected. */
+  requireProofVerification?: boolean;
   verifyProof?: (proof: ReputationProofData) => Promise<boolean>;
   onPriceCalculated?: (result: {
     price: number;
@@ -580,13 +684,32 @@ export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOpt
       return;
     }
 
-    // Cryptographic verification
-    if (opts.verifyProof) {
+    // Cryptographic verification (mandatory when requireProofVerification is true)
+    if (opts.verifyProof || opts.requireProofVerification) {
       const proof = decodeReputationProof(parsed.proof);
-      if (!proof || !(await opts.verifyProof(proof))) {
+
+      if (!proof) {
         res.status(402).json({
           error: 'Invalid reputation proof',
-          reason: 'Cryptographic verification failed',
+          reason: 'Could not decode proof data',
+        });
+        return;
+      }
+
+      if (opts.verifyProof) {
+        const isValid = await opts.verifyProof(proof);
+        if (!isValid) {
+          res.status(402).json({
+            error: 'Invalid reputation proof',
+            reason: 'Cryptographic verification failed',
+          });
+          return;
+        }
+      } else if (opts.requireProofVerification) {
+        // requireProofVerification is true but no verifyProof function provided
+        res.status(500).json({
+          error: 'Server configuration error',
+          reason: 'Proof verification required but no verifier configured',
         });
         return;
       }
@@ -598,10 +721,10 @@ export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOpt
     // Check credit if enabled
     let usingCredit = false;
     if (opts.allowCredit && opts.creditTracker && pricing.tier.creditLimit) {
-      const creditCheck = opts.creditTracker.checkCredit(parsed.commitment, pricing.price);
+      const creditCheck = await opts.creditTracker.checkCredit(parsed.commitment, pricing.price);
       if (creditCheck.approved) {
         usingCredit = true;
-        opts.creditTracker.useCredit(parsed.commitment, pricing.price);
+        await opts.creditTracker.useCredit(parsed.commitment, pricing.price);
       }
     }
 

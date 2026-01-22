@@ -250,15 +250,17 @@ export class EscrowX402Client {
       }
 
       if (response.status !== 402) {
-        // Something else went wrong, dispute
-        await this.escrowHandler.dispute(transactionId);
-        throw new X402Error('PAYMENT_FAILED', `Request failed with status ${response.status}`);
+        // Something else went wrong, dispute with recovery
+        const disputeResult = await this.escrowHandler.disputeWithRecovery(transactionId);
+        const stateInfo = disputeResult.success ? ` (dispute state: ${disputeResult.state})` : '';
+        throw new X402Error('PAYMENT_FAILED', `Request failed with status ${response.status}${stateInfo}`);
       }
     }
 
-    // All retries failed, dispute
-    await this.escrowHandler.dispute(transactionId);
-    throw new X402Error('NETWORK_ERROR', 'Max retries exceeded');
+    // All retries failed, dispute with recovery
+    const disputeResult = await this.escrowHandler.disputeWithRecovery(transactionId);
+    const stateInfo = disputeResult.success ? ` (dispute state: ${disputeResult.state})` : '';
+    throw new X402Error('NETWORK_ERROR', `Max retries exceeded${stateInfo}`);
   }
 
   /**
@@ -269,10 +271,28 @@ export class EscrowX402Client {
   }
 
   /**
-   * Dispute a transaction
+   * Dispute a transaction with automatic recovery
    */
   async dispute(transactionId: string): Promise<EscrowResult> {
-    return this.escrowHandler.dispute(transactionId);
+    return this.escrowHandler.disputeWithRecovery(transactionId);
+  }
+
+  /**
+   * Get escrow status including state
+   */
+  async getStatus(transactionId: string) {
+    return this.escrowHandler.getStatus(transactionId);
+  }
+
+  /**
+   * Wait for escrow to reach a specific state
+   */
+  async waitForState(
+    transactionId: string,
+    targetState: 'active' | 'released' | 'disputed' | 'resolved',
+    options?: { timeoutMs?: number; pollIntervalMs?: number }
+  ) {
+    return this.escrowHandler.waitForState(transactionId, targetState, options);
   }
 
   /**

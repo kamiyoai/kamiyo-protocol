@@ -62,7 +62,8 @@ describe('signing', () => {
 
     it('generates hex string', () => {
       const nonce = generateNonce();
-      expect(nonce).toMatch(/^[0-9a-f]{32}$/);
+      // Nonce format: counter(4) + random(24) + timestamp(variable) = 28+ hex chars
+      expect(nonce).toMatch(/^[0-9a-f]{28,}$/);
     });
   });
 
@@ -80,7 +81,8 @@ describe('signing', () => {
       expect(payment.resource).toBe('https://api.example.com/resource');
       expect(payment.amount).toBe('1000000');
       expect(payment.timestamp).toBeLessThanOrEqual(Date.now());
-      expect(payment.nonce).toMatch(/^[0-9a-f]{32}$/);
+      // Nonce format: counter(4) + random(24) + timestamp(variable) = 28+ hex chars
+      expect(payment.nonce).toMatch(/^[0-9a-f]{28,}$/);
     });
   });
 

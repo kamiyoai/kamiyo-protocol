@@ -1,9 +1,4 @@
-/**
- * PayAI Reputation Network Adapter
- *
- * Bridges Kamiyo ZK reputation proofs to PayAI ecosystem (Freelance AI, Bazaar, CT Agent).
- * Tracks reputation from escrow outcomes with cross-platform portability.
- */
+// PayAI reputation network adapter
 
 import type { ReputationProofData, ReputationHeaders, ParsedReputationHeaders } from './reputation-extension';
 import {
@@ -15,49 +10,29 @@ import {
   calculateReputationPrice,
 } from './reputation-extension';
 
-// Re-export for convenience
 export { DEFAULT_TIERS, getTierForThreshold, calculateReputationPrice };
 
-/**
- * Reputation sources in PayAI ecosystem.
- */
 export enum ReputationSource {
   FreelanceAI = 'freelance_ai',
   Bazaar = 'bazaar',
   CTAgent = 'ct_agent',
-  Direct = 'direct', // Direct Kamiyo escrows
+  Direct = 'direct',
 }
 
-/**
- * Escrow outcome affecting reputation.
- */
 export enum EscrowOutcome {
-  Released = 'released',        // Clean release, +rep for provider
-  DisputeWonAgent = 'dispute_won_agent',     // Agent won dispute, -rep for provider
-  DisputeWonProvider = 'dispute_won_provider', // Provider won, -rep for agent (frivolous)
-  DisputePartial = 'dispute_partial',   // Partial refund, neutral
-  Expired = 'expired',          // Timelock expired, -rep for provider
+  Released = 'released',
+  DisputeWonAgent = 'dispute_won_agent',
+  DisputeWonProvider = 'dispute_won_provider',
+  DisputePartial = 'dispute_partial',
+  Expired = 'expired',
 }
 
-/**
- * Reputation delta calculation based on escrow outcome.
- */
 export interface ReputationDelta {
   agentDelta: number;
   providerDelta: number;
   reason: string;
 }
 
-/**
- * Calculate reputation change from escrow outcome.
- *
- * Rules:
- * - Clean release: +5 provider, +1 agent
- * - Agent wins dispute (quality < 50): -10 provider
- * - Provider wins dispute (quality > 80): -5 agent (frivolous dispute)
- * - Partial dispute: neutral
- * - Expired: -3 provider
- */
 export function calculateReputationDelta(
   outcome: EscrowOutcome,
   qualityScore?: number
@@ -100,11 +75,6 @@ export function calculateReputationDelta(
   }
 }
 
-/**
- * Local reputation store.
- * Tracks accumulated reputation across PayAI ecosystem.
- * Production: sync with on-chain state.
- */
 export interface ReputationRecord {
   publicKey: string;
   score: number;
@@ -117,21 +87,15 @@ export interface ReputationRecord {
   secret?: bigint;
 }
 
-/**
- * Reputation tracker for PayAI ecosystem.
- */
 export class PayAIReputationTracker {
   private records = new Map<string, ReputationRecord>();
 
-  /**
-   * Get or create reputation record for an agent.
-   */
   getRecord(publicKey: string): ReputationRecord {
     let record = this.records.get(publicKey);
     if (!record) {
       record = {
         publicKey,
-        score: 50, // Start at neutral
+        score: 50,
         totalEscrows: 0,
         successfulEscrows: 0,
         disputedEscrows: 0,
@@ -143,9 +107,6 @@ export class PayAIReputationTracker {
     return record;
   }
 
-  /**
-   * Update reputation based on escrow outcome.
-   */
   updateReputation(
     publicKey: string,
     outcome: EscrowOutcome,
@@ -154,9 +115,6 @@ export class PayAIReputationTracker {
   ): ReputationRecord {
     const record = this.getRecord(publicKey);
     const delta = calculateReputationDelta(outcome, qualityScore);
-
-    // Determine if this agent is provider or consumer
-    // For simplicity, assume publicKey is provider for now
     const scoreDelta = delta.providerDelta;
 
     record.score = Math.max(0, Math.min(100, record.score + scoreDelta));
@@ -172,7 +130,6 @@ export class PayAIReputationTracker {
       record.disputedEscrows++;
     }
 
-    // Track source contribution
     const sourceScore = record.sources.get(source) || 0;
     record.sources.set(source, sourceScore + scoreDelta);
 
@@ -180,25 +137,16 @@ export class PayAIReputationTracker {
     return record;
   }
 
-  /**
-   * Get success rate as percentage.
-   */
   getSuccessRate(publicKey: string): number {
     const record = this.getRecord(publicKey);
     if (record.totalEscrows === 0) return 50;
     return Math.round((record.successfulEscrows / record.totalEscrows) * 100);
   }
 
-  /**
-   * Get combined score across sources.
-   */
   getCombinedScore(publicKey: string): number {
     return this.getRecord(publicKey).score;
   }
 
-  /**
-   * Serialize for storage.
-   */
   serialize(): string {
     const data: Array<[string, Omit<ReputationRecord, 'sources'> & { sources: Array<[string, number]> }]> = [];
     for (const [key, record] of this.records) {
@@ -210,9 +158,6 @@ export class PayAIReputationTracker {
     return JSON.stringify(data);
   }
 
-  /**
-   * Deserialize from storage.
-   */
   static deserialize(json: string): PayAIReputationTracker {
     const tracker = new PayAIReputationTracker();
     const data = JSON.parse(json) as Array<[string, Omit<ReputationRecord, 'sources'> & { sources: Array<[string, number]> }]>;
@@ -226,10 +171,6 @@ export class PayAIReputationTracker {
   }
 }
 
-/**
- * PayAI x402 reputation middleware integration.
- * Wraps reputation headers for PayAI-specific use cases.
- */
 export interface PayAIReputationConfig {
   /** Minimum reputation for access */
   minThreshold?: number;
@@ -241,10 +182,6 @@ export interface PayAIReputationConfig {
   requireProof?: boolean;
 }
 
-/**
- * Create PayAI-specific reputation headers.
- * Includes source information for cross-platform tracking.
- */
 export function createPayAIReputationHeaders(
   proof: ReputationProofData,
   source: ReputationSource
@@ -256,9 +193,6 @@ export function createPayAIReputationHeaders(
   };
 }
 
-/**
- * Parse PayAI reputation headers including source.
- */
 export function parsePayAIReputationHeaders(
   headers: Record<string, string | string[] | undefined>
 ): (ParsedReputationHeaders & { source?: ReputationSource }) | null {
@@ -274,9 +208,6 @@ export function parsePayAIReputationHeaders(
   };
 }
 
-/**
- * Verify reputation meets PayAI requirements.
- */
 export function verifyPayAIReputation(
   headers: Record<string, string | string[] | undefined>,
   config: PayAIReputationConfig
@@ -306,9 +237,6 @@ export function verifyPayAIReputation(
   };
 }
 
-/**
- * Calculate price with PayAI reputation discount.
- */
 export function calculatePayAIPrice(
   basePrice: number,
   threshold: number | null,
@@ -344,9 +272,6 @@ export function calculatePayAIPrice(
   };
 }
 
-/**
- * Build 402 response for PayAI with full pricing breakdown.
- */
 export function buildPayAI402Response(
   basePrice: number,
   agentThreshold: number | null,
@@ -384,9 +309,6 @@ export function buildPayAI402Response(
   };
 }
 
-/**
- * Express middleware for PayAI reputation-gated endpoints.
- */
 export function payaiReputationMiddleware(config: PayAIReputationConfig) {
   return async (
     req: { headers: Record<string, string | string[] | undefined> },
@@ -409,17 +331,10 @@ export function payaiReputationMiddleware(config: PayAIReputationConfig) {
       return;
     }
 
-    // TODO: Track active interactions when config.tracker provided.
-    // Actual reputation update happens after escrow resolution via updateReputation().
-
     next();
   };
 }
 
-/**
- * Aggregate reputation across multiple sources.
- * Weighted average based on transaction volume.
- */
 export function aggregateReputation(
   records: Array<{ source: ReputationSource; score: number; weight: number }>
 ): number {

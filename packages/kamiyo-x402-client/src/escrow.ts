@@ -16,6 +16,11 @@ import { BN } from '@coral-xyz/anchor';
 import { X402Error } from './errors';
 import { validatePublicKey, validateAmountLamports, validateTransactionId, assertValid } from './validation';
 
+// Retry configuration
+const DEFAULT_RETRY_ATTEMPTS = 3;
+const DEFAULT_RETRY_DELAY_MS = 1000;
+const MAX_RETRY_DELAY_MS = 10000;
+
 // Instruction discriminators from Kamiyo program
 const DISCRIMINATORS = {
   INITIALIZE_ESCROW: Buffer.from([0x3d, 0x2c, 0x1e, 0x4f, 0x5a, 0x6b, 0x7c, 0x8d]),
@@ -23,10 +28,14 @@ const DISCRIMINATORS = {
   MARK_DISPUTED: Buffer.from([0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]),
 } as const;
 
+export type EscrowState = 'active' | 'released' | 'disputed' | 'resolved' | 'unknown';
+
 export interface EscrowConfig {
   connection: Connection;
   wallet: Keypair;
   programId: PublicKey;
+  retryAttempts?: number;
+  retryDelayMs?: number;
 }
 
 export interface EscrowCreateParams {
@@ -40,21 +49,49 @@ export interface EscrowResult {
   success: boolean;
   signature?: string;
   escrowPda?: PublicKey;
+  state?: EscrowState;
+  balance?: number;
+  retriesUsed?: number;
   error?: X402Error;
+}
+
+export interface EscrowStatusResult {
+  exists: boolean;
+  state?: EscrowState;
+  balance?: number;
+  error?: string;
 }
 
 /**
  * Escrow handler for Kamiyo program integration
  */
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function parseEscrowState(statusByte: number): EscrowState {
+  switch (statusByte) {
+    case 0: return 'active';
+    case 1: return 'released';
+    case 2: return 'disputed';
+    case 3: return 'resolved';
+    default: return 'unknown';
+  }
+}
+
 export class EscrowHandler {
   private readonly connection: Connection;
   private readonly wallet: Keypair;
   private readonly programId: PublicKey;
+  private readonly retryAttempts: number;
+  private readonly retryDelayMs: number;
 
   constructor(config: EscrowConfig) {
     this.connection = config.connection;
     this.wallet = config.wallet;
     this.programId = config.programId;
+    this.retryAttempts = config.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS;
+    this.retryDelayMs = config.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   }
 
   /**
@@ -239,36 +276,153 @@ export class EscrowHandler {
   }
 
   /**
-   * Mark escrow as disputed
+   * Mark escrow as disputed with retry logic
    */
   async dispute(transactionId: string): Promise<EscrowResult> {
     assertValid(validateTransactionId(transactionId, 'transactionId'), 'transactionId');
 
-    try {
-      const instruction = this.buildMarkDisputedInstruction(transactionId);
-      const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
+    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
+    let lastError: Error | undefined;
+    let retriesUsed = 0;
 
-      const transaction = new Transaction().add(instruction);
+    for (let attempt = 0; attempt < this.retryAttempts; attempt++) {
+      try {
+        const instruction = this.buildMarkDisputedInstruction(transactionId);
+        const transaction = new Transaction().add(instruction);
 
-      const signature = await sendAndConfirmTransaction(
-        this.connection,
-        transaction,
-        [this.wallet],
-        { commitment: 'confirmed' }
-      );
+        const signature = await sendAndConfirmTransaction(
+          this.connection,
+          transaction,
+          [this.wallet],
+          { commitment: 'confirmed' }
+        );
 
+        // Verify the dispute was recorded
+        const status = await this.getStatus(transactionId);
+        if (status.state === 'disputed') {
+          return {
+            success: true,
+            signature,
+            escrowPda,
+            state: 'disputed',
+            balance: status.balance,
+            retriesUsed,
+          };
+        }
+
+        // Dispute transaction succeeded but state didn't change - unexpected
+        return {
+          success: true,
+          signature,
+          escrowPda,
+          state: status.state,
+          balance: status.balance,
+          retriesUsed,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        retriesUsed = attempt + 1;
+
+        // Check if already disputed (idempotent)
+        const status = await this.getStatus(transactionId);
+        if (status.state === 'disputed') {
+          return {
+            success: true,
+            escrowPda,
+            state: 'disputed',
+            balance: status.balance,
+            retriesUsed,
+          };
+        }
+
+        // Don't retry on non-retryable errors
+        if (this.isNonRetryableError(lastError)) {
+          break;
+        }
+
+        // Exponential backoff
+        const delay = Math.min(
+          this.retryDelayMs * Math.pow(2, attempt),
+          MAX_RETRY_DELAY_MS
+        );
+        await sleep(delay);
+      }
+    }
+
+    return {
+      success: false,
+      escrowPda,
+      retriesUsed,
+      error: new X402Error('DISPUTE_FAILED', `Failed to file dispute after ${retriesUsed} attempts: ${lastError?.message}`),
+    };
+  }
+
+  /**
+   * Dispute with automatic recovery - checks status and retries if needed
+   */
+  async disputeWithRecovery(
+    transactionId: string,
+    options?: { pollIntervalMs?: number; maxPollAttempts?: number }
+  ): Promise<EscrowResult> {
+    const pollInterval = options?.pollIntervalMs ?? 2000;
+    const maxPollAttempts = options?.maxPollAttempts ?? 5;
+    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
+
+    // First check if already disputed
+    const initialStatus = await this.getStatus(transactionId);
+    if (initialStatus.state === 'disputed' || initialStatus.state === 'resolved') {
       return {
         success: true,
-        signature,
         escrowPda,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        success: false,
-        error: new X402Error('DISPUTE_FAILED', `Failed to file dispute: ${message}`),
+        state: initialStatus.state,
+        balance: initialStatus.balance,
+        retriesUsed: 0,
       };
     }
+
+    if (!initialStatus.exists) {
+      return {
+        success: false,
+        error: new X402Error('DISPUTE_FAILED', 'Escrow does not exist'),
+      };
+    }
+
+    // Attempt dispute
+    const result = await this.dispute(transactionId);
+    if (!result.success) {
+      return result;
+    }
+
+    // Poll for state confirmation
+    for (let i = 0; i < maxPollAttempts; i++) {
+      await sleep(pollInterval);
+      const status = await this.getStatus(transactionId);
+
+      if (status.state === 'disputed' || status.state === 'resolved') {
+        return {
+          ...result,
+          state: status.state,
+          balance: status.balance,
+        };
+      }
+    }
+
+    // Return result even if we couldn't confirm state
+    return result;
+  }
+
+  /**
+   * Check if error should not be retried
+   */
+  private isNonRetryableError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes('insufficient funds') ||
+      message.includes('account not found') ||
+      message.includes('invalid account') ||
+      message.includes('already processed') ||
+      message.includes('invalid instruction')
+    );
   }
 
   /**
@@ -287,6 +441,77 @@ export class EscrowHandler {
     const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
     const balance = await this.connection.getBalance(escrowPda);
     return balance / LAMPORTS_PER_SOL;
+  }
+
+  /**
+   * Get full escrow status including state
+   */
+  async getStatus(transactionId: string): Promise<EscrowStatusResult> {
+    try {
+      const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
+      const info = await this.connection.getAccountInfo(escrowPda);
+
+      if (!info) {
+        return { exists: false };
+      }
+
+      const balance = info.lamports / LAMPORTS_PER_SOL;
+
+      // Parse state from account data
+      // Status byte is at offset 96 (after discriminator + agent + provider + amount + timelock + created)
+      let state: EscrowState = 'unknown';
+      if (info.data.length >= 97) {
+        state = parseEscrowState(info.data[96]);
+      }
+
+      return {
+        exists: true,
+        state,
+        balance,
+      };
+    } catch (error) {
+      return {
+        exists: false,
+        error: error instanceof Error ? error.message : 'Failed to get status',
+      };
+    }
+  }
+
+  /**
+   * Wait for escrow to reach a specific state
+   */
+  async waitForState(
+    transactionId: string,
+    targetState: EscrowState,
+    options?: { timeoutMs?: number; pollIntervalMs?: number }
+  ): Promise<EscrowStatusResult> {
+    const timeoutMs = options?.timeoutMs ?? 30000;
+    const pollIntervalMs = options?.pollIntervalMs ?? 2000;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      const status = await this.getStatus(transactionId);
+
+      if (!status.exists) {
+        return status;
+      }
+
+      if (status.state === targetState) {
+        return status;
+      }
+
+      // If we're waiting for disputed but it's already resolved, that's also acceptable
+      if (targetState === 'disputed' && status.state === 'resolved') {
+        return status;
+      }
+
+      await sleep(pollIntervalMs);
+    }
+
+    return {
+      exists: true,
+      error: `Timeout waiting for state ${targetState}`,
+    };
   }
 }
 
