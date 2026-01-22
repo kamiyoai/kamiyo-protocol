@@ -16,7 +16,7 @@ import {
   type TierName,
   TIER_NAMES,
   TIER_THRESHOLDS,
-} from '@kamiyo/dark-forest';
+} from '@kamiyo/kamiyo-mitama';
 
 export interface ReputationMemory {
   commitment: string | null;

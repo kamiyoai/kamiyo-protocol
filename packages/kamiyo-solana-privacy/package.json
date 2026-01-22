@@ -21,7 +21,7 @@
   "license": "MIT",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@kamiyo/dark-forest": "workspace:*",
+    "@kamiyo/kamiyo-mitama": "workspace:*",
     "@rollup/rollup-darwin-arm64": "^4.55.1",
     "@solana/web3.js": "^1.98.0",
     "circomlibjs": "^0.1.7",

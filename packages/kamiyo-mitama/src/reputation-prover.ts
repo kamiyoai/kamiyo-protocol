@@ -1,3 +1,8 @@
+/*
+ * ZK Reputation Prover for tier-based proofs (EVM format)
+ * Migrated from @kamiyo/dark-forest
+ */
+
 import type { groth16 as Groth16 } from 'snarkjs';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -9,12 +14,12 @@ import {
   VerificationResult,
   TIER_THRESHOLDS,
   TierLevel,
-} from './types';
+} from './reputation-types';
 
 let snarkjs: { groth16: typeof Groth16 } | null = null;
 
 // Default bundled artifact paths
-const BUNDLED_ARTIFACTS_DIR = path.join(__dirname, '../artifacts');
+const BUNDLED_ARTIFACTS_DIR = path.join(__dirname, '../artifacts/reputation');
 const DEFAULT_WASM_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'reputation_threshold.wasm');
 const DEFAULT_ZKEY_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'reputation_threshold_final.zkey');
 const DEFAULT_VKEY_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'verification_key.json');
@@ -57,7 +62,7 @@ export class DarkForestProver {
     if (!config?.wasmPath && !getBundledArtifactsAvailable()) {
       throw new Error(
         'Bundled circuit artifacts not found. Either provide explicit paths ' +
-        'or ensure artifacts are in packages/kamiyo-dark-forest/artifacts/'
+        'or ensure artifacts are in packages/kamiyo-mitama/artifacts/reputation/'
       );
     }
   }
@@ -101,9 +106,9 @@ export class DarkForestProver {
     const commitment = await poseidonHash([BigInt(input.score), input.secret]);
 
     const circuitInput = {
-      score: input.score,
+      score: input.score.toString(),
       secret: input.secret.toString(),
-      threshold: input.threshold,
+      threshold: input.threshold.toString(),
       commitment: commitment.toString(),
     };
 

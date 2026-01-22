@@ -5,8 +5,8 @@
  * Privacy-preserving reputation for AI agents.
  */
 
-import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/dark-forest';
-import type { GeneratedProof, TierLevel } from '@kamiyo/dark-forest';
+import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/kamiyo-mitama';
+import type { GeneratedProof, TierLevel } from '@kamiyo/kamiyo-mitama';
 import {
   printBanner,
   printDataFlow,
