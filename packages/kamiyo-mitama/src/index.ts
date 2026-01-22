@@ -34,3 +34,25 @@ export {
   type PlatformWhitelist,
   type TransferState,
 } from './transfer-hook';
+
+// Reputation prover (migrated from @kamiyo/dark-forest)
+export {
+  DarkForestProver,
+  getTierThreshold,
+  getQualifyingTier,
+  qualifiesForTier,
+} from './reputation-prover';
+export {
+  EVMGroth16Proof,
+  GeneratedProof,
+  ProofInput,
+  ProverConfig,
+  Commitment,
+  VerificationResult,
+  TierDefinition,
+  TierLevel,
+  TierName,
+  DEFAULT_TIERS,
+  TIER_THRESHOLDS,
+  TIER_NAMES,
+} from './reputation-types';

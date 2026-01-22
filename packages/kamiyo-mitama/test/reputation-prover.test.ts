@@ -9,7 +9,6 @@ import {
   TIER_NAMES,
 } from '../src';
 import type { TierLevel, GeneratedProof } from '../src';
-import * as path from 'path';
 
 describe('Tier Utility Functions', () => {
   describe('getTierThreshold', () => {
@@ -353,7 +352,6 @@ describe('DarkForestProver with real artifacts', () => {
         threshold: 75,
       });
 
-      // Tamper with proof point
       const tamperedProof: GeneratedProof = {
         ...proof,
         a: [proof.a[0] + 1n, proof.a[1]],
@@ -374,7 +372,6 @@ describe('DarkForestProver with real artifacts', () => {
         threshold: 75,
       });
 
-      // Tamper with public inputs
       const tamperedProof: GeneratedProof = {
         ...proof,
         publicInputs: [90n, proof.publicInputs[1]],

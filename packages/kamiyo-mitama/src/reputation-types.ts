@@ -1,10 +1,15 @@
-export interface Groth16Proof {
+/*
+ * Type definitions for ZK reputation proofs (EVM format)
+ * Migrated from @kamiyo/dark-forest
+ */
+
+export interface EVMGroth16Proof {
   a: [bigint, bigint];
   b: [[bigint, bigint], [bigint, bigint]];
   c: [bigint, bigint];
 }
 
-export interface GeneratedProof extends Groth16Proof {
+export interface GeneratedProof extends EVMGroth16Proof {
   commitment: string;
   publicInputs: bigint[];
 }

@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@kamiyo/daydreams": "workspace:*",
-    "@kamiyo/dark-forest": "file:../../packages/kamiyo-dark-forest",
+    "@kamiyo/kamiyo-mitama": "file:../../packages/kamiyo-mitama",
     "gradient-string": "^3.0.0"
   },
   "devDependencies": {

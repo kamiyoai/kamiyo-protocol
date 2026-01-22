@@ -9,7 +9,7 @@
     "benchmark": "tsx benchmark.ts"
   },
   "dependencies": {
-    "@kamiyo/dark-forest": "file:../../packages/kamiyo-dark-forest",
+    "@kamiyo/kamiyo-mitama": "file:../../packages/kamiyo-mitama",
     "gradient-string": "^3.0.0",
     "viem": "^2.0.0"
   },

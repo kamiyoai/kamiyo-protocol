@@ -34,12 +34,12 @@ export class ProtocolClient {
     _score: number,
     _threshold: number
   ): Promise<GeneratedProof | null> {
-    logger.warn('ZK prover not available - @kamiyo/dark-forest not installed');
+    logger.warn('ZK prover not available - @kamiyo/kamiyo-mitama not installed');
     return null;
   }
 
   async verifyProof(_proof: GeneratedProof): Promise<boolean> {
-    logger.warn('ZK prover not available - @kamiyo/dark-forest not installed');
+    logger.warn('ZK prover not available - @kamiyo/kamiyo-mitama not installed');
     return false;
   }
 
