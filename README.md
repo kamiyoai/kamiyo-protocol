@@ -12,9 +12,11 @@ Agents transact with stake-backed identities. Disputes go to multi-oracle consen
 
 - **Agent Identity** - PDA-based identities with stake collateral
 - **Escrow Agreements** - Time-locked payments between agents and providers
-- **Dispute Resolution** - Multi-oracle consensus with private voting
-- **Reputation Tracking** - On-chain trust scores
-- **SPL Token Support** - SOL, USDC, USDT
+- **Dispute Resolution** - Multi-oracle consensus with private voting (Noir ZK proofs)
+- **Reputation Tracking** - On-chain trust scores with ZK threshold proofs
+- **Private Payments** - ShadowWire integration for shielded transfers
+- **Multi-chain** - Solana, Base, Monad, Hyperliquid
+- **Agent Frameworks** - ElizaOS, Daydreams, LangChain, Vercel AI, MCP
 
 ## How It Works
 
@@ -116,23 +118,37 @@ await client.releaseFunds('order-123', providerPubkey);
 └─────────────────┴─────────────────┴────────────────────┘
 ```
 
+## Solana Programs
+
+| Program | Description |
+|---------|-------------|
+| `kamiyo` | Main protocol - agent identity, escrow, oracle voting, Groth16 ZK verification |
+| `mitama` | ZK-private agent collaboration with Poseidon merkle proofs |
+| `kamiyo-escrow` | Companion escrow for pay-only-if-it-helped model |
+| `kamiyo-governance` | Token-weighted governance voting |
+| `kamiyo-staking` | Single-sided staking with duration multipliers |
+| `kamiyo-transfer-hook` | MEV protection for $KAMIYO (SPL Transfer Hook) |
+
 ## Packages
 
 ### Core
 
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/sdk` | TypeScript SDK for identity, escrow, privacy proofs, shield credentials, voting |
+| `@kamiyo/sdk` | TypeScript SDK for identity, escrow, privacy proofs, voting |
+| `@kamiyo/agent-core` | Observability, retry, caching, rate limiting, ZK reputation |
 | `@kamiyo/actions` | Plug-and-play actions for payments and disputes |
 | `@kamiyo/middleware` | Express middleware for HTTP 402 |
+| `@kamiyo/solana-common` | Shared Solana utilities |
 
 ### Agent Frameworks
 
 | Package | Description |
 |---------|-------------|
 | `@kamiyo/eliza` | ElizaOS plugin for autonomous agent payments |
-| `@kamiyo/agent-client` | Daydreams agent integration with MCP tools |
+| `@kamiyo/daydreams` | Daydreams extension with MCP tools |
 | `@kamiyo/langchain` | LangChain tools for escrow and disputes |
+| `@kamiyo/vercel-ai` | x402 payment tools for Vercel AI SDK |
 | `@kamiyo/mcp-server` | MCP server for Claude and LLM agents |
 
 ### Payments
@@ -140,6 +156,8 @@ await client.releaseFunds('order-123', providerPubkey);
 | Package | Description |
 |---------|-------------|
 | `@kamiyo/x402-client` | x402 client with PaymentWidget, Jupiter swaps, escrow |
+| `@kamiyo/radr` | Radr ShadowWire integration for private payments with escrow |
+| `@kamiyo/solana-inference` | Quality-escrowed inference payments |
 
 ### Chain Adapters
 
@@ -156,19 +174,26 @@ await client.releaseFunds('order-123', providerPubkey);
 |---------|-------------|
 | `@kamiyo/surfpool` | Surfpool simulation and pre-flight validation |
 | `@kamiyo/switchboard-function` | Switchboard oracle for quality scoring |
+| `@kamiyo/dkg-quality-oracle` | OriginTrail DKG quality oracle |
+| `@kamiyo/solana-reputation` | On-chain reputation tracking |
 
-### ZK
+### ZK & Privacy
 
 | Package | Description |
 |---------|-------------|
-| `@kamiyo/kamiyo-mitama` | ZK agent collaboration SDK - reputation proofs, governance, transfer hooks |
-| `noir/` | Noir circuits + Solana verifier (4 circuits, UltraPlonk) |
-| `contracts/zk-reputation/` | ZKReputation on Base mainnet - on-chain Groth16 verifier |
+| `@kamiyo/kamiyo-mitama` | ZK agent collaboration SDK |
+| `@kamiyo/kamiyo-mitama-prover` | ZK proof generation for Mitama |
+| `@kamiyo/kamiyo-mitama-merkle` | Poseidon merkle tree for agent membership |
+| `@kamiyo/solana-privacy` | Private inference proofs (Groth16) |
+| `noir/` | Noir circuits + Solana verifier (UltraPlonk) |
+| `circuits/` | Circom circuits for reputation and oracle voting |
+| `crates/kamiyo-zk` | Halo2-based ZK proofs (no trusted setup) |
 
 ### EVM Contracts
 
 | Contract | Description |
 |----------|-------------|
+| `contracts/zk-reputation/` | ZKReputation on Base mainnet - Groth16 verifier |
 | `contracts/monad/` | Swarm simulator, reputation mirror, agent proxy |
 | `contracts/hyperliquid/` | Agent registry, vault, copy trading integration |
 
