@@ -21,3 +21,14 @@ export {
   verifyReputationProofAction,
   updateReputationAction,
 } from './reputation';
+
+// DKG Quality Oracle actions (OriginTrail integration)
+export {
+  publishQualityStakedAssetAction,
+  queryVerifiedKnowledgeAction,
+  assessAssetQualityAction,
+  recordInferenceProvenanceAction,
+  disputeKnowledgeQualityAction,
+  getPublisherReputationAction,
+  dkgQualityActions,
+} from './dkg-quality';

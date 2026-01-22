@@ -14,6 +14,7 @@ import {
   checkReputationTierAction,
   verifyReputationProofAction,
   updateReputationAction,
+  dkgQualityActions,
 } from './actions';
 import { walletProvider, escrowProvider, reputationProvider } from './providers';
 import { qualityEvaluator, trustEvaluator } from './evaluators';
@@ -39,6 +40,8 @@ export const kamiyoPlugin: Plugin = {
     checkReputationTierAction,
     verifyReputationProofAction,
     updateReputationAction,
+    // DKG Quality Oracle (OriginTrail integration)
+    ...dkgQualityActions,
   ],
   providers: [walletProvider, escrowProvider, reputationProvider],
   evaluators: [qualityEvaluator, trustEvaluator],
@@ -59,5 +62,6 @@ export * from './evaluators';
 export * from './services';
 export * from './utils';
 export * from './environment';
+export * from './dkg-context';
 
 export default kamiyoPlugin;
