@@ -185,7 +185,7 @@ export class DKGClient implements DKGClientInterface {
             public: content,
           },
           {
-            epochs: options?.epochs || 2,
+            epochsNum: options?.epochs || 2,
             tokenAmount: options?.tokenAmount,
           }
         );
