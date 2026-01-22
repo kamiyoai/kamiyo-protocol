@@ -48,7 +48,7 @@ export type { RetryConfig } from './retry';
 
 // Escrow
 export { EscrowHandler, createEscrowHandler } from './escrow';
-export type { EscrowConfig, EscrowCreateParams, EscrowResult } from './escrow';
+export type { EscrowConfig, EscrowCreateParams, EscrowResult, EscrowState, EscrowStatusResult } from './escrow';
 
 // Validation
 export {
@@ -133,9 +133,20 @@ export type {
 export { PaymentWidget, createPaymentButton, quickPay } from './widget';
 export type { PaymentWidgetConfig, PaymentState } from './widget';
 
-// Jupiter
-export { JupiterSwap, payWithAnyToken, USDC_MINT, SOL_MINT } from './jupiter';
-export type { JupiterConfig, SwapQuote, SwapResult } from './jupiter';
+// Jupiter (swaps + price feeds)
+export {
+  JupiterSwap,
+  payWithAnyToken,
+  USDC_MINT,
+  SOL_MINT,
+  // Price feed utilities
+  getSolPrice,
+  usdToLamports,
+  lamportsToUsd,
+  usdcMicroToLamports,
+  clearPriceCache,
+} from './jupiter';
+export type { JupiterConfig, SwapQuote, SwapResult, PriceResult } from './jupiter';
 
 // Embeddable Widget
 export { KamiyoPayEmbed, createKamiyoPayWidget } from './embed';
@@ -186,6 +197,13 @@ export {
   reputationMiddleware,
   withReputationProof,
   parseReputationRequirement,
+  CreditTracker,
+  InMemoryCreditStore,
+  DEFAULT_TIERS,
+  getTierForThreshold,
+  calculateReputationPrice,
+  tieredPricing402,
+  reputationPricingMiddleware,
 } from './reputation-extension';
 export type {
   ReputationProofData,
@@ -194,6 +212,11 @@ export type {
   ReputationRequirement,
   ReputationVerifyResult,
   ReputationMiddlewareOptions,
+  CreditStore,
+  CreditAccount,
+  CreditCheckResult,
+  ReputationTier,
+  TieredPricing402Response,
 } from './reputation-extension';
 
 // x402 Escrow Extension (dispute protection)
@@ -238,12 +261,34 @@ export {
   buildPayAI402Response,
   payaiReputationMiddleware,
   aggregateReputation,
-  DEFAULT_TIERS,
-  getTierForThreshold,
-  calculateReputationPrice,
+  // Note: DEFAULT_TIERS, getTierForThreshold, calculateReputationPrice
+  // are re-exported from reputation-extension in payai-reputation
+  // but already exported above from reputation-extension
 } from './payai-reputation';
 export type {
   ReputationDelta,
   ReputationRecord,
   PayAIReputationConfig,
 } from './payai-reputation';
+
+// Observability (metrics, logging, event emission)
+export {
+  PaymentInstrumentation,
+  emit,
+  subscribe,
+  setLogger,
+  getMetrics,
+  resetMetrics,
+  instrument,
+  createTimer,
+  consoleLogger,
+  jsonLogger,
+} from './observability';
+export type {
+  PaymentEvent,
+  PaymentEventType,
+  EventHandler,
+  Logger,
+  LogLevel,
+  MetricsSummary,
+} from './observability';

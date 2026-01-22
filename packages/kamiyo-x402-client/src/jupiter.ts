@@ -142,3 +142,146 @@ export async function payWithAnyToken(
     return { success: false, inputAmount, outputAmount: swap.outputAmount, signature: swap.signature, error: err instanceof Error ? err.message : 'transfer failed' };
   }
 }
+
+// ============================================================================
+// PRICE FEED - SOL/USDC conversion using Jupiter price API
+// ============================================================================
+
+const JUPITER_PRICE_API = 'https://price.jup.ag/v6';
+const PRICE_CACHE_TTL_MS = 30_000; // 30 seconds cache
+
+interface PriceCache {
+  solUsdPrice: number;
+  timestamp: number;
+}
+
+let priceCache: PriceCache | null = null;
+
+export interface PriceResult {
+  success: boolean;
+  price?: number;
+  error?: string;
+}
+
+/**
+ * Fetch SOL price in USD from Jupiter Price API.
+ * Caches result for 30 seconds to avoid rate limiting.
+ */
+export async function getSolPrice(): Promise<PriceResult> {
+  // Return cached price if still valid
+  if (priceCache && Date.now() - priceCache.timestamp < PRICE_CACHE_TTL_MS) {
+    return { success: true, price: priceCache.solUsdPrice };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${JUPITER_PRICE_API}/price?ids=${SOL_MINT}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return { success: false, error: `Jupiter price API returned ${res.status}` };
+    }
+
+    const data = await res.json();
+    const solData = data?.data?.[SOL_MINT];
+
+    if (!solData?.price || typeof solData.price !== 'number') {
+      return { success: false, error: 'Invalid price response from Jupiter' };
+    }
+
+    // Cache the result
+    priceCache = {
+      solUsdPrice: solData.price,
+      timestamp: Date.now(),
+    };
+
+    return { success: true, price: solData.price };
+  } catch (err) {
+    clearTimeout(timeout);
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to fetch SOL price' };
+  }
+}
+
+/**
+ * Convert USD amount to lamports using live SOL price.
+ * Falls back to provided price if API fails.
+ *
+ * @param usdAmount - Amount in USD
+ * @param fallbackSolPrice - Optional fallback SOL price if API unavailable
+ * @returns Lamports amount or null on failure
+ */
+export async function usdToLamports(
+  usdAmount: number,
+  fallbackSolPrice?: number
+): Promise<{ lamports: number; solPrice: number } | null> {
+  const priceResult = await getSolPrice();
+
+  let solPrice: number;
+  if (priceResult.success && priceResult.price) {
+    solPrice = priceResult.price;
+  } else if (fallbackSolPrice) {
+    solPrice = fallbackSolPrice;
+  } else {
+    return null;
+  }
+
+  const solAmount = usdAmount / solPrice;
+  const lamports = Math.ceil(solAmount * 1e9); // Round up to avoid underpayment
+
+  return { lamports, solPrice };
+}
+
+/**
+ * Convert lamports to USD using live SOL price.
+ *
+ * @param lamports - Amount in lamports
+ * @param fallbackSolPrice - Optional fallback SOL price if API unavailable
+ * @returns USD amount or null on failure
+ */
+export async function lamportsToUsd(
+  lamports: number,
+  fallbackSolPrice?: number
+): Promise<{ usd: number; solPrice: number } | null> {
+  const priceResult = await getSolPrice();
+
+  let solPrice: number;
+  if (priceResult.success && priceResult.price) {
+    solPrice = priceResult.price;
+  } else if (fallbackSolPrice) {
+    solPrice = fallbackSolPrice;
+  } else {
+    return null;
+  }
+
+  const solAmount = lamports / 1e9;
+  const usd = solAmount * solPrice;
+
+  return { usd, solPrice };
+}
+
+/**
+ * Convert USDC micro-units to lamports using live SOL price.
+ * USDC has 6 decimals, so 1 USDC = 1_000_000 micro-units.
+ *
+ * @param usdcMicro - Amount in USDC micro-units (6 decimals)
+ * @param fallbackSolPrice - Optional fallback SOL price if API unavailable
+ * @returns Lamports amount or null on failure
+ */
+export async function usdcMicroToLamports(
+  usdcMicro: number,
+  fallbackSolPrice?: number
+): Promise<{ lamports: number; solPrice: number } | null> {
+  const usdAmount = usdcMicro / 1_000_000; // USDC has 6 decimals
+  return usdToLamports(usdAmount, fallbackSolPrice);
+}
+
+/**
+ * Clear the price cache (useful for testing or forcing a fresh price fetch)
+ */
+export function clearPriceCache(): void {
+  priceCache = null;
+}

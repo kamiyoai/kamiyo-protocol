@@ -1,6 +1,4 @@
-/**
- * PayAI x402 facilitator client for multi-chain USDC payments.
- */
+// PayAI x402 facilitator client
 
 const USDC_DECIMALS = 6;
 const MICRO = 10 ** USDC_DECIMALS;
@@ -45,9 +43,7 @@ export interface NetworkConfig {
   rpcUrl?: string;
 }
 
-// Chain configurations aligned with PayAI Network specifications
 export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
-  // EVM Mainnets
   base: {
     name: 'Base',
     chainId: 8453,
@@ -124,7 +120,7 @@ export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
     eip155: 'eip155:3338',
     testnet: false,
     explorer: 'https://peaq.subscan.io',
-    usdc: '0x0000000000000000000000000000000000000000', // TBD
+    usdc: '',
     nativeToken: 'PEAQ',
     rpcUrl: 'https://peaq.api.onfinality.io/public',
   },
@@ -205,7 +201,7 @@ export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
     eip155: 'eip155:1328',
     testnet: true,
     explorer: 'https://seitrace.com/?chain=atlantic-2',
-    usdc: '0x0000000000000000000000000000000000000000',
+    usdc: '',
     nativeToken: 'SEI',
     rpcUrl: 'https://evm-rpc-testnet.sei-apis.com',
   },
@@ -215,7 +211,7 @@ export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
     eip155: 'eip155:4690',
     testnet: true,
     explorer: 'https://testnet.iotexscan.io',
-    usdc: '0x0000000000000000000000000000000000000000',
+    usdc: '',
     nativeToken: 'IOTX',
     rpcUrl: 'https://babel-api.testnet.iotex.io',
   },
@@ -225,7 +221,7 @@ export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
     eip155: 'eip155:9990',
     testnet: true,
     explorer: 'https://agung.subscan.io',
-    usdc: '0x0000000000000000000000000000000000000000',
+    usdc: '',
     nativeToken: 'AGNG',
     rpcUrl: 'https://wss.agung.peaq.network',
   },
@@ -235,7 +231,7 @@ export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
     eip155: 'eip155:195',
     testnet: true,
     explorer: 'https://www.okx.com/explorer/xlayer-test',
-    usdc: '0x0000000000000000000000000000000000000000',
+    usdc: '',
     nativeToken: 'OKB',
     rpcUrl: 'https://xlayertestrpc.okx.com',
   },
@@ -415,7 +411,6 @@ export class PayAIFacilitator {
     };
   }
 
-  // Static utilities
   static toMicro = toMicro;
   static fromMicro = fromMicro;
   static explorerUrl = explorerUrl;
@@ -426,6 +421,11 @@ export class PayAIFacilitator {
 
   static isEVM(n: PayAINetwork): boolean {
     return !n.startsWith('solana');
+  }
+
+  static hasUsdcSupport(n: PayAINetwork): boolean {
+    const usdc = NETWORKS[n].usdc;
+    return !!usdc && usdc.length > 0;
   }
 
   static mainnets(): PayAINetwork[] {
@@ -440,6 +440,18 @@ export class PayAIFacilitator {
     return PayAIFacilitator.NETWORKS.filter((n) => !n.startsWith('solana'));
   }
 
+  static networksWithUsdc(): PayAINetwork[] {
+    return PayAIFacilitator.NETWORKS.filter((n) => PayAIFacilitator.hasUsdcSupport(n));
+  }
+
+  static mainnetsWithUsdc(): PayAINetwork[] {
+    return PayAIFacilitator.mainnets().filter((n) => PayAIFacilitator.hasUsdcSupport(n));
+  }
+
+  static testnetsWithUsdc(): PayAINetwork[] {
+    return PayAIFacilitator.testnets().filter((n) => PayAIFacilitator.hasUsdcSupport(n));
+  }
+
   static getNetworkConfig(n: PayAINetwork): NetworkConfig {
     return NETWORKS[n];
   }
@@ -452,16 +464,22 @@ export class PayAIFacilitator {
     return NETWORKS[n].usdc;
   }
 
-  // Payment requirement builders
   requirement(
     resource: string,
     usdc: number,
     desc: string,
     opts?: { network?: PayAINetwork; scheme?: 'exact' | 'upto'; timeout?: number; extra?: Record<string, unknown> }
   ): PaymentRequirement {
+    if (usdc <= 0) {
+      throw new PayAIError('Price must be positive', 'INVALID_CONFIG');
+    }
+    const network = opts?.network || this.network;
+    if (!PayAIFacilitator.hasUsdcSupport(network)) {
+      throw new PayAIError(`Network ${network} does not have USDC support`, 'INVALID_CONFIG');
+    }
     return {
       scheme: opts?.scheme || 'exact',
-      network: opts?.network || this.network,
+      network,
       maxAmountRequired: toMicro(usdc),
       resource,
       description: desc,
@@ -478,12 +496,12 @@ export class PayAIFacilitator {
     desc: string,
     networks?: PayAINetwork[]
   ): PaymentRequirement[] {
-    return (networks || PayAIFacilitator.mainnets()).map((n) =>
+    // Default to mainnets with USDC support to avoid invalid payment options
+    return (networks || PayAIFacilitator.mainnetsWithUsdc()).map((n) =>
       this.requirement(resource, usdc, desc, { network: n })
     );
   }
 
-  // HTTP 402 response builders
   response402(
     resource: string,
     usdc: number,
@@ -519,7 +537,6 @@ export class PayAIFacilitator {
     };
   }
 
-  // Verification
   async verify(header: string, req: PaymentRequirement): Promise<VerifyResult> {
     const key = `${header}:${req.network}:${req.maxAmountRequired}`;
     const cached = this.cache.get(key);
@@ -571,7 +588,6 @@ export class PayAIFacilitator {
     };
   }
 
-  // Settlement
   async settle(header: string, req: PaymentRequirement): Promise<SettleResult> {
     const result = await this.retry(async () => {
       const res = await this.fetch('/settle', {
@@ -619,7 +635,6 @@ export class PayAIFacilitator {
     };
   }
 
-  // Combined verify + settle
   async verifyAndSettle(
     header: string,
     req: PaymentRequirement
@@ -629,7 +644,6 @@ export class PayAIFacilitator {
     return { verify: v, settle: await this.settle(header, req) };
   }
 
-  // Facilitator info
   async list(): Promise<ListResponse> {
     try {
       const res = await this.fetch('/list', undefined, 'GET');
@@ -659,7 +673,6 @@ export class PayAIFacilitator {
     }
   }
 
-  // Cache management
   clearCache(): void {
     this.cache.clear();
   }
@@ -668,7 +681,6 @@ export class PayAIFacilitator {
     return this.cache.size;
   }
 
-  // Internal
   private async fetch(
     path: string,
     body?: unknown,
@@ -749,7 +761,6 @@ export function createPayAIFacilitator(
   return new PayAIFacilitator({ merchantAddress: merchant, ...opts });
 }
 
-// Express/Connect middleware types
 export type PayAIMiddlewareRequest = {
   headers: Record<string, string | string[] | undefined>;
   url?: string;
