@@ -84,7 +84,7 @@ async function main() {
             dateCreated: new Date().toISOString(),
           },
         },
-        { epochs: 2 }
+        { epochsNum: 2 }
       );
       console.log(`   Published: ${result?.UAL}`);
       console.log(`   PASS\n`);
