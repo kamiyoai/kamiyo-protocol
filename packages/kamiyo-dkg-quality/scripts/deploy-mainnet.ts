@@ -12,7 +12,9 @@
  */
 
 async function main() {
-  console.log('\n=== KAMIYO DKG Mainnet Deployment ===\n');
+  const isMainnet = process.env.DKG_MAINNET === 'true';
+  const network = isMainnet ? 'mainnet' : 'testnet';
+  console.log(`\n=== KAMIYO DKG ${network} Deployment ===\n`);
 
   const privateKey = process.env.DKG_PRIVATE_KEY;
   if (!privateKey) {
@@ -24,18 +26,22 @@ async function main() {
   const DKG = await import('dkg.js');
   const DKGClass = DKG.default || DKG;
 
-  // Base mainnet config
+  // DKG config - use testnet by default (mainnet public gateway requires auth)
+  const endpoint = process.env.DKG_ENDPOINT ||
+    (isMainnet ? 'https://positron.origin-trail.network' : 'https://v6-pegasus-node-02.origin-trail.network');
+  const blockchain = isMainnet ? 'base:8453' : 'otp:20430';
+
   const client = new DKGClass({
-    endpoint: process.env.DKG_ENDPOINT || 'https://dkg-mainnet.origintrail.io',
+    endpoint,
     port: 8900,
     blockchain: {
-      name: 'base:8453',
+      name: blockchain,
       privateKey,
     },
   });
 
   // Test connection
-  console.log('1. Connecting to DKG mainnet...');
+  console.log(`1. Connecting to DKG ${network} (${endpoint})...`);
   try {
     const info = await client.node.info();
     console.log(`   Connected to node v${info?.version}\n`);
@@ -57,6 +63,11 @@ async function main() {
       description: 'Economic quality layer for AI agents consuming DKG Knowledge Assets',
       version: '0.1.0',
       repository: 'https://github.com/kamiyo-ai/kamiyo-protocol',
+      solanaPrograms: {
+        escrow: 'AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu',
+        staking: '9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N',
+        mitama: 'DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km',
+      },
       features: [
         'Quality staking with SOL escrow',
         'Multi-oracle commit/reveal assessments',
@@ -74,7 +85,7 @@ async function main() {
 
     const result = await client.asset.create(
       { public: manifest },
-      { epochs: 5 }
+      { epochsNum: 5 }
     );
 
     console.log(`   Published!`);
