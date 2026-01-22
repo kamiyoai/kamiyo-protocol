@@ -2,7 +2,8 @@ import { PublicKey } from '@solana/web3.js';
 import { createHash } from 'crypto';
 import type { UAL } from './types.js';
 
-export const DEFAULT_PROGRAM_ID = new PublicKey('KAMiYo1111111111111111111111111111111111111');
+// KAMIYO escrow program on Solana mainnet
+export const DEFAULT_PROGRAM_ID = new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
 
 export const ESCROW_SEED = 'quality_escrow';
 export const STAKE_SEED = 'quality_stake';
