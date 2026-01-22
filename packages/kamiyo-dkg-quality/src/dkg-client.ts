@@ -262,7 +262,7 @@ export function createDKGClient(
     endpoint,
     port: config?.port || parseInt(process.env.DKG_PORT || '8900'),
     blockchain: config?.blockchain || {
-      name: process.env.DKG_BLOCKCHAIN || 'otp:testnet',
+      name: process.env.DKG_BLOCKCHAIN || 'otp:20430',
       publicKey: process.env.DKG_PUBLIC_KEY,
       privateKey: process.env.DKG_PRIVATE_KEY,
     },
