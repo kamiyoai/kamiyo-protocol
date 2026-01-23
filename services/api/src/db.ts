@@ -1242,6 +1242,44 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_linked_wallets_twitter ON linked_wallets(twitter_id);
   CREATE INDEX IF NOT EXISTS idx_linked_wallets_wallet ON linked_wallets(wallet);
+
+  CREATE TABLE IF NOT EXISTS swarm_teams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'SOL',
+    daily_limit REAL NOT NULL DEFAULT 0,
+    pool_balance REAL NOT NULL DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS swarm_team_members (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    draw_limit REAL NOT NULL DEFAULT 0,
+    drawn_today REAL NOT NULL DEFAULT 0,
+    last_draw_reset INTEGER DEFAULT (unixepoch()),
+    added_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS swarm_draws (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    amount REAL NOT NULL,
+    purpose TEXT,
+    blindfold_payment_id TEXT,
+    blindfold_status TEXT DEFAULT 'pending',
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_swarm_members_team ON swarm_team_members(team_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_draws_team ON swarm_draws(team_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_draws_agent ON swarm_draws(agent_id);
 `);
 
 export interface LinkedWallet {

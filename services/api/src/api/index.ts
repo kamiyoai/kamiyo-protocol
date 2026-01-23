@@ -18,6 +18,7 @@ import kamiyoTokenRoutes from './routes/kamiyo-token';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import linkWalletRoutes from './routes/link-wallet';
+import swarmTeamRoutes from './routes/swarm-teams';
 import { registry } from '../metrics';
 
 // Rate limiter for auth endpoints (IP-based)
@@ -83,7 +84,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
         if (BLINDFOLD_ORIGINS.includes(origin)) return callback(null, true);
         return callback(null, true);
       },
-      methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     })
   );
@@ -136,6 +137,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Wallet linking routes (from kamiyo-app dApp)
   app.use('/api/link-wallet', linkWalletRoutes);
+
+  // SwarmTeam management routes (public)
+  app.use('/api/swarm-teams', swarmTeamRoutes);
 
   // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {
