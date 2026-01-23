@@ -1,62 +1,23 @@
-/**
- * x402 Protocol Integration
- *
- * Implements x402 micropayment standard for AI agent economies.
- * Enables ~400ms payment finality for streaming payments.
- *
- * x402 Protocol: https://x402.org
- *
- * Flow:
- * 1. Agent requests resource
- * 2. Server returns 402 with x402-* headers
- * 3. Agent creates payment receipt
- * 4. Agent retries with X-PAYMENT header
- * 5. Server verifies and grants access
- *
- * Security:
- * - Nonce tracking prevents replay attacks
- * - Receipt age validation
- * - On-chain transaction verification
- */
-
 import { Request, Response, NextFunction } from "express";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface X402Config {
-  /** Solana RPC connection */
   connection: Connection;
-  /** Recipient wallet for payments */
   payTo: PublicKey;
-  /** Price in SOL */
   price: number;
-  /** Network (mainnet-beta, devnet) */
   network?: string;
-  /** Payment description */
   description?: string;
-  /** Maximum age of payment receipt in seconds (default: 300) */
   maxReceiptAge?: number;
-  /** Enable quality-guaranteed escrow fallback */
   escrowFallback?: boolean;
-  /** Rate limit: max requests per window (default: 100) */
   rateLimit?: number;
-  /** Rate limit window in ms (default: 60000 = 1 minute) */
   rateLimitWindow?: number;
 }
 
 export interface X402PaymentReceipt {
-  /** Payment transaction signature */
   signature: string;
-  /** Payer public key */
   payer: string;
-  /** Amount paid (lamports) */
   amount: number;
-  /** Timestamp */
   timestamp: number;
-  /** Unique nonce to prevent replay */
   nonce?: string;
 }
 
@@ -67,25 +28,15 @@ export interface X402Request extends Request {
   };
 }
 
-// ============================================================================
-// Replay Prevention (in production, use Redis with TTL)
-// ============================================================================
-
-// Track used signatures to prevent replay attacks
 const usedSignatures = new Map<string, number>();
 const SIGNATURE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
-// Rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-/**
- * Check if signature was already used (replay attack prevention)
- */
 function isSignatureUsed(signature: string): boolean {
   const usedAt = usedSignatures.get(signature);
   if (!usedAt) return false;
 
-  // Check if signature has expired
   if (Date.now() - usedAt > SIGNATURE_EXPIRY_MS) {
     usedSignatures.delete(signature);
     return false;
@@ -94,13 +45,9 @@ function isSignatureUsed(signature: string): boolean {
   return true;
 }
 
-/**
- * Mark signature as used
- */
 function markSignatureUsed(signature: string): void {
   usedSignatures.set(signature, Date.now());
 
-  // Cleanup old signatures periodically
   if (usedSignatures.size > 10000) {
     const now = Date.now();
     for (const [sig, usedAt] of usedSignatures.entries()) {
@@ -111,38 +58,12 @@ function markSignatureUsed(signature: string): void {
   }
 }
 
-// ============================================================================
-// Middleware
-// ============================================================================
-
-/**
- * x402 Payment Middleware
- *
- * Implements the x402 protocol for micropayments with security features:
- * - Replay attack prevention via signature tracking
- * - Rate limiting per IP
- * - Receipt age validation
- * - On-chain transaction verification
- *
- * @example
- * ```typescript
- * import { x402Middleware } from '@kamiyo/middleware';
- *
- * app.use('/api/premium', x402Middleware({
- *   connection: new Connection('https://api.mainnet-beta.solana.com'),
- *   payTo: new PublicKey('YourWallet...'),
- *   price: 0.001,
- *   description: 'Premium API access'
- * }));
- * ```
- */
 export function x402Middleware(config: X402Config) {
   const maxAge = config.maxReceiptAge ?? 300; // 5 minutes default
   const rateLimit = config.rateLimit ?? 100;
   const rateLimitWindow = config.rateLimitWindow ?? 60000;
 
   return async (req: X402Request, res: Response, next: NextFunction) => {
-    // Rate limiting by IP
     const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
     const rateEntry = rateLimitStore.get(clientIp);
@@ -165,7 +86,6 @@ export function x402Middleware(config: X402Config) {
 
     const paymentHeader = req.headers["payment-signature"] as string;
 
-    // No payment - return 402 with v2 body format
     if (!paymentHeader) {
       return res.status(402).set({
         "WWW-Authenticate": "X402",
@@ -199,11 +119,9 @@ export function x402Middleware(config: X402Config) {
       });
     }
 
-    // Verify payment
     try {
       const receipt = parsePaymentHeader(paymentHeader);
 
-      // Check for replay attack - signature already used
       if (isSignatureUsed(receipt.signature)) {
         return res.status(403).json({
           error: "Payment Already Used",
@@ -212,7 +130,6 @@ export function x402Middleware(config: X402Config) {
         });
       }
 
-      // Verify receipt age
       const age = Math.floor(Date.now() / 1000) - receipt.timestamp;
       if (age > maxAge) {
         return res.status(403).json({
@@ -221,7 +138,6 @@ export function x402Middleware(config: X402Config) {
         });
       }
 
-      // Verify transaction on-chain
       const verified = await verifyPayment(
         config.connection,
         receipt,
@@ -236,10 +152,8 @@ export function x402Middleware(config: X402Config) {
         });
       }
 
-      // Mark signature as used (replay prevention)
       markSignatureUsed(receipt.signature);
 
-      // Attach verified receipt to request
       req.x402 = {
         receipt,
         verified: true,
@@ -255,14 +169,6 @@ export function x402Middleware(config: X402Config) {
   };
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Parse X-PAYMENT header
- * Format: signature:payer:amount:timestamp
- */
 function parsePaymentHeader(header: string): X402PaymentReceipt {
   const parts = header.split(":");
   if (parts.length !== 4) {
@@ -277,9 +183,6 @@ function parsePaymentHeader(header: string): X402PaymentReceipt {
   };
 }
 
-/**
- * Verify payment transaction on-chain
- */
 async function verifyPayment(
   connection: Connection,
   receipt: X402PaymentReceipt,
@@ -296,7 +199,6 @@ async function verifyPayment(
       return false;
     }
 
-    // Check transaction was successful
     if (tx.meta?.err) {
       return false;
     }

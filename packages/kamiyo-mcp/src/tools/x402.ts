@@ -1,23 +1,17 @@
-/**
- * x402 HTTP Payment Tools
- *
- * Tools for consuming x402-gated APIs with automatic USDC payment.
- * Works with PayAI facilitator on Base, Solana, Polygon, Arbitrum.
- */
-
 export interface PaymentRequirement {
-  scheme: 'exact' | 'upto';
-  network: string;
-  maxAmountRequired: string;
+  scheme: 'exact';
+  network: string; // CAIP-2
+  amount: string;
   resource: string;
   description: string;
   payTo: string;
   asset: string;
   maxTimeoutSeconds: number;
+  extensions?: Record<string, unknown>;
 }
 
 export interface X402Response {
-  x402Version: number;
+  x402Version: 2;
   accepts: PaymentRequirement[];
   error?: string;
   facilitator?: string;
@@ -87,7 +81,7 @@ export async function x402CheckPricing(
 
     const options = x402Response.accepts.map((req) => ({
       network: req.network,
-      priceUsd: fromMicro(req.maxAmountRequired),
+      priceUsd: fromMicro(req.amount),
       asset: req.asset,
       description: req.description,
     }));
@@ -141,7 +135,7 @@ export async function x402Fetch(
       x402Response.accepts.find((r) => r.network === config.preferredNetwork) ||
       x402Response.accepts[0];
 
-    const amountUsd = fromMicro(requirement.maxAmountRequired);
+    const amountUsd = fromMicro(requirement.amount);
 
     if (amountUsd > config.maxPriceUsd) {
       return {
@@ -150,17 +144,19 @@ export async function x402Fetch(
       };
     }
 
-    // Create payment token (placeholder - real implementation uses PayAI SDK)
     const paymentHeader = Buffer.from(
       JSON.stringify({
-        version: 1,
-        payer: config.walletAddress,
-        payTo: requirement.payTo,
-        amount: requirement.maxAmountRequired,
+        x402Version: 2,
+        scheme: 'exact',
         network: requirement.network,
-        asset: requirement.asset,
-        timestamp: Math.floor(Date.now() / 1000),
-        nonce: Math.random().toString(36).substring(2, 10),
+        payment: {
+          payer: config.walletAddress,
+          payTo: requirement.payTo,
+          amount: requirement.amount,
+          asset: requirement.asset,
+          timestamp: Math.floor(Date.now() / 1000),
+          nonce: Math.random().toString(36).substring(2, 10),
+        },
       })
     ).toString('base64');
 
@@ -168,7 +164,7 @@ export async function x402Fetch(
       method,
       headers: {
         'Content-Type': 'application/json',
-        'X-Payment': paymentHeader,
+        'PAYMENT-SIGNATURE': paymentHeader,
         ...headers,
       },
       body: body || undefined,

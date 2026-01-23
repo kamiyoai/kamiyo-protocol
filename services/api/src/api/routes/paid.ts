@@ -117,7 +117,7 @@ async function paymentMiddleware(
       return;
     }
 
-    const paymentHeader = req.headers['x-payment'] as string | undefined;
+    const paymentHeader = req.headers['payment-signature'] as string | undefined;
 
     if (!paymentHeader) {
       const body = facilitator.response402(
@@ -126,12 +126,7 @@ async function paymentMiddleware(
         description,
         SUPPORTED_NETWORKS
       );
-      const headers = facilitator.headers402(
-        req.path,
-        priceUsd,
-        description,
-        'base'
-      );
+      const headers = facilitator.headers402();
       const responseBody = { ...body } as Record<string, any>;
       if (walletHeader) {
         responseBody.credits = {
