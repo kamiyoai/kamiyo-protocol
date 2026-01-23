@@ -11,6 +11,7 @@ import type {
   PaymentRequired402,
   ExtensionDeclaration,
 } from './v2/types';
+import { computeCreditScore, type CreditScoringOutput } from './credit-scoring';
 
 export { REPUTATION_EXTENSION_KEY } from './v2/extensions';
 export type { KamiyoReputationInfo, KamiyoReputationPayload } from './v2/types';
@@ -559,4 +560,403 @@ export async function fetchWithReputation(
   }
 
   return response;
+}
+
+export interface CreditHistory {
+  timestamp: number;
+  type: 'use' | 'repay' | 'escrow_outcome' | 'collateral_pledge' | 'collateral_release';
+  amount: number;
+}
+
+export interface CreditAccountV2 extends CreditAccount {
+  totalRepayments: number;
+  onTimeRepayments: number;
+  disputesWon: number;
+  disputesLost: number;
+  escrowsCompleted: number;
+  averageQualityScore: number;
+  qualityScoreCount: number;
+  creditScore: number;
+  creditMultiplier: number;
+  effectiveCreditLimit: number;
+  collateralPledged: number;
+  collateralEscrowPda?: string;
+  firstActivityAt: number;
+  lastActivityAt: number;
+  history: CreditHistory[];
+}
+
+export interface CreditStoreV2 extends CreditStore {
+  getV2(commitment: string): Promise<CreditAccountV2 | null>;
+  setV2(commitment: string, account: CreditAccountV2): Promise<void>;
+  appendHistory(commitment: string, entry: CreditHistory): Promise<void>;
+}
+
+const MAX_HISTORY = 100;
+const LOCK_TIMEOUT_MS = 10_000;
+
+export class InMemoryCreditStoreV2 extends InMemoryCreditStore implements CreditStoreV2 {
+  private v2Accounts = new Map<string, CreditAccountV2>();
+
+  async getV2(commitment: string): Promise<CreditAccountV2 | null> {
+    return this.v2Accounts.get(commitment) || null;
+  }
+
+  async setV2(commitment: string, account: CreditAccountV2): Promise<void> {
+    this.v2Accounts.set(commitment, account);
+    await this.set(commitment, account);
+  }
+
+  async appendHistory(commitment: string, entry: CreditHistory): Promise<void> {
+    const account = this.v2Accounts.get(commitment);
+    if (!account) throw new Error(`Account not found: ${commitment}`);
+    if (account.history.length >= MAX_HISTORY) {
+      account.history.shift();
+    }
+    account.history.push(entry);
+  }
+
+  getAllV2(): CreditAccountV2[] {
+    return Array.from(this.v2Accounts.values());
+  }
+}
+
+export interface DynamicCreditTrackerOptions {
+  tierBaseLimit?: number;
+  halfLifeDays?: number;
+  collateralMultiplier?: number;
+  minEscrowsForCredit?: number;
+  lockTimeoutMs?: number;
+}
+
+export class DynamicCreditTracker {
+  private store: CreditStoreV2;
+  private locks = new Map<string, { promise: Promise<void>; resolve: () => void }>();
+  private tierBaseLimit: number;
+  private halfLifeDays: number;
+  private collateralMultiplier: number;
+  private minEscrowsForCredit: number;
+  private lockTimeoutMs: number;
+
+  constructor(store?: CreditStoreV2, opts?: DynamicCreditTrackerOptions) {
+    this.store = store || new InMemoryCreditStoreV2();
+    this.tierBaseLimit = opts?.tierBaseLimit ?? 100;
+    this.halfLifeDays = opts?.halfLifeDays ?? 30;
+    this.collateralMultiplier = opts?.collateralMultiplier ?? 3;
+    this.minEscrowsForCredit = opts?.minEscrowsForCredit ?? 3;
+    this.lockTimeoutMs = opts?.lockTimeoutMs ?? LOCK_TIMEOUT_MS;
+  }
+
+  private async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const deadline = Date.now() + this.lockTimeoutMs;
+    while (this.locks.has(key)) {
+      const existing = this.locks.get(key)!;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new Error(`Lock timeout on commitment ${key}`);
+      }
+      await Promise.race([
+        existing.promise,
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error(`Lock timeout on commitment ${key}`)), remaining)
+        ),
+      ]);
+    }
+
+    let resolve: () => void;
+    const promise = new Promise<void>(r => { resolve = r; });
+    this.locks.set(key, { promise, resolve: resolve! });
+    try {
+      return await fn();
+    } finally {
+      this.locks.delete(key);
+      resolve!();
+    }
+  }
+
+  async registerAccount(commitment: string, agentPk: string, threshold: number): Promise<CreditAccountV2> {
+    return this.withLock(commitment, async () => {
+      const now = Date.now();
+      const tier = getTierForThreshold(threshold);
+      const account: CreditAccountV2 = {
+        agentPk,
+        commitment,
+        tier: tier.name,
+        creditLimit: 0,
+        usedCredit: 0,
+        lastPaymentAt: now,
+        totalRepayments: 0,
+        onTimeRepayments: 0,
+        disputesWon: 0,
+        disputesLost: 0,
+        escrowsCompleted: 0,
+        averageQualityScore: 0,
+        qualityScoreCount: 0,
+        creditScore: 0,
+        creditMultiplier: 0,
+        effectiveCreditLimit: 0,
+        collateralPledged: 0,
+        firstActivityAt: now,
+        lastActivityAt: now,
+        history: [],
+      };
+      await this.store.setV2(commitment, account);
+      return account;
+    });
+  }
+
+  async checkCredit(commitment: string, amount: number): Promise<CreditCheckResult> {
+    if (!Number.isFinite(amount) || amount < 0) {
+      return { approved: false, availableCredit: 0, reason: 'Invalid amount' };
+    }
+    const account = await this.store.getV2(commitment);
+    if (!account) {
+      return { approved: false, availableCredit: 0, reason: 'Account not found' };
+    }
+
+    const available = account.effectiveCreditLimit - account.usedCredit;
+    if (amount > available) {
+      return {
+        approved: false,
+        availableCredit: Math.max(0, available),
+        reason: `Insufficient credit. Available: ${Math.max(0, available)}, requested: ${amount}`,
+      };
+    }
+
+    return { approved: true, availableCredit: available };
+  }
+
+  async useCredit(commitment: string, amount: number): Promise<boolean> {
+    if (!Number.isFinite(amount) || amount < 0) return false;
+
+    return this.withLock(commitment, async () => {
+      const account = await this.store.getV2(commitment);
+      if (!account) return false;
+
+      this.recomputeLimit(account);
+
+      const available = account.effectiveCreditLimit - account.usedCredit;
+      if (amount > available) return false;
+
+      account.usedCredit += amount;
+      account.lastActivityAt = Date.now();
+      await this.store.setV2(commitment, account);
+      await this.store.appendHistory(commitment, {
+        timestamp: Date.now(),
+        type: 'use',
+        amount,
+      });
+      return true;
+    });
+  }
+
+  async repayCredit(commitment: string, amount: number): Promise<boolean> {
+    if (!Number.isFinite(amount) || amount < 0) return false;
+
+    return this.withLock(commitment, async () => {
+      const account = await this.store.getV2(commitment);
+      if (!account) return false;
+
+      account.usedCredit = Math.max(0, account.usedCredit - amount);
+      account.totalRepayments++;
+      account.onTimeRepayments++;
+      account.lastPaymentAt = Date.now();
+      account.lastActivityAt = Date.now();
+      this.recomputeLimit(account);
+      await this.store.setV2(commitment, account);
+      await this.store.appendHistory(commitment, {
+        timestamp: Date.now(),
+        type: 'repay',
+        amount,
+      });
+      return true;
+    });
+  }
+
+  async recordEscrowOutcome(
+    commitment: string,
+    outcome: 'released' | 'dispute_won' | 'dispute_lost',
+    qualityScore?: number
+  ): Promise<void> {
+    await this.withLock(commitment, async () => {
+      const account = await this.store.getV2(commitment);
+      if (!account) return;
+
+      account.escrowsCompleted++;
+      account.lastActivityAt = Date.now();
+
+      if (outcome === 'dispute_won') {
+        account.disputesWon++;
+      } else if (outcome === 'dispute_lost') {
+        account.disputesLost++;
+      }
+
+      if (qualityScore != null && Number.isFinite(qualityScore)) {
+        const clamped = Math.max(0, Math.min(100, qualityScore));
+        account.qualityScoreCount++;
+        account.averageQualityScore += (clamped - account.averageQualityScore) / account.qualityScoreCount;
+      }
+
+      this.recomputeLimit(account);
+      await this.store.setV2(commitment, account);
+      await this.store.appendHistory(commitment, {
+        timestamp: Date.now(),
+        type: 'escrow_outcome',
+        amount: qualityScore ?? 0,
+      });
+    });
+  }
+
+  async pledgeCollateral(commitment: string, escrowPda: string, amount: number): Promise<boolean> {
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+
+    return this.withLock(commitment, async () => {
+      const account = await this.store.getV2(commitment);
+      if (!account) return false;
+
+      account.collateralPledged += amount;
+      account.collateralEscrowPda = escrowPda;
+      account.lastActivityAt = Date.now();
+      this.recomputeLimit(account);
+      await this.store.setV2(commitment, account);
+      await this.store.appendHistory(commitment, {
+        timestamp: Date.now(),
+        type: 'collateral_pledge',
+        amount,
+      });
+      return true;
+    });
+  }
+
+  async releaseCollateral(commitment: string): Promise<number> {
+    return this.withLock(commitment, async () => {
+      const account = await this.store.getV2(commitment);
+      if (!account) return 0;
+
+      const released = account.collateralPledged;
+      account.collateralPledged = 0;
+      account.collateralEscrowPda = undefined;
+      account.lastActivityAt = Date.now();
+      this.recomputeLimit(account);
+      await this.store.setV2(commitment, account);
+      await this.store.appendHistory(commitment, {
+        timestamp: Date.now(),
+        type: 'collateral_release',
+        amount: released,
+      });
+      return released;
+    });
+  }
+
+  async refreshCreditLimit(commitment: string): Promise<void> {
+    await this.withLock(commitment, async () => {
+      const account = await this.store.getV2(commitment);
+      if (!account) return;
+      this.recomputeLimit(account);
+      await this.store.setV2(commitment, account);
+    });
+  }
+
+  async getCreditBreakdown(commitment: string): Promise<CreditScoringOutput | null> {
+    const account = await this.store.getV2(commitment);
+    if (!account) return null;
+
+    return this.buildScoringInput(account);
+  }
+
+  async getAccount(commitment: string): Promise<CreditAccountV2 | null> {
+    return this.store.getV2(commitment);
+  }
+
+  async serialize(): Promise<string> {
+    if (!(this.store instanceof InMemoryCreditStoreV2)) {
+      throw new Error('Serialize only supported with InMemoryCreditStoreV2');
+    }
+    const accounts = (this.store as InMemoryCreditStoreV2).getAllV2();
+    return JSON.stringify({
+      version: 2,
+      tierBaseLimit: this.tierBaseLimit,
+      halfLifeDays: this.halfLifeDays,
+      collateralMultiplier: this.collateralMultiplier,
+      minEscrowsForCredit: this.minEscrowsForCredit,
+      accounts,
+    });
+  }
+
+  static async deserialize(json: string): Promise<DynamicCreditTracker> {
+    const data = JSON.parse(json);
+    if (data.version !== 2) throw new Error(`Unsupported version: ${data.version}`);
+
+    const store = new InMemoryCreditStoreV2();
+    const tracker = new DynamicCreditTracker(store, {
+      tierBaseLimit: data.tierBaseLimit,
+      halfLifeDays: data.halfLifeDays,
+      collateralMultiplier: data.collateralMultiplier,
+      minEscrowsForCredit: data.minEscrowsForCredit,
+    });
+
+    for (const account of data.accounts) {
+      if (account.qualityScoreCount == null) {
+        account.qualityScoreCount = account.escrowsCompleted;
+      }
+      await store.setV2(account.commitment, account);
+    }
+
+    return tracker;
+  }
+
+  private recomputeLimit(account: CreditAccountV2): void {
+    const now = Date.now();
+    const tenureDays = (now - account.firstActivityAt) / (1000 * 60 * 60 * 24);
+    const inactiveDays = (now - account.lastActivityAt) / (1000 * 60 * 60 * 24);
+
+    const totalDisputes = account.disputesWon + account.disputesLost;
+    const disputeWinRate = totalDisputes > 0 ? account.disputesWon / totalDisputes : null;
+
+    const onTimeRepaymentRate = account.totalRepayments > 0
+      ? account.onTimeRepayments / account.totalRepayments
+      : null;
+
+    const scoring = computeCreditScore({
+      disputeWinRate,
+      onTimeRepaymentRate,
+      avgQualityScore: account.averageQualityScore,
+      tenureDays,
+      inactiveDays,
+      pledgedAmount: account.collateralPledged,
+      tierBaseLimit: this.tierBaseLimit,
+      escrowsCompleted: account.escrowsCompleted,
+      halfLifeDays: this.halfLifeDays,
+    });
+
+    account.creditScore = scoring.rawScore;
+    account.creditMultiplier = scoring.multiplier;
+    account.effectiveCreditLimit = scoring.effectiveLimit;
+    account.creditLimit = scoring.effectiveLimit;
+  }
+
+  private buildScoringInput(account: CreditAccountV2): CreditScoringOutput {
+    const now = Date.now();
+    const tenureDays = (now - account.firstActivityAt) / (1000 * 60 * 60 * 24);
+    const inactiveDays = (now - account.lastActivityAt) / (1000 * 60 * 60 * 24);
+
+    const totalDisputes = account.disputesWon + account.disputesLost;
+    const disputeWinRate = totalDisputes > 0 ? account.disputesWon / totalDisputes : null;
+
+    const onTimeRepaymentRate = account.totalRepayments > 0
+      ? account.onTimeRepayments / account.totalRepayments
+      : null;
+
+    return computeCreditScore({
+      disputeWinRate,
+      onTimeRepaymentRate,
+      avgQualityScore: account.averageQualityScore,
+      tenureDays,
+      inactiveDays,
+      pledgedAmount: account.collateralPledged,
+      tierBaseLimit: this.tierBaseLimit,
+      escrowsCompleted: account.escrowsCompleted,
+      halfLifeDays: this.halfLifeDays,
+    });
+  }
 }

@@ -9,6 +9,7 @@ import {
   EscrowOutcome,
   ReputationSource,
 } from './payai-reputation';
+import { DynamicCreditTracker, InMemoryCreditStoreV2 } from './reputation-extension';
 
 describe('calculateReputationDelta', () => {
   describe('Released outcome', () => {
@@ -69,62 +70,62 @@ describe('PayAIReputationTracker', () => {
       expect(record.disputedEscrows).toBe(0);
     });
 
-    it('returns existing record', () => {
+    it('returns existing record', async () => {
       const tracker = new PayAIReputationTracker();
       tracker.getRecord('agent-1');
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
       const record = tracker.getRecord('agent-1');
       expect(record.totalEscrows).toBe(1);
     });
   });
 
   describe('updateReputation', () => {
-    it('increases score on release', () => {
+    it('increases score on release', async () => {
       const tracker = new PayAIReputationTracker();
-      const record = tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+      const record = await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
       expect(record.score).toBe(55);
       expect(record.totalEscrows).toBe(1);
       expect(record.successfulEscrows).toBe(1);
     });
 
-    it('decreases score on dispute loss', () => {
+    it('decreases score on dispute loss', async () => {
       const tracker = new PayAIReputationTracker();
-      const record = tracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.FreelanceAI);
+      const record = await tracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.FreelanceAI);
       expect(record.score).toBe(40);
       expect(record.disputedEscrows).toBe(1);
     });
 
-    it('caps score at 100', () => {
+    it('caps score at 100', async () => {
       const tracker = new PayAIReputationTracker();
       for (let i = 0; i < 20; i++) {
-        tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+        await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
       }
       const record = tracker.getRecord('agent-1');
       expect(record.score).toBeLessThanOrEqual(100);
     });
 
-    it('floors score at 0', () => {
+    it('floors score at 0', async () => {
       const tracker = new PayAIReputationTracker();
       for (let i = 0; i < 10; i++) {
-        tracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.Direct);
+        await tracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.Direct);
       }
       const record = tracker.getRecord('agent-1');
       expect(record.score).toBeGreaterThanOrEqual(0);
     });
 
-    it('tracks source contribution', () => {
+    it('tracks source contribution', async () => {
       const tracker = new PayAIReputationTracker();
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.FreelanceAI);
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Bazaar);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.FreelanceAI);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Bazaar);
       const record = tracker.getRecord('agent-1');
       expect(record.sources.get(ReputationSource.FreelanceAI)).toBe(5);
       expect(record.sources.get(ReputationSource.Bazaar)).toBe(5);
     });
 
-    it('updates lastUpdated timestamp', () => {
+    it('updates lastUpdated timestamp', async () => {
       const tracker = new PayAIReputationTracker();
       const before = Date.now();
-      const record = tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+      const record = await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
       expect(record.lastUpdated).toBeGreaterThanOrEqual(before);
     });
   });
@@ -135,28 +136,28 @@ describe('PayAIReputationTracker', () => {
       expect(tracker.getSuccessRate('agent-1')).toBe(50);
     });
 
-    it('calculates correct success rate', () => {
+    it('calculates correct success rate', async () => {
       const tracker = new PayAIReputationTracker();
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
-      tracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.Direct);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+      await tracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.Direct);
       expect(tracker.getSuccessRate('agent-1')).toBe(67);
     });
   });
 
   describe('getCombinedScore', () => {
-    it('returns current score', () => {
+    it('returns current score', async () => {
       const tracker = new PayAIReputationTracker();
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
       expect(tracker.getCombinedScore('agent-1')).toBe(55);
     });
   });
 
   describe('serialize/deserialize', () => {
-    it('roundtrips tracker state', () => {
+    it('roundtrips tracker state', async () => {
       const tracker = new PayAIReputationTracker();
-      tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.FreelanceAI);
-      tracker.updateReputation('agent-2', EscrowOutcome.DisputeWonAgent, ReputationSource.Bazaar);
+      await tracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.FreelanceAI);
+      await tracker.updateReputation('agent-2', EscrowOutcome.DisputeWonAgent, ReputationSource.Bazaar);
 
       const json = tracker.serialize();
       const restored = PayAIReputationTracker.deserialize(json);
@@ -384,5 +385,70 @@ describe('ReputationSource enum', () => {
     expect(ReputationSource.Bazaar).toBe('bazaar');
     expect(ReputationSource.CTAgent).toBe('ct_agent');
     expect(ReputationSource.Direct).toBe('direct');
+  });
+});
+
+describe('linkCreditTracker integration', () => {
+  const commitment = '0x' + 'd'.repeat(64);
+
+  it('forwards escrow outcomes to credit tracker', async () => {
+    const store = new InMemoryCreditStoreV2();
+    const creditTracker = new DynamicCreditTracker(store, { tierBaseLimit: 100 });
+    await creditTracker.registerAccount(commitment, 'agent-1', 80);
+
+    const repTracker = new PayAIReputationTracker();
+    repTracker.linkCreditTracker(creditTracker);
+
+    const record = repTracker.getRecord('agent-1');
+    record.commitment = commitment;
+
+    await repTracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct, 85);
+
+    const account = await creditTracker.getAccount(commitment);
+    expect(account).not.toBeNull();
+    expect(account!.escrowsCompleted).toBe(1);
+    expect(account!.averageQualityScore).toBeCloseTo(85);
+  });
+
+  it('maps dispute outcomes correctly', async () => {
+    const store = new InMemoryCreditStoreV2();
+    const creditTracker = new DynamicCreditTracker(store, { tierBaseLimit: 100 });
+    await creditTracker.registerAccount(commitment, 'agent-1', 80);
+
+    const repTracker = new PayAIReputationTracker();
+    repTracker.linkCreditTracker(creditTracker);
+    repTracker.getRecord('agent-1').commitment = commitment;
+
+    await repTracker.updateReputation('agent-1', EscrowOutcome.DisputeWonAgent, ReputationSource.Direct, 30);
+
+    const account = await creditTracker.getAccount(commitment);
+    expect(account!.disputesWon).toBe(1);
+    expect(account!.disputesLost).toBe(0);
+  });
+
+  it('maps provider-won disputes as losses', async () => {
+    const store = new InMemoryCreditStoreV2();
+    const creditTracker = new DynamicCreditTracker(store, { tierBaseLimit: 100 });
+    await creditTracker.registerAccount(commitment, 'agent-1', 80);
+
+    const repTracker = new PayAIReputationTracker();
+    repTracker.linkCreditTracker(creditTracker);
+    repTracker.getRecord('agent-1').commitment = commitment;
+
+    await repTracker.updateReputation('agent-1', EscrowOutcome.DisputeWonProvider, ReputationSource.Direct);
+
+    const account = await creditTracker.getAccount(commitment);
+    expect(account!.disputesLost).toBe(1);
+  });
+
+  it('does nothing when no commitment on record', async () => {
+    const store = new InMemoryCreditStoreV2();
+    const creditTracker = new DynamicCreditTracker(store, { tierBaseLimit: 100 });
+
+    const repTracker = new PayAIReputationTracker();
+    repTracker.linkCreditTracker(creditTracker);
+
+    await repTracker.updateReputation('agent-1', EscrowOutcome.Released, ReputationSource.Direct);
+    expect(repTracker.getRecord('agent-1').successfulEscrows).toBe(1);
   });
 });

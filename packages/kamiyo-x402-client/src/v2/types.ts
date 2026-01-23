@@ -79,3 +79,26 @@ export interface KamiyoEscrowPayload {
   transactionId: string;
   agentPk: string;
 }
+
+export interface CreditScoringWeights {
+  disputeHistory: number;
+  paymentHistory: number;
+  escrowOutcomes: number;
+  tenure: number;
+}
+
+export interface KamiyoCreditInfo {
+  creditEnabled: boolean;
+  maxCollateralMultiplier: number;
+  agingHalfLifeDays: number;
+  minHistoryForCredit: number;
+  scoringWeights: CreditScoringWeights;
+}
+
+export interface KamiyoCreditPayload {
+  agentPk: string;
+  commitment: string;
+  requestedCredit: number;
+  collateralEscrowPda?: string;
+  collateralAmount?: number;
+}
