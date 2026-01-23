@@ -1,8 +1,7 @@
 import {
   PayAIReputationTracker,
   calculateReputationDelta,
-  createPayAIReputationHeaders,
-  parsePayAIReputationHeaders,
+  createPayAIReputationPayload,
   verifyPayAIReputation,
   calculatePayAIPrice,
   buildPayAI402Response,
@@ -176,63 +175,32 @@ describe('PayAIReputationTracker', () => {
   });
 });
 
-describe('createPayAIReputationHeaders', () => {
+describe('createPayAIReputationPayload', () => {
   const mockProof = {
     agentPk: 'AgentPubKey123',
-    commitment: 'commitment-hash',
+    commitment: '0x' + 'a'.repeat(64),
     threshold: 70,
     proofBytes: new Uint8Array([1, 2, 3]),
   };
 
-  it('includes standard reputation headers', () => {
-    const headers = createPayAIReputationHeaders(mockProof, ReputationSource.FreelanceAI);
-    expect(headers['X-402-Reputation-Proof']).toBeTruthy();
-    expect(headers['X-402-Reputation-Commitment']).toBe('commitment-hash');
-    expect(headers['X-402-Reputation-Threshold']).toBe('70');
+  it('builds extension payload with proof nested under info', () => {
+    const result = createPayAIReputationPayload(mockProof, ReputationSource.FreelanceAI);
+    const rep = result.extensions['kamiyo-reputation'].info as any;
+    expect(rep.proof).toBe(Buffer.from(mockProof.proofBytes).toString('base64'));
+    expect(rep.commitment).toBe(mockProof.commitment);
+    expect(rep.threshold).toBe(70);
+    expect(rep.agentPk).toBe('AgentPubKey123');
   });
 
-  it('includes PayAI source header', () => {
-    const headers = createPayAIReputationHeaders(mockProof, ReputationSource.FreelanceAI);
-    expect(headers['X-PayAI-Reputation-Source']).toBe('freelance_ai');
+  it('includes source', () => {
+    const result = createPayAIReputationPayload(mockProof, ReputationSource.FreelanceAI);
+    expect(result.source).toBe('freelance_ai');
   });
 
   it('uses different source values', () => {
-    expect(createPayAIReputationHeaders(mockProof, ReputationSource.Bazaar)['X-PayAI-Reputation-Source']).toBe('bazaar');
-    expect(createPayAIReputationHeaders(mockProof, ReputationSource.CTAgent)['X-PayAI-Reputation-Source']).toBe('ct_agent');
-    expect(createPayAIReputationHeaders(mockProof, ReputationSource.Direct)['X-PayAI-Reputation-Source']).toBe('direct');
-  });
-});
-
-describe('parsePayAIReputationHeaders', () => {
-  it('parses standard headers with source', () => {
-    const headers = {
-      'X-402-Reputation-Proof': 'proof',
-      'X-402-Reputation-Commitment': 'commitment',
-      'X-402-Reputation-Threshold': '75',
-      'X-PayAI-Reputation-Source': 'freelance_ai',
-    };
-    const parsed = parsePayAIReputationHeaders(headers);
-    expect(parsed).not.toBeNull();
-    expect(parsed!.threshold).toBe(75);
-    expect(parsed!.source).toBe('freelance_ai');
-  });
-
-  it('returns null for missing standard headers', () => {
-    const headers = {
-      'X-PayAI-Reputation-Source': 'freelance_ai',
-    };
-    expect(parsePayAIReputationHeaders(headers)).toBeNull();
-  });
-
-  it('handles missing source', () => {
-    const headers = {
-      'X-402-Reputation-Proof': 'proof',
-      'X-402-Reputation-Commitment': 'commitment',
-      'X-402-Reputation-Threshold': '75',
-    };
-    const parsed = parsePayAIReputationHeaders(headers);
-    expect(parsed).not.toBeNull();
-    expect(parsed!.source).toBeUndefined();
+    expect(createPayAIReputationPayload(mockProof, ReputationSource.Bazaar).source).toBe('bazaar');
+    expect(createPayAIReputationPayload(mockProof, ReputationSource.CTAgent).source).toBe('ct_agent');
+    expect(createPayAIReputationPayload(mockProof, ReputationSource.Direct).source).toBe('direct');
   });
 });
 
@@ -243,40 +211,51 @@ describe('verifyPayAIReputation', () => {
     requireProof: true,
   };
 
-  it('returns invalid when proof required but missing', () => {
-    const result = verifyPayAIReputation({}, config);
+  it('returns invalid when proof required but no extensions', () => {
+    const result = verifyPayAIReputation(undefined, config);
     expect(result.valid).toBe(false);
-    expect(result.reason).toContain('required');
+    expect(result.reason).toContain('Missing');
   });
 
   it('returns valid when proof not required and missing', () => {
-    const result = verifyPayAIReputation({}, { ...config, requireProof: false });
+    const result = verifyPayAIReputation(undefined, { ...config, requireProof: false });
     expect(result.valid).toBe(true);
   });
 
   it('returns invalid when threshold too low', () => {
-    const headers = {
-      'X-402-Reputation-Proof': 'proof',
-      'X-402-Reputation-Commitment': 'commitment',
-      'X-402-Reputation-Threshold': '50',
+    const extensions = {
+      'kamiyo-reputation': {
+        info: {
+          proof: 'base64data',
+          commitment: '0x' + 'a'.repeat(64),
+          threshold: 50,
+          agentPk: 'agent123',
+          publicSignals: ['123'],
+        },
+      },
     };
-    const result = verifyPayAIReputation(headers, config);
+    const result = verifyPayAIReputation(extensions, config);
     expect(result.valid).toBe(false);
     expect(result.threshold).toBe(50);
     expect(result.reason).toContain('below');
   });
 
   it('returns valid when threshold meets requirement', () => {
-    const headers = {
-      'X-402-Reputation-Proof': 'proof',
-      'X-402-Reputation-Commitment': 'commitment',
-      'X-402-Reputation-Threshold': '75',
-      'X-PayAI-Reputation-Source': 'freelance_ai',
+    const extensions = {
+      'kamiyo-reputation': {
+        info: {
+          proof: 'base64data',
+          commitment: '0x' + 'a'.repeat(64),
+          threshold: 75,
+          agentPk: 'agent123',
+          publicSignals: ['123'],
+        },
+      },
     };
-    const result = verifyPayAIReputation(headers, config);
+    const result = verifyPayAIReputation(extensions, config);
     expect(result.valid).toBe(true);
     expect(result.threshold).toBe(75);
-    expect(result.source).toBe('freelance_ai');
+    expect(result.source).toBe(ReputationSource.FreelanceAI);
   });
 });
 
@@ -323,9 +302,9 @@ describe('calculatePayAIPrice', () => {
 describe('buildPayAI402Response', () => {
   const basePrice = 100;
 
-  it('returns complete response structure', () => {
+  it('returns complete v2 response structure', () => {
     const response = buildPayAI402Response(basePrice, 70, ReputationSource.FreelanceAI);
-    expect(response.x402Version).toBe(1);
+    expect(response.x402Version).toBe(2);
     expect(response.basePrice).toBe(100);
     expect(response.yourPrice).toBe(88);
     expect(response.yourTier).toBe('trusted');

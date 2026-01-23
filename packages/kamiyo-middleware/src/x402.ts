@@ -163,31 +163,39 @@ export function x402Middleware(config: X402Config) {
       rateLimitStore.set(clientIp, { count: 1, resetAt: now + rateLimitWindow });
     }
 
-    const paymentHeader = req.headers["x-payment"] as string;
+    const paymentHeader = req.headers["payment-signature"] as string;
 
-    // No payment - return 402 with payment requirements
+    // No payment - return 402 with v2 body format
     if (!paymentHeader) {
       return res.status(402).set({
-        "x402-version": "1",
-        "x402-price": config.price.toString(),
-        "x402-currency": "SOL",
-        "x402-network": config.network || "mainnet-beta",
-        "x402-pay-to": config.payTo.toBase58(),
-        "x402-description": config.description || "Payment required",
-        ...(config.escrowFallback && {
-          "x402-escrow-supported": "true",
-          "x402-escrow-program": "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM",
-        }),
+        "WWW-Authenticate": "X402",
       }).json({
+        x402Version: 2,
+        accepts: [{
+          scheme: "exact",
+          network: config.network || "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          amount: String(Math.floor(config.price * 1e9)),
+          asset: "SOL",
+          payTo: config.payTo.toBase58(),
+          resource: req.path || "/",
+          description: config.description || "Payment required",
+          maxTimeoutSeconds: 60,
+        }],
         error: "Payment Required",
-        protocol: "x402",
-        version: 1,
-        price: config.price,
-        currency: "SOL",
-        network: config.network || "mainnet-beta",
-        payTo: config.payTo.toBase58(),
-        description: config.description,
-        escrowFallback: config.escrowFallback || false,
+        facilitator: "",
+        ...(config.escrowFallback && {
+          extensions: {
+            "kamiyo-escrow": {
+              info: {
+                required: false,
+                timelockSeconds: 3600,
+                qualityThreshold: 70,
+                programId: "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM",
+                refundSchedule: [],
+              },
+            },
+          },
+        }),
       });
     }
 

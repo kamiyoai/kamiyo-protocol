@@ -1,27 +1,19 @@
-/**
- * x402 Reputation Extension
- *
- * ZK reputation proofs as x402 header extensions. Agent proves
- * "my success rate >= X%" without revealing actual score.
- * Merchants can require minimum reputation before accepting payment.
- *
- * Features:
- * - ZK proof headers for privacy-preserving reputation
- * - Tiered pricing based on reputation (higher rep = lower fees)
- * - Access control for premium endpoints
- * - Credit limits for untrusted agents
- * - Dynamic pricing middleware
- *
- * Headers:
- * - X-402-Reputation-Proof: Base64-encoded ZK proof
- * - X-402-Reputation-Commitment: Poseidon hash commitment
- * - X-402-Reputation-Threshold: Required minimum (0-100)
- */
+import {
+  declareReputationExtension,
+  parseReputationPayload,
+  parseReputationExtension,
+  validateReputationPayload,
+  REPUTATION_EXTENSION_KEY,
+} from './v2/extensions';
+import type {
+  KamiyoReputationInfo,
+  KamiyoReputationPayload,
+  PaymentRequired402,
+  ExtensionDeclaration,
+} from './v2/types';
 
-// Header names
-export const X402_REPUTATION_PROOF = 'X-402-Reputation-Proof';
-export const X402_REPUTATION_COMMITMENT = 'X-402-Reputation-Commitment';
-export const X402_REPUTATION_THRESHOLD = 'X-402-Reputation-Threshold';
+export { REPUTATION_EXTENSION_KEY } from './v2/extensions';
+export type { KamiyoReputationInfo, KamiyoReputationPayload } from './v2/types';
 
 export interface ReputationProofData {
   agentPk: string;
@@ -38,18 +30,6 @@ export interface ReputationProofData {
   publicSignals?: string[];
 }
 
-export interface ReputationHeaders {
-  [X402_REPUTATION_PROOF]: string;
-  [X402_REPUTATION_COMMITMENT]: string;
-  [X402_REPUTATION_THRESHOLD]: string;
-}
-
-export interface ParsedReputationHeaders {
-  proof: string;
-  commitment: string;
-  threshold: number;
-}
-
 export interface ReputationRequirement {
   minThreshold: number;
   required: boolean;
@@ -62,144 +42,84 @@ export interface ReputationVerifyResult {
   reason?: string;
 }
 
-/**
- * Encode a reputation proof into x402 headers.
- * Agent includes these when making payment requests.
- */
-export function encodeReputationHeaders(proof: ReputationProofData): ReputationHeaders {
-  const proofPayload = {
-    agentPk: proof.agentPk,
-    commitment: proof.commitment,
-    threshold: proof.threshold,
-    proof: Buffer.from(proof.proofBytes).toString('base64'),
-    groth16Proof: proof.groth16Proof,
-    publicSignals: proof.publicSignals,
-  };
-
+export function buildReputationPayload(proof: ReputationProofData): Record<string, ExtensionDeclaration> {
+  const proofBase64 = Buffer.from(proof.proofBytes).toString('base64');
   return {
-    [X402_REPUTATION_PROOF]: Buffer.from(JSON.stringify(proofPayload)).toString('base64'),
-    [X402_REPUTATION_COMMITMENT]: proof.commitment,
-    [X402_REPUTATION_THRESHOLD]: String(proof.threshold),
+    [REPUTATION_EXTENSION_KEY]: {
+      info: {
+        proof: proofBase64,
+        commitment: proof.commitment,
+        threshold: proof.threshold,
+        agentPk: proof.agentPk,
+        publicSignals: proof.publicSignals || [],
+      },
+    },
   };
 }
 
-/**
- * Parse reputation headers from a request.
- * Returns null if headers are missing or malformed.
- */
-export function parseReputationHeaders(
-  headers: Record<string, string | string[] | undefined>
-): ParsedReputationHeaders | null {
-  const proof = headers[X402_REPUTATION_PROOF] || headers[X402_REPUTATION_PROOF.toLowerCase()];
-  const commitment = headers[X402_REPUTATION_COMMITMENT] || headers[X402_REPUTATION_COMMITMENT.toLowerCase()];
-  const threshold = headers[X402_REPUTATION_THRESHOLD] || headers[X402_REPUTATION_THRESHOLD.toLowerCase()];
-
-  if (!proof || !commitment || !threshold) {
-    return null;
-  }
-
-  const proofStr = Array.isArray(proof) ? proof[0] : proof;
-  const commitmentStr = Array.isArray(commitment) ? commitment[0] : commitment;
-  const thresholdStr = Array.isArray(threshold) ? threshold[0] : threshold;
-
-  const thresholdNum = parseInt(thresholdStr, 10);
-  if (isNaN(thresholdNum) || thresholdNum < 0 || thresholdNum > 100) {
-    return null;
-  }
-
-  return {
-    proof: proofStr,
-    commitment: commitmentStr,
-    threshold: thresholdNum,
-  };
+export function reputationExtensionInfo(
+  minThreshold: number,
+  opts?: { tiers?: ReputationTier[]; creditEnabled?: boolean }
+): Record<string, ExtensionDeclaration> {
+  return declareReputationExtension({
+    minThreshold,
+    tiers: opts?.tiers,
+    creditEnabled: opts?.creditEnabled,
+  });
 }
 
-/**
- * Decode the full proof payload from the X-402-Reputation-Proof header.
- */
-export function decodeReputationProof(proofHeader: string): ReputationProofData | null {
-  try {
-    const json = Buffer.from(proofHeader, 'base64').toString();
-    const data = JSON.parse(json);
-
-    return {
-      agentPk: data.agentPk,
-      commitment: data.commitment,
-      threshold: data.threshold,
-      proofBytes: Buffer.from(data.proof, 'base64'),
-      groth16Proof: data.groth16Proof,
-      publicSignals: data.publicSignals,
-    };
-  } catch {
-    return null;
-  }
+export function parseReputationRequirement(
+  response: PaymentRequired402 | { extensions?: Record<string, ExtensionDeclaration> }
+): ReputationRequirement | null {
+  const info = parseReputationExtension(response);
+  if (!info) return null;
+  return { minThreshold: info.minThreshold, required: true };
 }
 
-/**
- * Add reputation requirement to x402 402 response headers.
- * Merchant includes this to signal minimum reputation needed.
- */
-export function reputationRequirementHeaders(minThreshold: number): Record<string, string> {
-  return {
-    'X-402-Reputation-Required': 'true',
-    'X-402-Reputation-Min-Threshold': String(minThreshold),
-  };
-}
-
-/**
- * Check if request meets reputation requirement.
- * Returns verification result with reason if failed.
- *
- * Note: This performs structural validation only.
- * For cryptographic verification, use verifyReputationProof from @kamiyo/solana-privacy.
- */
 export function checkReputationRequirement(
-  headers: Record<string, string | string[] | undefined>,
+  extensions: Record<string, unknown> | undefined,
   requirement: ReputationRequirement
 ): ReputationVerifyResult {
   if (!requirement.required) {
     return { valid: true };
   }
 
-  const parsed = parseReputationHeaders(headers);
-  if (!parsed) {
-    return {
-      valid: false,
-      reason: 'Missing reputation proof headers',
-    };
+  const payload = parseReputationPayload(extensions);
+  if (!payload) {
+    return { valid: false, reason: 'Missing reputation extension payload' };
   }
 
-  if (parsed.threshold < requirement.minThreshold) {
+  const validation = validateReputationPayload(payload);
+  if (!validation.valid) {
+    return { valid: false, reason: validation.errors[0] };
+  }
+
+  if (payload.threshold < requirement.minThreshold) {
     return {
       valid: false,
-      threshold: parsed.threshold,
-      commitment: parsed.commitment,
-      reason: `Threshold ${parsed.threshold} below required ${requirement.minThreshold}`,
+      threshold: payload.threshold,
+      commitment: payload.commitment,
+      reason: `Threshold ${payload.threshold} below required ${requirement.minThreshold}`,
     };
   }
 
   return {
     valid: true,
-    threshold: parsed.threshold,
-    commitment: parsed.commitment,
+    threshold: payload.threshold,
+    commitment: payload.commitment,
   };
 }
 
-/**
- * Express/Connect middleware for reputation-gated x402.
- * Checks reputation headers before payment verification.
- */
 export interface ReputationMiddlewareOptions {
   minThreshold: number;
   required?: boolean;
-  /** Require cryptographic proof verification. When true, requests without valid proofs are rejected. */
   requireProofVerification?: boolean;
   onInvalid?: (result: ReputationVerifyResult) => void;
-  verifyProof?: (proof: ReputationProofData) => Promise<boolean>;
+  verifyProof?: (payload: KamiyoReputationPayload) => Promise<boolean>;
 }
 
 export type MiddlewareRequest = {
-  headers: Record<string, string | string[] | undefined>;
+  body?: { extensions?: Record<string, unknown> };
 };
 
 export type MiddlewareResponse = {
@@ -216,68 +136,48 @@ export function reputationMiddleware(opts: ReputationMiddlewareOptions) {
     res: MiddlewareResponse,
     next: NextFunction
   ): Promise<void> => {
-    const check = checkReputationRequirement(req.headers, {
+    const extensions = req.body?.extensions;
+    const check = checkReputationRequirement(extensions, {
       minThreshold: opts.minThreshold,
       required: opts.required ?? true,
     });
 
     if (!check.valid) {
       opts.onInvalid?.(check);
-
-      Object.entries(reputationRequirementHeaders(opts.minThreshold)).forEach(([k, v]) =>
-        res.setHeader(k, v)
-      );
-
       res.status(402).json({
         error: 'Reputation requirement not met',
         reason: check.reason,
-        required: {
-          minThreshold: opts.minThreshold,
-        },
+        extensions: reputationExtensionInfo(opts.minThreshold),
       });
       return;
     }
 
-    // Cryptographic verification (mandatory when requireProofVerification is true)
     if (opts.verifyProof || opts.requireProofVerification) {
-      const parsed = parseReputationHeaders(req.headers);
+      const payload = parseReputationPayload(extensions);
 
-      if (!parsed) {
+      if (!payload) {
         if (opts.requireProofVerification) {
           res.status(402).json({
             error: 'Reputation proof required',
-            reason: 'Missing reputation headers',
+            reason: 'Missing reputation extension',
           });
           return;
         }
-      } else {
-        const proof = decodeReputationProof(parsed.proof);
-
-        if (!proof) {
-          if (opts.requireProofVerification) {
-            res.status(402).json({
-              error: 'Invalid reputation proof',
-              reason: 'Could not decode proof data',
-            });
-            return;
-          }
-        } else if (opts.verifyProof) {
-          const isValid = await opts.verifyProof(proof);
-          if (!isValid) {
-            res.status(402).json({
-              error: 'Invalid reputation proof',
-              reason: 'Cryptographic verification failed',
-            });
-            return;
-          }
-        } else if (opts.requireProofVerification) {
-          // requireProofVerification is true but no verifyProof function provided
-          res.status(500).json({
-            error: 'Server configuration error',
-            reason: 'Proof verification required but no verifier configured',
+      } else if (opts.verifyProof) {
+        const isValid = await opts.verifyProof(payload);
+        if (!isValid) {
+          res.status(402).json({
+            error: 'Invalid reputation proof',
+            reason: 'Cryptographic verification failed',
           });
           return;
         }
+      } else if (opts.requireProofVerification) {
+        res.status(500).json({
+          error: 'Server configuration error',
+          reason: 'Proof verification required but no verifier configured',
+        });
+        return;
       }
     }
 
@@ -285,65 +185,6 @@ export function reputationMiddleware(opts: ReputationMiddlewareOptions) {
   };
 }
 
-/**
- * Helper to add reputation headers to a fetch request.
- */
-export function withReputationProof(
-  proof: ReputationProofData,
-  init?: RequestInit
-): RequestInit {
-  const headers = encodeReputationHeaders(proof);
-  return {
-    ...init,
-    headers: {
-      ...(init?.headers || {}),
-      ...headers,
-    },
-  };
-}
-
-/**
- * Parse reputation requirement from 402 response headers.
- */
-export function parseReputationRequirement(
-  headers: Headers | Record<string, string>
-): ReputationRequirement | null {
-  const get = (key: string): string | null => {
-    if (headers instanceof Headers) {
-      return headers.get(key);
-    }
-    return headers[key] || headers[key.toLowerCase()] || null;
-  };
-
-  const required = get('X-402-Reputation-Required');
-  if (required !== 'true') {
-    return null;
-  }
-
-  const minThreshold = get('X-402-Reputation-Min-Threshold');
-  if (!minThreshold) {
-    return null;
-  }
-
-  const threshold = parseInt(minThreshold, 10);
-  if (isNaN(threshold)) {
-    return null;
-  }
-
-  return {
-    minThreshold: threshold,
-    required: true,
-  };
-}
-
-// ============================================================================
-// TIERED PRICING - Dynamic pricing based on reputation
-// ============================================================================
-
-/**
- * Reputation tiers with associated discounts.
- * Higher reputation = lower prices = more business.
- */
 export interface ReputationTier {
   name: string;
   minThreshold: number;
@@ -359,9 +200,6 @@ export const DEFAULT_TIERS: ReputationTier[] = [
   { name: 'elite', minThreshold: 95, discountPercent: 25, creditLimit: 1000 },
 ];
 
-/**
- * Get the tier for a given reputation threshold.
- */
 export function getTierForThreshold(
   threshold: number,
   tiers: ReputationTier[] = DEFAULT_TIERS
@@ -370,9 +208,6 @@ export function getTierForThreshold(
   return sorted.find((t) => threshold >= t.minThreshold) || tiers[0];
 }
 
-/**
- * Calculate discounted price based on reputation.
- */
 export function calculateReputationPrice(
   basePrice: number,
   threshold: number,
@@ -387,12 +222,8 @@ export function calculateReputationPrice(
   };
 }
 
-/**
- * Extended 402 response with tiered pricing.
- * Shows all price tiers so agents know what discount they'd get.
- */
 export interface TieredPricing402Response {
-  x402Version: 1;
+  x402Version: 2;
   basePrice: number;
   yourPrice: number;
   yourTier: string;
@@ -408,9 +239,6 @@ export interface TieredPricing402Response {
   minThreshold: number;
 }
 
-/**
- * Build a tiered pricing 402 response.
- */
 export function tieredPricing402(
   basePrice: number,
   agentThreshold: number | null,
@@ -431,7 +259,7 @@ export function tieredPricing402(
     : { price: basePrice, discount: 0, tier: tiers[0] };
 
   return {
-    x402Version: 1,
+    x402Version: 2,
     basePrice,
     yourPrice: pricing.price,
     yourTier: agentTier.name,
@@ -448,10 +276,6 @@ export function tieredPricing402(
   };
 }
 
-// ============================================================================
-// CREDIT SYSTEM - Pay-later for trusted agents
-// ============================================================================
-
 export interface CreditAccount {
   agentPk: string;
   commitment: string;
@@ -467,10 +291,6 @@ export interface CreditCheckResult {
   reason?: string;
 }
 
-/**
- * Storage interface for credit accounts.
- * Implement this to use Redis, PostgreSQL, or other persistent storage.
- */
 export interface CreditStore {
   get(commitment: string): Promise<CreditAccount | null>;
   set(commitment: string, account: CreditAccount): Promise<void>;
@@ -479,9 +299,6 @@ export interface CreditStore {
   atomicIncrement(commitment: string, field: 'usedCredit', amount: number): Promise<number>;
 }
 
-/**
- * In-memory credit store for testing and development.
- */
 export class InMemoryCreditStore implements CreditStore {
   private accounts = new Map<string, CreditAccount>();
 
@@ -509,10 +326,6 @@ export class InMemoryCreditStore implements CreditStore {
   }
 }
 
-/**
- * Credit tracker with pluggable storage backend.
- * Default: in-memory. Production: pass Redis/DB store.
- */
 export class CreditTracker {
   private store: CreditStore;
   private mutex = new Map<string, Promise<void>>();
@@ -609,7 +422,6 @@ export class CreditTracker {
     return { totalAccounts: accounts.length, totalCredit, usedCredit };
   }
 
-  // Sync versions for backwards compatibility (use store directly for sync access if InMemoryCreditStore)
   getAccountSync(commitment: string): CreditAccount | null {
     if (this.store instanceof InMemoryCreditStore) {
       return (this.store as any).accounts.get(commitment) || null;
@@ -618,19 +430,14 @@ export class CreditTracker {
   }
 }
 
-// ============================================================================
-// COMBINED MIDDLEWARE - Reputation + Tiered Pricing + Credit
-// ============================================================================
-
 export interface ReputationPricingMiddlewareOptions {
   basePrice: number;
   tiers?: ReputationTier[];
   minThreshold?: number;
   creditTracker?: CreditTracker;
   allowCredit?: boolean;
-  /** Require cryptographic proof verification. When true, requests without valid proofs are rejected. */
   requireProofVerification?: boolean;
-  verifyProof?: (proof: ReputationProofData) => Promise<boolean>;
+  verifyProof?: (payload: KamiyoReputationPayload) => Promise<boolean>;
   onPriceCalculated?: (result: {
     price: number;
     tier: string;
@@ -639,65 +446,38 @@ export interface ReputationPricingMiddlewareOptions {
   }) => void;
 }
 
-/**
- * Full-featured middleware combining:
- * - Reputation verification
- * - Tiered pricing
- * - Credit system
- *
- * Returns 402 with complete pricing breakdown.
- * Attaches pricing info to request for downstream handlers.
- */
 export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOptions) {
   return async (
     req: MiddlewareRequest & { reputationPricing?: TieredPricing402Response },
     res: MiddlewareResponse,
     next: NextFunction
   ): Promise<void> => {
-    const parsed = parseReputationHeaders(req.headers);
+    const extensions = req.body?.extensions;
+    const payload = parseReputationPayload(extensions);
 
-    // No reputation headers - return 402 with pricing info
-    if (!parsed) {
+    if (!payload) {
       const response = tieredPricing402(opts.basePrice, null, {
         tiers: opts.tiers,
         minThreshold: opts.minThreshold,
         reputationRequired: true,
       });
 
-      Object.entries(reputationRequirementHeaders(opts.minThreshold || 0)).forEach(([k, v]) =>
-        res.setHeader(k, v)
-      );
-      res.setHeader('X-402-Base-Price', String(opts.basePrice));
-      res.setHeader('X-402-Pricing-Type', 'tiered-reputation');
-
       res.status(402).json(response);
       return;
     }
 
-    // Check minimum threshold
-    if (opts.minThreshold && parsed.threshold < opts.minThreshold) {
+    if (opts.minThreshold && payload.threshold < opts.minThreshold) {
       res.status(402).json({
         error: 'Reputation too low',
-        yourThreshold: parsed.threshold,
+        yourThreshold: payload.threshold,
         minRequired: opts.minThreshold,
       });
       return;
     }
 
-    // Cryptographic verification (mandatory when requireProofVerification is true)
     if (opts.verifyProof || opts.requireProofVerification) {
-      const proof = decodeReputationProof(parsed.proof);
-
-      if (!proof) {
-        res.status(402).json({
-          error: 'Invalid reputation proof',
-          reason: 'Could not decode proof data',
-        });
-        return;
-      }
-
       if (opts.verifyProof) {
-        const isValid = await opts.verifyProof(proof);
+        const isValid = await opts.verifyProof(payload);
         if (!isValid) {
           res.status(402).json({
             error: 'Invalid reputation proof',
@@ -706,7 +486,6 @@ export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOpt
           return;
         }
       } else if (opts.requireProofVerification) {
-        // requireProofVerification is true but no verifyProof function provided
         res.status(500).json({
           error: 'Server configuration error',
           reason: 'Proof verification required but no verifier configured',
@@ -715,16 +494,14 @@ export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOpt
       }
     }
 
-    // Calculate pricing
-    const pricing = calculateReputationPrice(opts.basePrice, parsed.threshold, opts.tiers);
+    const pricing = calculateReputationPrice(opts.basePrice, payload.threshold, opts.tiers);
 
-    // Check credit if enabled
     let usingCredit = false;
     if (opts.allowCredit && opts.creditTracker && pricing.tier.creditLimit) {
-      const creditCheck = await opts.creditTracker.checkCredit(parsed.commitment, pricing.price);
+      const creditCheck = await opts.creditTracker.checkCredit(payload.commitment, pricing.price);
       if (creditCheck.approved) {
         usingCredit = true;
-        await opts.creditTracker.useCredit(parsed.commitment, pricing.price);
+        await opts.creditTracker.useCredit(payload.commitment, pricing.price);
       }
     }
 
@@ -735,8 +512,7 @@ export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOpt
       usingCredit,
     });
 
-    // Attach pricing to request for downstream
-    req.reputationPricing = tieredPricing402(opts.basePrice, parsed.threshold, {
+    req.reputationPricing = tieredPricing402(opts.basePrice, payload.threshold, {
       tiers: opts.tiers,
       minThreshold: opts.minThreshold,
     });
@@ -745,30 +521,17 @@ export function reputationPricingMiddleware(opts: ReputationPricingMiddlewareOpt
   };
 }
 
-// ============================================================================
-// AGENT-SIDE HELPERS - Make it easy for agents to use
-// ============================================================================
-
-/**
- * Handle a 402 response with reputation requirements.
- * Returns the proof headers to retry with.
- */
 export async function handleReputation402(
-  response: Response,
+  responseBody: PaymentRequired402,
   generateProof: (threshold: number) => Promise<ReputationProofData>
-): Promise<ReputationHeaders | null> {
-  if (response.status !== 402) return null;
-
-  const requirement = parseReputationRequirement(response.headers);
+): Promise<Record<string, ExtensionDeclaration> | null> {
+  const requirement = parseReputationRequirement(responseBody);
   if (!requirement) return null;
 
   const proof = await generateProof(requirement.minThreshold);
-  return encodeReputationHeaders(proof);
+  return buildReputationPayload(proof);
 }
 
-/**
- * Fetch wrapper that automatically handles reputation 402s.
- */
 export async function fetchWithReputation(
   url: string,
   init: RequestInit,
@@ -777,14 +540,20 @@ export async function fetchWithReputation(
   let response = await fetch(url, init);
 
   if (response.status === 402) {
-    const headers = await handleReputation402(response, generateProof);
-    if (headers) {
+    const body = await response.json() as PaymentRequired402;
+    const extensionPayload = await handleReputation402(body, generateProof);
+    if (extensionPayload) {
+      const paymentBody = {
+        ...(init.body ? JSON.parse(init.body as string) : {}),
+        extensions: extensionPayload,
+      };
       response = await fetch(url, {
         ...init,
         headers: {
           ...(init.headers || {}),
-          ...headers,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify(paymentBody),
       });
     }
   }
