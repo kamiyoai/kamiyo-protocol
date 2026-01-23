@@ -9,6 +9,9 @@ export type {
   KamiyoEscrowInfo,
   KamiyoEscrowPayload,
   KamiyoRefundEntry,
+  KamiyoCreditInfo,
+  KamiyoCreditPayload,
+  CreditScoringWeights,
 } from './types';
 
 export {
@@ -33,8 +36,15 @@ export {
   parseEscrowExtension,
   parseEscrowPayload,
   validateEscrowPayload,
+  declareCreditExtension,
+  buildCreditPayload,
+  parseCreditExtension,
+  parseCreditPayload,
+  validateCreditPayload,
   DEFAULT_REPUTATION_TIERS,
   DEFAULT_REFUND_SCHEDULE,
   REPUTATION_EXTENSION_KEY,
   ESCROW_EXTENSION_KEY,
+  CREDIT_EXTENSION_KEY,
+  CREDIT_CLIENT_SCHEMA,
 } from './extensions';

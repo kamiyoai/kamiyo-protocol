@@ -8,6 +8,9 @@ import type {
   KamiyoEscrowInfo,
   KamiyoEscrowPayload,
   KamiyoRefundEntry,
+  KamiyoCreditInfo,
+  KamiyoCreditPayload,
+  CreditScoringWeights,
   PaymentRequired402,
 } from './types';
 
@@ -240,3 +243,131 @@ export const DEFAULT_REFUND_SCHEDULE: KamiyoRefundEntry[] = [
 
 export const REPUTATION_EXTENSION_KEY = REPUTATION_KEY;
 export const ESCROW_EXTENSION_KEY = ESCROW_KEY;
+
+const CREDIT_KEY = 'kamiyo-credit';
+
+export const CREDIT_EXTENSION_KEY = CREDIT_KEY;
+
+export const CREDIT_CLIENT_SCHEMA: Record<string, unknown> = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  type: 'object',
+  properties: {
+    agentPk: { type: 'string', minLength: 1 },
+    commitment: { type: 'string', pattern: '^0x[0-9a-fA-F]{64}$' },
+    requestedCredit: { type: 'number', minimum: 0 },
+    collateralEscrowPda: { type: 'string', minLength: 32, maxLength: 44 },
+    collateralAmount: { type: 'number', minimum: 0 },
+  },
+  required: ['agentPk', 'commitment', 'requestedCredit'],
+};
+
+export function declareCreditExtension(opts: {
+  maxCollateralMultiplier?: number;
+  agingHalfLifeDays?: number;
+  minHistoryForCredit?: number;
+  scoringWeights?: Partial<CreditScoringWeights>;
+}): Record<string, ExtensionDeclaration> {
+  const info: KamiyoCreditInfo = {
+    creditEnabled: true,
+    maxCollateralMultiplier: opts.maxCollateralMultiplier ?? 3,
+    agingHalfLifeDays: opts.agingHalfLifeDays ?? 30,
+    minHistoryForCredit: opts.minHistoryForCredit ?? 3,
+    scoringWeights: {
+      disputeHistory: opts.scoringWeights?.disputeHistory ?? 0.25,
+      paymentHistory: opts.scoringWeights?.paymentHistory ?? 0.25,
+      escrowOutcomes: opts.scoringWeights?.escrowOutcomes ?? 0.25,
+      tenure: opts.scoringWeights?.tenure ?? 0.25,
+    },
+  };
+  return { [CREDIT_KEY]: { info: info as unknown as Record<string, unknown>, schema: CREDIT_CLIENT_SCHEMA } };
+}
+
+export function buildCreditPayload(data: {
+  agentPk: string;
+  commitment: string;
+  requestedCredit: number;
+  collateralEscrowPda?: string;
+  collateralAmount?: number;
+}): Record<string, ExtensionDeclaration> {
+  const payload: Record<string, unknown> = {
+    agentPk: data.agentPk,
+    commitment: data.commitment,
+    requestedCredit: data.requestedCredit,
+  };
+  if (data.collateralEscrowPda) payload.collateralEscrowPda = data.collateralEscrowPda;
+  if (data.collateralAmount != null) payload.collateralAmount = data.collateralAmount;
+
+  return { [CREDIT_KEY]: { info: payload } };
+}
+
+export function parseCreditExtension(
+  response: PaymentRequired402 | { extensions?: Record<string, ExtensionDeclaration> }
+): KamiyoCreditInfo | null {
+  const extensions = response.extensions;
+  if (!extensions?.[CREDIT_KEY]) return null;
+
+  const info = extensions[CREDIT_KEY].info as unknown as KamiyoCreditInfo;
+  if (typeof info.creditEnabled !== 'boolean') return null;
+
+  return info;
+}
+
+export function parseCreditPayload(
+  extensions?: Record<string, unknown>
+): KamiyoCreditPayload | null {
+  if (!extensions?.[CREDIT_KEY]) return null;
+
+  const entry = extensions[CREDIT_KEY] as { info?: unknown } | KamiyoCreditPayload;
+  const payload = (entry && typeof entry === 'object' && 'info' in entry
+    ? entry.info
+    : entry) as KamiyoCreditPayload;
+
+  if (!payload || !payload.agentPk || !payload.commitment || typeof payload.requestedCredit !== 'number') {
+    return null;
+  }
+
+  return payload;
+}
+
+const BASE58_RE = /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/;
+
+export function validateCreditPayload(payload: unknown): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!payload || typeof payload !== 'object') {
+    return { valid: false, errors: ['Payload must be an object'] };
+  }
+
+  const p = payload as Record<string, unknown>;
+
+  if (typeof p.agentPk !== 'string' || p.agentPk.length === 0) {
+    errors.push('agentPk must be a non-empty string');
+  }
+  if (typeof p.commitment !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(p.commitment)) {
+    errors.push('commitment must be a 0x-prefixed 32-byte hex string');
+  }
+  if (typeof p.requestedCredit !== 'number' || !Number.isFinite(p.requestedCredit) || p.requestedCredit < 0) {
+    errors.push('requestedCredit must be a finite non-negative number');
+  }
+
+  const hasPda = p.collateralEscrowPda != null;
+  const hasAmount = p.collateralAmount != null;
+
+  if (hasPda !== hasAmount) {
+    errors.push('collateralEscrowPda and collateralAmount must both be provided or both absent');
+  }
+  if (hasPda) {
+    if (typeof p.collateralEscrowPda !== 'string' ||
+        p.collateralEscrowPda.length < 32 ||
+        p.collateralEscrowPda.length > 44 ||
+        !BASE58_RE.test(p.collateralEscrowPda)) {
+      errors.push('collateralEscrowPda must be a valid base58 string (32-44 chars)');
+    }
+  }
+  if (hasAmount) {
+    if (typeof p.collateralAmount !== 'number' || !Number.isFinite(p.collateralAmount) || p.collateralAmount < 0) {
+      errors.push('collateralAmount must be a finite non-negative number');
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}

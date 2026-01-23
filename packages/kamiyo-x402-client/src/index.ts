@@ -175,6 +175,8 @@ export {
   fetchWithReputation,
   CreditTracker,
   InMemoryCreditStore,
+  InMemoryCreditStoreV2,
+  DynamicCreditTracker,
   DEFAULT_TIERS,
   getTierForThreshold,
   calculateReputationPrice,
@@ -187,10 +189,14 @@ export type {
   ReputationVerifyResult,
   ReputationMiddlewareOptions,
   CreditStore,
+  CreditStoreV2,
   CreditAccount,
+  CreditAccountV2,
   CreditCheckResult,
+  CreditHistory,
   ReputationTier,
   TieredPricing402Response,
+  DynamicCreditTrackerOptions,
 } from './reputation-extension';
 
 // Escrow extension
@@ -215,6 +221,35 @@ export type {
   EscrowVerifyResult,
   EscrowMiddlewareOptions,
 } from './escrow-extension';
+
+// Credit scoring
+export {
+  computeCreditScore,
+  computeAgingPenalty,
+  computeCollateralBoost,
+  DEFAULT_SCORING_CONFIG,
+} from './credit-scoring';
+export type {
+  CreditScoringInput,
+  CreditScoringOutput,
+  CreditScoringConfig,
+} from './credit-scoring';
+
+// Credit extension
+export {
+  CREDIT_EXTENSION_KEY,
+  creditExtensionInfo,
+  parseCreditRequirement,
+  buildCreditPayloadV2,
+  hasCreditProof,
+  creditMiddleware,
+} from './credit-extension';
+export type {
+  CreditMiddlewareOptions,
+  CreditMiddlewareRequest,
+  CreditMiddlewareResponse,
+  CreditNextFunction,
+} from './credit-extension';
 
 // PayAI reputation
 export {

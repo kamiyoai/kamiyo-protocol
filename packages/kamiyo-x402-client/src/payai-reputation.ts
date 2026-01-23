@@ -1,4 +1,4 @@
-import type { ReputationProofData } from './reputation-extension';
+import type { ReputationProofData, DynamicCreditTracker } from './reputation-extension';
 import {
   buildReputationPayload,
   checkReputationRequirement,
@@ -87,6 +87,11 @@ export interface ReputationRecord {
 
 export class PayAIReputationTracker {
   private records = new Map<string, ReputationRecord>();
+  private creditTracker: DynamicCreditTracker | null = null;
+
+  linkCreditTracker(tracker: DynamicCreditTracker): void {
+    this.creditTracker = tracker;
+  }
 
   getRecord(publicKey: string): ReputationRecord {
     let record = this.records.get(publicKey);
@@ -105,12 +110,12 @@ export class PayAIReputationTracker {
     return record;
   }
 
-  updateReputation(
+  async updateReputation(
     publicKey: string,
     outcome: EscrowOutcome,
     source: ReputationSource,
     qualityScore?: number
-  ): ReputationRecord {
+  ): Promise<ReputationRecord> {
     const record = this.getRecord(publicKey);
     const delta = calculateReputationDelta(outcome, qualityScore);
     const scoreDelta = delta.providerDelta;
@@ -132,6 +137,19 @@ export class PayAIReputationTracker {
     record.sources.set(source, sourceScore + scoreDelta);
 
     record.lastUpdated = Date.now();
+
+    if (this.creditTracker && record.commitment) {
+      let creditOutcome: 'released' | 'dispute_won' | 'dispute_lost';
+      if (outcome === EscrowOutcome.Released) {
+        creditOutcome = 'released';
+      } else if (outcome === EscrowOutcome.DisputeWonAgent) {
+        creditOutcome = 'dispute_won';
+      } else {
+        creditOutcome = 'dispute_lost';
+      }
+      await this.creditTracker.recordEscrowOutcome(record.commitment, creditOutcome, qualityScore);
+    }
+
     return record;
   }
 
