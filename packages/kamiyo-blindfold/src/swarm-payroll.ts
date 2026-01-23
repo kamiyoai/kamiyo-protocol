@@ -176,12 +176,12 @@ export class SwarmPayroll {
     };
   }
 
-  // Batch distribute - when Blindfold supports batch endpoint
+  // Batch distribute via Blindfold batch endpoint
   async distributeBatch(
     swarmId: string,
     totalAmount: BN,
     payer: Keypair,
-    _tokenMint: PublicKey = NATIVE_SOL_MINT
+    tokenMint: PublicKey = NATIVE_SOL_MINT
   ): Promise<SwarmPayoutResult> {
     const swarm = this.swarms.get(swarmId);
     if (!swarm) {
@@ -190,8 +190,7 @@ export class SwarmPayroll {
 
     const distributions = this.calculateDistribution(swarmId, BigInt(totalAmount.toString()));
 
-    // Prepare batch request (for when Blindfold implements batch endpoint)
-    const _batchPayments = distributions
+    const batchPayments = distributions
       .filter((d) => d.amount > 0n)
       .map((dist) => ({
         amount: Number(dist.amount) / LAMPORTS_PER_SOL,
@@ -201,10 +200,52 @@ export class SwarmPayroll {
         requestedTier: dist.member.tier || this.getTierForAmount(Number(dist.amount) / LAMPORTS_PER_SOL),
       }));
 
-    // For now, fall back to sequential distribution
-    // TODO: Replace with batch API call when available
-    // const batchResponse = await this.blindfold.createBatchPayment({ payments: batchPayments, swarmId });
-    return this.distribute(swarmId, totalAmount, payer);
+    const batchResponse = await this.blindfold.createBatchPayment({
+      payments: batchPayments,
+      swarmId,
+    });
+
+    const results: SwarmPayoutResult['distributions'] = [];
+
+    for (const payment of batchResponse.payments) {
+      if (payment.status === 'failed') continue;
+
+      const dist = distributions.find(
+        (d) => d.member.email === payment.recipientEmail
+      );
+      if (!dist) continue;
+
+      // Create holding wallet and transfer for each successful payment
+      const holding = await this.blindfold.createHoldingWallet(
+        payment.paymentId,
+        dist.amount.toString(),
+        tokenMint.toBase58()
+      );
+
+      const holdingWalletPk = new PublicKey(holding.holdingWalletAddress);
+      const transferSig = await this.transferSOL(
+        payer,
+        holdingWalletPk,
+        new BN(dist.amount.toString())
+      );
+
+      results.push({
+        agentPk: dist.member.agentPk.toBase58(),
+        email: dist.member.email,
+        amount: dist.amount,
+        paymentId: payment.paymentId,
+        holdingWallet: holding.holdingWalletAddress,
+        transferSignature: transferSig,
+        tier: dist.member.tier || this.getTierForAmount(Number(dist.amount) / LAMPORTS_PER_SOL),
+      });
+    }
+
+    return {
+      swarmId,
+      totalAmount: BigInt(totalAmount.toString()),
+      distributions: results,
+      timestamp: Date.now(),
+    };
   }
 
   // Get appropriate tier based on amount

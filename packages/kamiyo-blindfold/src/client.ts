@@ -1,6 +1,8 @@
 import {
   PaymentRequest,
   PaymentResponse,
+  BatchPaymentRequest,
+  BatchPaymentResponse,
   HoldingWalletResponse,
   FundsCheckResponse,
   PaymentStatusResponse,
@@ -38,6 +40,22 @@ export class BlindfoldClient {
       requires_reputation_check: !!request.agentPk,
     });
     return response as PaymentResponse;
+  }
+
+  async createBatchPayment(request: BatchPaymentRequest): Promise<BatchPaymentResponse> {
+    const response = await this.post('/api/crypto-payment/batch', {
+      payments: request.payments.map((p) => ({
+        amount: p.amount,
+        currency: p.currency,
+        recipientEmail: p.recipientEmail,
+        useZkProof: true,
+        agent_pk: p.agentPk,
+        requested_tier: p.requestedTier,
+      })),
+      swarmId: request.swarmId,
+      taskId: request.taskId,
+    });
+    return response as BatchPaymentResponse;
   }
 
   async createHoldingWallet(
