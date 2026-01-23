@@ -1,9 +1,3 @@
-/**
- * Observability for x402 payment operations.
- * Provides metrics, logging, and event emission hooks.
- */
-
-// Event types for payment lifecycle
 export type PaymentEventType =
   | 'payment:start'
   | 'payment:success'
@@ -37,10 +31,8 @@ export type EventHandler = (event: PaymentEvent) => void;
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type Logger = (level: LogLevel, message: string, data?: Record<string, unknown>) => void;
 
-// Default no-op logger
 const noopLogger: Logger = () => {};
 
-// Metrics counters
 interface MetricsState {
   payments: { total: number; success: number; failure: number };
   verifications: { total: number; success: number; failure: number };
@@ -98,10 +90,6 @@ export interface MetricsSummary {
 
 const MAX_LATENCY_SAMPLES = 1000;
 
-/**
- * Payment instrumentation singleton.
- * Tracks metrics and emits events for observability.
- */
 export class PaymentInstrumentation {
   private static instance: PaymentInstrumentation | null = null;
 
@@ -119,7 +107,6 @@ export class PaymentInstrumentation {
     return PaymentInstrumentation.instance;
   }
 
-  // For testing - reset singleton
   static reset(): void {
     if (PaymentInstrumentation.instance) {
       PaymentInstrumentation.instance.handlers = [];
@@ -158,9 +145,7 @@ export class PaymentInstrumentation {
     for (const handler of this.handlers) {
       try {
         handler(event);
-      } catch {
-        // Handlers should not throw
-      }
+      } catch {}
     }
   }
 
@@ -297,7 +282,6 @@ export class PaymentInstrumentation {
   }
 }
 
-// Convenience accessors
 export const instrumentation = PaymentInstrumentation.getInstance();
 
 export function emit(event: PaymentEvent): void {
@@ -320,17 +304,11 @@ export function resetMetrics(): void {
   instrumentation.resetMetrics();
 }
 
-/**
- * Timer utility for measuring operation duration.
- */
 export function createTimer(): { elapsed: () => number } {
   const start = Date.now();
   return { elapsed: () => Date.now() - start };
 }
 
-/**
- * Wrap an async operation with instrumentation.
- */
 export async function instrument<T>(
   startEvent: PaymentEventType,
   successEvent: PaymentEventType,
@@ -362,9 +340,6 @@ export async function instrument<T>(
   }
 }
 
-/**
- * Console logger implementation.
- */
 export function consoleLogger(): Logger {
   return (level, message, data) => {
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
@@ -376,9 +351,6 @@ export function consoleLogger(): Logger {
   };
 }
 
-/**
- * Structured JSON logger for production.
- */
 export function jsonLogger(out: (json: string) => void = console.log): Logger {
   return (level, message, data) => {
     out(JSON.stringify({

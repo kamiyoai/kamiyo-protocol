@@ -1,32 +1,19 @@
-/**
- * MAKE_X402_PAYMENT Action
- *
- * Enables ElizaOS agents to pay for x402-gated APIs using USDC.
- * Supports multiple networks: Base, Solana, Polygon, Arbitrum, etc.
- *
- * Flow:
- * 1. Agent requests resource, gets 402 with payment requirements
- * 2. Agent creates signed payment via PayAI facilitator
- * 3. Agent retries with X-Payment header
- * 4. Server verifies and settles, grants access
- */
-
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
 
-// x402 payment types (inline to avoid import issues with optional peer dep)
 interface PaymentRequirement {
-  scheme: 'exact' | 'upto';
-  network: string;
-  maxAmountRequired: string;
+  scheme: 'exact';
+  network: string; // CAIP-2
+  amount: string;
   resource: string;
   description: string;
   payTo: string;
   asset: string;
   maxTimeoutSeconds: number;
+  extensions?: Record<string, unknown>;
 }
 
 interface X402Response {
-  x402Version: number;
+  x402Version: 2;
   accepts: PaymentRequirement[];
   error: string;
   facilitator: string;
@@ -99,13 +86,11 @@ export const makeX402PaymentAction: Action = {
     }
 
     try {
-      // Step 1: Request the endpoint to get 402 response
       const initialResponse = await fetch(endpoint, {
         method: message.content.method as string || 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
 
-      // If not 402, endpoint doesn't require payment
       if (initialResponse.status !== 402) {
         if (initialResponse.ok) {
           const data = await initialResponse.json();
@@ -115,38 +100,33 @@ export const makeX402PaymentAction: Action = {
         throw new Error(`Endpoint returned ${initialResponse.status}`);
       }
 
-      // Step 2: Parse 402 payment requirements
       const x402Response = await initialResponse.json() as X402Response;
 
       if (!x402Response.accepts || x402Response.accepts.length === 0) {
         throw new Error('No payment options available');
       }
 
-      // Find preferred network or first available
       const requirement = x402Response.accepts.find(r => r.network === preferredNetwork)
         || x402Response.accepts[0];
 
-      const amountUsdc = fromMicro(requirement.maxAmountRequired);
+      const amountUsdc = fromMicro(requirement.amount);
 
-      // Check max price
       if (amountUsdc > maxPrice) {
         callback?.({ text: `Price $${amountUsdc} USDC exceeds max $${maxPrice}. Adjust KAMIYO_MAX_PRICE to proceed.` });
         return { success: false, error: 'Price exceeds maximum' };
       }
 
-      // Step 3: Create payment (simulate - in production would use actual signing)
       const paymentHeader = await createPaymentHeader(
         walletAddress,
         requirement,
         x402Response.facilitator || PAYAI_FACILITATOR
       );
 
-      // Step 4: Retry with payment
       const paidResponse = await fetch(endpoint, {
         method: message.content.method as string || 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'X-Payment': paymentHeader,
+          'PAYMENT-SIGNATURE': paymentHeader,
         },
       });
 
@@ -188,35 +168,27 @@ export const makeX402PaymentAction: Action = {
   },
 };
 
-/**
- * Create a signed payment header for x402.
- * In production, this would use actual wallet signing via PayAI facilitator.
- */
+// Stub: production should use @kamiyo/x402-client for real wallet signing
 async function createPaymentHeader(
   walletAddress: string,
   requirement: PaymentRequirement,
   _facilitatorUrl: string
 ): Promise<string> {
-  // Generate payment token components
   const timestamp = Math.floor(Date.now() / 1000);
   const nonce = Math.random().toString(36).substring(2, 10);
 
-  // In production, this would:
-  // 1. Connect to PayAI facilitator
-  // 2. Sign with wallet private key
-  // 3. Return signed token
-
-  // For now, create a placeholder token format
-  // Real implementation would use @kamiyo/x402-client
   const token = Buffer.from(JSON.stringify({
-    version: 1,
-    payer: walletAddress,
-    payTo: requirement.payTo,
-    amount: requirement.maxAmountRequired,
+    x402Version: 2,
+    scheme: 'exact',
     network: requirement.network,
-    asset: requirement.asset,
-    timestamp,
-    nonce,
+    payment: {
+      payer: walletAddress,
+      payTo: requirement.payTo,
+      amount: requirement.amount,
+      asset: requirement.asset,
+      timestamp,
+      nonce,
+    },
   })).toString('base64');
 
   return token;

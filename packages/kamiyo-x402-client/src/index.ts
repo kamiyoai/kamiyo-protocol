@@ -1,27 +1,3 @@
-/**
- * @kamiyo/x402-client
- *
- * x402 payment protocol client for AI agent micropayments.
- *
- * Payment Backends:
- *
- * 1. PayAI Network Facilitator (https://facilitator.payai.network)
- *    - Cross-chain USDC payments via x402 protocol
- *    - EVM: Base, Polygon, Arbitrum, Optimism, Avalanche, Sei, IoTeX, Peaq, XLayer
- *    - Non-EVM: Solana
- *    - EIP-712 signatures, verification caching, batch operations
- *    - Express/Next.js middleware for payment gating
- *
- * 2. Kamiyo Escrow (Solana)
- *    - On-chain escrow with dispute resolution
- *    - SLA monitoring with automatic refunds
- *    - Quality-based graduated refund calculations
- *
- * @see https://kamiyo.ai
- * @see https://payai.network
- * @see https://github.com/coinbase/x402
- */
-
 // Client
 export {
   X402KamiyoClient,
@@ -42,7 +18,7 @@ export type {
 export { X402Error, isX402Error, wrapError } from './errors';
 export type { X402ErrorCode } from './errors';
 
-// Retry/resilience
+// Retry
 export { RetryHandler, CircuitBreaker, ResilientExecutor, DEFAULT_RETRY_CONFIG } from './retry';
 export type { RetryConfig } from './retry';
 
@@ -88,7 +64,7 @@ export type {
   X402PaymentComponents,
 } from './signing';
 
-// Types from types.ts (protocol constants)
+// Protocol constants
 export {
   SOLANA_NETWORK_ID,
   SOLANA_DEVNET_ID,
@@ -99,7 +75,7 @@ export {
   QUALITY_REFUND_SCALE,
 } from './types';
 
-// PayAI Network facilitator
+// PayAI facilitator
 export {
   PayAIFacilitator,
   PayAIError,
@@ -129,11 +105,11 @@ export type {
   PayAIMiddlewareOptions,
 } from './payai';
 
-// Payment Widget
+// Widget
 export { PaymentWidget, createPaymentButton, quickPay } from './widget';
 export type { PaymentWidgetConfig, PaymentState } from './widget';
 
-// Jupiter (swaps + price feeds)
+// Jupiter
 export {
   JupiterSwap,
   payWithAnyToken,
@@ -148,11 +124,11 @@ export {
 } from './jupiter';
 export type { JupiterConfig, SwapQuote, SwapResult, PriceResult } from './jupiter';
 
-// Embeddable Widget
+// Embed
 export { KamiyoPayEmbed, createKamiyoPayWidget } from './embed';
 export type { EmbedConfig, EmbedPaymentResult } from './embed';
 
-// Coinbase CDP facilitator
+// Coinbase facilitator
 export {
   CoinbaseFacilitator,
   createCoinbaseFacilitator,
@@ -168,7 +144,7 @@ export type {
   CoinbaseSettleResult,
 } from './coinbase';
 
-// NEAR Intents cross-chain swaps
+// NEAR Intents
 export {
   NearIntentsSwap,
   createNearIntentsSwap,
@@ -184,19 +160,19 @@ export type {
   SwapStatus as NearIntentsSwapStatus,
 } from './near-intents';
 
-// x402 Reputation Extension (ZK proof headers)
+// v2 extensions
+export * from './v2';
+
+// Reputation extension
 export {
-  X402_REPUTATION_PROOF,
-  X402_REPUTATION_COMMITMENT,
-  X402_REPUTATION_THRESHOLD,
-  encodeReputationHeaders,
-  parseReputationHeaders,
-  decodeReputationProof,
-  reputationRequirementHeaders,
+  REPUTATION_EXTENSION_KEY,
+  buildReputationPayload,
+  reputationExtensionInfo,
+  parseReputationRequirement,
   checkReputationRequirement,
   reputationMiddleware,
-  withReputationProof,
-  parseReputationRequirement,
+  handleReputation402,
+  fetchWithReputation,
   CreditTracker,
   InMemoryCreditStore,
   DEFAULT_TIERS,
@@ -207,8 +183,6 @@ export {
 } from './reputation-extension';
 export type {
   ReputationProofData,
-  ReputationHeaders,
-  ParsedReputationHeaders,
   ReputationRequirement,
   ReputationVerifyResult,
   ReputationMiddlewareOptions,
@@ -219,16 +193,12 @@ export type {
   TieredPricing402Response,
 } from './reputation-extension';
 
-// x402 Escrow Extension (dispute protection)
+// Escrow extension
 export {
-  X402_ESCROW_REQUIRED,
-  X402_ESCROW_TIMELOCK,
-  X402_ESCROW_QUALITY_THRESHOLD,
-  X402_ESCROW_PDA,
-  X402_ESCROW_TRANSACTION_ID,
-  X402_ESCROW_STATUS,
-  escrowRequirementHeaders,
-  parseEscrowHeaders,
+  ESCROW_EXTENSION_KEY,
+  escrowExtensionInfo,
+  buildEscrowPayloadV2,
+  parseEscrowRequirement,
   hasEscrowProof,
   verifyEscrow,
   escrowMiddleware,
@@ -241,29 +211,23 @@ export {
 export type {
   EscrowStatus,
   EscrowRequirement,
-  EscrowHeaders,
   EscrowPaymentResult,
   EscrowVerifyResult,
   EscrowMiddlewareOptions,
-  Escrow402Extension,
 } from './escrow-extension';
 
-// PayAI Reputation Network (cross-platform reputation with ZK proofs)
+// PayAI reputation
 export {
   ReputationSource,
   EscrowOutcome,
   calculateReputationDelta,
   PayAIReputationTracker,
-  createPayAIReputationHeaders,
-  parsePayAIReputationHeaders,
+  createPayAIReputationPayload,
   verifyPayAIReputation,
   calculatePayAIPrice,
   buildPayAI402Response,
   payaiReputationMiddleware,
   aggregateReputation,
-  // Note: DEFAULT_TIERS, getTierForThreshold, calculateReputationPrice
-  // are re-exported from reputation-extension in payai-reputation
-  // but already exported above from reputation-extension
 } from './payai-reputation';
 export type {
   ReputationDelta,
@@ -271,7 +235,7 @@ export type {
   PayAIReputationConfig,
 } from './payai-reputation';
 
-// Observability (metrics, logging, event emission)
+// Observability
 export {
   PaymentInstrumentation,
   emit,

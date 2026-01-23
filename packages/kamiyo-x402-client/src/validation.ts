@@ -1,11 +1,6 @@
-/**
- * Input validation for @kamiyo/x402-client
- */
-
 import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { X402Error } from './errors';
 
-// Validation constants
 export const LIMITS = {
   MIN_AMOUNT_LAMPORTS: 1000, // 0.000001 SOL
   MAX_AMOUNT_LAMPORTS: 1_000_000_000_000, // 1000 SOL
@@ -27,9 +22,6 @@ export interface ValidationResult {
   error?: string;
 }
 
-/**
- * Validate a Solana public key
- */
 export function validatePublicKey(
   value: unknown,
   field: string
@@ -54,9 +46,6 @@ export function validatePublicKey(
   }
 }
 
-/**
- * Validate amount in SOL
- */
 export function validateAmountSol(
   amount: unknown,
   field: string = 'amount'
@@ -86,9 +75,6 @@ export function validateAmountSol(
   return { valid: true };
 }
 
-/**
- * Validate amount in lamports
- */
 export function validateAmountLamports(
   amount: unknown,
   field: string = 'amount'
@@ -120,9 +106,6 @@ export function validateAmountLamports(
   return { valid: true };
 }
 
-/**
- * Validate time lock in seconds
- */
 export function validateTimeLock(
   seconds: unknown,
   field: string = 'timeLock'
@@ -152,9 +135,6 @@ export function validateTimeLock(
   return { valid: true };
 }
 
-/**
- * Validate quality threshold (0-100)
- */
 export function validateQualityThreshold(
   threshold: unknown,
   field: string = 'qualityThreshold'
@@ -177,9 +157,6 @@ export function validateQualityThreshold(
   return { valid: true };
 }
 
-/**
- * Validate transaction ID
- */
 export function validateTransactionId(
   id: unknown,
   field: string = 'transactionId'
@@ -199,7 +176,6 @@ export function validateTransactionId(
     };
   }
 
-  // Only allow alphanumeric, dash, underscore
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
     return {
       valid: false,
@@ -210,9 +186,6 @@ export function validateTransactionId(
   return { valid: true };
 }
 
-/**
- * Validate URL
- */
 export function validateUrl(
   url: unknown,
   field: string = 'url'
@@ -239,9 +212,6 @@ export function validateUrl(
   }
 }
 
-/**
- * Validate timeout in milliseconds
- */
 export function validateTimeout(
   ms: unknown,
   field: string = 'timeout'
@@ -271,18 +241,12 @@ export function validateTimeout(
   return { valid: true };
 }
 
-/**
- * Assert validation passes, throw X402Error if not
- */
 export function assertValid(result: ValidationResult, field: string): void {
   if (!result.valid) {
     throw X402Error.invalidInput(field, result.error || 'Invalid value');
   }
 }
 
-/**
- * Validate multiple fields at once
- */
 export function validateAll(
   validations: Array<{ result: ValidationResult; field: string }>
 ): ValidationResult {
@@ -294,17 +258,10 @@ export function validateAll(
   return { valid: true };
 }
 
-/**
- * Sanitize transaction ID
- */
 export function sanitizeTransactionId(id: string): string {
-  // Remove any characters that aren't alphanumeric, dash, or underscore
   return id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, LIMITS.MAX_TRANSACTION_ID_LENGTH);
 }
 
-/**
- * Generate a unique transaction ID
- */
 export function generateTransactionId(prefix: string = 'kamiyo'): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 10);

@@ -1,10 +1,3 @@
-/**
- * x402 tools for Vercel AI SDK.
- *
- * NOTE: The payment header generated here is unsigned - for testing/demo only.
- * Production requires EIP-712 signing via @kamiyo/x402-client or @x402/evm.
- */
-
 import { tool } from 'ai';
 import { z } from 'zod';
 
@@ -17,18 +10,19 @@ export interface X402ToolsConfig {
 }
 
 export interface PaymentRequirement {
-  scheme: 'exact' | 'upto';
-  network: string;
-  maxAmountRequired: string;
+  scheme: 'exact';
+  network: string; // CAIP-2
+  amount: string;
   resource: string;
   description: string;
   payTo: string;
   asset: string;
   maxTimeoutSeconds: number;
+  extensions?: Record<string, unknown>;
 }
 
 export interface X402Response {
-  x402Version: number;
+  x402Version: 2;
   accepts: PaymentRequirement[];
   error?: string;
   facilitator?: string;
@@ -76,7 +70,7 @@ async function checkPricing(url: string): Promise<X402PricingResult> {
       free: false,
       options: body.accepts.map((r) => ({
         network: r.network,
-        priceUsd: fromMicro(r.maxAmountRequired),
+        priceUsd: fromMicro(r.amount),
         asset: r.asset,
         description: r.description,
       })),
@@ -110,28 +104,30 @@ async function x402Fetch(
 
     const pref = config.preferredNetwork || 'base';
     const req = x402.accepts.find((r) => r.network.includes(pref)) || x402.accepts[0];
-    const amt = fromMicro(req.maxAmountRequired);
+    const amt = fromMicro(req.amount);
     const max = config.maxPriceUsd ?? 0.1;
 
     if (amt > max) return { success: false, error: `$${amt.toFixed(4)} > max $${max.toFixed(2)}` };
 
-    // DEMO: unsigned header - production needs EIP-712 signature
     const paymentHeader = Buffer.from(
       JSON.stringify({
-        version: 1,
-        payer: config.walletAddress,
-        payTo: req.payTo,
-        amount: req.maxAmountRequired,
+        x402Version: 2,
+        scheme: 'exact',
         network: req.network,
-        asset: req.asset,
-        timestamp: Math.floor(Date.now() / 1000),
-        nonce: Math.random().toString(36).slice(2, 10),
+        payment: {
+          payer: config.walletAddress,
+          payTo: req.payTo,
+          amount: req.amount,
+          asset: req.asset,
+          timestamp: Math.floor(Date.now() / 1000),
+          nonce: Math.random().toString(36).slice(2, 10),
+        },
       })
     ).toString('base64');
 
     const paid = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-Payment': paymentHeader, ...headers },
+      headers: { 'Content-Type': 'application/json', 'PAYMENT-SIGNATURE': paymentHeader, ...headers },
       body: body || undefined,
     });
 

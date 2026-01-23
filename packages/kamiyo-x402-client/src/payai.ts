@@ -526,7 +526,6 @@ export class PayAIFacilitator {
     return response;
   }
 
-  /** HTTP headers for 402 response (v2: minimal, body carries details) */
   headers402(): Record<string, string> {
     return {
       'WWW-Authenticate': 'X402',

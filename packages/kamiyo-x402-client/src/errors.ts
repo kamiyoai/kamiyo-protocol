@@ -1,7 +1,3 @@
-/**
- * Custom error types for @kamiyo/x402-client
- */
-
 export type X402ErrorCode =
   | 'PAYMENT_REQUIRED'
   | 'PAYMENT_FAILED'
@@ -48,10 +44,8 @@ export class X402Error extends Error {
     this.details = options?.details;
     this.originalCause = options?.cause;
 
-    // Determine if error is retryable
     this.retryable = RETRYABLE_CODES.has(code);
 
-    // Maintain proper stack trace
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, X402Error);
     }
@@ -114,7 +108,6 @@ export class X402Error extends Error {
         message = `HTTP ${statusCode}: ${response.statusText}`;
     }
 
-    // Try to extract message from body
     if (body && typeof body === 'object') {
       const bodyObj = body as Record<string, unknown>;
       if (typeof bodyObj.error === 'string') {
@@ -195,16 +188,10 @@ const RETRYABLE_CODES = new Set<X402ErrorCode>([
   'NETWORK_ERROR',
 ]);
 
-/**
- * Type guard to check if an error is an X402Error
- */
 export function isX402Error(error: unknown): error is X402Error {
   return error instanceof X402Error;
 }
 
-/**
- * Wrap unknown errors as X402Error
- */
 export function wrapError(error: unknown, context?: string): X402Error {
   if (isX402Error(error)) {
     return error;
@@ -213,7 +200,6 @@ export function wrapError(error: unknown, context?: string): X402Error {
   const message = error instanceof Error ? error.message : String(error);
   const prefix = context ? `[${context}] ` : '';
 
-  // Detect error type from message
   const lowerMessage = message.toLowerCase();
 
   if (lowerMessage.includes('timeout')) {

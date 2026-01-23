@@ -1,7 +1,3 @@
-/**
- * x402 payment request signing.
- */
-
 import { Keypair, PublicKey } from '@solana/web3.js';
 import * as nacl from 'tweetnacl';
 
@@ -31,7 +27,6 @@ export function verifyPaymentSignature(publicKey: PublicKey, message: Uint8Array
 }
 
 export function generateNonce(): string {
-  // Counter + random + timestamp prevents collisions even at same millisecond
   const counter = (++nonceCounter % 0xffff).toString(16).padStart(4, '0');
   const random = Buffer.from(nacl.randomBytes(12)).toString('hex');
   const ts = Date.now().toString(16);

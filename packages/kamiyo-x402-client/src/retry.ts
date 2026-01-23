@@ -1,7 +1,3 @@
-/**
- * Retry handler with exponential backoff and circuit breaker
- */
-
 export interface RetryConfig {
   maxRetries: number;
   initialDelayMs: number;
@@ -32,7 +28,6 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   ],
 };
 
-// Errors that should never be retried
 const NON_RETRYABLE_PATTERNS = [
   'unauthorized',
   'forbidden',
@@ -54,21 +49,16 @@ export class RetryHandler {
     this.config = { ...DEFAULT_RETRY_CONFIG, ...config };
   }
 
-  /**
-   * Check if an error is retryable
-   */
   isRetryable(error: Error): boolean {
     const message = error.message.toLowerCase();
     const errorStr = String(error).toLowerCase();
 
-    // Check for permanent failures first
     for (const pattern of NON_RETRYABLE_PATTERNS) {
       if (message.includes(pattern) || errorStr.includes(pattern)) {
         return false;
       }
     }
 
-    // Check for retryable patterns
     for (const pattern of this.config.retryablePatterns) {
       const lowerPattern = pattern.toLowerCase();
       if (message.includes(lowerPattern) || errorStr.includes(lowerPattern)) {
@@ -79,14 +69,10 @@ export class RetryHandler {
     return false;
   }
 
-  /**
-   * Calculate delay with exponential backoff and jitter
-   */
   private calculateDelay(attempt: number): number {
     const baseDelay = this.config.initialDelayMs *
       Math.pow(this.config.backoffMultiplier, attempt);
     const cappedDelay = Math.min(baseDelay, this.config.maxDelayMs);
-    // Add 0-25% jitter to prevent thundering herd
     const jitter = cappedDelay * 0.25 * Math.random();
     return Math.floor(cappedDelay + jitter);
   }
@@ -95,9 +81,6 @@ export class RetryHandler {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Execute function with retry logic
-   */
   async execute<T>(
     fn: () => Promise<T>,
     context?: string
@@ -110,12 +93,10 @@ export class RetryHandler {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // Last attempt - don't retry
         if (attempt === this.config.maxRetries) {
           break;
         }
 
-        // Non-retryable error - fail immediately
         if (!this.isRetryable(lastError)) {
           throw lastError;
         }
@@ -137,9 +118,6 @@ export class RetryHandler {
   }
 }
 
-/**
- * Circuit breaker to prevent cascading failures
- */
 export class CircuitBreaker {
   private failureCount = 0;
   private successCount = 0;
@@ -166,7 +144,6 @@ export class CircuitBreaker {
       return false;
     }
 
-    // half-open: allow one request through
     return true;
   }
 
@@ -204,9 +181,6 @@ export class CircuitBreaker {
   }
 }
 
-/**
- * Combined retry handler with circuit breaker
- */
 export class ResilientExecutor {
   private retryHandler: RetryHandler;
   private circuitBreaker: CircuitBreaker;
