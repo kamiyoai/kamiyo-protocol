@@ -1,14 +1,12 @@
-// PayAI reputation network adapter
-
-import type { ReputationProofData, ReputationHeaders, ParsedReputationHeaders } from './reputation-extension';
+import type { ReputationProofData } from './reputation-extension';
 import {
-  encodeReputationHeaders,
-  parseReputationHeaders,
-  decodeReputationProof,
+  buildReputationPayload,
+  checkReputationRequirement,
   DEFAULT_TIERS,
   getTierForThreshold,
   calculateReputationPrice,
 } from './reputation-extension';
+import type { KamiyoReputationPayload, ExtensionDeclaration } from './v2/types';
 
 export { DEFAULT_TIERS, getTierForThreshold, calculateReputationPrice };
 
@@ -171,69 +169,38 @@ export class PayAIReputationTracker {
   }
 }
 
+export function createPayAIReputationPayload(
+  proof: ReputationProofData,
+  source: ReputationSource
+): { extensions: Record<string, ExtensionDeclaration>; source: string } {
+  const payload = buildReputationPayload(proof);
+  return {
+    extensions: payload,
+    source,
+  };
+}
+
 export interface PayAIReputationConfig {
-  /** Minimum reputation for access */
   minThreshold?: number;
-  /** Source to record transactions under */
   source: ReputationSource;
-  /** Reputation tracker instance */
   tracker?: PayAIReputationTracker;
-  /** Whether to require proof for all requests */
   requireProof?: boolean;
 }
 
-export function createPayAIReputationHeaders(
-  proof: ReputationProofData,
-  source: ReputationSource
-): ReputationHeaders & { 'X-PayAI-Reputation-Source': string } {
-  const baseHeaders = encodeReputationHeaders(proof);
-  return {
-    ...baseHeaders,
-    'X-PayAI-Reputation-Source': source,
-  };
-}
-
-export function parsePayAIReputationHeaders(
-  headers: Record<string, string | string[] | undefined>
-): (ParsedReputationHeaders & { source?: ReputationSource }) | null {
-  const base = parseReputationHeaders(headers);
-  if (!base) return null;
-
-  const source = headers['X-PayAI-Reputation-Source'] || headers['x-payai-reputation-source'];
-  const sourceStr = Array.isArray(source) ? source[0] : source;
-
-  return {
-    ...base,
-    source: sourceStr as ReputationSource | undefined,
-  };
-}
-
 export function verifyPayAIReputation(
-  headers: Record<string, string | string[] | undefined>,
+  extensions: Record<string, unknown> | undefined,
   config: PayAIReputationConfig
 ): { valid: boolean; threshold?: number; source?: ReputationSource; reason?: string } {
-  const parsed = parsePayAIReputationHeaders(headers);
-
-  if (!parsed) {
-    if (config.requireProof) {
-      return { valid: false, reason: 'Reputation proof required' };
-    }
-    return { valid: true };
-  }
-
-  if (config.minThreshold && parsed.threshold < config.minThreshold) {
-    return {
-      valid: false,
-      threshold: parsed.threshold,
-      source: parsed.source,
-      reason: `Reputation ${parsed.threshold} below required ${config.minThreshold}`,
-    };
-  }
+  const result = checkReputationRequirement(extensions, {
+    minThreshold: config.minThreshold || 0,
+    required: config.requireProof ?? false,
+  });
 
   return {
-    valid: true,
-    threshold: parsed.threshold,
-    source: parsed.source,
+    valid: result.valid,
+    threshold: result.threshold,
+    source: config.source,
+    reason: result.reason,
   };
 }
 
@@ -258,10 +225,9 @@ export function calculatePayAIPrice(
 
   const result = calculateReputationPrice(basePrice, threshold, DEFAULT_TIERS);
 
-  // Bonus discount for cross-platform reputation
   let bonusDiscount = 0;
   if (source === ReputationSource.FreelanceAI && threshold >= 70) {
-    bonusDiscount = basePrice * 0.02; // Extra 2% for Freelance AI veterans
+    bonusDiscount = basePrice * 0.02;
   }
 
   return {
@@ -277,7 +243,7 @@ export function buildPayAI402Response(
   agentThreshold: number | null,
   source?: ReputationSource
 ): {
-  x402Version: 1;
+  x402Version: 2;
   basePrice: number;
   yourPrice: number;
   yourTier: string;
@@ -291,7 +257,7 @@ export function buildPayAI402Response(
   const pricing = calculatePayAIPrice(basePrice, agentThreshold, source);
 
   return {
-    x402Version: 1,
+    x402Version: 2,
     basePrice,
     yourPrice: pricing.price,
     yourTier: pricing.tier,
@@ -311,16 +277,14 @@ export function buildPayAI402Response(
 
 export function payaiReputationMiddleware(config: PayAIReputationConfig) {
   return async (
-    req: { headers: Record<string, string | string[] | undefined> },
-    res: { status: (code: number) => { json: (body: unknown) => void }; setHeader: (k: string, v: string) => void },
+    req: { body?: { extensions?: Record<string, unknown> } },
+    res: { status: (code: number) => { json: (body: unknown) => void } },
     next: () => void
   ): Promise<void> => {
-    const result = verifyPayAIReputation(req.headers, config);
+    const extensions = req.body?.extensions;
+    const result = verifyPayAIReputation(extensions, config);
 
     if (!result.valid) {
-      res.setHeader('X-402-Reputation-Required', 'true');
-      res.setHeader('X-402-Reputation-Min-Threshold', String(config.minThreshold || 0));
-      res.setHeader('X-PayAI-Reputation-Source', config.source);
       res.status(402).json({
         error: 'Reputation requirement not met',
         reason: result.reason,

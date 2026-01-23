@@ -1,296 +1,202 @@
 import {
-  encodeReputationHeaders,
-  parseReputationHeaders,
-  decodeReputationProof,
-  reputationRequirementHeaders,
-  checkReputationRequirement,
+  buildReputationPayload,
+  reputationExtensionInfo,
   parseReputationRequirement,
-  withReputationProof,
+  checkReputationRequirement,
   getTierForThreshold,
   calculateReputationPrice,
   tieredPricing402,
   CreditTracker,
   DEFAULT_TIERS,
-  X402_REPUTATION_PROOF,
-  X402_REPUTATION_COMMITMENT,
-  X402_REPUTATION_THRESHOLD,
+  REPUTATION_EXTENSION_KEY,
   type ReputationProofData,
 } from './reputation-extension';
+import type { PaymentRequired402 } from './v2/types';
 
-describe('encodeReputationHeaders', () => {
+describe('buildReputationPayload', () => {
   const mockProof: ReputationProofData = {
     agentPk: 'AgentPubKey123',
-    commitment: 'commitment-hash-abc',
+    commitment: '0x' + 'a'.repeat(64),
     threshold: 70,
     proofBytes: new Uint8Array([1, 2, 3, 4]),
-    groth16Proof: {
-      pi_a: ['a1', 'a2'],
-      pi_b: [['b1', 'b2'], ['b3', 'b4']],
-      pi_c: ['c1', 'c2'],
-      protocol: 'groth16',
-      curve: 'bn254',
-    },
     publicSignals: ['signal1', 'signal2'],
   };
 
-  it('encodes proof to base64 header', () => {
-    const headers = encodeReputationHeaders(mockProof);
-    expect(headers[X402_REPUTATION_PROOF]).toBeTruthy();
-    expect(typeof headers[X402_REPUTATION_PROOF]).toBe('string');
+  it('encodes proof bytes as base64 nested under info', () => {
+    const payload = buildReputationPayload(mockProof);
+    const rep = payload[REPUTATION_EXTENSION_KEY].info as any;
+    expect(rep.proof).toBe(Buffer.from(mockProof.proofBytes).toString('base64'));
   });
 
-  it('includes commitment header', () => {
-    const headers = encodeReputationHeaders(mockProof);
-    expect(headers[X402_REPUTATION_COMMITMENT]).toBe('commitment-hash-abc');
+  it('includes commitment', () => {
+    const payload = buildReputationPayload(mockProof);
+    expect((payload[REPUTATION_EXTENSION_KEY].info as any).commitment).toBe(mockProof.commitment);
   });
 
-  it('includes threshold header as string', () => {
-    const headers = encodeReputationHeaders(mockProof);
-    expect(headers[X402_REPUTATION_THRESHOLD]).toBe('70');
-  });
-});
-
-describe('parseReputationHeaders', () => {
-  it('parses valid headers', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof-data',
-      [X402_REPUTATION_COMMITMENT]: 'commitment-abc',
-      [X402_REPUTATION_THRESHOLD]: '75',
-    };
-    const parsed = parseReputationHeaders(headers);
-    expect(parsed).not.toBeNull();
-    expect(parsed!.proof).toBe('proof-data');
-    expect(parsed!.commitment).toBe('commitment-abc');
-    expect(parsed!.threshold).toBe(75);
+  it('includes threshold as number', () => {
+    const payload = buildReputationPayload(mockProof);
+    expect((payload[REPUTATION_EXTENSION_KEY].info as any).threshold).toBe(70);
   });
 
-  it('returns null for missing proof', () => {
-    const headers = {
-      [X402_REPUTATION_COMMITMENT]: 'commitment-abc',
-      [X402_REPUTATION_THRESHOLD]: '75',
-    };
-    expect(parseReputationHeaders(headers)).toBeNull();
+  it('includes agentPk', () => {
+    const payload = buildReputationPayload(mockProof);
+    expect((payload[REPUTATION_EXTENSION_KEY].info as any).agentPk).toBe('AgentPubKey123');
   });
 
-  it('returns null for missing commitment', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof-data',
-      [X402_REPUTATION_THRESHOLD]: '75',
-    };
-    expect(parseReputationHeaders(headers)).toBeNull();
+  it('includes publicSignals', () => {
+    const payload = buildReputationPayload(mockProof);
+    expect((payload[REPUTATION_EXTENSION_KEY].info as any).publicSignals).toEqual(['signal1', 'signal2']);
   });
 
-  it('returns null for missing threshold', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof-data',
-      [X402_REPUTATION_COMMITMENT]: 'commitment-abc',
-    };
-    expect(parseReputationHeaders(headers)).toBeNull();
-  });
-
-  it('handles lowercase header names', () => {
-    const headers = {
-      'x-402-reputation-proof': 'proof-data',
-      'x-402-reputation-commitment': 'commitment-abc',
-      'x-402-reputation-threshold': '75',
-    };
-    const parsed = parseReputationHeaders(headers);
-    expect(parsed).not.toBeNull();
-    expect(parsed!.threshold).toBe(75);
-  });
-
-  it('handles array values', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: ['proof-data', 'ignored'],
-      [X402_REPUTATION_COMMITMENT]: ['commitment-abc'],
-      [X402_REPUTATION_THRESHOLD]: ['75'],
-    };
-    const parsed = parseReputationHeaders(headers);
-    expect(parsed).not.toBeNull();
-    expect(parsed!.proof).toBe('proof-data');
-  });
-
-  it('returns null for invalid threshold (negative)', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof-data',
-      [X402_REPUTATION_COMMITMENT]: 'commitment-abc',
-      [X402_REPUTATION_THRESHOLD]: '-1',
-    };
-    expect(parseReputationHeaders(headers)).toBeNull();
-  });
-
-  it('returns null for invalid threshold (> 100)', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof-data',
-      [X402_REPUTATION_COMMITMENT]: 'commitment-abc',
-      [X402_REPUTATION_THRESHOLD]: '101',
-    };
-    expect(parseReputationHeaders(headers)).toBeNull();
-  });
-
-  it('returns null for non-numeric threshold', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof-data',
-      [X402_REPUTATION_COMMITMENT]: 'commitment-abc',
-      [X402_REPUTATION_THRESHOLD]: 'high',
-    };
-    expect(parseReputationHeaders(headers)).toBeNull();
+  it('defaults publicSignals to empty array', () => {
+    const proof = { ...mockProof, publicSignals: undefined };
+    const payload = buildReputationPayload(proof);
+    expect((payload[REPUTATION_EXTENSION_KEY].info as any).publicSignals).toEqual([]);
   });
 });
 
-describe('decodeReputationProof', () => {
-  it('decodes valid proof payload', () => {
-    const payload = {
-      agentPk: 'AgentPubKey123',
-      commitment: 'commitment-hash',
-      threshold: 70,
-      proof: Buffer.from([1, 2, 3, 4]).toString('base64'),
-    };
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
-
-    const decoded = decodeReputationProof(encoded);
-    expect(decoded).not.toBeNull();
-    expect(decoded!.agentPk).toBe('AgentPubKey123');
-    expect(decoded!.commitment).toBe('commitment-hash');
-    expect(decoded!.threshold).toBe(70);
+describe('reputationExtensionInfo', () => {
+  it('builds extension declaration with defaults', () => {
+    const ext = reputationExtensionInfo(70);
+    expect(ext[REPUTATION_EXTENSION_KEY]).toBeDefined();
+    const info = ext[REPUTATION_EXTENSION_KEY].info as any;
+    expect(info.minThreshold).toBe(70);
+    expect(info.proofType).toBe('groth16-bn254');
+    expect(info.creditEnabled).toBe(false);
   });
 
-  it('returns null for invalid base64', () => {
-    expect(decodeReputationProof('not-valid-base64!!!')).toBeNull();
-  });
-
-  it('returns null for non-JSON content', () => {
-    const encoded = Buffer.from('not json').toString('base64');
-    expect(decodeReputationProof(encoded)).toBeNull();
+  it('accepts custom tiers', () => {
+    const tiers = [{ name: 'custom', minThreshold: 60, discountPercent: 20 }];
+    const ext = reputationExtensionInfo(60, { tiers, creditEnabled: true });
+    const info = ext[REPUTATION_EXTENSION_KEY].info as any;
+    expect(info.tiers).toEqual(tiers);
+    expect(info.creditEnabled).toBe(true);
   });
 });
 
-describe('reputationRequirementHeaders', () => {
-  it('returns required header as true', () => {
-    const headers = reputationRequirementHeaders(70);
-    expect(headers['X-402-Reputation-Required']).toBe('true');
+describe('parseReputationRequirement', () => {
+  it('parses from 402 response with reputation extension at top level', () => {
+    const response: PaymentRequired402 = {
+      x402Version: 2,
+      accepts: [{
+        x402Version: 2,
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '10000',
+        asset: 'USDC',
+        payTo: '0x123',
+        resource: '/api',
+        description: 'test',
+        maxTimeoutSeconds: 60,
+      }],
+      error: 'Payment Required',
+      facilitator: 'https://f.test',
+      extensions: {
+        'kamiyo-reputation': {
+          info: {
+            minThreshold: 75,
+            proofType: 'groth16-bn254',
+            tiers: DEFAULT_TIERS,
+            creditEnabled: false,
+          },
+        },
+      },
+    };
+
+    const result = parseReputationRequirement(response);
+    expect(result).not.toBeNull();
+    expect(result!.minThreshold).toBe(75);
+    expect(result!.required).toBe(true);
   });
 
-  it('returns minimum threshold', () => {
-    const headers = reputationRequirementHeaders(85);
-    expect(headers['X-402-Reputation-Min-Threshold']).toBe('85');
+  it('returns null when no extension', () => {
+    const response: PaymentRequired402 = {
+      x402Version: 2,
+      accepts: [{
+        x402Version: 2,
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '10000',
+        asset: 'USDC',
+        payTo: '0x123',
+        resource: '/api',
+        description: 'test',
+        maxTimeoutSeconds: 60,
+      }],
+      error: 'Payment Required',
+      facilitator: 'https://f.test',
+    };
+    expect(parseReputationRequirement(response)).toBeNull();
   });
 });
 
 describe('checkReputationRequirement', () => {
   it('returns valid when not required', () => {
-    const result = checkReputationRequirement({}, { minThreshold: 70, required: false });
+    const result = checkReputationRequirement(undefined, { minThreshold: 70, required: false });
     expect(result.valid).toBe(true);
   });
 
-  it('returns invalid when required but no headers', () => {
-    const result = checkReputationRequirement({}, { minThreshold: 70, required: true });
+  it('returns invalid when required but no extensions', () => {
+    const result = checkReputationRequirement(undefined, { minThreshold: 70, required: true });
     expect(result.valid).toBe(false);
     expect(result.reason).toContain('Missing');
   });
 
+  it('returns invalid when extensions empty', () => {
+    const result = checkReputationRequirement({}, { minThreshold: 70, required: true });
+    expect(result.valid).toBe(false);
+  });
+
   it('returns invalid when threshold too low', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof',
-      [X402_REPUTATION_COMMITMENT]: 'commitment',
-      [X402_REPUTATION_THRESHOLD]: '50',
+    const extensions = {
+      'kamiyo-reputation': {
+        info: {
+          proof: 'base64data',
+          commitment: '0x' + 'a'.repeat(64),
+          threshold: 50,
+          agentPk: 'agent123',
+          publicSignals: ['123'],
+        },
+      },
     };
-    const result = checkReputationRequirement(headers, { minThreshold: 70, required: true });
+    const result = checkReputationRequirement(extensions, { minThreshold: 70, required: true });
     expect(result.valid).toBe(false);
     expect(result.threshold).toBe(50);
     expect(result.reason).toContain('below');
   });
 
   it('returns valid when threshold meets requirement', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof',
-      [X402_REPUTATION_COMMITMENT]: 'commitment',
-      [X402_REPUTATION_THRESHOLD]: '70',
+    const extensions = {
+      'kamiyo-reputation': {
+        info: {
+          proof: 'base64data',
+          commitment: '0x' + 'a'.repeat(64),
+          threshold: 70,
+          agentPk: 'agent123',
+          publicSignals: ['123'],
+        },
+      },
     };
-    const result = checkReputationRequirement(headers, { minThreshold: 70, required: true });
+    const result = checkReputationRequirement(extensions, { minThreshold: 70, required: true });
     expect(result.valid).toBe(true);
     expect(result.threshold).toBe(70);
-    expect(result.commitment).toBe('commitment');
+    expect(result.commitment).toBe('0x' + 'a'.repeat(64));
   });
 
   it('returns valid when threshold exceeds requirement', () => {
-    const headers = {
-      [X402_REPUTATION_PROOF]: 'proof',
-      [X402_REPUTATION_COMMITMENT]: 'commitment',
-      [X402_REPUTATION_THRESHOLD]: '90',
+    const extensions = {
+      'kamiyo-reputation': {
+        info: {
+          proof: 'base64data',
+          commitment: '0x' + 'a'.repeat(64),
+          threshold: 90,
+          agentPk: 'agent123',
+          publicSignals: ['123'],
+        },
+      },
     };
-    const result = checkReputationRequirement(headers, { minThreshold: 70, required: true });
+    const result = checkReputationRequirement(extensions, { minThreshold: 70, required: true });
     expect(result.valid).toBe(true);
-  });
-});
-
-describe('parseReputationRequirement', () => {
-  it('returns null when not required', () => {
-    const headers = { 'X-402-Reputation-Required': 'false' };
-    expect(parseReputationRequirement(headers)).toBeNull();
-  });
-
-  it('returns null when required header missing', () => {
-    expect(parseReputationRequirement({})).toBeNull();
-  });
-
-  it('returns null when threshold missing', () => {
-    const headers = { 'X-402-Reputation-Required': 'true' };
-    expect(parseReputationRequirement(headers)).toBeNull();
-  });
-
-  it('parses requirement from headers', () => {
-    const headers = {
-      'X-402-Reputation-Required': 'true',
-      'X-402-Reputation-Min-Threshold': '75',
-    };
-    const result = parseReputationRequirement(headers);
-    expect(result).not.toBeNull();
-    expect(result!.minThreshold).toBe(75);
-    expect(result!.required).toBe(true);
-  });
-
-  it('handles Headers object', () => {
-    const headers = new Headers();
-    headers.set('X-402-Reputation-Required', 'true');
-    headers.set('X-402-Reputation-Min-Threshold', '80');
-
-    const result = parseReputationRequirement(headers);
-    expect(result).not.toBeNull();
-    expect(result!.minThreshold).toBe(80);
-  });
-});
-
-describe('withReputationProof', () => {
-  const mockProof: ReputationProofData = {
-    agentPk: 'AgentPubKey123',
-    commitment: 'commitment-hash',
-    threshold: 70,
-    proofBytes: new Uint8Array([1, 2, 3]),
-  };
-
-  it('adds reputation headers to RequestInit', () => {
-    const init = withReputationProof(mockProof);
-    expect(init.headers).toBeDefined();
-    expect((init.headers as Record<string, string>)[X402_REPUTATION_THRESHOLD]).toBe('70');
-  });
-
-  it('merges with existing headers', () => {
-    const init = withReputationProof(mockProof, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
-    expect((init.headers as Record<string, string>)[X402_REPUTATION_THRESHOLD]).toBe('70');
-  });
-
-  it('preserves other RequestInit properties', () => {
-    const init = withReputationProof(mockProof, {
-      method: 'POST',
-      body: 'test',
-    });
-    expect(init.method).toBe('POST');
-    expect(init.body).toBe('test');
   });
 });
 
@@ -374,7 +280,7 @@ describe('tieredPricing402', () => {
 
   it('returns full pricing breakdown', () => {
     const response = tieredPricing402(basePrice, 70);
-    expect(response.x402Version).toBe(1);
+    expect(response.x402Version).toBe(2);
     expect(response.basePrice).toBe(100);
     expect(response.yourPrice).toBe(90);
     expect(response.yourTier).toBe('trusted');

@@ -151,11 +151,11 @@ describe('PayAIFacilitator', () => {
   describe('requirement', () => {
     const f = new PayAIFacilitator({ merchantAddress: merchant });
 
-    it('creates payment requirement with defaults', () => {
+    it('creates payment requirement with v2 format', () => {
       const req = f.requirement('/api/test', 0.01, 'Test payment');
       expect(req.scheme).toBe('exact');
-      expect(req.network).toBe('base');
-      expect(req.maxAmountRequired).toBe('10000');
+      expect(req.network).toBe('eip155:8453'); // CAIP-2 format
+      expect(req.amount).toBe('10000');
       expect(req.resource).toBe('/api/test');
       expect(req.description).toBe('Test payment');
       expect(req.payTo).toBe(merchant);
@@ -163,14 +163,14 @@ describe('PayAIFacilitator', () => {
       expect(req.maxTimeoutSeconds).toBe(60);
     });
 
-    it('accepts custom network', () => {
+    it('accepts custom network and converts to CAIP-2', () => {
       const req = f.requirement('/api/test', 0.01, 'Test', { network: 'polygon' });
-      expect(req.network).toBe('polygon');
+      expect(req.network).toBe('eip155:137');
     });
 
-    it('accepts upto scheme', () => {
-      const req = f.requirement('/api/test', 0.01, 'Test', { scheme: 'upto' });
-      expect(req.scheme).toBe('upto');
+    it('scheme is always exact in v2', () => {
+      const req = f.requirement('/api/test', 0.01, 'Test');
+      expect(req.scheme).toBe('exact');
     });
 
     it('accepts custom timeout', () => {
@@ -191,26 +191,26 @@ describe('PayAIFacilitator', () => {
       const reqs = f.requirements('/api/test', 0.01, 'Test');
       const mainnetsWithUsdc = PayAIFacilitator.mainnetsWithUsdc();
       expect(reqs.length).toBe(mainnetsWithUsdc.length);
-      // Verify all returned networks have USDC support
       for (const req of reqs) {
-        expect(PayAIFacilitator.hasUsdcSupport(req.network)).toBe(true);
+        // All networks should be CAIP-2 format
+        expect(req.network).toContain(':');
       }
     });
 
     it('creates requirements for specified networks', () => {
       const reqs = f.requirements('/api/test', 0.01, 'Test', ['base', 'polygon']);
       expect(reqs.length).toBe(2);
-      expect(reqs[0].network).toBe('base');
-      expect(reqs[1].network).toBe('polygon');
+      expect(reqs[0].network).toBe('eip155:8453');
+      expect(reqs[1].network).toBe('eip155:137');
     });
   });
 
   describe('response402', () => {
     const f = new PayAIFacilitator({ merchantAddress: merchant });
 
-    it('creates 402 response body', () => {
+    it('creates v2 402 response body', () => {
       const response = f.response402('/api/test', 0.01, 'Test payment');
-      expect(response.x402Version).toBe(1);
+      expect(response.x402Version).toBe(2);
       expect(response.error).toBe('Payment Required');
       expect(response.facilitator).toBe(PayAIFacilitator.URL);
       expect(response.accepts.length).toBeGreaterThan(0);
@@ -219,32 +219,35 @@ describe('PayAIFacilitator', () => {
     it('limits to specified networks', () => {
       const response = f.response402('/api/test', 0.01, 'Test', ['base']);
       expect(response.accepts.length).toBe(1);
-      expect(response.accepts[0].network).toBe('base');
+      expect(response.accepts[0].network).toBe('eip155:8453');
+    });
+
+    it('places extensions at top level of response', () => {
+      const ext = { 'kamiyo-escrow': { info: { required: true, timelockSeconds: 3600 } } };
+      const response = f.response402('/api/test', 0.01, 'Test', ['base'], ext);
+      expect(response.extensions).toBeDefined();
+      expect(response.extensions!['kamiyo-escrow']).toBeDefined();
+      expect((response.extensions!['kamiyo-escrow'].info as any).required).toBe(true);
     });
   });
 
   describe('headers402', () => {
     const f = new PayAIFacilitator({ merchantAddress: merchant });
 
-    it('creates WWW-Authenticate header', () => {
-      const headers = f.headers402('/api/test', 0.01, 'Test');
-      expect(headers['WWW-Authenticate']).toContain('X402');
-      expect(headers['WWW-Authenticate']).toContain('scheme="exact"');
-    });
-
-    it('includes payment details in headers', () => {
-      const headers = f.headers402('/api/test', 0.01, 'Test', 'base');
-      expect(headers['X-Payment-Network']).toBe('base');
-      expect(headers['X-Payment-Amount']).toBe('10000');
-      expect(headers['X-Payment-Asset']).toBe('USDC');
-      expect(headers['X-Payment-PayTo']).toBe(merchant);
+    it('returns minimal v2 headers', () => {
+      const headers = f.headers402();
+      expect(headers['WWW-Authenticate']).toBe('X402');
       expect(headers['X-Payment-Facilitator']).toBe(PayAIFacilitator.URL);
     });
 
-    it('includes chain-specific info', () => {
-      const headers = f.headers402('/api/test', 0.01, 'Test', 'base');
-      expect(headers['X-Payment-Chain-Id']).toBe('eip155:8453');
-      expect(headers['X-Payment-Asset-Address']).toBe(NETWORKS.base.usdc);
+    it('does not include legacy per-network headers', () => {
+      const headers = f.headers402();
+      expect(headers['X-Payment-Network']).toBeUndefined();
+      expect(headers['X-Payment-Amount']).toBeUndefined();
+      expect(headers['X-Payment-Asset']).toBeUndefined();
+      expect(headers['X-Payment-PayTo']).toBeUndefined();
+      expect(headers['X-Payment-Chain-Id']).toBeUndefined();
+      expect(headers['X-Payment-Asset-Address']).toBeUndefined();
     });
   });
 
@@ -338,7 +341,7 @@ describe('payaiMiddleware', () => {
     },
   });
 
-  it('returns 402 when no payment header', async () => {
+  it('returns 402 when no payment-signature header', async () => {
     const middleware = payaiMiddleware({
       facilitator,
       priceUsd: 0.01,
@@ -353,17 +356,17 @@ describe('payaiMiddleware', () => {
 
     expect(res.statusCode).toBe(402);
     expect(next).not.toHaveBeenCalled();
-    expect(res.body).toHaveProperty('x402Version', 1);
+    expect(res.body).toHaveProperty('x402Version', 2);
   });
 
-  it('returns 402 when payment header is array', async () => {
+  it('returns 402 when payment-signature header is array', async () => {
     const middleware = payaiMiddleware({
       facilitator,
       priceUsd: 0.01,
       description: 'Test',
     });
 
-    const req = { headers: { 'x-payment': ['a', 'b'] }, path: '/api/test' };
+    const req = { headers: { 'payment-signature': ['a', 'b'] }, path: '/api/test' };
     const res = createMockRes();
     const next = jest.fn();
 
@@ -390,7 +393,7 @@ describe('payaiMiddleware', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('sets payment headers on 402 response', async () => {
+  it('sets v2 headers on 402 response', async () => {
     const middleware = payaiMiddleware({
       facilitator,
       priceUsd: 0.01,
@@ -404,8 +407,28 @@ describe('payaiMiddleware', () => {
 
     await middleware(req, res, next);
 
-    expect(res.headers['X-Payment-Network']).toBe('base');
-    expect(res.headers['X-Payment-Amount']).toBe('10000');
+    expect(res.headers['WWW-Authenticate']).toBe('X402');
+    expect(res.headers['X-Payment-Facilitator']).toBe(PayAIFacilitator.URL);
+  });
+
+  it('402 response body contains accepts with CAIP-2 networks', async () => {
+    const middleware = payaiMiddleware({
+      facilitator,
+      priceUsd: 0.01,
+      description: 'Test',
+      networks: ['base', 'polygon'],
+    });
+
+    const req = { headers: {}, path: '/api/test' };
+    const res = createMockRes();
+    const next = jest.fn();
+
+    await middleware(req, res, next);
+
+    const body = res.body as { accepts: PaymentRequirement[] };
+    expect(body.accepts[0].network).toBe('eip155:8453');
+    expect(body.accepts[1].network).toBe('eip155:137');
+    expect(body.accepts[0].amount).toBe('10000');
   });
 });
 

@@ -1,4 +1,7 @@
-// PayAI x402 facilitator client
+// PayAI x402 v2 facilitator client
+
+import { toCAIP2 } from './v2/networks';
+import type { PaymentRequired402, PaymentRequirementV2, ExtensionDeclaration } from './v2/types';
 
 const USDC_DECIMALS = 6;
 const MICRO = 10 ** USDC_DECIMALS;
@@ -260,9 +263,9 @@ export interface PayAIConfig {
 }
 
 export interface PaymentRequirement {
-  scheme: 'exact' | 'upto';
-  network: PayAINetwork;
-  maxAmountRequired: string;
+  scheme: 'exact';
+  network: string; // CAIP-2 identifier
+  amount: string;
   resource: string;
   description: string;
   payTo: string;
@@ -272,13 +275,13 @@ export interface PaymentRequirement {
 }
 
 export interface VerifyRequest {
-  x402Version: 1;
+  x402Version: 2;
   paymentHeader: string;
   paymentRequirements: PaymentRequirement;
 }
 
 export interface SettleRequest {
-  x402Version: 1;
+  x402Version: 2;
   paymentHeader: string;
   paymentRequirements: PaymentRequirement;
 }
@@ -287,26 +290,27 @@ export interface VerifyResult {
   valid: boolean;
   payer: string;
   reason?: string;
-  network?: PayAINetwork;
+  network?: string; // CAIP-2
   amount?: string;
-  chainId?: string;
+  chainId?: string; // same as network in v2
 }
 
 export interface SettleResult {
   success: boolean;
   payer: string;
   tx?: string;
-  network?: PayAINetwork;
+  network?: string; // CAIP-2
   amount?: string;
   error?: string;
-  chainId?: string;
+  chainId?: string; // same as network in v2
 }
 
 export interface PayAI402Response {
-  x402Version: 1;
+  x402Version: 2;
   accepts: PaymentRequirement[];
   error: string;
   facilitator: string;
+  extensions?: Record<string, ExtensionDeclaration>;
 }
 
 export interface ListResponse {
@@ -468,7 +472,7 @@ export class PayAIFacilitator {
     resource: string,
     usdc: number,
     desc: string,
-    opts?: { network?: PayAINetwork; scheme?: 'exact' | 'upto'; timeout?: number; extra?: Record<string, unknown> }
+    opts?: { network?: PayAINetwork; timeout?: number; extra?: Record<string, unknown> }
   ): PaymentRequirement {
     if (usdc <= 0) {
       throw new PayAIError('Price must be positive', 'INVALID_CONFIG');
@@ -478,9 +482,9 @@ export class PayAIFacilitator {
       throw new PayAIError(`Network ${network} does not have USDC support`, 'INVALID_CONFIG');
     }
     return {
-      scheme: opts?.scheme || 'exact',
-      network,
-      maxAmountRequired: toMicro(usdc),
+      scheme: 'exact',
+      network: toCAIP2(network),
+      amount: toMicro(usdc),
       resource,
       description: desc,
       payTo: this.merchant,
@@ -506,39 +510,32 @@ export class PayAIFacilitator {
     resource: string,
     usdc: number,
     desc: string,
-    networks?: PayAINetwork[]
+    networks?: PayAINetwork[],
+    extensions?: Record<string, ExtensionDeclaration>
   ): PayAI402Response {
-    return {
-      x402Version: 1,
-      accepts: this.requirements(resource, usdc, desc, networks),
+    const reqs = this.requirements(resource, usdc, desc, networks);
+    const response: PayAI402Response = {
+      x402Version: 2,
+      accepts: reqs,
       error: 'Payment Required',
       facilitator: this.url,
     };
+    if (extensions) {
+      response.extensions = extensions;
+    }
+    return response;
   }
 
-  headers402(
-    resource: string,
-    usdc: number,
-    desc: string,
-    network?: PayAINetwork
-  ): Record<string, string> {
-    const req = this.requirement(resource, usdc, desc, { network });
-    const cfg = NETWORKS[req.network];
+  /** HTTP headers for 402 response (v2: minimal, body carries details) */
+  headers402(): Record<string, string> {
     return {
-      'WWW-Authenticate': `X402 scheme="${req.scheme}", network="${req.network}", amount="${req.maxAmountRequired}", asset="USDC"`,
-      'X-Payment-Network': req.network,
-      'X-Payment-Chain-Id': cfg.eip155,
-      'X-Payment-Amount': req.maxAmountRequired,
-      'X-Payment-Asset': 'USDC',
-      'X-Payment-Asset-Address': cfg.usdc,
-      'X-Payment-PayTo': this.merchant,
+      'WWW-Authenticate': 'X402',
       'X-Payment-Facilitator': this.url,
-      'X-Payment-Timeout': String(req.maxTimeoutSeconds),
     };
   }
 
   async verify(header: string, req: PaymentRequirement): Promise<VerifyResult> {
-    const key = `${header}:${req.network}:${req.maxAmountRequired}`;
+    const key = `${header}:${req.network}:${req.amount}`;
     const cached = this.cache.get(key);
     if (cached && cached.expires > Date.now()) {
       return cached.result;
@@ -546,7 +543,7 @@ export class PayAIFacilitator {
 
     const result = await this.retry(async () => {
       const res = await this.fetch('/verify', {
-        x402Version: 1,
+        x402Version: 2,
         paymentHeader: header,
         paymentRequirements: req,
       });
@@ -556,8 +553,8 @@ export class PayAIFacilitator {
         payer: data.payer || '',
         reason: data.invalidReason,
         network: req.network,
-        amount: req.maxAmountRequired,
-        chainId: NETWORKS[req.network].eip155,
+        amount: req.amount,
+        chainId: req.network,
       };
     });
 
@@ -577,7 +574,7 @@ export class PayAIFacilitator {
         payer: '',
         reason: e instanceof Error ? e.message : 'Unknown error',
         network: req.network,
-        amount: req.maxAmountRequired,
+        amount: req.amount,
       })))
     );
 
@@ -591,7 +588,7 @@ export class PayAIFacilitator {
   async settle(header: string, req: PaymentRequirement): Promise<SettleResult> {
     const result = await this.retry(async () => {
       const res = await this.fetch('/settle', {
-        x402Version: 1,
+        x402Version: 2,
         paymentHeader: header,
         paymentRequirements: req,
       });
@@ -601,9 +598,9 @@ export class PayAIFacilitator {
         payer: data.payer || '',
         tx: data.transaction,
         network: req.network,
-        amount: req.maxAmountRequired,
+        amount: req.amount,
         error: data.error,
-        chainId: NETWORKS[req.network].eip155,
+        chainId: req.network,
       };
     });
     this.hooks.onSettled?.(result);
@@ -619,7 +616,7 @@ export class PayAIFacilitator {
         payer: '',
         error: e instanceof Error ? e.message : 'Unknown error',
         network: req.network,
-        amount: req.maxAmountRequired,
+        amount: req.amount,
       })))
     );
 
@@ -795,7 +792,7 @@ export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
     }
 
     const resource = req.path || req.url || '/';
-    const paymentHeader = req.headers['x-payment'];
+    const paymentHeader = req.headers['payment-signature'];
 
     if (!paymentHeader || Array.isArray(paymentHeader)) {
       const body = opts.facilitator.response402(
@@ -804,12 +801,7 @@ export function payaiMiddleware(opts: PayAIMiddlewareOptions) {
         opts.description,
         opts.networks
       );
-      const headers = opts.facilitator.headers402(
-        resource,
-        opts.priceUsd,
-        opts.description,
-        opts.networks?.[0]
-      );
+      const headers = opts.facilitator.headers402();
       Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
       res.status(402).json(body);
       return;
@@ -867,7 +859,7 @@ export function withPayAI<T extends (...args: unknown[]) => Promise<unknown>>(
     }
 
     const resource = req.path || req.url || '/';
-    const paymentHeader = req.headers['x-payment'];
+    const paymentHeader = req.headers['payment-signature'];
 
     if (!paymentHeader || Array.isArray(paymentHeader)) {
       const body = opts.facilitator.response402(
@@ -876,12 +868,7 @@ export function withPayAI<T extends (...args: unknown[]) => Promise<unknown>>(
         opts.description,
         opts.networks
       );
-      const headers = opts.facilitator.headers402(
-        resource,
-        opts.priceUsd,
-        opts.description,
-        opts.networks?.[0]
-      );
+      const headers = opts.facilitator.headers402();
       Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
       return res.status(402).json(body);
     }
