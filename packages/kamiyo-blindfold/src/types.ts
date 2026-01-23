@@ -183,15 +183,22 @@ export interface BatchPaymentRequest {
 }
 
 export interface BatchPaymentResponse {
+  success: boolean;
   batchId: string;
   payments: Array<{
     paymentId: string;
     recipientEmail: string;
-    amount: number;
+    cryptoAddress?: string;
+    cryptoAmount?: string;
+    usdAmount: number;
+    totalUsdAmount: number;
+    feeAmount: number;
+    expiresAt: string;
     status: PaymentStatus;
+    error?: string;
   }>;
-  totalAmount: number;
-  createdAt: string;
+  totalUsdAmount: number;
+  totalFees: number;
 }
 
 // Agent Card Types (Spending Side)
