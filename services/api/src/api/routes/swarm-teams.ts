@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
-import db from '../../db';
+import db, { deductCredits, usdToCredits } from '../../db';
 import {
   createOrchestrator,
   SwarmOrchestrator,
@@ -10,11 +10,7 @@ import {
 import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
 
-// Fail fast if required env vars are missing
-if (!process.env.SWARM_POOL_WALLET) {
-  throw new Error('SWARM_POOL_WALLET env var is required for swarm-teams route');
-}
-const SWARM_POOL_WALLET: string = process.env.SWARM_POOL_WALLET;
+const SWARM_POOL_WALLET = process.env.SWARM_POOL_WALLET || '';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
 const SWARM_NETWORK = process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
@@ -275,6 +271,47 @@ router.post('/:id/fund/:depositId/confirm', async (req: Request, res: Response) 
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Status check failed' });
   }
+});
+
+// POST /api/swarm-teams/:id/fund-credits — Fund pool from user credit balance
+router.post('/:id/fund-credits', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { wallet, amountUsd } = req.body;
+
+  if (!wallet || !amountUsd || amountUsd <= 0) {
+    res.status(400).json({ error: 'wallet and positive amountUsd required' });
+    return;
+  }
+
+  const team = db.prepare('SELECT id, currency, pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as {
+    id: string; currency: string; pool_balance: number;
+  } | undefined;
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  const creditsMicro = usdToCredits(amountUsd);
+  const success = deductCredits(wallet, creditsMicro, 'swarm-pool-fund', `Fund team ${teamId}`);
+
+  if (!success) {
+    res.status(400).json({ error: 'Insufficient credit balance' });
+    return;
+  }
+
+  db.prepare(`
+    UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+    WHERE id = ?
+  `).run(amountUsd, teamId);
+
+  db.prepare(`
+    INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, confirmed_at)
+    VALUES (?, ?, ?, ?, 'confirmed', unixepoch())
+  `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, amountUsd, team.currency);
+
+  const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
+  res.json({ success: true, poolBalance: updated.pool_balance });
 });
 
 // PATCH /api/swarm-teams/:id/budget
