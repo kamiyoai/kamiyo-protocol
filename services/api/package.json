@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@coral-xyz/anchor": "^0.31.1",
     "@kamiyo/kamiyo-mitama": "workspace:*",
+    "@kamiyo/blindfold": "workspace:*",
     "@kamiyo/swarm-agents": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@sentry/node": "^8.0.0",

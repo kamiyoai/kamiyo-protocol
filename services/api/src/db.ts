@@ -1277,9 +1277,25 @@ db.exec(`
     FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
   );
 
+  CREATE TABLE IF NOT EXISTS swarm_fund_deposits (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL,
+    blindfold_payment_id TEXT,
+    blindfold_status TEXT DEFAULT 'pending',
+    crypto_address TEXT,
+    crypto_amount TEXT,
+    expires_at TEXT,
+    confirmed_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_swarm_members_team ON swarm_team_members(team_id);
   CREATE INDEX IF NOT EXISTS idx_swarm_draws_team ON swarm_draws(team_id);
   CREATE INDEX IF NOT EXISTS idx_swarm_draws_agent ON swarm_draws(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_fund_deposits_team ON swarm_fund_deposits(team_id);
 `);
 
 export interface LinkedWallet {
