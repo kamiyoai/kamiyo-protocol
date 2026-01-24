@@ -79,7 +79,8 @@ export interface KamiyoExtensionConfig {
   qualityThreshold?: number;
   maxPrice?: number;
   autoDispute?: boolean;
-  privateKey?: string;
+  /** Environment variable name containing base64-encoded private key. Never pass the key directly. */
+  privateKeyEnvVar?: string;
   onPayment?: (payment: PaymentRecord) => void;
   onDispute?: (dispute: DisputeRecord) => void;
   onQualityCheck?: (result: QualityCheckResult) => void;
@@ -176,7 +177,7 @@ export interface MCPServerConfig {
   tools: MCPToolDefinition[];
 }
 
-export const DEFAULT_CONFIG: Required<Omit<KamiyoExtensionConfig, 'privateKey' | 'onPayment' | 'onDispute' | 'onQualityCheck'>> = {
+export const DEFAULT_CONFIG: Required<Omit<KamiyoExtensionConfig, 'privateKeyEnvVar' | 'onPayment' | 'onDispute' | 'onQualityCheck'>> = {
   rpcUrl: KAMIYO_NETWORKS.devnet.rpcUrl,
   programId: KAMIYO_NETWORKS.devnet.programId,
   network: 'devnet',

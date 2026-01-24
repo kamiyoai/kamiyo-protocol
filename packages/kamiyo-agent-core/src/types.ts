@@ -40,7 +40,9 @@ export type KamiyoErrorCode =
   | 'TIMEOUT'
   | 'NETWORK_ERROR'
   | 'CIRCUIT_OPEN'
-  | 'UNAUTHORIZED';
+  | 'UNAUTHORIZED'
+  | 'SSRF_BLOCKED'
+  | 'RESPONSE_TOO_LARGE';
 
 export class KamiyoError extends Error {
   constructor(
