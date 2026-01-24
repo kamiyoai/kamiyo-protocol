@@ -1,6 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import db from '../../db';
+import {
+  createOrchestrator,
+  SwarmOrchestrator,
+  type SwarmMember,
+  type DrawRecorder,
+} from '@kamiyo/swarm-agents';
 
 const router = Router();
 
@@ -229,6 +235,137 @@ router.get('/:id/draws', (req: Request, res: Response) => {
     })),
     total: (countQuery as { total: number }).total,
   });
+});
+
+// --- Orchestrator setup ---
+
+const orchestrators = new Map<string, SwarmOrchestrator>();
+
+const drawRecorder: DrawRecorder = {
+  async recordDraw(draw) {
+    const drawId = `draw_${randomUUID().slice(0, 12)}`;
+    const now = Math.floor(Date.now() / 1000);
+
+    db.prepare(`
+      INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'completed', ?)
+    `).run(drawId, draw.teamId, draw.agentId, draw.amount, draw.purpose, now);
+
+    // Decrement pool balance
+    db.prepare(`
+      UPDATE swarm_teams SET pool_balance = pool_balance - ?, updated_at = ?
+      WHERE id = ? AND pool_balance >= ?
+    `).run(draw.amount, now, draw.teamId, draw.amount);
+
+    return { drawId };
+  },
+};
+
+function getOrCreateOrchestrator(teamId: string): SwarmOrchestrator {
+  if (orchestrators.has(teamId)) return orchestrators.get(teamId)!;
+
+  const team = db.prepare('SELECT * FROM swarm_teams WHERE id = ?').get(teamId) as {
+    id: string; name: string; currency: string; daily_limit: number;
+  } | undefined;
+
+  if (!team) throw new Error(`Team ${teamId} not found`);
+
+  const orchestrator = createOrchestrator({
+    team: {
+      teamId: team.id,
+      name: team.name,
+      currency: team.currency,
+      dailyLimit: team.daily_limit,
+      poolWalletAddress: process.env.SWARM_POOL_WALLET || '',
+      facilitatorUrl: process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai',
+      network: process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+    },
+    onTaskComplete: async (result) => {
+      if (result.amountDrawn && result.amountDrawn > 0) {
+        await drawRecorder.recordDraw({
+          teamId: team.id,
+          agentId: result.memberId,
+          amount: result.amountDrawn,
+          purpose: `task:${result.taskId}`,
+          taskId: result.taskId,
+        });
+      }
+    },
+  });
+
+  orchestrators.set(teamId, orchestrator);
+  return orchestrator;
+}
+
+// POST /api/swarm-teams/:id/tasks
+router.post('/:id/tasks', async (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { memberId, description, budget } = req.body;
+
+  if (!memberId || !description) {
+    res.status(400).json({ error: 'memberId and description required' });
+    return;
+  }
+
+  const team = db.prepare('SELECT id, pool_balance, daily_limit FROM swarm_teams WHERE id = ?')
+    .get(teamId) as { id: string; pool_balance: number; daily_limit: number } | undefined;
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  const member = db.prepare('SELECT * FROM swarm_team_members WHERE id = ? AND team_id = ?')
+    .get(memberId, teamId) as { id: string; agent_id: string; role: string; draw_limit: number } | undefined;
+
+  if (!member) {
+    res.status(404).json({ error: 'Member not found' });
+    return;
+  }
+
+  const taskBudget = budget ?? member.draw_limit;
+
+  // Check pool balance
+  if (taskBudget > team.pool_balance) {
+    res.status(400).json({ error: 'Insufficient pool balance' });
+    return;
+  }
+
+  // Check daily limit
+  const dailySpend = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
+    WHERE team_id = ? AND created_at > unixepoch() - 86400
+  `).get(teamId) as { total: number };
+
+  if (dailySpend.total + taskBudget > team.daily_limit) {
+    res.status(400).json({ error: 'Would exceed daily limit' });
+    return;
+  }
+
+  try {
+    const orchestrator = getOrCreateOrchestrator(teamId);
+
+    // Ensure agent is spawned
+    const swarmMember: SwarmMember = {
+      id: member.id,
+      agentId: member.agent_id,
+      role: member.role,
+      drawLimit: member.draw_limit,
+    };
+    await orchestrator.addAgent(swarmMember);
+
+    const taskId = `task_${randomUUID().slice(0, 12)}`;
+    const result = await orchestrator.assignTask(memberId, {
+      taskId,
+      description,
+      budget: taskBudget,
+      teamId,
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Task execution failed' });
+  }
 });
 
 function getTeamDetail(teamId: string) {

@@ -1,0 +1,38 @@
+{
+  "name": "@kamiyo/swarm-agents",
+  "version": "0.1.0",
+  "description": "Lucid Agents runtime for SwarmTeam agent lifecycle, task assignment, and x402 payments.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-swarm-agents"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test --loader tsx src/**/*.test.ts"
+  },
+  "author": "KAMIYO <dev@kamiyo.ai>",
+  "dependencies": {
+    "@lucid-agents/core": "^2.0.0",
+    "@lucid-agents/payments": "^2.0.0",
+    "@lucid-agents/a2a": "^0.5.4",
+    "@lucid-agents/types": "^1.5.6",
+    "x402-fetch": "^0.7.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3",
+    "tsx": "^4.19.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
