@@ -76,6 +76,23 @@ router.get('/:id', (req: Request, res: Response) => {
   res.json(team);
 });
 
+// DELETE /api/swarm-teams/:id
+router.delete('/:id', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+
+  const team = db.prepare('SELECT id FROM swarm_teams WHERE id = ?').get(teamId);
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  db.prepare('DELETE FROM swarm_draws WHERE team_id = ?').run(teamId);
+  db.prepare('DELETE FROM swarm_team_members WHERE team_id = ?').run(teamId);
+  db.prepare('DELETE FROM swarm_teams WHERE id = ?').run(teamId);
+
+  res.json({ success: true });
+});
+
 // POST /api/swarm-teams/:id/members
 router.post('/:id/members', (req: Request, res: Response) => {
   const { agentId, role, drawLimit } = req.body;
