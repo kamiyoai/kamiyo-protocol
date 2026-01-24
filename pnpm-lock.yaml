@@ -148,7 +148,7 @@ importers:
         version: 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@kamiyo/kamiyo-mitama':
         specifier: file:../../packages/kamiyo-mitama
-        version: file:packages/kamiyo-mitama(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: link:../../packages/kamiyo-mitama
       '@solana/web3.js':
         specifier: ^1.87.6
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -1267,6 +1267,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/blindfold':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-blindfold
       '@kamiyo/kamiyo-mitama':
         specifier: workspace:*
         version: link:../../packages/kamiyo-mitama
@@ -2588,12 +2591,6 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@elizaos/core': '>=1.0.0'
-
-  '@kamiyo/kamiyo-mitama@file:packages/kamiyo-mitama':
-    resolution: {directory: packages/kamiyo-mitama, type: directory}
-    peerDependencies:
-      '@coral-xyz/anchor': ^0.31.0
-      '@solana/web3.js': ^1.95.0
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -13403,19 +13400,6 @@ snapshots:
       - bufferutil
       - encoding
       - typescript
-      - utf-8-validate
-
-  '@kamiyo/kamiyo-mitama@file:packages/kamiyo-mitama(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@coral-xyz/anchor': 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js: 5.2.2
-      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      js-sha3: 0.9.3
-      snarkjs: 0.7.6
-    transitivePeerDependencies:
-      - bufferutil
-      - react-native-b4a
       - utf-8-validate
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
