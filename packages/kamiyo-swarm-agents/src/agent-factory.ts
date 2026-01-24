@@ -1,6 +1,8 @@
 import { createAgent } from '@lucid-agents/core';
+import { payments } from '@lucid-agents/payments';
 import { z } from 'zod';
 import type { PaymentsConfig } from '@lucid-agents/types/payments';
+import type { AgentCard } from '@lucid-agents/types/a2a';
 import type { SwarmAgentConfig, SwarmAgent, TaskInput, TaskResult } from './types.js';
 import { buildPolicyGroups } from './types.js';
 
@@ -68,6 +70,8 @@ export async function createSwarmAgent(options: CreateSwarmAgentOptions): Promis
     description: `SwarmTeam agent: ${member.role} in ${team.name}`,
   });
 
+  builder.use(payments({ config: paymentsConfig }));
+
   builder.addEntrypoint({
     key: 'execute-task',
     description: 'Execute an assigned SwarmTeam task within budget constraints',
@@ -93,7 +97,7 @@ export async function createSwarmAgent(options: CreateSwarmAgentOptions): Promis
 
   const runtime = await builder.build();
 
-  const card = {
+  const card: AgentCard = {
     name: `swarm-${team.teamId}-${member.agentId}`,
     version: '1.0.0',
     url: baseUrl || `https://agents.kamiyo.ai/${team.teamId}/${member.agentId}`,
@@ -110,10 +114,10 @@ export async function createSwarmAgent(options: CreateSwarmAgentOptions): Promis
     payments: [
       {
         network: team.network,
-        asset: team.currency,
+        currency: team.currency,
         payTo: member.walletAddress || team.poolWalletAddress,
       },
-    ],
+    ] as unknown as AgentCard['payments'],
   };
 
   const executeTask = async (task: TaskInput): Promise<TaskResult> => {
@@ -125,7 +129,7 @@ export async function createSwarmAgent(options: CreateSwarmAgentOptions): Promis
   return {
     runtime,
     config: options,
-    card: card as any,
+    card,
     executeTask,
     stop,
   };

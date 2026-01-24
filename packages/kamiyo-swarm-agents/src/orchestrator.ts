@@ -9,16 +9,23 @@ import type {
   TaskStatusCallback,
 } from './types.js';
 import { createSwarmAgent, type TaskHandler } from './agent-factory.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('orchestrator');
 
 export interface OrchestratorConfig {
   team: SwarmTeamConfig;
   /** Custom fetch implementation (e.g., with auth headers) */
   fetchImpl?: typeof fetch;
+  /** Task execution timeout in ms (default: 60000) */
+  taskTimeoutMs?: number;
   /** Called when a task completes — use this to record draws */
   onTaskComplete?: (result: TaskResult & { memberId: string }) => void | Promise<void>;
   /** Called when a task fails */
   onTaskFailed?: (result: TaskResult & { memberId: string }) => void | Promise<void>;
 }
+
+const DEFAULT_TASK_TIMEOUT_MS = 60_000;
 
 /**
  * Manages a team of Lucid Agents: spawning, task assignment, and lifecycle.
@@ -45,6 +52,7 @@ export class SwarmOrchestrator {
       return this.agents.get(member.id)!;
     }
 
+    log.info('Spawning agent', { memberId: member.id, agentId: member.agentId, role: member.role });
     const agent = await createSwarmAgent({
       team: this.config.team,
       member,
@@ -53,6 +61,7 @@ export class SwarmOrchestrator {
     });
 
     this.agents.set(member.id, agent);
+    log.info('Agent spawned', { memberId: member.id, totalAgents: this.agents.size });
     return agent;
   }
 
@@ -62,6 +71,7 @@ export class SwarmOrchestrator {
   async removeAgent(memberId: string): Promise<void> {
     const agent = this.agents.get(memberId);
     if (agent) {
+      log.info('Removing agent', { memberId });
       await agent.stop();
       this.agents.delete(memberId);
     }
@@ -94,21 +104,38 @@ export class SwarmOrchestrator {
       throw new Error(`No agent found for member ${memberId}`);
     }
 
-    try {
-      const result = await agent.executeTask(task);
+    const timeoutMs = this.config.taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS;
+    log.info('Task assigned', { taskId: task.taskId, memberId, budget: task.budget, timeoutMs });
 
-      if (result.status === 'completed' && this.config.onTaskComplete) {
-        await this.config.onTaskComplete({ ...result, memberId });
-      } else if (result.status === 'failed' && this.config.onTaskFailed) {
-        await this.config.onTaskFailed({ ...result, memberId });
+    try {
+      const result = await Promise.race([
+        agent.executeTask(task),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(`Task timed out after ${timeoutMs}ms`)), timeoutMs);
+        }),
+      ]);
+
+      if (result.status === 'completed') {
+        log.info('Task completed', { taskId: task.taskId, memberId, amountDrawn: result.amountDrawn });
+        if (this.config.onTaskComplete) {
+          await this.config.onTaskComplete({ ...result, memberId });
+        }
+      } else if (result.status === 'failed') {
+        log.warn('Task failed', { taskId: task.taskId, memberId, error: result.error });
+        if (this.config.onTaskFailed) {
+          await this.config.onTaskFailed({ ...result, memberId });
+        }
       }
 
       return result;
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      log.error('Task execution error', { taskId: task.taskId, memberId, error: errorMsg });
+
       const failResult: TaskResult = {
         taskId: task.taskId,
         status: 'failed',
-        error: err instanceof Error ? err.message : 'Unknown error',
+        error: errorMsg,
       };
 
       if (this.config.onTaskFailed) {
@@ -172,9 +199,11 @@ export class SwarmOrchestrator {
    * Stop all agents and clean up.
    */
   async shutdown(): Promise<void> {
+    log.info('Shutting down', { agentCount: this.agents.size });
     const stops = Array.from(this.agents.values()).map((a) => a.stop());
     await Promise.all(stops);
     this.agents.clear();
+    log.info('Shutdown complete');
   }
 
   /**

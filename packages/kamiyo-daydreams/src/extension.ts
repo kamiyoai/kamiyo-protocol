@@ -154,7 +154,7 @@ const defaultQualityEvaluator: QualityEvaluator = {
     const accuracy = checkAccuracy(data, query);
     const freshness = checkFreshness(data);
     const score = Math.round(completeness * 0.4 + accuracy * 0.3 + freshness * 0.3);
-    return { score, completeness, accuracy, freshness, passesThreshold: false };
+    return { score, completeness, accuracy, freshness, passesThreshold: score >= DEFAULT_CONFIG.qualityThreshold };
   },
 };
 

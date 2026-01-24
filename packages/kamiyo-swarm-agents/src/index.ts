@@ -28,3 +28,4 @@ export type {
 } from './types.js';
 
 export { buildPolicyGroups } from './types.js';
+export { createLogger } from './logger.js';
