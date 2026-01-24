@@ -14,6 +14,7 @@
     "@coral-xyz/anchor": "^0.31.1",
     "@kamiyo/kamiyo-mitama": "workspace:*",
     "@kamiyo/blindfold": "workspace:*",
+    "@kamiyo/daydreams": "workspace:*",
     "@kamiyo/swarm-agents": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@sentry/node": "^8.0.0",

@@ -1270,6 +1270,9 @@ importers:
       '@kamiyo/blindfold':
         specifier: workspace:*
         version: link:../../packages/kamiyo-blindfold
+      '@kamiyo/daydreams':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-daydreams
       '@kamiyo/kamiyo-mitama':
         specifier: workspace:*
         version: link:../../packages/kamiyo-mitama
