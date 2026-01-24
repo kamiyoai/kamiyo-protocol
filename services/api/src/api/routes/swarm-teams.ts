@@ -8,6 +8,14 @@ import {
   type DrawRecorder,
 } from '@kamiyo/swarm-agents';
 
+// Fail fast if required env vars are missing
+if (!process.env.SWARM_POOL_WALLET) {
+  throw new Error('SWARM_POOL_WALLET env var is required for swarm-teams route');
+}
+const SWARM_POOL_WALLET: string = process.env.SWARM_POOL_WALLET;
+const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
+const SWARM_NETWORK = process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+
 const router = Router();
 
 // GET /api/swarm-teams
@@ -246,16 +254,11 @@ const drawRecorder: DrawRecorder = {
     const drawId = `draw_${randomUUID().slice(0, 12)}`;
     const now = Math.floor(Date.now() / 1000);
 
+    // Balance already deducted atomically at task submission
     db.prepare(`
       INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
       VALUES (?, ?, ?, ?, ?, 'completed', ?)
     `).run(drawId, draw.teamId, draw.agentId, draw.amount, draw.purpose, now);
-
-    // Decrement pool balance
-    db.prepare(`
-      UPDATE swarm_teams SET pool_balance = pool_balance - ?, updated_at = ?
-      WHERE id = ? AND pool_balance >= ?
-    `).run(draw.amount, now, draw.teamId, draw.amount);
 
     return { drawId };
   },
@@ -276,9 +279,9 @@ function getOrCreateOrchestrator(teamId: string): SwarmOrchestrator {
       name: team.name,
       currency: team.currency,
       dailyLimit: team.daily_limit,
-      poolWalletAddress: process.env.SWARM_POOL_WALLET || '',
-      facilitatorUrl: process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai',
-      network: process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
+      poolWalletAddress: SWARM_POOL_WALLET,
+      facilitatorUrl: FACILITATOR_URL,
+      network: SWARM_NETWORK,
     },
     onTaskComplete: async (result) => {
       if (result.amountDrawn && result.amountDrawn > 0) {
@@ -325,13 +328,7 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
 
   const taskBudget = budget ?? member.draw_limit;
 
-  // Check pool balance
-  if (taskBudget > team.pool_balance) {
-    res.status(400).json({ error: 'Insufficient pool balance' });
-    return;
-  }
-
-  // Check daily limit
+  // Check daily limit before reserving
   const dailySpend = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
     WHERE team_id = ? AND created_at > unixepoch() - 86400
@@ -342,10 +339,21 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
     return;
   }
 
+  // Atomically reserve budget — prevents concurrent overdraw
+  const reserved = db.prepare(`
+    UPDATE swarm_teams
+    SET pool_balance = pool_balance - ?, updated_at = unixepoch()
+    WHERE id = ? AND pool_balance >= ?
+  `).run(taskBudget, teamId, taskBudget);
+
+  if (reserved.changes === 0) {
+    res.status(400).json({ error: 'Insufficient pool balance' });
+    return;
+  }
+
   try {
     const orchestrator = getOrCreateOrchestrator(teamId);
 
-    // Ensure agent is spawned
     const swarmMember: SwarmMember = {
       id: member.id,
       agentId: member.agent_id,
@@ -364,6 +372,11 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (err) {
+    // Refund reserved budget on failure
+    db.prepare(`
+      UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+      WHERE id = ?
+    `).run(taskBudget, teamId);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Task execution failed' });
   }
 });
