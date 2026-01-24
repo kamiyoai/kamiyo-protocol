@@ -465,26 +465,33 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
 
   const taskBudget = budget ?? member.draw_limit;
 
-  // Check daily limit before reserving
-  const dailySpend = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
-    WHERE team_id = ? AND created_at > unixepoch() - 86400
-  `).get(teamId) as { total: number };
+  // Atomic: daily limit check + pool reservation in a single transaction
+  const reserveBudget = db.transaction(() => {
+    const dailySpend = db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
+      WHERE team_id = ? AND created_at > unixepoch() - 86400
+    `).get(teamId) as { total: number };
 
-  if (dailySpend.total + taskBudget > team.daily_limit) {
-    res.status(400).json({ error: 'Would exceed daily limit' });
-    return;
-  }
+    if (dailySpend.total + taskBudget > team.daily_limit) {
+      return { error: 'Would exceed daily limit' } as const;
+    }
 
-  // Atomically reserve budget — prevents concurrent overdraw
-  const reserved = db.prepare(`
-    UPDATE swarm_teams
-    SET pool_balance = pool_balance - ?, updated_at = unixepoch()
-    WHERE id = ? AND pool_balance >= ?
-  `).run(taskBudget, teamId, taskBudget);
+    const reserved = db.prepare(`
+      UPDATE swarm_teams
+      SET pool_balance = pool_balance - ?, updated_at = unixepoch()
+      WHERE id = ? AND pool_balance >= ?
+    `).run(taskBudget, teamId, taskBudget);
 
-  if (reserved.changes === 0) {
-    res.status(400).json({ error: 'Insufficient pool balance' });
+    if (reserved.changes === 0) {
+      return { error: 'Insufficient pool balance' } as const;
+    }
+
+    return { error: null } as const;
+  });
+
+  const budgetResult = reserveBudget();
+  if (budgetResult.error) {
+    res.status(400).json({ error: budgetResult.error });
     return;
   }
 

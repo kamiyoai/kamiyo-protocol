@@ -40,8 +40,16 @@ const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_PAYMENTS_HISTORY = 1000;
 const MAX_DISPUTES_HISTORY = 500;
 const MAX_CIRCUIT_BREAKERS = 100;
+const MAX_RESPONSE_SIZE = 1_000_000; // 1MB max response body
+const MAX_URL_LENGTH = 2048;
+const MAX_QUERY_SIZE = 100_000; // 100KB max request body
+const MAX_ENDPOINTS_DISCOVER = 20;
+const MAX_ESCROW_AMOUNT = 100; // 100 SOL max per escrow
+const MAX_HEADER_COUNT = 20;
+const PAYMENT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DISPUTE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// SSRF protection: block internal/private ranges
+// SSRF protection: block internal/private/metadata ranges
 const BLOCKED_HOSTS = [
   /^localhost$/i,
   /^127\./,
@@ -49,13 +57,24 @@ const BLOCKED_HOSTS = [
   /^172\.(1[6-9]|2\d|3[01])\./,
   /^192\.168\./,
   /^169\.254\./,
+  /^0\.0\.0\.0$/,
   /^::1$/,
+  /^::$/,
   /^fc00:/i,
+  /^fd00:/i,
   /^fe80:/i,
+  /^ff0[0-9a-f]:/i,
+  // Cloud metadata endpoints
+  /^metadata\.google\.internal$/i,
+  /^100\.100\.100\.200$/,
 ];
 
 function isBlockedHost(hostname: string): boolean {
   return BLOCKED_HOSTS.some((pattern) => pattern.test(hostname));
+}
+
+function hasEmbeddedCredentials(url: URL): boolean {
+  return !!(url.username || url.password);
 }
 
 function validateUrl(urlString: string): URL {
@@ -74,8 +93,14 @@ function validateUrl(urlString: string): URL {
     throw new KamiyoError('URL host not allowed', 'INVALID_CONFIG', { url: urlString });
   }
 
+  if (hasEmbeddedCredentials(url)) {
+    throw new KamiyoError('URLs with embedded credentials not allowed', 'INVALID_CONFIG', { url: urlString });
+  }
+
   return url;
 }
+
+const MAX_REDIRECTS = 5;
 
 async function fetchWithTimeout(
   url: string,
@@ -86,12 +111,42 @@ async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    return response;
+    let currentUrl = url;
+    for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+      const response = await fetch(currentUrl, {
+        ...options,
+        signal: controller.signal,
+        redirect: 'manual',
+      });
+
+      // Not a redirect — return the response
+      if (response.status < 300 || response.status >= 400) {
+        return response;
+      }
+
+      // Handle redirect: validate target before following
+      const location = response.headers.get('location');
+      if (!location) {
+        return response;
+      }
+
+      const redirectUrl = new URL(location, currentUrl);
+      if (isBlockedHost(redirectUrl.hostname)) {
+        throw new KamiyoError('Redirect target blocked (internal network)', 'SSRF_BLOCKED', { url: redirectUrl.href });
+      }
+      if (hasEmbeddedCredentials(redirectUrl)) {
+        throw new KamiyoError('Redirect target has embedded credentials', 'SSRF_BLOCKED', { url: redirectUrl.href });
+      }
+      if (redirectUrl.protocol !== 'https:' && redirectUrl.protocol !== 'http:') {
+        throw new KamiyoError('Redirect target uses disallowed protocol', 'SSRF_BLOCKED', { url: redirectUrl.href });
+      }
+
+      currentUrl = redirectUrl.href;
+    }
+
+    throw new KamiyoError('Too many redirects', 'NETWORK_ERROR', { url });
   } catch (err) {
+    if (err instanceof KamiyoError) throw err;
     if (err instanceof Error && err.name === 'AbortError') {
       throw new KamiyoError('Request timed out', 'TIMEOUT', { url, timeoutMs });
     }
@@ -104,6 +159,33 @@ async function fetchWithTimeout(
     clearTimeout(timeout);
   }
 }
+// Headers that must never be set by user input
+const BLOCKED_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'host',
+  'x-forwarded-for',
+  'x-forwarded-host',
+  'x-forwarded-proto',
+  'x-real-ip',
+  'proxy-authorization',
+  'set-cookie',
+  'transfer-encoding',
+  'connection',
+  'upgrade',
+]);
+
+function sanitizeHeaders(headers: Record<string, string> | undefined): Record<string, string> {
+  if (!headers) return {};
+  const sanitized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (!BLOCKED_HEADERS.has(key.toLowerCase())) {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 import {
   ReputationManager,
   reputationActions,
@@ -121,7 +203,7 @@ type ActionHandler<I, O> = (input: I, ctx: ExtensionContext) => Promise<O>;
 
 interface ExtensionContext {
   memory: KamiyoMemory;
-  config: Required<KamiyoExtensionConfig>;
+  config: Required<Omit<KamiyoExtensionConfig, 'privateKeyEnvVar'>> & { privateKeyEnvVar: string };
   connection: Connection;
   keypair: Keypair | null;
 }
@@ -145,13 +227,13 @@ interface DaydreamsExtension {
   actions?: KamiyoAction<unknown, unknown>[];
 }
 
-// Default quality evaluator
+// Default quality evaluator — validates schema, field types, and data freshness
 const defaultQualityEvaluator: QualityEvaluator = {
   name: 'default',
-  evaluate(received: unknown, expected: Record<string, unknown>, query: Record<string, unknown>): QualityCheckResult {
+  evaluate(received: unknown, expected: Record<string, unknown>, _query: Record<string, unknown>): QualityCheckResult {
     const data = extractData(received);
     const completeness = checkCompleteness(data, expected);
-    const accuracy = checkAccuracy(data, query);
+    const accuracy = checkAccuracy(data, expected);
     const freshness = checkFreshness(data);
     const score = Math.round(completeness * 0.4 + accuracy * 0.3 + freshness * 0.3);
     return { score, completeness, accuracy, freshness, passesThreshold: score >= DEFAULT_CONFIG.qualityThreshold };
@@ -167,33 +249,73 @@ function extractData(received: unknown): unknown {
 function checkCompleteness(received: unknown, expected: Record<string, unknown>): number {
   const data = extractData(received);
   const expectedFields = Object.keys(expected);
-  if (expectedFields.length === 0) return 100;
+  if (expectedFields.length === 0) {
+    // No schema specified — score based on whether we got any meaningful data
+    if (!data) return 0;
+    if (Array.isArray(data)) return data.length > 0 ? 70 : 0;
+    if (typeof data === 'object') return Object.keys(data as object).length > 0 ? 70 : 0;
+    return 50;
+  }
   if (!data || (Array.isArray(data) && data.length === 0)) return 0;
   const target = Array.isArray(data) ? data[0] : data;
-  const receivedFields = Object.keys(target || {});
+  if (!target || typeof target !== 'object') return 0;
+  const receivedFields = Object.keys(target as object);
   const missing = expectedFields.filter((f) => !receivedFields.includes(f));
   return Math.round(((expectedFields.length - missing.length) / expectedFields.length) * 100);
 }
 
-function checkAccuracy(received: unknown, query: Record<string, unknown>): number {
+function checkAccuracy(received: unknown, expected: Record<string, unknown>): number {
   const data = extractData(received);
-  if (!data || (Array.isArray(data) && data.length === 0)) return 0;
+  if (!data) return 0;
+  if (Array.isArray(data) && data.length === 0) return 0;
   const target = Array.isArray(data) ? data[0] : data;
-  if (!target || typeof target !== 'object') return 50;
+  if (!target || typeof target !== 'object') return 30;
+
   const t = target as Record<string, unknown>;
-  const hasValidValues = Object.values(t).some((v) => v !== null && v !== undefined && v !== '' && v !== 0);
-  return hasValidValues ? 100 : 30;
+  const expectedFields = Object.keys(expected);
+
+  // No expected schema — check that values are non-trivial
+  if (expectedFields.length === 0) {
+    const values = Object.values(t);
+    const meaningful = values.filter((v) => v !== null && v !== undefined && v !== '' && v !== 0);
+    if (values.length === 0) return 0;
+    return Math.round((meaningful.length / values.length) * 100);
+  }
+
+  // With schema: validate that present fields match expected types
+  let matched = 0;
+  let checked = 0;
+  for (const [field, expectedType] of Object.entries(expected)) {
+    if (!(field in t)) continue;
+    checked++;
+    const value = t[field];
+    if (value === null || value === undefined) continue;
+
+    if (typeof expectedType === 'string') {
+      // Type name check: 'number', 'string', 'boolean', 'object', 'array'
+      if (expectedType === 'array' && Array.isArray(value)) matched++;
+      else if (typeof value === expectedType) matched++;
+    } else {
+      // Non-null value present for a non-type schema entry
+      matched++;
+    }
+  }
+
+  return checked === 0 ? 50 : Math.round((matched / checked) * 100);
 }
 
 function checkFreshness(received: unknown): number {
   const data = extractData(received);
   const target = Array.isArray(data) ? data[0] : data;
-  if (!target || typeof target !== 'object') return 50;
+  if (!target || typeof target !== 'object') return 30; // Unknown freshness = low score
   const t = target as Record<string, unknown>;
   const timestamp = t.timestamp || t.updated_at || t.created_at;
-  if (!timestamp) return 50;
-  const age = Date.now() - new Date(String(timestamp)).getTime();
-  const maxAge = 3600000;
+  if (!timestamp) return 30; // No timestamp = assume stale
+  const parsed = new Date(String(timestamp)).getTime();
+  if (isNaN(parsed)) return 20; // Invalid timestamp
+  const age = Date.now() - parsed;
+  if (age < 0) return 50; // Future timestamp — suspicious but not necessarily bad
+  const maxAge = 3600000; // 1 hour
   return Math.max(0, Math.round(100 - (age / maxAge) * 100));
 }
 
@@ -203,11 +325,36 @@ interface ExtendedConfig extends KamiyoExtensionConfig {
   circuitBreakerConfig?: CircuitBreakerConfig;
 }
 
+// Simple mutex for circuit breaker state transitions
+class Mutex {
+  private locked = false;
+  private queue: (() => void)[] = [];
+
+  async acquire(): Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise((resolve) => {
+      this.queue.push(() => { this.locked = true; resolve(); });
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift()!;
+      next();
+    } else {
+      this.locked = false;
+    }
+  }
+}
+
 class KamiyoExtension {
   readonly name = 'kamiyo';
   readonly version = '2.0.0';
 
-  private config: Required<KamiyoExtensionConfig>;
+  private config: Required<Omit<KamiyoExtensionConfig, 'privateKeyEnvVar'>> & { privateKeyEnvVar: string };
   private connection: Connection;
   private keypair: Keypair | null = null;
   private wallet: Wallet | null = null;
@@ -216,12 +363,44 @@ class KamiyoExtension {
   private sdkClient: KamiyoClient | null = null;
   private agreementManager: AgreementManager | null = null;
   private circuitBreakers = new Map<string, CircuitBreakerState>();
+  private circuitBreakerMutex = new Mutex();
   private circuitBreakerConfig: CircuitBreakerConfig;
   private storage: StorageProvider;
   private qualityEvaluator: QualityEvaluator;
 
+  private privateKeyEnvVar: string;
+
   constructor(config: ExtendedConfig = {}) {
+    // Validate config at startup
+    if (config.network && !KAMIYO_NETWORKS[config.network]) {
+      throw new KamiyoError(`Invalid network: ${config.network}. Use 'mainnet' or 'devnet'.`, 'INVALID_CONFIG');
+    }
+    if (config.rpcUrl) {
+      try { new URL(config.rpcUrl); } catch {
+        throw new KamiyoError(`Invalid rpcUrl: ${config.rpcUrl}`, 'INVALID_CONFIG');
+      }
+    }
+    if (config.programId && (config.programId.length < 32 || config.programId.length > 44)) {
+      throw new KamiyoError(`Invalid programId length: ${config.programId}`, 'INVALID_CONFIG');
+    }
+    if (config.qualityThreshold !== undefined && (config.qualityThreshold < 0 || config.qualityThreshold > 100)) {
+      throw new KamiyoError('qualityThreshold must be between 0 and 100', 'INVALID_CONFIG');
+    }
+    if (config.maxPrice !== undefined && config.maxPrice < 0) {
+      throw new KamiyoError('maxPrice must be non-negative', 'INVALID_CONFIG');
+    }
+    if (config.privateKeyEnvVar) {
+      const keyValue = process.env[config.privateKeyEnvVar];
+      if (keyValue) {
+        try { Buffer.from(keyValue, 'base64'); } catch {
+          throw new KamiyoError(`Invalid base64 in env var ${config.privateKeyEnvVar}`, 'INVALID_CONFIG');
+        }
+      }
+    }
+
     const networkConfig = KAMIYO_NETWORKS[config.network || 'devnet'];
+
+    this.privateKeyEnvVar = config.privateKeyEnvVar || 'SWARM_AGENT_WALLET_KEY';
 
     this.config = {
       ...DEFAULT_CONFIG,
@@ -231,7 +410,7 @@ class KamiyoExtension {
       qualityThreshold: config.qualityThreshold ?? DEFAULT_CONFIG.qualityThreshold,
       maxPrice: config.maxPrice ?? DEFAULT_CONFIG.maxPrice,
       autoDispute: config.autoDispute ?? DEFAULT_CONFIG.autoDispute,
-      privateKey: config.privateKey || '',
+      privateKeyEnvVar: config.privateKeyEnvVar || 'SWARM_AGENT_WALLET_KEY',
       onPayment: config.onPayment || (() => {}),
       onDispute: config.onDispute || (() => {}),
       onQualityCheck: config.onQualityCheck || (() => {}),
@@ -242,31 +421,35 @@ class KamiyoExtension {
     this.storage = config.storage || new MemoryStorage();
     this.qualityEvaluator = config.qualityEvaluator || defaultQualityEvaluator;
 
-    if (this.config.privateKey) {
-      const secretKey = Buffer.from(this.config.privateKey, 'base64');
-      this.keypair = Keypair.fromSecretKey(secretKey);
-      this.wallet = {
-        publicKey: this.keypair.publicKey,
-        signTransaction: async <T extends import('@solana/web3.js').Transaction>(tx: T): Promise<T> => {
-          tx.partialSign(this.keypair!);
-          return tx;
-        },
-        signAllTransactions: async <T extends import('@solana/web3.js').Transaction>(txs: T[]): Promise<T[]> => {
-          txs.forEach((tx) => tx.partialSign(this.keypair!));
-          return txs;
-        },
-      } as Wallet;
-
-      this.sdkClient = new KamiyoClient({
-        connection: this.connection,
-        wallet: this.wallet,
-        programId: new PublicKey(this.config.programId),
-      });
-      this.agreementManager = new AgreementManager(this.sdkClient);
-    }
-
+    this.initializeWallet();
     this.memory = this.createInitialMemory();
     this.reputation = new ReputationManager();
+  }
+
+  private initializeWallet(): void {
+    const keyBase64 = process.env[this.privateKeyEnvVar];
+    if (!keyBase64) return;
+
+    const secretKey = Buffer.from(keyBase64, 'base64');
+    this.keypair = Keypair.fromSecretKey(secretKey);
+    this.wallet = {
+      publicKey: this.keypair.publicKey,
+      signTransaction: async <T extends import('@solana/web3.js').Transaction>(tx: T): Promise<T> => {
+        tx.partialSign(this.keypair!);
+        return tx;
+      },
+      signAllTransactions: async <T extends import('@solana/web3.js').Transaction>(txs: T[]): Promise<T[]> => {
+        txs.forEach((tx) => tx.partialSign(this.keypair!));
+        return txs;
+      },
+    } as Wallet;
+
+    this.sdkClient = new KamiyoClient({
+      connection: this.connection,
+      wallet: this.wallet,
+      programId: new PublicKey(this.config.programId),
+    });
+    this.agreementManager = new AgreementManager(this.sdkClient);
   }
 
   private createInitialMemory(): KamiyoMemory {
@@ -440,8 +623,32 @@ class KamiyoExtension {
     const maxPrice = input.maxPrice ?? ctx.config.maxPrice;
     const threshold = input.qualityThreshold ?? ctx.config.qualityThreshold;
 
+    if (!input.endpoint || typeof input.endpoint !== 'string') {
+      throw new KamiyoError('endpoint is required and must be a string', 'INVALID_CONFIG');
+    }
+    if (input.endpoint.length > MAX_URL_LENGTH) {
+      throw new KamiyoError(`URL exceeds max length of ${MAX_URL_LENGTH}`, 'INVALID_CONFIG');
+    }
+    if (input.headers && Object.keys(input.headers).length > MAX_HEADER_COUNT) {
+      throw new KamiyoError(`Too many headers (max ${MAX_HEADER_COUNT})`, 'INVALID_CONFIG');
+    }
+    if (input.query) {
+      const bodySize = JSON.stringify(input.query).length;
+      if (bodySize > MAX_QUERY_SIZE) {
+        throw new KamiyoError(`Request body too large (${bodySize} bytes, max ${MAX_QUERY_SIZE})`, 'INVALID_CONFIG');
+      }
+    }
+    if (input.maxPrice !== undefined && (input.maxPrice < 0 || input.maxPrice > MAX_ESCROW_AMOUNT)) {
+      throw new KamiyoError(`maxPrice must be between 0 and ${MAX_ESCROW_AMOUNT}`, 'INVALID_CONFIG');
+    }
+    if (input.qualityThreshold !== undefined && (input.qualityThreshold < 0 || input.qualityThreshold > 100)) {
+      throw new KamiyoError('qualityThreshold must be between 0 and 100', 'INVALID_CONFIG');
+    }
+
     validateUrl(input.endpoint);
-    this.checkCircuitBreaker(input.endpoint);
+    await this.checkCircuitBreaker(input.endpoint);
+
+    const safeHeaders = sanitizeHeaders(input.headers);
 
     let initialResponse: Response;
     try {
@@ -449,21 +656,21 @@ class KamiyoExtension {
         method: input.method || 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...input.headers,
+          ...safeHeaders,
         },
         body: input.query ? JSON.stringify(input.query) : undefined,
       });
     } catch (err) {
-      this.recordCircuitFailure(input.endpoint);
+      await this.recordCircuitFailure(input.endpoint);
       throw err;
     }
 
     if (initialResponse.status !== 402) {
-      const data = await initialResponse.json();
+      const data = await this.readResponseWithLimit(initialResponse);
       const paymentId = this.generateId('pay');
       const quality = this.assessQuality(data, input.expectedSchema || {}, input.query || {});
 
-      this.recordCircuitSuccess(input.endpoint);
+      await this.recordCircuitSuccess(input.endpoint);
 
       const record: PaymentRecord = {
         id: paymentId,
@@ -507,28 +714,28 @@ class KamiyoExtension {
           'Content-Type': 'application/json',
           'X-Payment-Proof': transactionId,
           'X-Payment-Amount': String(price),
-          ...input.headers,
+          ...safeHeaders,
         },
         body: input.query ? JSON.stringify(input.query) : undefined,
       });
     } catch (err) {
-      this.recordCircuitFailure(input.endpoint);
+      await this.recordCircuitFailure(input.endpoint);
       throw err;
     }
 
     if (!paidResponse.ok) {
-      this.recordCircuitFailure(input.endpoint);
+      await this.recordCircuitFailure(input.endpoint);
       throw new KamiyoError(
         'API request failed',
         'API_UNAVAILABLE'
       );
     }
 
-    this.recordCircuitSuccess(input.endpoint);
-    const data = await paidResponse.json();
+    await this.recordCircuitSuccess(input.endpoint);
+    const data = await this.readResponseWithLimit(paidResponse);
     const quality = this.assessQuality(data, input.expectedSchema || {}, input.query || {});
 
-    ctx.config.onQualityCheck?.(quality);
+    try { ctx.config.onQualityCheck?.(quality); } catch { /* callback error — non-fatal */ }
 
     let disputed = false;
     let refundAmount = 0;
@@ -559,7 +766,7 @@ class KamiyoExtension {
     if (disputed) ctx.memory.totalRefunded += refundAmount;
 
     this.updateQualityStats(input.endpoint, quality.score, price);
-    ctx.config.onPayment?.(record);
+    try { ctx.config.onPayment?.(record); } catch { /* callback error — non-fatal */ }
 
     return {
       data,
@@ -571,11 +778,37 @@ class KamiyoExtension {
     };
   }
 
+  private async readResponseWithLimit(response: Response): Promise<unknown> {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
+      throw new KamiyoError(`Response too large (${contentLength} bytes, max ${MAX_RESPONSE_SIZE})`, 'RESPONSE_TOO_LARGE');
+    }
+    const text = await response.text();
+    if (text.length > MAX_RESPONSE_SIZE) {
+      throw new KamiyoError(`Response too large (${text.length} bytes, max ${MAX_RESPONSE_SIZE})`, 'RESPONSE_TOO_LARGE');
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { raw: text.slice(0, 10000) };
+    }
+  }
+
   private addPaymentRecord(ctx: ExtensionContext, record: PaymentRecord): void {
-    if (ctx.memory.payments.length >= MAX_PAYMENTS_HISTORY) {
+    // Evict expired records first
+    const now = Date.now();
+    ctx.memory.payments = ctx.memory.payments.filter((p) => now - p.timestamp < PAYMENT_TTL_MS);
+
+    // Then enforce max size
+    while (ctx.memory.payments.length >= MAX_PAYMENTS_HISTORY) {
       ctx.memory.payments.shift();
     }
     ctx.memory.payments.push(record);
+  }
+
+  private evictExpiredDisputes(): void {
+    const now = Date.now();
+    this.memory.disputes = this.memory.disputes.filter((d) => now - d.filedAt < DISPUTE_TTL_MS);
   }
 
   private async createEscrow(input: CreateEscrowInput): Promise<CreateEscrowOutput> {
@@ -585,6 +818,18 @@ class KamiyoExtension {
 
     if (typeof input.amount !== 'number' || input.amount <= 0) {
       throw new KamiyoError('Invalid escrow amount', 'INVALID_CONFIG');
+    }
+
+    if (input.amount > MAX_ESCROW_AMOUNT) {
+      throw new KamiyoError(`Escrow amount exceeds max (${MAX_ESCROW_AMOUNT} SOL)`, 'INVALID_CONFIG');
+    }
+
+    if (!input.provider || typeof input.provider !== 'string' || input.provider.length < 32 || input.provider.length > 44) {
+      throw new KamiyoError('Invalid provider address', 'INVALID_CONFIG');
+    }
+
+    if (input.timeLockHours !== undefined && (input.timeLockHours < 1 || input.timeLockHours > 720)) {
+      throw new KamiyoError('timeLockHours must be between 1 and 720 (30 days)', 'INVALID_CONFIG');
     }
 
     const transactionId = input.transactionId || this.generateId('tx');
@@ -598,12 +843,17 @@ class KamiyoExtension {
         transactionId
       );
 
+      // Wait for on-chain confirmation before persisting to storage
+      const ctx = this.getContext();
+      await ctx.connection.confirmTransaction(signature, 'confirmed');
+
       await this.storage.set(`escrow:${transactionId}`, {
         escrowAddress: pda.toString(),
         provider: input.provider,
         amount: input.amount,
         createdAt: Date.now(),
         signature,
+        confirmed: true,
       });
 
       return {
@@ -644,13 +894,14 @@ class KamiyoExtension {
       filedAt: Date.now(),
     };
 
-    if (ctx.memory.disputes.length >= MAX_DISPUTES_HISTORY) {
+    this.evictExpiredDisputes();
+    while (ctx.memory.disputes.length >= MAX_DISPUTES_HISTORY) {
       ctx.memory.disputes.shift();
     }
     ctx.memory.disputes.push(dispute);
     payment.disputed = true;
 
-    ctx.config.onDispute?.(dispute);
+    try { ctx.config.onDispute?.(dispute); } catch { /* callback error — non-fatal */ }
 
     return {
       disputeId,
@@ -664,6 +915,10 @@ class KamiyoExtension {
 
     if (endpoints.length === 0) {
       return { apis: [], total: 0 };
+    }
+
+    if (endpoints.length > MAX_ENDPOINTS_DISCOVER) {
+      throw new KamiyoError(`Too many endpoints to discover (max ${MAX_ENDPOINTS_DISCOVER})`, 'INVALID_CONFIG');
     }
 
     const apis: DiscoveredAPI[] = [];
@@ -767,48 +1022,63 @@ class KamiyoExtension {
     return cb;
   }
 
-  private checkCircuitBreaker(endpoint: string): void {
-    const cb = this.getCircuitBreaker(endpoint);
-    const now = Date.now();
+  private async checkCircuitBreaker(endpoint: string): Promise<void> {
+    await this.circuitBreakerMutex.acquire();
+    try {
+      const cb = this.getCircuitBreaker(endpoint);
+      const now = Date.now();
 
-    if (cb.state === 'open') {
-      if (cb.lastFailure && now - cb.lastFailure > this.circuitBreakerConfig.resetTimeoutMs) {
-        cb.state = 'half-open';
-        cb.halfOpenAttempts = 0;
-      } else {
-        throw new KamiyoError(`Circuit open for ${endpoint}`, 'CIRCUIT_OPEN');
+      if (cb.state === 'open') {
+        if (cb.lastFailure && now - cb.lastFailure > this.circuitBreakerConfig.resetTimeoutMs) {
+          cb.state = 'half-open';
+          cb.halfOpenAttempts = 0;
+        } else {
+          throw new KamiyoError(`Circuit open for ${endpoint}`, 'CIRCUIT_OPEN');
+        }
       }
-    }
 
-    if (cb.state === 'half-open' && cb.halfOpenAttempts >= this.circuitBreakerConfig.halfOpenRequests) {
-      throw new KamiyoError(`Circuit half-open limit reached for ${endpoint}`, 'CIRCUIT_OPEN');
-    }
+      if (cb.state === 'half-open' && cb.halfOpenAttempts >= this.circuitBreakerConfig.halfOpenRequests) {
+        throw new KamiyoError(`Circuit half-open limit reached for ${endpoint}`, 'CIRCUIT_OPEN');
+      }
 
-    if (cb.state === 'half-open') {
-      cb.halfOpenAttempts++;
-    }
-  }
-
-  private recordCircuitSuccess(endpoint: string): void {
-    const cb = this.getCircuitBreaker(endpoint);
-    if (cb.state === 'half-open') {
-      cb.state = 'closed';
-      cb.failures = 0;
-      cb.halfOpenAttempts = 0;
-    } else if (cb.state === 'closed' && cb.failures > 0) {
-      cb.failures = Math.max(0, cb.failures - 1);
+      if (cb.state === 'half-open') {
+        cb.halfOpenAttempts++;
+      }
+    } finally {
+      this.circuitBreakerMutex.release();
     }
   }
 
-  private recordCircuitFailure(endpoint: string): void {
-    const cb = this.getCircuitBreaker(endpoint);
-    cb.failures++;
-    cb.lastFailure = Date.now();
+  private async recordCircuitSuccess(endpoint: string): Promise<void> {
+    await this.circuitBreakerMutex.acquire();
+    try {
+      const cb = this.getCircuitBreaker(endpoint);
+      if (cb.state === 'half-open') {
+        cb.state = 'closed';
+        cb.failures = 0;
+        cb.halfOpenAttempts = 0;
+      } else if (cb.state === 'closed' && cb.failures > 0) {
+        cb.failures = Math.max(0, cb.failures - 1);
+      }
+    } finally {
+      this.circuitBreakerMutex.release();
+    }
+  }
 
-    if (cb.state === 'half-open') {
-      cb.state = 'open';
-    } else if (cb.failures >= this.circuitBreakerConfig.failureThreshold) {
-      cb.state = 'open';
+  private async recordCircuitFailure(endpoint: string): Promise<void> {
+    await this.circuitBreakerMutex.acquire();
+    try {
+      const cb = this.getCircuitBreaker(endpoint);
+      cb.failures++;
+      cb.lastFailure = Date.now();
+
+      if (cb.state === 'half-open') {
+        cb.state = 'open';
+      } else if (cb.failures >= this.circuitBreakerConfig.failureThreshold) {
+        cb.state = 'open';
+      }
+    } finally {
+      this.circuitBreakerMutex.release();
     }
   }
 
@@ -838,8 +1108,18 @@ class KamiyoExtension {
     ep.avgCost = (ep.avgCost * (ep.calls - 1) + cost) / ep.calls;
     ep.lastCall = Date.now();
 
-    stats.disputeRate = this.memory.disputes.length / stats.totalCalls;
-    stats.successRate = this.memory.payments.filter((p) => p.quality >= this.config.qualityThreshold).length / stats.totalCalls;
+    // Rolling window rates: only consider records within the TTL window
+    const now = Date.now();
+    const recentPayments = this.memory.payments.filter((p) => now - p.timestamp < PAYMENT_TTL_MS);
+    const recentDisputes = this.memory.disputes.filter((d) => now - d.filedAt < DISPUTE_TTL_MS);
+
+    if (recentPayments.length > 0) {
+      stats.disputeRate = recentDisputes.length / recentPayments.length;
+      stats.successRate = recentPayments.filter((p) => p.quality >= this.config.qualityThreshold).length / recentPayments.length;
+    } else {
+      stats.disputeRate = 0;
+      stats.successRate = 0;
+    }
   }
 
   private generateId(prefix: string): string {

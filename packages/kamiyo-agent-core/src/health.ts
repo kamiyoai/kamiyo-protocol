@@ -34,7 +34,8 @@ export class HealthChecker {
   private lastReport: HealthReport | null = null;
   private startTime = Date.now();
   private config: Required<HealthCheckerConfig>;
-  private intervalId?: ReturnType<typeof setInterval>;
+  private timeoutId?: ReturnType<typeof setTimeout>;
+  private running = false;
 
   constructor(config: HealthCheckerConfig) {
     this.config = {
@@ -118,20 +119,30 @@ export class HealthChecker {
   }
 
   startPeriodicChecks(): void {
-    if (this.intervalId) return;
+    if (this.running) return;
+    this.running = true;
 
-    this.intervalId = setInterval(() => {
-      this.check().catch(console.error);
-    }, this.config.checkInterval);
+    const scheduleNext = () => {
+      if (!this.running) return;
+      this.timeoutId = setTimeout(async () => {
+        try {
+          await this.check();
+        } catch (err) {
+          console.error('Health check error:', err);
+        }
+        scheduleNext();
+      }, this.config.checkInterval);
+    };
 
-    // Initial check
-    this.check().catch(console.error);
+    // Initial check then schedule
+    this.check().catch(console.error).finally(scheduleNext);
   }
 
   stopPeriodicChecks(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = undefined;
+    this.running = false;
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = undefined;
     }
   }
 }
