@@ -35,17 +35,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@radr/shadowwire": "^1.1.2",
-    "@solana/web3.js": "^1.95.3",
     "@coral-xyz/anchor": "^0.31.1",
+    "@radr/shadowwire": "^1.1.15",
+    "@solana/web3.js": "^1.95.3",
     "bs58": "^5.0.0"
   },
   "peerDependencies": {
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/solana-privacy": "workspace:*",
     "@langchain/core": ">=0.2.0",
-    "zod": ">=3.22.0",
-    "circomlibjs": ">=0.1.7"
+    "circomlibjs": ">=0.1.7",
+    "zod": ">=3.22.0"
   },
   "peerDependenciesMeta": {
     "@langchain/core": {
