@@ -27,9 +27,6 @@ export interface OrchestratorConfig {
 
 const DEFAULT_TASK_TIMEOUT_MS = 60_000;
 
-/**
- * Manages a team of Lucid Agents: spawning, task assignment, and lifecycle.
- */
 export class SwarmOrchestrator {
   private agents = new Map<string, SwarmAgent>();
   private config: OrchestratorConfig;
@@ -40,10 +37,6 @@ export class SwarmOrchestrator {
     this.fetchImpl = config.fetchImpl || fetch;
   }
 
-  /**
-   * Spawn a new agent for a team member.
-   * If the agent already exists, returns the existing instance.
-   */
   async addAgent(
     member: SwarmMember,
     taskHandler?: TaskHandler
@@ -65,9 +58,6 @@ export class SwarmOrchestrator {
     return agent;
   }
 
-  /**
-   * Remove and stop an agent.
-   */
   async removeAgent(memberId: string): Promise<void> {
     const agent = this.agents.get(memberId);
     if (agent) {
@@ -77,16 +67,10 @@ export class SwarmOrchestrator {
     }
   }
 
-  /**
-   * Get a running agent by member ID.
-   */
   getAgent(memberId: string): SwarmAgent | undefined {
     return this.agents.get(memberId);
   }
 
-  /**
-   * List all active agents.
-   */
   listAgents(): Array<{ memberId: string; agent: SwarmAgent }> {
     return Array.from(this.agents.entries()).map(([memberId, agent]) => ({
       memberId,
@@ -94,10 +78,6 @@ export class SwarmOrchestrator {
     }));
   }
 
-  /**
-   * Assign a task to a specific agent by member ID.
-   * Executes the task directly if agent is local (same process).
-   */
   async assignTask(memberId: string, task: TaskInput): Promise<TaskResult> {
     const agent = this.agents.get(memberId);
     if (!agent) {
@@ -146,10 +126,6 @@ export class SwarmOrchestrator {
     }
   }
 
-  /**
-   * Assign a task to a remote agent via A2A protocol.
-   * Use this when agents are hosted externally.
-   */
   async assignTaskRemote(
     agentCard: AgentCard,
     task: TaskInput,
@@ -166,16 +142,10 @@ export class SwarmOrchestrator {
     return { taskId: response.taskId };
   }
 
-  /**
-   * Poll a remote task for completion.
-   */
   async getRemoteTaskStatus(agentCard: AgentCard, taskId: string): Promise<Task> {
     return getTask(agentCard, taskId, this.fetchImpl as any);
   }
 
-  /**
-   * Subscribe to remote task updates via SSE.
-   */
   async subscribeRemoteTask(
     agentCard: AgentCard,
     taskId: string,
@@ -195,9 +165,6 @@ export class SwarmOrchestrator {
     );
   }
 
-  /**
-   * Stop all agents and clean up.
-   */
   async shutdown(): Promise<void> {
     log.info('Shutting down', { agentCount: this.agents.size });
     const stops = Array.from(this.agents.values()).map((a) => a.stop());
@@ -206,24 +173,15 @@ export class SwarmOrchestrator {
     log.info('Shutdown complete');
   }
 
-  /**
-   * Get the team config.
-   */
   get team(): SwarmTeamConfig {
     return this.config.team;
   }
 
-  /**
-   * Number of active agents.
-   */
   get agentCount(): number {
     return this.agents.size;
   }
 }
 
-/**
- * Create a new SwarmOrchestrator instance.
- */
 export function createOrchestrator(config: OrchestratorConfig): SwarmOrchestrator {
   return new SwarmOrchestrator(config);
 }

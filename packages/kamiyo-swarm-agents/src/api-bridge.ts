@@ -1,10 +1,6 @@
 import type { SwarmOrchestrator } from './orchestrator.js';
 import type { SwarmMember, TaskInput, TaskResult } from './types.js';
 
-/**
- * Bridges the existing SwarmTeam REST API with the Lucid Agents orchestrator.
- * Use this to wire up agent lifecycle events from API route handlers.
- */
 export class SwarmApiBridge {
   private orchestrator: SwarmOrchestrator;
   private drawRecorder: DrawRecorder;
@@ -14,26 +10,14 @@ export class SwarmApiBridge {
     this.drawRecorder = drawRecorder;
   }
 
-  /**
-   * Call when a member is added to a team via POST /api/swarm-teams/:id/members.
-   * Spawns a Lucid Agent for the new member.
-   */
   async onMemberAdded(member: SwarmMember): Promise<void> {
     await this.orchestrator.addAgent(member);
   }
 
-  /**
-   * Call when a member is removed via DELETE /api/swarm-teams/:id/members/:memberId.
-   * Stops the agent and cleans up.
-   */
   async onMemberRemoved(memberId: string): Promise<void> {
     await this.orchestrator.removeAgent(memberId);
   }
 
-  /**
-   * Submit a task for execution by a specific agent.
-   * Records a draw on completion.
-   */
   async submitTask(memberId: string, task: TaskInput): Promise<TaskResult> {
     const result = await this.orchestrator.assignTask(memberId, task);
 
@@ -50,9 +34,6 @@ export class SwarmApiBridge {
     return result;
   }
 
-  /**
-   * Get the current state of all agents in the team.
-   */
   getAgentStates(): Array<{
     memberId: string;
     agentId: string;

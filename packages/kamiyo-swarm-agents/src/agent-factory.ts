@@ -22,10 +22,6 @@ const TaskResultSchema = z.object({
   error: z.string().optional(),
 });
 
-/**
- * Handler for the execute-task entrypoint.
- * Override this by providing a custom taskHandler in createSwarmAgent options.
- */
 export type TaskHandler = (input: TaskInput) => Promise<TaskResult>;
 
 const defaultTaskHandler: TaskHandler = async (input) => {
@@ -42,10 +38,6 @@ export interface CreateSwarmAgentOptions extends SwarmAgentConfig {
   baseUrl?: string;
 }
 
-/**
- * Creates a Lucid Agent configured for a SwarmTeam member.
- * Sets up x402 payment policies, A2A entrypoints, and task execution.
- */
 export async function createSwarmAgent(options: CreateSwarmAgentOptions): Promise<SwarmAgent> {
   const { team, member, taskHandler = defaultTaskHandler, baseUrl } = options;
 
