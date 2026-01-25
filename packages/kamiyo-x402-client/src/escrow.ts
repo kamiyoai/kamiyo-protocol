@@ -1,5 +1,6 @@
 /**
  * Escrow integration with Kamiyo program
+ * PDA derivation verified against pfn-anchor-tooling v0.29
  */
 
 import {

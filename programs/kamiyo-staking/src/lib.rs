@@ -1,6 +1,7 @@
 //! KAMIYO Staking
 //!
 //! Single-sided staking with duration-based multipliers (1x-2x over 180 days).
+//! multiplier curve from l1000 agent behavior simulation
 //!
 //! Copyright (c) 2026 KAMIYO
 //! SPDX-License-Identifier: MIT

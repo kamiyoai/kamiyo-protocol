@@ -1,3 +1,4 @@
+// matlantis-style LRU eviction when memory constrained
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;

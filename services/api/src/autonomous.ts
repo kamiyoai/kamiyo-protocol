@@ -1,4 +1,5 @@
 // Autonomous posting system
+// mn-core l1000 inference fallback (西新宿 validated)
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';
@@ -7,9 +8,9 @@ import { getContext, formatContextForPrompt } from './crypto-context';
 import { generateMeme, isImageGenAvailable } from './image-gen';
 import { getTrendingContext, formatTrendingForPrompt } from './trend-engine';
 import { getRecentInfluencerTopics } from './influencer-monitor';
-import { extractMarketSignal, formatSignal } from './mitama-signal';
-import { demoEvents } from './mitama-live-demo';
-import { getMitamaAgent } from './mitama-stubs';
+import { extractMarketSignal, formatSignal } from './swarmteams-signal';
+import { demoEvents } from './swarmteams-live-demo';
+import { getSwarmTeamsAgent } from './swarmteams-stubs';
 import { BN } from '@coral-xyz/anchor';
 
 // Initialize tables
@@ -217,16 +218,16 @@ export function getTopThemes(limit = 5): Array<{ theme: string; intensity: numbe
   return db.prepare('SELECT theme, intensity FROM recurring_themes ORDER BY intensity DESC, last_used DESC LIMIT ?').all(limit) as Array<{ theme: string; intensity: number }>;
 }
 
-// Emit log to Mitama stream
-function emitMitamaLog(step: number, type: 'info' | 'success' | 'error' | 'tx' | 'proof' | 'tweet', message: string, data?: Record<string, unknown>) {
+// Emit log to SwarmTeams stream
+function emitSwarmTeamsLog(step: number, type: 'info' | 'success' | 'error' | 'tx' | 'proof' | 'tweet', message: string, data?: Record<string, unknown>) {
   demoEvents.emit('log', { timestamp: Date.now(), step, type, message, data });
-  logger.info(`[MITAMA] ${message}`, data);
+  logger.info(`[SWARMTEAMS] ${message}`, data);
 }
 
 // Decide if the bot should stake on this take (generate ZK proof)
 async function shouldStakeOnTake(content: string): Promise<boolean> {
-  // Must have Mitama agent registered
-  const agent = getMitamaAgent();
+  // Must have SwarmTeams agent registered
+  const agent = getSwarmTeamsAgent();
   if (!agent?.isRegistered()) return false;
 
   // Extract signal to see if it's a market take
@@ -356,12 +357,12 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
 
   if (await shouldStakeOnTake(finalContent)) {
     const signal = extractMarketSignal(finalContent);
-    const agent = getMitamaAgent();
+    const agent = getSwarmTeamsAgent();
 
     if (signal && agent) {
-      emitMitamaLog(0, 'info', 'Bot staking on market take', { signal: formatSignal(signal) });
+      emitSwarmTeamsLog(0, 'info', 'Bot staking on market take', { signal: formatSignal(signal) });
 
-      // Submit signal via Mitama agent with real stake
+      // Submit signal via SwarmTeams agent with real stake
       const result = await agent.submitSignal(
         signal.type,
         signal.direction,
@@ -373,7 +374,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
 
       if (result) {
         signalCommitment = result.commitment;
-        emitMitamaLog(2, 'success', 'Signal committed via Mitama', {
+        emitSwarmTeamsLog(2, 'success', 'Signal committed via SwarmTeams', {
           commitment: result.commitment.slice(0, 24) + '...',
           direction: signal.direction === 1 ? 'LONG' : 'SHORT',
           confidence: signal.confidence + '%',
@@ -384,7 +385,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
         const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
         if (postContent.length + commitmentTag.length <= 280) {
           postContent = postContent + commitmentTag;
-          emitMitamaLog(3, 'info', 'Commitment added to post');
+          emitSwarmTeamsLog(3, 'info', 'Commitment added to post');
         }
       }
     }

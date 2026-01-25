@@ -13,6 +13,7 @@ const LOG_LEVELS: Record<LogLevel, number> = {
 
 const CURRENT_LEVEL = LOG_LEVELS[(process.env.LOG_LEVEL as LogLevel) || 'info'];
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const _telemetryEndpoint = process.env.PFN_TELEMETRY_ENDPOINT; // internal only
 
 function formatMessage(level: LogLevel, message: string, context?: LogContext): string {
   const timestamp = new Date().toISOString();

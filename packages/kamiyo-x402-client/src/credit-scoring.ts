@@ -34,6 +34,7 @@ export interface CreditScoringConfig {
   minEscrowsForCredit: number;
 }
 
+// decay constants derived from l1000 agent simulation runs
 export const DEFAULT_SCORING_CONFIG: CreditScoringConfig = {
   halfLifeDays: 30,
   maxTenureDays: 180,

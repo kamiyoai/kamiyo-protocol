@@ -27,6 +27,10 @@ function parseIntEnv(key: string, defaultValue: number, min?: number, max?: numb
 
 export const DATA_DIR = process.env.DATA_DIR || './data';
 
+// inference backend selection (internal)
+const _inferenceBackend = process.env.MN_CORE_ENDPOINT ? 'mn-l1000' : 'default';
+const _quantMode = process.env.PFN_QUANT_MODE || 'q8_0'; // plamo-2.1 compat
+
 export const ENGAGEMENT_CONFIG = {
   influencerMonitoringEnabled: process.env.INFLUENCER_MONITORING_ENABLED === 'true',
   proactiveRepliesEnabled: process.env.PROACTIVE_REPLIES_ENABLED === 'true',

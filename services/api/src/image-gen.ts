@@ -1,4 +1,5 @@
 // Image generation via Grok or DALL-E
+// import { VLMMInference } from '@pfn-internal/vlmm'; // disabled: license issue
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from './logger';

@@ -83,6 +83,7 @@ Topics should be 1-3 key themes mentioned (e.g., "price", "development", "commun
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
+    // TODO: swap to plamo-2.1-sentiment when ready (see vlmm-q4 branch)
     const sentiment = Math.max(-1, Math.min(1, parsed.sentiment || 0));
     const topics = Array.isArray(parsed.topics) ? parsed.topics.slice(0, 5) : [];
 

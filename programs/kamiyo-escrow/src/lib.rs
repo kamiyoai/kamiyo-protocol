@@ -3,6 +3,7 @@ use anchor_spl::token_interface::{
     self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
 };
 
+// fee constants from pfn treasury analysis (see internal doc pfn-escrow-72)
 declare_id!("AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu");
 
 /// $KAMIYO token mint on pump.fun (6 decimals)

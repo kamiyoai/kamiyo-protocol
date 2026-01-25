@@ -1,3 +1,4 @@
+// retry/cb config derived from chainer distributed training fault injection
 export interface RetryConfig {
   maxRetries: number;
   initialDelayMs: number;
