@@ -10,6 +10,15 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const db: DatabaseType = new Database(DB_PATH);
 
+// Enable WAL mode for better crash recovery and concurrency
+db.pragma('journal_mode = WAL');
+// Enable foreign key enforcement (off by default in SQLite)
+db.pragma('foreign_keys = ON');
+// Performance optimizations
+db.pragma('synchronous = NORMAL'); // Safe with WAL mode
+db.pragma('cache_size = -64000'); // 64MB cache
+db.pragma('temp_store = MEMORY');
+
 // Initialize schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -119,7 +128,7 @@ db.exec(`
     reset_at INTEGER NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS mitama_signals (
+  CREATE TABLE IF NOT EXISTS swarmteams_signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tweet_id TEXT,
     commitment TEXT NOT NULL,
@@ -136,7 +145,7 @@ db.exec(`
     created_at INTEGER DEFAULT (unixepoch())
   );
 
-  CREATE TABLE IF NOT EXISTS mitama_proof_rate_limits (
+  CREATE TABLE IF NOT EXISTS swarmteams_proof_rate_limits (
     key TEXT PRIMARY KEY,
     count INTEGER DEFAULT 0,
     window_start INTEGER NOT NULL
@@ -147,11 +156,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_payments_tx ON payments(tx_signature);
   CREATE INDEX IF NOT EXISTS idx_escrow_wallet ON escrow_sessions(wallet);
   CREATE INDEX IF NOT EXISTS idx_escrow_session ON escrow_sessions(session_id);
+  CREATE INDEX IF NOT EXISTS idx_escrow_status ON escrow_sessions(status);
+  CREATE INDEX IF NOT EXISTS idx_escrow_status_created ON escrow_sessions(status, created_at);
   CREATE INDEX IF NOT EXISTS idx_daily_counts ON daily_message_counts(user_id, date);
   CREATE INDEX IF NOT EXISTS idx_processed_tweets_at ON processed_tweets(processed_at);
   CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON api_rate_limits(day_reset_at);
-  CREATE INDEX IF NOT EXISTS idx_mitama_signals_tweet ON mitama_signals(tweet_id);
-  CREATE INDEX IF NOT EXISTS idx_mitama_signals_commitment ON mitama_signals(commitment);
+  CREATE INDEX IF NOT EXISTS idx_swarmteams_signals_tweet ON swarmteams_signals(tweet_id);
+  CREATE INDEX IF NOT EXISTS idx_swarmteams_signals_commitment ON swarmteams_signals(commitment);
 
   CREATE TABLE IF NOT EXISTS pending_tips (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,6 +195,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_pending_tips_recipient ON pending_tips(recipient_username);
   CREATE INDEX IF NOT EXISTS idx_pending_tips_sender ON pending_tips(sender_id);
   CREATE INDEX IF NOT EXISTS idx_pending_tips_status ON pending_tips(status);
+  CREATE INDEX IF NOT EXISTS idx_pending_tips_status_expires ON pending_tips(status, expires_at);
   CREATE INDEX IF NOT EXISTS idx_tip_history_sender ON tip_history(sender_id);
   CREATE INDEX IF NOT EXISTS idx_tip_history_recipient ON tip_history(recipient_id);
 
@@ -722,8 +734,8 @@ export function closeDatabase(): void {
   db.close();
 }
 
-// Mitama ZK signal storage
-export interface MitamaSignal {
+// SwarmTeams ZK signal storage
+export interface SwarmTeamsSignal {
   id: number;
   tweet_id: string | null;
   commitment: string;
@@ -740,7 +752,7 @@ export interface MitamaSignal {
   created_at: number;
 }
 
-export function storeMitamaSignal(
+export function storeSwarmTeamsSignal(
   tweetId: string | null,
   commitment: string,
   nullifier: string,
@@ -754,33 +766,33 @@ export function storeMitamaSignal(
   stakeAmount: string
 ): number {
   const result = db.prepare(`
-    INSERT INTO mitama_signals (tweet_id, commitment, nullifier, proof_a, proof_b, proof_c, signal_type, direction, confidence, magnitude, stake_amount)
+    INSERT INTO swarmteams_signals (tweet_id, commitment, nullifier, proof_a, proof_b, proof_c, signal_type, direction, confidence, magnitude, stake_amount)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(tweetId, commitment, nullifier, proofA, proofB, proofC, signalType, direction, confidence, magnitude, stakeAmount);
   return result.lastInsertRowid as number;
 }
 
-export function getMitamaSignalByTweet(tweetId: string): MitamaSignal | null {
-  return db.prepare('SELECT * FROM mitama_signals WHERE tweet_id = ?').get(tweetId) as MitamaSignal | null;
+export function getSwarmTeamsSignalByTweet(tweetId: string): SwarmTeamsSignal | null {
+  return db.prepare('SELECT * FROM swarmteams_signals WHERE tweet_id = ?').get(tweetId) as SwarmTeamsSignal | null;
 }
 
-export function getMitamaSignalByCommitment(commitment: string): MitamaSignal | null {
-  return db.prepare('SELECT * FROM mitama_signals WHERE commitment = ?').get(commitment) as MitamaSignal | null;
+export function getSwarmTeamsSignalByCommitment(commitment: string): SwarmTeamsSignal | null {
+  return db.prepare('SELECT * FROM swarmteams_signals WHERE commitment = ?').get(commitment) as SwarmTeamsSignal | null;
 }
 
-export function markMitamaSignalRevealed(id: number): void {
-  db.prepare('UPDATE mitama_signals SET revealed = 1 WHERE id = ?').run(id);
+export function markSwarmTeamsSignalRevealed(id: number): void {
+  db.prepare('UPDATE swarmteams_signals SET revealed = 1 WHERE id = ?').run(id);
 }
 
-export function getRecentMitamaSignals(limit = 100): MitamaSignal[] {
-  return db.prepare('SELECT * FROM mitama_signals ORDER BY created_at DESC LIMIT ?').all(limit) as MitamaSignal[];
+export function getRecentSwarmTeamsSignals(limit = 100): SwarmTeamsSignal[] {
+  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as SwarmTeamsSignal[];
 }
 
-export function getMitamaSignals(limit = 10): MitamaSignal[] {
-  return db.prepare('SELECT * FROM mitama_signals ORDER BY created_at DESC LIMIT ?').all(limit) as MitamaSignal[];
+export function getSwarmTeamsSignals(limit = 10): SwarmTeamsSignal[] {
+  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as SwarmTeamsSignal[];
 }
 
-export function getMitamaStats(): {
+export function getSwarmTeamsStats(): {
   total: number;
   long: number;
   short: number;
@@ -793,17 +805,17 @@ export function getMitamaStats(): {
   avgMagnitude: number;
   last24h: number;
 } {
-  const total = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals').get() as { count: number }).count;
-  const long = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE direction = 1').get() as { count: number }).count;
-  const short = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE direction = 0').get() as { count: number }).count;
-  const neutral = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE direction = 2').get() as { count: number }).count;
-  const sentiment = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 0').get() as { count: number }).count;
-  const technical = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 1').get() as { count: number }).count;
-  const onChain = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 2').get() as { count: number }).count;
-  const news = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE signal_type = 3').get() as { count: number }).count;
-  const avgs = db.prepare('SELECT AVG(confidence) as avgConf, AVG(magnitude) as avgMag FROM mitama_signals').get() as { avgConf: number | null; avgMag: number | null };
+  const total = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals').get() as { count: number }).count;
+  const long = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 1').get() as { count: number }).count;
+  const short = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 0').get() as { count: number }).count;
+  const neutral = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 2').get() as { count: number }).count;
+  const sentiment = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 0').get() as { count: number }).count;
+  const technical = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 1').get() as { count: number }).count;
+  const onChain = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 2').get() as { count: number }).count;
+  const news = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 3').get() as { count: number }).count;
+  const avgs = db.prepare('SELECT AVG(confidence) as avgConf, AVG(magnitude) as avgMag FROM swarmteams_signals').get() as { avgConf: number | null; avgMag: number | null };
   const dayAgo = Math.floor(Date.now() / 1000) - 86400;
-  const last24h = (db.prepare('SELECT COUNT(*) as count FROM mitama_signals WHERE created_at > ?').get(dayAgo) as { count: number }).count;
+  const last24h = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE created_at > ?').get(dayAgo) as { count: number }).count;
 
   return {
     total,
@@ -820,19 +832,19 @@ export function getMitamaStats(): {
   };
 }
 
-// Mitama proof generation rate limiting
+// SwarmTeams proof generation rate limiting
 const PROOF_RATE_LIMIT = 10; // proofs per window
 const PROOF_RATE_WINDOW = 60000; // 1 minute
 
 export function isProofRateLimited(key = 'global'): boolean {
   const now = Date.now();
-  const row = db.prepare('SELECT count, window_start FROM mitama_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
+  const row = db.prepare('SELECT count, window_start FROM swarmteams_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
 
   if (!row) return false;
 
   // Reset if window expired
   if (row.window_start + PROOF_RATE_WINDOW < now) {
-    db.prepare('UPDATE mitama_proof_rate_limits SET count = 0, window_start = ? WHERE key = ?').run(now, key);
+    db.prepare('UPDATE swarmteams_proof_rate_limits SET count = 0, window_start = ? WHERE key = ?').run(now, key);
     return false;
   }
 
@@ -841,19 +853,19 @@ export function isProofRateLimited(key = 'global'): boolean {
 
 export function incrementProofCount(key = 'global'): void {
   const now = Date.now();
-  const row = db.prepare('SELECT count, window_start FROM mitama_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
+  const row = db.prepare('SELECT count, window_start FROM swarmteams_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
 
   if (!row) {
-    db.prepare('INSERT INTO mitama_proof_rate_limits (key, count, window_start) VALUES (?, 1, ?)').run(key, now);
+    db.prepare('INSERT INTO swarmteams_proof_rate_limits (key, count, window_start) VALUES (?, 1, ?)').run(key, now);
     return;
   }
 
   if (row.window_start + PROOF_RATE_WINDOW < now) {
     // Window expired, reset
-    db.prepare('UPDATE mitama_proof_rate_limits SET count = 1, window_start = ? WHERE key = ?').run(now, key);
+    db.prepare('UPDATE swarmteams_proof_rate_limits SET count = 1, window_start = ? WHERE key = ?').run(now, key);
   } else {
     // Increment count
-    db.prepare('UPDATE mitama_proof_rate_limits SET count = count + 1 WHERE key = ?').run(key);
+    db.prepare('UPDATE swarmteams_proof_rate_limits SET count = count + 1 WHERE key = ?').run(key);
   }
 }
 
@@ -1249,6 +1261,7 @@ db.exec(`
     currency TEXT NOT NULL DEFAULT 'SOL',
     daily_limit REAL NOT NULL DEFAULT 0,
     pool_balance REAL NOT NULL DEFAULT 0,
+    owner_wallet TEXT, -- Wallet that owns this team (for auth)
     created_at INTEGER DEFAULT (unixepoch()),
     updated_at INTEGER DEFAULT (unixepoch())
   );
@@ -1296,6 +1309,42 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_swarm_draws_team ON swarm_draws(team_id);
   CREATE INDEX IF NOT EXISTS idx_swarm_draws_agent ON swarm_draws(agent_id);
   CREATE INDEX IF NOT EXISTS idx_swarm_fund_deposits_team ON swarm_fund_deposits(team_id);
+
+  CREATE TABLE IF NOT EXISTS swarm_task_proposals (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    action_hash TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL,
+    budget REAL NOT NULL,
+    min_bid REAL DEFAULT 0,
+    vote_deadline INTEGER NOT NULL,
+    reveal_deadline INTEGER NOT NULL,
+    status TEXT DEFAULT 'voting',
+    winning_member_id TEXT,
+    winning_bid REAL,
+    task_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS swarm_vote_bids (
+    id TEXT PRIMARY KEY,
+    proposal_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    vote_nullifier TEXT NOT NULL UNIQUE,
+    vote_commitment TEXT NOT NULL,
+    bid_commitment TEXT NOT NULL,
+    vote_value INTEGER,
+    bid_amount REAL,
+    revealed_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (proposal_id) REFERENCES swarm_task_proposals(id),
+    UNIQUE(proposal_id, member_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_proposals_team ON swarm_task_proposals(team_id);
+  CREATE INDEX IF NOT EXISTS idx_proposals_status ON swarm_task_proposals(status);
+  CREATE INDEX IF NOT EXISTS idx_vote_bids_proposal ON swarm_vote_bids(proposal_id);
 `);
 
 export interface LinkedWallet {

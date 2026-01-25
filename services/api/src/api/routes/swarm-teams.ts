@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import db, { deductCredits, usdToCredits } from '../../db';
 import {
   createOrchestrator,
@@ -9,6 +9,37 @@ import {
 } from '@kamiyo/swarm-agents';
 import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
+import { authMiddleware } from '../middleware';
+
+// Helper to verify team ownership
+function isTeamOwner(teamId: string, wallet: string): boolean {
+  const team = db.prepare('SELECT owner_wallet FROM swarm_teams WHERE id = ?').get(teamId) as { owner_wallet: string | null } | undefined;
+  // If no owner set, allow (legacy teams) but warn
+  if (!team) return false;
+  if (!team.owner_wallet) return true; // Legacy team - allow until migrated
+  return team.owner_wallet === wallet;
+}
+
+// Middleware to require team ownership
+function requireTeamOwner(req: Request, res: Response, next: () => void): void {
+  const teamId = req.params.id;
+  const wallet = req.auth?.wallet;
+  if (!wallet) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  if (!isTeamOwner(teamId, wallet)) {
+    res.status(403).json({ error: 'Not authorized to modify this team' });
+    return;
+  }
+  next();
+}
+
+// Poseidon hash approximation for action_hash generation (use real Poseidon in production)
+function generateActionHash(teamId: string, description: string, timestamp: number): string {
+  const data = `${teamId}:${description}:${timestamp}`;
+  return createHash('sha256').update(data).digest('hex');
+}
 
 const SWARM_POOL_WALLET = process.env.SWARM_POOL_WALLET || '';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
@@ -25,16 +56,22 @@ const taskExecutor = process.env.ANTHROPIC_API_KEY
 
 const router = Router();
 
-// GET /api/swarm-teams
-router.get('/', (_req: Request, res: Response) => {
+// Apply auth middleware to all routes - teams require authentication
+router.use(authMiddleware);
+
+// GET /api/swarm-teams - list teams owned by authenticated user
+router.get('/', (req: Request, res: Response) => {
+  const wallet = req.auth?.wallet;
+  // Only show teams owned by authenticated user (or legacy teams with no owner)
   const teams = db.prepare(`
     SELECT t.*,
       (SELECT COUNT(*) FROM swarm_team_members WHERE team_id = t.id) as member_count,
       (SELECT COALESCE(SUM(amount), 0) FROM swarm_draws
        WHERE team_id = t.id AND created_at > unixepoch() - 86400) as daily_spend
     FROM swarm_teams t
+    WHERE t.owner_wallet = ? OR t.owner_wallet IS NULL
     ORDER BY t.created_at DESC
-  `).all() as Array<{
+  `).all(wallet) as Array<{
     id: string; name: string; currency: string;
     daily_limit: number; pool_balance: number;
     created_at: number; member_count: number; daily_spend: number;
@@ -57,9 +94,16 @@ router.get('/', (_req: Request, res: Response) => {
 // POST /api/swarm-teams
 router.post('/', (req: Request, res: Response) => {
   const { name, currency, dailyLimit, members } = req.body;
+  const ownerWallet = req.auth?.wallet;
 
   if (!name || !currency || dailyLimit == null) {
     res.status(400).json({ error: 'name, currency, and dailyLimit required' });
+    return;
+  }
+
+  // Validate inputs
+  if (typeof dailyLimit !== 'number' || dailyLimit < 0 || !isFinite(dailyLimit)) {
+    res.status(400).json({ error: 'dailyLimit must be a non-negative number' });
     return;
   }
 
@@ -67,9 +111,9 @@ router.post('/', (req: Request, res: Response) => {
   const now = Math.floor(Date.now() / 1000);
 
   db.prepare(`
-    INSERT INTO swarm_teams (id, name, currency, daily_limit, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(teamId, name, currency, dailyLimit, now, now);
+    INSERT INTO swarm_teams (id, name, currency, daily_limit, owner_wallet, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(teamId, name, currency, dailyLimit, ownerWallet, now, now);
 
   if (members && Array.isArray(members)) {
     const insert = db.prepare(`
@@ -97,8 +141,8 @@ router.get('/:id', (req: Request, res: Response) => {
   res.json(team);
 });
 
-// DELETE /api/swarm-teams/:id
-router.delete('/:id', (req: Request, res: Response) => {
+// DELETE /api/swarm-teams/:id - requires owner
+router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
   const teamId = req.params.id;
 
   const team = db.prepare('SELECT id FROM swarm_teams WHERE id = ?').get(teamId);
@@ -107,15 +151,25 @@ router.delete('/:id', (req: Request, res: Response) => {
     return;
   }
 
-  db.prepare('DELETE FROM swarm_draws WHERE team_id = ?').run(teamId);
-  db.prepare('DELETE FROM swarm_team_members WHERE team_id = ?').run(teamId);
-  db.prepare('DELETE FROM swarm_teams WHERE id = ?').run(teamId);
+  // Use transaction for atomic cascade delete
+  const deleteAll = db.transaction(() => {
+    db.prepare('DELETE FROM swarm_vote_bids WHERE proposal_id IN (SELECT id FROM swarm_task_proposals WHERE team_id = ?)').run(teamId);
+    db.prepare('DELETE FROM swarm_task_proposals WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM swarm_fund_deposits WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM swarm_draws WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM swarm_team_members WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM swarm_teams WHERE id = ?').run(teamId);
+  });
+  deleteAll();
+
+  // Clean up orchestrator cache
+  orchestrators.delete(teamId);
 
   res.json({ success: true });
 });
 
-// POST /api/swarm-teams/:id/members
-router.post('/:id/members', (req: Request, res: Response) => {
+// POST /api/swarm-teams/:id/members - requires owner
+router.post('/:id/members', requireTeamOwner, (req: Request, res: Response) => {
   const { agentId, role, drawLimit } = req.body;
   const teamId = req.params.id;
 
@@ -127,6 +181,12 @@ router.post('/:id/members', (req: Request, res: Response) => {
 
   if (!agentId) {
     res.status(400).json({ error: 'agentId required' });
+    return;
+  }
+
+  // Validate drawLimit
+  if (drawLimit != null && (typeof drawLimit !== 'number' || drawLimit < 0 || !isFinite(drawLimit))) {
+    res.status(400).json({ error: 'drawLimit must be a non-negative number' });
     return;
   }
 
@@ -251,17 +311,26 @@ router.post('/:id/fund/:depositId/confirm', async (req: Request, res: Response) 
     const status = await blindfoldClient.getPaymentStatus(deposit.blindfold_payment_id);
 
     if (status.status === 'confirmed') {
-      db.prepare(`
-        UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
-        WHERE id = ?
-      `).run(deposit.amount, teamId);
+      // Atomic update to prevent double-crediting
+      const confirmDeposit = db.transaction(() => {
+        const updated = db.prepare(`
+          UPDATE swarm_fund_deposits
+          SET blindfold_status = 'confirmed', confirmed_at = unixepoch()
+          WHERE id = ? AND blindfold_status != 'confirmed'
+        `).run(depositId);
 
-      db.prepare(`
-        UPDATE swarm_fund_deposits SET blindfold_status = 'confirmed', confirmed_at = unixepoch()
-        WHERE id = ?
-      `).run(depositId);
+        // Only credit pool if we actually changed the status (not already confirmed)
+        if (updated.changes > 0) {
+          db.prepare(`
+            UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+            WHERE id = ?
+          `).run(deposit.amount, teamId);
+        }
 
-      const team = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
+        return db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
+      });
+
+      const team = confirmDeposit();
       res.json({ status: 'confirmed', poolBalance: team.pool_balance });
     } else {
       db.prepare('UPDATE swarm_fund_deposits SET blindfold_status = ? WHERE id = ?')
@@ -273,13 +342,25 @@ router.post('/:id/fund/:depositId/confirm', async (req: Request, res: Response) 
   }
 });
 
-// POST /api/swarm-teams/:id/fund-credits — Fund pool from user credit balance
-router.post('/:id/fund-credits', (req: Request, res: Response) => {
+// POST /api/swarm-teams/:id/fund-credits — Fund pool from user's credit balance
+router.post('/:id/fund-credits', requireTeamOwner, (req: Request, res: Response) => {
   const teamId = req.params.id;
-  const { wallet, amountUsd } = req.body;
+  const { amountUsd } = req.body;
+  const wallet = req.auth?.wallet;
 
-  if (!wallet || !amountUsd || amountUsd <= 0) {
-    res.status(400).json({ error: 'wallet and positive amountUsd required' });
+  if (!wallet) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (!amountUsd || typeof amountUsd !== 'number' || amountUsd <= 0 || !isFinite(amountUsd)) {
+    res.status(400).json({ error: 'positive amountUsd required' });
+    return;
+  }
+
+  // Cap maximum single funding amount
+  if (amountUsd > 10000) {
+    res.status(400).json({ error: 'Maximum single funding is $10,000' });
     return;
   }
 
@@ -314,8 +395,8 @@ router.post('/:id/fund-credits', (req: Request, res: Response) => {
   res.json({ success: true, poolBalance: updated.pool_balance });
 });
 
-// PATCH /api/swarm-teams/:id/budget
-router.patch('/:id/budget', (req: Request, res: Response) => {
+// PATCH /api/swarm-teams/:id/budget - requires owner
+router.patch('/:id/budget', requireTeamOwner, (req: Request, res: Response) => {
   const { dailyLimit, memberLimits } = req.body;
   const teamId = req.params.id;
 
@@ -325,7 +406,12 @@ router.patch('/:id/budget', (req: Request, res: Response) => {
     return;
   }
 
+  // Validate dailyLimit
   if (dailyLimit != null) {
+    if (typeof dailyLimit !== 'number' || dailyLimit < 0 || !isFinite(dailyLimit)) {
+      res.status(400).json({ error: 'dailyLimit must be a non-negative number' });
+      return;
+    }
     db.prepare('UPDATE swarm_teams SET daily_limit = ?, updated_at = unixepoch() WHERE id = ?')
       .run(dailyLimit, teamId);
   }
@@ -384,7 +470,37 @@ router.get('/:id/draws', (req: Request, res: Response) => {
 
 // --- Orchestrator setup ---
 
-const orchestrators = new Map<string, SwarmOrchestrator>();
+// Orchestrator cache with LRU-style cleanup to prevent memory leaks
+const MAX_ORCHESTRATORS = 100;
+const ORCHESTRATOR_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface CachedOrchestrator {
+  orchestrator: SwarmOrchestrator;
+  lastUsed: number;
+}
+
+const orchestrators = new Map<string, CachedOrchestrator>();
+
+// Cleanup stale orchestrators periodically
+function cleanupOrchestrators() {
+  const now = Date.now();
+  for (const [teamId, cached] of orchestrators) {
+    if (now - cached.lastUsed > ORCHESTRATOR_TTL_MS) {
+      orchestrators.delete(teamId);
+    }
+  }
+  // If still over limit, remove oldest
+  if (orchestrators.size > MAX_ORCHESTRATORS) {
+    const sorted = [...orchestrators.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+    const toRemove = sorted.slice(0, orchestrators.size - MAX_ORCHESTRATORS);
+    for (const [teamId] of toRemove) {
+      orchestrators.delete(teamId);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupOrchestrators, 5 * 60 * 1000);
 
 const drawRecorder: DrawRecorder = {
   async recordDraw(draw) {
@@ -402,7 +518,11 @@ const drawRecorder: DrawRecorder = {
 };
 
 function getOrCreateOrchestrator(teamId: string): SwarmOrchestrator {
-  if (orchestrators.has(teamId)) return orchestrators.get(teamId)!;
+  const cached = orchestrators.get(teamId);
+  if (cached) {
+    cached.lastUsed = Date.now();
+    return cached.orchestrator;
+  }
 
   const team = db.prepare('SELECT * FROM swarm_teams WHERE id = ?').get(teamId) as {
     id: string; name: string; currency: string; daily_limit: number;
@@ -433,7 +553,7 @@ function getOrCreateOrchestrator(teamId: string): SwarmOrchestrator {
     },
   });
 
-  orchestrators.set(teamId, orchestrator);
+  orchestrators.set(teamId, { orchestrator, lastUsed: Date.now() });
   return orchestrator;
 }
 
@@ -523,6 +643,540 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
     `).run(taskBudget, teamId);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Task execution failed' });
   }
+});
+
+// =============================================================================
+// SWARMTEAMS ZK VOTE+BID ENDPOINTS
+// =============================================================================
+
+// POST /api/swarm-teams/:id/propose-task
+// Creates task proposal, opens vote+bid window
+router.post('/:id/propose-task', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const {
+    description,
+    budget,
+    minBid = 0,
+    voteDurationSec = 60,
+    revealDurationSec = 30,
+  } = req.body;
+
+  if (!description || budget == null) {
+    res.status(400).json({ error: 'description and budget required' });
+    return;
+  }
+
+  const team = db.prepare('SELECT id, pool_balance FROM swarm_teams WHERE id = ?')
+    .get(teamId) as { id: string; pool_balance: number } | undefined;
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  if (team.pool_balance < budget) {
+    res.status(400).json({ error: 'Insufficient pool balance for budget' });
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const proposalId = `prop_${randomUUID().slice(0, 12)}`;
+  const actionHash = generateActionHash(teamId, description, now);
+  const voteDeadline = now + voteDurationSec;
+  const revealDeadline = voteDeadline + revealDurationSec;
+
+  db.prepare(`
+    INSERT INTO swarm_task_proposals (id, team_id, action_hash, description, budget, min_bid, vote_deadline, reveal_deadline, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'voting')
+  `).run(proposalId, teamId, actionHash, description, budget, minBid, voteDeadline, revealDeadline);
+
+  res.status(201).json({
+    proposalId,
+    actionHash,
+    voteDeadline: voteDeadline * 1000,
+    revealDeadline: revealDeadline * 1000,
+    budget,
+    minBid,
+  });
+});
+
+// POST /api/swarm-teams/:id/vote-bid
+// Submit ZK proof with vote + bid commitments
+router.post('/:id/vote-bid', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { proposalId, memberId, proof, voteNullifier, voteCommitment, bidCommitment } = req.body;
+
+  if (!proposalId || !memberId || !proof || !voteNullifier || !voteCommitment || !bidCommitment) {
+    res.status(400).json({ error: 'proposalId, memberId, proof, voteNullifier, voteCommitment, bidCommitment required' });
+    return;
+  }
+
+  const proposal = db.prepare('SELECT * FROM swarm_task_proposals WHERE id = ? AND team_id = ?')
+    .get(proposalId, teamId) as { id: string; status: string; vote_deadline: number } | undefined;
+
+  if (!proposal) {
+    res.status(404).json({ error: 'Proposal not found' });
+    return;
+  }
+
+  if (proposal.status !== 'voting') {
+    res.status(400).json({ error: `Proposal is not in voting phase (status: ${proposal.status})` });
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (now > proposal.vote_deadline) {
+    res.status(400).json({ error: 'Vote deadline has passed' });
+    return;
+  }
+
+  const member = db.prepare('SELECT id FROM swarm_team_members WHERE id = ? AND team_id = ?')
+    .get(memberId, teamId);
+
+  if (!member) {
+    res.status(404).json({ error: 'Member not found' });
+    return;
+  }
+
+  // Check for duplicate nullifier
+  const existingNullifier = db.prepare('SELECT id FROM swarm_vote_bids WHERE vote_nullifier = ?')
+    .get(voteNullifier);
+
+  if (existingNullifier) {
+    res.status(400).json({ error: 'Vote nullifier already used (double-vote attempt)' });
+    return;
+  }
+
+  // TODO: Verify ZK proof on-chain or locally
+  // For now, store the commitment (proof verification would happen on-chain)
+
+  const voteId = `vb_${randomUUID().slice(0, 12)}`;
+
+  try {
+    db.prepare(`
+      INSERT INTO swarm_vote_bids (id, proposal_id, member_id, vote_nullifier, vote_commitment, bid_commitment)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(voteId, proposalId, memberId, voteNullifier, voteCommitment, bidCommitment);
+
+    res.json({ success: true, voteId });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('UNIQUE constraint')) {
+      res.status(400).json({ error: 'Member has already voted on this proposal' });
+      return;
+    }
+    throw err;
+  }
+});
+
+// POST /api/swarm-teams/:id/reveal-bid
+// Reveal vote and bid after vote deadline
+router.post('/:id/reveal-bid', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { proposalId, memberId, voteNullifier, voteValue, voteSalt, bidAmount, bidSalt } = req.body;
+
+  if (!proposalId || !memberId || !voteNullifier || voteValue == null || !voteSalt || bidAmount == null || !bidSalt) {
+    res.status(400).json({ error: 'proposalId, memberId, voteNullifier, voteValue, voteSalt, bidAmount, bidSalt required' });
+    return;
+  }
+
+  const proposal = db.prepare('SELECT * FROM swarm_task_proposals WHERE id = ? AND team_id = ?')
+    .get(proposalId, teamId) as {
+    id: string; status: string; vote_deadline: number; reveal_deadline: number; min_bid: number;
+  } | undefined;
+
+  if (!proposal) {
+    res.status(404).json({ error: 'Proposal not found' });
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  // Update status to revealing if vote deadline passed
+  if (proposal.status === 'voting' && now > proposal.vote_deadline) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('revealing', proposalId);
+    proposal.status = 'revealing';
+  }
+
+  if (proposal.status !== 'revealing') {
+    if (now <= proposal.vote_deadline) {
+      res.status(400).json({ error: 'Vote phase not yet ended' });
+    } else {
+      res.status(400).json({ error: `Proposal is not in reveal phase (status: ${proposal.status})` });
+    }
+    return;
+  }
+
+  if (now > proposal.reveal_deadline) {
+    res.status(400).json({ error: 'Reveal deadline has passed' });
+    return;
+  }
+
+  const voteBid = db.prepare(`
+    SELECT * FROM swarm_vote_bids WHERE proposal_id = ? AND member_id = ? AND vote_nullifier = ?
+  `).get(proposalId, memberId, voteNullifier) as {
+    id: string; vote_commitment: string; bid_commitment: string; revealed_at: number | null;
+  } | undefined;
+
+  if (!voteBid) {
+    res.status(404).json({ error: 'Vote record not found' });
+    return;
+  }
+
+  if (voteBid.revealed_at) {
+    res.status(400).json({ error: 'Vote already revealed' });
+    return;
+  }
+
+  // TODO: Verify commitments match revealed values
+  // vote_commitment = Poseidon(vote, vote_salt, action_hash)
+  // bid_commitment = Poseidon(bid_amount, bid_salt, action_hash)
+  // For hackathon demo, we trust the client (real version verifies on-chain)
+
+  if (bidAmount < proposal.min_bid) {
+    res.status(400).json({ error: `Bid amount ${bidAmount} is below minimum ${proposal.min_bid}` });
+    return;
+  }
+
+  db.prepare(`
+    UPDATE swarm_vote_bids SET vote_value = ?, bid_amount = ?, revealed_at = unixepoch()
+    WHERE id = ?
+  `).run(voteValue, bidAmount, voteBid.id);
+
+  // Get current highest bid among YES voters
+  const highestYes = db.prepare(`
+    SELECT MAX(bid_amount) as highest FROM swarm_vote_bids
+    WHERE proposal_id = ? AND vote_value = 1 AND revealed_at IS NOT NULL
+  `).get(proposalId) as { highest: number | null };
+
+  res.json({
+    success: true,
+    currentHighestBid: highestYes.highest || 0,
+  });
+});
+
+// POST /api/swarm-teams/:id/execute-proposal
+// Execute after reveal deadline, winner takes task
+router.post('/:id/execute-proposal', async (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { proposalId } = req.body;
+
+  if (!proposalId) {
+    res.status(400).json({ error: 'proposalId required' });
+    return;
+  }
+
+  const proposal = db.prepare('SELECT * FROM swarm_task_proposals WHERE id = ? AND team_id = ?')
+    .get(proposalId, teamId) as {
+    id: string; description: string; budget: number; status: string;
+    reveal_deadline: number; vote_deadline: number;
+  } | undefined;
+
+  if (!proposal) {
+    res.status(404).json({ error: 'Proposal not found' });
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  // Update status if needed
+  if (proposal.status === 'voting' && now > proposal.vote_deadline) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('revealing', proposalId);
+    proposal.status = 'revealing';
+  }
+
+  if (proposal.status === 'revealing' && now > proposal.reveal_deadline) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('executing', proposalId);
+    proposal.status = 'executing';
+  }
+
+  if (proposal.status !== 'executing') {
+    if (now <= proposal.reveal_deadline) {
+      res.status(400).json({ error: 'Reveal phase not yet ended' });
+    } else if (proposal.status === 'completed') {
+      res.status(400).json({ error: 'Proposal already executed' });
+    } else {
+      res.status(400).json({ error: `Proposal is not ready for execution (status: ${proposal.status})` });
+    }
+    return;
+  }
+
+  // Count votes
+  const votes = db.prepare(`
+    SELECT vote_value, COUNT(*) as count FROM swarm_vote_bids
+    WHERE proposal_id = ? AND revealed_at IS NOT NULL
+    GROUP BY vote_value
+  `).all(proposalId) as Array<{ vote_value: number; count: number }>;
+
+  const yesVotes = votes.find(v => v.vote_value === 1)?.count || 0;
+  const noVotes = votes.find(v => v.vote_value === 0)?.count || 0;
+
+  // Simple majority threshold
+  if (yesVotes <= noVotes) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('rejected', proposalId);
+    res.json({
+      status: 'rejected',
+      yesVotes,
+      noVotes,
+      reason: 'Not enough YES votes',
+    });
+    return;
+  }
+
+  // Find highest bidder among YES voters
+  const winner = db.prepare(`
+    SELECT member_id, bid_amount FROM swarm_vote_bids
+    WHERE proposal_id = ? AND vote_value = 1 AND revealed_at IS NOT NULL
+    ORDER BY bid_amount DESC
+    LIMIT 1
+  `).get(proposalId) as { member_id: string; bid_amount: number } | undefined;
+
+  if (!winner) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('failed', proposalId);
+    res.json({
+      status: 'failed',
+      yesVotes,
+      noVotes,
+      reason: 'No revealed YES votes with bids',
+    });
+    return;
+  }
+
+  // Reserve budget from pool
+  const team = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?')
+    .get(teamId) as { pool_balance: number };
+
+  if (team.pool_balance < proposal.budget) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('failed', proposalId);
+    res.json({
+      status: 'failed',
+      reason: 'Insufficient pool balance',
+    });
+    return;
+  }
+
+  // Deduct budget atomically
+  const reserved = db.prepare(`
+    UPDATE swarm_teams SET pool_balance = pool_balance - ?, updated_at = unixepoch()
+    WHERE id = ? AND pool_balance >= ?
+  `).run(proposal.budget, teamId, proposal.budget);
+
+  if (reserved.changes === 0) {
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('failed', proposalId);
+    res.json({
+      status: 'failed',
+      reason: 'Insufficient pool balance (race condition)',
+    });
+    return;
+  }
+
+  const taskId = `task_${randomUUID().slice(0, 12)}`;
+
+  // Update proposal with winner
+  db.prepare(`
+    UPDATE swarm_task_proposals
+    SET status = 'executing', winning_member_id = ?, winning_bid = ?, task_id = ?
+    WHERE id = ?
+  `).run(winner.member_id, winner.bid_amount, taskId, proposalId);
+
+  // Execute the task
+  try {
+    const orchestrator = getOrCreateOrchestrator(teamId);
+
+    const member = db.prepare('SELECT * FROM swarm_team_members WHERE id = ?')
+      .get(winner.member_id) as { id: string; agent_id: string; role: string; draw_limit: number };
+
+    const swarmMember: SwarmMember = {
+      id: member.id,
+      agentId: member.agent_id,
+      role: member.role,
+      drawLimit: member.draw_limit,
+    };
+    await orchestrator.addAgent(swarmMember, taskExecutor);
+
+    const result = await orchestrator.assignTask(winner.member_id, {
+      taskId,
+      description: proposal.description,
+      budget: proposal.budget,
+      teamId,
+    });
+
+    // Record draw with winning bid
+    const drawId = `draw_${randomUUID().slice(0, 12)}`;
+    db.prepare(`
+      INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'completed', unixepoch())
+    `).run(drawId, teamId, member.agent_id, result.amountDrawn || winner.bid_amount, `proposal:${proposalId}`);
+
+    // Mark proposal as completed
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('completed', proposalId);
+
+    // Refund unused budget
+    const actualCost = result.amountDrawn || winner.bid_amount;
+    const refund = proposal.budget - actualCost;
+    if (refund > 0) {
+      db.prepare(`
+        UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+        WHERE id = ?
+      `).run(refund, teamId);
+    }
+
+    res.json({
+      status: 'completed',
+      taskId,
+      winnerId: winner.member_id,
+      winningBid: winner.bid_amount,
+      yesVotes,
+      noVotes,
+      output: result.output,
+      amountDrawn: actualCost,
+      refunded: refund,
+    });
+  } catch (err) {
+    // Refund budget on failure
+    db.prepare(`
+      UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+      WHERE id = ?
+    `).run(proposal.budget, teamId);
+    db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
+      .run('failed', proposalId);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Task execution failed' });
+  }
+});
+
+// GET /api/swarm-teams/:id/proposals
+// List proposals with status
+router.get('/:id/proposals', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+  const status = req.query.status as string | undefined;
+
+  let query = 'SELECT * FROM swarm_task_proposals WHERE team_id = ?';
+  const params: (string | number)[] = [teamId];
+
+  if (status) {
+    query += ' AND status = ?';
+    params.push(status);
+  }
+
+  query += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(limit);
+
+  const proposals = db.prepare(query).all(...params) as Array<{
+    id: string; action_hash: string; description: string; budget: number;
+    min_bid: number; vote_deadline: number; reveal_deadline: number;
+    status: string; winning_member_id: string | null; winning_bid: number | null;
+    task_id: string | null; created_at: number;
+  }>;
+
+  // Get vote counts for each proposal
+  const result = proposals.map(p => {
+    const votes = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN revealed_at IS NOT NULL THEN 1 ELSE 0 END) as revealed,
+        SUM(CASE WHEN vote_value = 1 THEN 1 ELSE 0 END) as yes_votes,
+        SUM(CASE WHEN vote_value = 0 THEN 1 ELSE 0 END) as no_votes
+      FROM swarm_vote_bids WHERE proposal_id = ?
+    `).get(p.id) as { total: number; revealed: number; yes_votes: number; no_votes: number };
+
+    return {
+      id: p.id,
+      actionHash: p.action_hash,
+      description: p.description,
+      budget: p.budget,
+      minBid: p.min_bid,
+      voteDeadline: p.vote_deadline * 1000,
+      revealDeadline: p.reveal_deadline * 1000,
+      status: p.status,
+      winningMemberId: p.winning_member_id,
+      winningBid: p.winning_bid,
+      taskId: p.task_id,
+      createdAt: p.created_at * 1000,
+      votesSubmitted: votes.total,
+      votesRevealed: votes.revealed,
+      yesVotes: votes.yes_votes,
+      noVotes: votes.no_votes,
+    };
+  });
+
+  res.json({ proposals: result });
+});
+
+// GET /api/swarm-teams/:id/proposals/:proposalId
+// Get proposal detail with votes/bids
+router.get('/:id/proposals/:proposalId', (req: Request, res: Response) => {
+  const { id: teamId, proposalId } = req.params;
+
+  const proposal = db.prepare('SELECT * FROM swarm_task_proposals WHERE id = ? AND team_id = ?')
+    .get(proposalId, teamId) as {
+    id: string; action_hash: string; description: string; budget: number;
+    min_bid: number; vote_deadline: number; reveal_deadline: number;
+    status: string; winning_member_id: string | null; winning_bid: number | null;
+    task_id: string | null; created_at: number;
+  } | undefined;
+
+  if (!proposal) {
+    res.status(404).json({ error: 'Proposal not found' });
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const revealPhaseEnded = now > proposal.reveal_deadline;
+
+  // Get votes - only show revealed values after reveal phase
+  const votes = db.prepare('SELECT * FROM swarm_vote_bids WHERE proposal_id = ?')
+    .all(proposalId) as Array<{
+    id: string; member_id: string; vote_nullifier: string;
+    vote_commitment: string; bid_commitment: string;
+    vote_value: number | null; bid_amount: number | null;
+    revealed_at: number | null; created_at: number;
+  }>;
+
+  const votesResult = votes.map(v => ({
+    id: v.id,
+    memberId: v.member_id,
+    voteNullifier: v.vote_nullifier,
+    // Only show commitments until revealed
+    voteCommitment: v.vote_commitment,
+    bidCommitment: v.bid_commitment,
+    // Only show revealed values
+    voteValue: v.revealed_at ? (v.vote_value === 1 ? 'yes' : 'no') : null,
+    bidAmount: v.revealed_at ? v.bid_amount : null,
+    revealed: !!v.revealed_at,
+    createdAt: v.created_at * 1000,
+  }));
+
+  res.json({
+    proposal: {
+      id: proposal.id,
+      actionHash: proposal.action_hash,
+      description: proposal.description,
+      budget: proposal.budget,
+      minBid: proposal.min_bid,
+      voteDeadline: proposal.vote_deadline * 1000,
+      revealDeadline: proposal.reveal_deadline * 1000,
+      status: proposal.status,
+      winningMemberId: proposal.winning_member_id,
+      winningBid: proposal.winning_bid,
+      taskId: proposal.task_id,
+      createdAt: proposal.created_at * 1000,
+    },
+    votes: votesResult,
+    summary: {
+      totalVotes: votes.length,
+      revealed: votes.filter(v => v.revealed_at).length,
+      yesVotes: votes.filter(v => v.vote_value === 1).length,
+      noVotes: votes.filter(v => v.vote_value === 0).length,
+    },
+  });
 });
 
 function getTeamDetail(teamId: string) {
