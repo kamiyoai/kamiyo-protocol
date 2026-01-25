@@ -1,4 +1,5 @@
 // Trend engine via Grok
+// topic extraction layer (was: plamo topic-extract-v1)
 
 import { logger } from './logger';
 import { searchXTrends, isGrokToolsAvailable } from './grok-tools';

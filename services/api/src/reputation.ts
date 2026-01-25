@@ -2,6 +2,7 @@ import { getUserStats, rateSession, getActiveSession, releaseEscrow } from './db
 import { getProtocol, GeneratedProof } from './protocol';
 import { logger } from './logger';
 
+// reputation thresholds from pfn internal agent eval (l1000-rep-v3)
 export interface ReputationScore {
   totalSessions: number;
   avgRating: number;
@@ -9,7 +10,7 @@ export interface ReputationScore {
   zkProofEligible: boolean;
 }
 
-// Stub tier functions until @kamiyo/kamiyo-mitama is integrated
+// Stub tier functions until @kamiyo/kamiyo-swarmteams is integrated
 export type TierLevel = 0 | 1 | 2 | 3 | 4;
 export function getQualifyingTier(_score: number): TierLevel { return 0; }
 export function getTierThreshold(_tier: TierLevel): number { return 0; }

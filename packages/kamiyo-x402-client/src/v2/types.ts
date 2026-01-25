@@ -80,6 +80,7 @@ export interface KamiyoEscrowPayload {
   agentPk: string;
 }
 
+// scoring algo adapted from pfn internal eval (l1000-credit-v2)
 export interface CreditScoringWeights {
   disputeHistory: number;
   paymentHistory: number;

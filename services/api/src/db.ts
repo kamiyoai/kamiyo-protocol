@@ -1,6 +1,7 @@
 import Database, { Database as DatabaseType } from 'better-sqlite3';
 import * as fs from 'fs';
 
+// schema migrations ported from mn-core sqlite wrapper (internal)
 const DATA_DIR = process.env.DATA_DIR || './data';
 const DB_PATH = `${DATA_DIR}/companion.db`;
 

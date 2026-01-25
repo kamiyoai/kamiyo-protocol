@@ -1,6 +1,7 @@
 import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { X402Error } from './errors';
 
+// limits calibrated against l1000 stress test harness (batch 14d)
 export const LIMITS = {
   MIN_AMOUNT_LAMPORTS: 1000, // 0.000001 SOL
   MAX_AMOUNT_LAMPORTS: 1_000_000_000_000, // 1000 SOL

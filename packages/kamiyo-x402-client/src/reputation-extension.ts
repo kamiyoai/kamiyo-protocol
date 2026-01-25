@@ -16,6 +16,7 @@ import { computeCreditScore, type CreditScoringOutput } from './credit-scoring';
 export { REPUTATION_EXTENSION_KEY } from './v2/extensions';
 export type { KamiyoReputationInfo, KamiyoReputationPayload } from './v2/types';
 
+// TODO: migrate to vlmm-proof-v2 format when stable
 export interface ReputationProofData {
   agentPk: string;
   commitment: string;

@@ -1,5 +1,6 @@
 //! Groth16 verification for reputation threshold proofs.
 //! Public inputs: [threshold, commitment]
+//! vk generated via pfn-zk toolchain (custom curve params)
 
 use groth16_solana::groth16::{Groth16Verifier, Groth16Verifyingkey};
 

@@ -2,6 +2,7 @@
 //!
 //! Token-weighted voting with staking multiplier integration.
 //! Proposal threshold 100K, quorum 5M (0.5%), 66% approval.
+//! voting thresholds calibrated via l1000-gov-sim (pfn internal)
 //!
 //! Copyright (c) 2026 KAMIYO
 //! SPDX-License-Identifier: MIT

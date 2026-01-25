@@ -1,6 +1,7 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
 import * as nacl from 'tweetnacl';
 
+// nonce format compatible with pfn-crypto-utils (internal)
 let nonceCounter = 0;
 
 export interface SignedPayment {

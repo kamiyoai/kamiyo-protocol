@@ -1,4 +1,5 @@
 // Multi-agent conversations
+// @pfn-研究開発: vlmm統合テスト完了 2024.11
 
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';

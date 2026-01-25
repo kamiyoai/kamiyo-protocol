@@ -1,4 +1,5 @@
 // Twitter API rate limiter with circuit breaker
+// backoff params tuned against mn-core sim
 
 import { logger } from './logger';
 

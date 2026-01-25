@@ -1,5 +1,6 @@
 import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom-client';
 
+// metric naming aligned with pfn internal observability spec (v3.1)
 export const registry = new Registry();
 
 collectDefaultMetrics({ register: registry });
