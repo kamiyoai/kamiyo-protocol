@@ -12,8 +12,21 @@ import {
   type AsciiFrame,
   type CharacterSetName,
   type ColorMode,
-  type DitheringMode
+  type DitheringMode,
+  type SamplingMode
 } from './types.js';
+
+import { sampleBlock } from './sampling.js';
+import {
+  CHARACTER_SETS as EXTENDED_CHARSETS,
+  getCharset as getExtendedCharset,
+  type CharsetName
+} from './charsets.js';
+import {
+  pixelsToBraille,
+  pixelsToBrailleDithered,
+  pixelsToBrailleColored
+} from './braille.js';
 
 // Re-export CHARACTER_SETS for access
 export { CHARACTER_SETS };
@@ -32,10 +45,13 @@ const DEFAULT_OPTIONS: Required<RenderOptions> = {
   contrast: 1,
   saturation: 1,
   gamma: 1,
+  sampling: 'average',
   dithering: 'none',
   edgeDetection: 'none',
   edgeThreshold: 50,
   edgeCharset: '/\\|-+',
+  brailleMode: false,
+  brailleDither: false,
   outputFormat: 'text',
   lineEnding: '\n',
   fontSize: 10,
@@ -45,6 +61,7 @@ const DEFAULT_OPTIONS: Required<RenderOptions> = {
 
 /**
  * Get the character set string
+ * Checks both built-in and extended character sets
  */
 export function getCharset(options: RenderOptions): string {
   if (options.customCharset) {
@@ -54,7 +71,16 @@ export function getCharset(options: RenderOptions): string {
   if (name === 'custom') {
     return options.customCharset || CHARACTER_SETS.standard;
   }
-  return CHARACTER_SETS[name as Exclude<CharacterSetName, 'custom'>] || CHARACTER_SETS.standard;
+  // Check built-in first
+  if (name in CHARACTER_SETS) {
+    return CHARACTER_SETS[name as Exclude<CharacterSetName, 'custom'>];
+  }
+  // Check extended charsets
+  if (name in EXTENDED_CHARSETS) {
+    return EXTENDED_CHARSETS[name as CharsetName];
+  }
+  // Try as custom charset string
+  return getExtendedCharset(name);
 }
 
 /**
@@ -283,6 +309,12 @@ export function pixelsToAscii(
   options: RenderOptions = {}
 ): AsciiFrame {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+
+  // Handle braille mode - uses specialized renderer
+  if (opts.brailleMode) {
+    return renderBraille(pixels, imageWidth, imageHeight, opts);
+  }
+
   const charset = getCharset(opts);
 
   // Calculate output dimensions
@@ -297,11 +329,11 @@ export function pixelsToAscii(
     outHeight = Math.round(imageHeight * (outWidth / imageWidth) / 2);
   }
 
-  // Sample step sizes
-  const stepX = imageWidth / outWidth;
-  const stepY = imageHeight / outHeight;
+  // Sample step sizes (block dimensions for each output character)
+  const blockWidth = Math.floor(imageWidth / outWidth);
+  const blockHeight = Math.floor(imageHeight / outHeight);
 
-  // Extract brightness values
+  // Extract brightness values using configured sampling mode
   const brightnessMap: number[][] = [];
   const colorMap: Array<Array<{ r: number; g: number; b: number }>> = [];
 
@@ -310,19 +342,25 @@ export function pixelsToAscii(
     colorMap[y] = [];
 
     for (let x = 0; x < outWidth; x++) {
-      // Sample pixel (center of cell)
-      const srcX = Math.floor(x * stepX + stepX / 2);
-      const srcY = Math.floor(y * stepY + stepY / 2);
-      const idx = (srcY * imageWidth + srcX) * 4;
+      // Calculate block position
+      const blockX = x * blockWidth;
+      const blockY = y * blockHeight;
 
-      const r = pixels[idx] || 0;
-      const g = pixels[idx + 1] || 0;
-      const b = pixels[idx + 2] || 0;
+      // Sample block using configured sampling strategy
+      const sample = sampleBlock(
+        pixels,
+        imageWidth,
+        blockX,
+        blockY,
+        Math.min(blockWidth, imageWidth - blockX),
+        Math.min(blockHeight, imageHeight - blockY),
+        opts.sampling as SamplingMode
+      );
 
       // Apply adjustments
-      const adjR = adjustPixel(r, opts.brightness, opts.contrast, opts.gamma);
-      const adjG = adjustPixel(g, opts.brightness, opts.contrast, opts.gamma);
-      const adjB = adjustPixel(b, opts.brightness, opts.contrast, opts.gamma);
+      const adjR = adjustPixel(sample.r, opts.brightness, opts.contrast, opts.gamma);
+      const adjG = adjustPixel(sample.g, opts.brightness, opts.contrast, opts.gamma);
+      const adjB = adjustPixel(sample.b, opts.brightness, opts.contrast, opts.gamma);
 
       const brightness = calculateBrightness(adjR, adjG, adjB);
       brightnessMap[y][x] = brightness;
@@ -336,6 +374,8 @@ export function pixelsToAscii(
     processedBrightness = floydSteinbergDither(brightnessMap, outWidth, outHeight, charset.length);
   } else if (opts.dithering === 'ordered') {
     processedBrightness = orderedDither(brightnessMap, outWidth, outHeight, charset.length);
+  } else if (opts.dithering === 'atkinson') {
+    processedBrightness = atkinsonDither(brightnessMap, outWidth, outHeight, charset.length);
   }
 
   // Edge detection
@@ -476,4 +516,96 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/ /g, '&nbsp;');
+}
+
+/**
+ * Apply Atkinson dithering (from original Mac)
+ * Diffuses less error for sharper results
+ */
+export function atkinsonDither(
+  pixels: number[][],
+  width: number,
+  height: number,
+  levels: number
+): number[][] {
+  const result = pixels.map(row => [...row]);
+  const step = 255 / (levels - 1);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const oldPixel = result[y][x];
+      const newPixel = Math.round(oldPixel / step) * step;
+      result[y][x] = newPixel;
+
+      // Atkinson diffuses 6/8 of error (not 8/8 like Floyd-Steinberg)
+      const error = (oldPixel - newPixel) / 8;
+
+      // Diffusion pattern:
+      //     X  1  1
+      //  1  1  1
+      //     1
+      if (x + 1 < width) result[y][x + 1] += error;
+      if (x + 2 < width) result[y][x + 2] += error;
+      if (y + 1 < height) {
+        if (x > 0) result[y + 1][x - 1] += error;
+        result[y + 1][x] += error;
+        if (x + 1 < width) result[y + 1][x + 1] += error;
+      }
+      if (y + 2 < height) {
+        result[y + 2][x] += error;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Render using braille characters for 8x resolution
+ */
+function renderBraille(
+  pixels: Buffer,
+  imageWidth: number,
+  imageHeight: number,
+  opts: Required<RenderOptions>
+): AsciiFrame {
+  // Calculate character dimensions
+  // Braille: 2 dots wide x 4 dots tall per character
+  const charWidth = Math.floor(opts.width);
+  const charHeight = opts.height || Math.floor(charWidth * (imageHeight / imageWidth) / 2);
+
+  // Pixel dimensions for braille (2x4 per char)
+  const pixelWidth = charWidth * 2;
+  const pixelHeight = charHeight * 4;
+
+  // Determine threshold from brightness setting
+  const threshold = Math.round(128 + opts.brightness * 127);
+
+  let text: string;
+
+  if (opts.colorMode !== 'none' && (opts.colorMode === 'truecolor' || opts.colorMode === 'ansi256')) {
+    text = pixelsToBrailleColored(pixels, imageWidth, imageHeight, {
+      threshold,
+      invert: opts.invert,
+      colorMode: opts.colorMode === 'truecolor' ? 'truecolor' : 'ansi256'
+    });
+  } else if (opts.brailleDither || opts.dithering === 'floyd-steinberg') {
+    text = pixelsToBrailleDithered(pixels, imageWidth, imageHeight, {
+      threshold,
+      invert: opts.invert
+    });
+  } else {
+    text = pixelsToBraille(pixels, imageWidth, imageHeight, {
+      threshold,
+      invert: opts.invert
+    });
+  }
+
+  const lines = text.split('\n');
+
+  return {
+    text,
+    width: lines[0]?.length || 0,
+    height: lines.length
+  };
 }
