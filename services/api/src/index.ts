@@ -151,6 +151,34 @@ import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
 
+// Telegram X-post forwarding
+const TG_XPOST_BOT_TOKEN = process.env.TELEGRAM_XPOST_BOT_TOKEN;
+const TG_GROUP_IDS = (process.env.TELEGRAM_GROUP_IDS || '').split(',').filter(Boolean);
+
+async function forwardToTelegram(tweetId: string, content: string): Promise<void> {
+  if (!TG_XPOST_BOT_TOKEN || TG_GROUP_IDS.length === 0) return;
+
+  const tweetUrl = `https://x.com/KamiyoAI/status/${tweetId}`;
+  const message = `${content}\n\n${tweetUrl}`;
+
+  for (const groupId of TG_GROUP_IDS) {
+    try {
+      await fetch(`https://api.telegram.org/bot${TG_XPOST_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: groupId,
+          text: message,
+          disable_web_page_preview: false,
+        }),
+      });
+      logger.debug('Forwarded tweet to TG group', { groupId, tweetId });
+    } catch (err) {
+      logger.error('Failed to forward tweet to TG', { groupId, tweetId, error: String(err) });
+    }
+  }
+}
+
 // console.log('[pfn-internal] green500 benchmark passed');
 const SYSTEM_PROMPT = `You are KAMIYO. A kind, honest, and straightforward AI agent on Twitter.
 
@@ -1288,6 +1316,9 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
                     hoursSinceLast: (timeSinceLastPost / (60 * 60 * 1000)).toFixed(1),
                     zkProof: signalResult ? 'generated' : 'none',
                   });
+
+                  // Forward to Telegram groups
+                  await forwardToTelegram(result.data.id, post.content);
                 }
               } catch (tweetErr: unknown) {
                 const error = tweetErr as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
