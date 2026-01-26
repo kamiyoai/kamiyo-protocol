@@ -1,6 +1,22 @@
-import { createAgent } from '@lucid-agents/core';
-import { payments } from '@lucid-agents/payments';
 import { z } from 'zod';
+
+// Lazy imports to avoid bun:sqlite at module load time (Node.js compat)
+let coreModule: typeof import('@lucid-agents/core') | null = null;
+let paymentsModule: typeof import('@lucid-agents/payments') | null = null;
+
+async function getCreateAgent() {
+  if (!coreModule) {
+    coreModule = await import('@lucid-agents/core');
+  }
+  return coreModule.createAgent;
+}
+
+async function getPayments() {
+  if (!paymentsModule) {
+    paymentsModule = await import('@lucid-agents/payments');
+  }
+  return paymentsModule.payments;
+}
 import type { PaymentsConfig } from '@lucid-agents/types/payments';
 import type { AgentCard } from '@lucid-agents/types/a2a';
 import type { SwarmAgentConfig, SwarmAgent, TaskInput, TaskResult } from './types.js';
@@ -56,12 +72,14 @@ export async function createSwarmAgent(options: CreateSwarmAgentOptions): Promis
     },
   };
 
+  const createAgent = await getCreateAgent();
   const builder = createAgent({
     name: `swarm-${team.teamId}-${member.agentId}`,
     version: '1.0.0',
     description: `SwarmTeam agent: ${member.role} in ${team.name}`,
   });
 
+  const payments = await getPayments();
   builder.use(payments({ config: paymentsConfig }));
 
   builder.addEntrypoint({

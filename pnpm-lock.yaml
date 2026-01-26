@@ -121,9 +121,9 @@ importers:
 
   examples/agenc-zk-demo:
     dependencies:
-      '@kamiyo/kamiyo-mitama':
-        specifier: file:../../packages/kamiyo-mitama
-        version: link:../../packages/kamiyo-mitama
+      '@kamiyo/kamiyo-swarmteams':
+        specifier: file:../../packages/kamiyo-swarmteams
+        version: link:../../packages/kamiyo-swarmteams
       gradient-string:
         specifier: ^3.0.0
         version: 3.0.0
@@ -146,9 +146,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.29.0
         version: 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/kamiyo-mitama':
-        specifier: file:../../packages/kamiyo-mitama
-        version: link:../../packages/kamiyo-mitama
+      '@kamiyo/kamiyo-swarmteams':
+        specifier: file:../../packages/kamiyo-swarmteams
+        version: file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: ^1.87.6
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -189,9 +189,9 @@ importers:
       '@kamiyo/daydreams':
         specifier: workspace:*
         version: link:../../packages/kamiyo-daydreams
-      '@kamiyo/kamiyo-mitama':
-        specifier: file:../../packages/kamiyo-mitama
-        version: link:../../packages/kamiyo-mitama
+      '@kamiyo/kamiyo-swarmteams':
+        specifier: file:../../packages/kamiyo-swarmteams
+        version: link:../../packages/kamiyo-swarmteams
       gradient-string:
         specifier: ^3.0.0
         version: 3.0.0
@@ -305,31 +305,6 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  examples/mitama-demo:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/kamiyo-mitama':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-mitama
-      '@solana/web3.js':
-        specifier: ^1.95.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      ts-node:
-        specifier: ^10.9.0
-        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
   examples/radr-demo:
     dependencies:
       '@kamiyo/radr':
@@ -375,6 +350,31 @@ importers:
         version: 10.9.2(@types/node@20.19.28)(typescript@5.9.3)
       typescript:
         specifier: ^5.0.0
+        version: 5.9.3
+
+  examples/swarmteams-demo:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/kamiyo-swarmteams':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-swarmteams
+      '@solana/web3.js':
+        specifier: ^1.95.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      ts-node:
+        specifier: ^10.9.0
+        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
         version: 5.9.3
 
   packages/dkg-plugin-kamiyo:
@@ -457,9 +457,9 @@ importers:
 
   packages/kamiyo-agent-core:
     dependencies:
-      '@kamiyo/kamiyo-mitama':
+      '@kamiyo/kamiyo-swarmteams':
         specifier: workspace:*
-        version: link:../kamiyo-mitama
+        version: link:../kamiyo-swarmteams
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -628,9 +628,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.32.0
         version: 0.32.1
-      '@kamiyo/kamiyo-mitama':
+      '@kamiyo/kamiyo-swarmteams':
         specifier: workspace:*
-        version: link:../kamiyo-mitama
+        version: link:../kamiyo-swarmteams
       ethers:
         specifier: ^6.9.0
         version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -767,145 +767,6 @@ importers:
       typescript:
         specifier: ^5.5.3
         version: 5.9.3
-
-  packages/kamiyo-mitama:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/web3.js':
-        specifier: ^1.95.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      js-sha3:
-        specifier: ^0.9.3
-        version: 0.9.3
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.6
-        version: 5.2.0
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)
-
-  packages/kamiyo-mitama-cli:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/kamiyo-mitama-merkle':
-        specifier: workspace:*
-        version: link:../kamiyo-mitama-merkle
-      '@kamiyo/kamiyo-mitama-prover':
-        specifier: workspace:*
-        version: link:../kamiyo-mitama-prover
-      '@solana/web3.js':
-        specifier: ^1.98.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-      chalk:
-        specifier: ^5.3.0
-        version: 5.6.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      gradient-string:
-        specifier: ^2.0.2
-        version: 2.0.2
-      inquirer:
-        specifier: ^9.2.12
-        version: 9.3.8(@types/node@20.19.28)
-      ora:
-        specifier: ^8.0.1
-        version: 8.2.0
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.5
-        version: 5.2.0
-      '@types/gradient-string':
-        specifier: ^1.1.5
-        version: 1.1.6
-      '@types/inquirer':
-        specifier: ^9.0.7
-        version: 9.0.9
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.19.28
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      tsx:
-        specifier: ^4.7.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
-
-  packages/kamiyo-mitama-merkle:
-    dependencies:
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)
-
-  packages/kamiyo-mitama-prover:
-    dependencies:
-      '@kamiyo/kamiyo-mitama-merkle':
-        specifier: workspace:*
-        version: link:../kamiyo-mitama-merkle
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      '@types/snarkjs':
-        specifier: ^0.7.8
-        version: 0.7.9
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)
 
   packages/kamiyo-monad:
     dependencies:
@@ -1083,9 +944,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/kamiyo-mitama':
+      '@kamiyo/kamiyo-swarmteams':
         specifier: workspace:*
-        version: link:../kamiyo-mitama
+        version: link:../kamiyo-swarmteams
       '@rollup/rollup-darwin-arm64':
         specifier: ^4.55.1
         version: 4.55.1
@@ -1184,6 +1045,145 @@ importers:
         specifier: ^5.5.3
         version: 5.9.3
 
+  packages/kamiyo-swarmteams:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: ^1.95.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3:
+        specifier: ^0.9.3
+        version: 0.9.3
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.6
+        version: 5.2.0
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)
+
+  packages/kamiyo-swarmteams-cli:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/kamiyo-swarmteams-merkle':
+        specifier: workspace:*
+        version: link:../kamiyo-swarmteams-merkle
+      '@kamiyo/kamiyo-swarmteams-prover':
+        specifier: workspace:*
+        version: link:../kamiyo-swarmteams-prover
+      '@solana/web3.js':
+        specifier: ^1.98.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+      chalk:
+        specifier: ^5.3.0
+        version: 5.6.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      gradient-string:
+        specifier: ^2.0.2
+        version: 2.0.2
+      inquirer:
+        specifier: ^9.2.12
+        version: 9.3.8(@types/node@20.19.28)
+      ora:
+        specifier: ^8.0.1
+        version: 8.2.0
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.5
+        version: 5.2.0
+      '@types/gradient-string':
+        specifier: ^1.1.5
+        version: 1.1.6
+      '@types/inquirer':
+        specifier: ^9.0.7
+        version: 9.0.9
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.28
+      tsup:
+        specifier: ^8.0.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
+
+  packages/kamiyo-swarmteams-merkle:
+    dependencies:
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)
+
+  packages/kamiyo-swarmteams-prover:
+    dependencies:
+      '@kamiyo/kamiyo-swarmteams-merkle':
+        specifier: workspace:*
+        version: link:../kamiyo-swarmteams-merkle
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      '@types/snarkjs':
+        specifier: ^0.7.8
+        version: 0.7.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)
+
   packages/kamiyo-switchboard:
     dependencies:
       '@switchboard-xyz/on-demand':
@@ -1273,9 +1273,9 @@ importers:
       '@kamiyo/daydreams':
         specifier: workspace:*
         version: link:../../packages/kamiyo-daydreams
-      '@kamiyo/kamiyo-mitama':
+      '@kamiyo/kamiyo-swarmteams':
         specifier: workspace:*
-        version: link:../../packages/kamiyo-mitama
+        version: link:../../packages/kamiyo-swarmteams
       '@kamiyo/swarm-agents':
         specifier: workspace:*
         version: link:../../packages/kamiyo-swarm-agents
@@ -2594,6 +2594,12 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@elizaos/core': '>=1.0.0'
+
+  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams':
+    resolution: {directory: packages/kamiyo-swarmteams, type: directory}
+    peerDependencies:
+      '@coral-xyz/anchor': ^0.31.0
+      '@solana/web3.js': ^1.95.0
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -13403,6 +13409,19 @@ snapshots:
       - bufferutil
       - encoding
       - typescript
+      - utf-8-validate
+
+  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@coral-xyz/anchor': 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3: 0.9.3
+      snarkjs: 0.7.6
+    transitivePeerDependencies:
+      - bufferutil
+      - react-native-b4a
       - utf-8-validate
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':

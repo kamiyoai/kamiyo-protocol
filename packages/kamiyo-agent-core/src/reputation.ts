@@ -16,7 +16,7 @@ import {
   type TierName,
   TIER_NAMES,
   TIER_THRESHOLDS,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 
 export interface ReputationMemory {
   commitment: string | null;
