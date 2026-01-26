@@ -17,15 +17,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   MerkleTree,
   generateAgentId,
   Groth16Proof,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/mitama');
+const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/swarmteams');
 
 function bytesToBigint(bytes: Uint8Array): bigint {
   let result = 0n;
@@ -100,7 +100,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   // Get registry
   const registry = await client.getRegistry();
@@ -135,7 +135,7 @@ async function main() {
 
   // Generate proof
   console.log('\n--- Generating Groth16 proof ---');
-  const prover = new MitamaProver(CIRCUITS_PATH);
+  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
   const result = await prover.proveAgentIdentity(
     {
       ownerSecret,
@@ -224,7 +224,7 @@ async function main() {
   // Attempt on-chain submission
   console.log('\n--- Attempting on-chain submission ---');
   try {
-    const signalCommitment = await MitamaProver.generateSignalCommitment(
+    const signalCommitment = await SwarmTeamsProver.generateSignalCommitment(
       0, // signalType
       1, // direction (long)
       80, // confidence

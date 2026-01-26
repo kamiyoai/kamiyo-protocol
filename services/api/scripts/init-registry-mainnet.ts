@@ -1,5 +1,5 @@
 /**
- * Initialize Mitama Registry on Mainnet
+ * Initialize SwarmTeams Registry on Mainnet
  *
  * Run with:
  *   SOLANA_RPC_URL="https://mainnet.helius-rpc.com/?api-key=$HELIUS_API_KEY" \
@@ -11,13 +11,13 @@ config({ path: '.env' });
 
 import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
-import { MitamaClient } from '@kamiyo/kamiyo-mitama';
+import { SwarmTeamsClient } from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const WALLET_PATH = '../../../token-launch/wallets/creator.json';
 
-// Mainnet config per mitama-mainnet-plan.md
+// Mainnet config per swarmteams-mainnet-plan.md
 const MAINNET_CONFIG = {
   minStake: new BN(100_000_000), // 0.1 SOL
   minSignalConfidence: 50,
@@ -47,7 +47,7 @@ async function main() {
   const walletData = JSON.parse(fs.readFileSync(walletPath, 'utf8'));
   const keypair = Keypair.fromSecretKey(Uint8Array.from(walletData));
 
-  console.log('=== Mitama Mainnet Registry Initialization ===\n');
+  console.log('=== SwarmTeams Mainnet Registry Initialization ===\n');
   console.log('RPC:', rpcUrl.split('?')[0] + '?api-key=***');
   console.log('Authority:', keypair.publicKey.toBase58());
 
@@ -55,7 +55,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   // Check balance
   const balance = await connection.getBalance(keypair.publicKey);
@@ -80,8 +80,8 @@ async function main() {
   console.log('');
 
   // Use low-level transaction building to ensure proper signing
-  const [registryPDA] = MitamaClient.getRegistryPDA();
-  const [treasuryVault] = MitamaClient.getTreasuryPDA(registryPDA);
+  const [registryPDA] = SwarmTeamsClient.getRegistryPDA();
+  const [treasuryVault] = SwarmTeamsClient.getTreasuryPDA(registryPDA);
   const kamiyoMintPubkey = new (await import('@solana/web3.js')).PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
   const TOKEN_PROGRAM_ID = new (await import('@solana/web3.js')).PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 

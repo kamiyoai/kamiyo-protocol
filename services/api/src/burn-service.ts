@@ -382,15 +382,15 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
 
     // Dynamic import - may not be available in all environments
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let MitamaClient: any;
+    let SwarmTeamsClient: any;
     try {
       // Use variable to prevent TypeScript from analyzing the import
-      const moduleName = '@kamiyo/kamiyo-mitama';
-      const mitama = await import(/* webpackIgnore: true */ moduleName);
-      MitamaClient = mitama.MitamaClient;
+      const moduleName = '@kamiyo/kamiyo-swarmteams';
+      const swarmteams = await import(/* webpackIgnore: true */ moduleName);
+      SwarmTeamsClient = swarmteams.SwarmTeamsClient;
     } catch {
-      logger.warn('Mitama SDK not available - treasury burn disabled');
-      return { success: false, error: 'Mitama SDK not available in this environment' };
+      logger.warn('SwarmTeams SDK not available - treasury burn disabled');
+      return { success: false, error: 'SwarmTeams SDK not available in this environment' };
     }
 
     // Load authority keypair
@@ -402,15 +402,15 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
       return { success: false, error: 'Invalid AUTHORITY_WALLET_SECRET format' };
     }
 
-    // Create Mitama client
+    // Create SwarmTeams client
     const connection = new Connection(config.rpcUrl, 'confirmed');
     const wallet = new Wallet(authority);
     const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-    const client = new MitamaClient(provider);
+    const client = new SwarmTeamsClient(provider);
 
     // Get treasury balance to verify sufficient funds
-    const [registryPDA] = MitamaClient.getRegistryPDA();
-    const [treasuryVault] = MitamaClient.getTreasuryPDA(registryPDA);
+    const [registryPDA] = SwarmTeamsClient.getRegistryPDA();
+    const [treasuryVault] = SwarmTeamsClient.getTreasuryPDA(registryPDA);
     const treasuryBalance = await connection.getTokenAccountBalance(treasuryVault);
     const balance = BigInt(treasuryBalance.value.amount);
 

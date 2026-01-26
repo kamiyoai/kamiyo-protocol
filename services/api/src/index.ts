@@ -6,7 +6,7 @@ import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
 import { initProtocol, getProtocol } from './protocol';
-import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './mitama-live-demo';
+import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './swarmteams-live-demo';
 
 // Global twitter client reference for demo command
 let globalTwitter: TwitterApi | undefined;
@@ -145,8 +145,8 @@ import { startApiServer } from './api';
 import { closeDatabase } from './db';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
-import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './mitama-signal';
-import { initMitamaAgent, getMitamaAgent, formatTrackRecord, getRecentSignals } from './mitama-stubs';
+import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './swarmteams-signal';
+import { initSwarmTeamsAgent, getSwarmTeamsAgent, formatTrackRecord, getRecentSignals } from './swarmteams-stubs';
 import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
@@ -252,7 +252,7 @@ const COMMANDS = {
   STATUS: /^!status$/,
   CLEAR: /^!clear$/,
   HELP: /^!help$/,
-  MITAMA_DEMO: /^!mitama-demo$/,
+  SWARMTEAMS_DEMO: /^!swarmteams-demo$/,
   SIGNALS: /^!signals$/,
 };
 
@@ -500,17 +500,17 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     }
   }
 
-  // !signals - Show Mitama signal track record
+  // !signals - Show SwarmTeams signal track record
   if (COMMANDS.SIGNALS.test(text)) {
-    const agent = getMitamaAgent();
+    const agent = getSwarmTeamsAgent();
     if (!agent || !agent.isRegistered()) {
-      return 'Mitama agent not active. Signal tracking unavailable.';
+      return 'SwarmTeams agent not active. Signal tracking unavailable.';
     }
 
     const trackRecord = formatTrackRecord();
     const recent = getRecentSignals(3);
 
-    let response = `Mitama Track Record:\n${trackRecord}`;
+    let response = `SwarmTeams Track Record:\n${trackRecord}`;
     if (recent.length > 0) {
       response += '\n\nRecent signals:';
       for (const sig of recent) {
@@ -523,15 +523,15 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     return response;
   }
 
-  // !mitama-demo - Trigger Mitama ZK demo (owner only)
-  if (COMMANDS.MITAMA_DEMO.test(text)) {
+  // !swarmteams-demo - Trigger SwarmTeams ZK demo (owner only)
+  if (COMMANDS.SWARMTEAMS_DEMO.test(text)) {
     // Only owner can trigger demo
     if (userId !== DEMO_OWNER_ID) {
-      return 'Mitama demo is owner-only. Watch @kamiyocompanion for scheduled demos.';
+      return 'SwarmTeams demo is owner-only. Watch @kamiyocompanion for scheduled demos.';
     }
 
     if (isDemoRunning()) {
-      return 'Mitama demo is already running. Watch the thread.';
+      return 'SwarmTeams demo is already running. Watch the thread.';
     }
 
     if (!globalTwitter) {
@@ -541,13 +541,13 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     // Start demo in background (don't await - it runs async)
     runLiveDemo(globalTwitter).then(result => {
       if (result.success) {
-        logger.info('Mitama demo completed', { tweets: result.tweetIds.length, txs: result.txSignatures.length });
+        logger.info('SwarmTeams demo completed', { tweets: result.tweetIds.length, txs: result.txSignatures.length });
       } else {
-        logger.error('Mitama demo failed', { error: result.error });
+        logger.error('SwarmTeams demo failed', { error: result.error });
       }
     });
 
-    return 'Starting Mitama demo. Watch this thread for the full ZK agent flow. Stream logs: /api/mitama/demo/stream';
+    return 'Starting SwarmTeams demo. Watch this thread for the full ZK agent flow. Stream logs: /api/swarmteams/demo/stream';
   }
 
   // !lookup <address> - Wallet holdings lookup
@@ -1002,13 +1002,13 @@ async function processMention(
   const signal = extractMarketSignal(response);
   if (signal && signal.direction !== 2) { // Has directional take
     const stakeChance = 1.0; // 100% for demo
-    const mitamaAgent = getMitamaAgent();
+    const swarmTeamsAgent = getSwarmTeamsAgent();
 
-    if (Math.random() < stakeChance && mitamaAgent?.isRegistered()) {
-      logger.info('Staking on reply take via Mitama', { signal: formatSignal(signal) });
+    if (Math.random() < stakeChance && swarmTeamsAgent?.isRegistered()) {
+      logger.info('Staking on reply take via SwarmTeams', { signal: formatSignal(signal) });
 
-      // Use real Mitama agent to submit signal with stake
-      const result = await mitamaAgent.submitSignal(
+      // Use real SwarmTeams agent to submit signal with stake
+      const result = await swarmTeamsAgent.submitSignal(
         signal.type,
         signal.direction,
         signal.confidence,
@@ -1021,7 +1021,7 @@ async function processMention(
         const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
         if (finalResponse.length + commitmentTag.length <= 280) {
           finalResponse = finalResponse + commitmentTag;
-          logger.info('Added Mitama commitment to reply', { commitment: result.commitment.slice(0, 16) });
+          logger.info('Added SwarmTeams commitment to reply', { commitment: result.commitment.slice(0, 16) });
         }
       }
     }
@@ -1449,19 +1449,19 @@ async function main(): Promise<void> {
     hasProver: protocol.hasProver(),
   });
 
-  // Initialize Mitama agent (bot's on-chain ZK identity)
-  const mitamaAgent = await initMitamaAgent();
-  if (mitamaAgent) {
-    // Register bot as Mitama agent if not already registered
-    if (!mitamaAgent.isRegistered()) {
-      logger.info('Registering bot as Mitama agent...');
-      const commitment = await mitamaAgent.register(new BN(100000000)); // 0.1 SOL stake
+  // Initialize SwarmTeams agent (bot's on-chain ZK identity)
+  const swarmTeamsAgent = await initSwarmTeamsAgent();
+  if (swarmTeamsAgent) {
+    // Register bot as SwarmTeams agent if not already registered
+    if (!swarmTeamsAgent.isRegistered()) {
+      logger.info('Registering bot as SwarmTeams agent...');
+      const commitment = await swarmTeamsAgent.register(new BN(100000000)); // 0.1 SOL stake
       if (commitment) {
-        logger.info('Bot registered as Mitama agent', { commitment: commitment.slice(0, 16) + '...' });
+        logger.info('Bot registered as SwarmTeams agent', { commitment: commitment.slice(0, 16) + '...' });
       }
     } else {
-      logger.info('Mitama agent already registered', {
-        commitment: mitamaAgent.getIdentityCommitment()?.slice(0, 16) + '...',
+      logger.info('SwarmTeams agent already registered', {
+        commitment: swarmTeamsAgent.getIdentityCommitment()?.slice(0, 16) + '...',
         trackRecord: formatTrackRecord(),
       });
     }

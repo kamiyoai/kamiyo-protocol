@@ -1,7 +1,7 @@
-// Mitama ZK signal integration for market calls
+// SwarmTeams ZK signal integration for market calls
 
 import { logger } from './logger';
-import { storeMitamaSignal, isProofRateLimited, incrementProofCount } from './db';
+import { storeSwarmTeamsSignal, isProofRateLimited, incrementProofCount } from './db';
 
 
 // Signal types matching the ZK circuit
@@ -98,7 +98,7 @@ export async function generateSignalProof(signal: MarketSignal, tweetId?: string
   try {
     // Dynamic import - prover is optional, may not be installed
     // Use variable to bypass TypeScript module resolution
-    const proverModule = '@kamiyo/mitama-prover';
+    const proverModule = '@kamiyo/kamiyo-swarmteams-prover';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prover: any = await import(/* webpackIgnore: true */ proverModule);
     const { provePrivateSignal } = prover;
@@ -134,7 +134,7 @@ export async function generateSignalProof(signal: MarketSignal, tweetId?: string
     };
 
     // Store in database
-    storeMitamaSignal(
+    storeSwarmTeamsSignal(
       tweetId || null,
       result.commitment,
       result.nullifier,
@@ -164,13 +164,13 @@ export async function isProverAvailable(): Promise<boolean> {
   if (proverAvailable !== null) return proverAvailable;
 
   try {
-    const proverModule = '@kamiyo/mitama-prover';
+    const proverModule = '@kamiyo/kamiyo-swarmteams-prover';
     await import(/* webpackIgnore: true */ proverModule);
     proverAvailable = true;
-    logger.info('Mitama prover available');
+    logger.info('SwarmTeams prover available');
   } catch {
     proverAvailable = false;
-    logger.warn('Mitama prover not available - ZK signals disabled');
+    logger.warn('SwarmTeams prover not available - ZK signals disabled');
   }
 
   return proverAvailable;

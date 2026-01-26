@@ -10,13 +10,13 @@ import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   MerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 
-const CIRCUITS_PATH = '/Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/circuits/build/mitama';
+const CIRCUITS_PATH = '/Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/circuits/build/swarmteams';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -40,7 +40,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   console.log('=== Mainnet ZK Signal Submission Test ===\n');
   console.log('Wallet:', keypair.publicKey.toBase58());
@@ -70,12 +70,12 @@ async function main() {
   const { proof: merkleProof, pathIndices } = await tree.generateProof(0);
 
   // Verify commitment matches
-  const commitment = await MitamaProver.generateIdentityCommitment(ownerSecret, agentId, registrationSecret);
+  const commitment = await SwarmTeamsProver.generateIdentityCommitment(ownerSecret, agentId, registrationSecret);
   console.log('\nIdentity commitment:', bytesToHex(commitment));
 
   // Generate ZK proof
   console.log('\nGenerating Groth16 proof...');
-  const prover = new MitamaProver(CIRCUITS_PATH);
+  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
   const epoch = BigInt(registry.epoch.toString());
 
   const result = await prover.proveAgentIdentity(
@@ -94,7 +94,7 @@ async function main() {
 
   // Generate signal commitment
   const signalSecret = crypto.randomBytes(32);
-  const signalCommitment = await MitamaProver.generateSignalCommitment(
+  const signalCommitment = await SwarmTeamsProver.generateSignalCommitment(
     0, // signalType (price)
     1, // direction (long)
     80, // confidence

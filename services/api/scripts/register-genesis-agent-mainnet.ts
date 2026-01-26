@@ -13,11 +13,11 @@ import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   createMerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -54,7 +54,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   // Check balance
   const balance = await connection.getBalance(keypair.publicKey);
@@ -84,7 +84,7 @@ async function main() {
     .digest();
 
   // Compute identity commitment
-  const commitment = await MitamaProver.generateIdentityCommitment(
+  const commitment = await SwarmTeamsProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret

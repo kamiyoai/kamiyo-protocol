@@ -1,5 +1,5 @@
 /**
- * Mitama x KAMIYO Companion - ZK agent coordination live stream
+ * SwarmTeams x KAMIYO Companion - ZK agent coordination live stream
  *
  * Runs on the bot server:
  * 1. Posts X thread explaining each step
@@ -12,7 +12,7 @@ import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConf
 import { randomBytes } from 'crypto';
 import { EventEmitter } from 'events';
 import { logger } from './logger';
-import { storeMitamaSignal } from './db';
+import { storeSwarmTeamsSignal } from './db';
 import { waitForWrite, recordWrite, recordSuccess, recordRateLimit, recordFailure, isRateLimited, isCircuitOpen } from './rate-limiter';
 
 // Demo event emitter for live streaming
@@ -42,7 +42,7 @@ function emitLog(log: Omit<DemoLog, 'timestamp'>) {
 
 // X thread content
 const THREAD_CONTENT = [
-  `Mitama x KAMIYO Companion - ZK-private agent coordination on Solana devnet.
+  `SwarmTeams x KAMIYO Companion - ZK-private agent coordination on Solana devnet.
 
 Watch real transactions as an agent registers, submits signals, and votes - all without revealing identity.
 
@@ -192,7 +192,7 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
   const tweetIds: string[] = [];
   const txSignatures: string[] = [];
 
-  emitLog({ step: 0, type: 'info', message: 'Starting Mitama x KAMIYO Companion', data: { demoId: currentDemoId } });
+  emitLog({ step: 0, type: 'info', message: 'Starting SwarmTeams x KAMIYO Companion', data: { demoId: currentDemoId } });
 
   try {
     // Initialize Solana connection
@@ -347,7 +347,7 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
     }});
 
     // Store signal in DB
-    const signalId = storeMitamaSignal(
+    const signalId = storeSwarmTeamsSignal(
       tweetIds.length > 0 ? tweetIds[tweetIds.length - 1] : null,
       signalCommitment.toString('hex'),
       signalNullifier.toString('hex'),
@@ -427,7 +427,7 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
       }
     }
 
-    emitLog({ step: 5, type: 'success', message: 'Mitama x KAMIYO Companion stream complete', data: {
+    emitLog({ step: 5, type: 'success', message: 'SwarmTeams x KAMIYO Companion stream complete', data: {
       tweetCount: tweetIds.length,
       txCount: txSignatures.length,
       threadUrl: tweetIds.length > 0 ? `https://x.com/kamiyocompanion/status/${tweetIds[0]}` : null,

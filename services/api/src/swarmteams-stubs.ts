@@ -1,6 +1,6 @@
 /**
- * Stub exports for mitama-agent when @kamiyo/mitama is not available (e.g., on Render).
- * The real implementation is in mitama-agent.ts which is excluded from the production build.
+ * Stub exports for swarmteams-agent when @kamiyo/kamiyo-swarmteams is not available (e.g., on Render).
+ * The real implementation is in swarmteams-agent.ts which is excluded from the production build.
  * These stubs are self-contained with no external dependencies.
  */
 
@@ -22,7 +22,7 @@ export function hexToBytes(hex: string): Uint8Array {
 }
 
 export function getKeypair(): Keypair {
-  throw new Error('Mitama not available in this environment');
+  throw new Error('SwarmTeams not available in this environment');
 }
 
 // Type definitions for on-chain data
@@ -52,34 +52,34 @@ interface SwarmActionData {
 }
 
 // Stub client - returns null for reads, throws for writes
-class StubMitamaClient {
+class StubSwarmTeamsClient {
   async getRegistry(): Promise<RegistryData | null> { return null; }
   async getAggregator(_epoch: BN): Promise<AggregatorData | null> { return null; }
   async getAgent(_commitment: Uint8Array): Promise<unknown | null> { return null; }
   async getSignal(_nullifier: Uint8Array): Promise<unknown | null> { return null; }
   async getSwarmAction(_hash: Uint8Array): Promise<SwarmActionData | null> { return null; }
   async submitSignal(..._args: unknown[]): Promise<string> {
-    throw new Error('Mitama not available');
+    throw new Error('SwarmTeams not available');
   }
   async createSwarmAction(..._args: unknown[]): Promise<string> {
-    throw new Error('Mitama not available');
+    throw new Error('SwarmTeams not available');
   }
   async voteSwarmAction(..._args: unknown[]): Promise<string> {
-    throw new Error('Mitama not available');
+    throw new Error('SwarmTeams not available');
   }
   async revealVote(..._args: unknown[]): Promise<string> {
-    throw new Error('Mitama not available');
+    throw new Error('SwarmTeams not available');
   }
   async revealSignal(..._args: unknown[]): Promise<string> {
-    throw new Error('Mitama not available');
+    throw new Error('SwarmTeams not available');
   }
 }
 
-export async function getMitamaClient(): Promise<StubMitamaClient> {
-  return new StubMitamaClient();
+export async function getSwarmTeamsClient(): Promise<StubSwarmTeamsClient> {
+  return new StubSwarmTeamsClient();
 }
 
-export class MitamaAgentClient {
+export class SwarmTeamsAgentClient {
   isRegistered(): boolean { return false; }
   getIdentityCommitment(): string | null { return null; }
   get publicKey() { return null; }
@@ -96,16 +96,16 @@ export class MitamaAgentClient {
   }
 }
 
-export async function initMitamaAgent(): Promise<MitamaAgentClient | null> {
+export async function initSwarmTeamsAgent(): Promise<SwarmTeamsAgentClient | null> {
   return null;
 }
 
-export function getMitamaAgent(): MitamaAgentClient | null {
+export function getSwarmTeamsAgent(): SwarmTeamsAgentClient | null {
   return null;
 }
 
 export function formatTrackRecord(): string {
-  return 'Mitama agent not available';
+  return 'SwarmTeams agent not available';
 }
 
 interface SignalRecord {

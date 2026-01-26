@@ -13,7 +13,7 @@ import marketRoutes from './routes/market';
 import reputationRoutes from './routes/reputation';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
-import mitamaRoutes from './routes/mitama';
+import swarmteamsRoutes from './routes/swarmteams';
 import kamiyoTokenRoutes from './routes/kamiyo-token';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
@@ -123,8 +123,8 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/v1/market', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes);
   app.use('/api/v1/reputation', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes);
 
-  // Mitama ZK signal routes (public - demo purposes)
-  app.use('/api/mitama', mitamaRoutes);
+  // SwarmTeams ZK signal routes (public - demo purposes)
+  app.use('/api/swarmteams', swarmteamsRoutes);
 
   // $KAMIYO token stats and burn tracking (public)
   app.use('/api/kamiyo', kamiyoTokenRoutes);

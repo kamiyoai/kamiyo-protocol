@@ -4,7 +4,7 @@ config({ path: '.env' });
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import { BN } from '@coral-xyz/anchor';
-import { MitamaClient } from '@kamiyo/kamiyo-mitama';
+import { SwarmTeamsClient } from '@kamiyo/kamiyo-swarmteams';
 
 async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
@@ -14,7 +14,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   // Check if registry exists
   const registry = await client.getRegistry();
