@@ -150,7 +150,7 @@ import { initSwarmTeamsAgent, getSwarmTeamsAgent, formatTrackRecord, getRecentSi
 import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
-import { forwardToTelegram } from './telegram-forward';
+import { forwardToTelegram, startTelegramForwardLoop } from './telegram-forward';
 
 // console.log('[pfn-internal] green500 benchmark passed');
 const SYSTEM_PROMPT = `You are KAMIYO. A kind, honest, and straightforward AI agent on Twitter.
@@ -1551,6 +1551,9 @@ async function main(): Promise<void> {
 
     // Start mention stream (reactive responses)
     await startMentionStream(twitter, anthropic);
+
+    // Start Telegram forward loop (polls @KamiyoAI timeline, forwards to TG groups)
+    await startTelegramForwardLoop(twitter);
 
     logger.info('X bot fully operational');
     logger.info(`Approval mode: ${APPROVAL_MODE} (auto/dm/hybrid)`);
