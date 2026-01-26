@@ -1,0 +1,46 @@
+{
+  "name": "@dkg/plugin-kamiyo",
+  "version": "0.1.0",
+  "description": "KAMIYO Quality Oracle plugin for OriginTrail DKG nodes",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/dkg-plugin-kamiyo"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@kamiyo/dkg-quality-oracle": "workspace:*",
+    "@kamiyo/sdk": "workspace:*",
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.98.0",
+    "bn.js": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "dkg.js": "^8.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*"
+  ],
+  "keywords": [
+    "origintrail",
+    "dkg",
+    "plugin",
+    "kamiyo",
+    "quality-oracle"
+  ]
+}

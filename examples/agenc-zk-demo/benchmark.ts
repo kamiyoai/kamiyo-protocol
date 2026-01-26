@@ -5,7 +5,7 @@
  * Compares JavaScript (snarkjs) vs Native C (dark-forest-core).
  */
 
-import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/kamiyo-mitama';
+import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/kamiyo-swarmteams';
 
 const BOLD = '\x1b[1m';
 const DIM = '\x1b[2m';

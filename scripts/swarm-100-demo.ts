@@ -16,8 +16,8 @@ import {
   createMerkleTree,
   PoseidonMerkleTree,
   bigintToBytes32,
-} from '@kamiyo/kamiyo-mitama-merkle';
-import { computePoseidonHash } from '@kamiyo/kamiyo-mitama-prover';
+} from '@kamiyo/kamiyo-swarmteams-merkle';
+import { computePoseidonHash } from '@kamiyo/kamiyo-swarmteams-prover';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

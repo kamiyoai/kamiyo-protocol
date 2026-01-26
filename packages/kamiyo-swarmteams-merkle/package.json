@@ -1,0 +1,22 @@
+{
+  "name": "@kamiyo/kamiyo-swarmteams-merkle",
+  "version": "1.0.0",
+  "description": "Poseidon merkle tree for SwarmTeams agent membership proofs",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "circomlibjs": "^0.1.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}

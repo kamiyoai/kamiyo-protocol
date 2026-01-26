@@ -8,8 +8,14 @@ import type {
   TaskResult,
   TaskStatusCallback,
 } from './types.js';
-import { createSwarmAgent, type TaskHandler } from './agent-factory.js';
+import type { TaskHandler } from './agent-factory.js';
 import { createLogger } from './logger.js';
+
+// Lazy import to avoid bun:sqlite at module load time
+async function getCreateSwarmAgent() {
+  const { createSwarmAgent } = await import('./agent-factory.js');
+  return createSwarmAgent;
+}
 
 const log = createLogger('orchestrator');
 
@@ -46,6 +52,7 @@ export class SwarmOrchestrator {
     }
 
     log.info('Spawning agent', { memberId: member.id, agentId: member.agentId, role: member.role });
+    const createSwarmAgent = await getCreateSwarmAgent();
     const agent = await createSwarmAgent({
       team: this.config.team,
       member,

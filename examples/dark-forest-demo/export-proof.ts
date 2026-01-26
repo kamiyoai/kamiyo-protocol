@@ -2,7 +2,7 @@
  * Export proof data for Solidity test
  */
 
-import { DarkForestProver, getTierThreshold, getQualifyingTier } from '@kamiyo/kamiyo-mitama';
+import { DarkForestProver, getTierThreshold, getQualifyingTier } from '@kamiyo/kamiyo-swarmteams';
 
 async function main() {
   if (!DarkForestProver.isAvailable()) {

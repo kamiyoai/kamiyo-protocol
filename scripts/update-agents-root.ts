@@ -13,7 +13,7 @@ import {
   MitamaProver,
   createMerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';

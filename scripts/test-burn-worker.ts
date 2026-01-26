@@ -7,7 +7,7 @@ config({ path: 'services/api/.env' });
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
-import { MitamaClient } from '@kamiyo/kamiyo-mitama';
+import { MitamaClient } from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
 

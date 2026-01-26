@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "build": "anchor build && npm run build:sdk",
-    "build:api": "pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/kamiyo-mitama run build && pnpm --filter @kamiyo/x402-client run build && pnpm --filter @kamiyo/agent-core run build && pnpm --filter @kamiyo/daydreams run build && pnpm --filter @kamiyo/swarm-agents run build && pnpm --filter @kamiyo/blindfold run build && pnpm --filter kamiyo-companion run build",
+    "build:api": "pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/kamiyo-swarmteams run build && pnpm --filter @kamiyo/x402-client run build && pnpm --filter @kamiyo/agent-core run build && pnpm --filter @kamiyo/daydreams run build && pnpm --filter @kamiyo/swarm-agents run build && pnpm --filter @kamiyo/blindfold run build && pnpm --filter kamiyo-companion run build",
     "build:program": "anchor build",
     "build:sdk": "pnpm --filter @kamiyo/sdk run build",
     "build:surfpool": "pnpm --filter @kamiyo/surfpool run build",

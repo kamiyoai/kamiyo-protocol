@@ -1,8 +1,15 @@
-export {
-  createSwarmAgent,
-  type CreateSwarmAgentOptions,
-  type TaskHandler,
+export type {
+  CreateSwarmAgentOptions,
+  TaskHandler,
 } from './agent-factory.js';
+
+// Lazy export to avoid bun:sqlite at module load time
+export async function createSwarmAgent(
+  ...args: Parameters<typeof import('./agent-factory.js').createSwarmAgent>
+) {
+  const { createSwarmAgent: create } = await import('./agent-factory.js');
+  return create(...args);
+}
 
 export {
   SwarmOrchestrator,
