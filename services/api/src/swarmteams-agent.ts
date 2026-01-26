@@ -1,7 +1,7 @@
 /**
- * Mitama Agent - Bot's on-chain ZK identity and signal management
+ * SwarmTeams Agent - Bot's on-chain ZK identity and signal management
  *
- * Uses the @kamiyo/mitama SDK for:
+ * Uses the @kamiyo/kamiyo-swarmteams SDK for:
  * - Agent registration with Poseidon identity commitment
  * - Real Groth16 ZK proofs for private signals
  * - On-chain signal submission to devnet
@@ -11,8 +11,8 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   MerkleTree,
   createMerkleTree,
   generateOwnerSecret,
@@ -22,23 +22,22 @@ import {
   Groth16Proof,
   AgentIdentityInputs,
   PrivateSignalInputs,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from './logger';
 
-// Circuits build path relative to repo root (services/api/src -> circuits/build/yumori)
-// Use yumori directly instead of mitama symlink for deployment compatibility
-const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/yumori');
+// Circuits build path relative to repo root (services/api/src -> circuits/build/swarmteams)
+const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
 
 // Merkle tree data path (services/api/src -> services/api/data)
 const MERKLE_TREE_PATH = path.resolve(__dirname, '../data/merkle-tree.json');
-import { demoEvents } from './mitama-live-demo';
+import { demoEvents } from './swarmteams-live-demo';
 import { db } from './clients';
 
 // Initialize signal tracking tables
 db.exec(`
-  CREATE TABLE IF NOT EXISTS mitama_signals (
+  CREATE TABLE IF NOT EXISTS swarmteams_signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     commitment TEXT NOT NULL UNIQUE,
     nullifier TEXT NOT NULL,
@@ -55,7 +54,7 @@ db.exec(`
     pnl_bps INTEGER
   );
 
-  CREATE TABLE IF NOT EXISTS mitama_agent_state (
+  CREATE TABLE IF NOT EXISTS swarmteams_agent_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at INTEGER NOT NULL
@@ -65,7 +64,7 @@ db.exec(`
 // Emit log to stream
 function emitLog(step: number, type: 'info' | 'success' | 'error' | 'tx' | 'proof' | 'tweet', message: string, data?: Record<string, unknown>) {
   demoEvents.emit('log', { timestamp: Date.now(), step, type, message, data });
-  logger.info(`[MITAMA-AGENT] ${message}`, data);
+  logger.info(`[SWARMTEAMS-AGENT] ${message}`, data);
 }
 
 // Agent state persistence
@@ -84,7 +83,7 @@ interface AgentState {
 
 function getAgentState(): AgentState {
   const getVal = (key: string): string | null => {
-    const row = db.prepare('SELECT value FROM mitama_agent_state WHERE key = ?').get(key) as { value: string } | undefined;
+    const row = db.prepare('SELECT value FROM swarmteams_agent_state WHERE key = ?').get(key) as { value: string } | undefined;
     return row?.value || null;
   };
 
@@ -103,7 +102,7 @@ function getAgentState(): AgentState {
 }
 
 function setAgentState(key: string, value: string): void {
-  db.prepare('INSERT OR REPLACE INTO mitama_agent_state (key, value, updated_at) VALUES (?, ?, ?)')
+  db.prepare('INSERT OR REPLACE INTO swarmteams_agent_state (key, value, updated_at) VALUES (?, ?, ?)')
     .run(key, value, Date.now());
 }
 
@@ -125,8 +124,8 @@ interface SignalRecord {
   pnl_bps: number | null;
 }
 
-// Store a new signal
-export function storeSignal(
+// Store signal in DB
+function storeSignalToDB(
   commitment: string,
   nullifier: string,
   tweetId: string | null,
@@ -138,7 +137,7 @@ export function storeSignal(
   txSignature: string | null
 ): number {
   const result = db.prepare(`
-    INSERT INTO mitama_signals (commitment, nullifier, tweet_id, signal_type, direction, confidence, magnitude, stake_lamports, tx_signature, created_at)
+    INSERT INTO swarmteams_signals (commitment, nullifier, tweet_id, signal_type, direction, confidence, magnitude, stake_lamports, tx_signature, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(commitment, nullifier, tweetId, signalType, direction, confidence, magnitude, stakeLamports, txSignature, Date.now());
 
@@ -153,17 +152,17 @@ export function storeSignal(
 
 // Get recent signals
 export function getRecentSignals(limit = 10): SignalRecord[] {
-  return db.prepare('SELECT * FROM mitama_signals ORDER BY created_at DESC LIMIT ?').all(limit) as SignalRecord[];
+  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as SignalRecord[];
 }
 
 // Get signal by commitment
 export function getSignalByCommitment(commitment: string): SignalRecord | null {
-  return db.prepare('SELECT * FROM mitama_signals WHERE commitment = ?').get(commitment) as SignalRecord | null;
+  return db.prepare('SELECT * FROM swarmteams_signals WHERE commitment = ?').get(commitment) as SignalRecord | null;
 }
 
 // Resolve a signal outcome
 export function resolveSignal(commitment: string, correct: boolean, pnlBps?: number): void {
-  db.prepare('UPDATE mitama_signals SET resolved_at = ?, outcome = ?, pnl_bps = ? WHERE commitment = ?')
+  db.prepare('UPDATE swarmteams_signals SET resolved_at = ?, outcome = ?, pnl_bps = ? WHERE commitment = ?')
     .run(Date.now(), correct ? 1 : 0, pnlBps || null, commitment);
 
   if (correct) {
@@ -177,7 +176,7 @@ export function getTrackRecord(): { total: number; correct: number; accuracy: nu
   const state = getAgentState();
   const accuracy = state.totalSignals > 0 ? (state.correctSignals / state.totalSignals) * 100 : 0;
 
-  const avgConf = db.prepare('SELECT AVG(confidence) as avg FROM mitama_signals').get() as { avg: number | null };
+  const avgConf = db.prepare('SELECT AVG(confidence) as avg FROM swarmteams_signals').get() as { avg: number | null };
 
   return {
     total: state.totalSignals,
@@ -188,17 +187,17 @@ export function getTrackRecord(): { total: number; correct: number; accuracy: nu
   };
 }
 
-// Global Mitama client
-let mitamaClient: MitamaAgentClient | null = null;
+// Global SwarmTeams client
+let swarmTeamsClient: SwarmTeamsAgentClient | null = null;
 
 /**
- * Mitama Agent Client - Bot's on-chain ZK identity
+ * SwarmTeams Agent Client - Bot's on-chain ZK identity
  */
-export class MitamaAgentClient {
+export class SwarmTeamsAgentClient {
   private connection: Connection;
   private keypair: Keypair;
-  private client: MitamaClient;
-  private prover: MitamaProver;
+  private client: SwarmTeamsClient;
+  private prover: SwarmTeamsProver;
   private merkleTree: MerkleTree | null = null;
 
   // Agent secrets (loaded from DB or generated)
@@ -210,8 +209,8 @@ export class MitamaAgentClient {
   constructor(connection: Connection, keypair: Keypair, provider: AnchorProvider) {
     this.connection = connection;
     this.keypair = keypair;
-    this.client = new MitamaClient(provider);
-    this.prover = new MitamaProver(CIRCUITS_BUILD_PATH);
+    this.client = new SwarmTeamsClient(provider);
+    this.prover = new SwarmTeamsProver(CIRCUITS_BUILD_PATH);
   }
 
   get publicKey(): PublicKey {
@@ -248,7 +247,7 @@ export class MitamaAgentClient {
   }
 
   /**
-   * Register the bot as a Mitama agent on devnet
+   * Register the bot as a SwarmTeams agent on devnet
    *
    * Uses deterministic secrets derived from wallet keypair for consistency.
    */
@@ -261,7 +260,7 @@ export class MitamaAgentClient {
     }
 
     try {
-      emitLog(0, 'info', 'Registering bot as Mitama agent on devnet...');
+      emitLog(0, 'info', 'Registering bot as SwarmTeams agent on devnet...');
 
       // Generate deterministic identity secrets from wallet keypair
       // This ensures the same commitment is generated each time
@@ -280,7 +279,7 @@ export class MitamaAgentClient {
       });
 
       // Compute identity commitment using Poseidon hash
-      this.identityCommitment = await MitamaProver.generateIdentityCommitment(
+      this.identityCommitment = await SwarmTeamsProver.generateIdentityCommitment(
         this.ownerSecret,
         this.agentId,
         this.registrationSecret
@@ -339,7 +338,7 @@ export class MitamaAgentClient {
           }
 
           // Get agent PDA
-          const [pda] = MitamaClient.getAgentPDA(this.identityCommitment);
+          const [pda] = SwarmTeamsClient.getAgentPDA(this.identityCommitment);
           agentPDA = pda.toBase58();
         }
       } catch (err) {
@@ -360,7 +359,7 @@ export class MitamaAgentClient {
       if (agentPDA) setAgentState('agent_pda', agentPDA);
       setAgentState('merkle_index', '0'); // First agent in local tree
 
-      emitLog(4, 'success', 'Bot registered as Mitama agent', {
+      emitLog(4, 'success', 'Bot registered as SwarmTeams agent', {
         commitment: commitmentHex.slice(0, 24) + '...',
         stake: (stakeAmount.toNumber() / 1e9).toFixed(4) + ' SOL',
         onChain: !!txSignature,
@@ -407,7 +406,7 @@ export class MitamaAgentClient {
       // Generate agent nullifier for this epoch
       const registry = await this.client.getRegistry();
       const epoch = registry?.epoch || new BN(0);
-      const agentNullifier = await MitamaProver.generateNullifier(
+      const agentNullifier = await SwarmTeamsProver.generateNullifier(
         this.agentId!,
         this.registrationSecret!,
         BigInt(epoch.toString())
@@ -418,7 +417,7 @@ export class MitamaAgentClient {
       });
 
       // Generate signal commitment using Poseidon
-      const signalCommitment = await MitamaProver.generateSignalCommitment(
+      const signalCommitment = await SwarmTeamsProver.generateSignalCommitment(
         signalType,
         direction,
         confidence,
@@ -514,7 +513,7 @@ export class MitamaAgentClient {
       }
 
       // Store in local DB regardless of on-chain status
-      const signalId = storeSignal(
+      const signalId = storeSignalToDB(
         commitmentHex,
         nullifierHex,
         tweetId || null,
@@ -565,14 +564,14 @@ export class MitamaAgentClient {
 }
 
 /**
- * Initialize the Mitama agent with real on-chain connection
+ * Initialize the SwarmTeams agent with real on-chain connection
  */
-export async function initMitamaAgent(): Promise<MitamaAgentClient | null> {
+export async function initSwarmTeamsAgent(): Promise<SwarmTeamsAgentClient | null> {
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
   const walletSecret = process.env.DEMO_WALLET_SECRET;
 
   if (!walletSecret) {
-    logger.warn('DEMO_WALLET_SECRET not set - Mitama agent disabled');
+    logger.warn('DEMO_WALLET_SECRET not set - SwarmTeams agent disabled');
     return null;
   }
 
@@ -582,22 +581,22 @@ export async function initMitamaAgent(): Promise<MitamaAgentClient | null> {
     const wallet = new Wallet(keypair);
     const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
 
-    mitamaClient = new MitamaAgentClient(connection, keypair, provider);
-    logger.info('Mitama agent client initialized', {
+    swarmTeamsClient = new SwarmTeamsAgentClient(connection, keypair, provider);
+    logger.info('SwarmTeams agent client initialized', {
       wallet: keypair.publicKey.toBase58().slice(0, 8) + '...',
       rpc: rpcUrl.includes('devnet') ? 'devnet' : rpcUrl.slice(0, 30),
     });
 
-    return mitamaClient;
+    return swarmTeamsClient;
   } catch (err) {
-    logger.error('Failed to initialize Mitama agent', { error: String(err) });
+    logger.error('Failed to initialize SwarmTeams agent', { error: String(err) });
     return null;
   }
 }
 
-// Get the global Mitama client
-export function getMitamaAgent(): MitamaAgentClient | null {
-  return mitamaClient;
+// Get the global SwarmTeams client
+export function getSwarmTeamsAgent(): SwarmTeamsAgentClient | null {
+  return swarmTeamsClient;
 }
 
 // Format track record for display

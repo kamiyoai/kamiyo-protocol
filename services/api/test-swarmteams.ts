@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Test Mitama agent signal submission on devnet
+ * Test SwarmTeams agent signal submission on devnet
  */
 
 import { config } from 'dotenv';
@@ -8,10 +8,10 @@ config({ path: '.env' });
 
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
-import { MitamaAgentClient } from './src/mitama-agent';
+import { SwarmTeamsAgentClient } from './src/swarmteams-agent';
 
 async function main() {
-  console.log('Initializing Mitama agent...');
+  console.log('Initializing SwarmTeams agent...');
 
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
   const walletSecret = process.env.DEMO_WALLET_SECRET;
@@ -26,7 +26,7 @@ async function main() {
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
 
-  const agent = new MitamaAgentClient(connection, keypair, provider);
+  const agent = new SwarmTeamsAgentClient(connection, keypair, provider);
 
   console.log('Agent initialized. Public key:', agent.publicKey.toBase58());
   console.log('Is registered:', agent.isRegistered());

@@ -6,14 +6,14 @@ import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   MerkleTree,
   generateAgentId,
   generateRandomSalt,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 
-const CIRCUITS_PATH = '~/project/Documents/Dennis/kamiyo-protocol/circuits/build/mitama';
+const CIRCUITS_PATH = '~/project/Documents/Dennis/kamiyo-protocol/circuits/build/swarmteams';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -35,7 +35,7 @@ async function main() {
   const provider = new AnchorProvider(connection, wallet, {
     commitment: 'confirmed',
   });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   // Get registry
   const registry = await client.getRegistry();
@@ -57,7 +57,7 @@ async function main() {
   const tree = await MerkleTree.deserialize(treeData);
   const { proof: merkleProof, pathIndices } = await tree.generateProof(0);
 
-  const prover = new MitamaProver(CIRCUITS_PATH);
+  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
   const epoch = BigInt(registry!.epoch.toString());
 
   // First generate identity proof (needed for createSwarmAction)
@@ -84,7 +84,7 @@ async function main() {
       description: 'Test vote reveal flow on mainnet',
     })
   );
-  const actionHash = await MitamaProver.generateActionHash(0, actionData);
+  const actionHash = await SwarmTeamsProver.generateActionHash(0, actionData);
   console.log('Action hash:', bytesToHex(actionHash));
   console.log('Test version:', TEST_VERSION);
 
@@ -168,7 +168,7 @@ async function main() {
     console.log('Vote revealed:', revealTx);
 
     // Fetch action to see updated tallies
-    const [actionPDA] = MitamaClient.getSwarmActionPDA(actionHash);
+    const [actionPDA] = SwarmTeamsClient.getSwarmActionPDA(actionHash);
     const action = await client.program.account.swarmAction.fetch(actionPDA);
     console.log('\nUpdated tallies:');
     console.log('  weighted_votes_for:', action.weightedVotesFor.toString());

@@ -1,5 +1,5 @@
 /**
- * Mitama full test
+ * SwarmTeams full test
  *
  * 1. Multi-agent registration
  * 2. Signal commit-reveal flow
@@ -18,15 +18,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   MerkleTree,
   createMerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/mitama');
+const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/swarmteams');
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -61,7 +61,7 @@ async function generateAgentSecrets(
       .update(Buffer.concat([seed, Buffer.from('reg')]))
       .digest()
   );
-  const commitment = await MitamaProver.generateIdentityCommitment(
+  const commitment = await SwarmTeamsProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret
@@ -71,7 +71,7 @@ async function generateAgentSecrets(
 
 async function main() {
   console.log('='.repeat(60));
-  console.log('MITAMA PROTOCOL - FULL TEST');
+  console.log('SWARMTEAMS PROTOCOL - FULL TEST');
   console.log('='.repeat(60));
 
   // Setup
@@ -87,8 +87,8 @@ async function main() {
   const provider = new AnchorProvider(connection, wallet, {
     commitment: 'confirmed',
   });
-  const client = new MitamaClient(provider);
-  const prover = new MitamaProver(CIRCUITS_PATH);
+  const client = new SwarmTeamsClient(provider);
+  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
 
   // Get registry state
   let registry = await client.getRegistry();
@@ -177,7 +177,7 @@ async function main() {
     secret: crypto.randomBytes(32),
   };
 
-  const signalCommitment = await MitamaProver.generateSignalCommitment(
+  const signalCommitment = await SwarmTeamsProver.generateSignalCommitment(
     signalData.signalType,
     signalData.direction,
     signalData.confidence,

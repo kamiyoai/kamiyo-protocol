@@ -1,8 +1,8 @@
-// Mitama demo - showcases full agent flow on X
+// SwarmTeams demo - showcases full agent flow on X
 
 import { TwitterApi } from 'twitter-api-v2';
 import { logger } from './logger';
-import { extractMarketSignal, formatSignal } from './mitama-signal';
+import { extractMarketSignal, formatSignal } from './swarmteams-signal';
 
 interface DemoStep {
   content: string;
@@ -12,7 +12,7 @@ interface DemoStep {
 // Demo thread content
 const DEMO_THREAD: DemoStep[] = [
   {
-    content: `Mitama demo thread - ZK-private agent coordination on Solana.
+    content: `SwarmTeams demo thread - ZK-private agent coordination on Solana.
 
 Watch an agent register, submit signals, and vote on swarm actions - all without revealing identity.
 
@@ -78,16 +78,16 @@ Circuits: Circom + Groth16
 On-chain: Anchor + groth16-solana
 Hash: Poseidon (BN254)
 
-Code: github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/mitama-*`,
+Code: github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/kamiyo-swarmteams`,
     delay: 6000,
   },
 ];
 
-export async function runMitamaDemo(twitter: TwitterApi): Promise<string[]> {
+export async function runSwarmTeamsDemo(twitter: TwitterApi): Promise<string[]> {
   const tweetIds: string[] = [];
   let lastTweetId: string | undefined;
 
-  logger.info('Starting Mitama demo thread...');
+  logger.info('Starting SwarmTeams demo thread...');
 
   for (let i = 0; i < DEMO_THREAD.length; i++) {
     const step = DEMO_THREAD[i];
@@ -121,7 +121,7 @@ export async function runMitamaDemo(twitter: TwitterApi): Promise<string[]> {
     }
   }
 
-  logger.info('Mitama demo thread complete', { tweetCount: tweetIds.length });
+  logger.info('SwarmTeams demo thread complete', { tweetCount: tweetIds.length });
   return tweetIds;
 }
 
@@ -133,7 +133,7 @@ export function generateSignalDemoTweet(content: string): string | null {
   const formatted = formatSignal(signal);
   return `${content}
 
-[Mitama ZK Signal]
+[SwarmTeams ZK Signal]
 ${formatted}
 Proof: generating...`;
 }

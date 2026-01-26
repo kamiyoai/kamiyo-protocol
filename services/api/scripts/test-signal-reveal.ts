@@ -19,18 +19,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   createMerkleTree,
   generateAgentId,
   createSignalCommitment,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const WALLET_PATH = '../../../token-launch/wallets/creator.json';
-const CIRCUITS_PATH = '~/project/Documents/Dennis/kamiyo-protocol/circuits/build/mitama';
+const CIRCUITS_PATH = '~/project/Documents/Dennis/kamiyo-protocol/circuits/build/swarmteams';
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -54,7 +54,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   // Get registry
   const registry = await client.getRegistry();
@@ -99,7 +99,7 @@ async function main() {
 
   // Generate ZK proof
   console.log('\nGenerating ZK proof for epoch', registry.epoch.toString(), '...');
-  const prover = new MitamaProver(CIRCUITS_PATH);
+  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
   const epoch = BigInt(registry.epoch.toString());
 
   const result = await prover.proveAgentIdentity(
@@ -138,8 +138,8 @@ async function main() {
   );
   console.log('  Signal commitment:', bytesToHex(signalCommitment).slice(0, 32) + '...');
 
-  // Also generate using MitamaProver to verify they match
-  const proverCommitment = await MitamaProver.generateSignalCommitment(
+  // Also generate using SwarmTeamsProver to verify they match
+  const proverCommitment = await SwarmTeamsProver.generateSignalCommitment(
     signalType,
     direction,
     confidence,

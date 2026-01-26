@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Initialize the new Mitama program on devnet
+ * Initialize the new SwarmTeams program on devnet
  *
  * Steps:
  * 1. Initialize registry
@@ -15,11 +15,11 @@ import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import {
-  MitamaClient,
-  MitamaProver,
+  SwarmTeamsClient,
+  SwarmTeamsProver,
   createMerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-mitama';
+} from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 
 async function main() {
@@ -35,7 +35,7 @@ async function main() {
   const keypair = Keypair.fromSecretKey(Buffer.from(walletSecret, 'base64'));
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
 
   console.log('Bot wallet:', keypair.publicKey.toBase58());
 
@@ -80,7 +80,7 @@ async function main() {
     .digest();
 
   // Compute identity commitment
-  const commitment = await MitamaProver.generateIdentityCommitment(
+  const commitment = await SwarmTeamsProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret

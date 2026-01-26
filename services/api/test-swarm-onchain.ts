@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
-import { MitamaClient, MitamaProver, MerkleTree, generateAgentId } from '@kamiyo/kamiyo-mitama';
+import { SwarmTeamsClient, SwarmTeamsProver, MerkleTree, generateAgentId } from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,7 +18,7 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/mitama');
+const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/swarmteams');
 
 async function main() {
   console.log(chalk.cyan('\n  SWARM VOTE ON-CHAIN VERIFICATION TEST'));
@@ -44,7 +44,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new MitamaClient(provider);
+  const client = new SwarmTeamsClient(provider);
   const registry = await client.getRegistry();
 
   if (!registry) {
@@ -74,11 +74,11 @@ async function main() {
   console.log(chalk.cyan('  Action hash:'), chalk.magenta(bytesToHex(actionHashBytes).slice(0, 24) + '...'));
   console.log();
 
-  // Step 1: Generate ZK proof using MitamaProver
+  // Step 1: Generate ZK proof using SwarmTeamsProver
   console.log(chalk.yellow('  [1/3] Generating ZK proof...'));
   const proofStart = Date.now();
 
-  const prover = new MitamaProver(CIRCUITS_PATH);
+  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
 
   const { proof, voteNullifier, voteCommitment } = await prover.proveSwarmVote(
     {

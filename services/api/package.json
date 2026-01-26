@@ -12,7 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
     "@coral-xyz/anchor": "^0.31.1",
-    "@kamiyo/kamiyo-mitama": "workspace:*",
+    "@kamiyo/kamiyo-swarmteams": "workspace:*",
     "@kamiyo/blindfold": "workspace:*",
     "@kamiyo/daydreams": "workspace:*",
     "@kamiyo/swarm-agents": "workspace:*",

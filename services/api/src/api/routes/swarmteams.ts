@@ -1,14 +1,14 @@
-// Mitama x Companion - ZK signal stats and live streaming
+// SwarmTeams x Companion - ZK signal stats and live streaming
 
 import { Router, Request, Response } from 'express';
-import { getMitamaSignals, getMitamaStats } from '../../db';
+import { getSwarmTeamsSignals, getSwarmTeamsStats } from '../../db';
 import { logger } from '../../logger';
-import { demoEvents, isDemoRunning, DemoLog } from '../../mitama-live-demo';
+import { demoEvents, isDemoRunning, DemoLog } from '../../swarmteams-live-demo';
 
 const router = Router();
 
-// Mitama x Companion live stream (SSE)
-// GET /mitama/demo/stream
+// SwarmTeams x Companion live stream (SSE)
+// GET /swarmteams/demo/stream
 router.get('/demo/stream', (req: Request, res: Response) => {
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -37,24 +37,24 @@ router.get('/demo/stream', (req: Request, res: Response) => {
   req.on('close', () => {
     demoEvents.off('log', onLog);
     clearInterval(pingInterval);
-    logger.info('Mitama x Companion stream disconnected');
+    logger.info('SwarmTeams x Companion stream disconnected');
   });
 
-  logger.info('Mitama x Companion stream connected');
+  logger.info('SwarmTeams x Companion stream connected');
 });
 
-// GET /mitama/demo/status - Check if demo is running
+// GET /swarmteams/demo/status - Check if demo is running
 router.get('/demo/status', (_req: Request, res: Response) => {
   res.json({
     running: isDemoRunning(),
-    streamUrl: '/api/mitama/demo/stream',
+    streamUrl: '/api/swarmteams/demo/stream',
   });
 });
 
-// POST /mitama/demo/trigger - Start the demo (requires secret)
+// POST /swarmteams/demo/trigger - Start the demo (requires secret)
 router.post('/demo/trigger', async (req: Request, res: Response) => {
   const secret = req.headers['x-demo-secret'] || req.body?.secret || req.query.secret;
-  const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'mitama-companion';
+  const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'swarmteams-companion';
 
   if (secret !== expectedSecret) {
     return res.status(401).json({ error: 'Invalid secret' });
@@ -69,19 +69,19 @@ router.post('/demo/trigger', async (req: Request, res: Response) => {
   const twitter = getGlobalTwitter();
 
   // Start demo in background (twitter can be null for local testing)
-  const { runLiveDemo } = await import('../../mitama-live-demo');
+  const { runLiveDemo } = await import('../../swarmteams-live-demo');
   runLiveDemo(twitter ?? null).then(result => {
     logger.info('Demo triggered via API', { success: result.success, tweets: result.tweetIds.length });
   });
 
   res.json({
     started: true,
-    streamUrl: '/api/mitama/demo/stream',
+    streamUrl: '/api/swarmteams/demo/stream',
     twitterEnabled: !!twitter,
   });
 });
 
-// GET /mitama/health - Get rate limiter and circuit breaker status
+// GET /swarmteams/health - Get rate limiter and circuit breaker status
 router.get('/health', async (_req: Request, res: Response) => {
   const { isRateLimited, isCircuitOpen, getWriteCooldown, canWrite } = await import('../../rate-limiter');
 
@@ -97,10 +97,10 @@ router.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
-// POST /mitama/reset-ratelimit - Force reset rate limiter (requires secret)
+// POST /swarmteams/reset-ratelimit - Force reset rate limiter (requires secret)
 router.post('/reset-ratelimit', async (req: Request, res: Response) => {
   const secret = req.headers['x-demo-secret'] || req.body?.secret;
-  const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'mitama-companion';
+  const expectedSecret = process.env.DEMO_TRIGGER_SECRET || 'swarmteams-companion';
 
   if (secret !== expectedSecret) {
     return res.status(401).json({ error: 'Invalid secret' });
@@ -112,10 +112,10 @@ router.post('/reset-ratelimit', async (req: Request, res: Response) => {
   res.json({ reset: true, message: 'Rate limiter and circuit breaker reset' });
 });
 
-// GET /mitama/stats - Get aggregated signal statistics
+// GET /swarmteams/stats - Get aggregated signal statistics
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
-    const stats = getMitamaStats();
+    const stats = getSwarmTeamsStats();
     res.json({
       totalSignals: stats.total,
       byDirection: {
@@ -134,16 +134,16 @@ router.get('/stats', async (_req: Request, res: Response) => {
       last24h: stats.last24h,
     });
   } catch (err) {
-    logger.error('Failed to get Mitama stats', { error: String(err) });
+    logger.error('Failed to get SwarmTeams stats', { error: String(err) });
     res.status(500).json({ error: 'Failed to get stats' });
   }
 });
 
-// GET /mitama/signals - Get recent signals (limited)
+// GET /swarmteams/signals - Get recent signals (limited)
 router.get('/signals', async (req: Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
-    const signals = getMitamaSignals(limit);
+    const signals = getSwarmTeamsSignals(limit);
 
     res.json({
       signals: signals.map(s => ({
@@ -159,15 +159,15 @@ router.get('/signals', async (req: Request, res: Response) => {
       count: signals.length,
     });
   } catch (err) {
-    logger.error('Failed to get Mitama signals', { error: String(err) });
+    logger.error('Failed to get SwarmTeams signals', { error: String(err) });
     res.status(500).json({ error: 'Failed to get signals' });
   }
 });
 
-// GET /mitama/signal/:id - Get full signal details
+// GET /swarmteams/signal/:id - Get full signal details
 router.get('/signal/:id', async (req: Request, res: Response) => {
   try {
-    const signals = getMitamaSignals(100);
+    const signals = getSwarmTeamsSignals(100);
     const signal = signals.find(s => s.id === parseInt(req.params.id));
 
     if (!signal) {
@@ -194,7 +194,7 @@ router.get('/signal/:id', async (req: Request, res: Response) => {
       createdAt: signal.created_at,
     });
   } catch (err) {
-    logger.error('Failed to get Mitama signal', { error: String(err) });
+    logger.error('Failed to get SwarmTeams signal', { error: String(err) });
     res.status(500).json({ error: 'Failed to get signal' });
   }
 });
@@ -203,11 +203,11 @@ router.get('/signal/:id', async (req: Request, res: Response) => {
 // ON-CHAIN ENDPOINTS
 // =============================================================================
 
-// GET /mitama/registry - Get on-chain registry state
+// GET /swarmteams/registry - Get on-chain registry state
 router.get('/registry', async (_req: Request, res: Response) => {
   try {
-    const { getMitamaClient, bytesToHex } = await import('../../mitama-stubs');
-    const client = await getMitamaClient();
+    const { getSwarmTeamsClient, bytesToHex } = await import('../../swarmteams-stubs');
+    const client = await getSwarmTeamsClient();
     const registry = await client.getRegistry();
 
     if (!registry) {
@@ -226,12 +226,12 @@ router.get('/registry', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /mitama/aggregator/:epoch - Get on-chain aggregator for epoch
+// GET /swarmteams/aggregator/:epoch - Get on-chain aggregator for epoch
 router.get('/aggregator/:epoch', async (req: Request, res: Response) => {
   try {
-    const { getMitamaClient } = await import('../../mitama-stubs');
+    const { getSwarmTeamsClient } = await import('../../swarmteams-stubs');
     const { BN } = await import('@coral-xyz/anchor');
-    const client = await getMitamaClient();
+    const client = await getSwarmTeamsClient();
     const epoch = new BN(req.params.epoch);
     const aggregator = await client.getAggregator(epoch);
 
@@ -255,7 +255,7 @@ router.get('/aggregator/:epoch', async (req: Request, res: Response) => {
   }
 });
 
-// POST /mitama/signal/submit - Submit ZK signal on-chain
+// POST /swarmteams/signal/submit - Submit ZK signal on-chain
 router.post('/signal/submit', async (req: Request, res: Response) => {
   try {
     const { proof, nullifier, commitment } = req.body;
@@ -264,8 +264,8 @@ router.post('/signal/submit', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields: proof, nullifier, commitment' });
     }
 
-    const { getMitamaClient, hexToBytes, getKeypair } = await import('../../mitama-stubs');
-    const client = await getMitamaClient();
+    const { getSwarmTeamsClient, hexToBytes, getKeypair } = await import('../../swarmteams-stubs');
+    const client = await getSwarmTeamsClient();
     const keypair = getKeypair();
 
     const tx = await client.submitSignal(
@@ -286,7 +286,7 @@ router.post('/signal/submit', async (req: Request, res: Response) => {
   }
 });
 
-// POST /mitama/swarm/create - Create swarm action on-chain
+// POST /swarmteams/swarm/create - Create swarm action on-chain
 router.post('/swarm/create', async (req: Request, res: Response) => {
   try {
     const { proof, nullifier, actionHash, threshold } = req.body;
@@ -295,8 +295,8 @@ router.post('/swarm/create', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const { getMitamaClient, hexToBytes, getKeypair } = await import('../../mitama-stubs');
-    const client = await getMitamaClient();
+    const { getSwarmTeamsClient, hexToBytes, getKeypair } = await import('../../swarmteams-stubs');
+    const client = await getSwarmTeamsClient();
     const keypair = getKeypair();
 
     const tx = await client.createSwarmAction(
@@ -318,11 +318,11 @@ router.post('/swarm/create', async (req: Request, res: Response) => {
   }
 });
 
-// GET /mitama/swarm/:actionHash - Get swarm action state
+// GET /swarmteams/swarm/:actionHash - Get swarm action state
 router.get('/swarm/:actionHash', async (req: Request, res: Response) => {
   try {
-    const { getMitamaClient, hexToBytes, bytesToHex } = await import('../../mitama-stubs');
-    const client = await getMitamaClient();
+    const { getSwarmTeamsClient, hexToBytes, bytesToHex } = await import('../../swarmteams-stubs');
+    const client = await getSwarmTeamsClient();
     const actionHash = hexToBytes(req.params.actionHash);
     const action = await client.getSwarmAction(actionHash);
 
@@ -348,7 +348,7 @@ router.get('/swarm/:actionHash', async (req: Request, res: Response) => {
   }
 });
 
-// POST /mitama/swarm/vote - Vote on swarm action
+// POST /swarmteams/swarm/vote - Vote on swarm action
 router.post('/swarm/vote', async (req: Request, res: Response) => {
   try {
     const { proof, voteNullifier, voteCommitment, actionHash } = req.body;
@@ -357,8 +357,8 @@ router.post('/swarm/vote', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const { getMitamaClient, hexToBytes, getKeypair } = await import('../../mitama-stubs');
-    const client = await getMitamaClient();
+    const { getSwarmTeamsClient, hexToBytes, getKeypair } = await import('../../swarmteams-stubs');
+    const client = await getSwarmTeamsClient();
     const keypair = getKeypair();
 
     const tx = await client.voteSwarmAction(
@@ -380,7 +380,7 @@ router.post('/swarm/vote', async (req: Request, res: Response) => {
   }
 });
 
-// POST /mitama/swarm/reveal - Reveal vote on swarm action
+// POST /swarmteams/swarm/reveal - Reveal vote on swarm action
 router.post('/swarm/reveal', async (req: Request, res: Response) => {
   try {
     const { actionHash, voteNullifier, voteValue, voteSalt } = req.body;
@@ -389,8 +389,8 @@ router.post('/swarm/reveal', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields: actionHash, voteNullifier, voteValue, voteSalt' });
     }
 
-    const { getMitamaClient, hexToBytes } = await import('../../mitama-stubs');
-    const client = await getMitamaClient();
+    const { getSwarmTeamsClient, hexToBytes } = await import('../../swarmteams-stubs');
+    const client = await getSwarmTeamsClient();
 
     const tx = await client.revealVote(
       hexToBytes(actionHash),
@@ -406,7 +406,7 @@ router.post('/swarm/reveal', async (req: Request, res: Response) => {
   }
 });
 
-// POST /mitama/signal/reveal - Reveal signal
+// POST /swarmteams/signal/reveal - Reveal signal
 router.post('/signal/reveal', async (req: Request, res: Response) => {
   try {
     const { commitment, signalType, direction, confidence, magnitude, stakeAmount, secret } = req.body;
@@ -416,9 +416,9 @@ router.post('/signal/reveal', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const { getMitamaClient, hexToBytes } = await import('../../mitama-stubs');
+    const { getSwarmTeamsClient, hexToBytes } = await import('../../swarmteams-stubs');
     const { BN } = await import('@coral-xyz/anchor');
-    const client = await getMitamaClient();
+    const client = await getSwarmTeamsClient();
 
     const tx = await client.revealSignal(
       hexToBytes(commitment),
