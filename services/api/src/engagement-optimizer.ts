@@ -10,6 +10,7 @@ import { getUnrespondedTweets, markTweetResponded, InfluencerTweet } from './inf
 import { selfReview } from './approval';
 import { QueuedPost } from './autonomous';
 import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite } from './rate-limiter';
+import { forwardToTelegram } from './telegram-forward';
 
 const { proactiveRepliesEnabled, autoReplyEnabled, autoReplyMinScore, maxRepliesPerHour, maxQuotesPerDay } = ENGAGEMENT_CONFIG;
 
@@ -520,6 +521,9 @@ export async function postQuoteTweet(
         tweetId: result.data.id,
         score: review.score,
       });
+
+      // Forward to Telegram groups
+      await forwardToTelegram(result.data.id, content);
 
       return true;
     }
