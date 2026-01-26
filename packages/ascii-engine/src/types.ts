@@ -73,6 +73,16 @@ export type DitheringMode =
   | 'ordered'
   | 'atkinson';
 
+// Sampling modes for pixel blocks
+export type SamplingMode =
+  | 'center'      // Single center pixel
+  | 'average'     // Mean of all pixels
+  | 'median'      // Median value
+  | 'max'         // Brightest pixel
+  | 'min'         // Darkest pixel
+  | 'dominant'    // Most common color cluster
+  | 'weighted';   // Center-weighted average
+
 // Edge detection modes
 export type EdgeMode =
   | 'none'
@@ -101,11 +111,18 @@ export interface RenderOptions {
   saturation?: number;         // Saturation 0 to 2 (default: 1)
   gamma?: number;              // Gamma correction (default: 1)
 
+  // Sampling
+  sampling?: SamplingMode;     // Pixel sampling mode (default: 'average')
+
   // Effects
   dithering?: DitheringMode;   // Dithering algorithm (default: 'none')
   edgeDetection?: EdgeMode;    // Edge detection (default: 'none')
   edgeThreshold?: number;      // Edge sensitivity 0-255 (default: 50)
   edgeCharset?: string;        // Characters for edges (default: '/\\|-+')
+
+  // Braille mode
+  brailleMode?: boolean;       // Use high-res braille rendering (default: false)
+  brailleDither?: boolean;     // Dither in braille mode (default: false)
 
   // Output
   outputFormat?: OutputFormat; // Output format (default: 'text')

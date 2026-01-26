@@ -48,8 +48,45 @@ export {
   calculateBrightness,
   brightnessToChar,
   formatColor,
+  floydSteinbergDither,
+  orderedDither,
+  atkinsonDither,
+  sobelEdgeDetect,
   CHARACTER_SETS
 } from './converter.js';
+
+// Sampling strategies
+export {
+  sampleBlock,
+  type SamplingMode as SamplerMode,
+  type SampleResult,
+  type RGB
+} from './sampling.js';
+
+// Extended character sets
+export {
+  CHARACTER_SETS as EXTENDED_CHARSETS,
+  getCharset as getExtendedCharset,
+  estimateCharDensity,
+  sortCharsetByDensity,
+  generateRamp,
+  CHARSET_STANDARD,
+  CHARSET_DETAILED,
+  CHARSET_BLOCKS,
+  CHARSET_BRAILLE,
+  CHARSET_BRAILLE_SIMPLE,
+  CHARSET_MATRIX,
+  type CharsetName
+} from './charsets.js';
+
+// Braille rendering
+export {
+  pixelsToBraille,
+  pixelsToBrailleDithered,
+  pixelsToBrailleColored,
+  getBrailleResolution,
+  type BrailleOptions
+} from './braille.js';
 
 // Image processing
 export {
@@ -80,6 +117,7 @@ export type {
   OutputFormat,
   DitheringMode,
   EdgeMode,
+  SamplingMode,
   ProgressCallback
 } from './types.js';
 
@@ -154,6 +192,23 @@ export class AsciiEngine {
   edges(mode: import('./types.js').EdgeMode = 'sobel', threshold = 50): this {
     this.options.edgeDetection = mode;
     this.options.edgeThreshold = threshold;
+    return this;
+  }
+
+  /**
+   * Set sampling mode for pixel blocks
+   */
+  sampling(mode: import('./types.js').SamplingMode): this {
+    this.options.sampling = mode;
+    return this;
+  }
+
+  /**
+   * Enable braille mode for 8x resolution
+   */
+  braille(dither = false): this {
+    this.options.brailleMode = true;
+    this.options.brailleDither = dither;
     return this;
   }
 
