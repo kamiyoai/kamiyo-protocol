@@ -1,12 +1,32 @@
 // Forward tweets to Telegram groups
 
+import { TwitterApi } from 'twitter-api-v2';
 import { logger } from './logger';
+import { db } from './clients';
 
 const TG_XPOST_BOT_TOKEN = process.env.TELEGRAM_XPOST_BOT_TOKEN;
 const TG_GROUP_IDS = (process.env.TELEGRAM_GROUP_IDS || '').split(',').filter(Boolean);
 
+// Track forwarded tweets to avoid duplicates
+db.exec(`
+  CREATE TABLE IF NOT EXISTS forwarded_tweets (
+    tweet_id TEXT PRIMARY KEY,
+    forwarded_at INTEGER NOT NULL
+  )
+`);
+
+function isForwarded(tweetId: string): boolean {
+  const row = db.prepare('SELECT 1 FROM forwarded_tweets WHERE tweet_id = ?').get(tweetId);
+  return !!row;
+}
+
+function markForwarded(tweetId: string): void {
+  db.prepare('INSERT OR IGNORE INTO forwarded_tweets (tweet_id, forwarded_at) VALUES (?, ?)').run(tweetId, Date.now());
+}
+
 export async function forwardToTelegram(tweetId: string, content: string): Promise<void> {
   if (!TG_XPOST_BOT_TOKEN || TG_GROUP_IDS.length === 0) return;
+  if (isForwarded(tweetId)) return;
 
   const tweetUrl = `https://x.com/KamiyoAI/status/${tweetId}`;
   const message = `${content}\n\n${tweetUrl}`;
@@ -27,4 +47,78 @@ export async function forwardToTelegram(tweetId: string, content: string): Promi
       logger.error('Failed to forward tweet to TG', { groupId, tweetId, error: String(err) });
     }
   }
+
+  markForwarded(tweetId);
+}
+
+// Poll @KamiyoAI timeline and forward new tweets
+const POLL_INTERVAL = 2 * 60 * 1000; // 2 minutes
+let kamiyoUserId: string | null = null;
+
+export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<void> {
+  if (!TG_XPOST_BOT_TOKEN || TG_GROUP_IDS.length === 0) {
+    logger.info('Telegram forwarding disabled (no token or groups configured)');
+    return;
+  }
+
+  logger.info('Starting Telegram forward loop...', { groups: TG_GROUP_IDS.length });
+
+  // Get @KamiyoAI user ID
+  try {
+    const user = await twitter.v2.userByUsername('KamiyoAI');
+    if (user.data?.id) {
+      kamiyoUserId = user.data.id;
+      logger.info('Got KamiyoAI user ID', { userId: kamiyoUserId });
+    } else {
+      logger.error('Could not get KamiyoAI user ID');
+      return;
+    }
+  } catch (err) {
+    logger.error('Failed to get KamiyoAI user ID', { error: String(err) });
+    return;
+  }
+
+  const poll = async () => {
+    if (!kamiyoUserId) return;
+
+    try {
+      // Get recent tweets (last 10)
+      const timeline = await twitter.v2.userTimeline(kamiyoUserId, {
+        max_results: 10,
+        'tweet.fields': ['created_at', 'referenced_tweets'],
+        exclude: ['replies'], // Exclude replies, include retweets and quotes
+      });
+
+      if (!timeline.data?.data) return;
+
+      for (const tweet of timeline.data.data) {
+        // Skip if already forwarded
+        if (isForwarded(tweet.id)) continue;
+
+        // Skip pure retweets (not quote tweets)
+        const isRetweet = tweet.referenced_tweets?.some(ref => ref.type === 'retweeted');
+        if (isRetweet) {
+          markForwarded(tweet.id); // Mark as handled so we don't check again
+          continue;
+        }
+
+        // Forward original tweets and quote tweets
+        logger.info('Forwarding tweet to Telegram', { tweetId: tweet.id });
+        await forwardToTelegram(tweet.id, tweet.text);
+      }
+    } catch (err: unknown) {
+      const error = err as { code?: number; status?: number; message?: string };
+      if (error.code === 429 || error.status === 429) {
+        logger.warn('TG forward poll rate limited');
+      } else {
+        logger.error('TG forward poll error', { error: String(err) });
+      }
+    }
+  };
+
+  // Initial poll after 30 seconds
+  setTimeout(poll, 30 * 1000);
+
+  // Then poll every 2 minutes
+  setInterval(poll, POLL_INTERVAL);
 }
