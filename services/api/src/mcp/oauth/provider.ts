@@ -19,6 +19,12 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+function verifyPkce(codeVerifier: string, codeChallenge: string): boolean {
+  const hash = createHash('sha256').update(codeVerifier).digest();
+  const computed = hash.toString('base64url');
+  return computed === codeChallenge;
+}
+
 const ACCESS_TOKEN_TTL = 60 * 60; // 1h
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30d
 const AUTH_CODE_TTL = 10 * 60; // 10m
@@ -76,8 +82,8 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
   async exchangeAuthorizationCode(
     client: OAuthClientInformationFull,
     authorizationCode: string,
-    _codeVerifier?: string,
-    _redirectUri?: string,
+    codeVerifier?: string,
+    redirectUri?: string,
     resource?: URL
   ): Promise<OAuthTokens> {
     const record = getMcpOAuthCode(authorizationCode);
@@ -88,6 +94,21 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     if (record.expires_at < now) {
       deleteMcpOAuthCode(authorizationCode);
       throw new Error('code expired');
+    }
+
+    // PKCE validation - required if code_challenge was provided
+    if (record.code_challenge) {
+      if (!codeVerifier) throw new Error('code_verifier required');
+      if (!verifyPkce(codeVerifier, record.code_challenge)) {
+        deleteMcpOAuthCode(authorizationCode);
+        throw new Error('invalid code_verifier');
+      }
+    }
+
+    // Redirect URI validation
+    if (redirectUri && redirectUri !== record.redirect_uri) {
+      deleteMcpOAuthCode(authorizationCode);
+      throw new Error('redirect_uri mismatch');
     }
 
     deleteMcpOAuthCode(authorizationCode);

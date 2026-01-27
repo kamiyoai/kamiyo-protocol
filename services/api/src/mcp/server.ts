@@ -122,73 +122,186 @@ const TOOL_DEFINITIONS = [
   },
 ];
 
-// Stub handlers - full implementation requires Solana program setup
+// Input validation
+function validateArgs(args: any, schema: any): string | null {
+  if (!args || typeof args !== 'object') {
+    return 'args must be an object';
+  }
+
+  const required = schema.required || [];
+  for (const field of required) {
+    if (args[field] === undefined || args[field] === null) {
+      return `missing required field: ${field}`;
+    }
+  }
+
+  const props = schema.properties || {};
+  for (const [key, spec] of Object.entries(props)) {
+    const value = args[key];
+    if (value === undefined) continue;
+
+    const propSpec = spec as any;
+    if (propSpec.type === 'string' && typeof value !== 'string') {
+      return `${key} must be a string`;
+    }
+    if (propSpec.type === 'number' && typeof value !== 'number') {
+      return `${key} must be a number`;
+    }
+    if (propSpec.type === 'object' && (typeof value !== 'object' || value === null)) {
+      return `${key} must be an object`;
+    }
+    if (propSpec.type === 'array' && !Array.isArray(value)) {
+      return `${key} must be an array`;
+    }
+    if (propSpec.enum && !propSpec.enum.includes(value)) {
+      return `${key} must be one of: ${propSpec.enum.join(', ')}`;
+    }
+  }
+
+  return null;
+}
+
+// Tool handlers
 const toolHandlers: Record<string, (args: any) => Promise<any>> = {
+  // Escrow tools - stub (requires Solana program)
   create_escrow: async (args: any) => ({
-    status: 'stub',
-    params: args,
+    status: 'not_implemented',
+    message: 'Use local MCP server for Solana escrow operations',
+    params: { api: args.api, amount: args.amount },
   }),
+
   check_escrow_status: async (args: any) => ({
-    status: 'stub',
+    status: 'not_implemented',
+    message: 'Use local MCP server for Solana escrow operations',
     params: args,
   }),
+
   verify_payment: async (args: any) => ({
-    status: 'stub',
+    status: 'not_implemented',
+    message: 'Use local MCP server for Solana escrow operations',
+    transactionId: args.transactionId,
+  }),
+
+  file_dispute: async (args: any) => ({
+    status: 'not_implemented',
+    message: 'Use local MCP server for Solana escrow operations',
     params: args,
   }),
+
+  get_api_reputation: async (args: any) => ({
+    status: 'not_implemented',
+    message: 'Use local MCP server for reputation queries',
+    apiProvider: args.apiProvider,
+  }),
+
+  // Quality assessment - works locally
   assess_data_quality: async (args: any) => {
     const { apiResponse, expectedCriteria } = args;
-    if (!apiResponse || !expectedCriteria) {
-      return { error: 'missing params' };
-    }
 
     let matched = 0;
     const criteria = expectedCriteria as string[];
+    const results: Record<string, boolean> = {};
+
     for (const criterion of criteria) {
       let value: any = apiResponse;
       for (const part of criterion.split('.')) {
         value = value?.[part];
       }
-      if (value !== undefined) matched++;
+      const found = value !== undefined;
+      results[criterion] = found;
+      if (found) matched++;
     }
 
-    const score = Math.round((matched / criteria.length) * 100);
+    const score = criteria.length > 0 ? Math.round((matched / criteria.length) * 100) : 0;
+    const refundPct = score < 50 ? 100 - score : 0;
+
     return {
       score,
       matched,
       total: criteria.length,
-      refundPct: score < 50 ? 100 - score : 0,
+      refundPct,
+      details: results,
     };
   },
+
   estimate_refund: async (args: any) => {
     const { amount, qualityScore } = args;
-    if (typeof amount !== 'number' || typeof qualityScore !== 'number') {
-      return { error: 'invalid params' };
+
+    if (amount <= 0) {
+      return { error: 'amount must be positive' };
     }
+    if (qualityScore < 0 || qualityScore > 100) {
+      return { error: 'qualityScore must be 0-100' };
+    }
+
     const pct = qualityScore < 50 ? 100 - qualityScore : 0;
     return {
-      amount,
-      score: qualityScore,
+      originalAmount: amount,
+      qualityScore,
       refundPct: pct,
-      refund: amount * (pct / 100),
+      refundAmount: amount * (pct / 100),
+      netPayment: amount * (1 - pct / 100),
     };
   },
-  file_dispute: async (args: any) => ({
-    status: 'stub',
-    params: args,
-  }),
-  get_api_reputation: async (args: any) => ({
-    status: 'stub',
-    params: args,
-  }),
-  x402_check_pricing: async (args: any) => ({
-    status: 'stub',
-    params: args,
-  }),
-  x402_fetch: async (args: any) => ({
-    status: 'stub',
-    params: args,
-  }),
+
+  // x402 tools - works locally
+  x402_check_pricing: async (args: any) => {
+    const { url } = args;
+
+    try {
+      new URL(url);
+    } catch {
+      return { error: 'invalid URL' };
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.status !== 402) {
+        return response.ok
+          ? { free: true, status: response.status }
+          : { error: `endpoint returned ${response.status}` };
+      }
+
+      const data = (await response.json()) as { accepts?: any[] };
+      if (!data.accepts || !Array.isArray(data.accepts)) {
+        return { error: 'invalid x402 response' };
+      }
+
+      return {
+        free: false,
+        options: data.accepts.map((opt: any) => ({
+          network: opt.network,
+          amount: opt.amount,
+          asset: opt.asset,
+          description: opt.description,
+        })),
+      };
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  },
+
+  x402_fetch: async (args: any) => {
+    const { url, method = 'GET', body, headers = {} } = args;
+
+    try {
+      new URL(url);
+    } catch {
+      return { error: 'invalid URL' };
+    }
+
+    // Note: actual payment requires wallet integration
+    return {
+      status: 'not_implemented',
+      message: 'x402 payment requires wallet integration - use local MCP server',
+      url,
+      method,
+    };
+  },
 };
 
 export function createMCPServer(auth: AuthInfo): Server {
@@ -213,11 +326,26 @@ export function createMCPServer(auth: AuthInfo): Server {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-    const handler = toolHandlers[name];
 
-    if (!handler) {
+    const toolDef = TOOL_DEFINITIONS.find((t) => t.name === name);
+    if (!toolDef) {
       return {
         content: [{ type: 'text', text: JSON.stringify({ error: `unknown tool: ${name}` }) }],
+      };
+    }
+
+    // Validate input
+    const validationError = validateArgs(args, toolDef.inputSchema);
+    if (validationError) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: validationError }) }],
+      };
+    }
+
+    const handler = toolHandlers[name];
+    if (!handler) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: 'tool not implemented' }) }],
       };
     }
 
@@ -228,7 +356,7 @@ export function createMCPServer(auth: AuthInfo): Server {
       };
     } catch (err: any) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }],
+        content: [{ type: 'text', text: JSON.stringify({ error: 'tool execution failed' }) }],
       };
     }
   });
