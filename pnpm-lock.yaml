@@ -697,6 +697,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/x402-client':
+        specifier: workspace:*
+        version: link:../kamiyo-x402-client
       '@modelcontextprotocol/sdk':
         specifier: ^1.21.1
         version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)(zod@3.25.76)
@@ -715,6 +718,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
       zod:
         specifier: ^3.23.8
         version: 3.25.76

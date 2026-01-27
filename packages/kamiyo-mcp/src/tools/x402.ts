@@ -1,3 +1,17 @@
+/**
+ * x402 HTTP Payment tools with real wallet signing.
+ * Uses @kamiyo/x402-client for payment header creation.
+ */
+
+import { Keypair, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import {
+  createPaymentSigner,
+  createSignedPayment,
+  createPaymentHeader,
+  generateTransactionId,
+  PaymentSigner,
+} from '@kamiyo/x402-client';
+
 export interface PaymentRequirement {
   scheme: 'exact';
   network: string; // CAIP-2
@@ -18,15 +32,21 @@ export interface X402Response {
 }
 
 export interface X402Config {
-  walletAddress: string;
+  wallet: Keypair;
+  connection: Connection;
   maxPriceUsd: number;
   preferredNetwork: string;
 }
 
 const USDC_DECIMALS = 6;
+const SOL_PRICE_USD = 150; // Approximate, should fetch from oracle in production
 
 function fromMicro(micro: string | number): number {
   return (typeof micro === 'string' ? parseInt(micro, 10) : micro) / 10 ** USDC_DECIMALS;
+}
+
+function usdToLamports(usd: number): number {
+  return Math.ceil((usd / SOL_PRICE_USD) * LAMPORTS_PER_SOL);
 }
 
 function summarize(data: unknown): string {
@@ -53,7 +73,7 @@ function summarize(data: unknown): string {
 
 export async function x402CheckPricing(
   params: { url: string },
-  config: X402Config
+  _config: X402Config
 ): Promise<{
   success: boolean;
   free?: boolean;
@@ -105,12 +125,13 @@ export async function x402Fetch(
   paid?: boolean;
   data?: unknown;
   summary?: string;
-  payment?: { network: string; amountUsd: number; asset: string };
+  payment?: { network: string; amountUsd: number; asset: string; signature?: string };
   error?: string;
 }> {
   const { url, method = 'GET', body, headers = {} } = params;
 
   try {
+    // Initial request to check if payment required
     const initialResponse = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', ...headers },
@@ -125,12 +146,14 @@ export async function x402Fetch(
       return { success: false, error: `Endpoint returned ${initialResponse.status}` };
     }
 
+    // Parse 402 response
     const x402Response = (await initialResponse.json()) as X402Response;
 
     if (!x402Response.accepts || x402Response.accepts.length === 0) {
       return { success: false, error: 'No payment options available' };
     }
 
+    // Select payment option
     const requirement =
       x402Response.accepts.find((r) => r.network === config.preferredNetwork) ||
       x402Response.accepts[0];
@@ -140,31 +163,43 @@ export async function x402Fetch(
     if (amountUsd > config.maxPriceUsd) {
       return {
         success: false,
-        error: `Price $${amountUsd} exceeds max $${config.maxPriceUsd}`,
+        error: `Price $${amountUsd.toFixed(4)} exceeds max $${config.maxPriceUsd}`,
       };
     }
 
-    const paymentHeader = Buffer.from(
-      JSON.stringify({
-        x402Version: 2,
-        scheme: 'exact',
-        network: requirement.network,
-        payment: {
-          payer: config.walletAddress,
-          payTo: requirement.payTo,
-          amount: requirement.amount,
-          asset: requirement.asset,
-          timestamp: Math.floor(Date.now() / 1000),
-          nonce: Math.random().toString(36).substring(2, 10),
-        },
-      })
-    ).toString('base64');
+    // Check balance
+    const balance = await config.connection.getBalance(config.wallet.publicKey);
+    const amountLamports = usdToLamports(amountUsd);
 
+    if (balance < amountLamports + 5000) {
+      return {
+        success: false,
+        error: `Insufficient balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
+      };
+    }
+
+    // Create signed payment
+    const transactionId = generateTransactionId();
+    const signer = createPaymentSigner(config.wallet);
+
+    // For now, create a signed payment header without on-chain transaction
+    // The payment proof includes wallet signature proving intent to pay
+    const signedPayment = createSignedPayment(
+      config.wallet,
+      transactionId, // Use transaction ID as placeholder until on-chain
+      url,
+      amountLamports
+    );
+
+    const paymentHeader = createPaymentHeader(signedPayment, config.wallet, requirement.network);
+
+    // Retry with payment proof
     const paidResponse = await fetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'PAYMENT-SIGNATURE': paymentHeader,
+        'X-PAYMENT': paymentHeader,
+        'X-PAYMENT-SIGNATURE': paymentHeader, // Backward compat
         ...headers,
       },
       body: body || undefined,
@@ -172,7 +207,12 @@ export async function x402Fetch(
 
     if (!paidResponse.ok) {
       if (paidResponse.status === 402) {
-        return { success: false, error: 'Payment rejected by server' };
+        // Payment was rejected - need to verify what the facilitator expects
+        const errorBody = await paidResponse.json().catch(() => ({}));
+        return {
+          success: false,
+          error: `Payment rejected: ${(errorBody as any).error || 'signature not accepted'}`,
+        };
       }
       return { success: false, error: `API returned ${paidResponse.status} after payment` };
     }
@@ -188,9 +228,51 @@ export async function x402Fetch(
         network: requirement.network,
         amountUsd,
         asset: requirement.asset,
+        signature: transactionId,
       },
     };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * Create x402 config from environment/keypair
+ */
+export function createX402Config(
+  wallet: Keypair,
+  connection: Connection,
+  options?: {
+    maxPriceUsd?: number;
+    preferredNetwork?: string;
+  }
+): X402Config {
+  return {
+    wallet,
+    connection,
+    maxPriceUsd: options?.maxPriceUsd ?? 1.0,
+    preferredNetwork: options?.preferredNetwork ?? 'solana:mainnet',
+  };
+}
+
+/**
+ * Legacy config adapter for backward compatibility
+ */
+export interface LegacyX402Config {
+  walletAddress: string;
+  maxPriceUsd: number;
+  preferredNetwork: string;
+}
+
+export function createX402ConfigFromLegacy(
+  legacy: LegacyX402Config,
+  wallet: Keypair,
+  connection: Connection
+): X402Config {
+  return {
+    wallet,
+    connection,
+    maxPriceUsd: legacy.maxPriceUsd,
+    preferredNetwork: legacy.preferredNetwork,
+  };
 }
