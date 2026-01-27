@@ -7,9 +7,9 @@
 import { Keypair, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
-import { SolanaClient } from './src/solana/client.js';
-import { X402Program } from './src/solana/anchor.js';
-import * as tools from './src/tools/index.js';
+import { SolanaClient } from '../src/solana/client.js';
+import { X402Program } from '../src/solana/anchor.js';
+import * as tools from '../src/tools/index.js';
 
 dotenv.config();
 
