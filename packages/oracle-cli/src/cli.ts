@@ -5,6 +5,7 @@
 
 import { Command } from "commander";
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Wallet } from "@coral-xyz/anchor";
 import {
   QualityOracle,
   DisputeMonitor,
@@ -14,9 +15,66 @@ import {
 } from "@kamiyo/sdk";
 import * as fs from "fs";
 import * as path from "path";
+import * as crypto from "crypto";
 import chalk from "chalk";
 import ora from "ora";
 import "dotenv/config";
+
+// Commit secrets storage
+interface CommitSecret {
+  escrowPda: string;
+  sessionId: string;
+  qualityScore: number;
+  salt: string;
+  committedAt: number;
+}
+
+interface SecretsStore {
+  version: number;
+  secrets: CommitSecret[];
+}
+
+function getSecretsPath(): string {
+  const home = process.env.HOME || "";
+  const configDir = path.join(home, ".config", "kamiyo-oracle");
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+  return path.join(configDir, "commit-secrets.json");
+}
+
+function loadSecrets(): SecretsStore {
+  const secretsPath = getSecretsPath();
+  if (!fs.existsSync(secretsPath)) {
+    return { version: 1, secrets: [] };
+  }
+  const data = fs.readFileSync(secretsPath, "utf-8");
+  return JSON.parse(data);
+}
+
+function saveSecrets(store: SecretsStore): void {
+  const secretsPath = getSecretsPath();
+  fs.writeFileSync(secretsPath, JSON.stringify(store, null, 2), { mode: 0o600 });
+}
+
+function addSecret(secret: CommitSecret): void {
+  const store = loadSecrets();
+  // Remove any existing secret for this escrow
+  store.secrets = store.secrets.filter((s) => s.escrowPda !== secret.escrowPda);
+  store.secrets.push(secret);
+  saveSecrets(store);
+}
+
+function getSecret(escrowPda: string): CommitSecret | undefined {
+  const store = loadSecrets();
+  return store.secrets.find((s) => s.escrowPda === escrowPda);
+}
+
+function removeSecret(escrowPda: string): void {
+  const store = loadSecrets();
+  store.secrets = store.secrets.filter((s) => s.escrowPda !== escrowPda);
+  saveSecrets(store);
+}
 
 const program = new Command();
 
@@ -332,6 +390,450 @@ program
     }
   });
 
+// Commit command - commit a quality score for a dispute
+program
+  .command("commit")
+  .description("Commit a quality score for a disputed escrow")
+  .requiredOption("-e, --escrow <pda>", "Escrow PDA address")
+  .requiredOption("-s, --score <score>", "Quality score (0-100)")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--session-id <hex>", "Session ID (hex string)")
+  .option("--dry-run", "Show what would be committed without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Preparing commitment...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+      const wallet = new Wallet(keypair);
+      const disputeManager = new EscrowDisputeManager(
+        connection,
+        wallet,
+        config.programId ? new PublicKey(config.programId) : undefined
+      );
+
+      const escrowPda = new PublicKey(options.escrow);
+      const qualityScore = parseInt(options.score, 10);
+
+      // Validate score
+      disputeManager.validateQualityScore(qualityScore);
+
+      // Generate salt
+      const salt = disputeManager.generateSalt();
+
+      // Parse session ID (in real usage, fetch from escrow account)
+      let sessionId: Uint8Array;
+      if (options.sessionId) {
+        sessionId = Uint8Array.from(Buffer.from(options.sessionId, "hex"));
+      } else {
+        // Generate placeholder - in production, fetch from escrow account
+        sessionId = new Uint8Array(32);
+        spinner.text = "Using placeholder session ID (fetch from escrow in production)";
+      }
+
+      // Compute commitment hash
+      const commitmentHash = await disputeManager.computeCommitmentHash(
+        sessionId,
+        keypair.publicKey,
+        qualityScore,
+        salt
+      );
+
+      spinner.stop();
+
+      console.log(chalk.bold("\nCommitment Details"));
+      console.log("─".repeat(50));
+      console.log(`Escrow: ${chalk.cyan(escrowPda.toBase58())}`);
+      console.log(`Oracle: ${chalk.cyan(keypair.publicKey.toBase58())}`);
+      console.log(`Quality Score: ${chalk.yellow(qualityScore.toString())}`);
+      console.log(`Commitment Hash: ${Buffer.from(commitmentHash).toString("hex").slice(0, 32)}...`);
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        console.log(`Salt (save this!): ${Buffer.from(salt).toString("hex")}`);
+        return;
+      }
+
+      // Store secret for later reveal
+      addSecret({
+        escrowPda: escrowPda.toBase58(),
+        sessionId: Buffer.from(sessionId).toString("hex"),
+        qualityScore,
+        salt: Buffer.from(salt).toString("hex"),
+        committedAt: Date.now(),
+      });
+
+      console.log(chalk.green("✓ Commitment prepared and stored locally"));
+      console.log(chalk.gray("  Secrets stored in ~/.config/kamiyo-oracle/commit-secrets.json"));
+      console.log();
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log(chalk.yellow("Use 'kamiyo-oracle reveal' during reveal phase to submit your vote."));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// Reveal command - reveal a previously committed vote
+program
+  .command("reveal")
+  .description("Reveal a previously committed vote")
+  .requiredOption("-e, --escrow <pda>", "Escrow PDA address")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would be revealed without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Loading commitment secret...").start();
+
+    try {
+      const escrowPda = options.escrow;
+      const secret = getSecret(escrowPda);
+
+      if (!secret) {
+        spinner.fail("No commitment found for this escrow");
+        console.log(chalk.gray("\nAvailable commitments:"));
+        const store = loadSecrets();
+        if (store.secrets.length === 0) {
+          console.log(chalk.gray("  (none)"));
+        } else {
+          for (const s of store.secrets) {
+            const age = Math.floor((Date.now() - s.committedAt) / 1000 / 60);
+            console.log(`  ${chalk.cyan(s.escrowPda.slice(0, 20))}... - score: ${s.qualityScore}, ${age}m ago`);
+          }
+        }
+        process.exit(1);
+      }
+
+      spinner.stop();
+
+      console.log(chalk.bold("\nReveal Details"));
+      console.log("─".repeat(50));
+      console.log(`Escrow: ${chalk.cyan(escrowPda)}`);
+      console.log(`Quality Score: ${chalk.yellow(secret.qualityScore.toString())}`);
+      console.log(`Committed: ${new Date(secret.committedAt).toISOString()}`);
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        return;
+      }
+
+      // In production, this would submit the reveal transaction
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log();
+      console.log(chalk.gray("Stored reveal data:"));
+      console.log(chalk.gray(`  Session ID: ${secret.sessionId.slice(0, 32)}...`));
+      console.log(chalk.gray(`  Salt: ${secret.salt.slice(0, 32)}...`));
+      console.log();
+      console.log(chalk.green("✓ Ready for reveal submission"));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// List pending commits
+program
+  .command("pending")
+  .description("List pending commitments awaiting reveal")
+  .action(() => {
+    const store = loadSecrets();
+
+    console.log(chalk.bold("\nPending Commitments"));
+    console.log("─".repeat(70));
+
+    if (store.secrets.length === 0) {
+      console.log(chalk.gray("No pending commitments"));
+      return;
+    }
+
+    for (const secret of store.secrets) {
+      const age = Math.floor((Date.now() - secret.committedAt) / 1000 / 60);
+      console.log();
+      console.log(`Escrow: ${chalk.cyan(secret.escrowPda)}`);
+      console.log(`  Score: ${chalk.yellow(secret.qualityScore.toString())} | Age: ${age}m`);
+    }
+  });
+
+// Clear a pending commit (if no longer needed)
+program
+  .command("clear")
+  .description("Clear a pending commitment")
+  .requiredOption("-e, --escrow <pda>", "Escrow PDA address")
+  .option("--all", "Clear all pending commitments")
+  .action((options) => {
+    if (options.all) {
+      saveSecrets({ version: 1, secrets: [] });
+      console.log(chalk.green("✓ All pending commitments cleared"));
+      return;
+    }
+
+    const secret = getSecret(options.escrow);
+    if (!secret) {
+      console.log(chalk.yellow("No commitment found for this escrow"));
+      return;
+    }
+
+    removeSecret(options.escrow);
+    console.log(chalk.green(`✓ Commitment for ${options.escrow.slice(0, 20)}... cleared`));
+  });
+
+// Register as oracle
+program
+  .command("register")
+  .description("Register as an oracle operator (requires stake)")
+  .requiredOption("-s, --stake <sol>", "Stake amount in SOL (min 0.5)")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would be done without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Preparing registration...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+      const balance = await connection.getBalance(keypair.publicKey);
+
+      const stakeAmount = parseFloat(options.stake);
+      const stakeLamports = Math.floor(stakeAmount * LAMPORTS_PER_SOL);
+
+      spinner.stop();
+
+      // Validate minimum stake
+      const minStake = 0.5;
+      if (stakeAmount < minStake) {
+        console.log(chalk.red(`Minimum stake is ${minStake} SOL`));
+        process.exit(1);
+      }
+
+      // Check balance
+      if (balance < stakeLamports + 10000) {
+        console.log(chalk.red(`Insufficient balance. Need ${stakeAmount} SOL + fees`));
+        console.log(chalk.gray(`Current balance: ${formatSol(balance)}`));
+        process.exit(1);
+      }
+
+      console.log(chalk.bold("\nOracle Registration"));
+      console.log("─".repeat(50));
+      console.log(`Oracle: ${chalk.cyan(keypair.publicKey.toBase58())}`);
+      console.log(`Stake: ${chalk.yellow(formatSol(stakeLamports))}`);
+      console.log(`Balance: ${chalk.green(formatSol(balance))}`);
+      console.log(`After: ${chalk.gray(formatSol(balance - stakeLamports))}`);
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        return;
+      }
+
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("To register, use the kamiyo SDK directly:"));
+      console.log(chalk.gray(`  await kamiyoClient.registerOracle(${stakeAmount * 1e9})`));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// Request stake withdrawal
+program
+  .command("unstake")
+  .description("Request oracle stake withdrawal (7-day cooldown)")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would be done without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Checking oracle status...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+
+      spinner.stop();
+
+      console.log(chalk.bold("\nOracle Unstake Request"));
+      console.log("─".repeat(50));
+      console.log(`Oracle: ${chalk.cyan(keypair.publicKey.toBase58())}`);
+      console.log(`Cooldown: ${chalk.yellow("7 days")}`);
+      console.log();
+      console.log(chalk.gray("After requesting withdrawal:"));
+      console.log(chalk.gray("  - Oracle status becomes 'pending withdrawal'"));
+      console.log(chalk.gray("  - Cannot participate in new disputes"));
+      console.log(chalk.gray("  - Wait 7 days, then run 'kamiyo-oracle claim'"));
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        return;
+      }
+
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("To unstake, use the kamiyo SDK directly:"));
+      console.log(chalk.gray("  await kamiyoClient.requestOracleWithdrawal()"));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// Claim withdrawn stake
+program
+  .command("claim")
+  .description("Claim stake after cooldown period")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would be done without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Checking withdrawal status...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+
+      spinner.stop();
+
+      console.log(chalk.bold("\nClaim Stake + Rewards"));
+      console.log("─".repeat(50));
+      console.log(`Oracle: ${chalk.cyan(keypair.publicKey.toBase58())}`);
+      console.log();
+      console.log(chalk.gray("This will return:"));
+      console.log(chalk.gray("  - Original staked SOL"));
+      console.log(chalk.gray("  - Accumulated rewards (1% of resolved escrows)"));
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        return;
+      }
+
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("To claim, use the kamiyo SDK directly:"));
+      console.log(chalk.gray("  await kamiyoClient.completeOracleWithdrawal()"));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// Add stake
+program
+  .command("stake")
+  .description("Add more stake to increase oracle weight")
+  .requiredOption("-a, --amount <sol>", "Additional stake in SOL")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would be done without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Checking balance...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+      const balance = await connection.getBalance(keypair.publicKey);
+
+      const stakeAmount = parseFloat(options.amount);
+      const stakeLamports = Math.floor(stakeAmount * LAMPORTS_PER_SOL);
+
+      spinner.stop();
+
+      if (balance < stakeLamports + 10000) {
+        console.log(chalk.red(`Insufficient balance. Need ${stakeAmount} SOL + fees`));
+        console.log(chalk.gray(`Current balance: ${formatSol(balance)}`));
+        process.exit(1);
+      }
+
+      console.log(chalk.bold("\nIncrease Oracle Stake"));
+      console.log("─".repeat(50));
+      console.log(`Oracle: ${chalk.cyan(keypair.publicKey.toBase58())}`);
+      console.log(`Additional Stake: ${chalk.yellow(formatSol(stakeLamports))}`);
+      console.log(`Balance: ${chalk.green(formatSol(balance))}`);
+      console.log();
+      console.log(chalk.gray("Higher stake = higher voting weight in dispute resolution"));
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        return;
+      }
+
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("To add stake, use the kamiyo SDK directly:"));
+      console.log(chalk.gray(`  await kamiyoClient.increaseOracleStake(${stakeLamports})`));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// Claim rewards (without withdrawing stake)
+program
+  .command("rewards")
+  .description("Claim accumulated oracle rewards")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would be done without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Checking rewards...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+
+      spinner.stop();
+
+      console.log(chalk.bold("\nOracle Rewards"));
+      console.log("─".repeat(50));
+      console.log(`Oracle: ${chalk.cyan(keypair.publicKey.toBase58())}`);
+      console.log();
+      console.log(chalk.gray("Rewards accumulate at 1% of escrow amounts for:"));
+      console.log(chalk.gray("  - Participating in dispute consensus"));
+      console.log(chalk.gray("  - Voting within deviation threshold"));
+      console.log();
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        return;
+      }
+
+      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("To claim rewards, use the kamiyo SDK directly:"));
+      console.log(chalk.gray("  await kamiyoClient.claimOracleRewards()"));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
 // Config command
 program
   .command("config")
@@ -348,6 +850,60 @@ program
     console.log(chalk.gray("  SOLANA_RPC_URL - Solana RPC endpoint"));
     console.log(chalk.gray("  ORACLE_KEYPAIR - Path to oracle keypair"));
     console.log(chalk.gray("  KAMIYO_ESCROW_PROGRAM_ID - Program ID to monitor"));
+  });
+
+// Service command - run automated oracle
+program
+  .command("service")
+  .description("Run automated oracle service")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("-i, --interval <ms>", "Polling interval in ms", "15000")
+  .option("-w, --warning <seconds>", "Phase warning time in seconds", "60")
+  .option("--no-auto-commit", "Disable automatic commit")
+  .option("--no-auto-reveal", "Disable automatic reveal")
+  .option("-l, --log <file>", "Log file path")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    // Dynamic import to avoid loading service on every CLI command
+    const { OracleService } = await import("./service");
+
+    const serviceConfig = {
+      rpcUrl,
+      keypairPath,
+      programId: config.programId,
+      pollingInterval: parseInt(options.interval, 10),
+      phaseWarningTime: parseInt(options.warning, 10),
+      autoCommit: options.autoCommit !== false,
+      autoReveal: options.autoReveal !== false,
+      logFile: options.log,
+    };
+
+    const service = new OracleService(serviceConfig);
+
+    process.on("SIGINT", async () => {
+      console.log("\nShutting down...");
+      await service.stop();
+      process.exit(0);
+    });
+
+    console.log(chalk.bold("Starting Automated Oracle Service"));
+    console.log("─".repeat(50));
+    console.log(`RPC: ${rpcUrl}`);
+    console.log(`Auto-commit: ${serviceConfig.autoCommit ? chalk.green("enabled") : chalk.yellow("disabled")}`);
+    console.log(`Auto-reveal: ${serviceConfig.autoReveal ? chalk.green("enabled") : chalk.yellow("disabled")}`);
+    console.log(`Polling: ${serviceConfig.pollingInterval}ms`);
+    console.log(`Warning: ${serviceConfig.phaseWarningTime}s before phase end`);
+    if (serviceConfig.logFile) {
+      console.log(`Log: ${serviceConfig.logFile}`);
+    }
+    console.log();
+    console.log("Press Ctrl+C to stop\n");
+
+    await service.start();
   });
 
 program.parse();
