@@ -19,7 +19,9 @@ import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } fr
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import linkWalletRoutes from './routes/link-wallet';
 import swarmTeamRoutes from './routes/swarm-teams';
+import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import { registry } from '../metrics';
+import { createMCPRoutes } from '../mcp/index.js';
 
 // Rate limiter for auth endpoints (IP-based)
 const authRateLimiter = rateLimit({
@@ -49,6 +51,39 @@ const apiKeyRateLimiter = rateLimit({
     },
   },
   keyGenerator: (req) => req.ip || 'unknown',
+});
+
+// Blindfold callback rate limiter (IP-based)
+const blindfoldCallbackLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 callbacks per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many callback requests.',
+    },
+  },
+  keyGenerator: (req) => req.ip || 'unknown',
+});
+
+// Per-team callback rate limiter
+const perTeamCallbackLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 callbacks per team per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many callback requests for this team.',
+    },
+  },
+  keyGenerator: (req) => {
+    const poolId = (req.query.pool_id as string) || req.body?.pool_id || 'unknown';
+    return `team:${poolId}`;
+  },
 });
 
 const BLINDFOLD_ORIGINS = [
@@ -140,6 +175,12 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // SwarmTeam management routes (public)
   app.use('/api/swarm-teams', swarmTeamRoutes);
+
+  // Blindfold funding callback (public - receives redirects from Blindfold)
+  app.use('/api/fund/callback', blindfoldCallbackLimiter, perTeamCallbackLimiter, blindfoldCallbackRoutes);
+
+  // MCP routes (OAuth + Streamable HTTP transport)
+  app.use(createMCPRoutes());
 
   // OpenAPI spec
   app.get('/api/openapi.json', (_req, res) => {
