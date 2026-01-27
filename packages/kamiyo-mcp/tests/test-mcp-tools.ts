@@ -7,9 +7,9 @@
 import { Keypair, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
-import { SolanaClient, loadKeypair } from './src/solana/client.js';
-import { PDADeriver } from './src/solana/pdas.js';
-import * as tools from './src/tools/index.js';
+import { SolanaClient, loadKeypair } from '../src/solana/client.js';
+import { PDADeriver } from '../src/solana/pdas.js';
+import * as tools from '../src/tools/index.js';
 
 dotenv.config();
 
