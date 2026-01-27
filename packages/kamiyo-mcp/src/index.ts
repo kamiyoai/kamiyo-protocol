@@ -3,8 +3,9 @@
 /**
  * KAMIYO MCP Server
  *
- * MCP server for KAMIYO Solana escrow program. Provides tools to create
- * protected API payments, assess quality, and file disputes.
+ * Solana escrow with dispute resolution for API payments. Lock funds until
+ * quality verified, assess responses, file disputes for refunds. Also supports
+ * x402 HTTP 402 payments (USDC on Base/Polygon/Arbitrum/Solana).
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -316,12 +317,15 @@ class KamiyoMCPServer {
     this.solanaClient = new SolanaClient(rpcUrl, keypair);
     this.program = new X402Program(this.solanaClient.connection, keypair, programId);
 
-    // Initialize x402 config
-    this.x402Config = {
-      walletAddress: process.env.X402_WALLET_ADDRESS || keypair.publicKey.toBase58(),
-      maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
-      preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'base',
-    };
+    // Initialize x402 config with real wallet for signing
+    this.x402Config = tools.createX402Config(
+      keypair,
+      this.solanaClient.connection,
+      {
+        maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
+        preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
+      }
+    );
 
     // Register handlers
     this.setupHandlers();
