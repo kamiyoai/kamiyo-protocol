@@ -2,9 +2,27 @@
   "name": "@kamiyo/mcp-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "MCP server for KAMIYO Protocol escrow and dispute resolution on Solana",
+  "description": "Solana escrow with dispute resolution for API payments. Also supports x402 HTTP 402 payments.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./solana/client": {
+      "types": "./dist/solana/client.d.ts",
+      "import": "./dist/solana/client.js"
+    },
+    "./solana/anchor": {
+      "types": "./dist/solana/anchor.d.ts",
+      "import": "./dist/solana/anchor.js"
+    }
+  },
   "bin": {
     "kamiyo-mcp": "./dist/cli.js"
   },

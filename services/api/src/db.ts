@@ -1346,6 +1346,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_proposals_team ON swarm_task_proposals(team_id);
   CREATE INDEX IF NOT EXISTS idx_proposals_status ON swarm_task_proposals(status);
   CREATE INDEX IF NOT EXISTS idx_vote_bids_proposal ON swarm_vote_bids(proposal_id);
+
+  CREATE TABLE IF NOT EXISTS blindfold_funding_states (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    state_token TEXT NOT NULL UNIQUE,
+    wallet TEXT,
+    status TEXT DEFAULT 'pending',
+    amount REAL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    completed_at INTEGER,
+    idempotency_key TEXT UNIQUE,
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_funding_states_token ON blindfold_funding_states(state_token);
+  CREATE INDEX IF NOT EXISTS idx_funding_states_team ON blindfold_funding_states(team_id);
+  CREATE INDEX IF NOT EXISTS idx_funding_states_idempotency ON blindfold_funding_states(idempotency_key);
 `);
 
 export interface LinkedWallet {
@@ -1396,6 +1414,223 @@ export function unlinkWallet(twitterId: string, wallet: string): boolean {
   const result = db.prepare('DELETE FROM linked_wallets WHERE twitter_id = ? AND wallet = ?')
     .run(twitterId, wallet);
   return result.changes > 0;
+}
+
+// MCP OAuth tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS mcp_oauth_clients (
+    client_id TEXT PRIMARY KEY,
+    client_secret_hash TEXT NOT NULL,
+    client_name TEXT NOT NULL,
+    redirect_uris TEXT NOT NULL,
+    grant_types TEXT NOT NULL,
+    response_types TEXT NOT NULL,
+    scopes TEXT NOT NULL,
+    token_endpoint_auth_method TEXT DEFAULT 'client_secret_basic',
+    client_secret_expires_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS mcp_oauth_codes (
+    code TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    code_challenge_method TEXT DEFAULT 'S256',
+    scopes TEXT NOT NULL,
+    user_wallet TEXT,
+    resource TEXT,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (client_id) REFERENCES mcp_oauth_clients(client_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (
+    token_hash TEXT PRIMARY KEY,
+    token_type TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    user_wallet TEXT,
+    scopes TEXT NOT NULL,
+    resource TEXT,
+    expires_at INTEGER NOT NULL,
+    revoked INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (client_id) REFERENCES mcp_oauth_clients(client_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS mcp_sessions (
+    session_id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    user_wallet TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    last_activity_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (client_id) REFERENCES mcp_oauth_clients(client_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_mcp_oauth_codes_client ON mcp_oauth_codes(client_id);
+  CREATE INDEX IF NOT EXISTS idx_mcp_oauth_codes_expires ON mcp_oauth_codes(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_mcp_oauth_tokens_client ON mcp_oauth_tokens(client_id);
+  CREATE INDEX IF NOT EXISTS idx_mcp_oauth_tokens_expires ON mcp_oauth_tokens(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_mcp_sessions_client ON mcp_sessions(client_id);
+`);
+
+// MCP OAuth interfaces
+export interface McpOAuthClient {
+  client_id: string;
+  client_secret_hash: string;
+  client_name: string;
+  redirect_uris: string; // JSON array
+  grant_types: string; // JSON array
+  response_types: string; // JSON array
+  scopes: string; // JSON array
+  token_endpoint_auth_method: string;
+  client_secret_expires_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface McpOAuthCode {
+  code: string;
+  client_id: string;
+  redirect_uri: string;
+  code_challenge: string;
+  code_challenge_method: string;
+  scopes: string; // JSON array
+  user_wallet: string | null;
+  resource: string | null;
+  expires_at: number;
+  created_at: number;
+}
+
+export interface McpOAuthToken {
+  token_hash: string;
+  token_type: 'access' | 'refresh';
+  client_id: string;
+  user_wallet: string | null;
+  scopes: string; // JSON array
+  resource: string | null;
+  expires_at: number;
+  revoked: number;
+  created_at: number;
+}
+
+export interface McpSession {
+  session_id: string;
+  client_id: string;
+  user_wallet: string | null;
+  created_at: number;
+  last_activity_at: number;
+}
+
+// MCP OAuth client operations
+export function getMcpOAuthClient(clientId: string): McpOAuthClient | null {
+  return db.prepare('SELECT * FROM mcp_oauth_clients WHERE client_id = ?').get(clientId) as McpOAuthClient | null;
+}
+
+export function createMcpOAuthClient(client: Omit<McpOAuthClient, 'created_at' | 'updated_at'>): void {
+  db.prepare(`
+    INSERT INTO mcp_oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, grant_types, response_types, scopes, token_endpoint_auth_method, client_secret_expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    client.client_id,
+    client.client_secret_hash,
+    client.client_name,
+    client.redirect_uris,
+    client.grant_types,
+    client.response_types,
+    client.scopes,
+    client.token_endpoint_auth_method,
+    client.client_secret_expires_at
+  );
+}
+
+// MCP OAuth code operations
+export function getMcpOAuthCode(code: string): McpOAuthCode | null {
+  return db.prepare('SELECT * FROM mcp_oauth_codes WHERE code = ?').get(code) as McpOAuthCode | null;
+}
+
+export function createMcpOAuthCode(codeRecord: Omit<McpOAuthCode, 'created_at'>): void {
+  db.prepare(`
+    INSERT INTO mcp_oauth_codes (code, client_id, redirect_uri, code_challenge, code_challenge_method, scopes, user_wallet, resource, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    codeRecord.code,
+    codeRecord.client_id,
+    codeRecord.redirect_uri,
+    codeRecord.code_challenge,
+    codeRecord.code_challenge_method,
+    codeRecord.scopes,
+    codeRecord.user_wallet,
+    codeRecord.resource,
+    codeRecord.expires_at
+  );
+}
+
+export function deleteMcpOAuthCode(code: string): void {
+  db.prepare('DELETE FROM mcp_oauth_codes WHERE code = ?').run(code);
+}
+
+export function cleanupExpiredMcpOAuthCodes(): number {
+  const now = Math.floor(Date.now() / 1000);
+  const result = db.prepare('DELETE FROM mcp_oauth_codes WHERE expires_at < ?').run(now);
+  return result.changes;
+}
+
+// MCP OAuth token operations
+export function getMcpOAuthToken(tokenHash: string): McpOAuthToken | null {
+  return db.prepare('SELECT * FROM mcp_oauth_tokens WHERE token_hash = ?').get(tokenHash) as McpOAuthToken | null;
+}
+
+export function createMcpOAuthToken(token: Omit<McpOAuthToken, 'created_at' | 'revoked'>): void {
+  db.prepare(`
+    INSERT INTO mcp_oauth_tokens (token_hash, token_type, client_id, user_wallet, scopes, resource, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    token.token_hash,
+    token.token_type,
+    token.client_id,
+    token.user_wallet,
+    token.scopes,
+    token.resource,
+    token.expires_at
+  );
+}
+
+export function revokeMcpOAuthToken(tokenHash: string, clientId: string): void {
+  db.prepare('UPDATE mcp_oauth_tokens SET revoked = 1 WHERE token_hash = ? AND client_id = ?').run(tokenHash, clientId);
+}
+
+export function cleanupExpiredMcpOAuthTokens(): number {
+  const now = Math.floor(Date.now() / 1000);
+  const result = db.prepare('DELETE FROM mcp_oauth_tokens WHERE expires_at < ? AND revoked = 1').run(now);
+  return result.changes;
+}
+
+// MCP session operations
+export function getMcpSession(sessionId: string): McpSession | null {
+  return db.prepare('SELECT * FROM mcp_sessions WHERE session_id = ?').get(sessionId) as McpSession | null;
+}
+
+export function createMcpSession(session: Omit<McpSession, 'created_at' | 'last_activity_at'>): void {
+  db.prepare(`
+    INSERT INTO mcp_sessions (session_id, client_id, user_wallet)
+    VALUES (?, ?, ?)
+  `).run(session.session_id, session.client_id, session.user_wallet);
+}
+
+export function updateMcpSessionActivity(sessionId: string): void {
+  db.prepare('UPDATE mcp_sessions SET last_activity_at = unixepoch() WHERE session_id = ?').run(sessionId);
+}
+
+export function deleteMcpSession(sessionId: string): void {
+  db.prepare('DELETE FROM mcp_sessions WHERE session_id = ?').run(sessionId);
+}
+
+export function cleanupOldMcpSessions(olderThanHours: number = 24): number {
+  const cutoff = Math.floor(Date.now() / 1000) - (olderThanHours * 60 * 60);
+  const result = db.prepare('DELETE FROM mcp_sessions WHERE last_activity_at < ?').run(cutoff);
+  return result.changes;
 }
 
 export default db;
