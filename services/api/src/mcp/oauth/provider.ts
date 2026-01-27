@@ -14,6 +14,7 @@ import {
   createMcpOAuthToken,
   revokeMcpOAuthToken,
 } from '../../db.js';
+import { mcpOAuthTotal } from '../../metrics.js';
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -66,6 +67,7 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       redirectUrl.searchParams.set('state', params.state);
     }
 
+    mcpOAuthTotal.inc({ operation: 'authorize', status: 'success' });
     res.redirect(redirectUrl.toString());
   }
 
@@ -138,6 +140,7 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       expires_at: now + REFRESH_TOKEN_TTL,
     });
 
+    mcpOAuthTotal.inc({ operation: 'token_exchange', status: 'success' });
     return {
       access_token: accessToken,
       token_type: 'Bearer',
@@ -177,6 +180,7 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       expires_at: now + ACCESS_TOKEN_TTL,
     });
 
+    mcpOAuthTotal.inc({ operation: 'refresh', status: 'success' });
     return {
       access_token: accessToken,
       token_type: 'Bearer',
@@ -211,5 +215,6 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
   ): Promise<void> {
     const tokenHash = hashToken(request.token);
     revokeMcpOAuthToken(tokenHash, client.client_id);
+    mcpOAuthTotal.inc({ operation: 'revoke', status: 'success' });
   }
 }

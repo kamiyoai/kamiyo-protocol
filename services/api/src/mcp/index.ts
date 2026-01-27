@@ -9,6 +9,7 @@ import { KamiyoOAuthProvider } from './oauth/provider.js';
 import { createMCPServer, McpAuthInfo } from './server.js';
 import { createMcpSession, updateMcpSessionActivity, deleteMcpSession, cleanupOldMcpSessions } from '../db.js';
 import { logger } from '../logger.js';
+import { mcpSessionsActive, mcpRequestsTotal, mcpRequestLatency } from '../metrics.js';
 
 const SESSION_TTL_HOURS = 24;
 const MAX_SESSIONS_PER_CLIENT = 10;
@@ -62,6 +63,9 @@ function cleanupStaleSessions(): void {
 
   // Also clean DB sessions
   const dbCleaned = cleanupOldMcpSessions(SESSION_TTL_HOURS);
+
+  // Update session gauge
+  mcpSessionsActive.set(sessions.size);
 
   if (cleaned > 0 || dbCleaned > 0) {
     logger.debug('MCP session cleanup', { memory: cleaned, db: dbCleaned });
@@ -187,11 +191,13 @@ export function createMCPRoutes(): Router {
 
       // Rate limiting
       if (!checkRateLimit(mcpAuth.clientId)) {
+        mcpRequestsTotal.inc({ method: req.method, status: '429' });
         res.status(429).json({ error: 'rate limit exceeded' });
         return;
       }
 
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      const requestStart = Date.now();
 
       try {
         if (req.method === 'DELETE') {
@@ -200,7 +206,9 @@ export function createMCPRoutes(): Router {
             await session.transport.close();
             sessions.delete(sessionId);
             deleteMcpSession(sessionId);
+            mcpSessionsActive.set(sessions.size);
           }
+          mcpRequestsTotal.inc({ method: 'DELETE', status: '204' });
           res.status(204).end();
           return;
         }
@@ -239,18 +247,23 @@ export function createMCPRoutes(): Router {
               user_wallet: (mcpAuth.extra?.wallet as string) || null,
             });
 
+            mcpSessionsActive.set(sessions.size);
+
             transport.onclose = () => {
               sessions.delete(newSessionId);
               deleteMcpSession(newSessionId);
+              mcpSessionsActive.set(sessions.size);
             };
           }
         }
 
         if (!session) {
           if (req.method === 'GET' && !sessionId) {
+            mcpRequestsTotal.inc({ method: 'GET', status: '400' });
             res.status(400).json({ error: 'session id required for SSE' });
             return;
           }
+          mcpRequestsTotal.inc({ method: req.method, status: '404' });
           res.status(404).json({ error: 'session not found' });
           return;
         }
@@ -264,8 +277,14 @@ export function createMCPRoutes(): Router {
         const mcpReq = req as any;
         mcpReq.auth = mcpAuth;
         await session.transport.handleRequest(mcpReq, res, req.body);
+
+        // Record success metrics
+        const latencySeconds = (Date.now() - requestStart) / 1000;
+        mcpRequestsTotal.inc({ method: req.method, status: '200' });
+        mcpRequestLatency.observe({ method: req.method }, latencySeconds);
       } catch (err: any) {
         logger.error('MCP request error', { error: err.message, clientId: mcpAuth.clientId });
+        mcpRequestsTotal.inc({ method: req.method, status: '500' });
         if (!res.headersSent) {
           res.status(500).json({ error: 'internal error' });
         }

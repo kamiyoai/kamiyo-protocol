@@ -91,3 +91,39 @@ export const blindfoldSecurityEvents = new Counter({
   labelNames: ['type', 'severity'] as const,
   registers: [registry],
 });
+
+// MCP metrics
+export const mcpSessionsActive = new Gauge({
+  name: 'mcp_sessions_active',
+  help: 'Number of active MCP sessions',
+  registers: [registry],
+});
+
+export const mcpRequestsTotal = new Counter({
+  name: 'mcp_requests_total',
+  help: 'Total MCP requests',
+  labelNames: ['method', 'status'] as const,
+  registers: [registry],
+});
+
+export const mcpToolCallsTotal = new Counter({
+  name: 'mcp_tool_calls_total',
+  help: 'Total MCP tool invocations',
+  labelNames: ['tool', 'status'] as const,
+  registers: [registry],
+});
+
+export const mcpRequestLatency = new Histogram({
+  name: 'mcp_request_latency_seconds',
+  help: 'MCP request latency in seconds',
+  labelNames: ['method'] as const,
+  buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5],
+  registers: [registry],
+});
+
+export const mcpOAuthTotal = new Counter({
+  name: 'mcp_oauth_total',
+  help: 'MCP OAuth operations',
+  labelNames: ['operation', 'status'] as const,
+  registers: [registry],
+});
