@@ -4,7 +4,7 @@
   "description": "KAMIYO Companion - AI interface to KAMIYO protocol (API + X bot)",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/mcp/idl && cp src/mcp/idl/x402_escrow.json dist/mcp/idl/",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run"
