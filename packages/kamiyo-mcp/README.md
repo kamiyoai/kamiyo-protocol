@@ -2,7 +2,41 @@
 
 MCP server for KAMIYO Protocol. Provides escrow, dispute, and reputation tools for Claude Desktop and other MCP clients.
 
-## Installation
+## Remote MCP Server (Claude.ai)
+
+Connect directly to the hosted MCP server at `https://api.kamiyo.ai/mcp`.
+
+### Authentication
+
+The server uses OAuth 2.0 with Dynamic Client Registration (DCR):
+
+1. Register a client at `https://api.kamiyo.ai/oauth/register`
+2. Authorize at `https://api.kamiyo.ai/oauth/authorize`
+3. Exchange code for tokens at `https://api.kamiyo.ai/oauth/token`
+
+PKCE (S256) is required. Access tokens expire in 1 hour; refresh tokens in 30 days.
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `mcp:tools` | All tools |
+| `mcp:tools:escrow` | Escrow and dispute tools only |
+| `mcp:tools:x402` | x402 payment tools only |
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/.well-known/oauth-authorization-server` | GET | OAuth metadata |
+| `/oauth/register` | POST | Dynamic client registration |
+| `/oauth/authorize` | GET | Authorization |
+| `/oauth/token` | POST | Token exchange |
+| `/mcp` | POST | MCP JSON-RPC |
+| `/mcp` | GET | MCP SSE stream |
+| `/mcp/health` | GET | Health check |
+
+## Local Installation
 
 ```bash
 npm install
@@ -197,6 +231,15 @@ npm test        # Run tests
 | 65-79% | 35% | 65% |
 | 50-64% | 75% | 25% |
 | 0-49% | 100% | 0% |
+
+## Privacy
+
+See [Privacy Policy](https://github.com/kamiyo-ai/kamiyo-protocol/blob/main/docs/PRIVACY.md).
+
+## Support
+
+- GitHub Issues: https://github.com/kamiyo-ai/kamiyo-protocol/issues
+- Email: support@kamiyo.ai
 
 ## License
 
