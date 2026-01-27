@@ -55,6 +55,30 @@ export async function forwardToTelegram(tweetId: string, content: string): Promi
 const POLL_INTERVAL = 2 * 60 * 1000; // 2 minutes
 let kamiyoUserId: string | null = null;
 
+async function fetchKamiyoUserId(twitter: TwitterApi, retries = 5): Promise<string | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const user = await twitter.v2.userByUsername('KamiyoAI');
+      if (user.data?.id) {
+        return user.data.id;
+      }
+      logger.error('Could not get KamiyoAI user ID (empty response)');
+      return null;
+    } catch (err: unknown) {
+      const error = err as { code?: number; status?: number };
+      if ((error.code === 429 || error.status === 429) && i < retries - 1) {
+        const delay = Math.min(60000 * Math.pow(2, i), 300000); // 1m, 2m, 4m, 5m cap
+        logger.warn('Rate limited fetching KamiyoAI user ID, retrying', { attempt: i + 1, delayMs: delay });
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      logger.error('Failed to get KamiyoAI user ID', { error: String(err), attempt: i + 1 });
+      if (i === retries - 1) return null;
+    }
+  }
+  return null;
+}
+
 export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<void> {
   if (!TG_XPOST_BOT_TOKEN || TG_GROUP_IDS.length === 0) {
     logger.info('Telegram forwarding disabled (no token or groups configured)');
@@ -63,20 +87,13 @@ export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<voi
 
   logger.info('Starting Telegram forward loop...', { groups: TG_GROUP_IDS.length });
 
-  // Get @KamiyoAI user ID
-  try {
-    const user = await twitter.v2.userByUsername('KamiyoAI');
-    if (user.data?.id) {
-      kamiyoUserId = user.data.id;
-      logger.info('Got KamiyoAI user ID', { userId: kamiyoUserId });
-    } else {
-      logger.error('Could not get KamiyoAI user ID');
-      return;
-    }
-  } catch (err) {
-    logger.error('Failed to get KamiyoAI user ID', { error: String(err) });
+  // Get @KamiyoAI user ID with retry
+  kamiyoUserId = await fetchKamiyoUserId(twitter);
+  if (!kamiyoUserId) {
+    logger.error('Could not get KamiyoAI user ID after retries, TG forward disabled');
     return;
   }
+  logger.info('Got KamiyoAI user ID', { userId: kamiyoUserId });
 
   const poll = async () => {
     if (!kamiyoUserId) return;
