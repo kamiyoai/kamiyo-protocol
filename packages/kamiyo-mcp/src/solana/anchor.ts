@@ -1,5 +1,5 @@
 import { AnchorProvider, BN, Program, Wallet, Idl, utils } from '@coral-xyz/anchor';
-import {  Connection, Keypair, PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { PDADeriver } from './pdas.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,11 +8,6 @@ import * as borsh from 'borsh';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Load IDL dynamically and convert discriminators to Buffers
-const idlPath = path.join(__dirname, '../idl/x402_escrow.json');
-const idlContent = fs.readFileSync(idlPath, 'utf-8');
-const rawIdl = JSON.parse(idlContent);
 
 // Convert discriminator arrays to Buffers for Anchor v0.30+
 function convertDiscriminators(obj: any): any {
@@ -32,7 +27,22 @@ function convertDiscriminators(obj: any): any {
   return obj;
 }
 
-const idl = convertDiscriminators(rawIdl);
+// Try to load IDL from package location
+let idl: any = null;
+function getIdl(): any {
+  if (idl) return idl;
+
+  const idlPath = path.join(__dirname, '../idl/x402_escrow.json');
+  try {
+    const idlContent = fs.readFileSync(idlPath, 'utf-8');
+    idl = convertDiscriminators(JSON.parse(idlContent));
+  } catch {
+    throw new Error(
+      `IDL not found at ${idlPath}. Ensure kamiyo-mcp is built with IDL.`
+    );
+  }
+  return idl;
+}
 
 // Instruction discriminators (sha256 hash of "global:instruction_name")
 const INSTRUCTION_DISCRIMINATORS = {
@@ -109,7 +119,7 @@ export class X402Program {
     });
 
     // Initialize program with provider, then manually set programId
-    this.program = new Program(idl as Idl, provider);
+    this.program = new Program(getIdl() as Idl, provider);
     // Override programId since IDL contains address
     Object.defineProperty(this.program, 'programId', {
       value: programId,

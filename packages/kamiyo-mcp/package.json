@@ -27,7 +27,7 @@
     "kamiyo-mcp": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && cp src/idl/kamiyo.json dist/idl/kamiyo.json 2>/dev/null || true",
+    "build": "tsc && mkdir -p dist/idl && cp src/idl/x402_escrow.json dist/idl/",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "npm run test:integration",
