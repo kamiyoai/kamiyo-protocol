@@ -1,9 +1,28 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { Keypair, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import {
+  createPaymentSigner,
+  createSignedPayment,
+  createPaymentHeader,
+  generateTransactionId,
+} from '@kamiyo/x402-client';
 
 const USDC_DECIMALS = 6;
+const SOL_PRICE_USD = 150; // Approximate, should fetch from oracle in production
 
 export interface X402ToolsConfig {
+  wallet: Keypair;
+  connection: Connection;
+  maxPriceUsd?: number;
+  preferredNetwork?: string;
+}
+
+/**
+ * Legacy config for backward compatibility.
+ * Note: Without a Keypair, payments will be unsigned (may be rejected by facilitators).
+ */
+export interface LegacyX402ToolsConfig {
   walletAddress: string;
   maxPriceUsd?: number;
   preferredNetwork?: string;
@@ -40,12 +59,16 @@ export interface X402FetchResult {
   paid?: boolean;
   data?: unknown;
   summary?: string;
-  payment?: { network: string; amountUsd: number; asset: string };
+  payment?: { network: string; amountUsd: number; asset: string; transactionId?: string };
   error?: string;
 }
 
 function fromMicro(v: string | number): number {
   return (typeof v === 'string' ? parseInt(v, 10) : v) / 10 ** USDC_DECIMALS;
+}
+
+function usdToLamports(usd: number): number {
+  return Math.ceil((usd / SOL_PRICE_USD) * LAMPORTS_PER_SOL);
 }
 
 function summarize(data: unknown): string {
@@ -102,32 +125,42 @@ async function x402Fetch(
     const x402 = (await res.json()) as X402Response;
     if (!x402.accepts?.length) return { success: false, error: 'No payment options' };
 
-    const pref = config.preferredNetwork || 'base';
+    const pref = config.preferredNetwork || 'solana:mainnet';
     const req = x402.accepts.find((r) => r.network.includes(pref)) || x402.accepts[0];
     const amt = fromMicro(req.amount);
     const max = config.maxPriceUsd ?? 0.1;
 
     if (amt > max) return { success: false, error: `$${amt.toFixed(4)} > max $${max.toFixed(2)}` };
 
-    const paymentHeader = Buffer.from(
-      JSON.stringify({
-        x402Version: 2,
-        scheme: 'exact',
-        network: req.network,
-        payment: {
-          payer: config.walletAddress,
-          payTo: req.payTo,
-          amount: req.amount,
-          asset: req.asset,
-          timestamp: Math.floor(Date.now() / 1000),
-          nonce: Math.random().toString(36).slice(2, 10),
-        },
-      })
-    ).toString('base64');
+    // Check balance
+    const balance = await config.connection.getBalance(config.wallet.publicKey);
+    const amountLamports = usdToLamports(amt);
+
+    if (balance < amountLamports + 5000) {
+      return {
+        success: false,
+        error: `Insufficient balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
+      };
+    }
+
+    // Create signed payment header
+    const transactionId = generateTransactionId();
+    const signedPayment = createSignedPayment(
+      config.wallet,
+      transactionId,
+      url,
+      amountLamports
+    );
+    const paymentHeader = createPaymentHeader(signedPayment, config.wallet, req.network);
 
     const paid = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', 'PAYMENT-SIGNATURE': paymentHeader, ...headers },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-PAYMENT': paymentHeader,
+        'PAYMENT-SIGNATURE': paymentHeader, // Backward compat
+        ...headers,
+      },
       body: body || undefined,
     });
 
@@ -141,7 +174,7 @@ async function x402Fetch(
       paid: true,
       data,
       summary: summarize(data),
-      payment: { network: req.network, amountUsd: amt, asset: req.asset },
+      payment: { network: req.network, amountUsd: amt, asset: req.asset, transactionId },
     };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
@@ -171,8 +204,18 @@ export function createX402Tools(config: X402ToolsConfig) {
   };
 }
 
-export const x402Tools = createX402Tools({
-  walletAddress: process.env.X402_WALLET_ADDRESS || '',
-  maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
-  preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'base',
-});
+/**
+ * Create config from keypair and connection
+ */
+export function createX402ToolsConfig(
+  wallet: Keypair,
+  connection: Connection,
+  options?: { maxPriceUsd?: number; preferredNetwork?: string }
+): X402ToolsConfig {
+  return {
+    wallet,
+    connection,
+    maxPriceUsd: options?.maxPriceUsd ?? 0.1,
+    preferredNetwork: options?.preferredNetwork ?? 'solana:mainnet',
+  };
+}

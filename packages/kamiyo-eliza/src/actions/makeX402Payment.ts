@@ -1,4 +1,10 @@
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
+import { Keypair, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import {
+  createSignedPayment,
+  createPaymentHeader,
+  generateTransactionId,
+} from '@kamiyo/x402-client';
 
 interface PaymentRequirement {
   scheme: 'exact';
@@ -24,17 +30,20 @@ interface X402PaymentResult {
   data?: unknown;
   network?: string;
   amountUsdc?: number;
-  tx?: string;
+  transactionId?: string;
   error?: string;
 }
 
-const PAYAI_FACILITATOR = 'https://facilitator.payai.network';
-
 const USDC_DECIMALS = 6;
 const MICRO = 10 ** USDC_DECIMALS;
+const SOL_PRICE_USD = 150; // Approximate
 
 function fromMicro(micro: string | number): number {
   return (typeof micro === 'string' ? parseInt(micro, 10) : micro) / MICRO;
+}
+
+function usdToLamports(usd: number): number {
+  return Math.ceil((usd / SOL_PRICE_USD) * LAMPORTS_PER_SOL);
 }
 
 export const makeX402PaymentAction: Action = {
@@ -76,14 +85,26 @@ export const makeX402PaymentAction: Action = {
     }
 
     const maxPrice = parseFloat(runtime.getSetting('KAMIYO_MAX_PRICE') || '0.10');
-    const preferredNetwork = runtime.getSetting('X402_PREFERRED_NETWORK') || 'base';
-    const walletAddress = runtime.getSetting('X402_WALLET_ADDRESS');
-    const privateKey = runtime.getSetting('SOLANA_PRIVATE_KEY') || runtime.getSetting('EVM_PRIVATE_KEY');
+    const preferredNetwork = runtime.getSetting('X402_PREFERRED_NETWORK') || 'solana:mainnet';
+    const privateKey = runtime.getSetting('SOLANA_PRIVATE_KEY');
+    const rpcUrl = runtime.getSetting('SOLANA_RPC_URL') || 'https://api.mainnet-beta.solana.com';
 
-    if (!walletAddress) {
-      callback?.({ text: 'X402_WALLET_ADDRESS not configured. Set your wallet address in agent settings.' });
+    if (!privateKey) {
+      callback?.({ text: 'SOLANA_PRIVATE_KEY not configured. Set your wallet keypair in agent settings.' });
       return { success: false, error: 'Wallet not configured' };
     }
+
+    // Load keypair
+    let wallet: Keypair;
+    try {
+      const keyBytes = Buffer.from(privateKey, 'base64');
+      wallet = Keypair.fromSecretKey(keyBytes);
+    } catch {
+      callback?.({ text: 'Invalid SOLANA_PRIVATE_KEY format. Must be base64-encoded.' });
+      return { success: false, error: 'Invalid keypair' };
+    }
+
+    const connection = new Connection(rpcUrl);
 
     try {
       const initialResponse = await fetch(endpoint, {
@@ -116,17 +137,31 @@ export const makeX402PaymentAction: Action = {
         return { success: false, error: 'Price exceeds maximum' };
       }
 
-      const paymentHeader = await createPaymentHeader(
-        walletAddress,
-        requirement,
-        x402Response.facilitator || PAYAI_FACILITATOR
+      // Check balance
+      const balance = await connection.getBalance(wallet.publicKey);
+      const amountLamports = usdToLamports(amountUsdc);
+
+      if (balance < amountLamports + 5000) {
+        callback?.({ text: `Insufficient balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL` });
+        return { success: false, error: 'Insufficient balance' };
+      }
+
+      // Create signed payment header
+      const transactionId = generateTransactionId();
+      const signedPayment = createSignedPayment(
+        wallet,
+        transactionId,
+        endpoint,
+        amountLamports
       );
+      const paymentHeader = createPaymentHeader(signedPayment, wallet, requirement.network);
 
       const paidResponse = await fetch(endpoint, {
         method: message.content.method as string || 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'PAYMENT-SIGNATURE': paymentHeader,
+          'X-PAYMENT': paymentHeader,
+          'PAYMENT-SIGNATURE': paymentHeader, // Backward compat
         },
       });
 
@@ -150,6 +185,7 @@ export const makeX402PaymentAction: Action = {
             amountUsdc,
             asset: requirement.asset,
             payTo: requirement.payTo,
+            transactionId,
           },
         },
       });
@@ -159,6 +195,7 @@ export const makeX402PaymentAction: Action = {
         data,
         network: requirement.network,
         amountUsdc,
+        transactionId,
       };
     } catch (err) {
       const error = err instanceof Error ? err.message : 'Unknown error';
@@ -167,32 +204,6 @@ export const makeX402PaymentAction: Action = {
     }
   },
 };
-
-// Stub: production should use @kamiyo/x402-client for real wallet signing
-async function createPaymentHeader(
-  walletAddress: string,
-  requirement: PaymentRequirement,
-  _facilitatorUrl: string
-): Promise<string> {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const nonce = Math.random().toString(36).substring(2, 10);
-
-  const token = Buffer.from(JSON.stringify({
-    x402Version: 2,
-    scheme: 'exact',
-    network: requirement.network,
-    payment: {
-      payer: walletAddress,
-      payTo: requirement.payTo,
-      amount: requirement.amount,
-      asset: requirement.asset,
-      timestamp,
-      nonce,
-    },
-  })).toString('base64');
-
-  return token;
-}
 
 function summarize(data: unknown): string {
   if (Array.isArray(data)) {
