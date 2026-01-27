@@ -9,6 +9,45 @@ function hashSecret(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
 }
 
+// Allowed redirect URI schemes and patterns
+const ALLOWED_SCHEMES = ['https', 'http'];
+const LOCALHOST_PATTERNS = ['localhost', '127.0.0.1', '[::1]'];
+
+function isValidRedirectUri(uri: string): boolean {
+  try {
+    const parsed = new URL(uri);
+
+    // Must be http or https
+    if (!ALLOWED_SCHEMES.includes(parsed.protocol.replace(':', ''))) {
+      return false;
+    }
+
+    // http only allowed for localhost (development)
+    if (parsed.protocol === 'http:') {
+      const isLocalhost = LOCALHOST_PATTERNS.some(
+        (p) => parsed.hostname === p || parsed.hostname.endsWith('.localhost')
+      );
+      if (!isLocalhost) {
+        return false;
+      }
+    }
+
+    // No fragments allowed in redirect URIs (OAuth spec)
+    if (parsed.hash) {
+      return false;
+    }
+
+    // No credentials in URI
+    if (parsed.username || parsed.password) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function toClientInfo(row: McpOAuthClient): OAuthClientInformationFull {
   return {
     client_id: row.client_id,
@@ -33,6 +72,18 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
   registerClient(
     client: Omit<OAuthClientInformationFull, 'client_id' | 'client_id_issued_at'>
   ): OAuthClientInformationFull {
+    // Validate redirect URIs
+    const redirectUris = client.redirect_uris || [];
+    if (redirectUris.length === 0) {
+      throw new Error('At least one redirect_uri is required');
+    }
+
+    for (const uri of redirectUris) {
+      if (!isValidRedirectUri(uri)) {
+        throw new Error(`Invalid redirect_uri: ${uri}. Must be https (or http for localhost), no fragments or credentials.`);
+      }
+    }
+
     const clientId = randomUUID();
     const clientSecret = randomBytes(32).toString('hex');
     const scopes = client.scope?.split(' ').filter(Boolean) || ['mcp:tools'];
