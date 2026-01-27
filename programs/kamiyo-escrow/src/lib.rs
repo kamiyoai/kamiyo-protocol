@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::hash::hash;
 use anchor_spl::token_interface::{
     self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
 };
 
-// fee constants from pfn treasury analysis (see internal doc pfn-escrow-72)
 declare_id!("AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu");
 
 /// $KAMIYO token mint on pump.fun (6 decimals)
@@ -15,6 +15,20 @@ pub const FEE_CREATE_ESCROW: u64 = 50_000_000;
 /// Burn rate: 1% (100 basis points)
 pub const BURN_RATE_BPS: u64 = 100;
 
+// Dispute resolution constants
+pub const COMMIT_PHASE_DURATION: i64 = 300; // 5 minutes
+pub const REVEAL_PHASE_DURATION: i64 = 1800; // 30 minutes
+pub const MIN_CONSENSUS_ORACLES: u8 = 3;
+pub const MAX_SCORE_DEVIATION: u8 = 15; // 15% deviation tolerance
+pub const ESCROW_TIMEOUT: i64 = 7 * 24 * 60 * 60; // 7 days
+pub const MAX_ORACLES_PER_ESCROW: usize = 5;
+
+// Quality-based refund thresholds
+pub const QUALITY_FULL_REFUND_THRESHOLD: u8 = 50; // 0-49 = 100% refund
+pub const QUALITY_HIGH_REFUND_THRESHOLD: u8 = 65; // 50-64 = 75% refund
+pub const QUALITY_LOW_REFUND_THRESHOLD: u8 = 80; // 65-79 = 35% refund
+// 80-100 = 0% refund
+
 /// Calculate burn and treasury amounts for a fee
 fn calculate_fee_split(total_fee: u64) -> (u64, u64) {
     let burn_amount = total_fee * BURN_RATE_BPS / 10_000;
@@ -22,9 +36,119 @@ fn calculate_fee_split(total_fee: u64) -> (u64, u64) {
     (burn_amount, treasury_amount)
 }
 
+/// Calculate refund percentage based on quality score
+fn calculate_refund_percentage(quality_score: u8) -> u8 {
+    if quality_score < QUALITY_FULL_REFUND_THRESHOLD {
+        100 // Full refund for poor quality
+    } else if quality_score < QUALITY_HIGH_REFUND_THRESHOLD {
+        75 // 75% refund
+    } else if quality_score < QUALITY_LOW_REFUND_THRESHOLD {
+        35 // 35% refund
+    } else {
+        0 // No refund for good quality
+    }
+}
+
+/// Compute commitment hash: SHA256(session_id || oracle || score || salt)
+fn compute_commitment_hash(
+    session_id: &[u8; 32],
+    oracle: &Pubkey,
+    score: u8,
+    salt: &[u8; 32],
+) -> [u8; 32] {
+    let mut data = Vec::with_capacity(32 + 32 + 1 + 32);
+    data.extend_from_slice(session_id);
+    data.extend_from_slice(oracle.as_ref());
+    data.push(score);
+    data.extend_from_slice(salt);
+    hash(&data).to_bytes()
+}
+
 #[program]
 pub mod kamiyo_escrow {
     use super::*;
+
+    /// Initialize oracle configuration (one-time admin setup)
+    pub fn initialize_oracle_config(
+        ctx: Context<InitializeOracleConfig>,
+        min_consensus: u8,
+        max_score_deviation: u8,
+        commit_duration: i64,
+        reveal_duration: i64,
+    ) -> Result<()> {
+        require!(min_consensus >= 3, EscrowError::InvalidConsensusConfig);
+        require!(max_score_deviation <= 50, EscrowError::InvalidConsensusConfig);
+        require!(commit_duration >= 60, EscrowError::InvalidTimingConfig); // Min 1 minute
+        require!(reveal_duration >= 300, EscrowError::InvalidTimingConfig); // Min 5 minutes
+
+        let config = &mut ctx.accounts.oracle_config;
+        config.admin = ctx.accounts.admin.key();
+        config.min_consensus = min_consensus;
+        config.max_score_deviation = max_score_deviation;
+        config.commit_duration = commit_duration;
+        config.reveal_duration = reveal_duration;
+        config.bump = ctx.bumps.oracle_config;
+
+        emit!(OracleConfigInitialized {
+            admin: config.admin,
+            min_consensus,
+            max_score_deviation,
+            commit_duration,
+            reveal_duration,
+        });
+
+        Ok(())
+    }
+
+    /// Register an oracle (admin only)
+    pub fn register_oracle(
+        ctx: Context<RegisterOracle>,
+        oracle_pubkey: Pubkey,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.oracle_config;
+
+        // Check not already registered
+        require!(
+            !config.registered_oracles.contains(&oracle_pubkey),
+            EscrowError::OracleAlreadyRegistered
+        );
+        require!(
+            config.registered_oracles.len() < 50,
+            EscrowError::TooManyOracles
+        );
+
+        config.registered_oracles.push(oracle_pubkey);
+
+        emit!(OracleRegistered {
+            oracle: oracle_pubkey,
+            total_oracles: config.registered_oracles.len() as u8,
+        });
+
+        Ok(())
+    }
+
+    /// Remove an oracle (admin only)
+    pub fn remove_oracle(
+        ctx: Context<RemoveOracle>,
+        oracle_pubkey: Pubkey,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.oracle_config;
+
+        let index = config
+            .registered_oracles
+            .iter()
+            .position(|o| *o == oracle_pubkey)
+            .ok_or(EscrowError::OracleNotRegistered)?;
+
+        config.registered_oracles.remove(index);
+
+        emit!(OracleRemoved {
+            oracle: oracle_pubkey,
+            total_oracles: config.registered_oracles.len() as u8,
+        });
+
+        Ok(())
+    }
 
     /// Create a new escrow for a Companion session
     /// Requires payment of 50 KAMIYO (1% burned, 99% to treasury)
@@ -71,7 +195,7 @@ pub mod kamiyo_escrow {
         let treasury_key = ctx.accounts.treasury.key();
         let clock = Clock::get()?;
 
-        // Transfer SOL to escrow PDA (before mutable borrow)
+        // Transfer SOL to escrow PDA
         let ix = anchor_lang::solana_program::system_instruction::transfer(
             &user_key,
             &escrow_key,
@@ -86,17 +210,20 @@ pub mod kamiyo_escrow {
             ],
         )?;
 
-        // Now do the mutable borrow
+        // Initialize escrow state
         let escrow = &mut ctx.accounts.escrow;
         escrow.user = user_key;
         escrow.treasury = treasury_key;
         escrow.session_id = session_id;
         escrow.amount = amount;
         escrow.created_at = clock.unix_timestamp;
-        escrow.released = false;
-        escrow.refunded = false;
-        escrow.rating = 0;
         escrow.bump = ctx.bumps.escrow;
+        escrow.status = EscrowStatus::Active;
+        escrow.rating = None;
+        escrow.disputed_at = None;
+        escrow.commit_phase_ends_at = None;
+        escrow.quality_score = None;
+        escrow.refund_percentage = None;
 
         emit!(EscrowCreated {
             escrow: escrow_key,
@@ -115,21 +242,20 @@ pub mod kamiyo_escrow {
         Ok(())
     }
 
-    /// Rate session and release escrow if rating >= 3
-    pub fn rate_and_release(
-        ctx: Context<RateAndRelease>,
-        rating: u8,
-    ) -> Result<()> {
+    /// Rate session and release escrow if rating >= 3 (simple path)
+    pub fn rate_and_release(ctx: Context<RateAndRelease>, rating: u8) -> Result<()> {
         require!(rating >= 1 && rating <= 5, EscrowError::InvalidRating);
 
         let escrow = &mut ctx.accounts.escrow;
-        require!(!escrow.released && !escrow.refunded, EscrowError::AlreadyProcessed);
+        require!(
+            escrow.status == EscrowStatus::Active,
+            EscrowError::InvalidStatus
+        );
 
-        escrow.rating = rating;
+        escrow.rating = Some(rating);
 
         if rating >= 3 {
-            // Release to treasury
-            escrow.released = true;
+            escrow.status = EscrowStatus::Released;
 
             let amount = escrow.amount;
             **escrow.to_account_info().try_borrow_mut_lamports()? -= amount;
@@ -142,8 +268,7 @@ pub mod kamiyo_escrow {
                 rating,
             });
         } else {
-            // Refund to user
-            escrow.refunded = true;
+            escrow.status = EscrowStatus::Refunded;
 
             let amount = escrow.amount;
             **escrow.to_account_info().try_borrow_mut_lamports()? -= amount;
@@ -160,20 +285,272 @@ pub mod kamiyo_escrow {
         Ok(())
     }
 
+    /// User marks escrow as disputed (initiates oracle resolution)
+    pub fn mark_disputed(ctx: Context<MarkDisputed>) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+        let clock = Clock::get()?;
+
+        require!(
+            escrow.status == EscrowStatus::Active,
+            EscrowError::InvalidStatus
+        );
+
+        // Cannot dispute after timeout
+        require!(
+            clock.unix_timestamp <= escrow.created_at + ESCROW_TIMEOUT,
+            EscrowError::EscrowTimedOut
+        );
+
+        escrow.status = EscrowStatus::Disputed;
+        escrow.disputed_at = Some(clock.unix_timestamp);
+
+        emit!(DisputeMarked {
+            escrow: escrow.key(),
+            user: escrow.user,
+            disputed_at: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Oracle commits their quality score hash (commit-reveal phase 1)
+    pub fn commit_vote(
+        ctx: Context<CommitVote>,
+        commitment_hash: [u8; 32],
+    ) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+        let config = &ctx.accounts.oracle_config;
+        let oracle = ctx.accounts.oracle.key();
+        let clock = Clock::get()?;
+
+        require!(
+            escrow.status == EscrowStatus::Disputed,
+            EscrowError::InvalidStatus
+        );
+
+        // Verify oracle is registered
+        require!(
+            config.registered_oracles.contains(&oracle),
+            EscrowError::OracleNotRegistered
+        );
+
+        // Check oracle hasn't already committed
+        require!(
+            !escrow.oracle_commitments.iter().any(|c| c.oracle == oracle),
+            EscrowError::OracleAlreadyCommitted
+        );
+
+        require!(
+            escrow.oracle_commitments.len() < MAX_ORACLES_PER_ESCROW,
+            EscrowError::TooManyOracleCommitments
+        );
+
+        // First commitment starts the commit phase
+        if escrow.commit_phase_ends_at.is_none() {
+            escrow.commit_phase_ends_at = Some(clock.unix_timestamp + config.commit_duration);
+        }
+
+        // Verify within commit window
+        require!(
+            clock.unix_timestamp < escrow.commit_phase_ends_at.unwrap(),
+            EscrowError::CommitPhaseEnded
+        );
+
+        escrow.oracle_commitments.push(OracleCommitment {
+            oracle,
+            commitment_hash,
+            committed_at: clock.unix_timestamp,
+            revealed: false,
+        });
+
+        emit!(OracleScoreCommitted {
+            escrow: escrow.key(),
+            oracle,
+            commitment_count: escrow.oracle_commitments.len() as u8,
+        });
+
+        Ok(())
+    }
+
+    /// Oracle reveals their quality score (commit-reveal phase 2)
+    pub fn reveal_vote(
+        ctx: Context<RevealVote>,
+        quality_score: u8,
+        salt: [u8; 32],
+    ) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+        let config = &ctx.accounts.oracle_config;
+        let oracle = ctx.accounts.oracle.key();
+        let clock = Clock::get()?;
+
+        require!(
+            escrow.status == EscrowStatus::Disputed,
+            EscrowError::InvalidStatus
+        );
+        require!(quality_score <= 100, EscrowError::InvalidQualityScore);
+
+        // Verify commit phase has ended
+        let commit_ends = escrow
+            .commit_phase_ends_at
+            .ok_or(EscrowError::NoCommitments)?;
+        require!(
+            clock.unix_timestamp >= commit_ends,
+            EscrowError::CommitPhaseNotEnded
+        );
+
+        // Verify within reveal window
+        let reveal_ends = commit_ends + config.reveal_duration;
+        require!(
+            clock.unix_timestamp < reveal_ends,
+            EscrowError::RevealPhaseExpired
+        );
+
+        // Copy session_id before mutable borrow
+        let session_id = escrow.session_id;
+
+        // Find oracle's commitment
+        let commitment = escrow
+            .oracle_commitments
+            .iter_mut()
+            .find(|c| c.oracle == oracle)
+            .ok_or(EscrowError::NoCommitmentFound)?;
+
+        require!(!commitment.revealed, EscrowError::AlreadyRevealed);
+
+        // Verify hash matches
+        let expected_hash =
+            compute_commitment_hash(&session_id, &oracle, quality_score, &salt);
+        require!(
+            commitment.commitment_hash == expected_hash,
+            EscrowError::InvalidCommitmentHash
+        );
+
+        commitment.revealed = true;
+
+        // Check oracle hasn't already submitted
+        require!(
+            !escrow.oracle_submissions.iter().any(|s| s.oracle == oracle),
+            EscrowError::OracleAlreadySubmitted
+        );
+
+        escrow.oracle_submissions.push(OracleSubmission {
+            oracle,
+            quality_score,
+            submitted_at: clock.unix_timestamp,
+        });
+
+        emit!(OracleScoreRevealed {
+            escrow: escrow.key(),
+            oracle,
+            quality_score,
+            submission_count: escrow.oracle_submissions.len() as u8,
+        });
+
+        Ok(())
+    }
+
+    /// Finalize dispute resolution (permissionless once consensus reached)
+    pub fn finalize_dispute(ctx: Context<FinalizeDispute>) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+        let config = &ctx.accounts.oracle_config;
+        let clock = Clock::get()?;
+
+        require!(
+            escrow.status == EscrowStatus::Disputed,
+            EscrowError::InvalidStatus
+        );
+
+        // Verify minimum submissions
+        require!(
+            escrow.oracle_submissions.len() >= config.min_consensus as usize,
+            EscrowError::InsufficientOracleConsensus
+        );
+
+        // Verify reveal phase has ended (or we have enough oracles)
+        let commit_ends = escrow
+            .commit_phase_ends_at
+            .ok_or(EscrowError::NoCommitments)?;
+        let reveal_ends = commit_ends + config.reveal_duration;
+
+        // Either reveal phase ended, or we have all committed oracles revealed
+        let all_revealed = escrow
+            .oracle_commitments
+            .iter()
+            .all(|c| c.revealed);
+        require!(
+            clock.unix_timestamp >= reveal_ends || all_revealed,
+            EscrowError::RevealPhaseNotEnded
+        );
+
+        // Calculate median quality score
+        let mut scores: Vec<u8> = escrow
+            .oracle_submissions
+            .iter()
+            .map(|s| s.quality_score)
+            .collect();
+        scores.sort_unstable();
+
+        let median_score = if scores.len() % 2 == 0 {
+            let mid = scores.len() / 2;
+            ((scores[mid - 1] as u16 + scores[mid] as u16) / 2) as u8
+        } else {
+            scores[scores.len() / 2]
+        };
+
+        // Calculate refund percentage
+        let refund_pct = calculate_refund_percentage(median_score);
+
+        escrow.quality_score = Some(median_score);
+        escrow.refund_percentage = Some(refund_pct);
+        escrow.status = EscrowStatus::Resolved;
+
+        // Calculate fund distribution
+        let refund_amount = (escrow.amount as u128)
+            .checked_mul(refund_pct as u128)
+            .ok_or(EscrowError::ArithmeticOverflow)?
+            .checked_div(100)
+            .ok_or(EscrowError::ArithmeticOverflow)? as u64;
+        let payment_amount = escrow.amount.saturating_sub(refund_amount);
+
+        // Transfer funds
+        if refund_amount > 0 {
+            **escrow.to_account_info().try_borrow_mut_lamports()? -= refund_amount;
+            **ctx.accounts.user.try_borrow_mut_lamports()? += refund_amount;
+        }
+
+        if payment_amount > 0 {
+            **escrow.to_account_info().try_borrow_mut_lamports()? -= payment_amount;
+            **ctx.accounts.treasury.try_borrow_mut_lamports()? += payment_amount;
+        }
+
+        emit!(DisputeResolved {
+            escrow: escrow.key(),
+            quality_score: median_score,
+            refund_percentage: refund_pct,
+            refund_amount,
+            payment_amount,
+            oracle_count: escrow.oracle_submissions.len() as u8,
+        });
+
+        Ok(())
+    }
+
     /// Auto-release after timeout (7 days) - can be called by anyone
     pub fn timeout_release(ctx: Context<TimeoutRelease>) -> Result<()> {
         let escrow = &mut ctx.accounts.escrow;
         let clock = Clock::get()?;
 
-        require!(!escrow.released && !escrow.refunded, EscrowError::AlreadyProcessed);
-
-        let timeout = 7 * 24 * 60 * 60; // 7 days
         require!(
-            clock.unix_timestamp > escrow.created_at + timeout,
+            escrow.status == EscrowStatus::Active,
+            EscrowError::InvalidStatus
+        );
+
+        require!(
+            clock.unix_timestamp > escrow.created_at + ESCROW_TIMEOUT,
             EscrowError::NotTimedOut
         );
 
-        escrow.released = true;
+        escrow.status = EscrowStatus::Released;
 
         let amount = escrow.amount;
         **escrow.to_account_info().try_borrow_mut_lamports()? -= amount;
@@ -187,6 +564,57 @@ pub mod kamiyo_escrow {
 
         Ok(())
     }
+}
+
+// ============================================================================
+// Account Contexts
+// ============================================================================
+
+#[derive(Accounts)]
+pub struct InitializeOracleConfig<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    #[account(
+        init,
+        payer = admin,
+        space = 8 + OracleConfig::INIT_SPACE,
+        seeds = [b"oracle_config"],
+        bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RegisterOracle<'info> {
+    #[account(
+        constraint = admin.key() == oracle_config.admin @ EscrowError::Unauthorized
+    )]
+    pub admin: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"oracle_config"],
+        bump = oracle_config.bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
+}
+
+#[derive(Accounts)]
+pub struct RemoveOracle<'info> {
+    #[account(
+        constraint = admin.key() == oracle_config.admin @ EscrowError::Unauthorized
+    )]
+    pub admin: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"oracle_config"],
+        bump = oracle_config.bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
 }
 
 #[derive(Accounts)]
@@ -252,6 +680,71 @@ pub struct RateAndRelease<'info> {
 }
 
 #[derive(Accounts)]
+pub struct MarkDisputed<'info> {
+    #[account(
+        constraint = user.key() == escrow.user @ EscrowError::Unauthorized
+    )]
+    pub user: Signer<'info>,
+
+    #[account(mut)]
+    pub escrow: Account<'info, Escrow>,
+}
+
+#[derive(Accounts)]
+pub struct CommitVote<'info> {
+    pub oracle: Signer<'info>,
+
+    #[account(mut)]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_config"],
+        bump = oracle_config.bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
+}
+
+#[derive(Accounts)]
+pub struct RevealVote<'info> {
+    pub oracle: Signer<'info>,
+
+    #[account(mut)]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_config"],
+        bump = oracle_config.bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
+}
+
+#[derive(Accounts)]
+pub struct FinalizeDispute<'info> {
+    /// CHECK: User receives refund
+    #[account(
+        mut,
+        constraint = user.key() == escrow.user @ EscrowError::InvalidUser
+    )]
+    pub user: AccountInfo<'info>,
+
+    /// CHECK: Treasury receives payment
+    #[account(
+        mut,
+        constraint = treasury.key() == escrow.treasury @ EscrowError::InvalidTreasury
+    )]
+    pub treasury: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_config"],
+        bump = oracle_config.bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
+}
+
+#[derive(Accounts)]
 pub struct TimeoutRelease<'info> {
     /// CHECK: Treasury receives funds
     #[account(mut)]
@@ -264,6 +757,53 @@ pub struct TimeoutRelease<'info> {
     pub escrow: Account<'info, Escrow>,
 }
 
+// ============================================================================
+// Account Structures
+// ============================================================================
+
+#[account]
+#[derive(InitSpace)]
+pub struct OracleConfig {
+    pub admin: Pubkey,
+    pub min_consensus: u8,
+    pub max_score_deviation: u8,
+    pub commit_duration: i64,
+    pub reveal_duration: i64,
+    pub bump: u8,
+    #[max_len(50)]
+    pub registered_oracles: Vec<Pubkey>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum EscrowStatus {
+    Active,
+    Disputed,
+    Resolved,
+    Released,
+    Refunded,
+}
+
+impl Default for EscrowStatus {
+    fn default() -> Self {
+        EscrowStatus::Active
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+pub struct OracleCommitment {
+    pub oracle: Pubkey,
+    pub commitment_hash: [u8; 32],
+    pub committed_at: i64,
+    pub revealed: bool,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+pub struct OracleSubmission {
+    pub oracle: Pubkey,
+    pub quality_score: u8,
+    pub submitted_at: i64,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Escrow {
@@ -272,10 +812,42 @@ pub struct Escrow {
     pub session_id: [u8; 32],
     pub amount: u64,
     pub created_at: i64,
-    pub released: bool,
-    pub refunded: bool,
-    pub rating: u8,
     pub bump: u8,
+    pub status: EscrowStatus,
+    pub rating: Option<u8>,
+    pub disputed_at: Option<i64>,
+    pub commit_phase_ends_at: Option<i64>,
+    #[max_len(5)]
+    pub oracle_commitments: Vec<OracleCommitment>,
+    #[max_len(5)]
+    pub oracle_submissions: Vec<OracleSubmission>,
+    pub quality_score: Option<u8>,
+    pub refund_percentage: Option<u8>,
+}
+
+// ============================================================================
+// Events
+// ============================================================================
+
+#[event]
+pub struct OracleConfigInitialized {
+    pub admin: Pubkey,
+    pub min_consensus: u8,
+    pub max_score_deviation: u8,
+    pub commit_duration: i64,
+    pub reveal_duration: i64,
+}
+
+#[event]
+pub struct OracleRegistered {
+    pub oracle: Pubkey,
+    pub total_oracles: u8,
+}
+
+#[event]
+pub struct OracleRemoved {
+    pub oracle: Pubkey,
+    pub total_oracles: u8,
 }
 
 #[event]
@@ -309,26 +881,106 @@ pub struct EscrowTimeout {
     pub amount: u64,
 }
 
-#[error_code]
-pub enum EscrowError {
-    #[msg("Invalid rating (must be 1-5)")]
-    InvalidRating,
-    #[msg("Escrow already processed")]
-    AlreadyProcessed,
-    #[msg("Not timed out yet")]
-    NotTimedOut,
-    #[msg("Unauthorized")]
-    Unauthorized,
-    #[msg("Invalid treasury")]
-    InvalidTreasury,
-    #[msg("Invalid KAMIYO token mint")]
-    InvalidKamiyoMint,
-}
-
 #[event]
 pub struct KamiyoFeePaid {
     pub escrow: Pubkey,
     pub total_fee: u64,
     pub burned: u64,
     pub treasury: u64,
+}
+
+#[event]
+pub struct DisputeMarked {
+    pub escrow: Pubkey,
+    pub user: Pubkey,
+    pub disputed_at: i64,
+}
+
+#[event]
+pub struct OracleScoreCommitted {
+    pub escrow: Pubkey,
+    pub oracle: Pubkey,
+    pub commitment_count: u8,
+}
+
+#[event]
+pub struct OracleScoreRevealed {
+    pub escrow: Pubkey,
+    pub oracle: Pubkey,
+    pub quality_score: u8,
+    pub submission_count: u8,
+}
+
+#[event]
+pub struct DisputeResolved {
+    pub escrow: Pubkey,
+    pub quality_score: u8,
+    pub refund_percentage: u8,
+    pub refund_amount: u64,
+    pub payment_amount: u64,
+    pub oracle_count: u8,
+}
+
+// ============================================================================
+// Errors
+// ============================================================================
+
+#[error_code]
+pub enum EscrowError {
+    #[msg("Invalid rating (must be 1-5)")]
+    InvalidRating,
+    #[msg("Invalid escrow status for this operation")]
+    InvalidStatus,
+    #[msg("Escrow already processed")]
+    AlreadyProcessed,
+    #[msg("Not timed out yet")]
+    NotTimedOut,
+    #[msg("Escrow has timed out")]
+    EscrowTimedOut,
+    #[msg("Unauthorized")]
+    Unauthorized,
+    #[msg("Invalid treasury")]
+    InvalidTreasury,
+    #[msg("Invalid user")]
+    InvalidUser,
+    #[msg("Invalid KAMIYO token mint")]
+    InvalidKamiyoMint,
+    #[msg("Invalid consensus configuration")]
+    InvalidConsensusConfig,
+    #[msg("Invalid timing configuration")]
+    InvalidTimingConfig,
+    #[msg("Oracle not registered")]
+    OracleNotRegistered,
+    #[msg("Oracle already registered")]
+    OracleAlreadyRegistered,
+    #[msg("Too many oracles")]
+    TooManyOracles,
+    #[msg("Oracle already committed")]
+    OracleAlreadyCommitted,
+    #[msg("Too many oracle commitments")]
+    TooManyOracleCommitments,
+    #[msg("Commit phase has ended")]
+    CommitPhaseEnded,
+    #[msg("Commit phase has not ended yet")]
+    CommitPhaseNotEnded,
+    #[msg("No commitments found")]
+    NoCommitments,
+    #[msg("No commitment found for oracle")]
+    NoCommitmentFound,
+    #[msg("Oracle already revealed")]
+    AlreadyRevealed,
+    #[msg("Invalid commitment hash")]
+    InvalidCommitmentHash,
+    #[msg("Oracle already submitted")]
+    OracleAlreadySubmitted,
+    #[msg("Invalid quality score (must be 0-100)")]
+    InvalidQualityScore,
+    #[msg("Reveal phase has expired")]
+    RevealPhaseExpired,
+    #[msg("Reveal phase has not ended")]
+    RevealPhaseNotEnded,
+    #[msg("Insufficient oracle consensus")]
+    InsufficientOracleConsensus,
+    #[msg("Arithmetic overflow")]
+    ArithmeticOverflow,
 }

@@ -245,3 +245,99 @@ export const DEFAULT_DISPUTE_FEE_BPS = 100;       // 1%
 export const DEFAULT_DISPUTE_BASE_FEE = 10_000_000; // 0.01 SOL
 export const DEFAULT_IDENTITY_FEE = 5_000_000;    // 0.005 SOL
 export const MAX_FEE_BPS = 500;                   // 5% max
+
+// ============================================
+// Companion Escrow Program Types (kamiyo-escrow)
+// ============================================
+
+export const KAMIYO_ESCROW_PROGRAM_ID = new PublicKey(
+  "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
+);
+
+// Companion Escrow Status
+export enum CompanionEscrowStatus {
+  Active = 0,
+  Disputed = 1,
+  Resolved = 2,
+  Released = 3,
+  Refunded = 4,
+}
+
+// Companion Escrow Account
+export interface CompanionEscrow {
+  user: PublicKey;
+  treasury: PublicKey;
+  sessionId: Uint8Array;
+  amount: BN;
+  createdAt: BN;
+  bump: number;
+  status: CompanionEscrowStatus;
+  rating: number | null;
+  disputedAt: BN | null;
+  commitPhaseEndsAt: BN | null;
+  oracleCommitments: CompanionOracleCommitment[];
+  oracleSubmissions: CompanionOracleSubmission[];
+  qualityScore: number | null;
+  refundPercentage: number | null;
+}
+
+// Companion Oracle Commitment (for commit-reveal)
+export interface CompanionOracleCommitment {
+  oracle: PublicKey;
+  commitmentHash: Uint8Array;
+  committedAt: BN;
+  revealed: boolean;
+}
+
+// Companion Oracle Submission
+export interface CompanionOracleSubmission {
+  oracle: PublicKey;
+  qualityScore: number;
+  submittedAt: BN;
+}
+
+// Companion Escrow Oracle Config
+export interface CompanionEscrowOracleConfig {
+  admin: PublicKey;
+  registeredOracles: PublicKey[];
+  minConsensus: number;
+  maxScoreDeviation: number;
+  commitDuration: BN;
+  revealDuration: BN;
+  bump: number;
+}
+
+// Companion Escrow Constants
+export const COMPANION_ESCROW_COMMIT_PHASE_DURATION = 300; // 5 minutes
+export const COMPANION_ESCROW_REVEAL_PHASE_DURATION = 1800; // 30 minutes
+export const COMPANION_ESCROW_MIN_CONSENSUS_ORACLES = 3;
+export const COMPANION_ESCROW_MAX_SCORE_DEVIATION = 15;
+export const COMPANION_ESCROW_MAX_ORACLES_PER_ESCROW = 5;
+export const COMPANION_ESCROW_TIMEOUT = 7 * 24 * 60 * 60; // 7 days
+
+// Dispute Resolution Parameters
+export interface DisputeResolutionParams {
+  escrowPda: PublicKey;
+  evidenceHash?: Uint8Array;
+}
+
+// Commit Vote Parameters
+export interface CommitVoteParams {
+  escrowPda: PublicKey;
+  commitmentHash: Uint8Array;
+}
+
+// Reveal Vote Parameters
+export interface RevealVoteParams {
+  escrowPda: PublicKey;
+  qualityScore: number;
+  salt: Uint8Array;
+}
+
+// Dispute Consensus Result
+export interface DisputeConsensusResult {
+  medianScore: number;
+  validSubmissions: CompanionOracleSubmission[];
+  outliers: PublicKey[];
+  refundPercentage: number;
+}

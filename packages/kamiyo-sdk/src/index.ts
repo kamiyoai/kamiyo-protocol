@@ -10,6 +10,7 @@ export * from "./client";
 export * from "./agent";
 export * from "./agreement";
 export * from "./oracle";
+export * from "./escrow-dispute";
 export * from "./reputation";
 export * from "./utils";
 export * from "./events";
