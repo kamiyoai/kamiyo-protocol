@@ -1,7 +1,4 @@
-/**
- * MCP Routes
- * OAuth endpoints + Streamable HTTP transport
- */
+// MCP Routes - OAuth + Streamable HTTP transport
 
 import { Router, json, Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
@@ -12,55 +9,36 @@ import { KamiyoOAuthProvider } from './oauth/provider.js';
 import { createMCPServer, McpAuthInfo } from './server.js';
 import { createMcpSession, updateMcpSessionActivity, deleteMcpSession } from '../db.js';
 
-// Session storage for active MCP transports
 const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: Server }>();
 
-// Cleanup interval for stale sessions (every 5 minutes)
-setInterval(() => {
-  // Cleanup handled via explicit close or DB cleanup
-}, 5 * 60 * 1000);
-
-// Custom bearer auth middleware that uses mcpAuth instead of auth to avoid type conflicts
 function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: string) {
   return async (req: Request & { mcpAuth?: McpAuthInfo }, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      res.setHeader(
-        'WWW-Authenticate',
-        `Bearer resource_metadata="${resourceMetadataUrl}"`
-      );
-      res.status(401).json({ error: 'Missing or invalid Authorization header' });
+      res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}"`);
+      res.status(401).json({ error: 'missing auth header' });
       return;
     }
 
-    const token = authHeader.slice(7);
     try {
-      const authInfo = await provider.verifyAccessToken(token);
+      const authInfo = await provider.verifyAccessToken(authHeader.slice(7));
       req.mcpAuth = authInfo;
       next();
-    } catch (error: any) {
-      res.setHeader(
-        'WWW-Authenticate',
-        `Bearer resource_metadata="${resourceMetadataUrl}", error="invalid_token"`
-      );
-      res.status(401).json({ error: error.message || 'Invalid token' });
+    } catch (err: any) {
+      res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}", error="invalid_token"`);
+      res.status(401).json({ error: err.message || 'invalid token' });
     }
   };
 }
 
-/**
- * Create MCP routes with OAuth and Streamable HTTP transport
- */
 export function createMCPRoutes(): Router {
   const router = Router();
   const provider = new KamiyoOAuthProvider();
 
-  // Base URL from environment or default
   const baseUrlStr = process.env.API_BASE_URL || 'https://kamiyo-protocol-4c70.onrender.com';
   const baseUrl = new URL(baseUrlStr);
   const mcpUrl = new URL('/mcp', baseUrl);
 
-  // Mount OAuth routes (metadata, register, authorize, token, revoke)
   router.use(
     mcpAuthRouter({
       provider,
@@ -73,10 +51,8 @@ export function createMCPRoutes(): Router {
     })
   );
 
-  // MCP endpoint requires bearer auth
   const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(mcpUrl);
 
-  // Handle MCP requests (POST for messages, GET for SSE stream)
   router.all(
     '/mcp',
     json(),
@@ -84,7 +60,7 @@ export function createMCPRoutes(): Router {
     async (req: Request & { mcpAuth?: McpAuthInfo }, res: Response) => {
       const mcpAuth = req.mcpAuth;
       if (!mcpAuth) {
-        res.status(401).json({ error: 'Not authenticated' });
+        res.status(401).json({ error: 'not authenticated' });
         return;
       }
 
@@ -92,7 +68,6 @@ export function createMCPRoutes(): Router {
 
       try {
         if (req.method === 'DELETE') {
-          // Session termination
           if (sessionId && sessions.has(sessionId)) {
             const session = sessions.get(sessionId)!;
             await session.transport.close();
@@ -106,7 +81,6 @@ export function createMCPRoutes(): Router {
         let session = sessionId ? sessions.get(sessionId) : undefined;
 
         if (!session && req.method === 'POST') {
-          // New session - create transport and server
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
           });
@@ -119,47 +93,39 @@ export function createMCPRoutes(): Router {
             session = { transport, server };
             sessions.set(newSessionId, session);
 
-            // Record session in DB
             createMcpSession({
               session_id: newSessionId,
               client_id: mcpAuth.clientId,
               user_wallet: (mcpAuth.extra?.wallet as string) || null,
             });
 
-            // Cleanup on close
             transport.onclose = () => {
-              if (newSessionId) {
-                sessions.delete(newSessionId);
-                deleteMcpSession(newSessionId);
-              }
+              sessions.delete(newSessionId);
+              deleteMcpSession(newSessionId);
             };
           }
         }
 
         if (!session) {
           if (req.method === 'GET' && !sessionId) {
-            // GET without session - not allowed for SSE
-            res.status(400).json({ error: 'Mcp-Session-Id header required for SSE stream' });
+            res.status(400).json({ error: 'session id required for SSE' });
             return;
           }
-          res.status(404).json({ error: 'Session not found' });
+          res.status(404).json({ error: 'session not found' });
           return;
         }
 
-        // Update session activity
         if (session.transport.sessionId) {
           updateMcpSessionActivity(session.transport.sessionId);
         }
 
-        // Handle request through transport
-        // Cast to any to satisfy SDK's expected req.auth type
         const mcpReq = req as any;
         mcpReq.auth = mcpAuth;
         await session.transport.handleRequest(mcpReq, res, req.body);
-      } catch (error: any) {
-        console.error('[MCP] Request error:', error);
+      } catch (err: any) {
+        console.error('[MCP] error:', err);
         if (!res.headersSent) {
-          res.status(500).json({ error: error.message || 'Internal server error' });
+          res.status(500).json({ error: err.message || 'internal error' });
         }
       }
     }

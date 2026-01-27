@@ -1,7 +1,4 @@
-/**
- * OAuth Server Provider
- * Implements OAuthServerProvider interface from MCP SDK
- */
+// OAuth Server Provider
 
 import { createHash, randomBytes } from 'crypto';
 import type { Response } from 'express';
@@ -22,9 +19,9 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-const ACCESS_TOKEN_EXPIRY = 60 * 60; // 1 hour in seconds
-const REFRESH_TOKEN_EXPIRY = 30 * 24 * 60 * 60; // 30 days in seconds
-const AUTH_CODE_EXPIRY = 10 * 60; // 10 minutes in seconds
+const ACCESS_TOKEN_TTL = 60 * 60; // 1h
+const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30d
+const AUTH_CODE_TTL = 10 * 60; // 10m
 
 export class KamiyoOAuthProvider implements OAuthServerProvider {
   private _clientsStore: KamiyoOAuthClientsStore;
@@ -37,17 +34,11 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     return this._clientsStore;
   }
 
-  /**
-   * Begin authorization flow.
-   * For MCP, we auto-authorize and redirect back with code.
-   * In production, this could integrate with wallet signing.
-   */
   async authorize(
     client: OAuthClientInformationFull,
     params: AuthorizationParams,
     res: Response
   ): Promise<void> {
-    // Generate authorization code
     const code = randomBytes(32).toString('hex');
     const now = Math.floor(Date.now() / 1000);
 
@@ -58,12 +49,11 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       code_challenge: params.codeChallenge,
       code_challenge_method: 'S256',
       scopes: JSON.stringify(params.scopes || ['mcp:tools']),
-      user_wallet: null, // Could be populated from wallet auth
+      user_wallet: null,
       resource: params.resource?.toString() || null,
-      expires_at: now + AUTH_CODE_EXPIRY,
+      expires_at: now + AUTH_CODE_TTL,
     });
 
-    // Redirect back with code
     const redirectUrl = new URL(params.redirectUri);
     redirectUrl.searchParams.set('code', code);
     if (params.state) {
@@ -73,26 +63,16 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     res.redirect(redirectUrl.toString());
   }
 
-  /**
-   * Get code challenge for PKCE verification
-   */
   async challengeForAuthorizationCode(
     client: OAuthClientInformationFull,
     authorizationCode: string
   ): Promise<string> {
     const record = getMcpOAuthCode(authorizationCode);
-    if (!record) {
-      throw new Error('Invalid authorization code');
-    }
-    if (record.client_id !== client.client_id) {
-      throw new Error('Client mismatch');
-    }
+    if (!record) throw new Error('invalid code');
+    if (record.client_id !== client.client_id) throw new Error('client mismatch');
     return record.code_challenge;
   }
 
-  /**
-   * Exchange authorization code for tokens
-   */
   async exchangeAuthorizationCode(
     client: OAuthClientInformationFull,
     authorizationCode: string,
@@ -101,29 +81,22 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     resource?: URL
   ): Promise<OAuthTokens> {
     const record = getMcpOAuthCode(authorizationCode);
-    if (!record) {
-      throw new Error('Invalid authorization code');
-    }
-    if (record.client_id !== client.client_id) {
-      throw new Error('Client mismatch');
-    }
+    if (!record) throw new Error('invalid code');
+    if (record.client_id !== client.client_id) throw new Error('client mismatch');
 
     const now = Math.floor(Date.now() / 1000);
     if (record.expires_at < now) {
       deleteMcpOAuthCode(authorizationCode);
-      throw new Error('Authorization code expired');
+      throw new Error('code expired');
     }
 
-    // Delete used code (single use)
     deleteMcpOAuthCode(authorizationCode);
 
-    // Generate tokens
     const accessToken = randomBytes(32).toString('hex');
     const refreshToken = randomBytes(32).toString('hex');
     const scopes = JSON.parse(record.scopes) as string[];
     const resourceStr = resource?.toString() || record.resource;
 
-    // Store access token
     createMcpOAuthToken({
       token_hash: hashToken(accessToken),
       token_type: 'access',
@@ -131,10 +104,9 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       user_wallet: record.user_wallet,
       scopes: record.scopes,
       resource: resourceStr,
-      expires_at: now + ACCESS_TOKEN_EXPIRY,
+      expires_at: now + ACCESS_TOKEN_TTL,
     });
 
-    // Store refresh token
     createMcpOAuthToken({
       token_hash: hashToken(refreshToken),
       token_type: 'refresh',
@@ -142,21 +114,18 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       user_wallet: record.user_wallet,
       scopes: record.scopes,
       resource: resourceStr,
-      expires_at: now + REFRESH_TOKEN_EXPIRY,
+      expires_at: now + REFRESH_TOKEN_TTL,
     });
 
     return {
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: ACCESS_TOKEN_EXPIRY,
+      expires_in: ACCESS_TOKEN_TTL,
       refresh_token: refreshToken,
       scope: scopes.join(' '),
     };
   }
 
-  /**
-   * Exchange refresh token for new access token
-   */
   async exchangeRefreshToken(
     client: OAuthClientInformationFull,
     refreshToken: string,
@@ -166,26 +135,15 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     const tokenHash = hashToken(refreshToken);
     const record = getMcpOAuthToken(tokenHash);
 
-    if (!record || record.token_type !== 'refresh') {
-      throw new Error('Invalid refresh token');
-    }
-    if (record.client_id !== client.client_id) {
-      throw new Error('Client mismatch');
-    }
-    if (record.revoked) {
-      throw new Error('Token revoked');
-    }
+    if (!record || record.token_type !== 'refresh') throw new Error('invalid refresh token');
+    if (record.client_id !== client.client_id) throw new Error('client mismatch');
+    if (record.revoked) throw new Error('token revoked');
 
     const now = Math.floor(Date.now() / 1000);
-    if (record.expires_at < now) {
-      throw new Error('Refresh token expired');
-    }
+    if (record.expires_at < now) throw new Error('token expired');
 
-    // Use provided scopes or original scopes
     const tokenScopes = scopes || (JSON.parse(record.scopes) as string[]);
     const resourceStr = resource?.toString() || record.resource;
-
-    // Generate new access token
     const accessToken = randomBytes(32).toString('hex');
 
     createMcpOAuthToken({
@@ -195,35 +153,26 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
       user_wallet: record.user_wallet,
       scopes: JSON.stringify(tokenScopes),
       resource: resourceStr,
-      expires_at: now + ACCESS_TOKEN_EXPIRY,
+      expires_at: now + ACCESS_TOKEN_TTL,
     });
 
     return {
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: ACCESS_TOKEN_EXPIRY,
+      expires_in: ACCESS_TOKEN_TTL,
       scope: tokenScopes.join(' '),
     };
   }
 
-  /**
-   * Verify access token and return auth info
-   */
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     const tokenHash = hashToken(token);
     const record = getMcpOAuthToken(tokenHash);
 
-    if (!record || record.token_type !== 'access') {
-      throw new Error('Invalid access token');
-    }
-    if (record.revoked) {
-      throw new Error('Token revoked');
-    }
+    if (!record || record.token_type !== 'access') throw new Error('invalid token');
+    if (record.revoked) throw new Error('token revoked');
 
     const now = Math.floor(Date.now() / 1000);
-    if (record.expires_at < now) {
-      throw new Error('Token expired');
-    }
+    if (record.expires_at < now) throw new Error('token expired');
 
     return {
       token,
@@ -235,9 +184,6 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     };
   }
 
-  /**
-   * Revoke a token
-   */
   async revokeToken(
     client: OAuthClientInformationFull,
     request: OAuthTokenRevocationRequest
