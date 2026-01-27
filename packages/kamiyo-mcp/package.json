@@ -2,7 +2,7 @@
   "name": "@kamiyo/mcp-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "MCP server for KAMIYO agent identity and conflict resolution",
+  "description": "MCP server for KAMIYO Protocol escrow and dispute resolution on Solana",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {

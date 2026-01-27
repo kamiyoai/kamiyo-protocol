@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * KAMIYO Kamiyo MCP Server
+ * KAMIYO MCP Server
  *
- * Model Context Protocol server for Kamiyo Solana escrow program.
- * Provides AI agents (like Claude) with tools to create protected API payments,
- * assess quality, and file disputes with automatic refunds.
+ * MCP server for KAMIYO Solana escrow program. Provides tools to create
+ * protected API payments, assess quality, and file disputes.
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -151,8 +150,7 @@ const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: 'get_api_reputation',
-    description:
-      'Get reputation score and transaction history for an API provider. Helps decide whether to trust an API.',
+    description: 'Get reputation score and transaction history for an API provider.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -166,8 +164,7 @@ const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: 'call_api_with_escrow',
-    description:
-      'Unified workflow: Create escrow, call API, assess quality, and auto-dispute if needed. This is the recommended tool for protected API calls.',
+    description: 'Create escrow, call API, assess quality, and auto-dispute if needed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -262,7 +259,7 @@ class KamiyoMCPServer {
     // Initialize MCP server
     this.server = new Server(
       {
-        name: 'kamiyo-kamiyo',
+        name: 'kamiyo',
         version: '1.0.0',
       },
       {
@@ -439,7 +436,7 @@ class KamiyoMCPServer {
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('KAMIYO Kamiyo MCP Server running on stdio');
+    console.error('KAMIYO MCP Server running on stdio');
     console.error(`Agent wallet: ${this.solanaClient.publicKey.toBase58()}`);
   }
 }
