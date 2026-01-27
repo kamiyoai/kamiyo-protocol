@@ -143,6 +143,7 @@ import { isGrokAvailable } from './trend-engine';
 import { isRateLimited, recordRateLimit, recordSuccess, recordFailure, canWrite, waitForWrite, recordWrite, withRateLimit, isCircuitOpen } from './rate-limiter';
 import { startApiServer } from './api';
 import { closeDatabase } from './db';
+import { shutdownMcpSessions } from './mcp/index.js';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './swarmteams-signal';
@@ -1498,6 +1499,10 @@ async function main(): Promise<void> {
     stopChallengeCleanup();
     stopRateLimitCleanup();
     stopBurnWorker();
+
+    // Close MCP sessions gracefully
+    await shutdownMcpSessions();
+
     logger.info('Background tasks stopped');
 
     // Give in-flight requests time to complete

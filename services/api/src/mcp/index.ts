@@ -92,6 +92,31 @@ export function stopMcpCleanup(): void {
   }
 }
 
+export async function shutdownMcpSessions(): Promise<void> {
+  stopMcpCleanup();
+
+  const sessionCount = sessions.size;
+  if (sessionCount === 0) {
+    return;
+  }
+
+  logger.info('Closing MCP sessions', { count: sessionCount });
+
+  const closePromises: Promise<void>[] = [];
+  for (const [sessionId, entry] of sessions) {
+    closePromises.push(
+      entry.transport.close().catch((err) => {
+        logger.debug('Error closing MCP session', { sessionId, error: String(err) });
+      })
+    );
+    deleteMcpSession(sessionId);
+  }
+
+  await Promise.all(closePromises);
+  sessions.clear();
+  logger.info('MCP sessions closed');
+}
+
 // Auto-start cleanup
 startMcpCleanup();
 
