@@ -12,6 +12,7 @@ import {
   fileDispute,
   getApiReputation,
 } from './solana';
+import { mcpToolCallsTotal } from '../metrics.js';
 
 export type McpAuthInfo = AuthInfo;
 
@@ -428,6 +429,7 @@ export function createMCPServer(auth: AuthInfo): Server {
 
     const toolDef = TOOL_DEFINITIONS.find((t) => t.name === name);
     if (!toolDef) {
+      mcpToolCallsTotal.inc({ tool: name, status: 'unknown' });
       return {
         content: [{ type: 'text', text: JSON.stringify({ success: false, error: `unknown tool: ${name}` }) }],
       };
@@ -435,6 +437,7 @@ export function createMCPServer(auth: AuthInfo): Server {
 
     const validationError = validateArgs(args, toolDef.inputSchema);
     if (validationError) {
+      mcpToolCallsTotal.inc({ tool: name, status: 'invalid' });
       return {
         content: [{ type: 'text', text: JSON.stringify({ success: false, error: validationError }) }],
       };
@@ -442,10 +445,12 @@ export function createMCPServer(auth: AuthInfo): Server {
 
     try {
       const result = await handleTool(name, args as Record<string, unknown>);
+      mcpToolCallsTotal.inc({ tool: name, status: 'success' });
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
       };
     } catch {
+      mcpToolCallsTotal.inc({ tool: name, status: 'error' });
       return {
         content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'tool execution failed' }) }],
       };
