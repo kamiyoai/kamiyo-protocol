@@ -163,7 +163,6 @@ router.post('/verify', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/credits/history?wallet=<address> - Get deposit and usage history
 router.get('/history', (req: Request, res: Response) => {
   const wallet = req.query.wallet as string;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
@@ -197,7 +196,6 @@ router.get('/history', (req: Request, res: Response) => {
   });
 });
 
-// GET /api/credits/stats - Admin stats (optional auth can be added)
 router.get('/stats', (_req: Request, res: Response) => {
   const stats = getCreditStats();
 
