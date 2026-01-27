@@ -23,22 +23,25 @@
  * });
  * ```
  *
- * @example x402 API tools (cross-chain USDC)
+ * @example x402 API tools (Solana USDC)
  * ```typescript
- * import { createX402Tools } from '@kamiyo/langchain';
+ * import { createX402Tools, createX402ToolsConfig } from '@kamiyo/langchain';
+ * import { Keypair, Connection } from '@solana/web3.js';
  *
+ * const wallet = Keypair.fromSecretKey(keyBytes);
+ * const connection = new Connection('https://api.mainnet-beta.solana.com');
  * const x402Tools = createX402Tools({
- *   walletAddress: '0x...',
+ *   wallet,
+ *   connection,
  *   maxPriceUsd: 0.10,
- *   preferredNetwork: 'base',
  * });
  *
- * // Agent can now fetch x402-gated APIs with automatic payment
+ * // Agent can now fetch x402-gated APIs with signed payments
  * ```
  */
 
 export { createKamiyoTools, createKamiyoToolsFromEnv } from "./tools";
 export type { KamiyoToolsConfig } from "./tools";
 
-export { createX402Tools, createX402ToolsFromEnv } from "./x402-tools";
+export { createX402Tools, createX402ToolsConfig, createX402ToolsFromEnv } from "./x402-tools";
 export type { X402ToolsConfig } from "./x402-tools";

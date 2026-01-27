@@ -8,5 +8,12 @@
  * @see https://x402.org
  */
 
-export { x402Tools, createX402Tools } from './tools.js';
-export type { X402ToolsConfig, X402FetchResult, X402PricingResult } from './tools.js';
+export { createX402Tools, createX402ToolsConfig } from './tools.js';
+export type {
+  X402ToolsConfig,
+  LegacyX402ToolsConfig,
+  X402FetchResult,
+  X402PricingResult,
+  PaymentRequirement,
+  X402Response,
+} from './tools.js';
