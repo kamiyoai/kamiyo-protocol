@@ -107,7 +107,15 @@ async function initClient() {
     transport: http(RPC_URL),
   });
 
-  if (lastBlock === 0) {
+  // Allow backfill via env var (set once, then remove)
+  const backfillFrom = process.env.BACKFILL_FROM_BLOCK;
+  if (backfillFrom && lastBlock > Number(backfillFrom)) {
+    lastBlock = Number(backfillFrom);
+    console.log('Backfilling from block:', lastBlock);
+    if (pool) {
+      await pool.query('UPDATE sync_state SET last_block = $1 WHERE id = 1', [lastBlock]);
+    }
+  } else if (lastBlock === 0) {
     lastBlock = Number(await client.getBlockNumber()) - 100;
     console.log('Starting from block:', lastBlock);
   }
