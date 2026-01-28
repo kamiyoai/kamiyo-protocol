@@ -1,7 +1,5 @@
 /**
- * Dispute Monitor - Event monitoring for oracle dispute resolution
- *
- * Monitors kamiyo-escrow program for dispute events and notifies oracle nodes.
+ * Monitors kamiyo-escrow disputes and notifies oracle nodes.
  */
 
 import {
@@ -20,9 +18,6 @@ import {
   COMPANION_ESCROW_REVEAL_PHASE_DURATION,
 } from "./types";
 
-/**
- * Dispute event types
- */
 export enum DisputeEventType {
   DisputeFiled = "dispute_filed",
   CommitmentReceived = "commitment_received",
@@ -32,9 +27,6 @@ export enum DisputeEventType {
   RevealPhaseEnding = "reveal_phase_ending",
 }
 
-/**
- * Dispute event
- */
 export interface DisputeEvent {
   type: DisputeEventType;
   escrowPda: PublicKey;
@@ -43,14 +35,8 @@ export interface DisputeEvent {
   details?: Record<string, unknown>;
 }
 
-/**
- * Event listener callback
- */
 export type DisputeEventListener = (event: DisputeEvent) => void | Promise<void>;
 
-/**
- * Monitor configuration
- */
 export interface DisputeMonitorConfig {
   /** Program ID to monitor */
   programId?: PublicKey;
@@ -68,19 +54,10 @@ export interface DisputeMonitorConfig {
   maxReconnectAttempts?: number;
 }
 
-/**
- * Escrow account discriminator (first 8 bytes of sha256("account:Escrow"))
- */
 const ESCROW_DISCRIMINATOR = Buffer.from([
   31, 213, 123, 187, 186, 22, 218, 155,
 ]);
 
-/**
- * Dispute Monitor - Watches for dispute events
- */
-/**
- * Queue item for sequential processing
- */
 interface QueuedAccountChange {
   accountId: PublicKey;
   data: Buffer;

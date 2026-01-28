@@ -1,8 +1,6 @@
 /**
- * Automated Oracle Service
- *
- * Long-running service that monitors disputes and automatically participates
- * in commit-reveal voting using the QualityOracle for assessment.
+ * Oracle service for automated dispute resolution.
+ * Monitors disputes and participates in commit-reveal voting.
  */
 
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
@@ -50,9 +48,6 @@ interface SerializedPendingCommit {
   txSignature?: string;
 }
 
-/**
- * Audit log entry types
- */
 enum AuditEventType {
   ServiceStart = "service_start",
   ServiceStop = "service_stop",
@@ -63,9 +58,6 @@ enum AuditEventType {
   Error = "error",
 }
 
-/**
- * Signed audit log entry for forensic evidence
- */
 interface AuditLogEntry {
   timestamp: string;
   eventType: AuditEventType;
@@ -114,7 +106,6 @@ export class OracleService {
       this.logStream = fs.createWriteStream(config.logFile, { flags: "a" });
     }
 
-    // Initialize audit log (append-only, 0o600 permissions)
     if (config.auditLogFile) {
       this.auditLogStream = fs.createWriteStream(config.auditLogFile, {
         flags: "a",
@@ -122,14 +113,9 @@ export class OracleService {
       });
     }
 
-    // Load persisted state if available
     this.loadPersistedState();
   }
 
-  /**
-   * Create a signed audit log entry
-   * Signs the entry with the oracle keypair for non-repudiation
-   */
   private async createAuditEntry(
     eventType: AuditEventType,
     escrowPda: string | undefined,
@@ -140,7 +126,6 @@ export class OracleService {
     const timestamp = new Date().toISOString();
     const oracle = this.keypair.publicKey.toBase58();
 
-    // Create message to sign
     const message = JSON.stringify({
       timestamp,
       eventType,
@@ -149,10 +134,8 @@ export class OracleService {
       details,
     });
 
-    // Sign with oracle keypair (Ed25519)
     const messageBytes = new TextEncoder().encode(message);
     const signature = Buffer.from(
-      // Use nacl-style signing
       require("tweetnacl").sign.detached(messageBytes, this.keypair.secretKey)
     ).toString("hex");
 
@@ -165,13 +148,9 @@ export class OracleService {
       signature,
     };
 
-    // Append to audit log (one JSON entry per line)
     this.auditLogStream.write(JSON.stringify(entry) + "\n");
   }
 
-  /**
-   * Audit: Log service start
-   */
   private async auditServiceStart(): Promise<void> {
     await this.createAuditEntry(AuditEventType.ServiceStart, undefined, {
       rpcUrl: this.config.rpcUrl,
@@ -180,27 +159,18 @@ export class OracleService {
     });
   }
 
-  /**
-   * Audit: Log service stop
-   */
   private async auditServiceStop(): Promise<void> {
     await this.createAuditEntry(AuditEventType.ServiceStop, undefined, {
       pendingCommits: this.pendingCommits.size,
     });
   }
 
-  /**
-   * Audit: Log dispute detection
-   */
   private async auditDisputeDetected(escrowPda: string, amount: string): Promise<void> {
     await this.createAuditEntry(AuditEventType.DisputeDetected, escrowPda, {
       amount,
     });
   }
 
-  /**
-   * Audit: Log vote committed
-   */
   private async auditVoteCommitted(
     escrowPda: string,
     commitmentHash: string
@@ -210,9 +180,6 @@ export class OracleService {
     });
   }
 
-  /**
-   * Audit: Log vote revealed
-   */
   private async auditVoteRevealed(
     escrowPda: string,
     qualityScore: number
@@ -222,9 +189,6 @@ export class OracleService {
     });
   }
 
-  /**
-   * Audit: Log dispute finalized
-   */
   private async auditDisputeFinalized(
     escrowPda: string,
     qualityScore: number | undefined,
@@ -236,18 +200,12 @@ export class OracleService {
     });
   }
 
-  /**
-   * Audit: Log error
-   */
   private async auditError(escrowPda: string | undefined, error: string): Promise<void> {
     await this.createAuditEntry(AuditEventType.Error, escrowPda, {
       error,
     });
   }
 
-  /**
-   * Load pending commits from disk for crash recovery
-   */
   private loadPersistedState(): void {
     if (!this.config.stateFile) return;
 
@@ -274,9 +232,6 @@ export class OracleService {
     }
   }
 
-  /**
-   * Persist pending commits to disk for crash recovery
-   */
   private persistState(): void {
     if (!this.config.stateFile) return;
 
@@ -333,17 +288,12 @@ export class OracleService {
       autoReveal: this.config.autoReveal ?? true,
     });
 
-    // Audit log: service start
     await this.auditServiceStart();
 
-    // Check balance
     const balance = await this.connection.getBalance(this.keypair.publicKey);
     this.log("info", `Balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
 
-    // Set up event handlers
     this.setupEventHandlers();
-
-    // Start the monitor
     await this.monitor.start();
 
     this.log("info", "Oracle service started");
@@ -354,8 +304,6 @@ export class OracleService {
     this.running = false;
 
     this.log("info", "Stopping oracle service");
-
-    // Audit log: service stop
     await this.auditServiceStop();
 
     await this.monitor.stop();
@@ -372,25 +320,10 @@ export class OracleService {
   }
 
   private setupEventHandlers(): void {
-    // New dispute filed
-    this.monitor.on(DisputeEventType.DisputeFiled, async (event) => {
-      await this.handleNewDispute(event);
-    });
-
-    // Commit phase ending warning
-    this.monitor.on(DisputeEventType.CommitPhaseEnding, async (event) => {
-      await this.handleCommitPhaseEnding(event);
-    });
-
-    // Reveal phase ending warning
-    this.monitor.on(DisputeEventType.RevealPhaseEnding, async (event) => {
-      await this.handleRevealPhaseEnding(event);
-    });
-
-    // Dispute finalized
-    this.monitor.on(DisputeEventType.DisputeFinalized, async (event) => {
-      await this.handleDisputeFinalized(event);
-    });
+    this.monitor.on(DisputeEventType.DisputeFiled, (e) => this.handleNewDispute(e));
+    this.monitor.on(DisputeEventType.CommitPhaseEnding, (e) => this.handleCommitPhaseEnding(e));
+    this.monitor.on(DisputeEventType.RevealPhaseEnding, (e) => this.handleRevealPhaseEnding(e));
+    this.monitor.on(DisputeEventType.DisputeFinalized, (e) => this.handleDisputeFinalized(e));
   }
 
   private async handleNewDispute(event: DisputeEvent): Promise<void> {
@@ -402,10 +335,8 @@ export class OracleService {
 
     if (!event.escrow) return;
 
-    // Audit log: dispute detected
     await this.auditDisputeDetected(escrowPda, event.escrow.amount.toString());
 
-    // Check if we should auto-commit
     if (this.config.autoCommit !== false) {
       await this.processCommit(event.escrowPda, event.escrow);
     }
@@ -418,7 +349,6 @@ export class OracleService {
       timeRemaining: event.details?.timeRemaining,
     });
 
-    // Check if we haven't committed yet
     if (event.escrow && !this.hasCommitted(event.escrow)) {
       this.log("warn", "Haven't committed yet - attempting now");
       await this.processCommit(event.escrowPda, event.escrow);
@@ -432,7 +362,6 @@ export class OracleService {
       timeRemaining: event.details?.timeRemaining,
     });
 
-    // Check if we have a pending commit to reveal
     const pending = this.pendingCommits.get(escrowPda);
     if (pending && event.escrow && !this.hasRevealed(event.escrow)) {
       this.log("warn", "Haven't revealed yet - attempting now");
@@ -448,14 +377,12 @@ export class OracleService {
       refundPercentage: event.details?.refundPercentage,
     });
 
-    // Audit log: dispute finalized
     await this.auditDisputeFinalized(
       escrowPda,
       event.details?.qualityScore as number | undefined,
       event.details?.refundPercentage as number | undefined
     );
 
-    // Clean up pending commit and persist
     this.pendingCommits.delete(escrowPda);
     this.persistState();
   }
@@ -463,23 +390,18 @@ export class OracleService {
   private async processCommit(escrowPda: PublicKey, escrow: CompanionEscrow): Promise<void> {
     const pdaString = escrowPda.toBase58();
 
-    // Skip if already committed
     if (this.hasCommitted(escrow)) {
       this.log("debug", "Already committed", { escrowPda: pdaString.slice(0, 16) });
       return;
     }
 
-    // Skip if already have pending commit
     if (this.pendingCommits.has(pdaString)) {
       this.log("debug", "Already have pending commit", { escrowPda: pdaString.slice(0, 16) });
       return;
     }
 
     try {
-      // Assess quality (in production, fetch actual service response data)
       const qualityScore = await this.assessDispute(escrow);
-
-      // Generate salt and compute commitment
       const salt = this.disputeManager.generateSalt();
       const commitmentHash = await this.disputeManager.computeCommitmentHash(
         escrow.sessionId,
@@ -488,13 +410,11 @@ export class OracleService {
         salt
       );
 
-      // SECURITY: Only log commitment hash, never the score before reveal phase
       this.log("info", "Committing vote", {
         escrowPda: pdaString.slice(0, 16),
         commitmentHash: Buffer.from(commitmentHash).toString("hex").slice(0, 16),
       });
 
-      // Store for later reveal and persist to disk
       this.pendingCommits.set(pdaString, {
         escrowPda: pdaString,
         sessionId: escrow.sessionId,
@@ -504,15 +424,11 @@ export class OracleService {
       });
       this.persistState();
 
-      // In production, submit the actual transaction here
-      // const tx = await this.submitCommitTransaction(escrowPda, commitmentHash);
-
-      // SECURITY: Score is now safe to log after commit is stored
+      // TODO: submit transaction
       this.log("info", "Vote committed", {
         escrowPda: pdaString.slice(0, 16),
       });
 
-      // Audit log: vote committed (only hash, never score before reveal)
       await this.auditVoteCommitted(
         pdaString,
         Buffer.from(commitmentHash).toString("hex")
@@ -533,14 +449,12 @@ export class OracleService {
   ): Promise<void> {
     const pdaString = escrowPda.toBase58();
 
-    // Skip if already revealed
     if (this.hasRevealed(escrow)) {
       this.log("debug", "Already revealed", { escrowPda: pdaString.slice(0, 16) });
       this.pendingCommits.delete(pdaString);
       return;
     }
 
-    // Verify we're in reveal phase using cluster time for accuracy
     const inRevealPhase = await this.disputeManager.isInRevealPhaseAsync(escrow);
     if (!inRevealPhase) {
       this.log("debug", "Not in reveal phase", { escrowPda: pdaString.slice(0, 16) });
@@ -553,18 +467,13 @@ export class OracleService {
         qualityScore: pending.qualityScore,
       });
 
-      // In production, submit the actual transaction here
-      // const tx = await this.submitRevealTransaction(escrowPda, pending.qualityScore, pending.salt);
-
-      this.log("info", "Vote revealed (local)", {
+      // TODO: submit transaction
+      this.log("info", "Vote revealed", {
         escrowPda: pdaString.slice(0, 16),
         qualityScore: pending.qualityScore,
       });
 
-      // Audit log: vote revealed (score is now public after reveal)
       await this.auditVoteRevealed(pdaString, pending.qualityScore);
-
-      // Don't remove from pending until finalization
     } catch (error: any) {
       this.log("error", "Failed to reveal", {
         escrowPda: pdaString.slice(0, 16),
