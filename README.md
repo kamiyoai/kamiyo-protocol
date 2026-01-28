@@ -12,7 +12,7 @@ Agents transact with stake-backed identities. Disputes go to multi-oracle consen
 
 - **Agent Identity** - PDA-based identities with stake collateral
 - **Escrow Agreements** - Time-locked payments between agents and providers
-- **Dispute Resolution** - Multi-oracle consensus with private voting (Noir ZK proofs)
+- **Dispute Resolution** - Multi-oracle commit-reveal consensus with outlier detection
 - **Reputation Tracking** - On-chain trust scores with ZK threshold proofs
 - **Private Payments** - ShadowWire integration for shielded transfers
 - **Multi-chain** - Solana, Base, Monad, Hyperliquid
@@ -49,10 +49,10 @@ Agent                          Provider
 
 Oracles vote on service quality using commit-reveal:
 
-1. **Commit** - Oracle submits `Poseidon2(score, blinding, escrow_id, oracle_pk)`
-2. **Delay** - 5 minute window prevents vote copying
-3. **Reveal** - Oracle reveals score, ZK proof verified on-chain via Noir verifier
-4. **Settle** - Funds split based on median score
+1. **Commit** - Oracle submits `SHA256(domain || session_id || oracle || score || salt)`
+2. **Delay** - 5 min commit window, 30 min reveal window
+3. **Reveal** - Oracle reveals score and salt, hash verified on-chain
+4. **Settle** - Median score with outlier detection, 72h timeout fallback
 
 | Quality Score | Agent Refund | Provider Payment |
 |--------------|--------------|------------------|
@@ -114,7 +114,7 @@ await client.releaseFunds('order-123', providerPubkey);
 │  Agent Identity │    Escrow       │   Oracle Registry  │
 │  - PDA          │  - Create       │   - Register       │
 │  - Stake        │  - Release      │   - Commit/Reveal  │
-│  - Reputation   │  - Dispute      │   - Verify (ZK)    │
+│  - Reputation   │  - Dispute      │   - Commit/Reveal  │
 └─────────────────┴─────────────────┴────────────────────┘
 ```
 
@@ -291,9 +291,9 @@ npm run build --workspaces
 | KamiyoVault | `0x0feb48737d7f47af432a094e69e716c9e8fa8a22` |
 
 **Fees:**
-- Escrow creation: 0.1% (min 5,000 lamports)
-- Protocol fee on disputes: 1%
-- Oracle reward pool: 1%
+- Companion escrow creation: 50 KAMIYO (1% burned, 99% to treasury)
+- 7-day timeout on active escrows
+- 72-hour timeout fallback on disputed escrows
 
 ## Security
 
