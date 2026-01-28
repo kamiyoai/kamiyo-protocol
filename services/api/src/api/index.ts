@@ -20,6 +20,7 @@ import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import linkWalletRoutes from './routes/link-wallet';
 import swarmTeamRoutes from './routes/swarm-teams';
 import blindfoldCallbackRoutes from './routes/blindfold-callback';
+import buybackRoutes from './routes/buyback';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 
@@ -178,6 +179,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Blindfold funding callback (public - receives redirects from Blindfold)
   app.use('/api/fund/callback', blindfoldCallbackLimiter, perTeamCallbackLimiter, blindfoldCallbackRoutes);
+
+  // Buyback stats and admin controls (public read, admin write)
+  app.use('/api/buyback', buybackRoutes);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

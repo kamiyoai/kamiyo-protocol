@@ -13,6 +13,7 @@ const FETCH_TIMEOUT_MS = 30_000;
 
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
+export const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 
 function isValidQuote(data: unknown): data is SwapQuote {
   if (!data || typeof data !== 'object') return false;
@@ -119,6 +120,10 @@ export class JupiterSwap {
 
   toUsdc(inputMint: string, amount: number): Promise<SwapResult> {
     return this.swap(inputMint, USDC_MINT, amount);
+  }
+
+  toKamiyo(inputMint: string, amount: number): Promise<SwapResult> {
+    return this.swap(inputMint, KAMIYO_MINT, amount);
   }
 }
 
