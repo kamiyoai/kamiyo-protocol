@@ -127,3 +127,61 @@ export const mcpOAuthTotal = new Counter({
   labelNames: ['operation', 'status'] as const,
   registers: [registry],
 });
+
+// Buyback metrics
+export const buybackExecutionTotal = new Counter({
+  name: 'buyback_execution_total',
+  help: 'Total buyback executions',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
+export const buybackSolSpentTotal = new Counter({
+  name: 'buyback_sol_spent_lamports_total',
+  help: 'Total SOL spent on buybacks (lamports)',
+  registers: [registry],
+});
+
+export const buybackKamiyoPurchasedTotal = new Counter({
+  name: 'buyback_kamiyo_purchased_total',
+  help: 'Total KAMIYO purchased via buybacks',
+  registers: [registry],
+});
+
+export const buybackKamiyoBurnedTotal = new Counter({
+  name: 'buyback_kamiyo_burned_total',
+  help: 'Total KAMIYO burned via buybacks',
+  registers: [registry],
+});
+
+export const buybackKamiyoStakingTotal = new Counter({
+  name: 'buyback_kamiyo_staking_total',
+  help: 'Total KAMIYO sent to staking rewards',
+  registers: [registry],
+});
+
+export const buybackExecutionDuration = new Histogram({
+  name: 'buyback_execution_duration_seconds',
+  help: 'Buyback execution duration in seconds',
+  buckets: [1, 5, 10, 30, 60, 120],
+  registers: [registry],
+});
+
+export const buybackTreasuryBalance = new Gauge({
+  name: 'buyback_treasury_balance_lamports',
+  help: 'Current treasury balance in lamports',
+  registers: [registry],
+});
+
+export const buybackLastExecution = new Gauge({
+  name: 'buyback_last_execution_timestamp',
+  help: 'Timestamp of last buyback execution',
+  registers: [registry],
+});
+
+export const buybackPriceImpact = new Histogram({
+  name: 'buyback_price_impact_bps',
+  help: 'Price impact in basis points',
+  buckets: [10, 25, 50, 100, 150, 200, 300, 500],
+  registers: [registry],
+});

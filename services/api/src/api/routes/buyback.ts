@@ -1,12 +1,28 @@
 // Buyback API routes - stats, config, manual trigger
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { logger } from '../../logger';
 import { getBuybackService } from '../../buyback-service';
 
 const router = Router();
 
 const ADMIN_SECRET = process.env.BUYBACK_ADMIN_SECRET || '';
+
+// Rate limiter for admin endpoints - 10 requests per minute
+const adminRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many admin requests. Please try again later.',
+    },
+  },
+  keyGenerator: () => 'buyback-admin', // Single bucket for all admin requests
+});
 
 function requireAdmin(req: Request, res: Response): boolean {
   if (!ADMIN_SECRET) {
@@ -121,7 +137,7 @@ router.get('/balance', async (_req: Request, res: Response) => {
 });
 
 // POST /buyback/trigger - Manual trigger (admin only)
-router.post('/trigger', async (req: Request, res: Response) => {
+router.post('/trigger', adminRateLimiter, async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
   try {
@@ -146,7 +162,7 @@ router.post('/trigger', async (req: Request, res: Response) => {
 });
 
 // POST /buyback/pause - Pause buybacks (admin only)
-router.post('/pause', (req: Request, res: Response) => {
+router.post('/pause', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
   try {
@@ -160,7 +176,7 @@ router.post('/pause', (req: Request, res: Response) => {
 });
 
 // POST /buyback/resume - Resume buybacks (admin only)
-router.post('/resume', (req: Request, res: Response) => {
+router.post('/resume', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
   try {
@@ -174,7 +190,7 @@ router.post('/resume', (req: Request, res: Response) => {
 });
 
 // PATCH /buyback/config - Update configuration (admin only)
-router.patch('/config', (req: Request, res: Response) => {
+router.patch('/config', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
   try {
@@ -192,6 +208,63 @@ router.patch('/config', (req: Request, res: Response) => {
   } catch (err) {
     logger.error('Failed to update buyback config', { error: String(err) });
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// GET /buyback/failed - List failed records (admin only)
+router.get('/failed', adminRateLimiter, (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const service = getBuybackService();
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+    const records = service.getFailedRecords(limit);
+
+    res.json({
+      records: records.map(r => ({
+        id: r.id,
+        solSpent: r.sol_spent,
+        solSpentFormatted: `${(r.sol_spent / 1e9).toFixed(4)} SOL`,
+        status: r.status,
+        error: r.error,
+        createdAt: r.created_at,
+      })),
+    });
+  } catch (err) {
+    logger.error('Failed to get failed buybacks', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get failed records' });
+  }
+});
+
+// POST /buyback/retry/:id - Retry a failed buyback (admin only)
+router.post('/retry/:id', adminRateLimiter, async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const service = getBuybackService();
+    const recordId = parseInt(req.params.id, 10);
+
+    if (isNaN(recordId)) {
+      res.status(400).json({ error: 'Invalid record ID' });
+      return;
+    }
+
+    const result = await service.retryRecord(recordId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        record: result.record,
+      });
+    } else {
+      res.json({
+        success: false,
+        reason: result.reason,
+      });
+    }
+  } catch (err) {
+    logger.error('Buyback retry failed', { error: String(err) });
+    res.status(500).json({ error: 'Retry failed' });
   }
 });
 
