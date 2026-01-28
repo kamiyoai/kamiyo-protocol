@@ -24,6 +24,12 @@ pub const ESCROW_TIMEOUT: i64 = 7 * 24 * 60 * 60; // 7 days
 pub const DISPUTE_TIMEOUT: i64 = 3 * 24 * 60 * 60; // 72 hours for disputed escrows
 pub const MAX_ORACLES_PER_ESCROW: usize = 5;
 
+/// Minimum stake required for oracles (100,000 KAMIYO = 100,000 * 10^6)
+pub const MIN_ORACLE_STAKE: u64 = 100_000_000_000;
+
+/// Kamiyo staking program ID
+pub const KAMIYO_STAKING_PROGRAM_ID: Pubkey = pubkey!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
+
 // Quality-based refund thresholds
 pub const QUALITY_FULL_REFUND_THRESHOLD: u8 = 50; // 0-49 = 100% refund
 pub const QUALITY_HIGH_REFUND_THRESHOLD: u8 = 65; // 50-64 = 75% refund
@@ -52,6 +58,46 @@ fn calculate_refund_percentage(quality_score: u8) -> u8 {
 
 /// Domain separator for commitment hash (collision prevention)
 const COMMITMENT_DOMAIN: &[u8] = b"kamiyo-escrow-v1:commit";
+
+/// Verify oracle has minimum stake via stake position PDA
+/// Returns true if oracle has sufficient stake, false otherwise
+fn verify_oracle_stake(stake_position_info: &AccountInfo, oracle: &Pubkey) -> Result<bool> {
+    // Stake position PDA: seeds = ["stake_position", owner]
+    let (expected_pda, _bump) = Pubkey::find_program_address(
+        &[b"stake_position", oracle.as_ref()],
+        &KAMIYO_STAKING_PROGRAM_ID,
+    );
+
+    // Verify the account is the correct PDA
+    if stake_position_info.key() != expected_pda {
+        return Ok(false);
+    }
+
+    // Verify account is owned by staking program
+    if stake_position_info.owner != &KAMIYO_STAKING_PROGRAM_ID {
+        return Ok(false);
+    }
+
+    // Read stake amount from account data
+    // StakePosition layout: 8 (discriminator) + 32 (owner) + 8 (staked_amount) + ...
+    let data = stake_position_info.try_borrow_data()?;
+    if data.len() < 48 {
+        return Ok(false);
+    }
+
+    // Verify owner matches
+    let owner_bytes: [u8; 32] = data[8..40].try_into().map_err(|_| EscrowError::InvalidStakePosition)?;
+    if Pubkey::from(owner_bytes) != *oracle {
+        return Ok(false);
+    }
+
+    // Read staked_amount (u64 little-endian at offset 40)
+    let staked_amount = u64::from_le_bytes(
+        data[40..48].try_into().map_err(|_| EscrowError::InvalidStakePosition)?
+    );
+
+    Ok(staked_amount >= MIN_ORACLE_STAKE)
+}
 
 /// Compute commitment hash with domain separation
 /// Hash = SHA256(domain || len(session_id) || session_id || len(oracle) || oracle || score || len(salt) || salt)
@@ -85,6 +131,7 @@ pub mod kamiyo_escrow {
         max_score_deviation: u8,
         commit_duration: i64,
         reveal_duration: i64,
+        require_stake: bool,
     ) -> Result<()> {
         require!(min_consensus >= 3, EscrowError::InvalidConsensusConfig);
         require!(max_score_deviation <= 50, EscrowError::InvalidConsensusConfig);
@@ -97,6 +144,7 @@ pub mod kamiyo_escrow {
         config.max_score_deviation = max_score_deviation;
         config.commit_duration = commit_duration;
         config.reveal_duration = reveal_duration;
+        config.require_stake = require_stake;
         config.bump = ctx.bumps.oracle_config;
 
         emit!(OracleConfigInitialized {
@@ -105,6 +153,7 @@ pub mod kamiyo_escrow {
             max_score_deviation,
             commit_duration,
             reveal_duration,
+            require_stake,
         });
 
         Ok(())
@@ -343,6 +392,17 @@ pub mod kamiyo_escrow {
             config.registered_oracles.contains(&oracle),
             EscrowError::OracleNotRegistered
         );
+
+        // Verify oracle stake if required (sybil protection)
+        if config.require_stake {
+            let stake_position = ctx.accounts.oracle_stake_position
+                .as_ref()
+                .ok_or(EscrowError::StakePositionRequired)?;
+            require!(
+                verify_oracle_stake(stake_position, &oracle)?,
+                EscrowError::InsufficientOracleStake
+            );
+        }
 
         // Check oracle hasn't already committed
         require!(
@@ -779,6 +839,10 @@ pub struct CommitVote<'info> {
         bump = oracle_config.bump
     )]
     pub oracle_config: Account<'info, OracleConfig>,
+
+    /// Oracle's stake position from kamiyo-staking program (optional for sybil protection)
+    /// CHECK: Validated in instruction if require_stake is enabled
+    pub oracle_stake_position: Option<AccountInfo<'info>>,
 }
 
 #[derive(Accounts)]
@@ -866,6 +930,8 @@ pub struct OracleConfig {
     pub commit_duration: i64,
     pub reveal_duration: i64,
     pub bump: u8,
+    /// Whether oracles must have minimum stake to participate (sybil protection)
+    pub require_stake: bool,
     #[max_len(50)]
     pub registered_oracles: Vec<Pubkey>,
 }
@@ -932,6 +998,7 @@ pub struct OracleConfigInitialized {
     pub max_score_deviation: u8,
     pub commit_duration: i64,
     pub reveal_duration: i64,
+    pub require_stake: bool,
 }
 
 #[event]
@@ -1095,4 +1162,10 @@ pub enum EscrowError {
     DisputeHasConsensus,
     #[msg("Suspicious oracle consensus detected")]
     SuspiciousOracleConsensus,
+    #[msg("Oracle stake position required for participation")]
+    StakePositionRequired,
+    #[msg("Oracle does not have minimum required stake")]
+    InsufficientOracleStake,
+    #[msg("Invalid stake position account")]
+    InvalidStakePosition,
 }
