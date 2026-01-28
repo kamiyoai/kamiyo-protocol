@@ -64,10 +64,19 @@ export class JupiterSwap {
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
       const res = await fetch(url, { signal: controller.signal });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error(`Jupiter quote failed: ${res.status} ${res.statusText}`, text);
+        return null;
+      }
       const data = await res.json();
-      return isValidQuote(data) ? data : null;
-    } catch {
+      if (!isValidQuote(data)) {
+        console.error('Jupiter quote invalid format:', JSON.stringify(data).slice(0, 500));
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.error('Jupiter quote error:', err);
       return null;
     } finally {
       clearTimeout(timeout);
