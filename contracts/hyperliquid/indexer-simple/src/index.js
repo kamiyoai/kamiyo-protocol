@@ -293,6 +293,40 @@ app.get('/api/agents', (req, res) => {
   res.json(cache.agents);
 });
 
+// Admin endpoint to manually sync an agent from chain
+app.post('/api/admin/sync-agent', async (req, res) => {
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey || req.headers['x-admin-key'] !== adminKey) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { address } = req.body;
+  if (!address) return res.status(400).json({ error: 'Address required' });
+
+  const agentData = {
+    address: address.toLowerCase(),
+    owner: address.toLowerCase(),
+    name: 'Agent',
+    stake: '0',
+    registered_at: Date.now(),
+    block_number: 0,
+    active: true,
+  };
+
+  if (pool) {
+    await pool.query(
+      `INSERT INTO agents (address, owner, name, stake, registered_at, block_number)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (address) DO NOTHING`,
+      [agentData.address, agentData.owner, agentData.name, agentData.stake, agentData.registered_at, agentData.block_number]
+    );
+  }
+  if (!cache.agents.find(a => a.address === agentData.address)) {
+    cache.agents.push(agentData);
+  }
+
+  res.json({ ok: true, agent: agentData });
+});
+
 app.get('/api/agents/:address', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Database not configured' });
 
