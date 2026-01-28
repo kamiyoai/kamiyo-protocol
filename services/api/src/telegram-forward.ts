@@ -15,6 +15,24 @@ db.exec(`
   )
 `);
 
+// Cache KamiyoAI user ID to survive restarts and rate limits
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tg_forward_cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )
+`);
+
+function getCachedUserId(): string | null {
+  const row = db.prepare('SELECT value FROM tg_forward_cache WHERE key = ?').get('kamiyo_user_id') as { value: string } | undefined;
+  return row?.value || null;
+}
+
+function setCachedUserId(userId: string): void {
+  db.prepare('INSERT OR REPLACE INTO tg_forward_cache (key, value, updated_at) VALUES (?, ?, ?)').run('kamiyo_user_id', userId, Date.now());
+}
+
 function isForwarded(tweetId: string): boolean {
   const row = db.prepare('SELECT 1 FROM forwarded_tweets WHERE tweet_id = ?').get(tweetId);
   return !!row;
@@ -87,13 +105,21 @@ export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<voi
 
   logger.info('Starting Telegram forward loop...', { groups: TG_GROUP_IDS.length });
 
-  // Get @KamiyoAI user ID with retry
-  kamiyoUserId = await fetchKamiyoUserId(twitter);
-  if (!kamiyoUserId) {
-    logger.error('Could not get KamiyoAI user ID after retries, TG forward disabled');
-    return;
+  // Try cached user ID first (survives restarts and rate limits)
+  const cachedId = getCachedUserId();
+  if (cachedId) {
+    kamiyoUserId = cachedId;
+    logger.info('Using cached KamiyoAI user ID', { userId: kamiyoUserId });
+  } else {
+    // Fetch fresh and cache it
+    kamiyoUserId = await fetchKamiyoUserId(twitter);
+    if (!kamiyoUserId) {
+      logger.error('Could not get KamiyoAI user ID after retries, TG forward disabled');
+      return;
+    }
+    setCachedUserId(kamiyoUserId);
+    logger.info('Fetched and cached KamiyoAI user ID', { userId: kamiyoUserId });
   }
-  logger.info('Got KamiyoAI user ID', { userId: kamiyoUserId });
 
   const poll = async () => {
     if (!kamiyoUserId) return;
