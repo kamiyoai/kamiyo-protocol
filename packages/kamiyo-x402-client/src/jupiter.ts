@@ -88,7 +88,7 @@ export class JupiterSwap {
         console.error('Jupiter quote invalid format:', JSON.stringify(data).slice(0, 500));
         return null;
       }
-      return normalizeQuote(data as Record<string, unknown>);
+      return normalizeQuote(data as unknown as Record<string, unknown>);
     } catch (err) {
       console.error('Jupiter quote error:', err);
       return null;
