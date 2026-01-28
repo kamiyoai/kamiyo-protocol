@@ -1,6 +1,8 @@
 import { createOracle } from '@kamiyo/hyperliquid';
+import http from 'http';
 
 const REQUIRED_ENV = ['ORACLE_PRIVATE_KEY'];
+const PORT = Number(process.env.PORT || 10000);
 
 function checkEnv() {
   for (const key of REQUIRED_ENV) {
@@ -48,6 +50,21 @@ async function main() {
   });
 
   console.log('Oracle service running.');
+
+  // Health check server for Render
+  const server = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Health server on port ${PORT}`);
+  });
 }
 
 main().catch((err) => {
