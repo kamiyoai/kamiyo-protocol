@@ -4,8 +4,16 @@
  * Handles oracle-based commit-reveal voting for companion escrows.
  */
 
-import { PublicKey, Connection, Keypair, Transaction, SystemProgram } from "@solana/web3.js";
-import { BN, Program, AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import {
+  PublicKey,
+  Connection,
+  Keypair,
+  Transaction,
+  SystemProgram,
+  TransactionInstruction,
+  SendTransactionError,
+} from "@solana/web3.js";
+import { BN, Program, AnchorProvider, Wallet, Idl } from "@coral-xyz/anchor";
 import {
   CompanionEscrow,
   CompanionEscrowStatus,
@@ -19,6 +27,19 @@ import {
   COMPANION_ESCROW_MAX_SCORE_DEVIATION,
   QUALITY_REFUND_SCALE,
 } from "./types";
+
+// Instruction discriminators from IDL
+const DISCRIMINATORS = {
+  markDisputed: Buffer.from([136, 86, 152, 120, 3, 21, 223, 251]),
+  commitVote: Buffer.from([134, 97, 90, 126, 91, 66, 16, 26]),
+  revealVote: Buffer.from([100, 157, 139, 17, 186, 75, 185, 149]),
+  finalizeDispute: Buffer.from([190, 211, 17, 122, 247, 157, 27, 223]),
+};
+
+export interface TransactionResult {
+  signature: string;
+  confirmed: boolean;
+}
 
 /**
  * EscrowDisputeManager - Manage disputes for companion escrows
@@ -409,5 +430,358 @@ export class EscrowDisputeManager {
       if (a[i] !== b[i]) return false;
     }
     return true;
+  }
+
+  // ============================================================
+  // Transaction Builders - Submit actual on-chain transactions
+  // ============================================================
+
+  /**
+   * Fetch escrow account data
+   */
+  async fetchEscrow(escrowPda: PublicKey): Promise<CompanionEscrow | null> {
+    const accountInfo = await this.connection.getAccountInfo(escrowPda);
+    if (!accountInfo) return null;
+
+    // Skip 8-byte discriminator
+    const data = accountInfo.data.slice(8);
+    return this.deserializeEscrow(data);
+  }
+
+  /**
+   * Fetch oracle config account data
+   */
+  async fetchOracleConfig(): Promise<CompanionEscrowOracleConfig | null> {
+    const [configPda] = this.getOracleConfigPDA();
+    const accountInfo = await this.connection.getAccountInfo(configPda);
+    if (!accountInfo) return null;
+
+    // Skip 8-byte discriminator
+    const data = accountInfo.data.slice(8);
+    return this.deserializeOracleConfig(data);
+  }
+
+  /**
+   * Mark an escrow as disputed (user only)
+   */
+  async markDisputed(escrowPda: PublicKey): Promise<TransactionResult> {
+    const instruction = new TransactionInstruction({
+      keys: [
+        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: false },
+        { pubkey: escrowPda, isSigner: false, isWritable: true },
+      ],
+      programId: this.programId,
+      data: DISCRIMINATORS.markDisputed,
+    });
+
+    return this.sendTransaction([instruction]);
+  }
+
+  /**
+   * Commit a quality score hash for a disputed escrow (oracle only)
+   */
+  async commitVote(
+    escrowPda: PublicKey,
+    commitmentHash: Uint8Array
+  ): Promise<TransactionResult> {
+    if (commitmentHash.length !== 32) {
+      throw new Error("Commitment hash must be 32 bytes");
+    }
+
+    const [oracleConfigPda] = this.getOracleConfigPDA();
+
+    // Build instruction data: discriminator + commitment_hash
+    const data = Buffer.concat([
+      DISCRIMINATORS.commitVote,
+      Buffer.from(commitmentHash),
+    ]);
+
+    const instruction = new TransactionInstruction({
+      keys: [
+        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: false },
+        { pubkey: escrowPda, isSigner: false, isWritable: true },
+        { pubkey: oracleConfigPda, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data,
+    });
+
+    return this.sendTransaction([instruction]);
+  }
+
+  /**
+   * Reveal a previously committed vote (oracle only)
+   */
+  async revealVote(
+    escrowPda: PublicKey,
+    qualityScore: number,
+    salt: Uint8Array
+  ): Promise<TransactionResult> {
+    this.validateQualityScore(qualityScore);
+    this.validateSalt(salt);
+
+    const [oracleConfigPda] = this.getOracleConfigPDA();
+
+    // Build instruction data: discriminator + quality_score (u8) + salt ([u8; 32])
+    const data = Buffer.concat([
+      DISCRIMINATORS.revealVote,
+      Buffer.from([qualityScore]),
+      Buffer.from(salt),
+    ]);
+
+    const instruction = new TransactionInstruction({
+      keys: [
+        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: false },
+        { pubkey: escrowPda, isSigner: false, isWritable: true },
+        { pubkey: oracleConfigPda, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data,
+    });
+
+    return this.sendTransaction([instruction]);
+  }
+
+  /**
+   * Finalize a dispute after reveal phase ends (permissionless)
+   */
+  async finalizeDispute(escrowPda: PublicKey): Promise<TransactionResult> {
+    const escrow = await this.fetchEscrow(escrowPda);
+    if (!escrow) {
+      throw new Error("Escrow not found");
+    }
+
+    const [oracleConfigPda] = this.getOracleConfigPDA();
+
+    const instruction = new TransactionInstruction({
+      keys: [
+        { pubkey: escrow.user, isSigner: false, isWritable: true },
+        { pubkey: escrow.treasury, isSigner: false, isWritable: true },
+        { pubkey: escrowPda, isSigner: false, isWritable: true },
+        { pubkey: oracleConfigPda, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data: DISCRIMINATORS.finalizeDispute,
+    });
+
+    return this.sendTransaction([instruction]);
+  }
+
+  /**
+   * Commit and prepare for reveal in one call
+   * Returns the salt needed for reveal
+   */
+  async commitVoteWithScore(
+    escrowPda: PublicKey,
+    qualityScore: number
+  ): Promise<{ result: TransactionResult; salt: Uint8Array }> {
+    this.validateQualityScore(qualityScore);
+
+    const escrow = await this.fetchEscrow(escrowPda);
+    if (!escrow) {
+      throw new Error("Escrow not found");
+    }
+
+    const salt = this.generateSalt();
+    const commitmentHash = await this.computeCommitmentHash(
+      escrow.sessionId,
+      this.wallet.publicKey,
+      qualityScore,
+      salt
+    );
+
+    const result = await this.commitVote(escrowPda, commitmentHash);
+    return { result, salt };
+  }
+
+  /**
+   * Send transaction and wait for confirmation
+   */
+  private async sendTransaction(
+    instructions: TransactionInstruction[]
+  ): Promise<TransactionResult> {
+    const transaction = new Transaction();
+    transaction.add(...instructions);
+
+    const { blockhash, lastValidBlockHeight } =
+      await this.connection.getLatestBlockhash("confirmed");
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = this.wallet.publicKey;
+
+    // Sign with wallet
+    const signed = await this.wallet.signTransaction(transaction);
+
+    // Send and confirm
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize(),
+      { skipPreflight: false }
+    );
+
+    const confirmation = await this.connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+
+    if (confirmation.value.err) {
+      throw new SendTransactionError({
+        action: "send",
+        signature,
+        transactionMessage: `Transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+      });
+    }
+
+    return { signature, confirmed: true };
+  }
+
+  /**
+   * Deserialize escrow account data
+   */
+  private deserializeEscrow(data: Buffer): CompanionEscrow {
+    let offset = 0;
+
+    const user = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const treasury = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const sessionId = new Uint8Array(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const amount = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const createdAt = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const bump = data[offset];
+    offset += 1;
+
+    const status = data[offset] as CompanionEscrowStatus;
+    offset += 1;
+
+    // Option<u8> rating
+    const hasRating = data[offset] === 1;
+    offset += 1;
+    const rating = hasRating ? data[offset] : null;
+    if (hasRating) offset += 1;
+
+    // Option<i64> disputed_at
+    const hasDisputedAt = data[offset] === 1;
+    offset += 1;
+    const disputedAt = hasDisputedAt
+      ? new BN(data.slice(offset, offset + 8), "le")
+      : null;
+    if (hasDisputedAt) offset += 8;
+
+    // Option<i64> commit_phase_ends_at
+    const hasCommitPhaseEndsAt = data[offset] === 1;
+    offset += 1;
+    const commitPhaseEndsAt = hasCommitPhaseEndsAt
+      ? new BN(data.slice(offset, offset + 8), "le")
+      : null;
+    if (hasCommitPhaseEndsAt) offset += 8;
+
+    // Vec<OracleCommitment>
+    const commitmentsLen = data.readUInt32LE(offset);
+    offset += 4;
+    const oracleCommitments = [];
+    for (let i = 0; i < commitmentsLen; i++) {
+      const oracle = new PublicKey(data.slice(offset, offset + 32));
+      offset += 32;
+      const commitmentHash = new Uint8Array(data.slice(offset, offset + 32));
+      offset += 32;
+      const committedAt = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+      const revealed = data[offset] === 1;
+      offset += 1;
+      oracleCommitments.push({ oracle, commitmentHash, committedAt, revealed });
+    }
+
+    // Vec<OracleSubmission>
+    const submissionsLen = data.readUInt32LE(offset);
+    offset += 4;
+    const oracleSubmissions = [];
+    for (let i = 0; i < submissionsLen; i++) {
+      const oracle = new PublicKey(data.slice(offset, offset + 32));
+      offset += 32;
+      const qualityScore = data[offset];
+      offset += 1;
+      const submittedAt = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+      oracleSubmissions.push({ oracle, qualityScore, submittedAt });
+    }
+
+    // Option<u8> quality_score
+    const hasQualityScore = data[offset] === 1;
+    offset += 1;
+    const qualityScore = hasQualityScore ? data[offset] : null;
+    if (hasQualityScore) offset += 1;
+
+    // Option<u8> refund_percentage
+    const hasRefundPercentage = data[offset] === 1;
+    offset += 1;
+    const refundPercentage = hasRefundPercentage ? data[offset] : null;
+
+    return {
+      user,
+      treasury,
+      sessionId,
+      amount,
+      createdAt,
+      bump,
+      status,
+      rating,
+      disputedAt,
+      commitPhaseEndsAt,
+      oracleCommitments,
+      oracleSubmissions,
+      qualityScore,
+      refundPercentage,
+    };
+  }
+
+  /**
+   * Deserialize oracle config account data
+   */
+  private deserializeOracleConfig(data: Buffer): CompanionEscrowOracleConfig {
+    let offset = 0;
+
+    const admin = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+
+    const minConsensus = data[offset];
+    offset += 1;
+
+    const maxScoreDeviation = data[offset];
+    offset += 1;
+
+    const commitDuration = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const revealDuration = new BN(data.slice(offset, offset + 8), "le");
+    offset += 8;
+
+    const bump = data[offset];
+    offset += 1;
+
+    // Vec<Pubkey> registered_oracles
+    const oraclesLen = data.readUInt32LE(offset);
+    offset += 4;
+    const registeredOracles = [];
+    for (let i = 0; i < oraclesLen; i++) {
+      registeredOracles.push(new PublicKey(data.slice(offset, offset + 32)));
+      offset += 32;
+    }
+
+    return {
+      admin,
+      minConsensus,
+      maxScoreDeviation,
+      commitDuration,
+      revealDuration,
+      bump,
+      registeredOracles,
+    };
   }
 }
