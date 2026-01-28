@@ -321,20 +321,24 @@ export class BuybackService {
     const balance = await this.getTreasuryBalance();
     buybackTreasuryBalance.set(balance);
 
-    if (balance < config.minThresholdLamports) {
-      return { executed: false, reason: `below threshold (${balance} < ${config.minThresholdLamports})` };
+    // Reserve SOL for tx fees: rent for token account (~0.002 SOL) + tx fees (~0.001 SOL)
+    const FEE_RESERVE_LAMPORTS = 5_000_000; // 0.005 SOL reserve
+    const swapAmount = balance - FEE_RESERVE_LAMPORTS;
+
+    if (swapAmount < config.minThresholdLamports) {
+      return { executed: false, reason: `below threshold (${swapAmount} swappable < ${config.minThresholdLamports})` };
     }
 
     const dryRun = process.env.BUYBACK_DRY_RUN === 'true';
     if (dryRun) {
-      logger.info('Buyback dry run', { balance, threshold: config.minThresholdLamports });
+      logger.info('Buyback dry run', { balance, swapAmount, threshold: config.minThresholdLamports });
       this.db.prepare('UPDATE buyback_config SET last_buyback_at = 0 WHERE id = 1').run();
       return { executed: false, reason: 'dry run mode' };
     }
 
     this.executing = true;
     try {
-      return await this.executeBuyback(balance, config);
+      return await this.executeBuyback(swapAmount, config);
     } finally {
       this.executing = false;
     }
