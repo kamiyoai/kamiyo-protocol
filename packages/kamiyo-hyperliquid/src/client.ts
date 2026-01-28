@@ -33,6 +33,7 @@ import {
   HYPERCORE_ABI,
   HYPERCORE_ADDRESS,
 } from './abis';
+import { NonceManager, createNonceManager } from './nonce-manager';
 
 export interface HyperliquidClientConfig {
   network?: HyperliquidNetwork;
@@ -42,6 +43,7 @@ export interface HyperliquidClientConfig {
   contracts?: ContractAddresses;
   retryAttempts?: number;
   retryDelay?: number;
+  useNonceManager?: boolean; // Enable nonce management for concurrent txs
 }
 
 export class HyperliquidClient {
@@ -54,6 +56,8 @@ export class HyperliquidClient {
   private readonly hyperCore: Contract;
   private readonly retryAttempts: number;
   private readonly retryDelay: number;
+  private readonly useNonceManager: boolean;
+  private nonceManager: NonceManager | null = null;
 
   constructor(options: HyperliquidClientConfig = {}) {
     const network = options.network || 'testnet';
@@ -81,6 +85,7 @@ export class HyperliquidClient {
     this.signer = options.signer;
     this.retryAttempts = options.retryAttempts ?? 3;
     this.retryDelay = options.retryDelay ?? 1000;
+    this.useNonceManager = options.useNonceManager ?? false;
 
     const signerOrProvider = this.signer || this.provider;
     this.agentRegistry = new Contract(
@@ -113,7 +118,26 @@ export class HyperliquidClient {
       contracts: this.config.contracts as ContractAddresses,
       retryAttempts: this.retryAttempts,
       retryDelay: this.retryDelay,
+      useNonceManager: this.useNonceManager,
     });
+  }
+
+  /**
+   * Initialize the nonce manager for concurrent transactions.
+   * Must be called before sending transactions if useNonceManager is enabled.
+   */
+  async initNonceManager(): Promise<void> {
+    if (!this.signer) {
+      throw new KamiyoError('Signer required for nonce manager', KamiyoErrorCode.NO_SIGNER);
+    }
+    this.nonceManager = await createNonceManager(this.signer);
+  }
+
+  /**
+   * Reset the nonce manager. Use after errors or long periods of inactivity.
+   */
+  resetNonceManager(): void {
+    this.nonceManager?.reset();
   }
 
   hasReputationLimits(): boolean {
@@ -736,10 +760,21 @@ export class HyperliquidClient {
 
   private async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
     let lastError: Error | undefined;
+    let nonce: number | undefined;
+
+    // Get nonce if using nonce manager
+    if (this.useNonceManager && this.nonceManager) {
+      nonce = await this.nonceManager.getNextNonce();
+    }
 
     for (let attempt = 0; attempt < this.retryAttempts; attempt++) {
       try {
-        return await fn();
+        const result = await fn();
+        // Confirm nonce on success
+        if (nonce !== undefined && this.nonceManager) {
+          this.nonceManager.confirmNonce(nonce);
+        }
+        return result;
       } catch (error: any) {
         lastError = error;
 
@@ -749,7 +784,21 @@ export class HyperliquidClient {
           error.code === 4001 ||
           error instanceof KamiyoError
         ) {
+          // Revert nonce on non-network errors
+          if (nonce !== undefined && this.nonceManager) {
+            this.nonceManager.revertNonce(nonce);
+          }
           throw error;
+        }
+
+        // Check for nonce-related errors
+        const errorMsg = error.message?.toLowerCase() || '';
+        if (errorMsg.includes('nonce') || errorMsg.includes('replacement')) {
+          // Reset nonce manager and get fresh nonce
+          if (this.nonceManager) {
+            this.nonceManager.reset();
+            nonce = await this.nonceManager.getNextNonce();
+          }
         }
 
         // Don't retry on the last attempt
@@ -757,6 +806,11 @@ export class HyperliquidClient {
           await this.sleep(this.retryDelay * (attempt + 1));
         }
       }
+    }
+
+    // Revert nonce on final failure
+    if (nonce !== undefined && this.nonceManager) {
+      this.nonceManager.revertNonce(nonce);
     }
 
     throw new KamiyoError(
