@@ -16,25 +16,35 @@ export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
 export const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 
-function isValidQuote(data: unknown): data is SwapQuote {
+// Raw quote response from Jupiter API (kept intact for swap endpoint)
+interface RawQuoteResponse {
+  inputMint: string;
+  outputMint: string;
+  inAmount: string;
+  outAmount: string;
+  priceImpactPct: string;
+  routePlan: unknown[];
+  [key: string]: unknown;
+}
+
+function isValidRawQuote(data: unknown): data is RawQuoteResponse {
   if (!data || typeof data !== 'object') return false;
   const q = data as Record<string, unknown>;
-  // V1 API uses inAmount/outAmount, normalize to inputAmount/outputAmount
   return (
     typeof q.inputMint === 'string' &&
     typeof q.outputMint === 'string' &&
-    (typeof q.inputAmount === 'string' || typeof q.inAmount === 'string') &&
-    (typeof q.outputAmount === 'string' || typeof q.outAmount === 'string')
+    typeof q.inAmount === 'string' &&
+    typeof q.outAmount === 'string'
   );
 }
 
-function normalizeQuote(data: Record<string, unknown>): SwapQuote {
+function rawToSwapQuote(raw: RawQuoteResponse): SwapQuote {
   return {
-    inputMint: data.inputMint as string,
-    outputMint: data.outputMint as string,
-    inputAmount: (data.inputAmount || data.inAmount) as string,
-    outputAmount: (data.outputAmount || data.outAmount) as string,
-    priceImpactPct: (data.priceImpactPct || '0') as string,
+    inputMint: raw.inputMint,
+    outputMint: raw.outputMint,
+    inputAmount: raw.inAmount,
+    outputAmount: raw.outAmount,
+    priceImpactPct: raw.priceImpactPct || '0',
   };
 }
 
@@ -70,7 +80,8 @@ export class JupiterSwap {
     this.priorityFee = config?.priorityFee ?? 0;
   }
 
-  async quote(inputMint: string, outputMint: string, amount: number): Promise<SwapQuote | null> {
+  // Get raw quote (needed for swap endpoint)
+  private async rawQuote(inputMint: string, outputMint: string, amount: number): Promise<RawQuoteResponse | null> {
     const url = `${API}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${this.slippageBps}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -84,11 +95,11 @@ export class JupiterSwap {
         return null;
       }
       const data = await res.json();
-      if (!isValidQuote(data)) {
+      if (!isValidRawQuote(data)) {
         console.error('Jupiter quote invalid format:', JSON.stringify(data).slice(0, 500));
         return null;
       }
-      return normalizeQuote(data as unknown as Record<string, unknown>);
+      return data;
     } catch (err) {
       console.error('Jupiter quote error:', err);
       return null;
@@ -97,9 +108,15 @@ export class JupiterSwap {
     }
   }
 
+  async quote(inputMint: string, outputMint: string, amount: number): Promise<SwapQuote | null> {
+    const raw = await this.rawQuote(inputMint, outputMint, amount);
+    return raw ? rawToSwapQuote(raw) : null;
+  }
+
   async swap(inputMint: string, outputMint: string, amount: number): Promise<SwapResult> {
-    const q = await this.quote(inputMint, outputMint, amount);
-    if (!q) return { success: false, inputAmount: amount, outputAmount: 0, error: 'quote failed' };
+    // Get raw quote (with all fields intact for swap endpoint)
+    const rawQuote = await this.rawQuote(inputMint, outputMint, amount);
+    if (!rawQuote) return { success: false, inputAmount: amount, outputAmount: 0, error: 'quote failed' };
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -110,7 +127,7 @@ export class JupiterSwap {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          quoteResponse: q,
+          quoteResponse: rawQuote,
           userPublicKey: this.wallet.publicKey.toBase58(),
           wrapAndUnwrapSol: true,
           prioritizationFeeLamports: this.priorityFee,
@@ -119,10 +136,15 @@ export class JupiterSwap {
       });
       clearTimeout(timeout);
 
-      if (!res.ok) return { success: false, inputAmount: amount, outputAmount: 0, error: 'swap request failed' };
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error(`Jupiter swap failed: ${res.status} ${res.statusText}`, text);
+        return { success: false, inputAmount: amount, outputAmount: 0, error: 'swap request failed' };
+      }
 
       const data = await res.json();
       if (!data?.swapTransaction || typeof data.swapTransaction !== 'string') {
+        console.error('Jupiter swap invalid response:', JSON.stringify(data).slice(0, 500));
         return { success: false, inputAmount: amount, outputAmount: 0, error: 'invalid swap response' };
       }
 
@@ -132,7 +154,7 @@ export class JupiterSwap {
       const sig = await this.connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
       await this.connection.confirmTransaction(sig, 'confirmed');
 
-      return { success: true, signature: sig, inputAmount: parseInt(q.inputAmount), outputAmount: parseInt(q.outputAmount) };
+      return { success: true, signature: sig, inputAmount: parseInt(rawQuote.inAmount), outputAmount: parseInt(rawQuote.outAmount) };
     } catch (err) {
       clearTimeout(timeout);
       return { success: false, inputAmount: amount, outputAmount: 0, error: err instanceof Error ? err.message : 'swap failed' };
