@@ -1,11 +1,8 @@
-// Tests for BuybackService
-
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Mock the metrics module before importing buyback-service
 vi.mock('../metrics', () => ({
   buybackExecutionTotal: { inc: vi.fn() },
   buybackSolSpentTotal: { inc: vi.fn() },
@@ -18,7 +15,6 @@ vi.mock('../metrics', () => ({
   buybackPriceImpact: { observe: vi.fn() },
 }));
 
-// Mock logger
 vi.mock('../logger', () => ({
   logger: {
     info: vi.fn(),
@@ -28,7 +24,6 @@ vi.mock('../logger', () => ({
   },
 }));
 
-// Set test environment before importing the service
 const testDbPath = path.join(__dirname, 'test-buyback.db');
 process.env.DATA_DIR = __dirname;
 
@@ -36,12 +31,10 @@ describe('BuybackService', () => {
   let db: Database.Database;
 
   beforeEach(() => {
-    // Clean up any existing test database
     if (fs.existsSync(testDbPath)) {
       fs.unlinkSync(testDbPath);
     }
 
-    // Create fresh database
     db = new Database(testDbPath);
     db.exec(`
       CREATE TABLE IF NOT EXISTS buyback_config (
@@ -83,7 +76,7 @@ describe('BuybackService', () => {
   });
 
   describe('Config Validation', () => {
-    it('should reject negative minThresholdLamports', () => {
+    it('rejects negative threshold', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.minThresholdLamports !== undefined) {
           if (updates.minThresholdLamports < 0) {
@@ -97,7 +90,7 @@ describe('BuybackService', () => {
       );
     });
 
-    it('should reject minThresholdLamports over 1000 SOL', () => {
+    it('rejects threshold over 1000 SOL', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.minThresholdLamports !== undefined) {
           if (updates.minThresholdLamports > 1000 * 1e9) {
@@ -111,7 +104,7 @@ describe('BuybackService', () => {
       );
     });
 
-    it('should reject maxSlippageBps over 1000', () => {
+    it('rejects slippage over 10%', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.maxSlippageBps !== undefined) {
           if (updates.maxSlippageBps < 0 || updates.maxSlippageBps > 1000) {
@@ -125,7 +118,7 @@ describe('BuybackService', () => {
       );
     });
 
-    it('should reject negative maxSlippageBps', () => {
+    it('rejects negative slippage', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.maxSlippageBps !== undefined) {
           if (updates.maxSlippageBps < 0 || updates.maxSlippageBps > 1000) {
@@ -139,7 +132,7 @@ describe('BuybackService', () => {
       );
     });
 
-    it('should reject cooldownSeconds under 60', () => {
+    it('rejects cooldown under 60s', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.cooldownSeconds !== undefined) {
           if (updates.cooldownSeconds < 60) {
@@ -153,7 +146,7 @@ describe('BuybackService', () => {
       );
     });
 
-    it('should reject cooldownSeconds over 7 days', () => {
+    it('rejects cooldown over 7 days', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.cooldownSeconds !== undefined) {
           if (updates.cooldownSeconds > 7 * 24 * 3600) {
@@ -167,7 +160,7 @@ describe('BuybackService', () => {
       );
     });
 
-    it('should reject burnBps over 10000', () => {
+    it('rejects burn over 100%', () => {
       const updateConfig = (updates: Record<string, number>) => {
         if (updates.burnBps !== undefined) {
           if (updates.burnBps < 0 || updates.burnBps > 10000) {
@@ -183,26 +176,25 @@ describe('BuybackService', () => {
   });
 
   describe('Price Impact Calculation', () => {
-    it('should correctly convert percentage to bps', () => {
-      // Jupiter returns priceImpactPct as percentage (e.g., "0.5" for 0.5%)
+    it('converts percentage to bps', () => {
       const priceImpactPct = 0.5;
       const priceImpactBps = Math.round(priceImpactPct * 100);
 
-      expect(priceImpactBps).toBe(50); // 0.5% = 50 bps
+      expect(priceImpactBps).toBe(50);
     });
 
-    it('should reject price impact exceeding max slippage', () => {
-      const maxSlippageBps = 200; // 2%
-      const priceImpactPct = 2.5; // 2.5%
+    it('rejects price impact over max slippage', () => {
+      const maxSlippageBps = 200;
+      const priceImpactPct = 2.5;
       const priceImpactBps = Math.round(priceImpactPct * 100);
 
       expect(priceImpactBps).toBe(250);
       expect(priceImpactBps > maxSlippageBps).toBe(true);
     });
 
-    it('should allow price impact within max slippage', () => {
-      const maxSlippageBps = 200; // 2%
-      const priceImpactPct = 1.5; // 1.5%
+    it('allows price impact within max slippage', () => {
+      const maxSlippageBps = 200;
+      const priceImpactPct = 1.5;
       const priceImpactBps = Math.round(priceImpactPct * 100);
 
       expect(priceImpactBps).toBe(150);
@@ -211,9 +203,9 @@ describe('BuybackService', () => {
   });
 
   describe('Token Split Calculation', () => {
-    it('should correctly split tokens between burn and staking', () => {
-      const kamiyoPurchased = 1000000n; // 1M tokens
-      const burnBps = 5000; // 50%
+    it('splits 50/50 burn and staking', () => {
+      const kamiyoPurchased = 1000000n;
+      const burnBps = 5000;
 
       const burnAmount = (kamiyoPurchased * BigInt(burnBps)) / 10000n;
       const stakingAmount = kamiyoPurchased - burnAmount;
@@ -222,7 +214,7 @@ describe('BuybackService', () => {
       expect(stakingAmount).toBe(500000n);
     });
 
-    it('should handle 100% burn', () => {
+    it('handles 100% burn', () => {
       const kamiyoPurchased = 1000000n;
       const burnBps = 10000;
 
@@ -233,7 +225,7 @@ describe('BuybackService', () => {
       expect(stakingAmount).toBe(0n);
     });
 
-    it('should handle 0% burn', () => {
+    it('handles 0% burn', () => {
       const kamiyoPurchased = 1000000n;
       const burnBps = 0;
 
@@ -244,7 +236,7 @@ describe('BuybackService', () => {
       expect(stakingAmount).toBe(1000000n);
     });
 
-    it('should handle 30% burn / 70% staking', () => {
+    it('handles 30/70 split', () => {
       const kamiyoPurchased = 1000000n;
       const burnBps = 3000;
 
@@ -257,23 +249,23 @@ describe('BuybackService', () => {
   });
 
   describe('Cooldown Logic', () => {
-    it('should correctly calculate remaining cooldown', () => {
-      const lastBuybackAt = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
-      const cooldownSeconds = 86400; // 24 hours
+    it('calculates remaining cooldown', () => {
+      const lastBuybackAt = Math.floor(Date.now() / 1000) - 3600;
+      const cooldownSeconds = 86400;
       const now = Math.floor(Date.now() / 1000);
 
       const elapsed = now - lastBuybackAt;
       const remaining = cooldownSeconds - elapsed;
 
       expect(elapsed).toBeGreaterThanOrEqual(3600);
-      expect(elapsed).toBeLessThan(3700); // Allow some test execution time
+      expect(elapsed).toBeLessThan(3700);
       expect(remaining).toBeLessThan(cooldownSeconds);
       expect(remaining).toBeGreaterThan(cooldownSeconds - 3700);
     });
 
-    it('should identify expired cooldown', () => {
-      const lastBuybackAt = Math.floor(Date.now() / 1000) - 90000; // 25 hours ago
-      const cooldownSeconds = 86400; // 24 hours
+    it('identifies expired cooldown', () => {
+      const lastBuybackAt = Math.floor(Date.now() / 1000) - 90000;
+      const cooldownSeconds = 86400;
       const now = Math.floor(Date.now() / 1000);
 
       const cooldownElapsed = now - lastBuybackAt >= cooldownSeconds;
@@ -283,8 +275,8 @@ describe('BuybackService', () => {
   });
 
   describe('Quote Staleness', () => {
-    it('should detect stale quote', () => {
-      const quoteTime = Date.now() - 35000; // 35 seconds ago
+    it('detects stale quote', () => {
+      const quoteTime = Date.now() - 35000;
       const maxAgeMs = 30000;
 
       const isStale = Date.now() - quoteTime > maxAgeMs;
@@ -292,8 +284,8 @@ describe('BuybackService', () => {
       expect(isStale).toBe(true);
     });
 
-    it('should accept fresh quote', () => {
-      const quoteTime = Date.now() - 10000; // 10 seconds ago
+    it('accepts fresh quote', () => {
+      const quoteTime = Date.now() - 10000;
       const maxAgeMs = 30000;
 
       const isStale = Date.now() - quoteTime > maxAgeMs;

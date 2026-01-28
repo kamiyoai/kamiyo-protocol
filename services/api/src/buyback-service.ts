@@ -1,5 +1,4 @@
-// BuybackService - Automated SOL -> $KAMIYO buyback from treasury fees
-// Swaps SOL to KAMIYO via Jupiter, burns 50%, sends 50% to staking rewards
+// Buyback: SOL -> KAMIYO via Jupiter, burn 50%, stake 50%
 
 import Database from 'better-sqlite3';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
@@ -23,7 +22,6 @@ const DB_PATH = `${DATA_DIR}/companion.db`;
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const KAMIYO_DECIMALS = 6;
 
-// Retry configuration
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1000;
 
@@ -52,7 +50,6 @@ async function withRetry<T>(
   throw lastError;
 }
 
-// Staking program rewards vault PDA
 const STAKING_REWARDS_VAULT = process.env.STAKING_REWARDS_VAULT || '';
 
 export interface BuybackConfig {
@@ -87,7 +84,6 @@ export interface BuybackStats {
   lastBuybackAt: number;
 }
 
-// Database
 let db: Database.Database | null = null;
 
 function getDb(): Database.Database {
@@ -136,7 +132,7 @@ export class BuybackService {
   private db: Database.Database;
   private connection: Connection;
   private treasuryAddress: PublicKey | null;
-  private executing = false; // Reentrancy guard
+  private executing = false;
 
   constructor() {
     this.db = getDb();
@@ -146,8 +142,6 @@ export class BuybackService {
     const treasury = process.env.BUYBACK_TREASURY_ADDRESS;
     this.treasuryAddress = treasury ? new PublicKey(treasury) : null;
   }
-
-  // Config management
 
   getConfig(): BuybackConfig {
     const row = this.db.prepare('SELECT * FROM buyback_config WHERE id = 1').get() as {
@@ -173,7 +167,6 @@ export class BuybackService {
     const fields: string[] = [];
     const values: (number | string)[] = [];
 
-    // Validate minThresholdLamports: must be positive, max 1000 SOL
     if (updates.minThresholdLamports !== undefined) {
       if (updates.minThresholdLamports < 0) {
         throw new Error('min_threshold_lamports must be non-negative');
@@ -185,7 +178,6 @@ export class BuybackService {
       values.push(updates.minThresholdLamports);
     }
 
-    // Validate maxSlippageBps: 0-1000 (0-10%)
     if (updates.maxSlippageBps !== undefined) {
       if (updates.maxSlippageBps < 0 || updates.maxSlippageBps > 1000) {
         throw new Error('max_slippage_bps must be 0-1000 (0-10%)');
@@ -194,7 +186,6 @@ export class BuybackService {
       values.push(updates.maxSlippageBps);
     }
 
-    // Validate cooldownSeconds: 1 minute to 7 days
     if (updates.cooldownSeconds !== undefined) {
       if (updates.cooldownSeconds < 60) {
         throw new Error('cooldown_seconds must be at least 60 (1 minute)');
@@ -206,7 +197,6 @@ export class BuybackService {
       values.push(updates.cooldownSeconds);
     }
 
-    // Validate burnBps: 0-10000 (0-100%)
     if (updates.burnBps !== undefined) {
       if (updates.burnBps < 0 || updates.burnBps > 10000) {
         throw new Error('burn_bps must be 0-10000 (0-100%)');
@@ -236,8 +226,6 @@ export class BuybackService {
     logger.info('Buyback resumed');
   }
 
-  // Treasury balance
-
   async getTreasuryBalance(): Promise<number> {
     if (!this.treasuryAddress) return 0;
     return this.connection.getBalance(this.treasuryAddress);
@@ -247,10 +235,7 @@ export class BuybackService {
     return this.executing;
   }
 
-  // Core buyback execution
-
   async checkAndExecute(): Promise<{ executed: boolean; reason?: string; record?: BuybackRecord }> {
-    // Reentrancy guard - prevent concurrent executions
     if (this.executing) {
       return { executed: false, reason: 'execution already in progress' };
     }
@@ -261,7 +246,7 @@ export class BuybackService {
       return { executed: false, reason: 'paused' };
     }
 
-    // Atomic cooldown check - use database transaction to prevent race conditions
+    // Atomic cooldown check
     const now = Math.floor(Date.now() / 1000);
     const cooldownThreshold = now - config.cooldownSeconds;
 
@@ -272,7 +257,6 @@ export class BuybackService {
     `).run(now, cooldownThreshold);
 
     if (updateResult.changes === 0) {
-      // Either cooldown hasn't elapsed or another execution claimed it
       const currentConfig = this.getConfig();
       const remaining = config.cooldownSeconds - (now - currentConfig.lastBuybackAt);
       return { executed: false, reason: `cooldown (${Math.max(0, remaining)}s remaining)` };
@@ -292,12 +276,10 @@ export class BuybackService {
     const dryRun = process.env.BUYBACK_DRY_RUN === 'true';
     if (dryRun) {
       logger.info('Buyback dry run', { balance, threshold: config.minThresholdLamports });
-      // Reset cooldown since we didn't actually execute
       this.db.prepare('UPDATE buyback_config SET last_buyback_at = 0 WHERE id = 1').run();
       return { executed: false, reason: 'dry run mode' };
     }
 
-    // Execute buyback with reentrancy guard
     this.executing = true;
     try {
       return await this.executeBuyback(balance, config);
@@ -314,20 +296,17 @@ export class BuybackService {
     const executionStart = Date.now();
 
     try {
-      // Load authority keypair
       const authority = this.loadAuthority();
       if (!authority) {
         this.updateRecord(recordId, { status: 'failed', error: 'BUYBACK_AUTHORITY_SECRET not set' });
         return { executed: false, reason: 'authority not configured' };
       }
 
-      // Step 1: Swap SOL -> KAMIYO via Jupiter
       const { JupiterSwap, SOL_MINT, KAMIYO_MINT: KAMIYO_MINT_STR } = await import('@kamiyo/x402-client');
       const jupiter = new JupiterSwap(this.connection, authority, {
         slippageBps: config.maxSlippageBps,
       });
 
-      // Get quote first to check price impact
       const quoteTime = Date.now();
       const quote = await jupiter.quote(SOL_MINT, KAMIYO_MINT_STR, solAmount);
       if (!quote) {
@@ -335,12 +314,9 @@ export class BuybackService {
         return { executed: false, reason: 'quote failed' };
       }
 
-      // Jupiter returns priceImpactPct as percentage string (e.g., "0.5" for 0.5%)
-      // Convert to bps for comparison: multiply by 100
       const priceImpactPct = parseFloat(quote.priceImpactPct || '0');
       const priceImpactBps = Math.round(priceImpactPct * 100);
 
-      // Record price impact metric
       buybackPriceImpact.observe(priceImpactBps);
 
       if (priceImpactBps > config.maxSlippageBps) {
@@ -351,14 +327,12 @@ export class BuybackService {
         return { executed: false, reason: `price impact ${priceImpactPct}% exceeds max ${config.maxSlippageBps / 100}%` };
       }
 
-      // Check quote staleness (30 second max)
       const QUOTE_MAX_AGE_MS = 30000;
       if (Date.now() - quoteTime > QUOTE_MAX_AGE_MS) {
         this.updateRecord(recordId, { status: 'failed', error: 'Quote expired before execution' });
         return { executed: false, reason: 'quote expired' };
       }
 
-      // Execute swap with retry
       const swapResult = await withRetry(async () => {
         const result = await jupiter.swap(SOL_MINT, KAMIYO_MINT_STR, solAmount);
         if (!result.success) {
@@ -367,7 +341,6 @@ export class BuybackService {
         return result;
       }, MAX_RETRIES, 'Jupiter swap');
 
-      // Verify transaction confirmed on-chain
       if (swapResult.signature) {
         const confirmation = await withRetry(
           () => this.connection.confirmTransaction(swapResult.signature!, 'confirmed'),
@@ -396,7 +369,6 @@ export class BuybackService {
         signature: swapResult.signature,
       });
 
-      // Step 2: Split - burn + staking
       const burnAmount = (kamiyoPurchased * BigInt(config.burnBps)) / 10000n;
       const stakingAmount = kamiyoPurchased - burnAmount;
 
@@ -407,7 +379,6 @@ export class BuybackService {
         TOKEN_2022_PROGRAM_ID,
       );
 
-      // Burn
       let burnSig: string | null = null;
       if (burnAmount > 0n) {
         try {
@@ -433,7 +404,6 @@ export class BuybackService {
         }
       }
 
-      // Transfer to staking rewards
       let stakingSig: string | null = null;
       if (stakingAmount > 0n && STAKING_REWARDS_VAULT) {
         try {
@@ -461,7 +431,6 @@ export class BuybackService {
         }
       }
 
-      // Update record
       this.updateRecord(recordId, {
         kamiyo_burned: burnAmount.toString(),
         kamiyo_to_staking: stakingAmount.toString(),
@@ -470,11 +439,9 @@ export class BuybackService {
         status: 'distributed',
       });
 
-      // Update last buyback time (already done atomically at start, but update gauge)
       const now = Math.floor(Date.now() / 1000);
       buybackLastExecution.set(now);
 
-      // Record metrics
       const executionDuration = (Date.now() - executionStart) / 1000;
       buybackExecutionDuration.observe(executionDuration);
       buybackExecutionTotal.inc({ status: 'success' });
@@ -491,7 +458,6 @@ export class BuybackService {
       logger.error('Buyback execution failed', { error });
       this.updateRecord(recordId, { status: 'failed', error });
 
-      // Record failure metric
       buybackExecutionTotal.inc({ status: 'failed' });
       const executionDuration = (Date.now() - executionStart) / 1000;
       buybackExecutionDuration.observe(executionDuration);
@@ -512,8 +478,6 @@ export class BuybackService {
     }
   }
 
-  // Record management
-
   private createRecord(solSpent: number): number {
     const result = this.db.prepare(
       'INSERT INTO buyback_history (sol_spent) VALUES (?)'
@@ -531,8 +495,6 @@ export class BuybackService {
     return this.db.prepare('SELECT * FROM buyback_history WHERE id = ?').get(id) as BuybackRecord | null;
   }
 
-  // Recovery for failed buybacks
-
   getFailedRecords(limit = 10): BuybackRecord[] {
     return this.db.prepare(
       'SELECT * FROM buyback_history WHERE status = ? ORDER BY created_at DESC LIMIT ?'
@@ -548,7 +510,6 @@ export class BuybackService {
       return { success: false, reason: `Cannot retry record with status: ${record.status}` };
     }
 
-    // Check if reentrancy guard is engaged
     if (this.executing) {
       return { success: false, reason: 'Another execution is in progress' };
     }
@@ -558,10 +519,8 @@ export class BuybackService {
       return { success: false, reason: 'Buyback is paused' };
     }
 
-    // Re-execute with the same SOL amount
     this.executing = true;
     try {
-      // Delete the failed record and create a fresh one
       this.db.prepare('DELETE FROM buyback_history WHERE id = ?').run(recordId);
       const result = await this.executeBuyback(record.sol_spent, config);
       return { success: result.executed, reason: result.reason, record: result.record };
@@ -569,8 +528,6 @@ export class BuybackService {
       this.executing = false;
     }
   }
-
-  // Stats and history
 
   getStats(): BuybackStats {
     const row = this.db.prepare(`
@@ -609,7 +566,6 @@ export class BuybackService {
   }
 }
 
-// Singleton
 let buybackService: BuybackService | null = null;
 
 export function getBuybackService(): BuybackService {
@@ -619,10 +575,8 @@ export function getBuybackService(): BuybackService {
   return buybackService;
 }
 
-// Worker
-
 let workerInterval: NodeJS.Timeout | null = null;
-const DEFAULT_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_CHECK_INTERVAL = 5 * 60 * 1000;
 
 export function startBuybackWorker(): void {
   const enabled = process.env.BUYBACK_ENABLED === 'true';
@@ -649,10 +603,7 @@ export function startBuybackWorker(): void {
     config: service.getConfig(),
   });
 
-  // Run initial check
   runCheck(service);
-
-  // Schedule periodic checks
   workerInterval = setInterval(() => runCheck(service), checkInterval);
 }
 
@@ -678,10 +629,9 @@ export async function stopBuybackWorker(): Promise<void> {
     clearInterval(workerInterval);
     workerInterval = null;
 
-    // Wait for any in-progress execution to complete
     if (buybackService?.isExecuting()) {
-      logger.info('Waiting for buyback execution to complete...');
-      const maxWait = 60000; // 60 seconds max
+      logger.info('Waiting for in-progress buyback...');
+      const maxWait = 60000;
       const start = Date.now();
       while (buybackService.isExecuting() && Date.now() - start < maxWait) {
         await new Promise(resolve => setTimeout(resolve, 100));
