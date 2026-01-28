@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AgentRegistry} from "./AgentRegistry.sol";
+import {ReputationLimits} from "./ReputationLimits.sol";
 
 /**
  * @title KamiyoVault
@@ -49,10 +50,12 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
     int16 public constant MIN_RETURN_BPS = -5000; // -50%
     int16 public constant MAX_RETURN_BPS = 10000; // +100%
     uint256 public constant PROTOCOL_FEE_BPS = 100; // 1%
+    uint256 public constant MAX_VALUE_CHANGE_BPS = 2000; // 20% max change per update
 
     
 
     AgentRegistry public immutable agentRegistry;
+    ReputationLimits public reputationLimits;
 
     
 
@@ -90,6 +93,7 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
     event AdminTransferInitiated(address indexed currentAdmin, address indexed pendingAdmin);
     event AdminTransferCompleted(address indexed oldAdmin, address indexed newAdmin);
     event FeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
+    event ReputationLimitsUpdated(address indexed oldLimits, address indexed newLimits);
     event FeesWithdrawn(address indexed recipient, uint256 amount);
     event EmergencyWithdrawal(uint256 indexed positionId, address indexed user, uint256 amount);
 
@@ -111,6 +115,8 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
     error PositionNotFound();
     error InsufficientFee();
     error LengthMismatch();
+    error ExcessiveValueChange();
+    error ExceedsTierLimit();
 
     
 
@@ -170,6 +176,18 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
         // Validate agent
         AgentRegistry.Agent memory agentInfo = agentRegistry.getAgent(agent);
         if (!agentInfo.active) revert AgentNotActive();
+
+        // Check tier limits if reputation limits contract is set
+        if (address(reputationLimits) != address(0)) {
+            uint256 currentAUM = _getAgentAUM(agent);
+            (bool allowed, ) = reputationLimits.canAcceptDeposit(
+                agent,
+                currentAUM,
+                agentInfo.copiers,
+                msg.value
+            );
+            if (!allowed) revert ExceedsTierLimit();
+        }
 
         positionId = positionCount++;
 
@@ -297,6 +315,7 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
         if (!pos.active) revert PositionNotActive();
 
         uint256 oldValue = pos.currentValue;
+        _validateValueChange(oldValue, newValue);
         pos.currentValue = newValue;
 
         emit PositionValueUpdated(positionId, oldValue, newValue);
@@ -317,6 +336,7 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
             CopyPosition storage pos = _positions[positionIds[i]];
             if (pos.active) {
                 uint256 oldValue = pos.currentValue;
+                _validateValueChange(oldValue, newValues[i]);
                 pos.currentValue = newValues[i];
                 emit PositionValueUpdated(positionIds[i], oldValue, newValues[i]);
             }
@@ -368,6 +388,15 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
     function setFeeRecipient(address _recipient) external onlyAdmin validAddress(_recipient) {
         emit FeeRecipientUpdated(feeRecipient, _recipient);
         feeRecipient = _recipient;
+    }
+
+    /**
+     * @notice Set reputation limits contract
+     * @param _limits New limits contract address
+     */
+    function setReputationLimits(address _limits) external onlyAdmin {
+        emit ReputationLimitsUpdated(address(reputationLimits), _limits);
+        reputationLimits = ReputationLimits(_limits);
     }
 
     /**
@@ -557,6 +586,23 @@ contract KamiyoVault is ReentrancyGuard, Pausable {
         if (amount == 0) return;
         (bool success, ) = to.call{value: amount}("");
         if (!success) revert TransferFailed();
+    }
+
+    function _validateValueChange(uint256 oldValue, uint256 newValue) internal pure {
+        if (oldValue == 0) return; // Allow setting initial value
+        uint256 maxChange = (oldValue * MAX_VALUE_CHANGE_BPS) / 10000;
+        uint256 diff = newValue > oldValue ? newValue - oldValue : oldValue - newValue;
+        if (diff > maxChange) revert ExcessiveValueChange();
+    }
+
+    function _getAgentAUM(address agent) internal view returns (uint256 aum) {
+        uint256[] storage posIds = _agentPositions[agent];
+        for (uint256 i = 0; i < posIds.length; i++) {
+            CopyPosition storage pos = _positions[posIds[i]];
+            if (pos.active) {
+                aum += pos.currentValue;
+            }
+        }
     }
 
     receive() external payable {}

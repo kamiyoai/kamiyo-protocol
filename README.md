@@ -287,9 +287,9 @@ npm run build --workspaces
 
 | Contract | Address |
 |----------|---------|
-| AgentRegistry | `0x4cEce9D24fEf5Cdf3b611f400Ab17FA008a44140` |
-| KamiyoVault | `0xA30C2DEDCEBD1FE03486632ec8Ed4cC263aCB8B8` |
-| ReputationLimits | `0x986A8f0cEC025881A6594348cCcFb6374D64Fc94` |
+| AgentRegistry | `0xCa034D63c67ADd6CA127a575F0097C203DAcaE9d` |
+| KamiyoVault | `0xF5B2b62f014459B98991AaE001e33aF75f4fbD15` |
+| ReputationLimits | `0xbECa9c722EeF9897b5aa87363F3Bd9C94e16fE33` |
 
 **Fees:**
 - Companion escrow creation: 50 KAMIYO (1% burned, 99% to treasury)

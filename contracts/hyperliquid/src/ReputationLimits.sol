@@ -40,15 +40,18 @@ contract ReputationLimits is ReentrancyGuard {
 
     AgentRegistry public immutable agentRegistry;
     address public admin;
+    address public pendingAdmin;
     bool public paused;
 
     // BN254 curve order
     uint256 constant P = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+    uint64 constant TIER_VALIDITY_PERIOD = 365 days;
 
     event TierVerified(address indexed agent, uint8 tier, uint256 maxCopyLimit);
     event TierConfigured(uint8 indexed tier, uint256 threshold, uint256 maxCopyLimit, uint256 maxCopiers);
     event VKUpdated();
-    event AdminUpdated(address indexed oldAdmin, address indexed newAdmin);
+    event AdminTransferInitiated(address indexed currentAdmin, address indexed pendingAdmin);
+    event AdminTransferCompleted(address indexed oldAdmin, address indexed newAdmin);
     event Paused(bool isPaused);
 
     error NotAdmin();
@@ -59,6 +62,8 @@ contract ReputationLimits is ReentrancyGuard {
     error AlreadyHigherTier();
     error BadInputs();
     error VKNotInitialized();
+    error NotPendingAdmin();
+    error ZeroAddress();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -133,7 +138,7 @@ contract ReputationLimits is ReentrancyGuard {
      * @return maxCopiers Maximum number of copiers allowed
      */
     function getCopyLimits(address agent) external view returns (uint256 maxCopyLimit, uint256 maxCopiers) {
-        uint8 tier = agentTiers[agent].tier;
+        uint8 tier = _getEffectiveTier(agent);
         return (tiers[tier].maxCopyLimit, tiers[tier].maxCopiers);
     }
 
@@ -152,7 +157,7 @@ contract ReputationLimits is ReentrancyGuard {
         uint256 currentCopiers,
         uint256 newDeposit
     ) external view returns (bool allowed, string memory reason) {
-        uint8 tier = agentTiers[agent].tier;
+        uint8 tier = _getEffectiveTier(agent);
         Tier memory t = tiers[tier];
 
         if (currentAUM + newDeposit > t.maxCopyLimit) {
@@ -244,11 +249,23 @@ contract ReputationLimits is ReentrancyGuard {
     }
 
     /**
-     * @notice Set admin
+     * @notice Initiate admin transfer (2-step process)
+     * @param newAdmin New admin address
      */
-    function setAdmin(address _admin) external onlyAdmin {
-        emit AdminUpdated(admin, _admin);
-        admin = _admin;
+    function transferAdmin(address newAdmin) external onlyAdmin {
+        if (newAdmin == address(0)) revert ZeroAddress();
+        pendingAdmin = newAdmin;
+        emit AdminTransferInitiated(admin, newAdmin);
+    }
+
+    /**
+     * @notice Accept admin role
+     */
+    function acceptAdmin() external {
+        if (msg.sender != pendingAdmin) revert NotPendingAdmin();
+        emit AdminTransferCompleted(admin, msg.sender);
+        admin = msg.sender;
+        pendingAdmin = address(0);
     }
 
     /**
@@ -260,6 +277,13 @@ contract ReputationLimits is ReentrancyGuard {
     }
 
     // ============ Internal Functions ============
+
+    function _getEffectiveTier(address agent) internal view returns (uint8) {
+        AgentTier storage at = agentTiers[agent];
+        if (at.tier == 0) return 0;
+        if (block.timestamp > at.verifiedAt + TIER_VALIDITY_PERIOD) return 0;
+        return at.tier;
+    }
 
     function _verifyProof(
         uint256[2] calldata proofA,

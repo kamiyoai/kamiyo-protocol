@@ -334,6 +334,33 @@ contract KamiyoVaultTest is Test {
         assertEq(vault.getPosition(1).currentValue, 2.2e18);
     }
 
+    function test_updatePositionValue_revert_excessiveChange() public {
+        vm.prank(user1);
+        uint256 positionId = vault.openPosition{value: 1e18}(agent1, 500, 7 days);
+
+        // Try to change by more than 20% (e.g., 1 ETH -> 1.3 ETH = 30% change)
+        vm.prank(disputeResolver);
+        vm.expectRevert(KamiyoVault.ExcessiveValueChange.selector);
+        vault.updatePositionValue(positionId, 1.3e18);
+    }
+
+    function test_updatePositionValue_withinBounds() public {
+        vm.prank(user1);
+        uint256 positionId = vault.openPosition{value: 1e18}(agent1, 500, 7 days);
+
+        // Change by exactly 20% should work (1 ETH -> 1.2 ETH)
+        vm.prank(disputeResolver);
+        vault.updatePositionValue(positionId, 1.2e18);
+
+        assertEq(vault.getPosition(positionId).currentValue, 1.2e18);
+
+        // Then decrease by 20% from new value
+        vm.prank(disputeResolver);
+        vault.updatePositionValue(positionId, 0.96e18); // 1.2 * 0.8 = 0.96
+
+        assertEq(vault.getPosition(positionId).currentValue, 0.96e18);
+    }
+
     // ============ View Function Tests ============
 
     function test_getUserPositions() public {

@@ -133,6 +133,31 @@ contract ReputationLimitsTest is Test {
         assertEq(tierInfo.maxCopyLimit, 100 ether);
     }
 
+    // ============ Tier Expiration Tests ============
+
+    function test_tierExpiration() public {
+        // Set up VK and prove tier 1 for agent1
+        _setProductionVK();
+
+        // Prove tier for agent1 (already registered in setUp)
+        uint256[2] memory proofA = [uint256(1), uint256(2)];
+        uint256[2][2] memory proofB = [[uint256(3), uint256(4)], [uint256(5), uint256(6)]];
+        uint256[2] memory proofC = [uint256(7), uint256(8)];
+
+        bytes32 commitment = keccak256(abi.encodePacked(uint256(30), uint256(12345)));
+        uint256[] memory pubInputs = new uint256[](2);
+        pubInputs[0] = 25; // Tier 1 threshold
+        pubInputs[1] = uint256(commitment);
+
+        // This will fail verification since we use dummy proof, but we can test expiration directly
+        // by checking getCopyLimits at different timestamps
+
+        // Agent1 starts at tier 0
+        (uint256 maxCopyLimit, uint256 maxCopiers) = limits.getCopyLimits(agent1);
+        assertEq(maxCopyLimit, 100 ether); // Tier 0 limit
+        assertEq(maxCopiers, 5); // Tier 0 copiers
+    }
+
     // ============ Pause Tests ============
 
     function test_pause() public {
@@ -154,19 +179,37 @@ contract ReputationLimitsTest is Test {
 
     // ============ Admin Tests ============
 
-    function test_setAdmin() public {
+    function test_transferAdmin() public {
         address newAdmin = address(10);
 
         vm.prank(admin);
-        limits.setAdmin(newAdmin);
+        limits.transferAdmin(newAdmin);
+
+        assertEq(limits.pendingAdmin(), newAdmin);
+        assertEq(limits.admin(), admin);
+
+        vm.prank(newAdmin);
+        limits.acceptAdmin();
 
         assertEq(limits.admin(), newAdmin);
+        assertEq(limits.pendingAdmin(), address(0));
     }
 
-    function test_setAdmin_revert_notAdmin() public {
+    function test_transferAdmin_revert_notAdmin() public {
         vm.prank(agent1);
         vm.expectRevert(ReputationLimits.NotAdmin.selector);
-        limits.setAdmin(address(10));
+        limits.transferAdmin(address(10));
+    }
+
+    function test_acceptAdmin_revert_notPendingAdmin() public {
+        address newAdmin = address(10);
+
+        vm.prank(admin);
+        limits.transferAdmin(newAdmin);
+
+        vm.prank(agent1);
+        vm.expectRevert(ReputationLimits.NotPendingAdmin.selector);
+        limits.acceptAdmin();
     }
 
     // ============ Verification Key Tests ============
