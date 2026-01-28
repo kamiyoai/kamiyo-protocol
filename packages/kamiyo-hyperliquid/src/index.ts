@@ -39,8 +39,14 @@ export {
   OracleConfig,
   PositionValueUpdate,
   DisputeEvaluation,
+  SignedValueUpdate,
   createOracle,
 } from './oracle';
+
+export {
+  NonceManager,
+  createNonceManager,
+} from './nonce-manager';
 
 export {
   Logger,
