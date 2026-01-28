@@ -1,10 +1,8 @@
 import { PublicKey } from '@solana/web3.js';
 import { createHash, randomUUID } from 'crypto';
 import type { UAL, InferenceProvenance, QualityQueryResult } from './types.js';
+import { InferenceNotFoundError } from './errors.js';
 
-/**
- * Tracks which Knowledge Assets influenced AI decisions.
- */
 export class InferenceProvenanceTracker {
   private provenances: Map<string, InferenceProvenance> = new Map();
   private assetUsage: Map<string, string[]> = new Map(); // UAL -> inference IDs
@@ -35,7 +33,7 @@ export class InferenceProvenanceTracker {
 
     const provenance = this.provenances.get(inferenceId);
     if (!provenance) {
-      throw new Error(`Inference not found: ${inferenceId}`);
+      throw new InferenceNotFoundError(inferenceId);
     }
 
     provenance.usedAssets.push({
@@ -79,7 +77,7 @@ export class InferenceProvenanceTracker {
 
     const provenance = this.provenances.get(inferenceId);
     if (!provenance) {
-      throw new Error(`Inference not found: ${inferenceId}`);
+      throw new InferenceNotFoundError(inferenceId);
     }
 
     provenance.confidence = confidence;
@@ -180,7 +178,7 @@ export class InferenceProvenanceTracker {
   generateProvenanceHash(inferenceId: string): string {
     const provenance = this.provenances.get(inferenceId);
     if (!provenance) {
-      throw new Error(`Inference not found: ${inferenceId}`);
+      throw new InferenceNotFoundError(inferenceId);
     }
 
     const data = JSON.stringify({

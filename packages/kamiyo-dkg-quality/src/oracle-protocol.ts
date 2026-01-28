@@ -10,10 +10,15 @@ import type {
   OracleProtocolConfig,
 } from './types.js';
 import { DEFAULT_ORACLE_CONFIG, DEFAULT_QUALITY_WEIGHTS } from './types.js';
+import {
+  ValidationError,
+  UalError,
+  OracleNotRegisteredError,
+  InsufficientStakeError,
+  CommitmentError,
+  InvalidCommitmentError,
+} from './errors.js';
 
-/**
- * Multi-oracle commit/reveal protocol for quality assessments.
- */
 export class OracleProtocolManager {
   private oracles: Map<string, OracleInfo> = new Map();
   private commitments: Map<string, OracleCommitment[]> = new Map();
@@ -32,20 +37,21 @@ export class OracleProtocolManager {
 
     // Validate inputs
     if (!oracleId) {
-      throw new Error('Oracle ID (public key) is required');
+      throw new ValidationError('Oracle ID (public key) is required', 'oracleId');
     }
     if (!stake || stake.lten(0)) {
-      throw new Error('Oracle stake must be positive');
+      throw new ValidationError('Oracle stake must be positive', 'stake');
     }
     if (stake.lt(this.config.minOracleStake)) {
-      throw new Error(
-        `Oracle stake ${stake.toString()} below minimum ${this.config.minOracleStake.toString()}`
+      throw new InsufficientStakeError(
+        this.config.minOracleStake.toString(),
+        stake.toString()
       );
     }
 
     const key = oracleId.toBase58();
     if (this.oracles.has(key)) {
-      throw new Error(`Oracle already registered: ${key}`);
+      throw new ValidationError(`Oracle already registered: ${key}`, 'oracleId');
     }
 
     const info: OracleInfo = {
@@ -72,28 +78,28 @@ export class OracleProtocolManager {
 
     // Validate inputs
     if (!assetUal || typeof assetUal !== 'string') {
-      throw new Error('Asset UAL is required');
+      throw new ValidationError('Asset UAL is required', 'assetUal');
     }
     if (!assetUal.startsWith('did:dkg:')) {
-      throw new Error(`Invalid UAL format: must start with "did:dkg:". Got: ${assetUal.slice(0, 20)}`);
+      throw new UalError(`Invalid UAL format: must start with "did:dkg:"`, assetUal);
     }
     if (!oracleId) {
-      throw new Error('Oracle ID is required');
+      throw new ValidationError('Oracle ID is required', 'oracleId');
     }
     if (!commitment || typeof commitment !== 'string' || commitment.length < 32) {
-      throw new Error('Valid commitment hash is required (min 32 characters)');
+      throw new ValidationError('Valid commitment hash is required (min 32 characters)', 'commitment');
     }
 
     const oracle = this.oracles.get(oracleId.toBase58());
     if (!oracle || !oracle.active) {
-      throw new Error(`Oracle not registered or inactive: ${oracleId.toBase58()}`);
+      throw new OracleNotRegisteredError(oracleId.toBase58());
     }
 
     const commitments = this.commitments.get(assetUal) || [];
 
     // Check for duplicate
     if (commitments.some((c) => c.oracleId.equals(oracleId))) {
-      throw new Error(`Oracle already committed for asset: ${assetUal}`);
+      throw new CommitmentError(`Oracle already committed for asset: ${assetUal}`);
     }
 
     const commit: OracleCommitment = {
@@ -119,19 +125,19 @@ export class OracleProtocolManager {
 
     // Validate inputs
     if (!assetUal || typeof assetUal !== 'string') {
-      throw new Error('Asset UAL is required');
+      throw new ValidationError('Asset UAL is required', 'assetUal');
     }
     if (!oracleId) {
-      throw new Error('Oracle ID is required');
+      throw new ValidationError('Oracle ID is required', 'oracleId');
     }
     if (!scores) {
-      throw new Error('Quality scores are required');
+      throw new ValidationError('Quality scores are required', 'scores');
     }
     if (!this.validateScores(scores)) {
-      throw new Error('Invalid quality scores: all scores must be integers between 0-100');
+      throw new ValidationError('Invalid quality scores: all scores must be integers between 0-100', 'scores');
     }
     if (!salt || typeof salt !== 'string' || salt.length < 16) {
-      throw new Error('Valid salt is required (min 16 characters)');
+      throw new ValidationError('Valid salt is required (min 16 characters)', 'salt');
     }
 
     // Verify commitment exists
@@ -139,7 +145,7 @@ export class OracleProtocolManager {
     const commitment = commitments.find((c) => c.oracleId.equals(oracleId));
 
     if (!commitment) {
-      throw new Error(`No commitment found for oracle: ${oracleId.toBase58()}`);
+      throw new CommitmentError(`No commitment found for oracle: ${oracleId.toBase58()}`);
     }
 
     // Calculate overall score
@@ -154,7 +160,7 @@ export class OracleProtocolManager {
     );
 
     if (expectedCommitment !== commitment.commitment) {
-      throw new Error('Commitment does not match revealed values');
+      throw new InvalidCommitmentError();
     }
 
     const assessment: QualityAssessment = {
@@ -182,8 +188,9 @@ export class OracleProtocolManager {
     const reveals = this.reveals.get(assetUal) || [];
 
     if (reveals.length < this.config.minOraclesRequired) {
-      throw new Error(
-        `Insufficient reveals: ${reveals.length} < ${this.config.minOraclesRequired}`
+      throw new ValidationError(
+        `Insufficient reveals: ${reveals.length} < ${this.config.minOraclesRequired}`,
+        'reveals'
       );
     }
 

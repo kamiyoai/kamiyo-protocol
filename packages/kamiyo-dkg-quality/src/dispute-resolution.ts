@@ -5,10 +5,15 @@ import type { UAL, QualityDispute, QualityStake, InferenceProvenance } from './t
 import type { QualityStakingManager } from './quality-staking.js';
 import type { OracleProtocolManager } from './oracle-protocol.js';
 import type { InferenceProvenanceTracker } from './inference-provenance.js';
+import {
+  StakeNotFoundError,
+  CannotDisputePendingError,
+  DisputeWindowExpiredError,
+  DisputeAlreadyExistsError,
+  DisputeNotFoundError,
+  DisputeAlreadyResolvedError,
+} from './errors.js';
 
-/**
- * Handles disputes and re-evaluation for quality assessments.
- */
 export class DisputeResolutionManager {
   private disputes: Map<string, QualityDispute> = new Map();
   private stakingManager: QualityStakingManager;
@@ -36,11 +41,11 @@ export class DisputeResolutionManager {
     // Verify asset has been assessed
     const stake = this.stakingManager.getStake(assetUal);
     if (!stake) {
-      throw new Error(`No quality stake found for asset: ${assetUal}`);
+      throw new StakeNotFoundError(assetUal);
     }
 
     if (stake.status === 'pending') {
-      throw new Error('Cannot dispute pending assessment');
+      throw new CannotDisputePendingError();
     }
 
     // Check dispute window (7 days from verification)
@@ -49,13 +54,13 @@ export class DisputeResolutionManager {
     const now = Math.floor(Date.now() / 1000);
 
     if (now > verifiedAt + disputeWindow) {
-      throw new Error('Dispute window has expired');
+      throw new DisputeWindowExpiredError(assetUal);
     }
 
     // Check for existing dispute
     const existingDispute = this.getDisputeForAsset(assetUal);
     if (existingDispute && existingDispute.status === 'open') {
-      throw new Error(`Active dispute already exists: ${existingDispute.disputeId}`);
+      throw new DisputeAlreadyExistsError(assetUal, existingDispute.disputeId);
     }
 
     const disputeId = randomUUID();
@@ -89,11 +94,11 @@ export class DisputeResolutionManager {
 
     const dispute = this.disputes.get(disputeId);
     if (!dispute) {
-      throw new Error(`Dispute not found: ${disputeId}`);
+      throw new DisputeNotFoundError(disputeId);
     }
 
     if (dispute.status !== 'open') {
-      throw new Error(`Dispute already resolved: ${dispute.status}`);
+      throw new DisputeAlreadyResolvedError(disputeId, dispute.status);
     }
 
     dispute.newScore = newScore;

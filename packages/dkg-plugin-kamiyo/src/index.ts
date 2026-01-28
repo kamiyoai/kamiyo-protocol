@@ -1,16 +1,15 @@
-/**
- * @dkg/plugin-kamiyo
- *
- * KAMIYO Quality Oracle plugin for OriginTrail DKG nodes.
- * Adds quality staking, oracle assessments, and quality-filtered queries.
- */
-
 import type { PublicKey, Connection } from '@solana/web3.js';
 import type BN from 'bn.js';
+import {
+  ValidationError,
+  validateUal,
+  validateStakeAmount,
+  validateScore,
+  validateSparql,
+  validateReason,
+  validateOptionalScore,
+} from './validation.js';
 
-/**
- * DKG Plugin Context (provided by DKG node)
- */
 export interface DkgPluginContext {
   logger: {
     info: (msg: string, meta?: object) => void;
@@ -27,9 +26,6 @@ export interface DkgPluginContext {
   config: Record<string, unknown>;
 }
 
-/**
- * MCP Tools interface (provided by DKG node)
- */
 export interface McpToolsInterface {
   register: (
     name: string,
@@ -41,17 +37,11 @@ export interface McpToolsInterface {
   ) => void;
 }
 
-/**
- * API interface (provided by DKG node)
- */
 export interface ApiInterface {
   get: (path: string, handler: (req: unknown, res: unknown) => Promise<void>) => void;
   post: (path: string, handler: (req: unknown, res: unknown) => Promise<void>) => void;
 }
 
-/**
- * KAMIYO plugin configuration
- */
 export interface KamiyoPluginConfig {
   solanaRpcUrl: string;
   programId: string;
@@ -60,9 +50,6 @@ export interface KamiyoPluginConfig {
   verificationWindowHours?: number;
 }
 
-/**
- * Define DKG plugin (matches OriginTrail plugin spec)
- */
 export function defineDkgPlugin(
   setup: (ctx: DkgPluginContext, mcp: McpToolsInterface, api: ApiInterface) => void | Promise<void>
 ) {
@@ -73,9 +60,6 @@ export function defineDkgPlugin(
   };
 }
 
-/**
- * KAMIYO Quality Oracle Plugin
- */
 export default defineDkgPlugin(async (ctx, mcp, api) => {
   const { logger, dkgClient, config } = ctx;
 
@@ -113,6 +97,9 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
     },
     handler: async (params: any) => {
       try {
+        const assetUAL = validateUal(params.assetUAL);
+        const stakeAmount = validateStakeAmount(params.stakeAmount);
+
         const { Keypair } = await import('@solana/web3.js');
         const BN = (await import('bn.js')).default;
 
@@ -120,27 +107,27 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
         const publisher = Keypair.generate().publicKey;
 
         const stake = await stakingManager.createQualityStake({
-          assetUal: params.assetUAL,
+          assetUal: assetUAL,
           publisher,
-          stakeAmount: new BN(params.stakeAmount * 1e9),
+          stakeAmount: new BN(stakeAmount * 1e9),
         });
 
         // Add stake reference to DKG asset metadata
-        await dkgClient.update(params.assetUAL, {
+        await dkgClient.update(assetUAL, {
           'kamiyo:qualityStake': stake.escrowPda.toBase58(),
-          'kamiyo:stakeAmount': params.stakeAmount.toString(),
+          'kamiyo:stakeAmount': stakeAmount.toString(),
           'kamiyo:stakeStatus': 'pending',
         });
 
         logger.info('Quality stake created', {
-          assetUAL: params.assetUAL,
-          stakeAmount: params.stakeAmount,
+          assetUAL,
+          stakeAmount,
         });
 
         return {
           success: true,
           escrowPda: stake.escrowPda.toBase58(),
-          assetUAL: params.assetUAL,
+          assetUAL,
           verificationDeadline: new Date(stake.verificationDeadline * 1000).toISOString(),
         };
       } catch (error: any) {
@@ -163,6 +150,9 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
     },
     handler: async (params: any) => {
       try {
+        const sparql = validateSparql(params.sparql);
+        const minQualityScore = validateOptionalScore(params.minQualityScore, 'minQualityScore', 80);
+
         const { DragQualityClient } = await import('@kamiyo/dkg-quality-oracle');
 
         const client = new DragQualityClient({
@@ -172,16 +162,16 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
         });
 
         const results = await client.queryWithQuality({
-          sparql: params.sparql,
+          sparql,
           qualityRequirements: {
-            minOverallScore: params.minQualityScore ?? 80,
+            minOverallScore: minQualityScore,
             excludeDisputed: true,
           },
         });
 
         logger.info('Quality query executed', {
           resultCount: results.length,
-          minQuality: params.minQualityScore ?? 80,
+          minQuality: minQualityScore,
         });
 
         return {
@@ -211,28 +201,34 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
     },
     handler: async (params: any) => {
       try {
+        const assetUAL = validateUal(params.assetUAL);
+        const factualAccuracy = validateScore(params.factualAccuracy, 'factualAccuracy');
+        const sourceQuality = validateOptionalScore(params.sourceQuality, 'sourceQuality', 75);
+        const completeness = validateOptionalScore(params.completeness, 'completeness', 75);
+        const consistency = validateOptionalScore(params.consistency, 'consistency', 75);
+
         const { Keypair } = await import('@solana/web3.js');
 
         const oracleId = Keypair.generate().publicKey;
         const salt = oracleManager.generateSalt();
 
         const scores = {
-          factualAccuracy: params.factualAccuracy,
-          sourceQuality: params.sourceQuality ?? 75,
-          completeness: params.completeness ?? 75,
-          consistency: params.consistency ?? 75,
+          factualAccuracy,
+          sourceQuality,
+          completeness,
+          consistency,
         };
 
         const overallScore = oracleManager.calculateOverallScore(scores);
         const commitment = oracleManager.computeCommitment(
           overallScore,
           salt,
-          params.assetUAL,
+          assetUAL,
           oracleId
         );
 
         logger.info('Quality assessment submitted', {
-          assetUAL: params.assetUAL,
+          assetUAL,
           overallScore,
         });
 
@@ -254,9 +250,10 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
   // ==================
 
   api.post('/kamiyo/quality-stake', async (req: any, res: any) => {
-    const { assetUAL, stakeAmount } = req.body;
-
     try {
+      const assetUAL = validateUal(req.body?.assetUAL);
+      const stakeAmount = validateStakeAmount(req.body?.stakeAmount);
+
       const { Keypair } = await import('@solana/web3.js');
       const BN = (await import('bn.js')).default;
 
@@ -274,19 +271,32 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
         status: stake.status,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      const status = error instanceof ValidationError ? 400 : 500;
+      res.status(status).json({ success: false, error: error.message });
     }
   });
 
   api.post('/kamiyo/assess', async (req: any, res: any) => {
-    const { assetUAL, scores } = req.body;
-
     try {
+      const assetUAL = validateUal(req.body?.assetUAL);
+      const scores = req.body?.scores;
+
+      if (!scores || typeof scores !== 'object') {
+        throw new ValidationError('scores object is required');
+      }
+
+      const validatedScores = {
+        factualAccuracy: validateScore(scores.factualAccuracy, 'factualAccuracy'),
+        sourceQuality: validateOptionalScore(scores.sourceQuality, 'sourceQuality', 75),
+        completeness: validateOptionalScore(scores.completeness, 'completeness', 75),
+        consistency: validateOptionalScore(scores.consistency, 'consistency', 75),
+      };
+
       const { Keypair } = await import('@solana/web3.js');
 
       const oracleId = Keypair.generate().publicKey;
       const salt = oracleManager.generateSalt();
-      const overallScore = oracleManager.calculateOverallScore(scores);
+      const overallScore = oracleManager.calculateOverallScore(validatedScores);
       const commitment = oracleManager.computeCommitment(
         overallScore,
         salt,
@@ -300,14 +310,22 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
         overallScore,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      const status = error instanceof ValidationError ? 400 : 500;
+      res.status(status).json({ success: false, error: error.message });
     }
   });
 
   api.get('/kamiyo/reputation/:did', async (req: any, res: any) => {
-    const { did } = req.params;
-
     try {
+      const did = req.params?.did;
+      if (typeof did !== 'string' || !did.trim()) {
+        throw new ValidationError('did parameter is required');
+      }
+      // Basic DID format check
+      if (!did.startsWith('did:')) {
+        throw new ValidationError('did must be a valid DID format');
+      }
+
       // Placeholder - real impl would query on-chain
       res.json({
         success: true,
@@ -320,14 +338,19 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
         },
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      const status = error instanceof ValidationError ? 400 : 500;
+      res.status(status).json({ success: false, error: error.message });
     }
   });
 
   api.post('/kamiyo/dispute', async (req: any, res: any) => {
-    const { assetUAL, reason, evidenceUAL } = req.body;
-
     try {
+      const assetUAL = validateUal(req.body?.assetUAL);
+      const reason = validateReason(req.body?.reason);
+      const evidenceUAL = req.body?.evidenceUAL
+        ? validateUal(req.body.evidenceUAL, 'evidenceUAL')
+        : undefined;
+
       const { Keypair } = await import('@solana/web3.js');
 
       const challenger = Keypair.generate().publicKey;
@@ -345,7 +368,8 @@ export default defineDkgPlugin(async (ctx, mcp, api) => {
         status: dispute.status,
       });
     } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+      const status = error instanceof ValidationError ? 400 : 500;
+      res.status(status).json({ success: false, error: error.message });
     }
   });
 

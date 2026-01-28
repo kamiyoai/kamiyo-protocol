@@ -10,10 +10,14 @@ import type {
 } from './types.js';
 import { DEFAULT_STAKING_CONFIG } from './types.js';
 import { deriveEscrowPDA, type PDAConfig } from './pda.js';
+import {
+  ValidationError,
+  UalError,
+  StakeNotFoundError,
+  StakeAlreadyExistsError,
+  StakeAlreadyResolvedError,
+} from './errors.js';
 
-/**
- * Links SOL escrow stakes to DKG Knowledge Assets.
- */
 export class QualityStakingManager {
   private stakes: Map<string, QualityStake> = new Map();
   private reputations: Map<string, PublisherReputation> = new Map();
@@ -35,33 +39,34 @@ export class QualityStakingManager {
 
     // Validate UAL format
     if (!assetUal || typeof assetUal !== 'string') {
-      throw new Error('Asset UAL is required');
+      throw new ValidationError('Asset UAL is required', 'assetUal');
     }
     if (!assetUal.startsWith('did:dkg:')) {
-      throw new Error(`Invalid UAL format: must start with "did:dkg:". Got: ${assetUal.slice(0, 20)}`);
+      throw new UalError(`Invalid UAL format: must start with "did:dkg:"`, assetUal);
     }
     const ualParts = parseUAL(assetUal);
     if (!ualParts) {
-      throw new Error(`Invalid UAL format: ${assetUal}. Expected: did:dkg:{network}/{contract}/{tokenId}`);
+      throw new UalError(`Invalid UAL format. Expected: did:dkg:{network}/{contract}/{tokenId}`, assetUal);
     }
 
     // Validate stake amount
     if (!stakeAmount || stakeAmount.lten(0)) {
-      throw new Error('Stake amount must be positive');
+      throw new ValidationError('Stake amount must be positive', 'stakeAmount');
     }
     if (stakeAmount.lt(this.config.minStakeAmount)) {
-      throw new Error(
-        `Stake amount ${stakeAmount.toString()} below minimum ${this.config.minStakeAmount.toString()}`
+      throw new ValidationError(
+        `Stake amount ${stakeAmount.toString()} below minimum ${this.config.minStakeAmount.toString()}`,
+        'stakeAmount'
       );
     }
 
     // Validate deadline
     if (verificationDeadlineHours !== undefined && verificationDeadlineHours <= 0) {
-      throw new Error('Verification deadline hours must be positive');
+      throw new ValidationError('Verification deadline hours must be positive', 'verificationDeadlineHours');
     }
 
     if (this.stakes.has(assetUal)) {
-      throw new Error(`Quality stake already exists for asset: ${assetUal}`);
+      throw new StakeAlreadyExistsError(assetUal);
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -93,25 +98,25 @@ export class QualityStakingManager {
 
     // Validate inputs
     if (!assetUal) {
-      throw new Error('Asset UAL is required');
+      throw new ValidationError('Asset UAL is required', 'assetUal');
     }
     if (typeof medianScore !== 'number' || !Number.isFinite(medianScore)) {
-      throw new Error('Median score must be a valid number');
+      throw new ValidationError('Median score must be a valid number', 'medianScore');
     }
     if (medianScore < 0 || medianScore > 100) {
-      throw new Error(`Median score must be between 0-100. Got: ${medianScore}`);
+      throw new ValidationError(`Median score must be between 0-100. Got: ${medianScore}`, 'medianScore');
     }
     if (typeof oracleCount !== 'number' || !Number.isInteger(oracleCount) || oracleCount < 1) {
-      throw new Error(`Oracle count must be a positive integer. Got: ${oracleCount}`);
+      throw new ValidationError(`Oracle count must be a positive integer. Got: ${oracleCount}`, 'oracleCount');
     }
 
     const stake = this.stakes.get(assetUal);
     if (!stake) {
-      throw new Error(`No quality stake found for asset: ${assetUal}`);
+      throw new StakeNotFoundError(assetUal);
     }
 
     if (stake.status !== 'pending') {
-      throw new Error(`Stake already resolved with status: ${stake.status}`);
+      throw new StakeAlreadyResolvedError(assetUal, stake.status);
     }
 
     // Determine status based on score thresholds
