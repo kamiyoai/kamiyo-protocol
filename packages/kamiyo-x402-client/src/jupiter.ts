@@ -19,12 +19,23 @@ export const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 function isValidQuote(data: unknown): data is SwapQuote {
   if (!data || typeof data !== 'object') return false;
   const q = data as Record<string, unknown>;
+  // V1 API uses inAmount/outAmount, normalize to inputAmount/outputAmount
   return (
     typeof q.inputMint === 'string' &&
     typeof q.outputMint === 'string' &&
-    typeof q.inputAmount === 'string' &&
-    typeof q.outputAmount === 'string'
+    (typeof q.inputAmount === 'string' || typeof q.inAmount === 'string') &&
+    (typeof q.outputAmount === 'string' || typeof q.outAmount === 'string')
   );
+}
+
+function normalizeQuote(data: Record<string, unknown>): SwapQuote {
+  return {
+    inputMint: data.inputMint as string,
+    outputMint: data.outputMint as string,
+    inputAmount: (data.inputAmount || data.inAmount) as string,
+    outputAmount: (data.outputAmount || data.outAmount) as string,
+    priceImpactPct: (data.priceImpactPct || '0') as string,
+  };
 }
 
 export interface JupiterConfig {
@@ -77,7 +88,7 @@ export class JupiterSwap {
         console.error('Jupiter quote invalid format:', JSON.stringify(data).slice(0, 500));
         return null;
       }
-      return data;
+      return normalizeQuote(data as Record<string, unknown>);
     } catch (err) {
       console.error('Jupiter quote error:', err);
       return null;
