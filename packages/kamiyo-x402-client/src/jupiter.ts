@@ -9,6 +9,7 @@ import {
 } from '@solana/web3.js';
 
 const API = process.env.JUPITER_API_URL || 'https://api.jup.ag/swap/v1';
+const API_KEY = process.env.JUPITER_API_KEY || '';
 const FETCH_TIMEOUT_MS = 30_000;
 
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -63,7 +64,9 @@ export class JupiterSwap {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const headers: Record<string, string> = {};
+      if (API_KEY) headers['x-api-key'] = API_KEY;
+      const res = await fetch(url, { signal: controller.signal, headers });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         console.error(`Jupiter quote failed: ${res.status} ${res.statusText}`, text);
@@ -90,9 +93,11 @@ export class JupiterSwap {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (API_KEY) headers['x-api-key'] = API_KEY;
       const res = await fetch(`${API}/swap`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           quoteResponse: q,
           userPublicKey: this.wallet.publicKey.toBase58(),
