@@ -71,6 +71,8 @@ export async function forwardToTelegram(tweetId: string, content: string): Promi
 
 // Poll @KamiyoAI timeline and forward new tweets
 const POLL_INTERVAL = 2 * 60 * 1000; // 2 minutes
+// Hardcoded fallback - @KamiyoAI user ID (unchanging, public)
+const KAMIYO_USER_ID_FALLBACK = '1886082338829414400';
 let kamiyoUserId: string | null = null;
 
 async function fetchKamiyoUserId(twitter: TwitterApi, retries = 5): Promise<string | null> {
@@ -105,20 +107,23 @@ export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<voi
 
   logger.info('Starting Telegram forward loop...', { groups: TG_GROUP_IDS.length });
 
-  // Try cached user ID first (survives restarts and rate limits)
+  // Try cached user ID first, then fetch, then fallback to hardcoded
   const cachedId = getCachedUserId();
   if (cachedId) {
     kamiyoUserId = cachedId;
     logger.info('Using cached KamiyoAI user ID', { userId: kamiyoUserId });
   } else {
-    // Fetch fresh and cache it
+    // Try to fetch fresh
     kamiyoUserId = await fetchKamiyoUserId(twitter);
-    if (!kamiyoUserId) {
-      logger.error('Could not get KamiyoAI user ID after retries, TG forward disabled');
-      return;
+    if (kamiyoUserId) {
+      setCachedUserId(kamiyoUserId);
+      logger.info('Fetched and cached KamiyoAI user ID', { userId: kamiyoUserId });
+    } else {
+      // Use hardcoded fallback
+      kamiyoUserId = KAMIYO_USER_ID_FALLBACK;
+      setCachedUserId(kamiyoUserId);
+      logger.warn('Using fallback KamiyoAI user ID', { userId: kamiyoUserId });
     }
-    setCachedUserId(kamiyoUserId);
-    logger.info('Fetched and cached KamiyoAI user ID', { userId: kamiyoUserId });
   }
 
   const poll = async () => {
