@@ -425,10 +425,27 @@ export class DisputeMonitor {
   }
 
   /**
-   * Check for phase ending warnings
+   * Get current Solana cluster time (more accurate than local time)
+   * Falls back to local time if cluster time unavailable
+   */
+  private async getClusterTime(): Promise<number> {
+    try {
+      const slot = await this.connection.getSlot("confirmed");
+      const blockTime = await this.connection.getBlockTime(slot);
+      if (blockTime !== null) {
+        return blockTime;
+      }
+    } catch {
+      // Fall back to local time if cluster time unavailable
+    }
+    return Math.floor(Date.now() / 1000);
+  }
+
+  /**
+   * Check for phase ending warnings using cluster time
    */
   private async checkPhaseWarnings(): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
+    const now = await this.getClusterTime();
     const warningTime = this.config.phaseWarningTime;
 
     for (const [pubkeyStr, escrow] of this.trackedEscrows) {

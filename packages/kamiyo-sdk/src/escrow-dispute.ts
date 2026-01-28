@@ -131,7 +131,25 @@ export class EscrowDisputeManager {
   }
 
   /**
+   * Get current Solana cluster time (more accurate than local time)
+   * Falls back to local time if cluster time unavailable
+   */
+  async getClusterTime(): Promise<number> {
+    try {
+      const slot = await this.connection.getSlot("confirmed");
+      const blockTime = await this.connection.getBlockTime(slot);
+      if (blockTime !== null) {
+        return blockTime;
+      }
+    } catch {
+      // Fall back to local time if cluster time unavailable
+    }
+    return Math.floor(Date.now() / 1000);
+  }
+
+  /**
    * Check if escrow is in commit phase
+   * For synchronous checks, use local time. For accurate checks, use isInCommitPhaseAsync.
    */
   isInCommitPhase(escrow: CompanionEscrow): boolean {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
@@ -142,7 +160,19 @@ export class EscrowDisputeManager {
   }
 
   /**
+   * Check if escrow is in commit phase using cluster time
+   */
+  async isInCommitPhaseAsync(escrow: CompanionEscrow): Promise<boolean> {
+    if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
+    if (!escrow.commitPhaseEndsAt) return false;
+
+    const now = await this.getClusterTime();
+    return now < escrow.commitPhaseEndsAt.toNumber();
+  }
+
+  /**
    * Check if escrow is in reveal phase
+   * For synchronous checks, use local time. For accurate checks, use isInRevealPhaseAsync.
    */
   isInRevealPhase(escrow: CompanionEscrow): boolean {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
@@ -156,7 +186,22 @@ export class EscrowDisputeManager {
   }
 
   /**
+   * Check if escrow is in reveal phase using cluster time
+   */
+  async isInRevealPhaseAsync(escrow: CompanionEscrow): Promise<boolean> {
+    if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
+    if (!escrow.commitPhaseEndsAt) return false;
+
+    const now = await this.getClusterTime();
+    const commitEnds = escrow.commitPhaseEndsAt.toNumber();
+    const revealEnds = commitEnds + COMPANION_ESCROW_REVEAL_PHASE_DURATION;
+
+    return now >= commitEnds && now < revealEnds;
+  }
+
+  /**
    * Check if reveal phase has ended (ready for finalization)
+   * For synchronous checks, use local time. For accurate checks, use isReadyForFinalizationAsync.
    */
   isReadyForFinalization(escrow: CompanionEscrow): boolean {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
@@ -170,7 +215,22 @@ export class EscrowDisputeManager {
   }
 
   /**
+   * Check if reveal phase has ended using cluster time
+   */
+  async isReadyForFinalizationAsync(escrow: CompanionEscrow): Promise<boolean> {
+    if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
+    if (!escrow.commitPhaseEndsAt) return false;
+
+    const now = await this.getClusterTime();
+    const commitEnds = escrow.commitPhaseEndsAt.toNumber();
+    const revealEnds = commitEnds + COMPANION_ESCROW_REVEAL_PHASE_DURATION;
+
+    return now >= revealEnds;
+  }
+
+  /**
    * Get time remaining in current phase (seconds)
+   * Uses local time. For accurate timing, use getPhaseTimeRemainingAsync.
    */
   getPhaseTimeRemaining(escrow: CompanionEscrow): { phase: string; remaining: number } {
     if (escrow.status !== CompanionEscrowStatus.Disputed || !escrow.commitPhaseEndsAt) {
@@ -178,6 +238,29 @@ export class EscrowDisputeManager {
     }
 
     const now = Math.floor(Date.now() / 1000);
+    const commitEnds = escrow.commitPhaseEndsAt.toNumber();
+    const revealEnds = commitEnds + COMPANION_ESCROW_REVEAL_PHASE_DURATION;
+
+    if (now < commitEnds) {
+      return { phase: "commit", remaining: commitEnds - now };
+    }
+    if (now < revealEnds) {
+      return { phase: "reveal", remaining: revealEnds - now };
+    }
+    return { phase: "finalization", remaining: 0 };
+  }
+
+  /**
+   * Get time remaining in current phase using cluster time
+   */
+  async getPhaseTimeRemainingAsync(
+    escrow: CompanionEscrow
+  ): Promise<{ phase: string; remaining: number }> {
+    if (escrow.status !== CompanionEscrowStatus.Disputed || !escrow.commitPhaseEndsAt) {
+      return { phase: "none", remaining: 0 };
+    }
+
+    const now = await this.getClusterTime();
     const commitEnds = escrow.commitPhaseEndsAt.toNumber();
     const revealEnds = commitEnds + COMPANION_ESCROW_REVEAL_PHASE_DURATION;
 

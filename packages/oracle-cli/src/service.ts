@@ -358,8 +358,9 @@ export class OracleService {
       return;
     }
 
-    // Verify we're in reveal phase
-    if (!this.disputeManager.isInRevealPhase(escrow)) {
+    // Verify we're in reveal phase using cluster time for accuracy
+    const inRevealPhase = await this.disputeManager.isInRevealPhaseAsync(escrow);
+    if (!inRevealPhase) {
       this.log("debug", "Not in reveal phase", { escrowPda: pdaString.slice(0, 16) });
       return;
     }
