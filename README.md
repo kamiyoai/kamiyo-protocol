@@ -283,12 +283,13 @@ npm run build --workspaces
 | ReputationMirror | `0x7f4c878e7b2b083878f0ba3d2de2c6db995b1a11` |
 | SwarmSimulator | `0xcaa2e2d77e09c4ec48830ada7abc711607350ea5` |
 
-### Hyperliquid Testnet
+### Hyperliquid Mainnet
 
 | Contract | Address |
 |----------|---------|
-| AgentRegistry | `0x25b96811e0441b20f89e11f9f430ef3319820bf0` |
-| KamiyoVault | `0x0feb48737d7f47af432a094e69e716c9e8fa8a22` |
+| AgentRegistry | `0x4cEce9D24fEf5Cdf3b611f400Ab17FA008a44140` |
+| KamiyoVault | `0xA30C2DEDCEBD1FE03486632ec8Ed4cC263aCB8B8` |
+| ReputationLimits | `0x986A8f0cEC025881A6594348cCcFb6374D64Fc94` |
 
 **Fees:**
 - Companion escrow creation: 50 KAMIYO (1% burned, 99% to treasury)
