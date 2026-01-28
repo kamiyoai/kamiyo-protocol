@@ -1,0 +1,65 @@
+services:
+  # Graph Node - main indexer
+  - type: web
+    name: kamiyo-graph-node
+    runtime: docker
+    dockerfilePath: ./Dockerfile.graph-node
+    dockerContext: .
+    plan: standard
+    region: oregon
+    healthCheckPath: /
+    envVars:
+      - key: postgres_host
+        fromService:
+          name: kamiyo-graph-postgres
+          type: pserv
+          property: host
+      - key: postgres_port
+        value: 5432
+      - key: postgres_user
+        fromDatabase:
+          name: kamiyo-graph-db
+          property: user
+      - key: postgres_pass
+        fromDatabase:
+          name: kamiyo-graph-db
+          property: password
+      - key: postgres_db
+        fromDatabase:
+          name: kamiyo-graph-db
+          property: database
+      - key: ipfs
+        fromService:
+          name: kamiyo-ipfs
+          type: pserv
+          envVarKey: IPFS_INTERNAL_URL
+      - key: ethereum
+        value: hyperliquid:https://rpc.hyperliquid.xyz/evm
+      - key: GRAPH_LOG
+        value: info
+      - key: ETHEREUM_REORG_THRESHOLD
+        value: 1
+      - key: ETHEREUM_ANCESTOR_COUNT
+        value: 1
+
+  # IPFS node
+  - type: pserv
+    name: kamiyo-ipfs
+    runtime: docker
+    dockerfilePath: ./Dockerfile.ipfs
+    dockerContext: .
+    plan: starter
+    region: oregon
+    disk:
+      name: ipfs-data
+      mountPath: /data/ipfs
+      sizeGB: 10
+    envVars:
+      - key: IPFS_INTERNAL_URL
+        value: kamiyo-ipfs:5001
+
+databases:
+  - name: kamiyo-graph-db
+    plan: starter
+    region: oregon
+    postgresMajorVersion: 15
