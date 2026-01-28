@@ -78,6 +78,15 @@ const ESCROW_DISCRIMINATOR = Buffer.from([
 /**
  * Dispute Monitor - Watches for dispute events
  */
+/**
+ * Queue item for sequential processing
+ */
+interface QueuedAccountChange {
+  accountId: PublicKey;
+  data: Buffer;
+  slot: number;
+}
+
 export class DisputeMonitor {
   private connection: Connection;
   private programId: PublicKey;
@@ -90,6 +99,11 @@ export class DisputeMonitor {
   private config: Required<DisputeMonitorConfig>;
   private reconnectAttempts = 0;
   private shouldReconnect = true;
+
+  // Queue-based processing to prevent race conditions
+  private eventQueue: QueuedAccountChange[] = [];
+  private isProcessingQueue = false;
+  private lastProcessedSlot: Map<string, number> = new Map(); // Track last processed slot per escrow
 
   constructor(connection: Connection, config: DisputeMonitorConfig = {}) {
     this.connection = connection;
@@ -220,7 +234,8 @@ export class DisputeMonitor {
       this.subscriptionId = this.connection.onProgramAccountChange(
         this.programId,
         (accountInfo: KeyedAccountInfo, context: Context) => {
-          this.handleAccountChange(accountInfo, context);
+          // Queue the event for sequential processing
+          this.queueAccountChange(accountInfo, context);
         },
         this.config.commitment
       );
@@ -230,6 +245,56 @@ export class DisputeMonitor {
     } catch (error) {
       console.error(`WebSocket subscription failed: ${error}`);
       await this.handleReconnect();
+    }
+  }
+
+  /**
+   * Queue account change for sequential processing (prevents race conditions)
+   */
+  private queueAccountChange(accountInfo: KeyedAccountInfo, context: Context): void {
+    this.eventQueue.push({
+      accountId: accountInfo.accountId,
+      data: accountInfo.accountInfo.data,
+      slot: context.slot,
+    });
+
+    // Start processing if not already running
+    if (!this.isProcessingQueue) {
+      this.processQueue();
+    }
+  }
+
+  /**
+   * Process queued events sequentially
+   */
+  private async processQueue(): Promise<void> {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+
+    try {
+      while (this.eventQueue.length > 0) {
+        const item = this.eventQueue.shift();
+        if (!item) continue;
+
+        const pubkeyStr = item.accountId.toBase58();
+
+        // Skip stale updates (out-of-order events)
+        const lastSlot = this.lastProcessedSlot.get(pubkeyStr) ?? 0;
+        if (item.slot < lastSlot) {
+          continue; // Stale event, skip
+        }
+        this.lastProcessedSlot.set(pubkeyStr, item.slot);
+
+        // Process the event
+        await this.handleAccountChangeInternal(item.accountId, item.data);
+      }
+    } finally {
+      this.isProcessingQueue = false;
+
+      // Check if new items arrived while processing
+      if (this.eventQueue.length > 0) {
+        this.processQueue();
+      }
     }
   }
 
@@ -289,6 +354,8 @@ export class DisputeMonitor {
 
     this.trackedEscrows.clear();
     this.escrowAccessOrder = [];
+    this.eventQueue = [];
+    this.lastProcessedSlot.clear();
   }
 
   /**
@@ -333,17 +400,16 @@ export class DisputeMonitor {
   }
 
   /**
-   * Handle account change event
+   * Handle account change event (internal, called from queue processor)
    */
-  private async handleAccountChange(
-    accountInfo: KeyedAccountInfo,
-    _context: Context
+  private async handleAccountChangeInternal(
+    pubkey: PublicKey,
+    data: Buffer
   ): Promise<void> {
-    const pubkey = accountInfo.accountId;
     const pubkeyStr = pubkey.toBase58();
 
     try {
-      const escrow = this.deserializeEscrow(accountInfo.accountInfo.data);
+      const escrow = this.deserializeEscrow(data);
       if (!escrow) return;
 
       const previousEscrow = this.trackedEscrows.get(pubkeyStr);
