@@ -1,7 +1,8 @@
 {
   "name": "@kamiyo/vercel-ai",
   "version": "0.1.0",
-  "description": "x402 payment tools for Vercel AI SDK. Pay-per-request API access for AI agents.",
+  "deprecated": "Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.",
+  "description": "[DEPRECATED] x402 payment tools for Vercel AI SDK. Pay-per-request API access for AI agents.",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

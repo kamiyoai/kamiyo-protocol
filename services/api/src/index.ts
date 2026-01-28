@@ -7,6 +7,10 @@ import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
 import { initProtocol, getProtocol } from './protocol';
 import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './swarmteams-live-demo';
+import { initCompanionAgent, generateAgentResponse, isAgentAvailable } from './agent-client';
+
+// Feature flag: use new Claude Agent SDK wrapper
+const USE_AGENT_SDK = process.env.USE_AGENT_SDK === 'true';
 
 // Global twitter client reference for demo command
 let globalTwitter: TwitterApi | undefined;
@@ -673,6 +677,21 @@ async function generateResponse(
     // Get current crypto context (prices, trending, headlines)
     const cryptoCtx = await getContext();
     let contextStr = formatContextForPrompt(cryptoCtx);
+
+    // Try new agent SDK if enabled
+    if (USE_AGENT_SDK && isAgentAvailable()) {
+      const agentResult = await generateAgentResponse(userMessage, contextStr);
+      if (agentResult) {
+        // Store in history if tier supports it
+        if (config.contextMemory) {
+          addMessage(userId, 'user', userMessage);
+          addMessage(userId, 'assistant', agentResult.text);
+        }
+        logger.debug('Agent SDK response', { tokens: agentResult.tokensUsed });
+        return agentResult.text;
+      }
+      // Fall through to legacy path if agent fails
+    }
 
     // Look up any tokens mentioned in the message (e.g., $BTC, $SOL, $KAMIYO)
     const tokenMentions = userMessage.match(/\$([A-Za-z]{2,10})/g);
@@ -1434,6 +1453,12 @@ async function main(): Promise<void> {
     anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
+
+    // Initialize agent SDK wrapper if enabled
+    if (USE_AGENT_SDK) {
+      initCompanionAgent();
+      logger.info('Claude Agent SDK enabled');
+    }
   } else {
     logger.warn('ANTHROPIC_API_KEY not set - chat endpoint disabled');
   }

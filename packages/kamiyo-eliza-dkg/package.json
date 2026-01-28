@@ -1,20 +1,40 @@
 {
-  "name": "@kamiyo/eliza",
+  "name": "@kamiyo/eliza-dkg",
   "version": "1.0.0",
   "deprecated": "Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.",
-  "description": "[DEPRECATED] Kamiyo trust layer plugin for ElizaOS agents",
+  "description": "[DEPRECATED] Bridge between KAMIYO escrow/reputation and OriginTrail DKG for ElizaOS agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "license": "MIT",
   "homepage": "https://kamiyo.ai",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
-    "directory": "packages/kamiyo-eliza"
+    "directory": "packages/kamiyo-eliza-dkg"
   },
   "agentConfig": {
     "pluginType": "elizaos:plugin:1.0.0",
     "pluginParameters": {
+      "DKG_ENDPOINT": {
+        "type": "string",
+        "description": "DKG node endpoint URL",
+        "default": "https://positron.origin-trail.network"
+      },
+      "DKG_PORT": {
+        "type": "number",
+        "description": "DKG node port",
+        "default": 8900
+      },
+      "DKG_BLOCKCHAIN": {
+        "type": "string",
+        "description": "Blockchain network (base:8453, gnosis:100, otp:2043)",
+        "default": "base:8453"
+      },
+      "DKG_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Private key for signing DKG transactions"
+      },
       "KAMIYO_NETWORK": {
         "type": "string",
         "description": "Solana network: mainnet, devnet, or localnet",
@@ -24,30 +44,20 @@
         "type": "string",
         "description": "Base64-encoded Solana keypair for signing transactions"
       },
-      "KAMIYO_QUALITY_THRESHOLD": {
+      "DKG_EPOCHS": {
         "type": "number",
-        "description": "Minimum quality percentage before auto-dispute",
-        "default": 80
+        "description": "Number of epochs for DKG asset storage",
+        "default": 2
       },
-      "KAMIYO_MAX_PRICE": {
-        "type": "number",
-        "description": "Maximum SOL per API request",
-        "default": 0.01
-      },
-      "KAMIYO_AUTO_DISPUTE": {
+      "AUTO_PUBLISH_QUALITY": {
         "type": "boolean",
-        "description": "Auto-file disputes on quality failure",
+        "description": "Auto-publish quality attestations to DKG",
         "default": true
       },
-      "KAMIYO_MIN_REPUTATION": {
-        "type": "number",
-        "description": "Minimum provider reputation to trust",
-        "default": 60
-      },
-      "KAMIYO_MONITOR_INTERVAL": {
-        "type": "number",
-        "description": "Escrow monitoring interval in milliseconds",
-        "default": 60000
+      "AUTO_PUBLISH_DISPUTES": {
+        "type": "boolean",
+        "description": "Auto-publish dispute outcomes to DKG",
+        "default": true
       }
     }
   },
@@ -61,29 +71,26 @@
     "elizaos",
     "eliza",
     "ai-agents",
-    "autonomous-agents",
     "kamiyo",
+    "origintrail",
+    "dkg",
+    "knowledge-graph",
     "escrow",
-    "x402",
-    "dispute-resolution",
-    "solana",
-    "trust"
+    "reputation",
+    "x402"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
+    "@kamiyo/eliza": "workspace:*",
+    "@kamiyo/dkg-quality-oracle": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@kamiyo/solana-privacy": "workspace:*",
-    "@kamiyo/dkg-quality-oracle": "workspace:*",
-    "@solana/web3.js": "^1.95.8",
-    "@coral-xyz/anchor": "^0.31.1",
-    "bn.js": "^5.2.1",
+    "dkg.js": "^8.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/bn.js": "^5.1.5",
     "@types/node": "^20.14.10",
-    "tsup": "^8.0.2",
     "typescript": "^5.5.3",
     "vitest": "^1.6.0"
   },
@@ -92,7 +99,6 @@
   },
   "files": [
     "dist",
-    "images",
     "README.md"
   ],
   "engines": {

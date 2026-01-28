@@ -6,8 +6,12 @@ export * from './dispute.js';
 export * from './reputation.js';
 export * from './unified.js';
 export * from './x402.js';
+export * from './market.js';
+export * from './search.js';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { MARKET_TOOL_DEFINITIONS } from './market.js';
+import { SEARCH_TOOL_DEFINITIONS } from './search.js';
 
 export const TOOL_DEFINITIONS: Tool[] = [
   {
@@ -140,4 +144,8 @@ export const TOOL_DEFINITIONS: Tool[] = [
       required: ['url'],
     },
   },
+  // Market data tools
+  ...MARKET_TOOL_DEFINITIONS,
+  // Web search tools
+  ...SEARCH_TOOL_DEFINITIONS,
 ];

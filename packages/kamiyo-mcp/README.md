@@ -158,6 +158,42 @@ Full workflow: creates escrow, calls API, assesses quality, auto-disputes if nee
 | autoDispute | boolean | no | Auto-dispute on low quality (default: true) |
 | qualityThreshold | number | no | Threshold for dispute (default: 50) |
 
+### get_token_price
+
+Gets current price and market data for a cryptocurrency token.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| symbol | string | yes | Token symbol (e.g., SOL, BTC, KAMIYO) |
+| chain | string | no | Blockchain filter (solana, ethereum, base) |
+
+### get_trending_tokens
+
+Gets trending tokens by volume and activity.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| chain | string | no | Filter by blockchain |
+| limit | number | no | Max results (default: 10) |
+
+### web_search
+
+Searches the web for information.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| query | string | yes | Search query |
+| limit | number | no | Max results (default: 5) |
+
+### crypto_news
+
+Searches for cryptocurrency news from trusted sources.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| query | string | no | Search topic (default: cryptocurrency) |
+| limit | number | no | Max results (default: 5) |
+
 ## Usage Examples
 
 ### Create Escrow

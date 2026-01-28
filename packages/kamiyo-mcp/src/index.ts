@@ -246,6 +246,54 @@ const TOOL_DEFINITIONS: Tool[] = [
       required: ['url'],
     },
   },
+  // Market data tools
+  {
+    name: 'get_token_price',
+    description: 'Get current price and market data for a cryptocurrency token. Use when someone asks about token price, market cap, or trading volume.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'Token symbol (e.g., SOL, BTC, ETH, KAMIYO)' },
+        chain: { type: 'string', description: 'Blockchain to search (solana, ethereum, base, etc.)' },
+      },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'get_trending_tokens',
+    description: 'Get trending tokens by volume and activity. Use when someone asks "what tokens are trending?" or "what\'s hot in crypto?"',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        chain: { type: 'string', description: 'Filter by blockchain (optional)' },
+        limit: { type: 'number', description: 'Max results (default 10)' },
+      },
+    },
+  },
+  // Web search tools
+  {
+    name: 'web_search',
+    description: 'Search the web for information. Use when you need current information not in your training data.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+        limit: { type: 'number', description: 'Max results (default 5)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'crypto_news',
+    description: 'Search for cryptocurrency news from trusted sources (CoinDesk, Cointelegraph, The Block, Decrypt).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search topic (default: cryptocurrency)' },
+        limit: { type: 'number', description: 'Max results (default 5)' },
+      },
+    },
+  },
 ];
 
 /**
@@ -400,6 +448,24 @@ class KamiyoMCPServer {
 
           case 'x402_fetch':
             result = await tools.x402Fetch(args as any, this.x402Config);
+            break;
+
+          // Market data tools
+          case 'get_token_price':
+            result = await tools.handleMarketTool('get_token_price', args as any);
+            break;
+
+          case 'get_trending_tokens':
+            result = await tools.handleMarketTool('get_trending_tokens', args as any);
+            break;
+
+          // Web search tools
+          case 'web_search':
+            result = await tools.handleSearchTool('web_search', args as any);
+            break;
+
+          case 'crypto_news':
+            result = await tools.handleSearchTool('crypto_news', args as any);
             break;
 
           default:
