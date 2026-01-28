@@ -29,6 +29,7 @@ export interface OracleServiceConfig {
   autoReveal?: boolean;
   logFile?: string;
   stateFile?: string; // Persist pending commits for crash recovery
+  auditLogFile?: string; // Append-only signed audit trail
 }
 
 interface PendingCommit {
@@ -49,6 +50,31 @@ interface SerializedPendingCommit {
   txSignature?: string;
 }
 
+/**
+ * Audit log entry types
+ */
+enum AuditEventType {
+  ServiceStart = "service_start",
+  ServiceStop = "service_stop",
+  DisputeDetected = "dispute_detected",
+  VoteCommitted = "vote_committed",
+  VoteRevealed = "vote_revealed",
+  DisputeFinalized = "dispute_finalized",
+  Error = "error",
+}
+
+/**
+ * Signed audit log entry for forensic evidence
+ */
+interface AuditLogEntry {
+  timestamp: string;
+  eventType: AuditEventType;
+  oracle: string;
+  escrowPda?: string;
+  details: Record<string, unknown>;
+  signature: string; // Ed25519 signature of the entry
+}
+
 export class OracleService {
   private connection: Connection;
   private keypair: Keypair;
@@ -61,6 +87,7 @@ export class OracleService {
   private config: OracleServiceConfig;
   private running = false;
   private logStream?: fs.WriteStream;
+  private auditLogStream?: fs.WriteStream;
 
   constructor(config: OracleServiceConfig) {
     this.config = config;
@@ -87,8 +114,135 @@ export class OracleService {
       this.logStream = fs.createWriteStream(config.logFile, { flags: "a" });
     }
 
+    // Initialize audit log (append-only, 0o600 permissions)
+    if (config.auditLogFile) {
+      this.auditLogStream = fs.createWriteStream(config.auditLogFile, {
+        flags: "a",
+        mode: 0o600,
+      });
+    }
+
     // Load persisted state if available
     this.loadPersistedState();
+  }
+
+  /**
+   * Create a signed audit log entry
+   * Signs the entry with the oracle keypair for non-repudiation
+   */
+  private async createAuditEntry(
+    eventType: AuditEventType,
+    escrowPda: string | undefined,
+    details: Record<string, unknown>
+  ): Promise<void> {
+    if (!this.auditLogStream) return;
+
+    const timestamp = new Date().toISOString();
+    const oracle = this.keypair.publicKey.toBase58();
+
+    // Create message to sign
+    const message = JSON.stringify({
+      timestamp,
+      eventType,
+      oracle,
+      escrowPda,
+      details,
+    });
+
+    // Sign with oracle keypair (Ed25519)
+    const messageBytes = new TextEncoder().encode(message);
+    const signature = Buffer.from(
+      // Use nacl-style signing
+      require("tweetnacl").sign.detached(messageBytes, this.keypair.secretKey)
+    ).toString("hex");
+
+    const entry: AuditLogEntry = {
+      timestamp,
+      eventType,
+      oracle,
+      escrowPda,
+      details,
+      signature,
+    };
+
+    // Append to audit log (one JSON entry per line)
+    this.auditLogStream.write(JSON.stringify(entry) + "\n");
+  }
+
+  /**
+   * Audit: Log service start
+   */
+  private async auditServiceStart(): Promise<void> {
+    await this.createAuditEntry(AuditEventType.ServiceStart, undefined, {
+      rpcUrl: this.config.rpcUrl,
+      autoCommit: this.config.autoCommit ?? true,
+      autoReveal: this.config.autoReveal ?? true,
+    });
+  }
+
+  /**
+   * Audit: Log service stop
+   */
+  private async auditServiceStop(): Promise<void> {
+    await this.createAuditEntry(AuditEventType.ServiceStop, undefined, {
+      pendingCommits: this.pendingCommits.size,
+    });
+  }
+
+  /**
+   * Audit: Log dispute detection
+   */
+  private async auditDisputeDetected(escrowPda: string, amount: string): Promise<void> {
+    await this.createAuditEntry(AuditEventType.DisputeDetected, escrowPda, {
+      amount,
+    });
+  }
+
+  /**
+   * Audit: Log vote committed
+   */
+  private async auditVoteCommitted(
+    escrowPda: string,
+    commitmentHash: string
+  ): Promise<void> {
+    await this.createAuditEntry(AuditEventType.VoteCommitted, escrowPda, {
+      commitmentHash,
+    });
+  }
+
+  /**
+   * Audit: Log vote revealed
+   */
+  private async auditVoteRevealed(
+    escrowPda: string,
+    qualityScore: number
+  ): Promise<void> {
+    await this.createAuditEntry(AuditEventType.VoteRevealed, escrowPda, {
+      qualityScore,
+    });
+  }
+
+  /**
+   * Audit: Log dispute finalized
+   */
+  private async auditDisputeFinalized(
+    escrowPda: string,
+    qualityScore: number | undefined,
+    refundPercentage: number | undefined
+  ): Promise<void> {
+    await this.createAuditEntry(AuditEventType.DisputeFinalized, escrowPda, {
+      qualityScore,
+      refundPercentage,
+    });
+  }
+
+  /**
+   * Audit: Log error
+   */
+  private async auditError(escrowPda: string | undefined, error: string): Promise<void> {
+    await this.createAuditEntry(AuditEventType.Error, escrowPda, {
+      error,
+    });
   }
 
   /**
@@ -179,6 +333,9 @@ export class OracleService {
       autoReveal: this.config.autoReveal ?? true,
     });
 
+    // Audit log: service start
+    await this.auditServiceStart();
+
     // Check balance
     const balance = await this.connection.getBalance(this.keypair.publicKey);
     this.log("info", `Balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
@@ -197,10 +354,18 @@ export class OracleService {
     this.running = false;
 
     this.log("info", "Stopping oracle service");
+
+    // Audit log: service stop
+    await this.auditServiceStop();
+
     await this.monitor.stop();
 
     if (this.logStream) {
       this.logStream.end();
+    }
+
+    if (this.auditLogStream) {
+      this.auditLogStream.end();
     }
 
     this.log("info", "Oracle service stopped");
@@ -224,7 +389,7 @@ export class OracleService {
 
     // Dispute finalized
     this.monitor.on(DisputeEventType.DisputeFinalized, async (event) => {
-      this.handleDisputeFinalized(event);
+      await this.handleDisputeFinalized(event);
     });
   }
 
@@ -236,6 +401,9 @@ export class OracleService {
     });
 
     if (!event.escrow) return;
+
+    // Audit log: dispute detected
+    await this.auditDisputeDetected(escrowPda, event.escrow.amount.toString());
 
     // Check if we should auto-commit
     if (this.config.autoCommit !== false) {
@@ -272,13 +440,20 @@ export class OracleService {
     }
   }
 
-  private handleDisputeFinalized(event: DisputeEvent): void {
+  private async handleDisputeFinalized(event: DisputeEvent): Promise<void> {
     const escrowPda = event.escrowPda.toBase58();
     this.log("info", "Dispute finalized", {
       escrowPda: escrowPda.slice(0, 16),
       qualityScore: event.details?.qualityScore,
       refundPercentage: event.details?.refundPercentage,
     });
+
+    // Audit log: dispute finalized
+    await this.auditDisputeFinalized(
+      escrowPda,
+      event.details?.qualityScore as number | undefined,
+      event.details?.refundPercentage as number | undefined
+    );
 
     // Clean up pending commit and persist
     this.pendingCommits.delete(escrowPda);
@@ -336,11 +511,18 @@ export class OracleService {
       this.log("info", "Vote committed", {
         escrowPda: pdaString.slice(0, 16),
       });
+
+      // Audit log: vote committed (only hash, never score before reveal)
+      await this.auditVoteCommitted(
+        pdaString,
+        Buffer.from(commitmentHash).toString("hex")
+      );
     } catch (error: any) {
       this.log("error", "Failed to commit", {
         escrowPda: pdaString.slice(0, 16),
         error: error.message,
       });
+      await this.auditError(pdaString, `Commit failed: ${error.message}`);
     }
   }
 
@@ -379,12 +561,16 @@ export class OracleService {
         qualityScore: pending.qualityScore,
       });
 
+      // Audit log: vote revealed (score is now public after reveal)
+      await this.auditVoteRevealed(pdaString, pending.qualityScore);
+
       // Don't remove from pending until finalization
     } catch (error: any) {
       this.log("error", "Failed to reveal", {
         escrowPda: pdaString.slice(0, 16),
         error: error.message,
       });
+      await this.auditError(pdaString, `Reveal failed: ${error.message}`);
     }
   }
 
