@@ -230,3 +230,14 @@ test-ledger/
 services/kamiyo-companion/DEMO_GUIDE.md
 **/PRODUCTION_ASSESSMENT.md
 **/NEXT_LEVEL_PLAN.md
+
+# Data files
+data/
+*.db
+blazegraph.log
+
+# Build artifacts
+native/*/fuzz_build/
+native/*/fuzz/*.dSYM/
+native/*/fuzz/fuzz_*
+!native/*/fuzz/fuzz_*.c
