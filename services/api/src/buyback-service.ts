@@ -360,11 +360,14 @@ export class BuybackService {
       });
 
       const quoteTime = Date.now();
+      logger.info('Fetching Jupiter quote', { inputMint: SOL_MINT, outputMint: KAMIYO_MINT_STR, amount: solAmount });
       const quote = await jupiter.quote(SOL_MINT, KAMIYO_MINT_STR, solAmount);
       if (!quote) {
+        logger.error('Jupiter quote returned null', { inputMint: SOL_MINT, outputMint: KAMIYO_MINT_STR, amount: solAmount });
         this.updateRecord(recordId, { status: 'failed', error: 'Jupiter quote failed' });
         return { executed: false, reason: 'quote failed' };
       }
+      logger.info('Jupiter quote received', { outputAmount: quote.outputAmount, priceImpact: quote.priceImpactPct });
 
       const priceImpactPct = parseFloat(quote.priceImpactPct || '0');
       const priceImpactBps = Math.round(priceImpactPct * 100);
