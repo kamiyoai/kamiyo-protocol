@@ -56,7 +56,7 @@ describe('OracleProtocolManager', () => {
           oracleId: oracle1.publicKey,
           stake: new BN(1000), // way below minimum
         })
-      ).rejects.toThrow('below minimum');
+      ).rejects.toThrow('Insufficient oracle stake');
     });
 
     it('rejects duplicate registration', async () => {

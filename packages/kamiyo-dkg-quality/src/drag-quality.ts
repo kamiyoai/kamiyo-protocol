@@ -26,9 +26,6 @@ const DEFAULT_CACHE_CONFIG: CacheConfig = {
   maxSize: 1000,
 };
 
-/**
- * Decentralized RAG with quality filters.
- */
 export class DragQualityClient {
   private dkgClient: DKGClientInterface;
   private qualityCache: Map<string, CacheEntry<QualityMetadata>> = new Map();

@@ -72,6 +72,54 @@ export {
   DEFAULT_PROGRAM_ID,
 } from './pda.js';
 
+// Schema.org-based Knowledge Asset schemas
+export type {
+  QualityAttestationAsset,
+  DisputeOutcomeAsset,
+  StakeRecordAsset,
+  OracleManifestAsset,
+} from './schemas.js';
+export {
+  createQualityAttestationAsset,
+  createDisputeOutcomeAsset,
+  createStakeRecordAsset,
+  createOracleManifestAsset,
+} from './schemas.js';
+
+// SPARQL query templates
+export { SPARQL, type SPARQLTemplate } from './sparql.js';
+
+// Error classes
+export {
+  KamiyoError,
+  ValidationError,
+  UalError,
+  StakeError,
+  StakeNotFoundError,
+  StakeAlreadyExistsError,
+  StakeAlreadyResolvedError,
+  OracleError,
+  OracleNotFoundError,
+  OracleNotRegisteredError,
+  InsufficientStakeError,
+  CommitmentError,
+  RevealError,
+  CommitWindowExpiredError,
+  RevealWindowExpiredError,
+  InvalidCommitmentError,
+  DisputeError,
+  DisputeNotFoundError,
+  DisputeAlreadyExistsError,
+  DisputeAlreadyResolvedError,
+  DisputeWindowExpiredError,
+  CannotDisputePendingError,
+  InferenceError,
+  InferenceNotFoundError,
+  QueryError,
+  SparqlError,
+  DkgConnectionError,
+} from './errors.js';
+
 export function createQualityOracleSystem(config?: {
   stakingConfig?: Partial<import('./types.js').QualityStakingConfig>;
   oracleConfig?: Partial<import('./types.js').OracleProtocolConfig>;
