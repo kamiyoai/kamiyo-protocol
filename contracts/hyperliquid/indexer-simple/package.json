@@ -1,0 +1,18 @@
+{
+  "name": "kamiyo-simple-indexer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "viem": "^2.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
