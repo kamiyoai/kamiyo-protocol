@@ -8,7 +8,7 @@ import {
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
 
-const API = 'https://quote-api.jup.ag/v6';
+const API = process.env.JUPITER_API_URL || 'https://api.jup.ag/swap/v1';
 const FETCH_TIMEOUT_MS = 30_000;
 
 export const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
