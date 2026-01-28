@@ -1,7 +1,8 @@
 {
   "name": "@kamiyo/daydreams",
   "version": "1.0.0",
-  "description": "Daydreams extension for Kamiyo payments and ZK reputation.",
+  "deprecated": "Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.",
+  "description": "[DEPRECATED] Daydreams extension for Kamiyo payments and ZK reputation.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",

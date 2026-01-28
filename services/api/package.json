@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@coral-xyz/anchor": "^0.31.1",
     "@modelcontextprotocol/sdk": "^1.25.0",
+    "@kamiyo/agents": "workspace:*",
     "@kamiyo/kamiyo-swarmteams": "workspace:*",
     "@kamiyo/blindfold": "workspace:*",
     "@kamiyo/daydreams": "workspace:*",

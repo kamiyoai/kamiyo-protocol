@@ -148,7 +148,7 @@ importers:
         version: 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@kamiyo/kamiyo-swarmteams':
         specifier: file:../../packages/kamiyo-swarmteams
-        version: file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+        version: link:../../packages/kamiyo-swarmteams
       '@solana/web3.js':
         specifier: ^1.87.6
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -502,6 +502,28 @@ importers:
         specifier: ^5.5.3
         version: 5.9.3
 
+  packages/kamiyo-agents:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.52.0
+        version: 0.52.0
+      '@kamiyo/sdk':
+        specifier: workspace:*
+        version: link:../kamiyo-sdk
+      '@kamiyo/x402-client':
+        specifier: workspace:*
+        version: link:../kamiyo-x402-client
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.0
+        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)(zod@4.3.6)
+      '@solana/web3.js':
+        specifier: ^1.98.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+    devDependencies:
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
+
   packages/kamiyo-blindfold:
     dependencies:
       '@coral-xyz/anchor':
@@ -638,6 +660,40 @@ importers:
       tsup:
         specifier: ^8.0.2
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.5.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.28)
+
+  packages/kamiyo-eliza-dkg:
+    dependencies:
+      '@kamiyo/dkg-quality-oracle':
+        specifier: workspace:*
+        version: link:../kamiyo-dkg-quality
+      '@kamiyo/eliza':
+        specifier: workspace:*
+        version: link:../kamiyo-eliza
+      '@kamiyo/sdk':
+        specifier: workspace:*
+        version: link:../kamiyo-sdk
+      '@kamiyo/solana-privacy':
+        specifier: workspace:*
+        version: link:../kamiyo-solana-privacy
+      '@kamiyo/x402-client':
+        specifier: workspace:*
+        version: link:../kamiyo-x402-client
+      dkg.js:
+        specifier: ^8.0.0
+        version: 8.2.2(@types/node@20.19.28)(bufferutil@4.1.0)(utf-8-validate@5.0.10)(web-streams-polyfill@3.3.3)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.10
+        version: 20.19.28
       typescript:
         specifier: ^5.5.3
         version: 5.9.3
@@ -1344,6 +1400,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/agents':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-agents
       '@kamiyo/blindfold':
         specifier: workspace:*
         version: link:../../packages/kamiyo-blindfold
@@ -2796,17 +2855,12 @@ packages:
   '@kamiyo/eliza@file:packages/kamiyo-eliza':
     resolution: {directory: packages/kamiyo-eliza, type: directory}
     engines: {node: '>=18.0.0'}
+    deprecated: Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.
     peerDependencies:
       '@elizaos/core': '>=1.0.0'
 
   '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid':
     resolution: {directory: packages/kamiyo-hyperliquid, type: directory}
-
-  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams':
-    resolution: {directory: packages/kamiyo-swarmteams, type: directory}
-    peerDependencies:
-      '@coral-xyz/anchor': ^0.31.0
-      '@solana/web3.js': ^1.95.0
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -13725,19 +13779,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - encoding
-      - utf-8-validate
-
-  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@coral-xyz/anchor': 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js: 5.2.2
-      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      js-sha3: 0.9.3
-      snarkjs: 0.7.6
-    transitivePeerDependencies:
-      - bufferutil
-      - react-native-b4a
       - utf-8-validate
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':

@@ -1,7 +1,8 @@
 {
   "name": "@kamiyo/langchain",
   "version": "0.1.0",
-  "description": "LangChain tools for KAMIYO - Agent Identity and Conflict Resolution Protocol",
+  "deprecated": "Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.",
+  "description": "[DEPRECATED] LangChain tools for KAMIYO - Agent Identity and Conflict Resolution Protocol",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",

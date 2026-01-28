@@ -1,7 +1,8 @@
 {
   "name": "@kamiyo/radr",
   "version": "0.1.0",
-  "description": "Radr ShadowWire integration for Kamiyo Protocol - private payments with trust infrastructure",
+  "deprecated": "Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.",
+  "description": "[DEPRECATED] Radr ShadowWire integration for Kamiyo Protocol - private payments with trust infrastructure",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
