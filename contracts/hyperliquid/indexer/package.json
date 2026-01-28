@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "ponder dev",
-    "start": "ponder start --reset",
-    "start:normal": "ponder start",
+    "start": "ponder start",
     "codegen": "ponder codegen"
   },
   "dependencies": {
