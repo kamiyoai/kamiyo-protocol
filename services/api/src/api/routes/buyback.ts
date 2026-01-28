@@ -1,4 +1,4 @@
-// Buyback API routes - stats, config, manual trigger
+// Buyback routes
 
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -9,7 +9,6 @@ const router = Router();
 
 const ADMIN_SECRET = process.env.BUYBACK_ADMIN_SECRET || '';
 
-// Rate limiter for admin endpoints - 10 requests per minute
 const adminRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -21,7 +20,7 @@ const adminRateLimiter = rateLimit({
       message: 'Too many admin requests. Please try again later.',
     },
   },
-  keyGenerator: () => 'buyback-admin', // Single bucket for all admin requests
+  keyGenerator: () => 'buyback-admin',
 });
 
 function requireAdmin(req: Request, res: Response): boolean {
@@ -37,7 +36,6 @@ function requireAdmin(req: Request, res: Response): boolean {
   return true;
 }
 
-// GET /buyback/config - Current configuration
 router.get('/config', (_req: Request, res: Response) => {
   try {
     const service = getBuybackService();
@@ -60,7 +58,6 @@ router.get('/config', (_req: Request, res: Response) => {
   }
 });
 
-// GET /buyback/stats - Cumulative statistics
 router.get('/stats', (_req: Request, res: Response) => {
   try {
     const service = getBuybackService();
@@ -84,7 +81,6 @@ router.get('/stats', (_req: Request, res: Response) => {
   }
 });
 
-// GET /buyback/history - Recent buyback records
 router.get('/history', (req: Request, res: Response) => {
   try {
     const service = getBuybackService();
@@ -116,7 +112,6 @@ router.get('/history', (req: Request, res: Response) => {
   }
 });
 
-// GET /buyback/balance - Current treasury balance
 router.get('/balance', async (_req: Request, res: Response) => {
   try {
     const service = getBuybackService();
@@ -136,7 +131,6 @@ router.get('/balance', async (_req: Request, res: Response) => {
   }
 });
 
-// POST /buyback/trigger - Manual trigger (admin only)
 router.post('/trigger', adminRateLimiter, async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -161,7 +155,6 @@ router.post('/trigger', adminRateLimiter, async (req: Request, res: Response) =>
   }
 });
 
-// POST /buyback/pause - Pause buybacks (admin only)
 router.post('/pause', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -175,7 +168,6 @@ router.post('/pause', adminRateLimiter, (req: Request, res: Response) => {
   }
 });
 
-// POST /buyback/resume - Resume buybacks (admin only)
 router.post('/resume', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -189,7 +181,6 @@ router.post('/resume', adminRateLimiter, (req: Request, res: Response) => {
   }
 });
 
-// PATCH /buyback/config - Update configuration (admin only)
 router.patch('/config', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -211,7 +202,6 @@ router.patch('/config', adminRateLimiter, (req: Request, res: Response) => {
   }
 });
 
-// GET /buyback/failed - List failed records (admin only)
 router.get('/failed', adminRateLimiter, (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -236,7 +226,6 @@ router.get('/failed', adminRateLimiter, (req: Request, res: Response) => {
   }
 });
 
-// POST /buyback/retry/:id - Retry a failed buyback (admin only)
 router.post('/retry/:id', adminRateLimiter, async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
