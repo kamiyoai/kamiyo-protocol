@@ -9,8 +9,8 @@ export default createConfig({
   networks: {
     hyperliquid: {
       chainId: 999,
-      transport: http("https://rpc.hyperliquid.xyz/evm"),
-      maxRequestsPerSecond: 5,
+      transport: http(process.env.HYPERLIQUID_RPC_URL || "https://hyperliquid.drpc.org"),
+      maxRequestsPerSecond: 10,
     },
   },
   contracts: {
