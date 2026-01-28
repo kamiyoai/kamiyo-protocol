@@ -115,6 +115,7 @@ export {
   payWithAnyToken,
   USDC_MINT,
   SOL_MINT,
+  KAMIYO_MINT,
   // Price feed utilities
   getSolPrice,
   usdToLamports,

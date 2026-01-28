@@ -151,6 +151,7 @@ import { initSwarmTeamsAgent, getSwarmTeamsAgent, formatTrackRecord, getRecentSi
 import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
+import { startBuybackWorker, stopBuybackWorker } from './buyback-service';
 import { forwardToTelegram, startTelegramForwardLoop } from './telegram-forward';
 
 // console.log('[pfn-internal] green500 benchmark passed');
@@ -1499,6 +1500,7 @@ async function main(): Promise<void> {
     stopChallengeCleanup();
     stopRateLimitCleanup();
     stopBurnWorker();
+    stopBuybackWorker();
 
     // Close MCP sessions gracefully
     await shutdownMcpSessions();
@@ -1530,6 +1532,9 @@ async function main(): Promise<void> {
 
   // Start burn execution worker (requires BURN_EXECUTION_ENABLED=true and BURN_WALLET_SECRET)
   startBurnWorker();
+
+  // Start buyback worker (requires BUYBACK_ENABLED=true and BUYBACK_AUTHORITY_SECRET)
+  startBuybackWorker();
 
   // Start API server (always - this is the main purpose)
   startApiServer({ anthropic });
