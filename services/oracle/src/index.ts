@@ -15,7 +15,7 @@ async function main() {
   checkEnv();
 
   const oracle = await createOracle({
-    rpcUrl: process.env.RPC_URL || 'https://hyperliquid.drpc.org',
+    rpcUrl: process.env.RPC_URL || 'https://rpc.hyperliquid.xyz/evm',
     walletPrivateKey: process.env.ORACLE_PRIVATE_KEY!,
     updateInterval: Number(process.env.UPDATE_INTERVAL || 60_000),
     trustedOracles: process.env.TRUSTED_ORACLES?.split(',') || [],

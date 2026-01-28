@@ -1,0 +1,98 @@
+specVersion: 0.0.5
+schema:
+  file: schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AgentRegistry
+    network: hyperliquid
+    source:
+      address: "0xCa034D63c67ADd6CA127a575F0097C203DAcaE9d"
+      abi: AgentRegistry
+      startBlock: 1
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Agent
+        - AgentStakeEvent
+        - TradeRecord
+      abis:
+        - name: AgentRegistry
+          file: AgentRegistry/abis/AgentRegistry.json
+      eventHandlers:
+        - event: AgentRegistered(indexed address,string,uint256)
+          handler: handleAgentRegistered
+        - event: AgentDeactivated(indexed address)
+          handler: handleAgentDeactivated
+        - event: AgentReactivated(indexed address)
+          handler: handleAgentReactivated
+        - event: StakeAdded(indexed address,uint256,uint256)
+          handler: handleStakeAdded
+        - event: WithdrawalRequested(indexed address,uint256,uint64)
+          handler: handleWithdrawalRequested
+        - event: WithdrawalCancelled(indexed address)
+          handler: handleWithdrawalCancelled
+        - event: StakeWithdrawn(indexed address,uint256,uint256)
+          handler: handleStakeWithdrawn
+        - event: AgentSlashed(indexed address,uint256,uint256,string)
+          handler: handleAgentSlashed
+        - event: TradeRecorded(indexed address,int64,bool)
+          handler: handleTradeRecorded
+      file: AgentRegistry/AgentRegistry.wasm
+  - kind: ethereum
+    name: KamiyoVault
+    network: hyperliquid
+    source:
+      address: "0xF5B2b62f014459B98991AaE001e33aF75f4fbD15"
+      abi: KamiyoVault
+      startBlock: 1
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - CopyPosition
+        - Dispute
+        - PositionValueHistory
+      abis:
+        - name: KamiyoVault
+          file: KamiyoVault/abis/KamiyoVault.json
+      eventHandlers:
+        - event: PositionOpened(indexed uint256,indexed address,indexed
+            address,uint256,int16,uint64)
+          handler: handlePositionOpened
+        - event: PositionValueUpdated(indexed uint256,uint256,uint256)
+          handler: handlePositionValueUpdated
+        - event: PositionClosed(indexed uint256,uint256,int64)
+          handler: handlePositionClosed
+        - event: DisputeFiled(indexed uint256,indexed uint256,indexed address)
+          handler: handleDisputeFiled
+        - event: DisputeResolved(indexed uint256,bool,uint256)
+          handler: handleDisputeResolved
+        - event: EmergencyWithdrawal(indexed uint256,indexed address,uint256)
+          handler: handleEmergencyWithdrawal
+      file: KamiyoVault/KamiyoVault.wasm
+  - kind: ethereum
+    name: ReputationLimits
+    network: hyperliquid
+    source:
+      address: "0xbECa9c722EeF9897b5aa87363F3Bd9C94e16fE33"
+      abi: ReputationLimits
+      startBlock: 1
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AgentTier
+        - TierConfig
+      abis:
+        - name: ReputationLimits
+          file: ReputationLimits/abis/ReputationLimits.json
+      eventHandlers:
+        - event: TierVerified(indexed address,uint8,uint256)
+          handler: handleTierVerified
+        - event: TierConfigured(indexed uint8,uint256,uint256,uint256)
+          handler: handleTierConfigured
+      file: ReputationLimits/ReputationLimits.wasm

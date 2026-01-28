@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  graph-node:
+    image: graphprotocol/graph-node:v0.35.1
+    ports:
+      - '8000:8000'  # GraphQL HTTP
+      - '8001:8001'  # GraphQL WS
+      - '8020:8020'  # JSON-RPC admin
+      - '8030:8030'  # Index status
+      - '8040:8040'  # Metrics
+    depends_on:
+      - ipfs
+      - postgres
+    environment:
+      postgres_host: postgres
+      postgres_port: 5432
+      postgres_user: graph
+      postgres_pass: graph
+      postgres_db: graph
+      ipfs: 'ipfs:5001'
+      ethereum: 'hyperliquid:https://rpc.hyperliquid.xyz/evm'
+      GRAPH_LOG: info
+      ETHEREUM_REORG_THRESHOLD: 1
+      ETHEREUM_ANCESTOR_COUNT: 1
+    restart: unless-stopped
+
+  ipfs:
+    image: ipfs/kubo:v0.27.0
+    ports:
+      - '5001:5001'  # API
+      - '5002:8080'  # Gateway (remapped to avoid conflict)
+    volumes:
+      - ipfs_data:/data/ipfs
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: graph
+      POSTGRES_PASSWORD: graph
+      POSTGRES_DB: graph
+      POSTGRES_INITDB_ARGS: '-E UTF8 --locale=C'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command:
+      - 'postgres'
+      - '-cshared_preload_libraries=pg_stat_statements'
+    restart: unless-stopped
+
+volumes:
+  ipfs_data:
+  postgres_data:

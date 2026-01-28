@@ -1,0 +1,5 @@
+FROM ipfs/kubo:v0.27.0
+
+EXPOSE 5001 8080
+
+CMD ["daemon", "--migrate=true"]

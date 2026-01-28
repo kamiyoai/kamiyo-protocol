@@ -1,0 +1,149 @@
+# Agent entity - registered trading agents
+type Agent @entity {
+  id: Bytes! # agent address
+  owner: Bytes!
+  name: String!
+  stake: BigInt!
+  registeredAt: BigInt!
+  totalTrades: Int!
+  successfulTrades: Int!
+  totalPnl: BigInt!
+  copiers: Int!
+  active: Boolean!
+  tier: Int!
+  tierVerifiedAt: BigInt
+  maxCopyLimit: BigInt
+  # Relationships
+  positions: [CopyPosition!]! @derivedFrom(field: "agent")
+  stakeEvents: [AgentStakeEvent!]! @derivedFrom(field: "agent")
+  trades: [TradeRecord!]! @derivedFrom(field: "agent")
+}
+
+# Stake events for agents
+type AgentStakeEvent @entity {
+  id: ID! # txHash-logIndex
+  agent: Agent!
+  eventType: StakeEventType!
+  amount: BigInt!
+  newTotal: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+enum StakeEventType {
+  ADDED
+  WITHDRAWAL_REQUESTED
+  WITHDRAWAL_CANCELLED
+  WITHDRAWN
+  SLASHED
+}
+
+# Trade records for performance tracking
+type TradeRecord @entity {
+  id: ID! # txHash-logIndex
+  agent: Agent!
+  pnl: BigInt!
+  successful: Boolean!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Copy position - user copying an agent
+type CopyPosition @entity {
+  id: ID! # positionId
+  positionId: BigInt!
+  user: Bytes!
+  agent: Agent!
+  deposit: BigInt!
+  currentValue: BigInt!
+  minReturnBps: Int!
+  startTime: BigInt!
+  lockPeriod: BigInt!
+  endTime: BigInt!
+  active: Boolean!
+  disputed: Boolean!
+  closedAt: BigInt
+  returnAmount: BigInt
+  returnBps: Int
+  # Relationships
+  valueHistory: [PositionValueHistory!]! @derivedFrom(field: "position")
+  dispute: Dispute @derivedFrom(field: "position")
+}
+
+# Position value updates from oracle
+type PositionValueHistory @entity {
+  id: ID! # positionId-blockNumber
+  position: CopyPosition!
+  oldValue: BigInt!
+  newValue: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Dispute entity
+type Dispute @entity {
+  id: ID! # disputeId
+  disputeId: BigInt!
+  position: CopyPosition!
+  user: Bytes!
+  filedAt: BigInt!
+  resolved: Boolean!
+  userWon: Boolean
+  payout: BigInt
+  resolvedAt: BigInt
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Tier configuration
+type TierConfig @entity {
+  id: ID! # tier number as string
+  tier: Int!
+  threshold: BigInt!
+  maxCopyLimit: BigInt!
+  maxCopiers: Int!
+  updatedAt: BigInt!
+  blockNumber: BigInt!
+}
+
+# Agent tier verification
+type AgentTier @entity {
+  id: Bytes! # agent address
+  agent: Agent!
+  tier: Int!
+  verifiedAt: BigInt!
+  maxCopyLimit: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Protocol statistics
+type ProtocolStats @entity {
+  id: ID! # "stats"
+  totalAgents: Int!
+  activeAgents: Int!
+  totalPositions: Int!
+  activePositions: Int!
+  totalDisputes: Int!
+  resolvedDisputes: Int!
+  totalVolumeDeposited: BigInt!
+  totalVolumeReturned: BigInt!
+  totalStaked: BigInt!
+}
+
+# Daily statistics for charts
+type DailyStats @entity {
+  id: ID! # date as YYYY-MM-DD
+  date: String!
+  timestamp: BigInt!
+  newAgents: Int!
+  newPositions: Int!
+  closedPositions: Int!
+  volumeDeposited: BigInt!
+  volumeReturned: BigInt!
+  disputesFiled: Int!
+  disputesResolved: Int!
+}
