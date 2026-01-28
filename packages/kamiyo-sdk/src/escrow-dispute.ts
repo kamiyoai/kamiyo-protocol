@@ -34,7 +34,14 @@ const DISCRIMINATORS = {
   commitVote: Buffer.from([134, 97, 90, 126, 91, 66, 16, 26]),
   revealVote: Buffer.from([100, 157, 139, 17, 186, 75, 185, 149]),
   finalizeDispute: Buffer.from([190, 211, 17, 122, 247, 157, 27, 223]),
+  disputedTimeoutRelease: Buffer.from([206, 179, 158, 86, 140, 59, 139, 243]),
 };
+
+// Domain separator for commitment hash to prevent collisions
+const COMMITMENT_DOMAIN = new TextEncoder().encode("kamiyo-escrow-v1:commit");
+
+// Transaction confirmation timeout in milliseconds
+const TX_CONFIRMATION_TIMEOUT_MS = 60000;
 
 export interface TransactionResult {
   signature: string;
@@ -88,7 +95,8 @@ export class EscrowDisputeManager {
 
   /**
    * Compute commitment hash for commit-reveal voting
-   * Hash = SHA256(session_id || oracle_pubkey || quality_score || salt)
+   * Hash = SHA256(domain || len(session_id) || session_id || len(oracle) || oracle || score || len(salt) || salt)
+   * Domain separator and length prefixes prevent collision attacks
    */
   async computeCommitmentHash(
     sessionId: Uint8Array,
@@ -96,10 +104,26 @@ export class EscrowDisputeManager {
     qualityScore: number,
     salt: Uint8Array
   ): Promise<Uint8Array> {
+    // Validate inputs
+    if (sessionId.length !== 32) {
+      throw new Error("Session ID must be 32 bytes");
+    }
+    if (salt.length !== 32) {
+      throw new Error("Salt must be 32 bytes");
+    }
+    if (qualityScore < 0 || qualityScore > 100) {
+      throw new Error("Quality score must be 0-100");
+    }
+
+    const oracleBytes = oracle.toBytes();
     const data = new Uint8Array([
+      ...COMMITMENT_DOMAIN,
+      sessionId.length,
       ...sessionId,
-      ...oracle.toBytes(),
+      oracleBytes.length,
+      ...oracleBytes,
       qualityScore,
+      salt.length,
       ...salt,
     ]);
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -570,16 +594,27 @@ export class EscrowDisputeManager {
   /**
    * Commit and prepare for reveal in one call
    * Returns the salt needed for reveal
+   * Idempotent: returns existing commitment if already committed
    */
   async commitVoteWithScore(
     escrowPda: PublicKey,
     qualityScore: number
-  ): Promise<{ result: TransactionResult; salt: Uint8Array }> {
+  ): Promise<{ result: TransactionResult; salt: Uint8Array; alreadyCommitted: boolean }> {
     this.validateQualityScore(qualityScore);
 
     const escrow = await this.fetchEscrow(escrowPda);
     if (!escrow) {
       throw new Error("Escrow not found");
+    }
+
+    // Check if already committed (idempotency)
+    if (this.hasCommitted(escrow, this.wallet.publicKey)) {
+      const commitment = this.getCommitment(escrow, this.wallet.publicKey);
+      return {
+        result: { signature: "", confirmed: true },
+        salt: new Uint8Array(32), // Cannot recover salt - caller should have stored it
+        alreadyCommitted: true,
+      };
     }
 
     const salt = this.generateSalt();
@@ -591,11 +626,35 @@ export class EscrowDisputeManager {
     );
 
     const result = await this.commitVote(escrowPda, commitmentHash);
-    return { result, salt };
+    return { result, salt, alreadyCommitted: false };
   }
 
   /**
-   * Send transaction and wait for confirmation
+   * Release a disputed escrow after 72h timeout if oracles fail
+   */
+  async disputedTimeoutRelease(escrowPda: PublicKey): Promise<TransactionResult> {
+    const escrow = await this.fetchEscrow(escrowPda);
+    if (!escrow) {
+      throw new Error("Escrow not found");
+    }
+
+    const [oracleConfigPda] = this.getOracleConfigPDA();
+
+    const instruction = new TransactionInstruction({
+      keys: [
+        { pubkey: escrow.user, isSigner: false, isWritable: true },
+        { pubkey: escrowPda, isSigner: false, isWritable: true },
+        { pubkey: oracleConfigPda, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data: DISCRIMINATORS.disputedTimeoutRelease,
+    });
+
+    return this.sendTransaction([instruction]);
+  }
+
+  /**
+   * Send transaction and wait for confirmation with timeout
    */
   private async sendTransaction(
     instructions: TransactionInstruction[]
@@ -611,82 +670,147 @@ export class EscrowDisputeManager {
     // Sign with wallet
     const signed = await this.wallet.signTransaction(transaction);
 
-    // Send and confirm
+    // Send transaction
     const signature = await this.connection.sendRawTransaction(
       signed.serialize(),
       { skipPreflight: false }
     );
 
-    const confirmation = await this.connection.confirmTransaction(
-      { signature, blockhash, lastValidBlockHeight },
-      "confirmed"
-    );
+    // Confirm with timeout using AbortController
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, TX_CONFIRMATION_TIMEOUT_MS);
 
-    if (confirmation.value.err) {
-      throw new SendTransactionError({
-        action: "send",
-        signature,
-        transactionMessage: `Transaction failed: ${JSON.stringify(confirmation.value.err)}`,
-      });
+    try {
+      const confirmation = await this.connection.confirmTransaction(
+        {
+          signature,
+          blockhash,
+          lastValidBlockHeight,
+          abortSignal: abortController.signal,
+        },
+        "confirmed"
+      );
+
+      if (confirmation.value.err) {
+        throw new SendTransactionError({
+          action: "send",
+          signature,
+          transactionMessage: `Transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+        });
+      }
+
+      return { signature, confirmed: true };
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        throw new Error(
+          `Transaction confirmation timed out after ${TX_CONFIRMATION_TIMEOUT_MS}ms. ` +
+            `Signature: ${signature}. Check transaction status manually.`
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return { signature, confirmed: true };
   }
 
   /**
-   * Deserialize escrow account data
+   * Ensure buffer has enough bytes for read operation
+   */
+  private ensureBytes(data: Buffer, offset: number, needed: number): void {
+    if (offset + needed > data.length) {
+      throw new Error(
+        `Buffer underflow: need ${needed} bytes at offset ${offset}, but only ${data.length - offset} available`
+      );
+    }
+  }
+
+  /**
+   * Deserialize escrow account data with bounds checking
    */
   private deserializeEscrow(data: Buffer): CompanionEscrow {
+    const minSize = 32 + 32 + 32 + 8 + 8 + 1 + 1; // Minimum fixed fields
+    if (data.length < minSize) {
+      throw new Error(`Invalid escrow data: expected at least ${minSize} bytes, got ${data.length}`);
+    }
+
     let offset = 0;
 
+    this.ensureBytes(data, offset, 32);
     const user = new PublicKey(data.slice(offset, offset + 32));
     offset += 32;
 
+    this.ensureBytes(data, offset, 32);
     const treasury = new PublicKey(data.slice(offset, offset + 32));
     offset += 32;
 
+    this.ensureBytes(data, offset, 32);
     const sessionId = new Uint8Array(data.slice(offset, offset + 32));
     offset += 32;
 
+    this.ensureBytes(data, offset, 8);
     const amount = new BN(data.slice(offset, offset + 8), "le");
     offset += 8;
 
+    this.ensureBytes(data, offset, 8);
     const createdAt = new BN(data.slice(offset, offset + 8), "le");
     offset += 8;
 
+    this.ensureBytes(data, offset, 1);
     const bump = data[offset];
     offset += 1;
 
+    this.ensureBytes(data, offset, 1);
     const status = data[offset] as CompanionEscrowStatus;
     offset += 1;
 
     // Option<u8> rating
+    this.ensureBytes(data, offset, 1);
     const hasRating = data[offset] === 1;
     offset += 1;
-    const rating = hasRating ? data[offset] : null;
-    if (hasRating) offset += 1;
+    let rating: number | null = null;
+    if (hasRating) {
+      this.ensureBytes(data, offset, 1);
+      rating = data[offset];
+      offset += 1;
+    }
 
     // Option<i64> disputed_at
+    this.ensureBytes(data, offset, 1);
     const hasDisputedAt = data[offset] === 1;
     offset += 1;
-    const disputedAt = hasDisputedAt
-      ? new BN(data.slice(offset, offset + 8), "le")
-      : null;
-    if (hasDisputedAt) offset += 8;
+    let disputedAt: BN | null = null;
+    if (hasDisputedAt) {
+      this.ensureBytes(data, offset, 8);
+      disputedAt = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+    }
 
     // Option<i64> commit_phase_ends_at
+    this.ensureBytes(data, offset, 1);
     const hasCommitPhaseEndsAt = data[offset] === 1;
     offset += 1;
-    const commitPhaseEndsAt = hasCommitPhaseEndsAt
-      ? new BN(data.slice(offset, offset + 8), "le")
-      : null;
-    if (hasCommitPhaseEndsAt) offset += 8;
+    let commitPhaseEndsAt: BN | null = null;
+    if (hasCommitPhaseEndsAt) {
+      this.ensureBytes(data, offset, 8);
+      commitPhaseEndsAt = new BN(data.slice(offset, offset + 8), "le");
+      offset += 8;
+    }
 
     // Vec<OracleCommitment>
+    this.ensureBytes(data, offset, 4);
     const commitmentsLen = data.readUInt32LE(offset);
     offset += 4;
+
+    // Sanity check: max 5 oracles per escrow
+    if (commitmentsLen > 5) {
+      throw new Error(`Invalid commitments count: ${commitmentsLen}`);
+    }
+
     const oracleCommitments = [];
     for (let i = 0; i < commitmentsLen; i++) {
+      this.ensureBytes(data, offset, 32 + 32 + 8 + 1);
       const oracle = new PublicKey(data.slice(offset, offset + 32));
       offset += 32;
       const commitmentHash = new Uint8Array(data.slice(offset, offset + 32));
@@ -699,10 +823,18 @@ export class EscrowDisputeManager {
     }
 
     // Vec<OracleSubmission>
+    this.ensureBytes(data, offset, 4);
     const submissionsLen = data.readUInt32LE(offset);
     offset += 4;
+
+    // Sanity check: max 5 oracles per escrow
+    if (submissionsLen > 5) {
+      throw new Error(`Invalid submissions count: ${submissionsLen}`);
+    }
+
     const oracleSubmissions = [];
     for (let i = 0; i < submissionsLen; i++) {
+      this.ensureBytes(data, offset, 32 + 1 + 8);
       const oracle = new PublicKey(data.slice(offset, offset + 32));
       offset += 32;
       const qualityScore = data[offset];
@@ -713,15 +845,25 @@ export class EscrowDisputeManager {
     }
 
     // Option<u8> quality_score
+    this.ensureBytes(data, offset, 1);
     const hasQualityScore = data[offset] === 1;
     offset += 1;
-    const qualityScore = hasQualityScore ? data[offset] : null;
-    if (hasQualityScore) offset += 1;
+    let qualityScore: number | null = null;
+    if (hasQualityScore) {
+      this.ensureBytes(data, offset, 1);
+      qualityScore = data[offset];
+      offset += 1;
+    }
 
     // Option<u8> refund_percentage
+    this.ensureBytes(data, offset, 1);
     const hasRefundPercentage = data[offset] === 1;
     offset += 1;
-    const refundPercentage = hasRefundPercentage ? data[offset] : null;
+    let refundPercentage: number | null = null;
+    if (hasRefundPercentage) {
+      this.ensureBytes(data, offset, 1);
+      refundPercentage = data[offset];
+    }
 
     return {
       user,

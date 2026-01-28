@@ -60,6 +60,12 @@ export interface DisputeMonitorConfig {
   phaseWarningTime?: number;
   /** Commitment level */
   commitment?: Commitment;
+  /** Max tracked escrows (LRU eviction when exceeded) */
+  maxTrackedEscrows?: number;
+  /** Reconnection delay on WebSocket failure (ms) */
+  reconnectDelayMs?: number;
+  /** Max reconnection attempts before giving up */
+  maxReconnectAttempts?: number;
 }
 
 /**
@@ -80,7 +86,10 @@ export class DisputeMonitor {
   private subscriptionId: number | null = null;
   private pollingInterval: NodeJS.Timeout | null = null;
   private trackedEscrows: Map<string, CompanionEscrow> = new Map();
+  private escrowAccessOrder: string[] = []; // LRU tracking
   private config: Required<DisputeMonitorConfig>;
+  private reconnectAttempts = 0;
+  private shouldReconnect = true;
 
   constructor(connection: Connection, config: DisputeMonitorConfig = {}) {
     this.connection = connection;
@@ -90,11 +99,44 @@ export class DisputeMonitor {
       pollingInterval: config.pollingInterval ?? 30000, // 30 seconds
       phaseWarningTime: config.phaseWarningTime ?? 60, // 1 minute warning
       commitment: config.commitment ?? "confirmed",
+      maxTrackedEscrows: config.maxTrackedEscrows ?? 1000, // Prevent unbounded growth
+      reconnectDelayMs: config.reconnectDelayMs ?? 5000, // 5 second initial delay
+      maxReconnectAttempts: config.maxReconnectAttempts ?? 10,
     };
 
     // Initialize listener maps
     for (const type of Object.values(DisputeEventType)) {
       this.listeners.set(type, new Set());
+    }
+  }
+
+  /**
+   * Track escrow access for LRU eviction
+   */
+  private touchEscrow(pubkeyStr: string): void {
+    const idx = this.escrowAccessOrder.indexOf(pubkeyStr);
+    if (idx !== -1) {
+      this.escrowAccessOrder.splice(idx, 1);
+    }
+    this.escrowAccessOrder.push(pubkeyStr);
+
+    // Evict oldest entries if over limit
+    while (this.escrowAccessOrder.length > this.config.maxTrackedEscrows) {
+      const oldest = this.escrowAccessOrder.shift();
+      if (oldest) {
+        this.trackedEscrows.delete(oldest);
+      }
+    }
+  }
+
+  /**
+   * Remove escrow from tracking
+   */
+  private removeEscrow(pubkeyStr: string): void {
+    this.trackedEscrows.delete(pubkeyStr);
+    const idx = this.escrowAccessOrder.indexOf(pubkeyStr);
+    if (idx !== -1) {
+      this.escrowAccessOrder.splice(idx, 1);
     }
   }
 
@@ -155,14 +197,10 @@ export class DisputeMonitor {
       return; // Already running
     }
 
-    // Subscribe to program account changes
-    this.subscriptionId = this.connection.onProgramAccountChange(
-      this.programId,
-      (accountInfo: KeyedAccountInfo, context: Context) => {
-        this.handleAccountChange(accountInfo, context);
-      },
-      this.config.commitment
-    );
+    this.shouldReconnect = true;
+    this.reconnectAttempts = 0;
+
+    await this.setupSubscription();
 
     // Start polling for phase warnings
     this.pollingInterval = setInterval(() => {
@@ -174,11 +212,73 @@ export class DisputeMonitor {
   }
 
   /**
+   * Setup WebSocket subscription with error handling
+   */
+  private async setupSubscription(): Promise<void> {
+    try {
+      // Subscribe to program account changes
+      this.subscriptionId = this.connection.onProgramAccountChange(
+        this.programId,
+        (accountInfo: KeyedAccountInfo, context: Context) => {
+          this.handleAccountChange(accountInfo, context);
+        },
+        this.config.commitment
+      );
+
+      // Reset reconnect counter on successful connection
+      this.reconnectAttempts = 0;
+    } catch (error) {
+      console.error(`WebSocket subscription failed: ${error}`);
+      await this.handleReconnect();
+    }
+  }
+
+  /**
+   * Handle WebSocket reconnection with exponential backoff
+   */
+  private async handleReconnect(): Promise<void> {
+    if (!this.shouldReconnect) return;
+
+    this.reconnectAttempts++;
+
+    if (this.reconnectAttempts > this.config.maxReconnectAttempts) {
+      console.error(
+        `Max reconnect attempts (${this.config.maxReconnectAttempts}) exceeded. ` +
+        `Giving up on WebSocket subscription.`
+      );
+      return;
+    }
+
+    // Exponential backoff: delay * 2^(attempts-1), capped at 5 minutes
+    const delay = Math.min(
+      this.config.reconnectDelayMs * Math.pow(2, this.reconnectAttempts - 1),
+      300000
+    );
+
+    console.log(
+      `Attempting reconnect ${this.reconnectAttempts}/${this.config.maxReconnectAttempts} ` +
+      `in ${delay}ms...`
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
+    if (this.shouldReconnect) {
+      await this.setupSubscription();
+    }
+  }
+
+  /**
    * Stop monitoring
    */
   async stop(): Promise<void> {
+    this.shouldReconnect = false;
+
     if (this.subscriptionId !== null) {
-      await this.connection.removeProgramAccountChangeListener(this.subscriptionId);
+      try {
+        await this.connection.removeProgramAccountChangeListener(this.subscriptionId);
+      } catch (error) {
+        console.error(`Error removing subscription: ${error}`);
+      }
       this.subscriptionId = null;
     }
 
@@ -188,6 +288,7 @@ export class DisputeMonitor {
     }
 
     this.trackedEscrows.clear();
+    this.escrowAccessOrder = [];
   }
 
   /**
@@ -253,6 +354,7 @@ export class DisputeMonitor {
         if (!previousEscrow || previousEscrow.status !== CompanionEscrowStatus.Disputed) {
           // New dispute filed
           this.trackedEscrows.set(pubkeyStr, escrow);
+          this.touchEscrow(pubkeyStr);
           await this.emit({
             type: DisputeEventType.DisputeFiled,
             escrowPda: pubkey,
@@ -296,11 +398,12 @@ export class DisputeMonitor {
           }
 
           this.trackedEscrows.set(pubkeyStr, escrow);
+          this.touchEscrow(pubkeyStr);
         }
       } else if (escrow.status === CompanionEscrowStatus.Resolved) {
         if (previousEscrow?.status === CompanionEscrowStatus.Disputed) {
-          // Dispute finalized
-          this.trackedEscrows.delete(pubkeyStr);
+          // Dispute finalized - remove from tracking (memory cleanup)
+          this.removeEscrow(pubkeyStr);
           await this.emit({
             type: DisputeEventType.DisputeFinalized,
             escrowPda: pubkey,
@@ -313,8 +416,8 @@ export class DisputeMonitor {
           });
         }
       } else {
-        // No longer disputed
-        this.trackedEscrows.delete(pubkeyStr);
+        // No longer disputed - remove from tracking
+        this.removeEscrow(pubkeyStr);
       }
     } catch (e) {
       console.error(`Error handling account change: ${e}`);
