@@ -32,6 +32,7 @@ contract AgentRegistry is ReentrancyGuard, Pausable {
     uint256 public constant MAX_NAME_LENGTH = 32;
     uint256 public constant MIN_NAME_LENGTH = 3;
     uint64 public constant WITHDRAWAL_DELAY = 7 days;
+    uint64 public constant MAX_COPIERS = 1000;
 
     
 
@@ -79,6 +80,7 @@ contract AgentRegistry is ReentrancyGuard, Pausable {
     error ZeroAddress();
     error TransferFailed();
     error NoPendingAdmin();
+    error MaxCopiersReached();
 
     
 
@@ -297,6 +299,7 @@ contract AgentRegistry is ReentrancyGuard, Pausable {
         bool increment
     ) external onlyVaultOrAdmin onlyRegistered(agent) {
         if (increment) {
+            if (_agents[agent].copiers >= MAX_COPIERS) revert MaxCopiersReached();
             _agents[agent].copiers++;
         } else if (_agents[agent].copiers > 0) {
             _agents[agent].copiers--;

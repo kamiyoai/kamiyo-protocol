@@ -19,9 +19,9 @@ export const NETWORKS: Record<HyperliquidNetwork, NetworkConfig> = {
     rpc: 'https://rpc.hyperliquid.xyz/evm',
     explorer: 'https://explorer.hyperliquid.xyz',
     contracts: {
-      agentRegistry: '0xE467c6d2586CBC34feB4D9c6Cb7dB07E1b57341a',
-      kamiyoVault: '0x87394c7a6D380b3a886704560E2A823CDA03c873',
-      reputationLimits: '0x5adF9B47342C2e0A425F3c99735b6E01FEd4201E',
+      agentRegistry: '0xCa034D63c67ADd6CA127a575F0097C203DAcaE9d',
+      kamiyoVault: '0xF5B2b62f014459B98991AaE001e33aF75f4fbD15',
+      reputationLimits: '0xbECa9c722EeF9897b5aa87363F3Bd9C94e16fE33',
     },
   },
   testnet: {
