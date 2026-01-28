@@ -208,3 +208,13 @@ export async function refreshApiKey(wallet: string): Promise<{
   // Re-check balance on refresh
   return generateApiKey(wallet);
 }
+
+// Generate a wallet-only JWT (no tier/balance requirements)
+export function generateWalletToken(wallet: string): string {
+  const payload: Omit<JWTPayload, 'iat' | 'exp'> = {
+    wallet,
+    tier: 'wallet',
+    balance: 0,
+  };
+  return sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+}

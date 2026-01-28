@@ -62,7 +62,10 @@ router.use(authMiddleware);
 // GET /api/swarm-teams - list teams owned by authenticated user
 router.get('/', (req: Request, res: Response) => {
   const wallet = req.auth?.wallet;
-  // Only show teams owned by authenticated user (or legacy teams with no owner)
+  if (!wallet) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   const teams = db.prepare(`
     SELECT t.*,
       (SELECT COUNT(*) FROM swarm_team_members WHERE team_id = t.id) as member_count,
@@ -71,14 +74,15 @@ router.get('/', (req: Request, res: Response) => {
     FROM swarm_teams t
     WHERE t.owner_wallet = ? OR t.owner_wallet IS NULL
     ORDER BY t.created_at DESC
-  `).all(wallet) as Array<{
+  `).all(wallet);
+  const typedTeams = teams as Array<{
     id: string; name: string; currency: string;
     daily_limit: number; pool_balance: number;
     created_at: number; member_count: number; daily_spend: number;
   }>;
 
   res.json({
-    teams: teams.map((t) => ({
+    teams: typedTeams.map((t) => ({
       id: t.id,
       name: t.name,
       currency: t.currency,
@@ -95,6 +99,10 @@ router.get('/', (req: Request, res: Response) => {
 router.post('/', (req: Request, res: Response) => {
   const { name, currency, dailyLimit, members } = req.body;
   const ownerWallet = req.auth?.wallet;
+  if (!ownerWallet) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
 
   if (!name || !currency || dailyLimit == null) {
     res.status(400).json({ error: 'name, currency, and dailyLimit required' });
@@ -217,6 +225,47 @@ router.delete('/:id/members/:memberId', (req: Request, res: Response) => {
 
   db.prepare('UPDATE swarm_teams SET updated_at = unixepoch() WHERE id = ?').run(teamId);
   res.json({ success: true });
+});
+
+// GET /api/swarm-teams/:id/fund/blindfold
+// Generate Blindfold funding URL with state token for verification
+router.get('/:id/fund/blindfold', (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const wallet = req.auth?.wallet;
+
+  const team = db.prepare('SELECT id, name FROM swarm_teams WHERE id = ?').get(teamId) as {
+    id: string; name: string;
+  } | undefined;
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  // Generate state token
+  const stateToken = `bf_${randomUUID().replace(/-/g, '')}`;
+  const stateId = `bfs_${randomUUID().slice(0, 12)}`;
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+
+  db.prepare(`
+    INSERT INTO blindfold_funding_states (id, team_id, state_token, wallet, expires_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(stateId, teamId, stateToken, wallet || null, expiresAt);
+
+  const blindfoldBaseUrl = process.env.BLINDFOLD_FUND_URL || 'https://www.blindfoldfinance.com/fund';
+  const callbackUrl = `${process.env.API_URL || 'https://api.kamiyo.ai'}/api/fund/callback`;
+
+  const fundingUrl = new URL(blindfoldBaseUrl);
+  fundingUrl.searchParams.set('partner_id', 'kamiyo');
+  fundingUrl.searchParams.set('pool_id', teamId);
+  fundingUrl.searchParams.set('redirect_uri', callbackUrl);
+  fundingUrl.searchParams.set('state', stateToken);
+
+  res.json({
+    fundingUrl: fundingUrl.toString(),
+    stateToken,
+    expiresAt: expiresAt * 1000,
+  });
 });
 
 // POST /api/swarm-teams/:id/fund

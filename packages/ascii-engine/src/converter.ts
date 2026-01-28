@@ -406,12 +406,13 @@ export function pixelsToAscii(
       // Handle color
       if (opts.colorMode !== 'none') {
         const { r, g, b } = colorMap[y][x];
-        const color = formatColor(r, g, b, opts.colorMode);
-        colorLine.push(color);
+        const ansiColor = formatColor(r, g, b, opts.colorMode);
+        // Store RGB for export, ANSI codes are embedded in text
+        colorLine.push(`rgb(${r},${g},${b})`);
 
         if (opts.outputFormat === 'ansi' || opts.colorMode === 'ansi' ||
             opts.colorMode === 'ansi256' || opts.colorMode === 'truecolor') {
-          line += color + char;
+          line += ansiColor + char;
         } else {
           line += char;
         }
