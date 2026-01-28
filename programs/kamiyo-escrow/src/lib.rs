@@ -21,6 +21,7 @@ pub const REVEAL_PHASE_DURATION: i64 = 1800; // 30 minutes
 pub const MIN_CONSENSUS_ORACLES: u8 = 3;
 pub const MAX_SCORE_DEVIATION: u8 = 15; // 15% deviation tolerance
 pub const ESCROW_TIMEOUT: i64 = 7 * 24 * 60 * 60; // 7 days
+pub const DISPUTE_TIMEOUT: i64 = 3 * 24 * 60 * 60; // 72 hours for disputed escrows
 pub const MAX_ORACLES_PER_ESCROW: usize = 5;
 
 // Quality-based refund thresholds
@@ -49,17 +50,26 @@ fn calculate_refund_percentage(quality_score: u8) -> u8 {
     }
 }
 
-/// Compute commitment hash: SHA256(session_id || oracle || score || salt)
+/// Domain separator for commitment hash (collision prevention)
+const COMMITMENT_DOMAIN: &[u8] = b"kamiyo-escrow-v1:commit";
+
+/// Compute commitment hash with domain separation
+/// Hash = SHA256(domain || len(session_id) || session_id || len(oracle) || oracle || score || len(salt) || salt)
 fn compute_commitment_hash(
     session_id: &[u8; 32],
     oracle: &Pubkey,
     score: u8,
     salt: &[u8; 32],
 ) -> [u8; 32] {
-    let mut data = Vec::with_capacity(32 + 32 + 1 + 32);
+    let oracle_bytes = oracle.as_ref();
+    let mut data = Vec::with_capacity(COMMITMENT_DOMAIN.len() + 1 + 32 + 1 + 32 + 1 + 1 + 32);
+    data.extend_from_slice(COMMITMENT_DOMAIN);
+    data.push(32); // session_id length
     data.extend_from_slice(session_id);
-    data.extend_from_slice(oracle.as_ref());
+    data.push(32); // oracle length
+    data.extend_from_slice(oracle_bytes);
     data.push(score);
+    data.push(32); // salt length
     data.extend_from_slice(salt);
     hash(&data).to_bytes()
 }
@@ -497,6 +507,27 @@ pub mod kamiyo_escrow {
             scores[scores.len() / 2]
         };
 
+        // Check for outliers using max_score_deviation from config
+        // Count how many scores deviate too far from median
+        let max_deviation = config.max_score_deviation;
+        let outlier_count = scores
+            .iter()
+            .filter(|&&score| {
+                let diff = if score > median_score {
+                    score - median_score
+                } else {
+                    median_score - score
+                };
+                diff > max_deviation
+            })
+            .count();
+
+        // If majority are outliers, consensus is suspect (potential collusion)
+        require!(
+            outlier_count * 2 < scores.len(),
+            EscrowError::SuspiciousOracleConsensus
+        );
+
         // Calculate refund percentage
         let refund_pct = calculate_refund_percentage(median_score);
 
@@ -560,6 +591,52 @@ pub mod kamiyo_escrow {
             escrow: escrow.key(),
             treasury: ctx.accounts.treasury.key(),
             amount,
+        });
+
+        Ok(())
+    }
+
+    /// Release disputed escrow after 72h timeout if oracles fail to resolve
+    /// Returns funds to user as a safety fallback
+    pub fn disputed_timeout_release(ctx: Context<DisputedTimeoutRelease>) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow;
+        let config = &ctx.accounts.oracle_config;
+        let clock = Clock::get()?;
+
+        require!(
+            escrow.status == EscrowStatus::Disputed,
+            EscrowError::InvalidStatus
+        );
+
+        let disputed_at = escrow.disputed_at.ok_or(EscrowError::NotDisputed)?;
+
+        // Check if dispute timeout has passed
+        require!(
+            clock.unix_timestamp > disputed_at + DISPUTE_TIMEOUT,
+            EscrowError::DisputeNotTimedOut
+        );
+
+        // Check that we don't have enough oracle consensus
+        // If oracles reached consensus, they should call finalize_dispute instead
+        let has_consensus = escrow.oracle_submissions.len() >= config.min_consensus as usize;
+        require!(
+            !has_consensus,
+            EscrowError::DisputeHasConsensus
+        );
+
+        // Refund to user since oracles failed to resolve
+        escrow.status = EscrowStatus::Refunded;
+        escrow.refund_percentage = Some(100);
+
+        let amount = escrow.amount;
+        **escrow.to_account_info().try_borrow_mut_lamports()? -= amount;
+        **ctx.accounts.user.try_borrow_mut_lamports()? += amount;
+
+        emit!(DisputeTimeoutRefund {
+            escrow: escrow.key(),
+            user: ctx.accounts.user.key(),
+            amount,
+            oracle_submissions: escrow.oracle_submissions.len() as u8,
         });
 
         Ok(())
@@ -757,6 +834,25 @@ pub struct TimeoutRelease<'info> {
     pub escrow: Account<'info, Escrow>,
 }
 
+#[derive(Accounts)]
+pub struct DisputedTimeoutRelease<'info> {
+    /// CHECK: User receives refund
+    #[account(
+        mut,
+        constraint = user.key() == escrow.user @ EscrowError::InvalidUser
+    )]
+    pub user: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(
+        seeds = [b"oracle_config"],
+        bump = oracle_config.bump
+    )]
+    pub oracle_config: Account<'info, OracleConfig>,
+}
+
 // ============================================================================
 // Account Structures
 // ============================================================================
@@ -921,6 +1017,14 @@ pub struct DisputeResolved {
     pub oracle_count: u8,
 }
 
+#[event]
+pub struct DisputeTimeoutRefund {
+    pub escrow: Pubkey,
+    pub user: Pubkey,
+    pub amount: u64,
+    pub oracle_submissions: u8,
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -983,4 +1087,12 @@ pub enum EscrowError {
     InsufficientOracleConsensus,
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
+    #[msg("Escrow is not disputed")]
+    NotDisputed,
+    #[msg("Dispute has not timed out yet")]
+    DisputeNotTimedOut,
+    #[msg("Dispute already has oracle consensus")]
+    DisputeHasConsensus,
+    #[msg("Suspicious oracle consensus detected")]
+    SuspiciousOracleConsensus,
 }

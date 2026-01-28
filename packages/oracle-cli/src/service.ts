@@ -28,6 +28,7 @@ export interface OracleServiceConfig {
   autoCommit?: boolean;
   autoReveal?: boolean;
   logFile?: string;
+  stateFile?: string; // Persist pending commits for crash recovery
 }
 
 interface PendingCommit {
@@ -35,6 +36,15 @@ interface PendingCommit {
   sessionId: Uint8Array;
   qualityScore: number;
   salt: Uint8Array;
+  committedAt: number;
+  txSignature?: string;
+}
+
+interface SerializedPendingCommit {
+  escrowPda: string;
+  sessionId: string; // hex
+  qualityScore: number;
+  salt: string; // hex
   committedAt: number;
   txSignature?: string;
 }
@@ -75,6 +85,65 @@ export class OracleService {
 
     if (config.logFile) {
       this.logStream = fs.createWriteStream(config.logFile, { flags: "a" });
+    }
+
+    // Load persisted state if available
+    this.loadPersistedState();
+  }
+
+  /**
+   * Load pending commits from disk for crash recovery
+   */
+  private loadPersistedState(): void {
+    if (!this.config.stateFile) return;
+
+    try {
+      if (fs.existsSync(this.config.stateFile)) {
+        const data = fs.readFileSync(this.config.stateFile, "utf-8");
+        const serialized: SerializedPendingCommit[] = JSON.parse(data);
+
+        for (const item of serialized) {
+          this.pendingCommits.set(item.escrowPda, {
+            escrowPda: item.escrowPda,
+            sessionId: Buffer.from(item.sessionId, "hex"),
+            qualityScore: item.qualityScore,
+            salt: Buffer.from(item.salt, "hex"),
+            committedAt: item.committedAt,
+            txSignature: item.txSignature,
+          });
+        }
+
+        this.log("info", `Recovered ${serialized.length} pending commits from disk`);
+      }
+    } catch (error: any) {
+      this.log("warn", `Failed to load persisted state: ${error.message}`);
+    }
+  }
+
+  /**
+   * Persist pending commits to disk for crash recovery
+   */
+  private persistState(): void {
+    if (!this.config.stateFile) return;
+
+    try {
+      const serialized: SerializedPendingCommit[] = [];
+      for (const [_, commit] of this.pendingCommits) {
+        serialized.push({
+          escrowPda: commit.escrowPda,
+          sessionId: Buffer.from(commit.sessionId).toString("hex"),
+          qualityScore: commit.qualityScore,
+          salt: Buffer.from(commit.salt).toString("hex"),
+          committedAt: commit.committedAt,
+          txSignature: commit.txSignature,
+        });
+      }
+
+      fs.writeFileSync(this.config.stateFile, JSON.stringify(serialized, null, 2), {
+        mode: 0o600, // Owner read/write only
+      });
+    } catch (error: any) {
+      this.log("error", `Failed to persist state: ${error.message}`);
     }
   }
 
@@ -211,8 +280,9 @@ export class OracleService {
       refundPercentage: event.details?.refundPercentage,
     });
 
-    // Clean up pending commit
+    // Clean up pending commit and persist
     this.pendingCommits.delete(escrowPda);
+    this.persistState();
   }
 
   private async processCommit(escrowPda: PublicKey, escrow: CompanionEscrow): Promise<void> {
@@ -243,13 +313,13 @@ export class OracleService {
         salt
       );
 
+      // SECURITY: Only log commitment hash, never the score before reveal phase
       this.log("info", "Committing vote", {
         escrowPda: pdaString.slice(0, 16),
-        qualityScore,
         commitmentHash: Buffer.from(commitmentHash).toString("hex").slice(0, 16),
       });
 
-      // Store for later reveal
+      // Store for later reveal and persist to disk
       this.pendingCommits.set(pdaString, {
         escrowPda: pdaString,
         sessionId: escrow.sessionId,
@@ -257,13 +327,14 @@ export class OracleService {
         salt,
         committedAt: Date.now(),
       });
+      this.persistState();
 
       // In production, submit the actual transaction here
       // const tx = await this.submitCommitTransaction(escrowPda, commitmentHash);
 
-      this.log("info", "Vote committed (local)", {
+      // SECURITY: Score is now safe to log after commit is stored
+      this.log("info", "Vote committed", {
         escrowPda: pdaString.slice(0, 16),
-        qualityScore,
       });
     } catch (error: any) {
       this.log("error", "Failed to commit", {
