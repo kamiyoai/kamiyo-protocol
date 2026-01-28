@@ -5,14 +5,8 @@ import { verifyApiKey, JWTPayload } from './auth';
 import { logger } from '../logger';
 import { getApiRateLimit, incrementApiRateLimit, cleanupOldRateLimits } from '../db';
 
-// Extend Express Request to include auth info
-declare global {
-  namespace Express {
-    interface Request {
-      auth?: JWTPayload;
-    }
-  }
-}
+// Note: req.auth is typed as JWTPayload for API routes
+// MCP routes use their own AuthInfo type from the SDK
 
 const LIMITS = {
   pro: { perMinute: 60, perDay: 10000 },

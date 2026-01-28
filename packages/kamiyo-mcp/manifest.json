@@ -1,0 +1,112 @@
+{
+  "manifest_version": "0.3",
+  "name": "kamiyo",
+  "display_name": "KAMIYO Protocol",
+  "version": "1.0.0",
+  "description": "Solana escrow with dispute resolution for API payments. Also supports x402 HTTP 402 payments (USDC on Base/Polygon/Arbitrum/Solana).",
+  "author": {
+    "name": "KAMIYO",
+    "url": "https://kamiyo.ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol"
+  },
+  "homepage": "https://kamiyo.ai",
+  "documentation": "https://github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/kamiyo-mcp",
+  "support": "https://github.com/kamiyo-ai/kamiyo-protocol/issues",
+  "keywords": [
+    "solana",
+    "escrow",
+    "payments",
+    "dispute-resolution",
+    "api-payments",
+    "x402"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "SOLANA_RPC_URL": "${user_config.solana_rpc_url}",
+        "KAMIYO_PROGRAM_ID": "${user_config.program_id}",
+        "AGENT_PRIVATE_KEY": "${user_config.agent_private_key}"
+      }
+    }
+  },
+  "user_config": {
+    "solana_rpc_url": {
+      "type": "string",
+      "title": "Solana RPC URL",
+      "description": "Solana RPC endpoint (mainnet or devnet)",
+      "default": "https://api.mainnet-beta.solana.com",
+      "required": true
+    },
+    "program_id": {
+      "type": "string",
+      "title": "Program ID",
+      "description": "KAMIYO program address on Solana",
+      "default": "Kami4VVSihVhXnhJ65KZPDm9fUbBnkqSzWWDnsRxMjW3",
+      "required": true
+    },
+    "agent_private_key": {
+      "type": "string",
+      "title": "Agent Private Key",
+      "description": "Base58 or JSON array private key for signing transactions",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "tools": [
+    {
+      "name": "create_escrow",
+      "description": "Create payment escrow with time lock and dispute capability"
+    },
+    {
+      "name": "check_escrow_status",
+      "description": "Check escrow account status and details"
+    },
+    {
+      "name": "verify_payment",
+      "description": "Verify payment received and escrow active"
+    },
+    {
+      "name": "assess_data_quality",
+      "description": "Assess API response quality (0-100 score)"
+    },
+    {
+      "name": "estimate_refund",
+      "description": "Calculate refund based on quality score"
+    },
+    {
+      "name": "file_dispute",
+      "description": "File on-chain dispute for poor quality data"
+    },
+    {
+      "name": "get_api_reputation",
+      "description": "Get API provider reputation and history"
+    },
+    {
+      "name": "call_api_with_escrow",
+      "description": "Full flow: escrow, call, assess, auto-dispute"
+    },
+    {
+      "name": "x402_check_pricing",
+      "description": "Check x402-gated endpoint pricing"
+    },
+    {
+      "name": "x402_fetch",
+      "description": "Fetch from x402 endpoint with USDC payment"
+    }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

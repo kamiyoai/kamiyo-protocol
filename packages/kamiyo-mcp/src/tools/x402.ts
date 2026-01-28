@@ -12,6 +12,52 @@ import {
   PaymentSigner,
 } from '@kamiyo/x402-client';
 
+interface FetchResponse {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+  text: () => Promise<string>;
+}
+
+// Use native fetch or fallback to https module
+const httpFetch: (url: string, options?: RequestInit) => Promise<FetchResponse> =
+  globalThis.fetch ?? (async (url: string, options?: RequestInit): Promise<FetchResponse> => {
+    const https = await import('https');
+    const http = await import('http');
+    const { URL } = await import('url');
+
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(url);
+      const protocol = parsedUrl.protocol === 'https:' ? https : http;
+
+      const defaultHeaders: Record<string, string> = {
+        'User-Agent': 'KAMIYO-MCP/1.0',
+        'Accept': 'application/json',
+      };
+      const headers = { ...defaultHeaders, ...(options?.headers as Record<string, string>) };
+
+      const req = protocol.request(parsedUrl, {
+        method: options?.method || 'GET',
+        headers,
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          resolve({
+            ok: res.statusCode! >= 200 && res.statusCode! < 300,
+            status: res.statusCode!,
+            json: async () => JSON.parse(data),
+            text: async () => data,
+          });
+        });
+      });
+
+      req.on('error', reject);
+      if (options?.body) req.write(options.body);
+      req.end();
+    });
+  });
+
 export interface PaymentRequirement {
   scheme: 'exact';
   network: string; // CAIP-2
@@ -73,7 +119,7 @@ function summarize(data: unknown): string {
 
 export async function x402CheckPricing(
   params: { url: string },
-  _config: X402Config
+  _config?: X402Config
 ): Promise<{
   success: boolean;
   free?: boolean;
@@ -81,16 +127,21 @@ export async function x402CheckPricing(
   error?: string;
 }> {
   try {
-    const response = await fetch(params.url, {
+    const response = await httpFetch(params.url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'KAMIYO-MCP/1.0 (Node.js)',
+      },
     });
 
     if (response.status !== 402) {
       if (response.ok) {
         return { success: true, free: true };
       }
-      return { success: false, error: `Endpoint returned ${response.status}` };
+      const text = await response.text().catch(() => '');
+      return { success: false, error: `Endpoint returned ${response.status}: ${text.slice(0, 100)}` };
     }
 
     const x402Response = (await response.json()) as X402Response;
@@ -132,7 +183,7 @@ export async function x402Fetch(
 
   try {
     // Initial request to check if payment required
-    const initialResponse = await fetch(url, {
+    const initialResponse = await httpFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', ...headers },
       body: body || undefined,
@@ -194,7 +245,7 @@ export async function x402Fetch(
     const paymentHeader = createPaymentHeader(signedPayment, config.wallet, requirement.network);
 
     // Retry with payment proof
-    const paidResponse = await fetch(url, {
+    const paidResponse = await httpFetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',

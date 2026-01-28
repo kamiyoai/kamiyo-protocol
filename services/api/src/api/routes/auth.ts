@@ -2,7 +2,7 @@
 
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
-import { generateChallenge, verifySignature, generateApiKey, refreshApiKey } from '../auth';
+import { generateChallenge, verifySignature, generateApiKey, refreshApiKey, generateWalletToken } from '../auth';
 import { logger } from '../../logger';
 
 const router: IRouter = Router();
@@ -80,6 +80,36 @@ router.post('/verify', async (req: Request, res: Response) => {
     logger.error('Verification failed', { error: String(err) });
     res.status(500).json({
       error: { code: 'INTERNAL_ERROR', message: 'Verification failed' },
+    });
+  }
+});
+
+// POST /api/auth/wallet - wallet-only auth (no token balance required)
+router.post('/wallet', async (req: Request, res: Response) => {
+  const { wallet, signature } = req.body;
+
+  if (!wallet || !signature) {
+    res.status(400).json({
+      error: { code: 'INVALID_REQUEST', message: 'Missing wallet or signature' },
+    });
+    return;
+  }
+
+  try {
+    const result = await verifySignature(wallet, signature);
+    if (!result.valid) {
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: result.error },
+      });
+      return;
+    }
+
+    const token = generateWalletToken(wallet);
+    res.json({ token, wallet });
+  } catch (err) {
+    logger.error('Wallet auth failed', { error: String(err) });
+    res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Authentication failed' },
     });
   }
 });

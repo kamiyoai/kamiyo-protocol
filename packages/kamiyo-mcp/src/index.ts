@@ -87,7 +87,7 @@ const TOOL_DEFINITIONS: Tool[] = [
   {
     name: 'assess_data_quality',
     description:
-      'Assess the quality of API response data. Returns quality score (0-100) and recommended refund percentage.',
+      'Score API response quality. Use when someone asks "is this data good?", "check this response", "rate this API data", "assess quality", or shows you JSON from an API and wants to know if it meets expectations. Returns 0-100 score and refund recommendation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,7 +106,8 @@ const TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: 'estimate_refund',
-    description: 'Estimate refund amount based on quality score.',
+    description:
+      'Calculate refund for poor quality data. Use when someone asks "how much should I get back?", "what refund do I deserve?", "calculate my refund", or mentions a quality score and payment amount and wants to know the fair refund.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -203,15 +204,15 @@ const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
-    name: 'x402_check_pricing',
+    name: 'check_x402_api_price',
     description:
-      'Check pricing for an x402-gated API endpoint without making payment. Returns available payment options and prices.',
+      'REQUIRED for x402/HTTP-402 paid APIs. Returns USDC pricing and supported payment networks (Base, Solana, Polygon, Arbitrum). Regular web fetch will get 402 Payment Required - only this tool extracts the pricing info correctly. Use for any URL that requires payment.',
     inputSchema: {
       type: 'object',
       properties: {
         url: {
           type: 'string',
-          description: 'The x402-gated API endpoint URL to check',
+          description: 'The x402-gated API endpoint URL to check pricing for',
         },
       },
       required: ['url'],
@@ -260,7 +261,7 @@ class KamiyoMCPServer {
     // Initialize MCP server
     this.server = new Server(
       {
-        name: 'kamiyo',
+        name: 'KAMIYO',
         version: '1.0.0',
       },
       {
@@ -276,56 +277,53 @@ class KamiyoMCPServer {
     const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
     const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
-    if (!programIdStr) {
-      throw new Error('KAMIYO_PROGRAM_ID environment variable is required');
-    }
-
-    if (!agentPrivateKey && !agentKeypairPath) {
-      throw new Error('Either AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH environment variable is required');
-    }
-
-    // Load keypair from file path or base58 string
-    let keypair: Keypair;
-    try {
-      if (agentKeypairPath) {
-        // Load from file
-        const { loadKeypair } = require('./solana/client.js');
-        keypair = loadKeypair(agentKeypairPath);
-      } else if (agentPrivateKey) {
-        // Try base58 first, fallback to base64, then JSON array
-        try {
-          const privateKeyBytes = bs58.decode(agentPrivateKey);
-          keypair = Keypair.fromSecretKey(privateKeyBytes);
-        } catch {
+    // Keypair is optional - some tools work without it
+    let keypair: Keypair | null = null;
+    if (agentKeypairPath || agentPrivateKey) {
+      try {
+        if (agentKeypairPath) {
+          const { loadKeypair } = require('./solana/client.js');
+          keypair = loadKeypair(agentKeypairPath);
+        } else if (agentPrivateKey) {
           try {
-            const privateKeyBytes = Buffer.from(agentPrivateKey, 'base64');
+            const privateKeyBytes = bs58.decode(agentPrivateKey);
             keypair = Keypair.fromSecretKey(privateKeyBytes);
           } catch {
-            const privateKeyArray = JSON.parse(agentPrivateKey);
-            keypair = Keypair.fromSecretKey(new Uint8Array(privateKeyArray));
+            try {
+              const privateKeyBytes = Buffer.from(agentPrivateKey, 'base64');
+              keypair = Keypair.fromSecretKey(privateKeyBytes);
+            } catch {
+              const privateKeyArray = JSON.parse(agentPrivateKey);
+              keypair = Keypair.fromSecretKey(new Uint8Array(privateKeyArray));
+            }
           }
         }
-      } else {
-        throw new Error('No keypair source provided');
+      } catch (error: any) {
+        console.error(`Warning: Failed to load keypair: ${error.message}. Solana tools will be disabled.`);
       }
-    } catch (error: any) {
-      throw new Error(`Failed to load keypair: ${error.message}`);
     }
 
-    // Initialize Solana client
-    const programId = new PublicKey(programIdStr);
-    this.solanaClient = new SolanaClient(rpcUrl, keypair);
-    this.program = new X402Program(this.solanaClient.connection, keypair, programId);
+    // Initialize Solana client if we have both program ID and keypair
+    if (programIdStr && keypair) {
+      const programId = new PublicKey(programIdStr);
+      this.solanaClient = new SolanaClient(rpcUrl, keypair);
+      this.program = new X402Program(this.solanaClient.connection, keypair, programId);
+    } else {
+      console.error('Warning: Solana not configured. Escrow tools will be disabled. Set KAMIYO_PROGRAM_ID and AGENT_PRIVATE_KEY to enable.');
+    }
 
     // Initialize x402 config with real wallet for signing
-    this.x402Config = tools.createX402Config(
-      keypair,
-      this.solanaClient.connection,
-      {
-        maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
-        preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
-      }
-    );
+    // Initialize x402 config if we have keypair and solana client
+    if (keypair && this.solanaClient) {
+      this.x402Config = tools.createX402Config(
+        keypair,
+        this.solanaClient.connection,
+        {
+          maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
+          preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
+        }
+      );
+    }
 
     // Register handlers
     this.setupHandlers();
@@ -389,8 +387,15 @@ class KamiyoMCPServer {
             result = await tools.callApiWithEscrow(args as any, this.program);
             break;
 
-          case 'x402_check_pricing':
-            result = await tools.x402CheckPricing(args as any, this.x402Config);
+          case 'check_x402_api_price':
+            console.error('[check_x402_api_price] Starting with args:', JSON.stringify(args));
+            try {
+              result = await tools.x402CheckPricing(args as any, this.x402Config);
+              console.error('[check_x402_api_price] Result:', JSON.stringify(result));
+            } catch (err: any) {
+              console.error('[check_x402_api_price] Error:', err.message, err.stack);
+              throw err;
+            }
             break;
 
           case 'x402_fetch':
@@ -441,7 +446,11 @@ class KamiyoMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('KAMIYO MCP Server running on stdio');
-    console.error(`Agent wallet: ${this.solanaClient.publicKey.toBase58()}`);
+    if (this.solanaClient) {
+      console.error(`Agent wallet: ${this.solanaClient.publicKey.toBase58()}`);
+    } else {
+      console.error('Running in limited mode (no Solana wallet configured)');
+    }
   }
 }
 
