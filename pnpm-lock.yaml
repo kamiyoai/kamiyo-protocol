@@ -1458,6 +1458,22 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
+  services/oracle:
+    dependencies:
+      '@kamiyo/hyperliquid':
+        specifier: file:../../packages/kamiyo-hyperliquid
+        version: file:packages/kamiyo-hyperliquid(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      ethers:
+        specifier: ^6.13.0
+        version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    devDependencies:
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   services/telegram-bot:
     dependencies:
       '@anthropic-ai/sdk':
@@ -2782,6 +2798,9 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@elizaos/core': '>=1.0.0'
+
+  '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid':
+    resolution: {directory: packages/kamiyo-hyperliquid, type: directory}
 
   '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams':
     resolution: {directory: packages/kamiyo-swarmteams, type: directory}
@@ -13696,6 +13715,16 @@ snapshots:
       - bufferutil
       - encoding
       - typescript
+      - utf-8-validate
+
+  '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@anthropic-ai/sdk': 0.32.1
+      '@kamiyo/kamiyo-swarmteams': link:packages/kamiyo-swarmteams
+      ethers: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
       - utf-8-validate
 
   '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
