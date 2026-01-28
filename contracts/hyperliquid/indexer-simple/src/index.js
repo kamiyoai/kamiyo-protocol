@@ -27,6 +27,13 @@ let pool;
 let client;
 let lastBlock = 0;
 
+// In-memory cache for API responses (also used in memory-only mode)
+const cache = {
+  agents: [],
+  positions: [],
+  disputes: [],
+};
+
 async function initDb() {
   const dbUrl = process.env.DATABASE_PRIVATE_URL || process.env.DATABASE_URL;
   if (!dbUrl) {
@@ -34,9 +41,10 @@ async function initDb() {
     return;
   }
 
-  pool = new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+  try {
+    pool = new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
 
-  await pool.query(`
+    await pool.query(`
     CREATE TABLE IF NOT EXISTS agents (
       address TEXT PRIMARY KEY,
       owner TEXT NOT NULL,
@@ -82,12 +90,16 @@ async function initDb() {
     )
   `);
 
-  const result = await pool.query('SELECT last_block FROM sync_state WHERE id = 1');
-  if (result.rows.length > 0) {
-    lastBlock = Number(result.rows[0].last_block);
-  }
+    const result = await pool.query('SELECT last_block FROM sync_state WHERE id = 1');
+    if (result.rows.length > 0) {
+      lastBlock = Number(result.rows[0].last_block);
+    }
 
-  console.log('Database initialized, last synced block:', lastBlock);
+    console.log('Database initialized, last synced block:', lastBlock);
+  } catch (err) {
+    console.warn('Database connection failed, running in memory-only mode:', err.message);
+    pool = null;
+  }
 }
 
 async function initClient() {
@@ -155,12 +167,27 @@ async function processAgentLog(log) {
 
     console.log('Agent registered:', agent);
 
+    const agentData = {
+      address: agent,
+      owner,
+      name: 'Agent',
+      stake: '0',
+      registered_at: Date.now(),
+      block_number: Number(log.blockNumber),
+      active: true,
+    };
+
     if (pool) {
       await pool.query(
         `INSERT INTO agents (address, owner, name, stake, registered_at, block_number)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (address) DO NOTHING`,
         [agent, owner, 'Agent', '0', Date.now(), log.blockNumber]
       );
+    } else {
+      // Memory-only mode: add to cache if not already present
+      if (!cache.agents.find(a => a.address === agent)) {
+        cache.agents.push(agentData);
+      }
     }
   }
 }
@@ -176,22 +203,33 @@ async function processVaultLog(log) {
 
     console.log('Position opened:', positionId);
 
+    const positionData = {
+      id: positionId,
+      copier,
+      agent,
+      amount: '0',
+      leverage: 1,
+      opened_at: Date.now(),
+      closed_at: null,
+      final_value: null,
+      pnl: null,
+      status: 'open',
+    };
+
     if (pool) {
       await pool.query(
         `INSERT INTO positions (id, copier, agent, amount, leverage, opened_at)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
         [positionId, copier, agent, '0', 1, Date.now()]
       );
+    } else {
+      // Memory-only mode: add to cache if not already present
+      if (!cache.positions.find(p => p.id === positionId)) {
+        cache.positions.push(positionData);
+      }
     }
   }
 }
-
-// In-memory cache for API responses
-const cache = {
-  agents: [],
-  positions: [],
-  disputes: [],
-};
 
 async function refreshCache() {
   if (!pool) return;
