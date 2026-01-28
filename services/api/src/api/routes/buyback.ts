@@ -3,7 +3,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { logger } from '../../logger';
-import { getBuybackService } from '../../buyback-service';
+import { getBuybackService, BUYBACK_BETA } from '../../buyback-service';
 
 const router = Router();
 
@@ -41,6 +41,7 @@ router.get('/config', (_req: Request, res: Response) => {
     const service = getBuybackService();
     const config = service.getConfig();
     res.json({
+      beta: BUYBACK_BETA,
       minThresholdLamports: config.minThresholdLamports,
       minThresholdSol: config.minThresholdLamports / 1e9,
       maxSlippageBps: config.maxSlippageBps,
@@ -65,6 +66,7 @@ router.get('/stats', (_req: Request, res: Response) => {
     const config = service.getConfig();
 
     res.json({
+      beta: BUYBACK_BETA,
       totalSolSpent: stats.totalSolSpent,
       totalSolSpentFormatted: `${(stats.totalSolSpent / 1e9).toFixed(4)} SOL`,
       totalKamiyoPurchased: stats.totalKamiyoPurchased,
@@ -254,6 +256,44 @@ router.post('/retry/:id', adminRateLimiter, async (req: Request, res: Response) 
   } catch (err) {
     logger.error('Buyback retry failed', { error: String(err) });
     res.status(500).json({ error: 'Retry failed' });
+  }
+});
+
+router.post('/withdraw', adminRateLimiter, async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const service = getBuybackService();
+    const { destination, lamports } = req.body;
+
+    if (!destination || typeof destination !== 'string') {
+      res.status(400).json({ error: 'destination address required' });
+      return;
+    }
+
+    if (!lamports || typeof lamports !== 'number' || lamports <= 0) {
+      res.status(400).json({ error: 'lamports must be positive number' });
+      return;
+    }
+
+    const result = await service.withdrawTreasury(destination, lamports);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        signature: result.signature,
+        withdrawn: lamports,
+        withdrawnSol: lamports / 1e9,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (err) {
+    logger.error('Treasury withdrawal failed', { error: String(err) });
+    res.status(500).json({ error: 'Withdrawal failed' });
   }
 });
 
