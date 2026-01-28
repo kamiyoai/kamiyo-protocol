@@ -1,7 +1,6 @@
 /**
- * Escrow Dispute Manager - Dispute resolution for kamiyo-escrow program
- *
- * Handles oracle-based commit-reveal voting for companion escrows.
+ * Dispute resolution for kamiyo-escrow program.
+ * Handles oracle-based commit-reveal voting.
  */
 
 import {
@@ -37,10 +36,7 @@ const DISCRIMINATORS = {
   disputedTimeoutRelease: Buffer.from([206, 179, 158, 86, 140, 59, 139, 243]),
 };
 
-// Domain separator for commitment hash to prevent collisions
 const COMMITMENT_DOMAIN = new TextEncoder().encode("kamiyo-escrow-v1:commit");
-
-// Transaction confirmation timeout in milliseconds
 const TX_CONFIRMATION_TIMEOUT_MS = 60000;
 
 export interface TransactionResult {
@@ -48,9 +44,6 @@ export interface TransactionResult {
   confirmed: boolean;
 }
 
-/**
- * EscrowDisputeManager - Manage disputes for companion escrows
- */
 export class EscrowDisputeManager {
   private connection: Connection;
   private wallet: Wallet;
@@ -66,9 +59,6 @@ export class EscrowDisputeManager {
     this.programId = programId;
   }
 
-  /**
-   * Get escrow PDA
-   */
   getEscrowPDA(sessionId: Uint8Array): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("escrow"), sessionId],
@@ -76,9 +66,6 @@ export class EscrowDisputeManager {
     );
   }
 
-  /**
-   * Get oracle config PDA
-   */
   getOracleConfigPDA(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("oracle_config")],
@@ -86,18 +73,10 @@ export class EscrowDisputeManager {
     );
   }
 
-  /**
-   * Generate a random 32-byte salt for commit-reveal
-   */
   generateSalt(): Uint8Array {
     return crypto.getRandomValues(new Uint8Array(32));
   }
 
-  /**
-   * Compute commitment hash for commit-reveal voting
-   * Hash = SHA256(domain || len(session_id) || session_id || len(oracle) || oracle || score || len(salt) || salt)
-   * Domain separator and length prefixes prevent collision attacks
-   */
   async computeCommitmentHash(
     sessionId: Uint8Array,
     oracle: PublicKey,
@@ -130,27 +109,15 @@ export class EscrowDisputeManager {
     return new Uint8Array(hashBuffer);
   }
 
-  /**
-   * Get current Solana cluster time (more accurate than local time)
-   * Falls back to local time if cluster time unavailable
-   */
   async getClusterTime(): Promise<number> {
     try {
       const slot = await this.connection.getSlot("confirmed");
       const blockTime = await this.connection.getBlockTime(slot);
-      if (blockTime !== null) {
-        return blockTime;
-      }
-    } catch {
-      // Fall back to local time if cluster time unavailable
-    }
+      if (blockTime !== null) return blockTime;
+    } catch {}
     return Math.floor(Date.now() / 1000);
   }
 
-  /**
-   * Check if escrow is in commit phase
-   * For synchronous checks, use local time. For accurate checks, use isInCommitPhaseAsync.
-   */
   isInCommitPhase(escrow: CompanionEscrow): boolean {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
     if (!escrow.commitPhaseEndsAt) return false;
@@ -159,9 +126,6 @@ export class EscrowDisputeManager {
     return now < escrow.commitPhaseEndsAt.toNumber();
   }
 
-  /**
-   * Check if escrow is in commit phase using cluster time
-   */
   async isInCommitPhaseAsync(escrow: CompanionEscrow): Promise<boolean> {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
     if (!escrow.commitPhaseEndsAt) return false;
@@ -170,10 +134,6 @@ export class EscrowDisputeManager {
     return now < escrow.commitPhaseEndsAt.toNumber();
   }
 
-  /**
-   * Check if escrow is in reveal phase
-   * For synchronous checks, use local time. For accurate checks, use isInRevealPhaseAsync.
-   */
   isInRevealPhase(escrow: CompanionEscrow): boolean {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
     if (!escrow.commitPhaseEndsAt) return false;
@@ -185,9 +145,6 @@ export class EscrowDisputeManager {
     return now >= commitEnds && now < revealEnds;
   }
 
-  /**
-   * Check if escrow is in reveal phase using cluster time
-   */
   async isInRevealPhaseAsync(escrow: CompanionEscrow): Promise<boolean> {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
     if (!escrow.commitPhaseEndsAt) return false;
@@ -199,10 +156,6 @@ export class EscrowDisputeManager {
     return now >= commitEnds && now < revealEnds;
   }
 
-  /**
-   * Check if reveal phase has ended (ready for finalization)
-   * For synchronous checks, use local time. For accurate checks, use isReadyForFinalizationAsync.
-   */
   isReadyForFinalization(escrow: CompanionEscrow): boolean {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
     if (!escrow.commitPhaseEndsAt) return false;
@@ -214,9 +167,6 @@ export class EscrowDisputeManager {
     return now >= revealEnds;
   }
 
-  /**
-   * Check if reveal phase has ended using cluster time
-   */
   async isReadyForFinalizationAsync(escrow: CompanionEscrow): Promise<boolean> {
     if (escrow.status !== CompanionEscrowStatus.Disputed) return false;
     if (!escrow.commitPhaseEndsAt) return false;
@@ -228,10 +178,6 @@ export class EscrowDisputeManager {
     return now >= revealEnds;
   }
 
-  /**
-   * Get time remaining in current phase (seconds)
-   * Uses local time. For accurate timing, use getPhaseTimeRemainingAsync.
-   */
   getPhaseTimeRemaining(escrow: CompanionEscrow): { phase: string; remaining: number } {
     if (escrow.status !== CompanionEscrowStatus.Disputed || !escrow.commitPhaseEndsAt) {
       return { phase: "none", remaining: 0 };
@@ -250,9 +196,6 @@ export class EscrowDisputeManager {
     return { phase: "finalization", remaining: 0 };
   }
 
-  /**
-   * Get time remaining in current phase using cluster time
-   */
   async getPhaseTimeRemainingAsync(
     escrow: CompanionEscrow
   ): Promise<{ phase: string; remaining: number }> {
@@ -273,9 +216,6 @@ export class EscrowDisputeManager {
     return { phase: "finalization", remaining: 0 };
   }
 
-  /**
-   * Calculate consensus from oracle submissions
-   */
   calculateConsensus(
     submissions: CompanionOracleSubmission[],
     maxDeviation: number = COMPANION_ESCROW_MAX_SCORE_DEVIATION
