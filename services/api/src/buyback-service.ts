@@ -98,9 +98,9 @@ function initTables(): void {
   db!.exec(`
     CREATE TABLE IF NOT EXISTS buyback_config (
       id INTEGER PRIMARY KEY CHECK (id = 1),
-      min_threshold_lamports INTEGER DEFAULT 1000000000,
+      min_threshold_lamports INTEGER DEFAULT 100000000,
       max_slippage_bps INTEGER DEFAULT 200,
-      cooldown_seconds INTEGER DEFAULT 86400,
+      cooldown_seconds INTEGER DEFAULT 3600,
       burn_bps INTEGER DEFAULT 5000,
       is_paused INTEGER DEFAULT 0,
       last_buyback_at INTEGER DEFAULT 0,
@@ -127,6 +127,8 @@ function initTables(): void {
     INSERT OR IGNORE INTO buyback_config (id) VALUES (1);
   `);
 }
+
+export const BUYBACK_BETA = true;
 
 export class BuybackService {
   private db: Database.Database;
@@ -229,6 +231,56 @@ export class BuybackService {
   async getTreasuryBalance(): Promise<number> {
     if (!this.treasuryAddress) return 0;
     return this.connection.getBalance(this.treasuryAddress);
+  }
+
+  async withdrawTreasury(destinationAddress: string, lamports: number): Promise<{ success: boolean; signature?: string; error?: string }> {
+    if (this.executing) {
+      return { success: false, error: 'Buyback execution in progress' };
+    }
+
+    const authority = this.loadAuthority();
+    if (!authority) {
+      return { success: false, error: 'BUYBACK_AUTHORITY_SECRET not set' };
+    }
+
+    if (!this.treasuryAddress) {
+      return { success: false, error: 'BUYBACK_TREASURY_ADDRESS not set' };
+    }
+
+    // Authority must be the treasury owner for this to work
+    if (!authority.publicKey.equals(this.treasuryAddress)) {
+      return { success: false, error: 'Authority does not own treasury wallet' };
+    }
+
+    try {
+      const { Transaction, SystemProgram, sendAndConfirmTransaction } = await import('@solana/web3.js');
+      const destination = new PublicKey(destinationAddress);
+
+      const balance = await this.getTreasuryBalance();
+      const minRent = 890880; // minimum for rent exemption
+      const maxWithdraw = Math.max(0, balance - minRent);
+
+      if (lamports > maxWithdraw) {
+        return { success: false, error: `Can withdraw max ${maxWithdraw} lamports (${maxWithdraw / 1e9} SOL)` };
+      }
+
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: authority.publicKey,
+          toPubkey: destination,
+          lamports,
+        })
+      );
+
+      const signature = await sendAndConfirmTransaction(this.connection, tx, [authority], { commitment: 'confirmed' });
+      logger.info('Treasury withdrawal', { lamports, destination: destinationAddress, signature });
+
+      return { success: true, signature };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.error('Treasury withdrawal failed', { error });
+      return { success: false, error };
+    }
   }
 
   isExecuting(): boolean {
