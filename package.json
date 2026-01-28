@@ -28,6 +28,7 @@
     "build:program": "anchor build",
     "build:sdk": "pnpm --filter @kamiyo/sdk run build",
     "build:surfpool": "pnpm --filter @kamiyo/surfpool run build",
+    "build:oracle": "pnpm --filter @kamiyo/hyperliquid run build && cd services/oracle && npm install && npm run build",
     "clean": "rm -rf target && cd packages/kamiyo-sdk && rm -rf dist",
     "test": "anchor test",
     "test:sdk": "pnpm --filter @kamiyo/sdk run test",

@@ -1,0 +1,19 @@
+{
+  "name": "@kamiyo/oracle-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@kamiyo/hyperliquid": "file:../../packages/kamiyo-hyperliquid",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
