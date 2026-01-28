@@ -398,7 +398,6 @@ program
   .requiredOption("-s, --score <score>", "Quality score (0-100)")
   .option("-r, --rpc <url>", "Solana RPC URL")
   .option("-k, --keypair <path>", "Path to keypair file")
-  .option("--session-id <hex>", "Session ID (hex string)")
   .option("--dry-run", "Show what would be committed without submitting")
   .action(async (options) => {
     const config = loadConfig();
@@ -423,22 +422,17 @@ program
       // Validate score
       disputeManager.validateQualityScore(qualityScore);
 
-      // Generate salt
-      const salt = disputeManager.generateSalt();
-
-      // Parse session ID (in real usage, fetch from escrow account)
-      let sessionId: Uint8Array;
-      if (options.sessionId) {
-        sessionId = Uint8Array.from(Buffer.from(options.sessionId, "hex"));
-      } else {
-        // Generate placeholder - in production, fetch from escrow account
-        sessionId = new Uint8Array(32);
-        spinner.text = "Using placeholder session ID (fetch from escrow in production)";
+      // Fetch escrow to get session ID
+      spinner.text = "Fetching escrow data...";
+      const escrow = await disputeManager.fetchEscrow(escrowPda);
+      if (!escrow) {
+        throw new Error("Escrow not found");
       }
 
-      // Compute commitment hash
+      // Generate salt and compute commitment hash
+      const salt = disputeManager.generateSalt();
       const commitmentHash = await disputeManager.computeCommitmentHash(
-        sessionId,
+        escrow.sessionId,
         keypair.publicKey,
         qualityScore,
         salt
@@ -460,20 +454,25 @@ program
         return;
       }
 
+      // Submit transaction
+      spinner.start("Submitting commit transaction...");
+      const result = await disputeManager.commitVote(escrowPda, commitmentHash);
+      spinner.stop();
+
       // Store secret for later reveal
       addSecret({
         escrowPda: escrowPda.toBase58(),
-        sessionId: Buffer.from(sessionId).toString("hex"),
+        sessionId: Buffer.from(escrow.sessionId).toString("hex"),
         qualityScore,
         salt: Buffer.from(salt).toString("hex"),
         committedAt: Date.now(),
       });
 
-      console.log(chalk.green("✓ Commitment prepared and stored locally"));
+      console.log(chalk.green("✓ Commitment submitted successfully"));
+      console.log(`  Signature: ${chalk.cyan(result.signature)}`);
       console.log(chalk.gray("  Secrets stored in ~/.config/kamiyo-oracle/commit-secrets.json"));
       console.log();
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
-      console.log(chalk.yellow("Use 'kamiyo-oracle reveal' during reveal phase to submit your vote."));
+      console.log(chalk.gray("Run 'kamiyo-oracle reveal' during reveal phase to complete your vote."));
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
       process.exit(1);
@@ -496,8 +495,8 @@ program
     const spinner = ora("Loading commitment secret...").start();
 
     try {
-      const escrowPda = options.escrow;
-      const secret = getSecret(escrowPda);
+      const escrowPdaStr = options.escrow;
+      const secret = getSecret(escrowPdaStr);
 
       if (!secret) {
         spinner.fail("No commitment found for this escrow");
@@ -518,7 +517,7 @@ program
 
       console.log(chalk.bold("\nReveal Details"));
       console.log("─".repeat(50));
-      console.log(`Escrow: ${chalk.cyan(escrowPda)}`);
+      console.log(`Escrow: ${chalk.cyan(escrowPdaStr)}`);
       console.log(`Quality Score: ${chalk.yellow(secret.qualityScore.toString())}`);
       console.log(`Committed: ${new Date(secret.committedAt).toISOString()}`);
       console.log();
@@ -528,14 +527,110 @@ program
         return;
       }
 
-      // In production, this would submit the reveal transaction
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
+      // Submit reveal transaction
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+      const wallet = new Wallet(keypair);
+      const disputeManager = new EscrowDisputeManager(
+        connection,
+        wallet,
+        config.programId ? new PublicKey(config.programId) : undefined
+      );
+
+      const escrowPda = new PublicKey(escrowPdaStr);
+      const salt = Uint8Array.from(Buffer.from(secret.salt, "hex"));
+
+      spinner.start("Submitting reveal transaction...");
+      const result = await disputeManager.revealVote(escrowPda, secret.qualityScore, salt);
+      spinner.stop();
+
+      // Remove secret after successful reveal
+      removeSecret(escrowPdaStr);
+
+      console.log(chalk.green("✓ Vote revealed successfully"));
+      console.log(`  Signature: ${chalk.cyan(result.signature)}`);
+      console.log(`  Quality Score: ${chalk.yellow(secret.qualityScore.toString())}`);
       console.log();
-      console.log(chalk.gray("Stored reveal data:"));
-      console.log(chalk.gray(`  Session ID: ${secret.sessionId.slice(0, 32)}...`));
-      console.log(chalk.gray(`  Salt: ${secret.salt.slice(0, 32)}...`));
+      console.log(chalk.gray("Secret removed from local storage."));
+    } catch (e: any) {
+      spinner.fail(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+// Finalize command - finalize a dispute after reveal phase
+program
+  .command("finalize")
+  .description("Finalize a dispute after reveal phase ends")
+  .requiredOption("-e, --escrow <pda>", "Escrow PDA address")
+  .option("-r, --rpc <url>", "Solana RPC URL")
+  .option("-k, --keypair <path>", "Path to keypair file")
+  .option("--dry-run", "Show what would happen without submitting")
+  .action(async (options) => {
+    const config = loadConfig();
+    const rpcUrl = options.rpc || config.rpcUrl;
+    const keypairPath = options.keypair || config.keypairPath;
+
+    const spinner = ora("Checking dispute status...").start();
+
+    try {
+      const connection = new Connection(rpcUrl, "confirmed");
+      const keypair = loadKeypair(keypairPath);
+      const wallet = new Wallet(keypair);
+      const disputeManager = new EscrowDisputeManager(
+        connection,
+        wallet,
+        config.programId ? new PublicKey(config.programId) : undefined
+      );
+
+      const escrowPda = new PublicKey(options.escrow);
+      const escrow = await disputeManager.fetchEscrow(escrowPda);
+
+      if (!escrow) {
+        throw new Error("Escrow not found");
+      }
+
+      spinner.stop();
+
+      console.log(chalk.bold("\nDispute Status"));
+      console.log("─".repeat(50));
+      console.log(`Escrow: ${chalk.cyan(escrowPda.toBase58())}`);
+      console.log(`Status: ${disputeManager.getStatusLabel(escrow.status)}`);
+      console.log(`Submissions: ${escrow.oracleSubmissions.length}`);
+
+      if (escrow.oracleSubmissions.length > 0) {
+        const scores = escrow.oracleSubmissions.map((s) => s.qualityScore);
+        console.log(`Scores: ${scores.join(", ")}`);
+      }
+
+      const phase = disputeManager.getPhaseTimeRemaining(escrow);
+      console.log(`Phase: ${phase.phase} (${phase.remaining}s remaining)`);
       console.log();
-      console.log(chalk.green("✓ Ready for reveal submission"));
+
+      if (!disputeManager.isReadyForFinalization(escrow)) {
+        console.log(chalk.yellow("Dispute not ready for finalization"));
+        if (phase.phase === "commit") {
+          console.log(chalk.gray("Wait for commit phase to end, then reveal phase."));
+        } else if (phase.phase === "reveal") {
+          console.log(chalk.gray(`Wait ${phase.remaining}s for reveal phase to end.`));
+        }
+        return;
+      }
+
+      if (options.dryRun) {
+        console.log(chalk.yellow("Dry run - not submitting transaction"));
+        const consensus = disputeManager.calculateConsensus(escrow.oracleSubmissions);
+        console.log(`Expected score: ${consensus.medianScore}`);
+        console.log(`Expected refund: ${consensus.refundPercentage}%`);
+        return;
+      }
+
+      spinner.start("Submitting finalize transaction...");
+      const result = await disputeManager.finalizeDispute(escrowPda);
+      spinner.stop();
+
+      console.log(chalk.green("✓ Dispute finalized successfully"));
+      console.log(`  Signature: ${chalk.cyan(result.signature)}`);
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
       process.exit(1);
