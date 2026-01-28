@@ -168,8 +168,8 @@ async function pollEvents() {
 async function processAgentLog(log) {
   const topic0 = log.topics[0];
 
-  if (topic0 === '0x023c5efe572c42192271951adb0e77f97d7fc84bc761d026189ac08617346824') {
-    // AgentRegistered
+  if (topic0 === '0xd25bb4f40ef581eee9aa15479cfa582703ed8e67a8f6e10aa238770c185a461e') {
+    // AgentRegistered(address indexed agent, address indexed owner, string name, uint256 stake)
     const agent = '0x' + log.topics[1].slice(26);
     const owner = '0x' + log.topics[2].slice(26);
 
