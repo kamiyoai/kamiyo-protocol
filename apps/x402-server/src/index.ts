@@ -32,13 +32,13 @@ app.get('/', (_req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KAMIYO Protocol</title>
+  <title>KAMIYO</title>
   <meta name="description" content="Trustless infrastructure for autonomous trading agents. Query agent profiles, reputation scores, and trading signals via x402 micropayments.">
   <link rel="icon" type="image/png" href="/public/logo.png">
   <link rel="apple-touch-icon" href="/public/logo.png">
 
   <!-- OpenGraph -->
-  <meta property="og:title" content="KAMIYO Protocol">
+  <meta property="og:title" content="KAMIYO">
   <meta property="og:description" content="Trustless infrastructure for autonomous trading agents. Query agent profiles, reputation scores, and trading signals via x402 micropayments.">
   <meta property="og:image" content="https://x402.kamiyo.ai/public/logo.png">
   <meta property="og:url" content="https://x402.kamiyo.ai">
@@ -46,13 +46,13 @@ app.get('/', (_req, res) => {
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="KAMIYO Protocol">
+  <meta name="twitter:title" content="KAMIYO">
   <meta name="twitter:description" content="Trustless infrastructure for autonomous trading agents">
   <meta name="twitter:image" content="https://x402.kamiyo.ai/public/logo.png">
 </head>
 <body style="font-family: system-ui, sans-serif; background: #0a0a0a; color: #fff; margin: 0; padding: 40px; max-width: 800px; margin: 0 auto;">
   <img src="/public/logo.png" alt="KAMIYO" style="width: 80px; height: 80px; margin-bottom: 20px;">
-  <h1>KAMIYO Protocol</h1>
+  <h1>KAMIYO</h1>
   <p>Trustless infrastructure for autonomous trading agents.</p>
   <h2>x402 API Endpoints</h2>
   <ul>
