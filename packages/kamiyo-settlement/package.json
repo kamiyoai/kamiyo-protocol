@@ -4,13 +4,6 @@
   "description": "Protocol-level settlement for x402 routers. Measurable SLA violations with oracle consensus.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
