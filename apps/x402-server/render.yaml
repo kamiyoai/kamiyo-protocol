@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: kamiyo-x402
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3402
+      - key: MERCHANT_ADDRESS
+        sync: false
+      - key: DEFAULT_NETWORK
+        value: base
+      - key: PRICE_AGENT_QUERY
+        value: "0.001"
+      - key: PRICE_REPUTATION_CHECK
+        value: "0.0005"
+      - key: PRICE_SIGNAL
+        value: "0.01"
+    healthCheckPath: /health
+    autoDeploy: true
