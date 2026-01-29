@@ -8,7 +8,6 @@ import {
 import { TARS_PROGRAM_ID } from './types';
 
 describe('PDA derivation', () => {
-  // Use valid base58 addresses
   const testWallet = new PublicKey('4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofM');
   const testPaymentTx = new PublicKey('5oNDL3swdJJF1g9DzJiZ4ynHXgszjAEpUkxVYejchzrY');
   const testJobRecord = new PublicKey('6FPrRHxCDQQ2pqYbCj9NX9vEqQDKSi4h1tHGaVBPV1y1');
@@ -105,9 +104,6 @@ describe('PDA derivation', () => {
 });
 
 describe('JobEscrowLinker', () => {
-  // Integration tests would require mocked connection
-  // Unit tests for linking logic
-
   it('validates TARS program ID constant', () => {
     expect(TARS_PROGRAM_ID.toBase58()).toBe('GPd4z3N25UfjrkgfgSxsjoyG7gwYF8Fo7Emvp9TKsDeW');
   });
