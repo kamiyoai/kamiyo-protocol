@@ -68,13 +68,11 @@ export function calculateConsensus(scores: number[]): ConsensusResult {
 
   const sorted = [...scores].sort((a, b) => a - b);
 
-  // Calculate median
   const mid = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 === 0
     ? (sorted[mid - 1] + sorted[mid]) / 2
     : sorted[mid];
 
-  // Filter outliers
   const validScores: number[] = [];
   const outliers: number[] = [];
 
@@ -90,7 +88,6 @@ export function calculateConsensus(scores: number[]): ConsensusResult {
     throw new Error('No consensus: too many outliers');
   }
 
-  // Final score is average of valid scores
   const consensusScore = Math.round(
     validScores.reduce((a, b) => a + b, 0) / validScores.length
   );
