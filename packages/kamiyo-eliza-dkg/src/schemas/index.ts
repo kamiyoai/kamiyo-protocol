@@ -237,7 +237,123 @@ export const SPARQL_TEMPLATES = {
     ORDER BY DESC(?validFrom)
     LIMIT 1
   `,
+
+  // Direct trust lookup
+  DIRECT_TRUST: (trustorId: string, trusteeId: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?edge ?trustLevel ?trustType ?stakeAmount ?startTime
+    WHERE {
+      ?edge a schema:EndorseAction ;
+            schema:agent/schema:identifier "${trustorId}" ;
+            schema:object/schema:identifier "${trusteeId}" ;
+            schema:actionStatus schema:ActiveActionStatus ;
+            schema:startTime ?startTime .
+      ?edge schema:additionalProperty ?levelProp, ?typeProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?typeProp schema:name "trustType" ; schema:value ?trustType .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+    }
+    LIMIT 1
+  `,
+
+  // Trusted entities from source
+  TRUSTED_ENTITIES: (sourceId: string, minTrustLevel: number) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT DISTINCT ?trusteeId ?trustLevel ?stakeAmount
+    WHERE {
+      ?edge a schema:EndorseAction ;
+            schema:agent/schema:identifier "${sourceId}" ;
+            schema:object/schema:identifier ?trusteeId ;
+            schema:actionStatus schema:ActiveActionStatus .
+      ?edge schema:additionalProperty ?levelProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+      FILTER(?trustLevel >= ${minTrustLevel})
+    }
+    ORDER BY DESC(?trustLevel)
+    LIMIT 100
+  `,
+
+  // Hub entity lookup
+  HUB_ENTITY: (entityId: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?hub ?name ?stake ?hubType ?qualityScore ?isActive
+    WHERE {
+      ?hub a schema:Organization ;
+           schema:identifier "${entityId}" ;
+           schema:name ?name .
+      ?hub schema:additionalProperty ?stakeProp, ?typeProp, ?scoreProp, ?activeProp .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stake .
+      ?typeProp schema:name "hubType" ; schema:value ?hubType .
+      ?scoreProp schema:name "qualityScore" ; schema:value ?qualityScore .
+      ?activeProp schema:name "isActive" ; schema:value ?isActive .
+    }
+    LIMIT 1
+  `,
+
+  // Verified hubs by stake
+  VERIFIED_HUBS: (minStake: number) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?hub ?name ?identifier ?stake ?qualityScore ?hubType
+    WHERE {
+      ?hub a schema:Organization ;
+           schema:identifier ?identifier ;
+           schema:name ?name .
+      ?hub schema:additionalProperty ?stakeProp, ?activeProp, ?scoreProp, ?typeProp .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stake .
+      ?activeProp schema:name "isActive" ; schema:value true .
+      ?scoreProp schema:name "qualityScore" ; schema:value ?qualityScore .
+      ?typeProp schema:name "hubType" ; schema:value ?hubType .
+      FILTER(?stake >= ${minStake})
+    }
+    ORDER BY DESC(?stake)
+    LIMIT 50
+  `,
 };
+
+export const TrustEdgeSchema = z.object({
+  '@context': z.literal('https://schema.org/'),
+  '@type': z.literal('EndorseAction'),
+  '@id': z.string().optional(),
+  agent: z.object({
+    '@type': z.union([z.literal('Organization'), z.literal('Person')]),
+    '@id': z.string(),
+  }),
+  object: z.object({
+    '@type': z.union([z.literal('Organization'), z.literal('Person')]),
+    '@id': z.string(),
+  }),
+  actionStatus: z.enum(['ActiveActionStatus', 'CompletedActionStatus']),
+  startTime: z.string(),
+  endTime: z.string().optional(),
+  additionalProperty: z.array(z.object({
+    '@type': z.literal('PropertyValue'),
+    name: z.string(),
+    value: z.union([z.string(), z.number()]),
+  })),
+});
+
+export type TrustEdge = z.infer<typeof TrustEdgeSchema>;
+
+export const HubEntitySchema = z.object({
+  '@context': z.literal('https://schema.org/'),
+  '@type': z.literal('Organization'),
+  '@id': z.string().optional(),
+  name: z.string(),
+  description: z.string().optional(),
+  identifier: z.string(),
+  memberOf: z.object({
+    '@type': z.literal('Organization'),
+    '@id': z.string(),
+  }).optional(),
+  additionalProperty: z.array(z.object({
+    '@type': z.literal('PropertyValue'),
+    name: z.string(),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+  })),
+});
+
+export type HubEntity = z.infer<typeof HubEntitySchema>;
 
 // Helper to create valid Schema.org @id
 export function createSchemaId(type: string, id: string): string {

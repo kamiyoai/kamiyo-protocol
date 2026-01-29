@@ -78,12 +78,16 @@ export type {
   DisputeOutcomeAsset,
   StakeRecordAsset,
   OracleManifestAsset,
+  TrustEdgeAsset,
+  HubEntityAsset,
 } from './schemas.js';
 export {
   createQualityAttestationAsset,
   createDisputeOutcomeAsset,
   createStakeRecordAsset,
   createOracleManifestAsset,
+  createTrustEdgeAsset,
+  createHubEntityAsset,
 } from './schemas.js';
 
 // SPARQL query templates

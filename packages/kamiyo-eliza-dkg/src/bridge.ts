@@ -9,6 +9,11 @@ import type {
   DisputeOutcomeInput,
   ReputationCommitmentInput,
   PaymentRecordInput,
+  TrustEdgeInput,
+  HubEntityInput,
+  TrustChainResult,
+  TrustedEntity,
+  HubEntityVerification,
   DKGPublishResult,
   BridgeEvent,
   BridgeEventListener,
@@ -18,6 +23,8 @@ import {
   DisputeOutcomeSchema,
   ReputationCommitmentSchema,
   PaymentRecordSchema,
+  TrustEdgeSchema,
+  HubEntitySchema,
   SPARQL_TEMPLATES,
   createSchemaId,
   isoNow,
@@ -25,6 +32,8 @@ import {
   type DisputeOutcome,
   type ReputationCommitment,
   type PaymentRecord,
+  type TrustEdge,
+  type HubEntity,
 } from './schemas/index.js';
 
 const CONTEXT_KEY = 'kamiyo_dkg_bridge';
@@ -491,4 +500,248 @@ export async function queryAgentPaymentHistory(
   } catch {
     return [];
   }
+}
+
+// Publish trust edge between entities
+export async function publishTrustEdge(
+  ctx: KamiyoDKGBridgeContext,
+  input: TrustEdgeInput
+): Promise<DKGPublishResult> {
+  const edge: TrustEdge = {
+    '@context': 'https://schema.org/',
+    '@type': 'EndorseAction',
+    '@id': createSchemaId('trust', `${input.trustorId}-${input.trusteeId}-${Date.now()}`),
+    agent: {
+      '@type': 'Organization',
+      '@id': input.trustorId,
+    },
+    object: {
+      '@type': 'Organization',
+      '@id': input.trusteeId,
+    },
+    actionStatus: 'ActiveActionStatus',
+    startTime: isoNow(),
+    endTime: input.expiresAt,
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'trustLevel', value: input.trustLevel },
+      { '@type': 'PropertyValue', name: 'trustType', value: input.trustType },
+      { '@type': 'PropertyValue', name: 'stakeAmount', value: input.stakeAmount },
+      ...(input.evidenceUal ? [{ '@type': 'PropertyValue' as const, name: 'evidenceUal', value: input.evidenceUal }] : []),
+    ],
+  };
+
+  TrustEdgeSchema.parse(edge);
+
+  const ual = await ctx.dkgClient.publish(
+    { public: edge },
+    { epochs: ctx.config.dkg.epochs }
+  );
+
+  ctx.publishedAssets.set(`trust:${input.trustorId}:${input.trusteeId}`, ual);
+
+  emitEvent({
+    type: 'trust_edge_published',
+    timestamp: Date.now(),
+    data: { trustorId: input.trustorId, trusteeId: input.trusteeId, trustLevel: input.trustLevel },
+    ual,
+  });
+
+  return {
+    ual,
+    datasetRoot: '',
+    blockchain: ctx.config.dkg.blockchain,
+    epochs: ctx.config.dkg.epochs || 2,
+  };
+}
+
+// Publish hub entity as stake-backed Knowledge Asset
+export async function publishHubEntity(
+  ctx: KamiyoDKGBridgeContext,
+  input: HubEntityInput
+): Promise<DKGPublishResult> {
+  const hub: HubEntity = {
+    '@context': 'https://schema.org/',
+    '@type': 'Organization',
+    '@id': createSchemaId('hub', input.identifier),
+    name: input.name,
+    description: input.description,
+    identifier: input.identifier,
+    memberOf: input.parentHubId ? { '@type': 'Organization', '@id': input.parentHubId } : undefined,
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'stakeAmount', value: input.stakeAmount },
+      { '@type': 'PropertyValue', name: 'stakePda', value: input.stakePda },
+      { '@type': 'PropertyValue', name: 'registeredAt', value: Date.now() },
+      { '@type': 'PropertyValue', name: 'isActive', value: true },
+      { '@type': 'PropertyValue', name: 'hubType', value: input.hubType },
+      { '@type': 'PropertyValue', name: 'qualityScore', value: input.qualityScore || 0 },
+      { '@type': 'PropertyValue', name: 'trustDepth', value: input.trustDepth || 3 },
+    ],
+  };
+
+  HubEntitySchema.parse(hub);
+
+  const ual = await ctx.dkgClient.publish(
+    { public: hub },
+    { epochs: ctx.config.dkg.epochs }
+  );
+
+  ctx.publishedAssets.set(`hub:${input.identifier}`, ual);
+
+  emitEvent({
+    type: 'hub_entity_published',
+    timestamp: Date.now(),
+    data: { identifier: input.identifier, hubType: input.hubType, stakeAmount: input.stakeAmount },
+    ual,
+  });
+
+  return {
+    ual,
+    datasetRoot: '',
+    blockchain: ctx.config.dkg.blockchain,
+    epochs: ctx.config.dkg.epochs || 2,
+  };
+}
+
+// Query direct trust between two entities
+export async function queryDirectTrust(
+  ctx: KamiyoDKGBridgeContext,
+  trustorId: string,
+  trusteeId: string
+): Promise<{ trustLevel: number; trustType: string; stakeAmount: number } | null> {
+  try {
+    const sparql = SPARQL_TEMPLATES.DIRECT_TRUST(trustorId, trusteeId);
+    const results = await ctx.dkgClient.query(sparql) as any[];
+
+    if (!results || results.length === 0) {
+      return null;
+    }
+
+    const r = results[0];
+    return {
+      trustLevel: parseFloat(r.trustLevel),
+      trustType: r.trustType,
+      stakeAmount: parseFloat(r.stakeAmount),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Query all entities trusted by source
+export async function queryTrustedEntities(
+  ctx: KamiyoDKGBridgeContext,
+  sourceId: string,
+  options: { minTrustLevel?: number } = {}
+): Promise<TrustedEntity[]> {
+  const { minTrustLevel = 50 } = options;
+
+  try {
+    const sparql = SPARQL_TEMPLATES.TRUSTED_ENTITIES(sourceId, minTrustLevel);
+    const results = await ctx.dkgClient.query(sparql) as any[];
+
+    return results.map((r) => ({
+      entityId: r.trusteeId,
+      hops: 1, // Direct trust = 1 hop
+      aggregateTrust: parseFloat(r.trustLevel),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// Verify hub entity registration on DKG
+export async function verifyHubEntity(
+  ctx: KamiyoDKGBridgeContext,
+  entityId: string
+): Promise<HubEntityVerification> {
+  try {
+    const sparql = SPARQL_TEMPLATES.HUB_ENTITY(entityId);
+    const results = await ctx.dkgClient.query(sparql) as any[];
+
+    if (!results || results.length === 0) {
+      return { verified: false, reason: 'Entity not found in DKG' };
+    }
+
+    const hub = results[0];
+    const isActive = hub.isActive === true || hub.isActive === 'true';
+
+    return {
+      verified: isActive,
+      entityId,
+      name: hub.name,
+      stakeAmount: parseFloat(hub.stake),
+      hubType: hub.hubType,
+      qualityScore: parseFloat(hub.qualityScore),
+      ual: hub.hub,
+      reason: isActive ? undefined : 'Hub entity is not active',
+    };
+  } catch (err) {
+    return { verified: false, reason: err instanceof Error ? err.message : 'Query failed' };
+  }
+}
+
+// List verified hubs by stake threshold
+export async function queryVerifiedHubs(
+  ctx: KamiyoDKGBridgeContext,
+  minStake: number
+): Promise<Array<{ entityId: string; name: string; stakeAmount: number; hubType: string; qualityScore: number }>> {
+  try {
+    const sparql = SPARQL_TEMPLATES.VERIFIED_HUBS(minStake);
+    const results = await ctx.dkgClient.query(sparql) as any[];
+
+    return results.map((r) => ({
+      entityId: r.identifier,
+      name: r.name,
+      stakeAmount: parseFloat(r.stake),
+      hubType: r.hubType,
+      qualityScore: parseFloat(r.qualityScore),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// Multi-hop trust chain traversal (simple 2-hop implementation)
+export async function queryTrustChain(
+  ctx: KamiyoDKGBridgeContext,
+  sourceId: string,
+  targetId: string,
+  maxHops = 3
+): Promise<TrustChainResult | null> {
+  // First check direct trust
+  const direct = await queryDirectTrust(ctx, sourceId, targetId);
+  if (direct) {
+    return {
+      sourceId,
+      targetId,
+      hops: 1,
+      minTrustLevel: direct.trustLevel,
+      totalStake: direct.stakeAmount,
+      path: [sourceId, targetId],
+    };
+  }
+
+  if (maxHops < 2) return null;
+
+  // Get entities trusted by source
+  const trustedBySource = await queryTrustedEntities(ctx, sourceId, { minTrustLevel: 50 });
+
+  // Check if any of them trust the target (2-hop)
+  for (const intermediate of trustedBySource) {
+    const secondHop = await queryDirectTrust(ctx, intermediate.entityId, targetId);
+    if (secondHop) {
+      const minTrust = Math.min(intermediate.aggregateTrust, secondHop.trustLevel);
+      return {
+        sourceId,
+        targetId,
+        hops: 2,
+        minTrustLevel: minTrust,
+        totalStake: secondHop.stakeAmount,
+        path: [sourceId, intermediate.entityId, targetId],
+      };
+    }
+  }
+
+  // Could extend to 3+ hops but keeping it simple
+  return null;
 }
