@@ -155,8 +155,8 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
       resource: resourceUrl,
       payTo,
       asset: network.includes('solana')
-        ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' // USDC mainnet
-        : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+        ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+        : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
       extra: {
         feePayer,
         tarsEnabled,

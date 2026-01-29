@@ -83,7 +83,6 @@ export class JobEscrowLinker {
   }
 
   private parseAgentAccount(data: Buffer): TarsAgentAccount {
-    const discriminator = data.slice(0, 8);
     let offset = 8;
 
     const wallet = new PublicKey(data.slice(offset, offset + 32));

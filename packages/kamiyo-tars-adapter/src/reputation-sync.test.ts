@@ -102,7 +102,6 @@ describe('aggregateCombinedReputation', () => {
 
   it('calculates weighted average correctly', () => {
     const combined = aggregateCombinedReputation(80, 60);
-    // (80 * 0.7 + 60 * 0.3) = 56 + 18 = 74
     expect(combined).toBe(74);
   });
 
@@ -128,7 +127,6 @@ describe('aggregateCombinedReputation', () => {
 
   it('normalizes out-of-range values', () => {
     const combined = aggregateCombinedReputation(150, -20);
-    // Clamped to (100 * 0.7 + 0 * 0.3) = 70
     expect(combined).toBe(70);
   });
 
@@ -140,13 +138,11 @@ describe('aggregateCombinedReputation', () => {
 
 describe('round-trip conversion', () => {
   it('maintains consistency for TARS -> KAMIYO -> TARS', () => {
-    // 5 stars -> 100 reputation -> 5 stars
     const tars5 = 5;
     const kamiyo = tarsToKamiyoReputation(tars5);
     const backToTars = kamiyoToTarsRating(kamiyo);
     expect(backToTars).toBe(5);
 
-    // 3 stars -> 50 reputation -> 3 stars
     const tars3 = 3;
     const kamiyo3 = tarsToKamiyoReputation(tars3);
     const backToTars3 = kamiyoToTarsRating(kamiyo3);
@@ -154,16 +150,9 @@ describe('round-trip conversion', () => {
   });
 
   it('handles threshold boundaries correctly', () => {
-    // Quality 80 (threshold for 5 stars) should round-trip
     expect(kamiyoToTarsRating(80)).toBe(5);
-
-    // Quality 79 (just below 5-star threshold)
     expect(kamiyoToTarsRating(79)).toBe(4);
-
-    // Quality 65 (threshold for 4 stars)
     expect(kamiyoToTarsRating(65)).toBe(4);
-
-    // Quality 64 (just below 4-star threshold)
     expect(kamiyoToTarsRating(64)).toBe(3);
   });
 });
