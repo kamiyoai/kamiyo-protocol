@@ -4,13 +4,6 @@
   "description": "KAMIYO agent SDK - Claude Agent SDK wrapper with protocol and DKG tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
