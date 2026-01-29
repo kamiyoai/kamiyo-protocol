@@ -60,7 +60,6 @@ export function createKamiyoTools(config: KamiyoToolsConfig): ToolConfig[] {
         expirySeconds: { type: 'number', description: 'Escrow expiry in seconds (default: 86400)', required: false },
       },
       handler: async (params): Promise<ToolResult> => {
-        // Validate inputs
         if (!isValidBase58(params.provider)) {
           return { success: false, error: 'Invalid provider address' };
         }

@@ -1,12 +1,6 @@
 # @kamiyo/agents
 
-KAMIYO agent SDK built on Claude Agent SDK. Direct integration with the KAMIYO protocol for autonomous agent payments, escrow, and reputation.
-
-## Philosophy
-
-> "Don't bother with any framework but Claude SDK or Codex SDK"
-
-This package provides a thin wrapper around the Claude Agent SDK with KAMIYO protocol tools. No intermediate frameworks.
+Thin wrapper around Claude Agent SDK with KAMIYO protocol tools.
 
 ## Installation
 
@@ -95,17 +89,6 @@ agent.addTool({
   },
 });
 ```
-
-## Why Not ElizaOS/LangChain/etc?
-
-Frameworks add complexity without proportional value. Claude SDK provides:
-
-- Native tool calling
-- Multi-turn conversations
-- Extended thinking
-- Direct control
-
-KAMIYO protocol tools work the same whether you use this package or call Claude SDK directly. This package just bundles the common patterns.
 
 ## License
 
