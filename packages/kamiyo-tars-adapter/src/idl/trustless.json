@@ -1,0 +1,291 @@
+{
+  "address": "GPd4z3N25UfjrkgfgSxsjoyG7gwYF8Fo7Emvp9TKsDeW",
+  "metadata": {
+    "name": "trustless",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "TARS - Trustless Agent & Reputation Standard by Amiko"
+  },
+  "instructions": [
+    {
+      "name": "deactivate_agent",
+      "docs": ["Deactivate an agent"],
+      "discriminator": [205, 171, 239, 225, 82, 126, 96, 166],
+      "accounts": [
+        {
+          "name": "agent_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [97, 103, 101, 110, 116] },
+              { "kind": "account", "path": "signer" }
+            ]
+          }
+        },
+        { "name": "signer", "signer": true },
+        { "name": "wallet", "relations": ["agent_account"] }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_agent",
+      "docs": ["Manually register a new agent"],
+      "discriminator": [135, 157, 66, 195, 2, 113, 175, 30],
+      "accounts": [
+        {
+          "name": "agent_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [97, 103, 101, 110, 116] },
+              { "kind": "account", "path": "signer" }
+            ]
+          }
+        },
+        { "name": "signer", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [{ "name": "metadata_uri", "type": "string" }]
+    },
+    {
+      "name": "register_job",
+      "docs": [
+        "Register a job (called by x402 client)",
+        "Supports lazy agent creation",
+        "Verifies USDC payment from client to agent by checking transaction instructions"
+      ],
+      "discriminator": [87, 213, 177, 255, 131, 17, 178, 45],
+      "accounts": [
+        {
+          "name": "job_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [106, 111, 98] },
+              { "kind": "account", "path": "payment_tx" }
+            ]
+          }
+        },
+        {
+          "name": "agent_account",
+          "docs": ["Agent account - can be either existing or newly created"],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [97, 103, 101, 110, 116] },
+              { "kind": "account", "path": "agent_wallet" }
+            ]
+          }
+        },
+        { "name": "agent_wallet" },
+        { "name": "client_token_account", "docs": ["Client's USDC token account (sender)"] },
+        { "name": "agent_token_account", "docs": ["Agent's USDC token account (receiver)"] },
+        { "name": "payment_tx" },
+        { "name": "instruction_sysvar", "address": "Sysvar1nstructions1111111111111111111111111" },
+        { "name": "client_wallet", "signer": true },
+        { "name": "fee_payer", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" },
+        { "name": "token_program" }
+      ],
+      "args": [{ "name": "transfer_instruction_index", "type": "u8" }]
+    },
+    {
+      "name": "submit_feedback",
+      "docs": ["Submit feedback for a completed job"],
+      "discriminator": [222, 189, 16, 203, 186, 151, 236, 188],
+      "accounts": [
+        {
+          "name": "feedback_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [102, 101, 101, 100, 98, 97, 99, 107] },
+              { "kind": "account", "path": "job_record" }
+            ]
+          }
+        },
+        { "name": "job_record" },
+        {
+          "name": "agent_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [97, 103, 101, 110, 116] },
+              { "kind": "account", "path": "job_record.agent_wallet", "account": "JobRecord" }
+            ]
+          }
+        },
+        { "name": "client_wallet", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "rating", "type": "u8" },
+        { "name": "comment_uri", "type": { "option": "string" } }
+      ]
+    },
+    {
+      "name": "update_agent",
+      "docs": ["Update agent metadata"],
+      "discriminator": [85, 2, 178, 9, 119, 139, 102, 164],
+      "accounts": [
+        {
+          "name": "agent_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [97, 103, 101, 110, 116] },
+              { "kind": "account", "path": "signer" }
+            ]
+          }
+        },
+        { "name": "signer", "signer": true },
+        { "name": "wallet", "relations": ["agent_account"] }
+      ],
+      "args": [{ "name": "metadata_uri", "type": "string" }]
+    }
+  ],
+  "accounts": [
+    { "name": "AgentAccount", "discriminator": [241, 119, 69, 140, 233, 9, 112, 50] },
+    { "name": "FeedbackRecord", "discriminator": [15, 45, 246, 217, 63, 251, 69, 100] },
+    { "name": "JobRecord", "discriminator": [220, 194, 212, 58, 47, 65, 141, 196] }
+  ],
+  "events": [
+    { "name": "AgentAutoCreated", "discriminator": [248, 186, 147, 12, 252, 159, 151, 105] },
+    { "name": "AgentDeactivated", "discriminator": [138, 251, 82, 87, 119, 148, 20, 180] },
+    { "name": "AgentRegistered", "discriminator": [191, 78, 217, 54, 232, 100, 189, 85] },
+    { "name": "AgentUpdated", "discriminator": [210, 179, 162, 250, 123, 250, 210, 166] },
+    { "name": "FeedbackSubmitted", "discriminator": [41, 21, 127, 219, 28, 103, 196, 49] },
+    { "name": "JobRegistered", "discriminator": [155, 197, 214, 211, 47, 179, 242, 174] },
+    { "name": "ReputationUpdated", "discriminator": [26, 36, 187, 150, 235, 90, 106, 89] }
+  ],
+  "errors": [
+    { "code": 6000, "name": "InvalidRating", "msg": "Rating must be between 1 and 5" },
+    { "code": 6001, "name": "UnauthorizedClient", "msg": "Client does not match job record" },
+    { "code": 6002, "name": "UnauthorizedAgent", "msg": "Agent wallet does not match agent account" },
+    { "code": 6003, "name": "TokenMintMismatch", "msg": "Token mint mismatch between client and agent accounts" },
+    { "code": 6004, "name": "InvalidClientTokenAccount", "msg": "Client token account owner does not match client" },
+    { "code": 6005, "name": "InvalidAgentTokenAccount", "msg": "Agent token account owner does not match agent" },
+    { "code": 6006, "name": "InvalidTransferProgramId", "msg": "Transfer instruction program ID does not match token program" },
+    { "code": 6007, "name": "InvalidTransferDiscriminator", "msg": "Transfer instruction discriminator is invalid" },
+    { "code": 6008, "name": "InvalidTransferAccounts", "msg": "Transfer instruction does not have enough accounts" },
+    { "code": 6009, "name": "InvalidTransferAmount", "msg": "Invalid transfer amount format" },
+    { "code": 6010, "name": "TransferSourceMismatch", "msg": "Transfer source account mismatch" },
+    { "code": 6011, "name": "TransferDestinationMismatch", "msg": "Transfer destination account mismatch" },
+    { "code": 6012, "name": "TransferAuthorityMismatch", "msg": "Transfer authority mismatch" },
+    { "code": 6013, "name": "PaymentAmountTooLarge", "msg": "Payment amount too large (max ~4,294 USDC)" }
+  ],
+  "types": [
+    {
+      "name": "AgentAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "wallet", "type": "pubkey" },
+          { "name": "metadata_uri", "type": "string" },
+          { "name": "created_at", "type": "i64" },
+          { "name": "active", "type": "bool" },
+          { "name": "auto_created", "type": "bool" },
+          { "name": "total_weighted_rating", "type": "u128" },
+          { "name": "total_weight", "type": "u128" },
+          { "name": "avg_rating", "type": "f32" },
+          { "name": "last_update", "type": "i64" },
+          { "name": "job_count", "type": "u32" },
+          { "name": "feedback_count", "type": "u32" }
+        ]
+      }
+    },
+    {
+      "name": "AgentAutoCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [{ "name": "wallet", "type": "pubkey" }]
+      }
+    },
+    {
+      "name": "AgentDeactivated",
+      "type": {
+        "kind": "struct",
+        "fields": [{ "name": "wallet", "type": "pubkey" }]
+      }
+    },
+    {
+      "name": "AgentRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "wallet", "type": "pubkey" },
+          { "name": "metadata_uri", "type": "string" }
+        ]
+      }
+    },
+    {
+      "name": "AgentUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "wallet", "type": "pubkey" },
+          { "name": "metadata_uri", "type": "string" }
+        ]
+      }
+    },
+    {
+      "name": "FeedbackRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "job_id", "type": "pubkey" },
+          { "name": "rating", "type": "u8" },
+          { "name": "comment_uri", "type": { "option": "string" } },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "FeedbackSubmitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "job_id", "type": "pubkey" },
+          { "name": "client_wallet", "type": "pubkey" },
+          { "name": "agent_wallet", "type": "pubkey" },
+          { "name": "rating", "type": "u8" },
+          { "name": "payment_amount", "type": "u32" }
+        ]
+      }
+    },
+    {
+      "name": "JobRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "client_wallet", "type": "pubkey" },
+          { "name": "agent_wallet", "type": "pubkey" },
+          { "name": "payment_amount", "type": "u32" },
+          { "name": "created_at", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "JobRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "job_id", "type": "pubkey" },
+          { "name": "agent_wallet", "type": "pubkey" },
+          { "name": "client_wallet", "type": "pubkey" },
+          { "name": "payment_amount", "type": "u32" }
+        ]
+      }
+    },
+    {
+      "name": "ReputationUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "agent_wallet", "type": "pubkey" },
+          { "name": "new_avg_rating", "type": "f32" }
+        ]
+      }
+    }
+  ]
+}
