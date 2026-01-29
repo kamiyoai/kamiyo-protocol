@@ -9,7 +9,7 @@
 
 import { TwitterApi } from 'twitter-api-v2';
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import { logger } from './logger';
 import { storeSwarmTeamsSignal } from './db';
@@ -155,12 +155,8 @@ async function checkDevnetProgram(connection: Connection): Promise<boolean> {
   }
 }
 
-// Simulate identity commitment (Poseidon hash would be used in production)
 function computeIdentityCommitment(ownerSecret: Buffer, agentId: Buffer, registrationSecret: Buffer): Buffer {
-  // In production: Poseidon(ownerSecret, agentId, registrationSecret)
-  // For demo: SHA256-based simulation
-  const crypto = require('crypto');
-  return crypto.createHash('sha256')
+  return createHash('sha256')
     .update(Buffer.concat([ownerSecret, agentId, registrationSecret]))
     .digest();
 }

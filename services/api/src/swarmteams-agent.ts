@@ -25,12 +25,13 @@ import {
 } from '@kamiyo/kamiyo-swarmteams';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from './logger';
 
-// Circuits build path relative to repo root (services/api/src -> circuits/build/swarmteams)
-const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Merkle tree data path (services/api/src -> services/api/data)
+const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
 const MERKLE_TREE_PATH = path.resolve(__dirname, '../data/merkle-tree.json');
 import { demoEvents } from './swarmteams-live-demo';
 import { db } from './clients';
