@@ -1,16 +1,70 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
 
 config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 
 // Middleware
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors());
 app.use(express.json());
+
+// Serve static files (logo, favicon)
+app.use('/public', express.static(path.join(__dirname, '../public')));
+
+// Serve favicon
+app.get('/favicon.ico', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/logo.png'));
+});
+
+// HTML homepage with OpenGraph metadata for x402scan scraper
+app.get('/', (_req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KAMIYO Protocol</title>
+  <meta name="description" content="Trustless infrastructure for autonomous trading agents. Query agent profiles, reputation scores, and trading signals via x402 micropayments.">
+  <link rel="icon" type="image/png" href="/public/logo.png">
+  <link rel="apple-touch-icon" href="/public/logo.png">
+
+  <!-- OpenGraph -->
+  <meta property="og:title" content="KAMIYO Protocol">
+  <meta property="og:description" content="Trustless infrastructure for autonomous trading agents. Query agent profiles, reputation scores, and trading signals via x402 micropayments.">
+  <meta property="og:image" content="https://kamiyo-x402.onrender.com/public/logo.png">
+  <meta property="og:url" content="https://kamiyo-x402.onrender.com">
+  <meta property="og:type" content="website">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="KAMIYO Protocol">
+  <meta name="twitter:description" content="Trustless infrastructure for autonomous trading agents">
+  <meta name="twitter:image" content="https://kamiyo-x402.onrender.com/public/logo.png">
+</head>
+<body style="font-family: system-ui, sans-serif; background: #0a0a0a; color: #fff; margin: 0; padding: 40px; max-width: 800px; margin: 0 auto;">
+  <img src="/public/logo.png" alt="KAMIYO" style="width: 80px; height: 80px; margin-bottom: 20px;">
+  <h1>KAMIYO Protocol</h1>
+  <p>Trustless infrastructure for autonomous trading agents.</p>
+  <h2>x402 API Endpoints</h2>
+  <ul>
+    <li><strong>/api/agents/:id</strong> - Query agent profile ($0.001 USDC)</li>
+    <li><strong>/api/reputation/:id</strong> - Get reputation score ($0.0005 USDC)</li>
+    <li><strong>/api/signals</strong> - Trading signals ($0.01 USDC)</li>
+  </ul>
+  <p>Networks: Base, Polygon, Arbitrum, Optimism, Avalanche, Solana</p>
+  <p><a href="/.well-known/x402" style="color: #0cf;">Discovery Document</a> | <a href="/health" style="color: #0cf;">Health Check</a></p>
+</body>
+</html>`);
+});
 
 // Config
 const PORT = parseInt(process.env.PORT || '3402', 10);
