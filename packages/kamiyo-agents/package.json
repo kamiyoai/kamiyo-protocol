@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/agents",
   "version": "1.0.0",
-  "description": "KAMIYO agent SDK - Claude Agent SDK wrapper with protocol tools",
+  "description": "KAMIYO agent SDK - Claude Agent SDK wrapper with protocol and DKG tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -37,7 +37,9 @@
     "ai-agents",
     "claude",
     "anthropic",
-    "solana"
+    "solana",
+    "dkg",
+    "origintrail"
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "license": "MIT",
