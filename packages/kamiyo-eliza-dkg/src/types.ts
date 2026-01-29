@@ -171,7 +171,9 @@ export type BridgeEventType =
   | 'reputation_commitment_published'
   | 'payment_record_published'
   | 'quality_query_completed'
-  | 'reputation_query_completed';
+  | 'reputation_query_completed'
+  | 'trust_edge_published'
+  | 'hub_entity_published';
 
 export interface BridgeEvent {
   type: BridgeEventType;
@@ -182,3 +184,56 @@ export interface BridgeEvent {
 }
 
 export type BridgeEventListener = (event: BridgeEvent) => void;
+
+// Trust edge input for publishing trust relationships
+export interface TrustEdgeInput {
+  trustorId: string;
+  trusteeId: string;
+  trustLevel: number; // 0-100
+  trustType: 'vouches' | 'delegates' | 'endorses';
+  stakeAmount: number; // SOL backing this trust edge
+  expiresAt?: string; // ISO 8601
+  evidenceUal?: string; // UAL of supporting evidence
+}
+
+// Hub entity input for registering stake-backed entities
+export interface HubEntityInput {
+  identifier: string; // Public key or DID
+  name: string;
+  description?: string;
+  stakeAmount: number; // SOL staked
+  stakePda: string; // Escrow PDA address
+  hubType: 'oracle' | 'provider' | 'aggregator';
+  qualityScore?: number; // Initial quality score
+  trustDepth?: number; // Max hops for trust propagation (default 3)
+  parentHubId?: string; // Parent hub if hierarchical
+}
+
+// Trust chain query result
+export interface TrustChainResult {
+  sourceId: string;
+  targetId: string;
+  hops: number;
+  minTrustLevel: number;
+  totalStake: number;
+  path?: string[]; // Intermediate entity IDs
+}
+
+// Entity in trust network
+export interface TrustedEntity {
+  entityId: string;
+  hops: number;
+  aggregateTrust: number;
+}
+
+// Hub verification result
+export interface HubEntityVerification {
+  verified: boolean;
+  entityId?: string;
+  name?: string;
+  stakeAmount?: number;
+  hubType?: string;
+  qualityScore?: number;
+  ual?: string;
+  reason?: string;
+}

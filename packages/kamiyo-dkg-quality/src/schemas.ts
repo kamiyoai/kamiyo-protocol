@@ -269,3 +269,109 @@ export function createOracleManifestAsset(params: {
     })),
   };
 }
+
+// Trust Edge - directed trust relationship between entities
+export interface TrustEdgeAsset {
+  '@context': 'https://schema.org/';
+  '@type': 'EndorseAction';
+  '@id'?: string;
+  agent: {
+    '@type': 'Organization' | 'Person';
+    '@id': string; // Trustor
+  };
+  object: {
+    '@type': 'Organization' | 'Person';
+    '@id': string; // Trustee
+  };
+  actionStatus: 'ActiveActionStatus' | 'CompletedActionStatus';
+  startTime: string;
+  endTime?: string;
+  additionalProperty: Array<{
+    '@type': 'PropertyValue';
+    name: string;
+    value: string | number;
+  }>;
+}
+
+// Hub Entity - stake-backed provider as verifiable Knowledge Asset
+export interface HubEntityAsset {
+  '@context': 'https://schema.org/';
+  '@type': 'Organization';
+  '@id'?: string;
+  name: string;
+  description?: string;
+  identifier: string;
+  memberOf?: {
+    '@type': 'Organization';
+    '@id': string;
+  };
+  additionalProperty: Array<{
+    '@type': 'PropertyValue';
+    name: string;
+    value: string | number | boolean;
+  }>;
+}
+
+export function createTrustEdgeAsset(params: {
+  trustorId: string;
+  trusteeId: string;
+  trustLevel: number;
+  trustType: 'vouches' | 'delegates' | 'endorses';
+  stakeAmount: number;
+  expiresAt?: string;
+  evidenceUal?: string;
+}): TrustEdgeAsset {
+  return {
+    '@context': 'https://schema.org/',
+    '@type': 'EndorseAction',
+    '@id': `urn:kamiyo:trust:${params.trustorId}-${params.trusteeId}-${Date.now()}`,
+    agent: {
+      '@type': 'Organization',
+      '@id': params.trustorId,
+    },
+    object: {
+      '@type': 'Organization',
+      '@id': params.trusteeId,
+    },
+    actionStatus: 'ActiveActionStatus',
+    startTime: new Date().toISOString(),
+    endTime: params.expiresAt,
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'trustLevel', value: params.trustLevel },
+      { '@type': 'PropertyValue', name: 'trustType', value: params.trustType },
+      { '@type': 'PropertyValue', name: 'stakeAmount', value: params.stakeAmount },
+      ...(params.evidenceUal ? [{ '@type': 'PropertyValue' as const, name: 'evidenceUal', value: params.evidenceUal }] : []),
+    ],
+  };
+}
+
+export function createHubEntityAsset(params: {
+  identifier: string;
+  name: string;
+  description?: string;
+  stakeAmount: number;
+  stakePda: string;
+  hubType: 'oracle' | 'provider' | 'aggregator';
+  qualityScore?: number;
+  trustDepth?: number;
+  parentHubId?: string;
+}): HubEntityAsset {
+  return {
+    '@context': 'https://schema.org/',
+    '@type': 'Organization',
+    '@id': `urn:kamiyo:hub:${params.identifier}`,
+    name: params.name,
+    description: params.description,
+    identifier: params.identifier,
+    memberOf: params.parentHubId ? { '@type': 'Organization', '@id': params.parentHubId } : undefined,
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'stakeAmount', value: params.stakeAmount },
+      { '@type': 'PropertyValue', name: 'stakePda', value: params.stakePda },
+      { '@type': 'PropertyValue', name: 'registeredAt', value: Date.now() },
+      { '@type': 'PropertyValue', name: 'isActive', value: true },
+      { '@type': 'PropertyValue', name: 'hubType', value: params.hubType },
+      { '@type': 'PropertyValue', name: 'qualityScore', value: params.qualityScore || 0 },
+      { '@type': 'PropertyValue', name: 'trustDepth', value: params.trustDepth || 3 },
+    ],
+  };
+}

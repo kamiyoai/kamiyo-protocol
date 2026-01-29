@@ -225,6 +225,140 @@ export const SPARQL = {
     ORDER BY DESC(?date)
     LIMIT ${limit}
   `,
+
+  // Direct trust lookup between two entities
+  DIRECT_TRUST: (trustorId: string, trusteeId: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?edge ?trustLevel ?trustType ?stakeAmount ?startTime
+    WHERE {
+      ?edge a schema:EndorseAction ;
+            schema:agent/schema:identifier "${trustorId}" ;
+            schema:object/schema:identifier "${trusteeId}" ;
+            schema:actionStatus schema:ActiveActionStatus ;
+            schema:startTime ?startTime .
+      ?edge schema:additionalProperty ?levelProp, ?typeProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?typeProp schema:name "trustType" ; schema:value ?trustType .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+      OPTIONAL {
+        ?edge schema:endTime ?endTime .
+        FILTER(!BOUND(?endTime) || ?endTime > NOW())
+      }
+    }
+    LIMIT 1
+  `,
+
+  // Multi-hop trust chain traversal
+  TRUST_CHAIN: (sourceId: string, targetId: string, maxHops: number) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?hop ?trustLevel ?stakeAmount
+    WHERE {
+      ?source a schema:Organization ;
+              schema:identifier "${sourceId}" .
+      ?target a schema:Organization ;
+              schema:identifier "${targetId}" .
+      ?hop a schema:EndorseAction ;
+           schema:actionStatus schema:ActiveActionStatus .
+      ?hop schema:additionalProperty ?levelProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+      FILTER(?trustLevel >= 50)
+    }
+    LIMIT ${maxHops * 10}
+  `,
+
+  // All entities trusted by source (up to N hops)
+  TRUSTED_ENTITIES: (sourceId: string, maxHops: number, minTrustLevel: number) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT DISTINCT ?trusteeId ?trustLevel ?stakeAmount
+    WHERE {
+      ?edge a schema:EndorseAction ;
+            schema:agent/schema:identifier "${sourceId}" ;
+            schema:object/schema:identifier ?trusteeId ;
+            schema:actionStatus schema:ActiveActionStatus .
+      ?edge schema:additionalProperty ?levelProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+      FILTER(?trustLevel >= ${minTrustLevel})
+    }
+    ORDER BY DESC(?trustLevel)
+    LIMIT ${maxHops * 50}
+  `,
+
+  // Hub entity lookup by identifier
+  HUB_ENTITY: (entityId: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?hub ?name ?stake ?hubType ?qualityScore ?isActive
+    WHERE {
+      ?hub a schema:Organization ;
+           schema:identifier "${entityId}" ;
+           schema:name ?name .
+      ?hub schema:additionalProperty ?stakeProp, ?typeProp, ?scoreProp, ?activeProp .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stake .
+      ?typeProp schema:name "hubType" ; schema:value ?hubType .
+      ?scoreProp schema:name "qualityScore" ; schema:value ?qualityScore .
+      ?activeProp schema:name "isActive" ; schema:value ?isActive .
+    }
+    LIMIT 1
+  `,
+
+  // List verified hub entities by stake threshold
+  VERIFIED_HUBS: (minStake: number, hubType?: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?hub ?name ?identifier ?stake ?qualityScore ?hubType
+    WHERE {
+      ?hub a schema:Organization ;
+           schema:identifier ?identifier ;
+           schema:name ?name .
+      ?hub schema:additionalProperty ?stakeProp, ?activeProp, ?scoreProp, ?typeProp .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stake .
+      ?activeProp schema:name "isActive" ; schema:value true .
+      ?scoreProp schema:name "qualityScore" ; schema:value ?qualityScore .
+      ?typeProp schema:name "hubType" ; schema:value ?hubType .
+      FILTER(?stake >= ${minStake})
+      ${hubType ? `FILTER(?hubType = "${hubType}")` : ''}
+    }
+    ORDER BY DESC(?stake) DESC(?qualityScore)
+    LIMIT 50
+  `,
+
+  // Outbound trust edges from an entity
+  OUTBOUND_TRUST: (entityId: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?trusteeId ?trustLevel ?trustType ?stakeAmount ?startTime
+    WHERE {
+      ?edge a schema:EndorseAction ;
+            schema:agent/schema:identifier "${entityId}" ;
+            schema:object/schema:identifier ?trusteeId ;
+            schema:actionStatus schema:ActiveActionStatus ;
+            schema:startTime ?startTime .
+      ?edge schema:additionalProperty ?levelProp, ?typeProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?typeProp schema:name "trustType" ; schema:value ?trustType .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+    }
+    ORDER BY DESC(?trustLevel)
+    LIMIT 100
+  `,
+
+  // Inbound trust edges to an entity
+  INBOUND_TRUST: (entityId: string) => `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?trustorId ?trustLevel ?trustType ?stakeAmount ?startTime
+    WHERE {
+      ?edge a schema:EndorseAction ;
+            schema:agent/schema:identifier ?trustorId ;
+            schema:object/schema:identifier "${entityId}" ;
+            schema:actionStatus schema:ActiveActionStatus ;
+            schema:startTime ?startTime .
+      ?edge schema:additionalProperty ?levelProp, ?typeProp, ?stakeProp .
+      ?levelProp schema:name "trustLevel" ; schema:value ?trustLevel .
+      ?typeProp schema:name "trustType" ; schema:value ?trustType .
+      ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+    }
+    ORDER BY DESC(?trustLevel)
+    LIMIT 100
+  `,
 };
 
 export type SPARQLTemplate = keyof typeof SPARQL;
