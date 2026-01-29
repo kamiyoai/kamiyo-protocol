@@ -507,6 +507,16 @@ export async function publishTrustEdge(
   ctx: KamiyoDKGBridgeContext,
   input: TrustEdgeInput
 ): Promise<DKGPublishResult> {
+  if (input.trustorId === input.trusteeId) {
+    throw new Error('Cannot create trust edge to self');
+  }
+  if (input.trustLevel < 0 || input.trustLevel > 100) {
+    throw new Error('trustLevel must be 0-100');
+  }
+  if (input.stakeAmount < 0) {
+    throw new Error('stakeAmount must be non-negative');
+  }
+
   const edge: TrustEdge = {
     '@context': 'https://schema.org/',
     '@type': 'EndorseAction',
@@ -559,6 +569,13 @@ export async function publishHubEntity(
   ctx: KamiyoDKGBridgeContext,
   input: HubEntityInput
 ): Promise<DKGPublishResult> {
+  if (!input.identifier || !input.name) {
+    throw new Error('identifier and name are required');
+  }
+  if (input.stakeAmount < 0) {
+    throw new Error('stakeAmount must be non-negative');
+  }
+
   const hub: HubEntity = {
     '@context': 'https://schema.org/',
     '@type': 'Organization',
@@ -617,11 +634,11 @@ export async function queryDirectTrust(
     }
 
     const r = results[0];
-    return {
-      trustLevel: parseFloat(r.trustLevel),
-      trustType: r.trustType,
-      stakeAmount: parseFloat(r.stakeAmount),
-    };
+    const trustLevel = parseFloat(r.trustLevel);
+    const stakeAmount = parseFloat(r.stakeAmount);
+    if (isNaN(trustLevel) || isNaN(stakeAmount)) return null;
+
+    return { trustLevel, trustType: r.trustType, stakeAmount };
   } catch {
     return null;
   }
@@ -639,11 +656,13 @@ export async function queryTrustedEntities(
     const sparql = SPARQL_TEMPLATES.TRUSTED_ENTITIES(sourceId, minTrustLevel);
     const results = await ctx.dkgClient.query(sparql) as any[];
 
-    return results.map((r) => ({
-      entityId: r.trusteeId,
-      hops: 1, // Direct trust = 1 hop
-      aggregateTrust: parseFloat(r.trustLevel),
-    }));
+    return results
+      .map((r) => ({
+        entityId: r.trusteeId,
+        hops: 1,
+        aggregateTrust: parseFloat(r.trustLevel),
+      }))
+      .filter((e) => !isNaN(e.aggregateTrust));
   } catch {
     return [];
   }
@@ -689,26 +708,29 @@ export async function queryVerifiedHubs(
     const sparql = SPARQL_TEMPLATES.VERIFIED_HUBS(minStake);
     const results = await ctx.dkgClient.query(sparql) as any[];
 
-    return results.map((r) => ({
-      entityId: r.identifier,
-      name: r.name,
-      stakeAmount: parseFloat(r.stake),
-      hubType: r.hubType,
-      qualityScore: parseFloat(r.qualityScore),
-    }));
+    return results
+      .map((r) => ({
+        entityId: r.identifier,
+        name: r.name,
+        stakeAmount: parseFloat(r.stake),
+        hubType: r.hubType,
+        qualityScore: parseFloat(r.qualityScore),
+      }))
+      .filter((h) => !isNaN(h.stakeAmount) && !isNaN(h.qualityScore));
   } catch {
     return [];
   }
 }
 
-// Multi-hop trust chain traversal (simple 2-hop implementation)
+// Multi-hop trust chain traversal (2-hop max)
 export async function queryTrustChain(
   ctx: KamiyoDKGBridgeContext,
   sourceId: string,
   targetId: string,
-  maxHops = 3
+  maxHops = 2
 ): Promise<TrustChainResult | null> {
-  // First check direct trust
+  if (sourceId === targetId) return null;
+
   const direct = await queryDirectTrust(ctx, sourceId, targetId);
   if (direct) {
     return {
@@ -723,25 +745,23 @@ export async function queryTrustChain(
 
   if (maxHops < 2) return null;
 
-  // Get entities trusted by source
   const trustedBySource = await queryTrustedEntities(ctx, sourceId, { minTrustLevel: 50 });
 
-  // Check if any of them trust the target (2-hop)
   for (const intermediate of trustedBySource) {
+    if (intermediate.entityId === sourceId || intermediate.entityId === targetId) continue;
+
     const secondHop = await queryDirectTrust(ctx, intermediate.entityId, targetId);
     if (secondHop) {
-      const minTrust = Math.min(intermediate.aggregateTrust, secondHop.trustLevel);
       return {
         sourceId,
         targetId,
         hops: 2,
-        minTrustLevel: minTrust,
+        minTrustLevel: Math.min(intermediate.aggregateTrust, secondHop.trustLevel),
         totalStake: secondHop.stakeAmount,
         path: [sourceId, intermediate.entityId, targetId],
       };
     }
   }
 
-  // Could extend to 3+ hops but keeping it simple
   return null;
 }
