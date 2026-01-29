@@ -1,10 +1,6 @@
 # @kamiyo/settlement
 
-Protocol-level settlement for x402 routers. Measurable SLA violations with oracle consensus.
-
-## Philosophy
-
-Not a framework. A minimal settlement hook for x402 payment routers. Your router handles payments, KAMIYO handles when things go wrong.
+Settlement hook for x402 routers.
 
 ## Installation
 
@@ -19,16 +15,15 @@ import { SettlementClient, ViolationType, createViolation } from '@kamiyo/settle
 import { Connection, Keypair } from '@solana/web3.js';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
-const wallet = Keypair.generate(); // Your agent's wallet
+const wallet = Keypair.generate();
 
 const settlement = new SettlementClient({ connection, wallet });
 
-// On SLA violation, request settlement
 const violation = createViolation(
   ViolationType.Latency,
-  5000,   // expected: 5s
-  15000,  // actual: 15s
-  responseData // evidence (gets hashed)
+  5000,
+  15000,
+  responseData
 );
 
 const result = await settlement.requestSettlement({
@@ -41,8 +36,6 @@ console.log(result.settlementId, result.refundPercent);
 ```
 
 ## Violation Types
-
-All measurable at runtime. No subjective quality assessments.
 
 | Type | Description | Default Refund |
 |------|-------------|----------------|
@@ -63,39 +56,13 @@ All measurable at runtime. No subjective quality assessments.
 
 ## Settlement Flow
 
-### Fast Path (Provider Accepts)
+1. Agent calls `requestSettlement()` with violation evidence
+2. Provider has 1 hour to respond
+3. Provider accepts → funds redistributed
+4. Provider contests → escalates to oracle voting
+5. No response → auto-resolves in agent's favor
 
-```
-Agent detects violation → requestSettlement()
-                              ↓
-                     Provider has 1 hour
-                              ↓
-              Provider accepts → Funds redistributed
-```
-
-### Contested Path (Oracle Resolution)
-
-```
-Agent detects violation → requestSettlement()
-                              ↓
-              Provider contests → escalateToOracles()
-                              ↓
-                   Oracle commit-reveal voting
-                              ↓
-               Median consensus → Funds redistributed
-```
-
-### Timeout Path
-
-```
-Agent detects violation → requestSettlement()
-                              ↓
-              No response in 1 hour
-                              ↓
-              Auto-resolve → Agent gets full refund
-```
-
-## Integration with x402 Router
+## Usage
 
 ```typescript
 import { SettlementClient, ViolationType, createViolation } from '@kamiyo/settlement';
@@ -147,53 +114,32 @@ async function handleInferenceRequest(req) {
 
 ```typescript
 const client = new SettlementClient({
-  connection: Connection,     // Solana connection
-  wallet?: Keypair,           // Agent wallet (required for requests)
-  programId?: PublicKey,      // KAMIYO program (defaults to mainnet)
+  connection: Connection,
+  wallet?: Keypair,
+  programId?: PublicKey,
 });
 
-// Check if payment is eligible for settlement
 await client.checkEligibility(paymentRef: string): Promise<EligibilityResult>
-
-// Request settlement for SLA violation
 await client.requestSettlement(request: SettlementRequest): Promise<SettlementResult>
-
-// Check settlement status
 await client.getStatus(settlementId: string): Promise<SettlementState | null>
-
-// Provider: respond to settlement request
 await client.respondToSettlement(settlementId: string, response: SettlementResponse): Promise<SettlementResult>
-
-// Escalate contested settlement to oracle voting
 await client.escalateToOracles(settlementId: string): Promise<SettlementResult>
-
-// Resolve with oracle consensus score
 await client.resolveWithOracleScore(settlementId: string, score: number): Promise<SettlementResult>
 ```
 
 ### Violation Helpers
 
 ```typescript
-// Create violation with auto-hashed evidence
 createViolation(type, expected, actual, evidenceData): Violation
-
-// Calculate refund percentage
 calculateRefund(violation): number
-
-// Hash evidence data
 hashEvidence(data): string
-
-// Validate violation structure
 validateViolation(violation): { valid: boolean; error?: string }
 ```
 
 ### Oracle Functions
 
 ```typescript
-// Compute commitment hash for voting
 computeCommitmentHash(settlementId, oracle, score, salt): Uint8Array
-
-// Calculate consensus from oracle scores
 calculateConsensus(scores): ConsensusResult
 ```
 
@@ -207,16 +153,6 @@ MAX_SCORE_DEVIATION  // 15 points
 COMMIT_PHASE_DURATION  // 5 minutes
 REVEAL_PHASE_DURATION  // 30 minutes
 ```
-
-## Why This Works
-
-1. **Measurable** - Latency, timeout, error codes. Not "was the output good?"
-2. **Fast path** - Provider can accept immediately, no oracle delay
-3. **Escalation** - Contested disputes go to oracle consensus
-4. **Timeout protection** - Agent always gets resolution
-5. **Protocol-level** - Complements x402 routers, doesn't compete
-
-Your router handles payments. KAMIYO handles trust.
 
 ## License
 
