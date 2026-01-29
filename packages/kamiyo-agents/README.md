@@ -43,7 +43,7 @@ console.log(result.finalResponse);
 
 ## Tools
 
-Built-in KAMIYO protocol tools:
+### Escrow Tools
 
 | Tool | Description |
 |------|-------------|
@@ -52,6 +52,31 @@ Built-in KAMIYO protocol tools:
 | `file_dispute` | File dispute for unsatisfactory service |
 | `get_reputation` | Query on-chain reputation scores |
 | `get_escrow` | Get escrow account details |
+
+### Settlement Tools (x402)
+
+For agents using x402 paid APIs:
+
+```typescript
+import { createKamiyoAgent, createSettlementTools } from '@kamiyo/agents';
+import { SettlementClient } from '@kamiyo/settlement';
+
+const settlement = new SettlementClient({ connection, wallet });
+
+const agent = createKamiyoAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  tools: createSettlementTools({ client: settlement }),
+});
+
+// Agent can now autonomously request refunds for SLA violations
+await agent.run('The API call timed out after 30 seconds. Request a settlement.');
+```
+
+| Tool | Description |
+|------|-------------|
+| `request_settlement` | Request refund for SLA violation (latency, timeout, errors) |
+| `check_settlement` | Check status of a settlement request |
+| `respond_settlement` | Accept or contest a settlement (for providers) |
 
 ## Custom Tools
 

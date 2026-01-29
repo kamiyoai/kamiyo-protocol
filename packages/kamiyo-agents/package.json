@@ -21,6 +21,7 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@solana/web3.js": "^1.98.0",
     "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/settlement": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.0"
   },
