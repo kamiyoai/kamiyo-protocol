@@ -4,9 +4,7 @@ Protocol-level settlement for x402 routers. Measurable SLA violations with oracl
 
 ## Philosophy
 
-> "Don't bother with any framework but Claude SDK"
-
-This package is not a framework. It's a minimal settlement hook for x402 payment routers. Your router handles payments, KAMIYO handles when things go wrong.
+Not a framework. A minimal settlement hook for x402 payment routers. Your router handles payments, KAMIYO handles when things go wrong.
 
 ## Installation
 
