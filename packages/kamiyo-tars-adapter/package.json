@@ -1,0 +1,48 @@
+{
+  "name": "@kamiyo/tars-adapter",
+  "version": "0.1.0",
+  "description": "TARS (Trustless Agent & Reputation Standard) adapter for KAMIYO protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-tars-adapter"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.0",
+    "bn.js": "^5.2.1"
+  },
+  "peerDependencies": {
+    "@kamiyo/sdk": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*"
+  ],
+  "keywords": [
+    "solana",
+    "tars",
+    "trustless",
+    "amiko",
+    "x402",
+    "reputation",
+    "kamiyo"
+  ]
+}
