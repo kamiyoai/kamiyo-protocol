@@ -1,6 +1,6 @@
 # @kamiyo/agents
 
-Thin wrapper around Claude Agent SDK with KAMIYO protocol tools.
+Claude Agent SDK wrapper with KAMIYO protocol tools and OriginTrail DKG integration.
 
 ## Installation
 
@@ -71,6 +71,38 @@ await agent.run('The API call timed out after 30 seconds. Request a settlement.'
 | `request_settlement` | Request refund for SLA violation (latency, timeout, errors) |
 | `check_settlement` | Check status of a settlement request |
 | `respond_settlement` | Accept or contest a settlement (for providers) |
+
+### DKG Tools (OriginTrail)
+
+For agents consuming trust data from the Decentralized Knowledge Graph:
+
+```typescript
+import { createKamiyoAgent, createDKGTools } from '@kamiyo/agents';
+import DKG from 'dkg.js';
+
+const dkg = new DKG({
+  endpoint: 'https://dkg-positron-gateway.origintrail.io',
+  blockchain: 'base:8453',
+});
+
+const agent = createKamiyoAgent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: 'You verify provider reputation before making payments.',
+  tools: createDKGTools({ dkg }),
+});
+
+// Agent can query trust data before transacting
+await agent.run('Check the quality score for provider 0x7f3a...');
+```
+
+| Tool | Description |
+|------|-------------|
+| `query_provider_quality` | Get quality attestations and average rating for a provider |
+| `query_trusted_entities` | Find entities trusted by a source via trust edges |
+| `verify_hub_entity` | Verify a stake-backed hub (oracle, provider, aggregator) |
+| `get_knowledge_asset` | Retrieve a Knowledge Asset by UAL |
+| `query_dispute_history` | Get dispute outcomes involving an agent |
+| `find_verified_hubs` | Find verified hub entities by stake and type |
 
 ## Custom Tools
 
