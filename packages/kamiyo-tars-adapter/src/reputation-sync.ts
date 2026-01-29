@@ -9,25 +9,12 @@ import {
 } from './types';
 import { JobEscrowLinker, deriveAgentPda } from './job-linker';
 
-/**
- * Convert TARS 1-5 star rating to KAMIYO 0-100 reputation scale
- * Formula: (avg_rating - 1) * 25
- * 1 star -> 0, 2 stars -> 25, 3 stars -> 50, 4 stars -> 75, 5 stars -> 100
- */
 export function tarsToKamiyoReputation(tarsAvgRating: number): number {
   if (tarsAvgRating < 1) return 0;
   if (tarsAvgRating > 5) return 100;
   return Math.round((tarsAvgRating - 1) * 25);
 }
 
-/**
- * Convert KAMIYO quality score (0-100) to TARS rating (1-5)
- * Quality >= 80: 5 stars (excellent work)
- * Quality 65-79: 4 stars (good work)
- * Quality 50-64: 3 stars (acceptable)
- * Quality 25-49: 2 stars (below expectations)
- * Quality < 25: 1 star (unacceptable)
- */
 export function kamiyoToTarsRating(qualityScore: number): TarsRating {
   if (qualityScore >= 80) return 5;
   if (qualityScore >= 65) return 4;
@@ -36,20 +23,12 @@ export function kamiyoToTarsRating(qualityScore: number): TarsRating {
   return 1;
 }
 
-/**
- * Convert KAMIYO reputation (0-100) to TARS-equivalent rating (1-5)
- * Used for consistent display across both systems
- */
 export function kamiyoReputationToDisplayRating(reputation: number): number {
   if (reputation <= 0) return 1;
   if (reputation >= 100) return 5;
   return 1 + (reputation / 25);
 }
 
-/**
- * Aggregate reputation from both KAMIYO and TARS sources
- * Uses configurable weights (default: 70% KAMIYO, 30% TARS)
- */
 export function aggregateCombinedReputation(
   kamiyoReputation: number,
   tarsReputation: number,
@@ -121,8 +100,6 @@ export class ReputationSyncService {
   }
 
   private async fetchKamiyoReputation(agentWallet: PublicKey): Promise<number> {
-    // Fetch KAMIYO agent PDA and parse reputation
-    // This is a simplified version - actual implementation would use the KAMIYO SDK
     try {
       const [agentPda] = PublicKey.findProgramAddressSync(
         [Buffer.from('agent'), agentWallet.toBuffer()],
@@ -132,15 +109,10 @@ export class ReputationSyncService {
       const accountInfo = await this.connection.getAccountInfo(agentPda);
       if (!accountInfo) return 0;
 
-      // Parse reputation from KAMIYO agent account
-      // Reputation is stored as u64 at offset after name and type fields
-      // This is simplified - actual parsing depends on account structure
       const data = accountInfo.data;
       if (data.length < 100) return 0;
 
-      // Skip discriminator (8) + owner (32) + name length (4) + name (32 max) + type (1) + stake (8) = ~85
-      // Reputation is u64 at variable offset
-      // For now, return a default value - real implementation uses KAMIYO SDK
+      // TODO: Parse reputation from KAMIYO agent account using SDK
       return 50;
     } catch {
       return 0;

@@ -63,20 +63,33 @@ export class UnifiedFacilitator {
     });
   }
 
-  /**
-   * Prepare an unsigned transaction for x402 payment
-   * Optionally includes TARS job registration instruction
-   */
   async prepare(request: PrepareRequest): Promise<PrepareResponse> {
-    const { paymentRequirements, walletAddress, enableTrustless, enableKamiyoEscrow } = request;
+    const { paymentRequirements, walletAddress, enableTrustless } = request;
 
     const network = paymentRequirements.network;
+    if (network !== 'solana' && network !== 'solana-devnet') {
+      throw new Error(`Unsupported network: ${network}`);
+    }
+
     const isDevnet = network === 'solana-devnet';
     const usdcMint = isDevnet ? USDC_DEVNET : USDC_MAINNET;
 
-    const clientWallet = new PublicKey(walletAddress);
-    const payTo = new PublicKey(paymentRequirements.payTo);
+    let clientWallet: PublicKey;
+    let payTo: PublicKey;
+    try {
+      clientWallet = new PublicKey(walletAddress);
+      payTo = new PublicKey(paymentRequirements.payTo);
+    } catch {
+      throw new Error('Invalid wallet address format');
+    }
+
     const amount = BigInt(paymentRequirements.maxAmountRequired);
+    if (amount <= 0n) {
+      throw new Error('Payment amount must be positive');
+    }
+    if (amount > BigInt(4_294_000_000)) {
+      throw new Error('Payment amount exceeds maximum (~4,294 USDC)');
+    }
 
     const clientTokenAccount = await getAssociatedTokenAddress(usdcMint, clientWallet);
     const payToTokenAccount = await getAssociatedTokenAddress(usdcMint, payTo);
@@ -143,9 +156,6 @@ export class UnifiedFacilitator {
     };
   }
 
-  /**
-   * Verify a payment payload
-   */
   async verify(request: VerifyRequest): Promise<VerifyResult> {
     const { paymentPayload, paymentRequirements } = request;
 
@@ -171,7 +181,6 @@ export class UnifiedFacilitator {
 
       const hasValidTransfer = transaction.instructions.some(ix => {
         if (!ix.programId.equals(TOKEN_PROGRAM_ID)) return false;
-        // Check if it's a transfer instruction (discriminator 3 or 12)
         if (ix.data[0] !== 3 && ix.data[0] !== 12) return false;
 
         const amount = ix.data.readBigUInt64LE(1);
@@ -191,22 +200,40 @@ export class UnifiedFacilitator {
     }
   }
 
-  /**
-   * Settle a payment - send transaction and optionally create TARS job
-   */
   async settle(request: SettleRequest): Promise<SettleResult> {
-    const { paymentPayload, paymentRequirements } = request;
+    const { paymentPayload } = request;
 
     try {
       if (!paymentPayload.payload.transaction) {
         return { success: false, errorReason: 'Missing transaction in payload' };
       }
 
-      const txBuffer = Buffer.from(paymentPayload.payload.transaction, 'base64');
-      const transaction = Transaction.from(txBuffer);
+      let txBuffer: Buffer;
+      try {
+        txBuffer = Buffer.from(paymentPayload.payload.transaction, 'base64');
+      } catch {
+        return { success: false, errorReason: 'Invalid base64 transaction encoding' };
+      }
 
-      const signature = await this.connection.sendRawTransaction(transaction.serialize());
-      await this.connection.confirmTransaction(signature);
+      let transaction: Transaction;
+      try {
+        transaction = Transaction.from(txBuffer);
+      } catch {
+        return { success: false, errorReason: 'Invalid transaction format' };
+      }
+
+      const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
+
+      const signature = await this.connection.sendRawTransaction(transaction.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+      });
+
+      await this.connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      });
 
       let tarsJobId: string | undefined;
 
@@ -235,9 +262,6 @@ export class UnifiedFacilitator {
     }
   }
 
-  /**
-   * Submit feedback for a TARS job
-   */
   async feedback(request: FeedbackRequest, clientWallet: Keypair): Promise<FeedbackResult> {
     const { jobId, rating, commentUri } = request;
 
@@ -258,16 +282,16 @@ export class UnifiedFacilitator {
     }
   }
 
-  /**
-   * Get combined reputation for an agent
-   */
   async getReputation(agentWallet: string): Promise<CombinedReputation> {
-    return this.bridge.getCombinedReputation(new PublicKey(agentWallet));
+    let wallet: PublicKey;
+    try {
+      wallet = new PublicKey(agentWallet);
+    } catch {
+      throw new Error('Invalid agent wallet address');
+    }
+    return this.bridge.getCombinedReputation(wallet);
   }
 
-  /**
-   * Get supported payment kinds
-   */
   async supported(): Promise<{
     kinds: Array<{
       x402Version: number;
@@ -300,20 +324,23 @@ export class UnifiedFacilitator {
     };
   }
 
-  /**
-   * Link a TARS job to a KAMIYO escrow
-   */
   linkJobToEscrow(kamiyoEscrowPda: string, tarsJobPda: string, paymentAmount: number): void {
-    this.bridge.linkJobToEscrow(
-      new PublicKey(kamiyoEscrowPda),
-      new PublicKey(tarsJobPda),
-      paymentAmount
-    );
+    if (paymentAmount <= 0) {
+      throw new Error('Payment amount must be positive');
+    }
+
+    let escrowPda: PublicKey;
+    let jobPda: PublicKey;
+    try {
+      escrowPda = new PublicKey(kamiyoEscrowPda);
+      jobPda = new PublicKey(tarsJobPda);
+    } catch {
+      throw new Error('Invalid PDA address format');
+    }
+
+    this.bridge.linkJobToEscrow(escrowPda, jobPda, paymentAmount);
   }
 
-  /**
-   * Get bridge instance for advanced operations
-   */
   getBridge(): TarsBridge {
     return this.bridge;
   }

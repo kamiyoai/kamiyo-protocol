@@ -136,7 +136,7 @@ export class JobEscrowLinker {
   }
 
   private parseJobRecord(data: Buffer): TarsJobRecord {
-    let offset = 8; // skip discriminator
+    let offset = 8;
 
     const clientWallet = new PublicKey(data.slice(offset, offset + 32));
     offset += 32;
@@ -158,7 +158,7 @@ export class JobEscrowLinker {
   }
 
   private parseFeedbackRecord(data: Buffer): TarsFeedbackRecord {
-    let offset = 8; // skip discriminator
+    let offset = 8;
 
     const jobId = new PublicKey(data.slice(offset, offset + 32));
     offset += 32;

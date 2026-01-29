@@ -86,10 +86,6 @@ export class TarsBridge {
     return this.linker.getLinkByJob(tarsJobPda);
   }
 
-  /**
-   * Submit TARS feedback based on KAMIYO dispute resolution outcome
-   * Automatically converts quality score to 1-5 star rating
-   */
   async submitFeedbackFromDispute(
     escrowPda: PublicKey,
     qualityScore: number,
@@ -105,9 +101,6 @@ export class TarsBridge {
     return this.submitFeedback(link.tarsJobPda, rating, clientWallet, commentUri);
   }
 
-  /**
-   * Submit feedback for a TARS job
-   */
   async submitFeedback(
     jobPda: PublicKey,
     rating: TarsRating,
@@ -118,13 +111,22 @@ export class TarsBridge {
       throw new Error(`Invalid rating: ${rating}. Must be 1-5.`);
     }
 
+    if (commentUri && commentUri.length > 200) {
+      throw new Error('Comment URI exceeds maximum length of 200 characters');
+    }
+
     const job = await this.linker.fetchTarsJob(jobPda);
     if (!job) {
-      throw new Error('Job not found');
+      throw new Error(`Job not found: ${jobPda.toBase58()}`);
     }
 
     const [feedbackPda] = deriveFeedbackPda(jobPda, this.tarsProgramId);
     const [agentPda] = deriveAgentPda(job.agentWallet, this.tarsProgramId);
+
+    const existingFeedback = await this.connection.getAccountInfo(feedbackPda);
+    if (existingFeedback) {
+      throw new Error(`Feedback already submitted for job: ${jobPda.toBase58()}`);
+    }
 
     const instruction = this.createSubmitFeedbackInstruction(
       feedbackPda,
@@ -136,14 +138,22 @@ export class TarsBridge {
     );
 
     const transaction = new Transaction().add(instruction);
-    const { blockhash } = await this.connection.getLatestBlockhash();
+    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = clientWallet.publicKey;
 
     transaction.sign(clientWallet);
 
-    const signature = await this.connection.sendRawTransaction(transaction.serialize());
-    await this.connection.confirmTransaction(signature);
+    const signature = await this.connection.sendRawTransaction(transaction.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed',
+    });
+
+    await this.connection.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight,
+    });
 
     return signature;
   }
@@ -165,12 +175,12 @@ export class TarsBridge {
     if (commentUri) {
       const uriBytes = Buffer.from(commentUri, 'utf8');
       commentUriBuf = Buffer.alloc(1 + 4 + uriBytes.length);
-      commentUriBuf.writeUInt8(1, 0); // Some(...)
+      commentUriBuf.writeUInt8(1, 0);
       commentUriBuf.writeUInt32LE(uriBytes.length, 1);
       uriBytes.copy(commentUriBuf, 5);
     } else {
       commentUriBuf = Buffer.alloc(1);
-      commentUriBuf.writeUInt8(0, 0); // None
+      commentUriBuf.writeUInt8(0, 0);
     }
 
     const data = Buffer.concat([discriminator, ratingBuf, commentUriBuf]);
@@ -188,31 +198,18 @@ export class TarsBridge {
     });
   }
 
-  /**
-   * Get combined reputation from both KAMIYO and TARS
-   */
   async getCombinedReputation(agentWallet: PublicKey): Promise<CombinedReputation> {
     return this.reputationSync.getCombinedReputation(agentWallet);
   }
 
-  /**
-   * Fetch TARS agent account
-   */
   async fetchTarsAgent(walletAddress: PublicKey): Promise<TarsAgentAccount | null> {
     return this.linker.fetchTarsAgent(walletAddress);
   }
 
-  /**
-   * Fetch TARS job record
-   */
   async fetchTarsJob(jobPda: PublicKey): Promise<TarsJobRecord | null> {
     return this.linker.fetchTarsJob(jobPda);
   }
 
-  /**
-   * Create instruction to register a TARS job
-   * This instruction should be included in the same transaction as the payment
-   */
   createRegisterJobInstruction(
     jobPda: PublicKey,
     agentPda: PublicKey,
@@ -251,14 +248,15 @@ export class TarsBridge {
     });
   }
 
-  /**
-   * Create instruction to register a TARS agent
-   */
   createRegisterAgentInstruction(
     agentPda: PublicKey,
     signerWallet: PublicKey,
     metadataUri: string
   ): TransactionInstruction {
+    if (metadataUri.length > 200) {
+      throw new Error('Metadata URI exceeds maximum length of 200 characters');
+    }
+
     const discriminator = Buffer.from([135, 157, 66, 195, 2, 113, 175, 30]);
 
     const uriBytes = Buffer.from(metadataUri, 'utf8');
@@ -279,9 +277,6 @@ export class TarsBridge {
     });
   }
 
-  /**
-   * Handle dispute resolution event - auto-submit TARS feedback if configured
-   */
   async handleDisputeResolution(event: DisputeResolutionEvent, clientWallet: Keypair): Promise<string | null> {
     if (!this.config.autoSubmitFeedback) {
       return null;
@@ -303,9 +298,6 @@ export class TarsBridge {
     );
   }
 
-  /**
-   * Watch for reputation updates
-   */
   async watchAgent(agentWallet: PublicKey, onUpdate: (combined: CombinedReputation) => void): Promise<void> {
     const sync = new ReputationSyncService({
       connection: this.connection,

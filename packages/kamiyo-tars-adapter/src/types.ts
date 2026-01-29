@@ -79,8 +79,28 @@ export const DEFAULT_CONFIG: TarsAdapterConfig = {
 
 export type TarsRating = 1 | 2 | 3 | 4 | 5;
 
+export const MAX_METADATA_URI_LENGTH = 200;
+export const MAX_COMMENT_URI_LENGTH = 200;
+export const MAX_PAYMENT_AMOUNT = 4_294_000_000;
+export const MIN_RATING = 1;
+export const MAX_RATING = 5;
+
 export function isValidTarsRating(rating: number): rating is TarsRating {
-  return Number.isInteger(rating) && rating >= 1 && rating <= 5;
+  return Number.isInteger(rating) && rating >= MIN_RATING && rating <= MAX_RATING;
+}
+
+export function isValidReputationWeight(weight: { kamiyo: number; tars: number }): boolean {
+  return (
+    weight.kamiyo >= 0 &&
+    weight.kamiyo <= 1 &&
+    weight.tars >= 0 &&
+    weight.tars <= 1 &&
+    Math.abs(weight.kamiyo + weight.tars - 1) < 0.001
+  );
+}
+
+export function isValidQualityScore(score: number): boolean {
+  return Number.isFinite(score) && score >= 0 && score <= 100;
 }
 
 export interface PrepareRequest {
