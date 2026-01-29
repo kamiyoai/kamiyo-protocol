@@ -479,13 +479,6 @@ export class EscrowDisputeManager {
     return true;
   }
 
-  // ============================================================
-  // Transaction Builders - Submit actual on-chain transactions
-  // ============================================================
-
-  /**
-   * Fetch escrow account data
-   */
   async fetchEscrow(escrowPda: PublicKey): Promise<CompanionEscrow | null> {
     const accountInfo = await this.connection.getAccountInfo(escrowPda);
     if (!accountInfo) return null;
