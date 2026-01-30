@@ -1,9 +1,23 @@
 // Forward tweets to Telegram groups
-// Uses separate rate limit tracking from the main bot
+// Uses separate Twitter credentials and rate limit tracking from the main bot
 
 import { TwitterApi } from 'twitter-api-v2';
 import { logger } from './logger';
 import { db } from './clients';
+
+// Separate Twitter client for TG forwarding (read-only, doesn't compete with bot writes)
+function createTgTwitterClient(): TwitterApi | null {
+  const appKey = process.env.TG_TWITTER_API_KEY || process.env.TWITTER_API_KEY;
+  const appSecret = process.env.TG_TWITTER_API_SECRET || process.env.TWITTER_API_SECRET;
+  const accessToken = process.env.TG_TWITTER_ACCESS_TOKEN || process.env.TWITTER_ACCESS_TOKEN;
+  const accessSecret = process.env.TG_TWITTER_ACCESS_SECRET || process.env.TWITTER_ACCESS_SECRET;
+
+  if (!appKey || !appSecret || !accessToken || !accessSecret) {
+    return null;
+  }
+
+  return new TwitterApi({ appKey, appSecret, accessToken, accessSecret });
+}
 
 // Independent rate limit state for TG forwarding
 let tgRateLimited = false;
@@ -123,13 +137,24 @@ async function fetchKamiyoUserId(twitter: TwitterApi): Promise<string | null> {
   }
 }
 
-export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<void> {
+export async function startTelegramForwardLoop(): Promise<void> {
   if (!TG_XPOST_BOT_TOKEN || TG_GROUP_IDS.length === 0) {
     logger.info('Telegram forwarding disabled (no token or groups configured)');
     return;
   }
 
-  logger.info('Starting Telegram forward loop...', { groups: TG_GROUP_IDS.length });
+  // Create separate Twitter client for TG forwarding
+  const twitter = createTgTwitterClient();
+  if (!twitter) {
+    logger.info('Telegram forwarding disabled (no Twitter credentials)');
+    return;
+  }
+
+  const hasSeparateCreds = !!process.env.TG_TWITTER_API_KEY;
+  logger.info('Starting Telegram forward loop...', {
+    groups: TG_GROUP_IDS.length,
+    separateCreds: hasSeparateCreds,
+  });
 
   // Try cached user ID first, then fetch, then fallback to hardcoded
   const cachedId = getCachedUserId();
@@ -137,13 +162,11 @@ export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<voi
     kamiyoUserId = cachedId;
     logger.info('Using cached KamiyoAI user ID', { userId: kamiyoUserId });
   } else {
-    // Try to fetch fresh
     kamiyoUserId = await fetchKamiyoUserId(twitter);
     if (kamiyoUserId) {
       setCachedUserId(kamiyoUserId);
       logger.info('Fetched and cached KamiyoAI user ID', { userId: kamiyoUserId });
     } else {
-      // Use hardcoded fallback
       kamiyoUserId = KAMIYO_USER_ID_FALLBACK;
       setCachedUserId(kamiyoUserId);
       logger.warn('Using fallback KamiyoAI user ID', { userId: kamiyoUserId });

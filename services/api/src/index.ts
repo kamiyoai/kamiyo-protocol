@@ -1588,7 +1588,8 @@ async function main(): Promise<void> {
     await startMentionStream(twitter, anthropic);
 
     // Start Telegram forward loop (polls @KamiyoAI timeline, forwards to TG groups)
-    await startTelegramForwardLoop(twitter);
+    // Uses separate Twitter credentials if TG_TWITTER_* env vars are set
+    await startTelegramForwardLoop();
 
     logger.info('X bot fully operational');
     logger.info(`Approval mode: ${APPROVAL_MODE} (auto/dm/hybrid)`);
