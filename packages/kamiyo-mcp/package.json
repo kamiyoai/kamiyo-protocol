@@ -2,7 +2,7 @@
   "name": "@kamiyo/mcp-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "Solana escrow with dispute resolution for API payments. Also supports x402 HTTP 402 payments.",
+  "description": "MCP server for autonomous agent payments. Escrow, quality assessment, dispute resolution, and x402 support for AI agents.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -40,11 +40,17 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "ai-agent",
+    "autonomous-agent",
+    "agent-wallet",
+    "agent-payments",
+    "escrow",
+    "dispute-resolution",
+    "x402",
     "solana",
-    "anchor",
-    "kamiyo",
-    "agent-identity",
-    "conflict-resolution"
+    "claude",
+    "langchain",
+    "ai-tools"
   ],
   "author": "KAMIYO",
   "license": "MIT",
