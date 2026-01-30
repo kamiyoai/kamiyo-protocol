@@ -1,8 +1,29 @@
 # @kamiyo/mcp-server
 
-MCP server for KAMIYO Protocol. Provides escrow, dispute, and reputation tools for Claude Desktop and other MCP clients.
+MCP server for autonomous agent payments. Provides tools for:
 
-## Remote MCP Server (Claude.ai)
+- **Payment escrow** - Lock funds until service delivered
+- **Quality assessment** - Score API responses automatically
+- **Dispute resolution** - Oracle arbitration when quality is poor
+- **Provider reputation** - On-chain trust scores
+- **x402 payments** - HTTP 402 protocol support
+
+Works with Claude Desktop, OpenClaw, and any MCP-compatible client.
+
+## Use Cases
+
+- AI agents paying for API calls with quality guarantees
+- Autonomous systems that need refunds when services fail
+- Multi-agent coordination with escrow-protected payments
+- Any agent that needs a wallet with dispute resolution
+
+## Quick Start
+
+**Remote (hosted)**: Connect to `https://api.kamiyo.ai/mcp` with OAuth 2.0
+
+**Local (your wallet)**: Install and configure with your Solana keypair
+
+## Remote MCP Server
 
 Connect directly to the hosted MCP server at `https://api.kamiyo.ai/mcp`.
 
@@ -194,6 +215,29 @@ Searches for cryptocurrency news from trusted sources.
 | query | string | no | Search topic (default: cryptocurrency) |
 | limit | number | no | Max results (default: 5) |
 
+### x402_check_pricing
+
+Checks if an endpoint uses x402 payment and returns pricing options.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| url | string | yes | API endpoint URL |
+
+Returns `{ free: true }` or `{ free: false, options: [...] }` with payment networks and amounts.
+
+### x402_fetch
+
+Fetches from an x402-protected endpoint, handling payment automatically.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| url | string | yes | Endpoint URL |
+| method | string | no | HTTP method (default: GET) |
+| body | string | no | Request body (JSON) |
+| headers | object | no | Additional headers |
+
+Requires local MCP server with wallet configured. Remote server returns error directing to local setup.
+
 ## Usage Examples
 
 ### Create Escrow
@@ -253,7 +297,7 @@ npm test        # Run tests
 ## How It Works
 
 1. Agent calls `call_api_with_escrow` or `create_escrow`
-2. Funds are locked in on-chain escrow
+2. Funds are locked in on-chain escrow (Solana)
 3. If using full workflow, API is called and response assessed
 4. Quality >= threshold: funds released to provider
 5. Quality < threshold: dispute filed automatically
@@ -267,6 +311,68 @@ npm test        # Run tests
 | 65-79% | 35% | 65% |
 | 50-64% | 75% | 25% |
 | 0-49% | 100% | 0% |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Your AI Agent                            │
+│  (Claude, OpenClaw, LangChain, custom)                      │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ MCP Protocol
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   @kamiyo/mcp-server                         │
+│                                                              │
+│  Tools:                                                      │
+│  - create_escrow        - assess_data_quality               │
+│  - check_escrow_status  - estimate_refund                   │
+│  - verify_payment       - file_dispute                      │
+│  - get_api_reputation   - x402_fetch                        │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ Solana RPC
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  KAMIYO Protocol (Solana)                    │
+│                                                              │
+│  On-chain:                                                   │
+│  - Escrow accounts (time-locked)                            │
+│  - Oracle registry (dispute arbitration)                    │
+│  - Reputation scores (provider trust)                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Integration with Other Frameworks
+
+### OpenClaw / Generic MCP Client
+
+Any MCP client can connect to the remote server or run locally:
+
+```javascript
+// Remote (OAuth required)
+const client = new MCPClient('https://api.kamiyo.ai/mcp');
+
+// Local (stdio)
+const client = spawn('node', ['path/to/kamiyo-mcp/dist/index.js']);
+```
+
+### LangChain
+
+```typescript
+import { KamiyoTools } from '@kamiyo/langchain';
+
+const tools = KamiyoTools.fromEnv();
+const agent = createReactAgent({ llm, tools });
+```
+
+### Vercel AI SDK
+
+```typescript
+import { createKamiyoTools } from '@kamiyo/vercel-ai';
+
+const tools = createKamiyoTools({ wallet: keypair });
+const result = await generateText({ model, tools, prompt });
+```
 
 ## Privacy
 
