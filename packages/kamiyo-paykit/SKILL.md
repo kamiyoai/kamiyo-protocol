@@ -1,6 +1,6 @@
-# KAMIYO Agent Wallet
+# KAMIYO Paykit
 
-Unified payment infrastructure for autonomous AI agents.
+Payment toolkit for autonomous AI agents.
 
 ## Skill: Pay for Premium APIs
 
@@ -100,16 +100,16 @@ MAX_PRICE_USD=1.0
 ## Quick Start
 
 ```typescript
-import { createAgentWalletFromEnv } from '@kamiyo/agent-wallet';
+import { createPaykitFromEnv } from '@kamiyo/paykit';
 
-const wallet = createAgentWalletFromEnv();
+const paykit = createPaykitFromEnv();
 
 // Fetch paid content
-const result = await wallet.fetch('https://api.example.com/premium', {
+const result = await paykit.fetch('https://api.example.com/premium', {
   maxPriceUsd: 0.01,
 });
 
 // Check balance
-const balance = await wallet.getBalance();
+const balance = await paykit.getBalance();
 console.log(`Balance: ${balance.sol} SOL`);
 ```
