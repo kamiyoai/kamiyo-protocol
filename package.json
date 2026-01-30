@@ -46,7 +46,10 @@
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "@types/express-serve-static-core": "^4.19.8"
+    }
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
