@@ -1,0 +1,54 @@
+{
+  "name": "@kamiyo/agent-wallet",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Unified wallet for autonomous AI agents. Payments, escrow, reputation, and disputes in one interface.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "tsx tests/wallet.test.ts"
+  },
+  "keywords": [
+    "ai-agent",
+    "autonomous-agent",
+    "agent-wallet",
+    "agent-payments",
+    "escrow",
+    "dispute-resolution",
+    "reputation",
+    "x402",
+    "solana",
+    "mcp",
+    "openclaw",
+    "moltbook"
+  ],
+  "author": "KAMIYO",
+  "license": "MIT",
+  "dependencies": {
+    "@kamiyo/x402-client": "workspace:*",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    }
+  }
+}

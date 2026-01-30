@@ -1,0 +1,224 @@
+# @kamiyo/agent-wallet
+
+Unified wallet for autonomous AI agents. Payments, escrow, reputation, and disputes in one interface.
+
+## Why
+
+Autonomous agents need to transact. This package provides:
+
+- **x402 Payments** - Pay for APIs automatically when HTTP 402 is returned
+- **Escrow** - Lock funds until work is delivered and verified
+- **Quality Assessment** - Auto-check response quality against expectations
+- **Disputes** - File disputes when quality is below threshold
+- **Reputation** - Check provider trustworthiness before transacting
+- **Job Tracking** - Track in-progress jobs with their escrow state
+
+## Install
+
+```bash
+npm install @kamiyo/agent-wallet
+```
+
+## Quick Start
+
+```typescript
+import { createAgentWallet } from '@kamiyo/agent-wallet';
+import { Connection, Keypair } from '@solana/web3.js';
+
+const wallet = createAgentWallet({
+  keypair: Keypair.fromSecretKey(/* your key */),
+  connection: new Connection('https://api.mainnet-beta.solana.com'),
+});
+
+// Fetch from x402 endpoint - payment handled automatically
+const result = await wallet.fetch('https://api.example.com/premium-data', {
+  maxPriceUsd: 0.01,
+  expectedFields: ['price', 'volume', 'timestamp'],
+  minQuality: 80,
+});
+
+if (result.success) {
+  console.log('Data:', result.data);
+  console.log('Paid:', result.paid ? `$${result.payment?.amountUsd}` : 'Free');
+  console.log('Quality:', result.quality?.score);
+}
+```
+
+## Environment Variables
+
+```bash
+AGENT_PRIVATE_KEY=<base58>           # Required for createAgentWalletFromEnv
+SOLANA_RPC_URL=https://...           # Defaults to mainnet
+KAMIYO_PROGRAM_ID=8sUnNU...          # Defaults to production
+MAX_PRICE_USD=1.0                    # Max per-request spend
+```
+
+## API
+
+### `createAgentWallet(config)`
+
+Create a wallet with explicit configuration.
+
+```typescript
+const wallet = createAgentWallet({
+  keypair: myKeypair,
+  connection: myConnection,
+  maxPriceUsd: 0.50,              // Max $0.50 per request
+  autoDisputeThreshold: 30,       // Auto-dispute below 30% quality
+  defaultTimeLockSeconds: 604800, // 7-day escrow lock
+});
+```
+
+### `createAgentWalletFromEnv()`
+
+Create a wallet from environment variables.
+
+```typescript
+const wallet = createAgentWalletFromEnv();
+```
+
+### `wallet.fetch(url, options)`
+
+Fetch data from an x402 endpoint with automatic payment.
+
+```typescript
+const result = await wallet.fetch('https://api.example.com/data', {
+  maxPriceUsd: 0.01,           // Override max price
+  expectedFields: ['id', 'name'], // For quality assessment
+  minQuality: 70,              // Minimum acceptable quality
+  method: 'POST',
+  body: { query: 'value' },
+  headers: { 'X-Custom': 'header' },
+  timeoutMs: 5000,
+});
+```
+
+### `wallet.createEscrow(options)`
+
+Create an escrow for a job.
+
+```typescript
+const result = await wallet.createEscrow({
+  amountSol: 0.1,
+  jobId: 'job-123',
+  timeLockSeconds: 604800, // 7 days
+  qualityThreshold: 70,
+});
+
+if (result.success) {
+  console.log('Escrow:', result.escrowAddress);
+}
+```
+
+### `wallet.getEscrowStatus(address)`
+
+Check escrow state.
+
+```typescript
+const state = await wallet.getEscrowStatus(escrowAddress);
+// state.status: 'pending' | 'funded' | 'released' | 'disputed' | 'resolved' | 'expired'
+```
+
+### `wallet.fileDispute(options)`
+
+File a dispute for poor quality.
+
+```typescript
+const result = await wallet.fileDispute({
+  escrowAddress: '...',
+  qualityScore: 25,
+  evidence: 'Response missing required fields: price, volume',
+  requestedRefundPercent: 75,
+});
+```
+
+### `wallet.getReputation(address)`
+
+Check provider reputation before transacting.
+
+```typescript
+const rep = await wallet.getReputation(providerAddress);
+// rep.tier: 'trusted' | 'standard' | 'caution' | 'avoid'
+// rep.score: 0-1000
+// rep.disputeRate: percentage
+```
+
+### Job Tracking
+
+```typescript
+// Track a job
+wallet.trackJob({
+  jobId: 'job-123',
+  description: 'Build escrow integration',
+  requester: 'BuyerWallet...',
+  amountSol: 0.1,
+  status: 'accepted',
+});
+
+// Update status
+wallet.updateJob('job-123', { status: 'in_progress' });
+
+// Get active jobs
+const jobs = wallet.getActiveJobs();
+```
+
+## Integration Examples
+
+### OpenClaw Agent
+
+```typescript
+// In your OpenClaw skill
+import { createAgentWalletFromEnv } from '@kamiyo/agent-wallet';
+
+const wallet = createAgentWalletFromEnv();
+
+export async function handlePremiumDataRequest(query: string) {
+  const result = await wallet.fetch(`https://api.premium.com/search?q=${query}`, {
+    maxPriceUsd: 0.05,
+    expectedFields: ['results', 'total'],
+  });
+
+  if (!result.success) {
+    return `Failed: ${result.error}`;
+  }
+
+  return `Found ${result.data.total} results. Cost: $${result.payment?.amountUsd || 0}`;
+}
+```
+
+### Moltbook Job Agent
+
+```typescript
+import { createAgentWallet } from '@kamiyo/agent-wallet';
+
+const wallet = createAgentWallet({ keypair, connection });
+
+// Accept a job
+async function acceptJob(job: MoltbookJob) {
+  // Create escrow
+  const escrow = await wallet.createEscrow({
+    amountSol: job.price,
+    jobId: job.id,
+  });
+
+  if (!escrow.success) {
+    return { accepted: false, reason: escrow.error };
+  }
+
+  // Track job
+  wallet.trackJob({
+    jobId: job.id,
+    description: job.description,
+    requester: job.poster,
+    amountSol: job.price,
+    escrowAddress: escrow.escrowAddress,
+    status: 'accepted',
+  });
+
+  return { accepted: true, escrowAddress: escrow.escrowAddress };
+}
+```
+
+## License
+
+MIT
