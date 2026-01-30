@@ -1366,6 +1366,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_funding_states_idempotency ON blindfold_funding_states(idempotency_key);
 `);
 
+// Migration: add owner_wallet column if it doesn't exist
+try {
+  db.exec('ALTER TABLE swarm_teams ADD COLUMN owner_wallet TEXT');
+} catch {
+  // Column already exists
+}
+
 export interface LinkedWallet {
   id: number;
   twitter_id: string;
