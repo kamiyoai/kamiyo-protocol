@@ -12,10 +12,44 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middleware
+// Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
+
+// Rate limiting (simple in-memory, use Redis in production)
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 100; // requests per minute
+const RATE_WINDOW = 60_000;
+
+function rateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
+    return next();
+  }
+
+  if (entry.count >= RATE_LIMIT) {
+    res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+    return res.status(429).json({ error: 'Rate limit exceeded' });
+  }
+
+  entry.count++;
+  next();
+}
+
+app.use(rateLimit);
+
+// Clean up rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitStore) {
+    if (now > entry.resetAt) rateLimitStore.delete(ip);
+  }
+}, 60_000);
 
 // Serve static files (logo, favicon)
 app.use('/public', express.static(path.join(__dirname, '../public')));
@@ -140,6 +174,30 @@ interface SettlementRecord {
 }
 
 const settlementStore = new Map<string, SettlementRecord>();
+const MAX_SETTLEMENT_RECORDS = 10_000;
+const SETTLEMENT_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Clean up old settlement records periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ref, record] of settlementStore) {
+    if (now - record.timestamp > SETTLEMENT_TTL) settlementStore.delete(ref);
+  }
+}, 60_000);
+
+// Input validation
+const AGENT_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function isValidAgentId(id: unknown): id is string {
+  return typeof id === 'string' && AGENT_ID_REGEX.test(id);
+}
+
+function parseReputationThreshold(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const num = parseInt(String(value), 10);
+  if (Number.isNaN(num) || num < 0 || num > 100) return null;
+  return num;
+}
 
 function create402Response(
   resource: string,
@@ -213,6 +271,9 @@ function create402Response(
 
 async function verifyPayment(paymentHeader: string, requirement: Record<string, unknown>): Promise<{ valid: boolean; payer?: string; error?: string }> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
     const res = await fetch(`${FACILITATOR_URL}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -221,7 +282,10 @@ async function verifyPayment(paymentHeader: string, requirement: Record<string, 
         paymentHeader,
         paymentRequirements: requirement,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     const data = (await res.json()) as { isValid?: boolean; payer?: string; invalidReason?: string };
     return {
@@ -230,12 +294,18 @@ async function verifyPayment(paymentHeader: string, requirement: Record<string, 
       error: data.invalidReason,
     };
   } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { valid: false, error: 'Facilitator timeout' };
+    }
     return { valid: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
 async function settlePayment(paymentHeader: string, requirement: Record<string, unknown>): Promise<{ success: boolean; tx?: string; error?: string }> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+
     const res = await fetch(`${FACILITATOR_URL}/settle`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -244,7 +314,10 @@ async function settlePayment(paymentHeader: string, requirement: Record<string, 
         paymentHeader,
         paymentRequirements: requirement,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     const data = (await res.json()) as { success?: boolean; transaction?: string; error?: string };
     return {
@@ -253,6 +326,9 @@ async function settlePayment(paymentHeader: string, requirement: Record<string, 
       error: data.error,
     };
   } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { success: false, error: 'Settlement timeout' };
+    }
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
@@ -278,9 +354,7 @@ function x402Middleware(basePrice: number, description: string) {
 
     if (!paymentHeader) {
       // Check if caller provided reputation proof for tiered pricing
-      const reputationThreshold = req.headers['x-reputation-threshold']
-        ? parseInt(req.headers['x-reputation-threshold'] as string, 10)
-        : null;
+      const reputationThreshold = parseReputationThreshold(req.headers['x-reputation-threshold']);
 
       const body = create402Response(resource, basePrice, description, reputationThreshold);
       res.set({
@@ -314,8 +388,8 @@ function x402Middleware(basePrice: number, description: string) {
         if (settleResult.success) {
           const paymentRef = `${settleResult.tx || Date.now()}-${resource}`;
 
-          // Track for settlement if enabled
-          if (SETTLEMENT_ENABLED && settleResult.tx) {
+          // Track for settlement if enabled (with size limit)
+          if (SETTLEMENT_ENABLED && settleResult.tx && settlementStore.size < MAX_SETTLEMENT_RECORDS) {
             settlementStore.set(paymentRef, {
               paymentRef,
               resource,
@@ -355,9 +429,7 @@ function x402Middleware(basePrice: number, description: string) {
 
 // ============ Data Sources ============
 
-// Agent data source - fetches from DKG or returns structured mock
 async function fetchAgentData(agentId: string): Promise<Record<string, unknown> | null> {
-  // Try DKG first if configured
   if (DKG_ENDPOINT && DKG_ENDPOINT !== 'https://dkg.kamiyo.ai') {
     try {
       const res = await fetch(`${DKG_ENDPOINT}/agents/${agentId}`, {
@@ -368,12 +440,10 @@ async function fetchAgentData(agentId: string): Promise<Record<string, unknown> 
         return await res.json() as Record<string, unknown>;
       }
     } catch {
-      // Fall through to mock data
+      // DKG unavailable, fallback to mock
     }
   }
 
-  // Return structured agent data
-  // In production, this would query on-chain registry or DKG
   return {
     agentId,
     name: `Agent ${agentId}`,
@@ -395,15 +465,9 @@ async function fetchAgentData(agentId: string): Promise<Record<string, unknown> 
   };
 }
 
-// Reputation data source
 async function fetchReputationData(agentId: string): Promise<Record<string, unknown> | null> {
-  // In production, this would:
-  // 1. Query Solana for on-chain reputation
-  // 2. Query Base for ZK reputation commitments
-  // 3. Aggregate cross-chain attestations
-
-  // Structured reputation data
-  const score = 75 + Math.floor(Math.random() * 20); // 75-95 for demo
+  // TODO: Query on-chain reputation from Solana/Base
+  const score = 75 + Math.floor(Math.random() * 20);
   const tier = getTierForThreshold(score);
 
   return {
@@ -429,9 +493,8 @@ async function fetchReputationData(agentId: string): Promise<Record<string, unkn
   };
 }
 
-// Trading signals data source
 async function fetchSignals(): Promise<Record<string, unknown>[]> {
-  // In production, this would aggregate signals from top-rated agents
+  // TODO: Aggregate from top-rated agents
   return [
     {
       agent: 'agent-001',
@@ -521,7 +584,11 @@ app.get(
   '/api/agents/:agentId',
   x402Middleware(BASE_PRICES.agentQuery, 'Query KAMIYO agent profile'),
   async (req, res) => {
-    const agentId = req.params.agentId as string;
+    const agentId = req.params.agentId;
+    if (!isValidAgentId(agentId)) {
+      return res.status(400).json({ error: 'Invalid agent ID format' });
+    }
+
     const x402 = (req as unknown as Record<string, unknown>).x402 as Record<string, unknown>;
 
     const agentData = await fetchAgentData(agentId);
@@ -555,7 +622,11 @@ app.get(
   '/api/reputation/:agentId',
   x402Middleware(BASE_PRICES.reputationCheck, 'Check KAMIYO agent reputation'),
   async (req, res) => {
-    const agentId = req.params.agentId as string;
+    const agentId = req.params.agentId;
+    if (!isValidAgentId(agentId)) {
+      return res.status(400).json({ error: 'Invalid agent ID format' });
+    }
+
     const x402 = (req as unknown as Record<string, unknown>).x402 as Record<string, unknown>;
 
     const reputationData = await fetchReputationData(agentId);
@@ -642,13 +713,30 @@ app.get('/api/settlement/:paymentRef', (req, res) => {
 });
 
 // Request settlement (file dispute)
-app.post('/api/settlement/:paymentRef', express.json(), (req, res) => {
+app.post('/api/settlement/:paymentRef', express.json({ limit: '4kb' }), (req, res) => {
   if (!SETTLEMENT_ENABLED) {
     return res.status(404).json({ error: 'Settlement not enabled' });
   }
 
   const { paymentRef } = req.params;
-  const { violation, evidence } = req.body as { violation: string; evidence?: string };
+  if (typeof paymentRef !== 'string' || paymentRef.length > 256) {
+    return res.status(400).json({ error: 'Invalid payment reference' });
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const violation = body.violation;
+  const evidence = body.evidence;
+
+  // Validate violation type
+  const validViolations = ['timeout', 'serverError', 'latency', 'malformed', 'incomplete'];
+  if (typeof violation !== 'string' || !validViolations.includes(violation)) {
+    return res.status(400).json({ error: 'Invalid violation type' });
+  }
+
+  // Validate evidence if provided
+  if (evidence !== undefined && (typeof evidence !== 'string' || evidence.length > 1000)) {
+    return res.status(400).json({ error: 'Evidence must be a string under 1000 characters' });
+  }
 
   const record = settlementStore.get(paymentRef);
   if (!record) {
@@ -657,12 +745,6 @@ app.post('/api/settlement/:paymentRef', express.json(), (req, res) => {
 
   if (record.status !== 'active' && record.status !== 'completed') {
     return res.status(400).json({ error: 'Settlement already processed' });
-  }
-
-  // Validate violation type
-  const validViolations = ['timeout', 'serverError', 'latency', 'malformed', 'incomplete'];
-  if (!validViolations.includes(violation)) {
-    return res.status(400).json({ error: 'Invalid violation type' });
   }
 
   // Calculate refund based on violation type

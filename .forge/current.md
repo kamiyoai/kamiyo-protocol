@@ -1,19 +1,15 @@
-# Forge Session: TARS Adapter
+# Forge Session: x402 Integration
 
 ## Target
-`packages/kamiyo-tars-adapter/`
+- `apps/x402-server/src/index.ts`
+- `packages/kamiyo-agents/src/x402-tools.ts`
 
 ## Description
-TARS (Trustless Agent & Reputation Standard) adapter for KAMIYO protocol - bidirectional integration with Amiko's x402 reputation system.
+x402 micropayment integration with reputation-based pricing and SLA settlement system.
 
 ## Files
-- `src/types.ts` - Types and constants
-- `src/bridge.ts` - TarsBridge core class
-- `src/reputation-sync.ts` - Reputation conversion functions
-- `src/job-linker.ts` - Job/Escrow linking
-- `src/middleware.ts` - Unified x402 middleware
-- `src/facilitator.ts` - Combined facilitator service
-- `src/index.ts` - Package exports
+- `apps/x402-server/src/index.ts` - x402 server with reputation pricing and settlement
+- `packages/kamiyo-agents/src/x402-tools.ts` - x402 tools for Claude agents
 
 ## Current Phase
 Complete
