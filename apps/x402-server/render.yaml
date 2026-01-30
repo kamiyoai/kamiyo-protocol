@@ -19,5 +19,13 @@ services:
         value: "0.0005"
       - key: PRICE_SIGNAL
         value: "0.01"
+      - key: ENABLE_REPUTATION_PRICING
+        value: "true"
+      - key: SETTLEMENT_ENABLED
+        value: "true"
+      - key: DKG_ENDPOINT
+        value: "https://dkg.kamiyo.ai"
+      - key: PAYAI_FACILITATOR_URL
+        value: "https://facilitator.payai.network"
     healthCheckPath: /health
     autoDeploy: true

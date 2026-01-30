@@ -5,6 +5,8 @@ export { createSettlementTools, SETTLEMENT_TOOL_NAMES } from './settlement-tools
 export type { SettlementToolName, SettlementToolsConfig } from './settlement-tools.js';
 export { createDKGTools, DKG_TOOL_NAMES } from './dkg-tools.js';
 export type { DKGToolName, DKGToolsConfig, DKGClient } from './dkg-tools.js';
+export { createX402Tools, X402_TOOL_NAMES } from './x402-tools.js';
+export type { X402ToolName, X402ToolsConfig, PaymentRequirement } from './x402-tools.js';
 export type {
   AgentConfig,
   AgentMessage,
