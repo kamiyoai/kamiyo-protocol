@@ -1,8 +1,37 @@
 // Forward tweets to Telegram groups
+// Uses separate rate limit tracking from the main bot
 
 import { TwitterApi } from 'twitter-api-v2';
 import { logger } from './logger';
 import { db } from './clients';
+
+// Independent rate limit state for TG forwarding
+let tgRateLimited = false;
+let tgResetAt = 0;
+let tgConsecutiveFailures = 0;
+
+function isTgRateLimited(): boolean {
+  if (!tgRateLimited) return false;
+  if (Date.now() > tgResetAt) {
+    tgRateLimited = false;
+    tgConsecutiveFailures = Math.max(0, tgConsecutiveFailures - 1);
+    logger.info('TG forward rate limit cleared');
+    return false;
+  }
+  return true;
+}
+
+function recordTgRateLimit(): void {
+  tgConsecutiveFailures++;
+  tgRateLimited = true;
+  const backoffMinutes = Math.min(Math.pow(2, tgConsecutiveFailures - 1), 10);
+  tgResetAt = Date.now() + backoffMinutes * 60 * 1000;
+  logger.warn('TG forward rate limited', { backoffMinutes, failures: tgConsecutiveFailures });
+}
+
+function recordTgSuccess(): void {
+  tgConsecutiveFailures = Math.max(0, tgConsecutiveFailures - 1);
+}
 
 const TG_XPOST_BOT_TOKEN = process.env.TELEGRAM_XPOST_BOT_TOKEN;
 const TG_GROUP_IDS = (process.env.TELEGRAM_GROUP_IDS || '').split(',').filter(Boolean);
@@ -124,35 +153,38 @@ export async function startTelegramForwardLoop(twitter: TwitterApi): Promise<voi
   const poll = async () => {
     if (!kamiyoUserId) return;
 
+    if (isTgRateLimited()) {
+      logger.debug('TG forward skipping poll (rate limited)');
+      return;
+    }
+
     try {
-      // Get recent tweets (last 10)
       const timeline = await twitter.v2.userTimeline(kamiyoUserId, {
         max_results: 10,
         'tweet.fields': ['created_at', 'referenced_tweets'],
-        exclude: ['replies'], // Exclude replies, include retweets and quotes
+        exclude: ['replies'],
       });
+
+      recordTgSuccess();
 
       if (!timeline.data?.data) return;
 
       for (const tweet of timeline.data.data) {
-        // Skip if already forwarded
         if (isForwarded(tweet.id)) continue;
 
-        // Skip pure retweets (not quote tweets)
         const isRetweet = tweet.referenced_tweets?.some(ref => ref.type === 'retweeted');
         if (isRetweet) {
-          markForwarded(tweet.id); // Mark as handled so we don't check again
+          markForwarded(tweet.id);
           continue;
         }
 
-        // Forward original tweets and quote tweets
         logger.info('Forwarding tweet to Telegram', { tweetId: tweet.id });
         await forwardToTelegram(tweet.id, tweet.text);
       }
     } catch (err: unknown) {
       const error = err as { code?: number; status?: number; message?: string };
       if (error.code === 429 || error.status === 429) {
-        logger.warn('TG forward poll rate limited');
+        recordTgRateLimit();
       } else {
         logger.error('TG forward poll error', { error: String(err) });
       }
