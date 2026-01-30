@@ -1,6 +1,6 @@
 // Buyback routes
 
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import { logger } from '../../logger';
 import { getBuybackService, BUYBACK_BETA } from '../../buyback-service';
@@ -21,7 +21,7 @@ const adminRateLimiter = rateLimit({
     },
   },
   keyGenerator: () => 'buyback-admin',
-});
+}) as unknown as RequestHandler;
 
 function requireAdmin(req: Request, res: Response): boolean {
   if (!ADMIN_SECRET) {
