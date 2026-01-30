@@ -27,7 +27,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
-    "@kamiyo/agent-wallet": "workspace:*",
+    "@kamiyo/paykit": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
     "@solana/web3.js": "^1.95.0",
     "better-sqlite3": "^11.0.0",

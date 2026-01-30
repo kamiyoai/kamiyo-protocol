@@ -1,6 +1,6 @@
 import type { Keypair, Connection } from '@solana/web3.js';
 
-export interface AgentWalletConfig {
+export interface PaykitConfig {
   /** Solana keypair for signing transactions */
   keypair: Keypair;
   /** Solana RPC connection */
@@ -124,3 +124,6 @@ export interface JobContext {
   deliverable?: string;
   qualityScore?: number;
 }
+
+// Backward compat alias
+export type AgentWalletConfig = PaykitConfig;

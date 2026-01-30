@@ -1,5 +1,15 @@
-export { AgentWallet, createAgentWallet, createAgentWalletFromEnv } from './wallet.js';
+export {
+  Paykit,
+  createPaykit,
+  createPaykitFromEnv,
+  // Backward compat
+  AgentWallet,
+  createAgentWallet,
+  createAgentWalletFromEnv,
+} from './paykit.js';
+
 export type {
+  PaykitConfig,
   AgentWalletConfig,
   PaymentOptions,
   PaymentResult,

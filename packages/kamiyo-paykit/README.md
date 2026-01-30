@@ -1,6 +1,6 @@
-# @kamiyo/agent-wallet
+# @kamiyo/paykit
 
-Unified wallet for autonomous AI agents. Payments, escrow, reputation, and disputes in one interface.
+Payment toolkit for autonomous AI agents.
 
 ## Why
 
@@ -16,22 +16,22 @@ Autonomous agents need to transact. This package provides:
 ## Install
 
 ```bash
-npm install @kamiyo/agent-wallet
+npm install @kamiyo/paykit
 ```
 
 ## Quick Start
 
 ```typescript
-import { createAgentWallet } from '@kamiyo/agent-wallet';
+import { createPaykit } from '@kamiyo/paykit';
 import { Connection, Keypair } from '@solana/web3.js';
 
-const wallet = createAgentWallet({
+const paykit = createPaykit({
   keypair: Keypair.fromSecretKey(/* your key */),
   connection: new Connection('https://api.mainnet-beta.solana.com'),
 });
 
 // Fetch from x402 endpoint - payment handled automatically
-const result = await wallet.fetch('https://api.example.com/premium-data', {
+const result = await paykit.fetch('https://api.example.com/premium-data', {
   maxPriceUsd: 0.01,
   expectedFields: ['price', 'volume', 'timestamp'],
   minQuality: 80,
@@ -47,7 +47,7 @@ if (result.success) {
 ## Environment Variables
 
 ```bash
-AGENT_PRIVATE_KEY=<base58>           # Required for createAgentWalletFromEnv
+AGENT_PRIVATE_KEY=<base58>           # Required for createPaykitFromEnv
 SOLANA_RPC_URL=https://...           # Defaults to mainnet
 KAMIYO_PROGRAM_ID=8sUnNU...          # Defaults to production
 MAX_PRICE_USD=1.0                    # Max per-request spend
@@ -55,12 +55,12 @@ MAX_PRICE_USD=1.0                    # Max per-request spend
 
 ## API
 
-### `createAgentWallet(config)`
+### `createPaykit(config)`
 
 Create a wallet with explicit configuration.
 
 ```typescript
-const wallet = createAgentWallet({
+const paykit = createPaykit({
   keypair: myKeypair,
   connection: myConnection,
   maxPriceUsd: 0.50,              // Max $0.50 per request
@@ -69,20 +69,20 @@ const wallet = createAgentWallet({
 });
 ```
 
-### `createAgentWalletFromEnv()`
+### `createPaykitFromEnv()`
 
 Create a wallet from environment variables.
 
 ```typescript
-const wallet = createAgentWalletFromEnv();
+const paykit = createPaykitFromEnv();
 ```
 
-### `wallet.fetch(url, options)`
+### `paykit.fetch(url, options)`
 
 Fetch data from an x402 endpoint with automatic payment.
 
 ```typescript
-const result = await wallet.fetch('https://api.example.com/data', {
+const result = await paykit.fetch('https://api.example.com/data', {
   maxPriceUsd: 0.01,           // Override max price
   expectedFields: ['id', 'name'], // For quality assessment
   minQuality: 70,              // Minimum acceptable quality
@@ -93,12 +93,12 @@ const result = await wallet.fetch('https://api.example.com/data', {
 });
 ```
 
-### `wallet.createEscrow(options)`
+### `paykit.createEscrow(options)`
 
 Create an escrow for a job.
 
 ```typescript
-const result = await wallet.createEscrow({
+const result = await paykit.createEscrow({
   amountSol: 0.1,
   jobId: 'job-123',
   timeLockSeconds: 604800, // 7 days
@@ -110,21 +110,21 @@ if (result.success) {
 }
 ```
 
-### `wallet.getEscrowStatus(address)`
+### `paykit.getEscrowStatus(address)`
 
 Check escrow state.
 
 ```typescript
-const state = await wallet.getEscrowStatus(escrowAddress);
+const state = await paykit.getEscrowStatus(escrowAddress);
 // state.status: 'pending' | 'funded' | 'released' | 'disputed' | 'resolved' | 'expired'
 ```
 
-### `wallet.fileDispute(options)`
+### `paykit.fileDispute(options)`
 
 File a dispute for poor quality.
 
 ```typescript
-const result = await wallet.fileDispute({
+const result = await paykit.fileDispute({
   escrowAddress: '...',
   qualityScore: 25,
   evidence: 'Response missing required fields: price, volume',
@@ -132,12 +132,12 @@ const result = await wallet.fileDispute({
 });
 ```
 
-### `wallet.getReputation(address)`
+### `paykit.getReputation(address)`
 
 Check provider reputation before transacting.
 
 ```typescript
-const rep = await wallet.getReputation(providerAddress);
+const rep = await paykit.getReputation(providerAddress);
 // rep.tier: 'trusted' | 'standard' | 'caution' | 'avoid'
 // rep.score: 0-1000
 // rep.disputeRate: percentage
@@ -147,7 +147,7 @@ const rep = await wallet.getReputation(providerAddress);
 
 ```typescript
 // Track a job
-wallet.trackJob({
+paykit.trackJob({
   jobId: 'job-123',
   description: 'Build escrow integration',
   requester: 'BuyerWallet...',
@@ -156,10 +156,10 @@ wallet.trackJob({
 });
 
 // Update status
-wallet.updateJob('job-123', { status: 'in_progress' });
+paykit.updateJob('job-123', { status: 'in_progress' });
 
 // Get active jobs
-const jobs = wallet.getActiveJobs();
+const jobs = paykit.getActiveJobs();
 ```
 
 ## Integration Examples
@@ -168,12 +168,12 @@ const jobs = wallet.getActiveJobs();
 
 ```typescript
 // In your OpenClaw skill
-import { createAgentWalletFromEnv } from '@kamiyo/agent-wallet';
+import { createPaykitFromEnv } from '@kamiyo/paykit';
 
-const wallet = createAgentWalletFromEnv();
+const paykit = createPaykitFromEnv();
 
 export async function handlePremiumDataRequest(query: string) {
-  const result = await wallet.fetch(`https://api.premium.com/search?q=${query}`, {
+  const result = await paykit.fetch(`https://api.premium.com/search?q=${query}`, {
     maxPriceUsd: 0.05,
     expectedFields: ['results', 'total'],
   });
@@ -189,14 +189,14 @@ export async function handlePremiumDataRequest(query: string) {
 ### Moltbook Job Agent
 
 ```typescript
-import { createAgentWallet } from '@kamiyo/agent-wallet';
+import { createPaykit } from '@kamiyo/paykit';
 
-const wallet = createAgentWallet({ keypair, connection });
+const paykit = createPaykit({ keypair, connection });
 
 // Accept a job
 async function acceptJob(job: MoltbookJob) {
   // Create escrow
-  const escrow = await wallet.createEscrow({
+  const escrow = await paykit.createEscrow({
     amountSol: job.price,
     jobId: job.id,
   });
@@ -206,7 +206,7 @@ async function acceptJob(job: MoltbookJob) {
   }
 
   // Track job
-  wallet.trackJob({
+  paykit.trackJob({
     jobId: job.id,
     description: job.description,
     requester: job.poster,
