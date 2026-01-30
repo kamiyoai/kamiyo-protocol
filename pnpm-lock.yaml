@@ -11,9 +11,6 @@ importers:
       circomlibjs:
         specifier: ^0.1.7
         version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      snarkjs:
-        specifier: ^0.7.6
-        version: 0.7.6
     devDependencies:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
@@ -48,6 +45,9 @@ importers:
       mocha:
         specifier: ^11.7.5
         version: 11.7.5
+      snarkjs:
+        specifier: ^0.7.6
+        version: 0.7.6
       ts-mocha:
         specifier: ^11.1.0
         version: 11.1.0(mocha@11.7.5)(ts-node@10.9.2(@types/node@20.19.28)(typescript@5.9.3))
@@ -429,37 +429,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-
-  packages/dkg-plugin-kamiyo:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      '@kamiyo/dkg-quality-oracle':
-        specifier: workspace:*
-        version: link:../kamiyo-dkg-quality
-      '@kamiyo/sdk':
-        specifier: workspace:*
-        version: link:../kamiyo-sdk
-      '@solana/web3.js':
-        specifier: ^1.98.0
-        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.5
-        version: 5.2.0
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.28
-      typescript:
-        specifier: ^5.0.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.0.0
-        version: 1.6.1(@types/node@20.19.28)
 
   packages/helius-adapter:
     dependencies:
@@ -1574,11 +1543,8 @@ importers:
         specifier: ^2.8.17
         version: 2.8.19
       '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/express-serve-static-core':
-        specifier: ^4.19.8
-        version: 4.19.8
+        specifier: ^5.0.0
+        version: 5.0.6
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10
