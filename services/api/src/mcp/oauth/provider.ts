@@ -1,7 +1,6 @@
 // OAuth Server Provider
 
 import { createHash, randomBytes } from 'crypto';
-import type { Response } from 'express';
 import type { OAuthServerProvider, AuthorizationParams } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { OAuthClientInformationFull, OAuthTokenRevocationRequest, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
@@ -15,6 +14,9 @@ import {
   revokeMcpOAuthToken,
 } from '../../db.js';
 import { mcpOAuthTotal } from '../../metrics.js';
+
+// Response type compatible with both Express 4 and 5
+type ExpressResponse = { redirect(url: string): void };
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -44,7 +46,7 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
   async authorize(
     client: OAuthClientInformationFull,
     params: AuthorizationParams,
-    res: Response
+    res: ExpressResponse
   ): Promise<void> {
     const code = randomBytes(32).toString('hex');
     const now = Math.floor(Date.now() / 1000);

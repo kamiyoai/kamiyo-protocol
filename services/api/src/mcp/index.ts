@@ -1,6 +1,6 @@
 // MCP Routes - OAuth + Streamable HTTP transport
 
-import { Router, json, Request, Response, NextFunction } from 'express';
+import { Router, json, Request, Response, NextFunction, RequestHandler } from 'express';
 import { randomUUID } from 'crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -157,14 +157,14 @@ export function createMCPRoutes(): Router {
 
   router.use(
     mcpAuthRouter({
-      provider,
+      provider: provider as Parameters<typeof mcpAuthRouter>[0]['provider'],
       issuerUrl: baseUrl,
       baseUrl,
       resourceServerUrl: mcpUrl,
       resourceName: 'KAMIYO MCP Server',
       scopesSupported: ['mcp:tools', 'mcp:tools:escrow', 'mcp:tools:x402'],
       serviceDocumentationUrl: new URL('https://github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/kamiyo-mcp'),
-    })
+    }) as unknown as RequestHandler
   );
 
   const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(mcpUrl);
