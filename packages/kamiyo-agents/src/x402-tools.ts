@@ -216,7 +216,6 @@ export function createX402Tools(config: X402ToolsConfig = {}): ToolConfig[] {
           { timeout: slaTimeoutMs * 2 }
         );
 
-        // Check for SLA violation
         if (result.latencyMs && result.latencyMs > slaTimeoutMs && autoDispute) {
           return {
             success: false,
