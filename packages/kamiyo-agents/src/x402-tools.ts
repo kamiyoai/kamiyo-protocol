@@ -1,9 +1,12 @@
 import type { ToolConfig, ToolResult } from './types.js';
 
-const URL_REGEX = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
+const URL_REGEX = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)*(:\d{1,5})?(\/[^\s]*)?$/;
+const MAX_URL_LENGTH = 2048;
+const MAX_PAYMENT_HEADER_LENGTH = 8192;
+const MAX_EVIDENCE_LENGTH = 1000;
 
 function isValidUrl(str: unknown): str is string {
-  return typeof str === 'string' && URL_REGEX.test(str);
+  return typeof str === 'string' && str.length <= MAX_URL_LENGTH && URL_REGEX.test(str);
 }
 
 function sanitizeError(error: unknown): string {
@@ -203,8 +206,8 @@ export function createX402Tools(config: X402ToolsConfig = {}): ToolConfig[] {
         if (!isValidUrl(params.url)) {
           return { success: false, error: 'Invalid URL' };
         }
-        if (typeof params.payment_header !== 'string' || !params.payment_header) {
-          return { success: false, error: 'Payment header required' };
+        if (typeof params.payment_header !== 'string' || !params.payment_header || params.payment_header.length > MAX_PAYMENT_HEADER_LENGTH) {
+          return { success: false, error: 'Invalid payment header' };
         }
 
         const result = await fetchWithPayment(
@@ -245,11 +248,11 @@ export function createX402Tools(config: X402ToolsConfig = {}): ToolConfig[] {
       },
       handler: async (params): Promise<ToolResult> => {
         const agentId = params.agent_id;
-        if (typeof agentId !== 'string' || !agentId || agentId.length > 100) {
+        if (typeof agentId !== 'string' || !agentId || agentId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
           return { success: false, error: 'Invalid agent ID' };
         }
-        if (typeof params.payment_header !== 'string' || !params.payment_header) {
-          return { success: false, error: 'Payment header required' };
+        if (typeof params.payment_header !== 'string' || !params.payment_header || params.payment_header.length > MAX_PAYMENT_HEADER_LENGTH) {
+          return { success: false, error: 'Invalid payment header' };
         }
 
         const url = `${baseUrl}/api/agents/${encodeURIComponent(agentId)}`;
@@ -271,11 +274,11 @@ export function createX402Tools(config: X402ToolsConfig = {}): ToolConfig[] {
       },
       handler: async (params): Promise<ToolResult> => {
         const agentId = params.agent_id;
-        if (typeof agentId !== 'string' || !agentId || agentId.length > 100) {
+        if (typeof agentId !== 'string' || !agentId || agentId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
           return { success: false, error: 'Invalid agent ID' };
         }
-        if (typeof params.payment_header !== 'string' || !params.payment_header) {
-          return { success: false, error: 'Payment header required' };
+        if (typeof params.payment_header !== 'string' || !params.payment_header || params.payment_header.length > MAX_PAYMENT_HEADER_LENGTH) {
+          return { success: false, error: 'Invalid payment header' };
         }
 
         const url = `${baseUrl}/api/reputation/${encodeURIComponent(agentId)}`;
@@ -295,8 +298,8 @@ export function createX402Tools(config: X402ToolsConfig = {}): ToolConfig[] {
         payment_header: { type: 'string', description: 'Signed payment header', required: true },
       },
       handler: async (params): Promise<ToolResult> => {
-        if (typeof params.payment_header !== 'string' || !params.payment_header) {
-          return { success: false, error: 'Payment header required' };
+        if (typeof params.payment_header !== 'string' || !params.payment_header || params.payment_header.length > MAX_PAYMENT_HEADER_LENGTH) {
+          return { success: false, error: 'Invalid payment header' };
         }
 
         const url = `${baseUrl}/api/signals`;
@@ -325,19 +328,23 @@ export function createX402Tools(config: X402ToolsConfig = {}): ToolConfig[] {
       handler: async (params): Promise<ToolResult> => {
         const paymentRef = params.payment_ref;
         const violation = params.violation;
+        const evidence = params.evidence;
 
-        if (typeof paymentRef !== 'string' || !paymentRef) {
-          return { success: false, error: 'Payment reference required' };
+        if (typeof paymentRef !== 'string' || !paymentRef || paymentRef.length > 256) {
+          return { success: false, error: 'Invalid payment reference' };
         }
         if (typeof violation !== 'string' || !['timeout', 'serverError', 'latency', 'malformed', 'incomplete'].includes(violation)) {
           return { success: false, error: 'Invalid violation type' };
+        }
+        if (evidence !== undefined && (typeof evidence !== 'string' || evidence.length > MAX_EVIDENCE_LENGTH)) {
+          return { success: false, error: 'Evidence must be under 1000 characters' };
         }
 
         const result = await requestSettlement(
           baseUrl,
           paymentRef,
           violation,
-          params.evidence as string | undefined
+          evidence as string | undefined
         );
 
         if (!result.success) {
