@@ -12,12 +12,11 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors());
 app.use(express.json({ limit: '16kb' }));
 
-// Rate limiting (simple in-memory, use Redis in production)
+// Rate limiting
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 100; // requests per minute
 const RATE_WINDOW = 60_000;
@@ -43,7 +42,6 @@ function rateLimit(req: Request, res: Response, next: NextFunction) {
 
 app.use(rateLimit);
 
-// Clean up rate limit entries periodically
 setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of rateLimitStore) {
@@ -51,15 +49,12 @@ setInterval(() => {
   }
 }, 60_000);
 
-// Serve static files (logo, favicon)
 app.use('/public', express.static(path.join(__dirname, '../public')));
 
-// Serve favicon
 app.get('/favicon.ico', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/logo.png'));
 });
 
-// HTML homepage with OpenGraph metadata for x402scan scraper
 app.get('/', (_req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -100,7 +95,6 @@ app.get('/', (_req, res) => {
 </html>`);
 });
 
-// Config
 const PORT = parseInt(process.env.PORT || '3402', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const MERCHANT_ADDRESS = process.env.MERCHANT_ADDRESS || '';
@@ -109,14 +103,12 @@ const DKG_ENDPOINT = process.env.DKG_ENDPOINT || 'https://dkg.kamiyo.ai';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
 const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
 
-// Base pricing (in USDC)
 const BASE_PRICES = {
   agentQuery: parseFloat(process.env.PRICE_AGENT_QUERY || '0.001'),
   reputationCheck: parseFloat(process.env.PRICE_REPUTATION_CHECK || '0.0005'),
   signal: parseFloat(process.env.PRICE_SIGNAL || '0.01'),
 };
 
-// Reputation-based pricing tiers
 interface ReputationTier {
   name: string;
   minThreshold: number;
@@ -145,7 +137,6 @@ function calculatePrice(basePrice: number, threshold: number | null): { price: n
   return { price: basePrice - discount, discount, tier };
 }
 
-// Network configs for USDC
 const NETWORK_CONFIGS: Record<string, { chainId: string; usdc: string }> = {
   base: { chainId: 'eip155:8453', usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
   polygon: { chainId: 'eip155:137', usdc: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' },
@@ -161,7 +152,6 @@ function toMicro(usdc: number): string {
   return String(Math.floor(usdc * 1_000_000));
 }
 
-// Settlement tracking (in-memory for demo, use Redis/DB in production)
 interface SettlementRecord {
   paymentRef: string;
   resource: string;
@@ -177,15 +167,12 @@ const settlementStore = new Map<string, SettlementRecord>();
 const MAX_SETTLEMENT_RECORDS = 10_000;
 const SETTLEMENT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-// Clean up old settlement records periodically
 setInterval(() => {
   const now = Date.now();
   for (const [ref, record] of settlementStore) {
     if (now - record.timestamp > SETTLEMENT_TTL) settlementStore.delete(ref);
   }
 }, 60_000);
-
-// Input validation
 const AGENT_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
 function isValidAgentId(id: unknown): id is string {
@@ -239,7 +226,6 @@ function create402Response(
     },
   };
 
-  // Add tiered pricing info if reputation pricing is enabled
   if (ENABLE_REPUTATION_PRICING) {
     response.pricing = {
       basePrice,
@@ -256,7 +242,6 @@ function create402Response(
     };
   }
 
-  // Add settlement info if enabled
   if (SETTLEMENT_ENABLED) {
     response.settlement = {
       enabled: true,
@@ -333,17 +318,13 @@ async function settlePayment(paymentHeader: string, requirement: Record<string, 
   }
 }
 
-// Extract reputation threshold from payment header extensions
 function extractReputationThreshold(paymentHeader: string): number | null {
   try {
     const decoded = JSON.parse(Buffer.from(paymentHeader, 'base64').toString());
-    if (decoded.extensions?.['kamiyo:reputation']?.threshold) {
-      return decoded.extensions['kamiyo:reputation'].threshold;
-    }
+    return decoded.extensions?.['kamiyo:reputation']?.threshold ?? null;
   } catch {
-    // Not a JSON payload or no reputation extension
+    return null;
   }
-  return null;
 }
 
 function x402Middleware(basePrice: number, description: string) {
@@ -353,7 +334,6 @@ function x402Middleware(basePrice: number, description: string) {
     const requestStart = Date.now();
 
     if (!paymentHeader) {
-      // Check if caller provided reputation proof for tiered pricing
       const reputationThreshold = parseReputationThreshold(req.headers['x-reputation-threshold']);
 
       const body = create402Response(resource, basePrice, description, reputationThreshold);
@@ -364,11 +344,9 @@ function x402Middleware(basePrice: number, description: string) {
       return res.status(402).json(body);
     }
 
-    // Extract reputation for tiered pricing
     const reputationThreshold = extractReputationThreshold(paymentHeader);
     const { price } = calculatePrice(basePrice, reputationThreshold);
 
-    // Try to verify against each supported network
     for (const network of SUPPORTED_NETWORKS) {
       const requirement = {
         scheme: 'exact',
@@ -388,7 +366,6 @@ function x402Middleware(basePrice: number, description: string) {
         if (settleResult.success) {
           const paymentRef = `${settleResult.tx || Date.now()}-${resource}`;
 
-          // Track for settlement if enabled (with size limit)
           if (SETTLEMENT_ENABLED && settleResult.tx && settlementStore.size < MAX_SETTLEMENT_RECORDS) {
             settlementStore.set(paymentRef, {
               paymentRef,
@@ -416,7 +393,6 @@ function x402Middleware(basePrice: number, description: string) {
       }
     }
 
-    // Payment failed
     const body = create402Response(resource, basePrice, description);
     (body as Record<string, unknown>).verifyError = 'Payment verification failed';
     res.set({
@@ -426,8 +402,6 @@ function x402Middleware(basePrice: number, description: string) {
     return res.status(402).json(body);
   };
 }
-
-// ============ Data Sources ============
 
 async function fetchAgentData(agentId: string): Promise<Record<string, unknown> | null> {
   if (DKG_ENDPOINT && DKG_ENDPOINT !== 'https://dkg.kamiyo.ai') {
@@ -440,7 +414,7 @@ async function fetchAgentData(agentId: string): Promise<Record<string, unknown> 
         return await res.json() as Record<string, unknown>;
       }
     } catch {
-      // DKG unavailable, fallback to mock
+      // fallback below
     }
   }
 
@@ -466,7 +440,7 @@ async function fetchAgentData(agentId: string): Promise<Record<string, unknown> 
 }
 
 async function fetchReputationData(agentId: string): Promise<Record<string, unknown> | null> {
-  // TODO: Query on-chain reputation from Solana/Base
+  // TODO: on-chain query
   const score = 75 + Math.floor(Math.random() * 20);
   const tier = getTierForThreshold(score);
 
@@ -494,7 +468,7 @@ async function fetchReputationData(agentId: string): Promise<Record<string, unkn
 }
 
 async function fetchSignals(): Promise<Record<string, unknown>[]> {
-  // TODO: Aggregate from top-rated agents
+  // TODO: aggregate from agents
   return [
     {
       agent: 'agent-001',
@@ -521,9 +495,6 @@ async function fetchSignals(): Promise<Record<string, unknown>[]> {
   ];
 }
 
-// ============ Routes ============
-
-// Health check (free)
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
@@ -539,7 +510,6 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// x402 discovery document
 app.get('/.well-known/x402', (_req, res) => {
   res.json({
     version: '2.0',
@@ -579,7 +549,6 @@ app.get('/.well-known/x402', (_req, res) => {
   });
 });
 
-// Agent query endpoint
 app.get(
   '/api/agents/:agentId',
   x402Middleware(BASE_PRICES.agentQuery, 'Query KAMIYO agent profile'),
@@ -596,7 +565,6 @@ app.get(
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // Mark settlement as completed
     if (SETTLEMENT_ENABLED && x402.paymentRef) {
       const record = settlementStore.get(x402.paymentRef as string);
       if (record) {
@@ -617,7 +585,6 @@ app.get(
   }
 );
 
-// Reputation check endpoint
 app.get(
   '/api/reputation/:agentId',
   x402Middleware(BASE_PRICES.reputationCheck, 'Check KAMIYO agent reputation'),
@@ -634,7 +601,6 @@ app.get(
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // Mark settlement as completed
     if (SETTLEMENT_ENABLED && x402.paymentRef) {
       const record = settlementStore.get(x402.paymentRef as string);
       if (record) {
@@ -655,7 +621,6 @@ app.get(
   }
 );
 
-// Trading signals endpoint
 app.get(
   '/api/signals',
   x402Middleware(BASE_PRICES.signal, 'Get KAMIYO trading signals'),
@@ -664,7 +629,6 @@ app.get(
 
     const signals = await fetchSignals();
 
-    // Mark settlement as completed
     if (SETTLEMENT_ENABLED && x402.paymentRef) {
       const record = settlementStore.get(x402.paymentRef as string);
       if (record) {
@@ -686,9 +650,6 @@ app.get(
   }
 );
 
-// ============ Settlement Endpoints ============
-
-// Check settlement eligibility
 app.get('/api/settlement/:paymentRef', (req, res) => {
   if (!SETTLEMENT_ENABLED) {
     return res.status(404).json({ error: 'Settlement not enabled' });
@@ -712,7 +673,6 @@ app.get('/api/settlement/:paymentRef', (req, res) => {
   });
 });
 
-// Request settlement (file dispute)
 app.post('/api/settlement/:paymentRef', express.json({ limit: '4kb' }), (req, res) => {
   if (!SETTLEMENT_ENABLED) {
     return res.status(404).json({ error: 'Settlement not enabled' });
@@ -727,13 +687,11 @@ app.post('/api/settlement/:paymentRef', express.json({ limit: '4kb' }), (req, re
   const violation = body.violation;
   const evidence = body.evidence;
 
-  // Validate violation type
   const validViolations = ['timeout', 'serverError', 'latency', 'malformed', 'incomplete'];
   if (typeof violation !== 'string' || !validViolations.includes(violation)) {
     return res.status(400).json({ error: 'Invalid violation type' });
   }
 
-  // Validate evidence if provided
   if (evidence !== undefined && (typeof evidence !== 'string' || evidence.length > 1000)) {
     return res.status(400).json({ error: 'Evidence must be a string under 1000 characters' });
   }
@@ -747,7 +705,6 @@ app.post('/api/settlement/:paymentRef', express.json({ limit: '4kb' }), (req, re
     return res.status(400).json({ error: 'Settlement already processed' });
   }
 
-  // Calculate refund based on violation type
   const refundPercents: Record<string, number> = {
     timeout: 100,
     serverError: 100,
@@ -772,7 +729,6 @@ app.post('/api/settlement/:paymentRef', express.json({ limit: '4kb' }), (req, re
   });
 });
 
-// Start server
 app.listen(PORT, HOST, () => {
   console.log(`KAMIYO x402 server running at http://${HOST}:${PORT}`);
   console.log(`Merchant: ${MERCHANT_ADDRESS}`);
