@@ -1,0 +1,158 @@
+import type { MoltbookPost, MoltbookComment, MoltbookSearchResult } from './types.js';
+
+const BASE_URL = 'https://www.moltbook.com/api/v1';
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
+export class MoltbookClient {
+  private commentCount = 0;
+  private commentWindowStart = Date.now();
+
+  constructor(private apiKey: string) {
+    if (!apiKey || !apiKey.startsWith('moltbook_')) {
+      throw new Error('Invalid Moltbook API key format');
+    }
+  }
+
+  private async request<T>(
+    path: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt));
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+      try {
+        const res = await fetch(`${BASE_URL}${path}`, {
+          ...options,
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (res.status === 429) {
+          lastError = new Error('Rate limited');
+          continue;
+        }
+
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`Moltbook API error ${res.status}: ${body.slice(0, 200)}`);
+        }
+
+        return res.json();
+      } catch (err) {
+        clearTimeout(timeout);
+        lastError = err instanceof Error ? err : new Error('Request failed');
+        if (err instanceof Error && err.name === 'AbortError') {
+          lastError = new Error('Request timeout');
+        }
+      }
+    }
+
+    throw lastError ?? new Error('Request failed');
+  }
+
+  async search(query: string, limit = 50): Promise<MoltbookSearchResult> {
+    const encoded = encodeURIComponent(query);
+    return this.request<MoltbookSearchResult>(`/search?q=${encoded}&limit=${limit}`);
+  }
+
+  async searchJobs(keywords: string[]): Promise<MoltbookPost[]> {
+    const query = keywords.join(' OR ');
+    const result = await this.search(query);
+    return result.posts || [];
+  }
+
+  async getPost(postId: string): Promise<MoltbookPost> {
+    return this.request<MoltbookPost>(`/posts/${postId}`);
+  }
+
+  async getComments(postId: string): Promise<MoltbookComment[]> {
+    const result = await this.request<{ comments: MoltbookComment[] }>(
+      `/posts/${postId}/comments`
+    );
+    return result.comments || [];
+  }
+
+  async getFeed(sort: 'hot' | 'new' | 'top' = 'new', limit = 25): Promise<MoltbookPost[]> {
+    const result = await this.request<{ posts: MoltbookPost[] }>(
+      `/posts?sort=${sort}&limit=${limit}`
+    );
+    return result.posts || [];
+  }
+
+  private checkCommentRateLimit(): void {
+    const now = Date.now();
+    const hourMs = 60 * 60 * 1000;
+
+    if (now - this.commentWindowStart > hourMs) {
+      this.commentCount = 0;
+      this.commentWindowStart = now;
+    }
+
+    if (this.commentCount >= 45) {
+      throw new Error('Comment rate limit approaching (45/50 per hour)');
+    }
+  }
+
+  async comment(postId: string, content: string): Promise<void> {
+    if (!postId || !/^[a-zA-Z0-9_-]+$/.test(postId)) {
+      throw new Error('Invalid post ID');
+    }
+    if (!content || content.length > 10000) {
+      throw new Error('Comment must be 1-10000 characters');
+    }
+
+    this.checkCommentRateLimit();
+
+    await this.request(`/posts/${postId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+
+    this.commentCount++;
+  }
+
+  async reply(commentId: string, content: string): Promise<void> {
+    if (!commentId || !/^[a-zA-Z0-9_-]+$/.test(commentId)) {
+      throw new Error('Invalid comment ID');
+    }
+    if (!content || content.length > 10000) {
+      throw new Error('Reply must be 1-10000 characters');
+    }
+
+    this.checkCommentRateLimit();
+
+    await this.request(`/comments/${commentId}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+
+    this.commentCount++;
+  }
+
+  async upvote(postId: string): Promise<void> {
+    await this.request(`/posts/${postId}/upvote`, { method: 'POST' });
+  }
+
+  async getAgentStatus(): Promise<{ status: string; claimed: boolean }> {
+    const result = await this.request<{ status: string }>('/agents/status');
+    return {
+      status: result.status,
+      claimed: result.status === 'active',
+    };
+  }
+}
