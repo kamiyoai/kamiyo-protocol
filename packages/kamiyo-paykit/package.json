@@ -1,8 +1,8 @@
 {
-  "name": "@kamiyo/agent-wallet",
+  "name": "@kamiyo/paykit",
   "version": "1.0.0",
   "type": "module",
-  "description": "Unified wallet for autonomous AI agents. Payments, escrow, reputation, and disputes in one interface.",
+  "description": "Payment toolkit for autonomous AI agents. x402, escrow, reputation, disputes.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -15,12 +15,12 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint src --ext .ts",
-    "test": "tsx tests/wallet.test.ts"
+    "test": "tsx tests/paykit.test.ts"
   },
   "keywords": [
     "ai-agent",
     "autonomous-agent",
-    "agent-wallet",
+    "paykit",
     "agent-payments",
     "escrow",
     "dispute-resolution",

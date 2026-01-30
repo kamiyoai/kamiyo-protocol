@@ -15,7 +15,7 @@ import {
 } from '@kamiyo/x402-client';
 
 import type {
-  AgentWalletConfig,
+  PaykitConfig,
   PaymentOptions,
   PaymentResult,
   EscrowOptions,
@@ -37,7 +37,7 @@ const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
 const MAX_JOB_ID_LENGTH = 64;
 const MIN_BALANCE_BUFFER_SOL = 0.005;
 
-export class AgentWallet {
+export class Paykit {
   private keypair: Keypair;
   private connection: Connection;
   private programId: PublicKey;
@@ -50,7 +50,7 @@ export class AgentWallet {
 
   private activeJobs: Map<string, JobContext> = new Map();
 
-  constructor(config: AgentWalletConfig) {
+  constructor(config: PaykitConfig) {
     this.keypair = config.keypair;
     this.connection = config.connection;
     this.programId = new PublicKey(config.programId || DEFAULT_PROGRAM_ID);
@@ -104,7 +104,7 @@ export class AgentWallet {
         method: options.method || 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'KAMIYO-AgentWallet/1.0',
+          'User-Agent': 'KAMIYO-Paykit/1.0',
           ...options.headers,
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
@@ -404,11 +404,11 @@ export class AgentWallet {
   }
 }
 
-export function createAgentWallet(config: AgentWalletConfig): AgentWallet {
-  return new AgentWallet(config);
+export function createPaykit(config: PaykitConfig): Paykit {
+  return new Paykit(config);
 }
 
-export function createAgentWalletFromEnv(): AgentWallet {
+export function createPaykitFromEnv(): Paykit {
   const privateKey = process.env.AGENT_PRIVATE_KEY;
   if (!privateKey) {
     throw new Error('AGENT_PRIVATE_KEY environment variable required');
@@ -421,10 +421,15 @@ export function createAgentWalletFromEnv(): AgentWallet {
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
   const connection = new Connection(rpcUrl, 'confirmed');
 
-  return new AgentWallet({
+  return new Paykit({
     keypair,
     connection,
     programId: process.env.KAMIYO_PROGRAM_ID,
     maxPriceUsd: process.env.MAX_PRICE_USD ? parseFloat(process.env.MAX_PRICE_USD) : undefined,
   });
 }
+
+// Backward compat aliases
+export { Paykit as AgentWallet };
+export { createPaykit as createAgentWallet };
+export { createPaykitFromEnv as createAgentWalletFromEnv };
