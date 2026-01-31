@@ -52,3 +52,32 @@ export type {
   ChainConfig,
   ResolverConfig,
 } from './migration';
+
+export { ContextGraph } from './context';
+export {
+  buildAgentContextAsset,
+  buildFeedbackAsset,
+  buildValidationAsset,
+  buildDecisionTraceAsset,
+  buildCredentialAsset,
+  buildRelationshipAsset,
+  buildAgentURN,
+  sparqlQueries,
+} from './context';
+export type {
+  DKGClient,
+  ContextGraphConfig,
+  PublishResult,
+  ERC8004RegistrationFile,
+  FeedbackRecord,
+  ValidationRecord,
+  DecisionTrace,
+  VerifiableCredential,
+  AgentRelationship as DKGAgentRelationship,
+  AgentContextResult,
+  ReputationQueryResult,
+  TrustModel,
+  ServiceName,
+  ServiceEndpoint,
+  RegistrationEntry,
+} from './context';
