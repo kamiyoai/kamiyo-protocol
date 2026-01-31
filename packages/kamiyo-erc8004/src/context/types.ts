@@ -6,10 +6,24 @@ export const HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
 export const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 export const GLOBAL_ID_REGEX = /^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/;
 
+export interface DKGAssetOperations {
+  create(
+    content: { public?: object; private?: object },
+    options?: { epochs?: number; blockchain?: string }
+  ): Promise<{ UAL: string; publicAssertionId: string }>;
+  get(
+    ual: string,
+    options?: { state?: string; contentType?: 'public' | 'private' | 'all'; outputFormat?: 'n-quads' | 'json-ld' }
+  ): Promise<{ public?: { assertion: unknown }; private?: { assertion: unknown } }>;
+}
+
+export interface DKGGraphOperations {
+  query(queryString: string, queryType: 'CONSTRUCT' | 'SELECT'): Promise<{ data: unknown[] }>;
+}
+
 export interface DKGClient {
-  query(sparql: string): Promise<unknown[]>;
-  get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }>;
-  publish(content: { public: object }, options?: { epochs?: number }): Promise<string>;
+  asset: DKGAssetOperations;
+  graph: DKGGraphOperations;
 }
 
 export type ServiceName = 'A2A' | 'MCP' | 'OASF' | 'ENS' | 'DID' | 'email';

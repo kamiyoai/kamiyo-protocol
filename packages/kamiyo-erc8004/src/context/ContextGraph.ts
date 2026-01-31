@@ -109,8 +109,8 @@ export class ContextGraph {
     const asset = buildAgentContextAsset(globalId, registration);
 
     try {
-      const ual = await this.dkg.publish({ public: asset }, { epochs: this.epochs });
-      return { success: true, ual };
+      const result = await this.dkg.asset.create({ public: asset }, { epochs: this.epochs });
+      return { success: true, ual: result.UAL };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -145,8 +145,8 @@ export class ContextGraph {
     const asset = buildFeedbackAsset(feedback);
 
     try {
-      const ual = await this.dkg.publish({ public: asset }, { epochs: this.epochs });
-      return { success: true, ual };
+      const result = await this.dkg.asset.create({ public: asset }, { epochs: this.epochs });
+      return { success: true, ual: result.UAL };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -184,8 +184,8 @@ export class ContextGraph {
     const asset = buildValidationAsset(validation);
 
     try {
-      const ual = await this.dkg.publish({ public: asset }, { epochs: this.epochs });
-      return { success: true, ual };
+      const result = await this.dkg.asset.create({ public: asset }, { epochs: this.epochs });
+      return { success: true, ual: result.UAL };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -220,8 +220,8 @@ export class ContextGraph {
     const asset = buildDecisionTraceAsset(trace);
 
     try {
-      const ual = await this.dkg.publish({ public: asset }, { epochs: this.epochs });
-      return { success: true, ual };
+      const result = await this.dkg.asset.create({ public: asset }, { epochs: this.epochs });
+      return { success: true, ual: result.UAL };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -256,8 +256,8 @@ export class ContextGraph {
     const asset = buildCredentialAsset(agentGlobalId, credential);
 
     try {
-      const ual = await this.dkg.publish({ public: asset }, { epochs: this.epochs });
-      return { success: true, ual };
+      const result = await this.dkg.asset.create({ public: asset }, { epochs: this.epochs });
+      return { success: true, ual: result.UAL };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -290,8 +290,8 @@ export class ContextGraph {
     const asset = buildRelationshipAsset(relationship);
 
     try {
-      const ual = await this.dkg.publish({ public: asset }, { epochs: this.epochs });
-      return { success: true, ual };
+      const result = await this.dkg.asset.create({ public: asset }, { epochs: this.epochs });
+      return { success: true, ual: result.UAL };
     } catch (error) {
       return { success: false, error: sanitizeError(error) };
     }
@@ -302,7 +302,7 @@ export class ContextGraph {
 
     try {
       const query = sparql.queryAgentByGlobalId(globalId);
-      const results = await this.dkg.query(query) as Array<Record<string, { value?: unknown }>>;
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<Record<string, { value?: unknown }>> };
 
       if (!results.length) return null;
 
@@ -331,7 +331,7 @@ export class ContextGraph {
   async findAgentsByTrustModel(trustModel: TrustModel, limit = 20): Promise<string[]> {
     try {
       const query = sparql.queryAgentsByTrustModel(trustModel, limit);
-      const results = await this.dkg.query(query) as Array<{ globalId?: { value?: string } }>;
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<{ globalId?: { value?: string } }> };
       return results.map(r => r.globalId?.value).filter((v): v is string => !!v);
     } catch {
       return [];
@@ -341,10 +341,10 @@ export class ContextGraph {
   async findAgentsByService(serviceName: string, limit = 20): Promise<Array<{ globalId: string; endpoint: string }>> {
     try {
       const query = sparql.queryAgentsByService(serviceName, limit);
-      const results = await this.dkg.query(query) as Array<{
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<{
         globalId?: { value?: string };
         endpoint?: { value?: string };
-      }>;
+      }> };
       return results
         .filter(r => r.globalId?.value && r.endpoint?.value)
         .map(r => ({
@@ -359,7 +359,7 @@ export class ContextGraph {
   async findX402Agents(limit = 20): Promise<string[]> {
     try {
       const query = sparql.queryX402Agents(limit);
-      const results = await this.dkg.query(query) as Array<{ globalId?: { value?: string } }>;
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<{ globalId?: { value?: string } }> };
       return results.map(r => r.globalId?.value).filter((v): v is string => !!v);
     } catch {
       return [];
@@ -369,11 +369,11 @@ export class ContextGraph {
   async findAgentsByReputation(minRating: number, limit = 20): Promise<ReputationQueryResult[]> {
     try {
       const query = sparql.queryAgentsByReputation(minRating, limit);
-      const results = await this.dkg.query(query) as Array<{
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<{
         globalId?: { value?: string };
         avgRating?: { value?: number };
         feedbackCount?: { value?: number };
-      }>;
+      }> };
       return results
         .filter(r => r.globalId?.value)
         .map(r => ({
@@ -395,10 +395,10 @@ export class ContextGraph {
 
     try {
       const query = sparql.queryAgentFeedbackSummary(globalId, tag1, tag2);
-      const results = await this.dkg.query(query) as Array<{
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<{
         count?: { value?: number };
         avgRating?: { value?: number };
-      }>;
+      }> };
 
       if (!results.length) return { count: 0, averageRating: 0 };
 
@@ -420,10 +420,10 @@ export class ContextGraph {
 
     try {
       const query = sparql.queryAgentValidationSummary(globalId, validatorAddress, tag);
-      const results = await this.dkg.query(query) as Array<{
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<{
         count?: { value?: number };
         avgResponse?: { value?: number };
-      }>;
+      }> };
 
       if (!results.length) return { count: 0, averageResponse: 0 };
 
@@ -441,7 +441,7 @@ export class ContextGraph {
 
     try {
       const query = sparql.queryAgentDecisions(globalId, limit);
-      const results = await this.dkg.query(query) as Array<Record<string, { value?: unknown }>>;
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<Record<string, { value?: unknown }>> };
 
       return results.map(r => ({
         agentGlobalId: globalId,
@@ -462,7 +462,7 @@ export class ContextGraph {
 
     try {
       const query = sparql.queryAgentRelationships(globalId, limit);
-      const results = await this.dkg.query(query) as Array<Record<string, { value?: unknown }>>;
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<Record<string, { value?: unknown }>> };
 
       return results.map(r => ({
         sourceGlobalId: globalId,
@@ -485,7 +485,7 @@ export class ContextGraph {
   }> {
     try {
       const query = sparql.queryAgentAssetCounts(globalId);
-      const results = await this.dkg.query(query) as Array<Record<string, { value?: number }>>;
+      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as { data: Array<Record<string, { value?: number }>> };
 
       if (!results.length) {
         return { feedbackCount: 0, validationCount: 0, decisionCount: 0, relationshipCount: 0 };
