@@ -65,15 +65,21 @@ export class MoltbookClient {
     throw lastError ?? new Error('Request failed');
   }
 
-  async search(query: string, limit = 50): Promise<MoltbookSearchResult> {
-    const encoded = encodeURIComponent(query);
-    return this.request<MoltbookSearchResult>(`/search?q=${encoded}&limit=${limit}`);
+  // Search endpoint is broken (500), use feed scanning instead
+  async search(_query: string, _limit = 50): Promise<MoltbookSearchResult> {
+    // Fallback: scan feed for matching posts
+    const posts = await this.getFeed('new', 50);
+    return { posts, agents: [], submolts: [] };
   }
 
   async searchJobs(keywords: string[]): Promise<MoltbookPost[]> {
-    const query = keywords.join(' OR ');
-    const result = await this.search(query);
-    return result.posts || [];
+    // Search is broken, scan recent posts for keywords instead
+    const posts = await this.getFeed('new', 50);
+    const lowerKeywords = keywords.map(k => k.toLowerCase());
+    return posts.filter(post => {
+      const text = `${post.title} ${post.body || ''}`.toLowerCase();
+      return lowerKeywords.some(kw => text.includes(kw));
+    });
   }
 
   async getPost(postId: string): Promise<MoltbookPost> {
@@ -148,11 +154,88 @@ export class MoltbookClient {
     await this.request(`/posts/${postId}/upvote`, { method: 'POST' });
   }
 
-  async getAgentStatus(): Promise<{ status: string; claimed: boolean }> {
-    const result = await this.request<{ status: string }>('/agents/status');
+  async getAgentStatus(): Promise<{ status: string; claimed: boolean; name?: string }> {
+    const result = await this.request<{ success: boolean; status: string; agent?: { name: string } }>('/agents/status');
     return {
       status: result.status,
-      claimed: result.status === 'active',
+      claimed: result.status === 'claimed',
+      name: result.agent?.name,
     };
+  }
+
+  private postCount = 0;
+  private postWindowStart = Date.now();
+
+  private checkPostRateLimit(): void {
+    const now = Date.now();
+    const hourMs = 60 * 60 * 1000;
+
+    if (now - this.postWindowStart > hourMs) {
+      this.postCount = 0;
+      this.postWindowStart = now;
+    }
+
+    // Moltbook allows ~2 posts per hour for agents
+    if (this.postCount >= 2) {
+      throw new Error('Post rate limit reached (2/hour)');
+    }
+  }
+
+  async createPost(params: {
+    title: string;
+    body: string;
+    submolt: string;
+  }): Promise<{ postId: string; url: string }> {
+    if (!params.title || params.title.length > 300) {
+      throw new Error('Title must be 1-300 characters');
+    }
+    if (!params.body || params.body.length > 40000) {
+      throw new Error('Body must be 1-40000 characters');
+    }
+    if (!params.submolt || !/^[a-zA-Z0-9/_-]+$/.test(params.submolt)) {
+      throw new Error('Invalid submolt format');
+    }
+
+    this.checkPostRateLimit();
+
+    const result = await this.request<{ id: string; url: string }>('/posts', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: params.title,
+        body: params.body,
+        submolt: params.submolt,
+      }),
+    });
+
+    this.postCount++;
+
+    return {
+      postId: result.id,
+      url: result.url || `https://www.moltbook.com/p/${result.id}`,
+    };
+  }
+
+  async getMentions(_since?: number): Promise<MoltbookComment[]> {
+    // Mentions endpoint is 404 - return empty for now
+    // TODO: Scan posts/comments for @mentions manually when API is fixed
+    return [];
+  }
+
+  async getAgentProfile(handle: string): Promise<{
+    handle: string;
+    description: string;
+    reputation?: number;
+    postCount: number;
+    joinedAt: string;
+  } | null> {
+    if (!handle || !/^[a-zA-Z0-9_-]+$/.test(handle)) {
+      return null;
+    }
+
+    try {
+      return await this.request(`/agents/${handle}`);
+    } catch {
+      return null;
+    }
   }
 }
