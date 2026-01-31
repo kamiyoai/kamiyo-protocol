@@ -76,8 +76,14 @@ export interface AgentConfig {
   minPostIntervalMs?: number;
   // Phase 4: DKG + Identity
   dkgEndpoint?: string;
+  dkgPort?: number;
+  dkgBlockchain?: string;
+  dkgPublicKey?: string;
+  dkgPrivateKey?: string;
   chainId?: number;
   erc8004RegistryAddress?: string;
+  // Escrow treasury
+  treasuryAddress?: string;
 }
 
 // Proactive posting types

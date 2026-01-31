@@ -29,8 +29,14 @@ function getConfig(): AgentConfig {
     minPostIntervalMs: parseInt(process.env.MIN_POST_INTERVAL_MS || '3600000', 10),
     // Phase 4: DKG + Identity
     dkgEndpoint: process.env.DKG_ENDPOINT,
+    dkgPort: process.env.DKG_PORT ? parseInt(process.env.DKG_PORT, 10) : undefined,
+    dkgBlockchain: process.env.DKG_BLOCKCHAIN,
+    dkgPublicKey: process.env.DKG_PUBLIC_KEY,
+    dkgPrivateKey: process.env.DKG_PRIVATE_KEY,
     chainId: parseInt(process.env.CHAIN_ID || '8453', 10),
     erc8004RegistryAddress: process.env.ERC8004_REGISTRY_ADDRESS,
+    // Escrow treasury
+    treasuryAddress: process.env.TREASURY_ADDRESS,
   };
 }
 

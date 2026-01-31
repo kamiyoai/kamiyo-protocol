@@ -36,6 +36,7 @@ import { IdentityResolver } from './services/identity-resolver.js';
 import { GatedAccessService } from './services/gated-access.js';
 import { TrustGraphVisualizer } from './visualization/trust-graph-viz.js';
 import { DKGPublisher, type DKGClient } from './services/dkg-publisher.js';
+import { createDKGClient as createRealDKGClient, type DKGLogger, DKGClient as RealDKGClient } from '@kamiyo/dkg-quality-oracle';
 import { SwarmTeamsProver } from '@kamiyo/kamiyo-swarmteams';
 import type { KamiyoHive } from '@kamiyo/hive';
 import type { AgentConfig, MoltbookPost, Job, WorkResult, MoltbookComment } from './types.js';
@@ -102,6 +103,7 @@ export class MoltbookJobBridgeAgent {
       rpcUrl: this.config.solanaRpcUrl,
       privateKey: this.config.agentPrivateKey,
       programId: this.config.programId,
+      treasuryAddress: this.config.treasuryAddress,
     });
 
     if (this.hive) {
@@ -147,12 +149,29 @@ export class MoltbookJobBridgeAgent {
       anthropic: this.anthropic,
     });
 
-    // Initialize DKG publisher if endpoint configured
     if (this.config.dkgEndpoint) {
+      const dkgLogger: DKGLogger = {
+        debug: (msg: string) => console.log(`[DKG] ${msg}`),
+        info: (msg: string) => console.log(`[DKG] ${msg}`),
+        warn: (msg: string) => console.warn(`[DKG] ${msg}`),
+        error: (msg: string) => console.error(`[DKG] ${msg}`),
+      };
+
+      const realClient = createRealDKGClient({
+        endpoint: this.config.dkgEndpoint,
+        port: this.config.dkgPort,
+        blockchain: this.config.dkgBlockchain ? {
+          name: this.config.dkgBlockchain,
+          publicKey: this.config.dkgPublicKey,
+          privateKey: this.config.dkgPrivateKey,
+        } : undefined,
+      }, dkgLogger) as RealDKGClient;
+
       const dkgClient: DKGClient = {
-        query: async () => [],
-        get: async () => ({ content: {} }),
-        publish: async () => 'mock-ual',
+        query: (sparql: string) => realClient.query(sparql),
+        get: (ual: string) => realClient.get(ual),
+        publish: (content: object, options?: { epochs?: number }) =>
+          realClient.publish(content, options),
       };
 
       this.dkgPublisher = new DKGPublisher({
@@ -161,7 +180,7 @@ export class MoltbookJobBridgeAgent {
         defaultEpochs: 2,
       });
 
-      console.log('[Agent] DKG publisher initialized');
+      console.log('[Agent] DKG enabled');
     }
 
     // Initialize collective memory
