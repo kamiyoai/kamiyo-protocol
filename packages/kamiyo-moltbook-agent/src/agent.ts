@@ -104,10 +104,15 @@ export class MoltbookJobBridgeAgent {
   }
 
   async initialize(): Promise<void> {
-    const status = await this.moltbook.getAgentStatus();
-    if (!status.claimed) {
-      console.warn('[Agent] Moltbook agent not claimed yet - cannot post comments');
-      console.warn('[Agent] Running in read-only mode');
+    try {
+      const status = await this.moltbook.getAgentStatus();
+      if (!status.claimed) {
+        console.warn('[Agent] Moltbook agent not claimed yet - cannot post comments');
+        console.warn('[Agent] Running in read-only mode');
+      }
+    } catch (err) {
+      console.warn('[Agent] Could not verify Moltbook status (API may be down):', err instanceof Error ? err.message : 'Unknown error');
+      console.warn('[Agent] Continuing with initialization...');
     }
 
     this.escrow = await createEscrowClient({
@@ -269,20 +274,25 @@ export class MoltbookJobBridgeAgent {
   }
 
   private async pollCycle(): Promise<void> {
-    // Proactive engagement (new)
-    if (this.config.enableProactivePosting) {
-      await this.maybeCreatePost();
+    try {
+      // Proactive engagement (new)
+      if (this.config.enableProactivePosting) {
+        await this.maybeCreatePost();
+      }
+      await this.monitorMentions();
+      await this.trackEngagement();
+
+      // Campaign job monitoring (A2A transactions)
+      await this.monitorCampaignJobs();
+
+      // Job processing (existing)
+      await this.findNewJobs();
+      await this.checkPendingOffers();
+      await this.processActiveJobs();
+    } catch (err) {
+      console.error('[Agent] Poll cycle error:', err instanceof Error ? err.message : 'Unknown error');
+      // Continue running - will retry next cycle
     }
-    await this.monitorMentions();
-    await this.trackEngagement();
-
-    // Campaign job monitoring (A2A transactions)
-    await this.monitorCampaignJobs();
-
-    // Job processing (existing)
-    await this.findNewJobs();
-    await this.checkPendingOffers();
-    await this.processActiveJobs();
   }
 
   private async maybeCreatePost(): Promise<void> {
