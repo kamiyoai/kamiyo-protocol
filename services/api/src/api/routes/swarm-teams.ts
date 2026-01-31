@@ -117,8 +117,8 @@ router.post('/', (req: Request, res: Response) => {
   }
 
   // Validate inputs
-  if (typeof dailyLimit !== 'number' || dailyLimit < 0 || !isFinite(dailyLimit)) {
-    res.status(400).json({ error: 'dailyLimit must be a non-negative number' });
+  if (typeof dailyLimit !== 'number' || dailyLimit <= 0 || !isFinite(dailyLimit)) {
+    res.status(400).json({ error: 'dailyLimit must be a positive number' });
     return;
   }
 
@@ -218,8 +218,8 @@ router.post('/:id/members', requireTeamOwner, (req: Request, res: Response) => {
   res.status(201).json({ id: memberId, agentId, role: role || 'member', drawLimit: drawLimit || 0 });
 });
 
-// DELETE /api/swarm-teams/:id/members/:memberId
-router.delete('/:id/members/:memberId', (req: Request, res: Response) => {
+// DELETE /api/swarm-teams/:id/members/:memberId - requires owner
+router.delete('/:id/members/:memberId', requireTeamOwner, (req: Request, res: Response) => {
   const { id: teamId, memberId } = req.params;
 
   const result = db.prepare('DELETE FROM swarm_team_members WHERE id = ? AND team_id = ?')
