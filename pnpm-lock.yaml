@@ -735,6 +735,31 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/kamiyo-hive:
+    dependencies:
+      '@kamiyo/paykit':
+        specifier: workspace:*
+        version: link:../kamiyo-paykit
+      '@kamiyo/sdk':
+        specifier: workspace:*
+        version: link:../kamiyo-sdk
+      '@solana/web3.js':
+        specifier: ^1.95.0
+        version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.24
+        version: 20.19.28
+      tsx:
+        specifier: ^4.15.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+
   packages/kamiyo-hyperliquid:
     dependencies:
       '@anthropic-ai/sdk':
@@ -894,6 +919,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.27.0
         version: 0.27.3
+      '@kamiyo/hive':
+        specifier: workspace:*
+        version: link:../kamiyo-hive
       '@kamiyo/paykit':
         specifier: workspace:*
         version: link:../kamiyo-paykit

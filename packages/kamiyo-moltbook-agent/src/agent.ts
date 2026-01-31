@@ -3,6 +3,8 @@ import { MoltbookClient } from './moltbook.js';
 import { JobDatabase } from './db.js';
 import { createEscrowClient, type EscrowClient } from './escrow.js';
 import { evaluateJob, formatOffer, hasRelevantKeywords } from './evaluator.js';
+import { SubcontractManager } from './subcontract.js';
+import type { KamiyoHive } from '@kamiyo/hive';
 import type { AgentConfig, MoltbookPost, Job, WorkResult } from './types.js';
 
 const RELEVANT_KEYWORDS = [
@@ -32,12 +34,15 @@ export class MoltbookJobBridgeAgent {
   private anthropic: Anthropic;
   private db: JobDatabase;
   private config: AgentConfig;
+  private hive: KamiyoHive | null = null;
+  private subcontract: SubcontractManager | null = null;
 
-  constructor(config: AgentConfig) {
+  constructor(config: AgentConfig, hive?: KamiyoHive) {
     this.config = config;
     this.moltbook = new MoltbookClient(config.moltbookApiKey);
     this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
     this.db = new JobDatabase(config.dbPath);
+    this.hive = hive ?? null;
   }
 
   async initialize(): Promise<void> {
@@ -52,6 +57,15 @@ export class MoltbookJobBridgeAgent {
       privateKey: this.config.agentPrivateKey,
       programId: this.config.programId,
     });
+
+    if (this.hive) {
+      this.subcontract = new SubcontractManager({
+        hive: this.hive,
+        anthropic: this.anthropic,
+        marginPercent: 15,
+      });
+      console.log('[Agent] Hive subcontracting enabled');
+    }
 
     console.log('[Agent] Initialized');
     console.log(`[Agent] Wallet: ${this.escrow.publicKey.toBase58()}`);
@@ -211,6 +225,18 @@ export class MoltbookJobBridgeAgent {
   private async doWork(job: Job): Promise<WorkResult> {
     console.log(`[Agent] Working on job ${job.id}...`);
 
+    if (this.subcontract) {
+      const result = await this.subcontract.executeWithSubcontractors(job);
+      if (result.error !== 'NO_SUBCONTRACT_NEEDED') {
+        return result;
+      }
+      console.log(`[Agent] Handling job ${job.id} directly`);
+    }
+
+    return this.doWorkAlone(job);
+  }
+
+  private async doWorkAlone(job: Job): Promise<WorkResult> {
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
