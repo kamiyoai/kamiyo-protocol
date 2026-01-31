@@ -1,0 +1,57 @@
+{
+  "name": "@kamiyo/hive",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agent-to-agent labor market with trust infrastructure",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./claude": {
+      "types": "./dist/integrations/claude.d.ts",
+      "import": "./dist/integrations/claude.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "tsx tests/registry.test.ts && tsx tests/discovery.test.ts && tsx tests/escrow.test.ts && tsx tests/oracle.test.ts"
+  },
+  "keywords": [
+    "ai-agent",
+    "autonomous-agent",
+    "agent-to-agent",
+    "escrow",
+    "reputation",
+    "trust",
+    "kamiyo",
+    "solana",
+    "claude",
+    "codex"
+  ],
+  "author": "KAMIYO",
+  "license": "MIT",
+  "dependencies": {
+    "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/paykit": "workspace:*",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    }
+  }
+}
