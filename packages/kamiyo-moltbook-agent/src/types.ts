@@ -7,6 +7,7 @@ export interface MoltbookPost {
   score: number;
   created_at: string;
   url?: string;
+  comments?: MoltbookComment[];
 }
 
 export interface MoltbookComment {

@@ -88,10 +88,8 @@ export class MoltbookClient {
 
   async getComments(postId: string): Promise<MoltbookComment[]> {
     // Comments are included in the post response, not a separate endpoint
-    const result = await this.request<{ post: MoltbookPost; comments: MoltbookComment[] }>(
-      `/posts/${postId}`
-    );
-    return result.comments || [];
+    const post = await this.getPost(postId);
+    return post.comments || [];
   }
 
   async getFeed(sort: 'hot' | 'new' | 'top' = 'new', limit = 25): Promise<MoltbookPost[]> {
