@@ -233,6 +233,42 @@ export interface SwarmVoteBidInputs extends SwarmVoteInputs {
   bidSalt: Uint8Array; // 32 bytes - random salt for bid commitment
 }
 
+// Combined agent identity + reputation proof inputs
+export interface AgentReputationInputs extends AgentIdentityInputs {
+  reputationScore: number; // 0-100 - private
+  transactionCount: number; // Total completed transactions - private
+  reputationSecret: Uint8Array; // 32 bytes - random blinding factor
+  epoch: bigint; // Current epoch for nullifier
+}
+
+// Reputation proof result
+export interface ReputationProofResult {
+  proof: Groth16Proof;
+  nullifier: Uint8Array;
+  publicInputs: {
+    agentsRoot: Uint8Array;
+    minReputation: number;
+    minTransactions: number;
+    nullifier: Uint8Array;
+  };
+}
+
+// Payment tier unlocked by reputation threshold
+export interface PaymentTier {
+  name: 'standard' | 'basic' | 'premium' | 'elite';
+  minReputation: number;
+  minTransactions: number;
+  dailyLimit: number;
+  rails: ('standard' | 'shadowwire' | 'blindfold')[];
+}
+
+export const PAYMENT_TIERS: PaymentTier[] = [
+  { name: 'standard', minReputation: 0, minTransactions: 0, dailyLimit: 100, rails: ['standard'] },
+  { name: 'basic', minReputation: 70, minTransactions: 10, dailyLimit: 500, rails: ['standard', 'shadowwire'] },
+  { name: 'premium', minReputation: 85, minTransactions: 50, dailyLimit: 2000, rails: ['standard', 'shadowwire', 'blindfold'] },
+  { name: 'elite', minReputation: 95, minTransactions: 100, dailyLimit: 10000, rails: ['standard', 'shadowwire', 'blindfold'] },
+];
+
 // Events
 export interface RegistryInitializedEvent {
   registry: PublicKey;

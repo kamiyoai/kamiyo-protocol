@@ -11,6 +11,8 @@ import {
   PrivateSignalInputs,
   SwarmVoteInputs,
   SwarmVoteBidInputs,
+  AgentReputationInputs,
+  ReputationProofResult,
   SignalType,
 } from './types';
 
@@ -70,7 +72,7 @@ export class SwarmTeamsProver {
 
   constructor(circuitsBuildPath: string = CIRCUITS_BUILD_PATH) {
     // Set up paths for each circuit
-    const circuits = ['agent_identity', 'private_signal', 'swarm_vote', 'swarm_vote_bid'];
+    const circuits = ['agent_identity', 'private_signal', 'swarm_vote', 'swarm_vote_bid', 'agent_reputation'];
     for (const circuit of circuits) {
       this.wasmPaths.set(circuit, path.join(circuitsBuildPath, `${circuit}_js/${circuit}.wasm`));
       this.zkeyPaths.set(circuit, path.join(circuitsBuildPath, `${circuit}_final.zkey`));
@@ -460,6 +462,98 @@ export class SwarmTeamsProver {
       voteCommitment,
       bidCommitment,
     };
+  }
+
+  /**
+   * Generate ZK proof of agent reputation threshold.
+   * Combines identity verification with reputation proof in a single proof.
+   * Agent proves: "I'm registered AND my reputation >= threshold"
+   * Without revealing: which agent, actual reputation, transaction history
+   */
+  async proveAgentReputation(
+    inputs: AgentReputationInputs,
+    agentsRoot: Uint8Array,
+    minReputation: number,
+    minTransactions: number
+  ): Promise<ReputationProofResult> {
+    // Generate nullifier tied to epoch
+    const nullifier = await SwarmTeamsProver.generateNullifier(
+      inputs.ownerSecret,
+      inputs.agentId,
+      inputs.registrationSecret,
+      inputs.epoch
+    );
+
+    // Generate reputation commitment (for optional later reveal)
+    const reputationCommitment = await poseidonHash([
+      BigInt(inputs.reputationScore),
+      BigInt(inputs.transactionCount),
+      bytesToBigint(inputs.reputationSecret),
+    ]);
+
+    // Build circuit inputs
+    const circuitInputs = {
+      // Public inputs
+      agents_root: bytesToBigint(agentsRoot).toString(),
+      min_reputation: minReputation.toString(),
+      min_transactions: minTransactions.toString(),
+      nullifier: bytesToBigint(nullifier).toString(),
+
+      // Private inputs - identity
+      owner_secret: bytesToBigint(inputs.ownerSecret).toString(),
+      agent_id: bytesToBigint(inputs.agentId).toString(),
+      registration_secret: bytesToBigint(inputs.registrationSecret).toString(),
+      merkle_path: inputs.merkleProof.map(p => bytesToBigint(p).toString()),
+      path_indices: inputs.merklePathIndices.map(i => i.toString()),
+
+      // Private inputs - reputation
+      reputation_score: inputs.reputationScore.toString(),
+      transaction_count: inputs.transactionCount.toString(),
+      reputation_secret: bytesToBigint(inputs.reputationSecret).toString(),
+      epoch: inputs.epoch.toString(),
+    };
+
+    const wasmPath = this.wasmPaths.get('agent_reputation');
+    const zkeyPath = this.zkeyPaths.get('agent_reputation');
+
+    if (!wasmPath || !zkeyPath) {
+      throw new Error('agent_reputation circuit paths not configured');
+    }
+
+    const { proof } = await snarkjs.groth16.fullProve(
+      circuitInputs,
+      wasmPath,
+      zkeyPath
+    );
+
+    return {
+      proof: this.formatProofForSolana(proof),
+      nullifier,
+      publicInputs: {
+        agentsRoot,
+        minReputation,
+        minTransactions,
+        nullifier,
+      },
+    };
+  }
+
+  /**
+   * Generate reputation commitment for binding reputation to a secret.
+   * This allows later reveal of exact reputation if needed.
+   * commitment = poseidon(reputation_score, transaction_count, reputation_secret)
+   */
+  static async generateReputationCommitment(
+    reputationScore: number,
+    transactionCount: number,
+    reputationSecret: Uint8Array
+  ): Promise<Uint8Array> {
+    const hash = await poseidonHash([
+      BigInt(reputationScore),
+      BigInt(transactionCount),
+      bytesToBigint(reputationSecret),
+    ]);
+    return bigintToBytes32(hash);
   }
 
   /**
