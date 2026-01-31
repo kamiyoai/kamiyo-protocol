@@ -24,6 +24,13 @@ function getConfig(): AgentConfig {
     minJobPriceSol: parseFloat(process.env.MIN_JOB_PRICE_SOL || '0.01'),
     maxConcurrentJobs: parseInt(process.env.MAX_CONCURRENT_JOBS || '3', 10),
     dbPath: process.env.DB_PATH || './moltbook-agent.db',
+    // Phase 1: Proactive posting
+    enableProactivePosting: process.env.ENABLE_PROACTIVE_POSTING === 'true',
+    minPostIntervalMs: parseInt(process.env.MIN_POST_INTERVAL_MS || '3600000', 10),
+    // Phase 4: DKG + Identity
+    dkgEndpoint: process.env.DKG_ENDPOINT,
+    chainId: parseInt(process.env.CHAIN_ID || '8453', 10),
+    erc8004RegistryAddress: process.env.ERC8004_REGISTRY_ADDRESS,
   };
 }
 
@@ -41,6 +48,9 @@ async function main(): Promise<void> {
   console.log(`  Min job price: ${config.minJobPriceSol} SOL`);
   console.log(`  Max concurrent: ${config.maxConcurrentJobs}`);
   console.log(`  DB: ${config.dbPath}`);
+  console.log(`  Proactive posting: ${config.enableProactivePosting}`);
+  console.log(`  DKG: ${config.dkgEndpoint || 'disabled'}`);
+  console.log(`  Chain ID: ${config.chainId}`);
   console.log('');
 
   const agent = new MoltbookJobBridgeAgent(config);

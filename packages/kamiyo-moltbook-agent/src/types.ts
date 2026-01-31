@@ -72,4 +72,81 @@ export interface AgentConfig {
   minJobPriceSol: number;
   maxConcurrentJobs: number;
   dbPath: string;
+  enableProactivePosting?: boolean;
+  minPostIntervalMs?: number;
+  // Phase 4: DKG + Identity
+  dkgEndpoint?: string;
+  chainId?: number;
+  erc8004RegistryAddress?: string;
+}
+
+// Proactive posting types
+
+export interface OwnPost {
+  id: number;
+  postId: string;
+  title: string;
+  body: string;
+  submolt: string;
+  category: string;
+  topic: string;
+  postedAt: number;
+  upvotes: number;
+  commentCount: number;
+}
+
+export interface TrustEdge {
+  id: number;
+  fromAgent: string;
+  toAgent: string;
+  trustLevel: number;
+  trustType: 'vouches' | 'delegates' | 'endorses';
+  stakeSol: number;
+  ual: string | null;
+  createdAt: number;
+}
+
+export interface ReputationProof {
+  id: number;
+  agentId: string;
+  tier: number;
+  nullifierHash: string;
+  proofFormat: 'solana' | 'evm';
+  ual: string | null;
+  moltbookPostId: string | null;
+  createdAt: number;
+}
+
+export interface Badge {
+  id: number;
+  badgeId: string;
+  agentId: string;
+  badgeType: 'reputation-verified' | 'transaction-count' | 'dispute-free';
+  tier: number;
+  ual: string | null;
+  issuedAt: number;
+  expiresAt: number | null;
+}
+
+export interface AgentJob {
+  id: number;
+  jobId: string;
+  postId: string | null;
+  posterAgent: string;
+  title: string;
+  description: string;
+  budgetSol: number;
+  capability: string;
+  requiredTier: number;
+  status: 'open' | 'assigned' | 'in_progress' | 'delivered' | 'completed';
+  assignedTo: string | null;
+  escrowAddress: string | null;
+  createdAt: number;
+}
+
+export interface EngagementMetrics {
+  postId: string;
+  upvotes: number;
+  comments: number;
+  lastChecked: number;
 }
