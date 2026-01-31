@@ -182,7 +182,7 @@ importers:
         version: 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@kamiyo/kamiyo-swarmteams':
         specifier: file:../../packages/kamiyo-swarmteams
-        version: link:../../packages/kamiyo-swarmteams
+        version: file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: ^1.87.6
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -919,15 +919,24 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.27.0
         version: 0.27.3
+      '@kamiyo/dkg-quality-oracle':
+        specifier: workspace:*
+        version: link:../kamiyo-dkg-quality
       '@kamiyo/hive':
         specifier: workspace:*
         version: link:../kamiyo-hive
+      '@kamiyo/kamiyo-swarmteams':
+        specifier: workspace:*
+        version: link:../kamiyo-swarmteams
       '@kamiyo/paykit':
         specifier: workspace:*
         version: link:../kamiyo-paykit
       '@kamiyo/sdk':
         specifier: workspace:*
         version: link:../kamiyo-sdk
+      '@solana/spl-token':
+        specifier: ^0.4.0
+        version: 0.4.14(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: ^1.95.0
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -3029,6 +3038,12 @@ packages:
 
   '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid':
     resolution: {directory: packages/kamiyo-hyperliquid, type: directory}
+
+  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams':
+    resolution: {directory: packages/kamiyo-swarmteams, type: directory}
+    peerDependencies:
+      '@coral-xyz/anchor': ^0.31.0
+      '@solana/web3.js': ^1.95.0
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -13956,6 +13971,19 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - encoding
+      - utf-8-validate
+
+  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@coral-xyz/anchor': 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3: 0.9.3
+      snarkjs: 0.7.6
+    transitivePeerDependencies:
+      - bufferutil
+      - react-native-b4a
       - utf-8-validate
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':

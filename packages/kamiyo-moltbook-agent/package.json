@@ -13,7 +13,7 @@
     "dev": "tsx watch src/cli.ts",
     "start": "node dist/cli.js",
     "lint": "eslint src --ext .ts",
-    "test": "tsx tests/evaluator.test.ts && tsx tests/db.test.ts && tsx tests/subcontract.test.ts && tsx tests/personality.test.ts && tsx tests/services.test.ts"
+    "test": "tsx tests/evaluator.test.ts && tsx tests/db.test.ts && tsx tests/subcontract.test.ts && tsx tests/personality.test.ts && tsx tests/services.test.ts && tsx tests/escrow.test.ts"
   },
   "keywords": [
     "moltbook",
@@ -31,6 +31,8 @@
     "@kamiyo/paykit": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/kamiyo-swarmteams": "workspace:*",
+    "@kamiyo/dkg-quality-oracle": "workspace:*",
+    "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.95.0",
     "better-sqlite3": "^11.0.0",
     "bn.js": "^5.2.1",
