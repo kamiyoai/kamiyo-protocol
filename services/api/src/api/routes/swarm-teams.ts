@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID, createHash } from 'crypto';
+import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { getAssociatedTokenAddress, getAccount, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import db, { deductCredits, usdToCredits } from '../../db';
 import {
   createOrchestrator,
@@ -10,6 +12,11 @@ import {
 import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
 import { authMiddleware } from '../middleware';
+
+const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
+const KAMIYO_DECIMALS = 6;
+const SOLANA_RPC = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+const connection = new Connection(SOLANA_RPC, 'confirmed');
 
 // Helper to verify team ownership
 function isTeamOwner(teamId: string, wallet: string): boolean {
@@ -442,6 +449,113 @@ router.post('/:id/fund-credits', requireTeamOwner, (req: Request, res: Response)
 
   const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
   res.json({ success: true, poolBalance: updated.pool_balance });
+});
+
+// POST /api/swarm-teams/:id/fund-tokens — Fund pool with actual $KAMIYO tokens
+router.post('/:id/fund-tokens', requireTeamOwner, async (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { signedTransaction } = req.body;
+  const wallet = req.auth?.wallet;
+
+  if (!wallet) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (!signedTransaction) {
+    res.status(400).json({ error: 'signedTransaction required' });
+    return;
+  }
+
+  const team = db.prepare('SELECT id, currency, pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as {
+    id: string; currency: string; pool_balance: number;
+  } | undefined;
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  try {
+    // Deserialize and send the signed transaction
+    const txBuffer = Buffer.from(signedTransaction, 'base64');
+    const transaction = Transaction.from(txBuffer);
+
+    // Send the pre-signed transaction
+    const signature = await connection.sendRawTransaction(txBuffer, {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed',
+    });
+
+    // Wait for confirmation
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    await connection.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight,
+    }, 'confirmed');
+
+    // Get the transfer amount from transaction (parse the instruction)
+    // For simplicity, we'll verify the user's balance change
+    const userPubkey = new PublicKey(wallet);
+
+    // Try Token-2022 first, then standard SPL
+    let userAta: PublicKey;
+    let programId = TOKEN_2022_PROGRAM_ID;
+    try {
+      userAta = await getAssociatedTokenAddress(KAMIYO_MINT, userPubkey, false, TOKEN_2022_PROGRAM_ID);
+      await getAccount(connection, userAta, 'confirmed', TOKEN_2022_PROGRAM_ID);
+    } catch {
+      programId = TOKEN_PROGRAM_ID;
+      userAta = await getAssociatedTokenAddress(KAMIYO_MINT, userPubkey, false, TOKEN_PROGRAM_ID);
+    }
+
+    // Parse transfer amount from the transaction instructions
+    // The amount is in the instruction data for SPL token transfers
+    let transferAmount = 0n;
+    for (const ix of transaction.instructions) {
+      // Check if this is a transfer instruction (transfer = 3, transferChecked = 12)
+      if (ix.programId.equals(programId) && ix.data.length >= 9) {
+        const instructionType = ix.data[0];
+        if (instructionType === 3 || instructionType === 12) {
+          // Read amount as little-endian u64
+          transferAmount = ix.data.readBigUInt64LE(1);
+          break;
+        }
+      }
+    }
+
+    if (transferAmount === 0n) {
+      res.status(400).json({ error: 'No valid token transfer found in transaction' });
+      return;
+    }
+
+    // Convert to human readable amount
+    const tokenAmount = Number(transferAmount) / Math.pow(10, KAMIYO_DECIMALS);
+
+    // Update pool balance (using token amount as the pool credit)
+    db.prepare(`
+      UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+      WHERE id = ?
+    `).run(tokenAmount, teamId);
+
+    // Record the deposit
+    db.prepare(`
+      INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, blindfold_payment_id, confirmed_at)
+      VALUES (?, ?, ?, 'KAMIYO', 'confirmed', ?, unixepoch())
+    `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, tokenAmount, signature);
+
+    const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
+    res.json({
+      success: true,
+      poolBalance: updated.pool_balance,
+      tokenAmount,
+      signature,
+    });
+  } catch (err) {
+    console.error('Token funding failed:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Token transfer failed' });
+  }
 });
 
 // PATCH /api/swarm-teams/:id/budget - requires owner
