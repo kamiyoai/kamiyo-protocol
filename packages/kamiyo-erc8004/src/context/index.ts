@@ -2,6 +2,8 @@ export { ContextGraph } from './ContextGraph.js';
 
 export type {
   DKGClient,
+  DKGAssetOperations,
+  DKGGraphOperations,
   ContextGraphConfig,
   PublishResult,
   ERC8004RegistrationFile,
