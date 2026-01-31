@@ -451,6 +451,46 @@ router.post('/:id/fund-credits', requireTeamOwner, (req: Request, res: Response)
   res.json({ success: true, poolBalance: updated.pool_balance });
 });
 
+// POST /api/swarm-teams/:id/fund-test — Test endpoint to credit pool without payment
+// Only available in dev/test environments or with valid test auth
+router.post('/:id/fund-test', requireTeamOwner, (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { amount } = req.body;
+
+  // Only allow if ENABLE_TEST_FUNDING is set (for E2E tests)
+  if (!process.env.ENABLE_TEST_FUNDING) {
+    res.status(404).json({ error: 'Test funding not enabled' });
+    return;
+  }
+
+  if (!amount || typeof amount !== 'number' || amount <= 0 || amount > 1000) {
+    res.status(400).json({ error: 'amount must be between 0 and 1000' });
+    return;
+  }
+
+  const team = db.prepare('SELECT id, currency, pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as {
+    id: string; currency: string; pool_balance: number;
+  } | undefined;
+
+  if (!team) {
+    res.status(404).json({ error: 'Team not found' });
+    return;
+  }
+
+  db.prepare(`
+    UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+    WHERE id = ?
+  `).run(amount, teamId);
+
+  db.prepare(`
+    INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, confirmed_at)
+    VALUES (?, ?, ?, ?, 'test', unixepoch())
+  `).run(`dep_test_${randomUUID().slice(0, 12)}`, teamId, amount, team.currency);
+
+  const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
+  res.json({ success: true, poolBalance: updated.pool_balance, testMode: true });
+});
+
 // POST /api/swarm-teams/:id/fund-tokens — Fund pool with actual $KAMIYO tokens
 router.post('/:id/fund-tokens', requireTeamOwner, async (req: Request, res: Response) => {
   const teamId = req.params.id;
