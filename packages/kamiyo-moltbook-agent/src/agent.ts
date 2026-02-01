@@ -37,7 +37,7 @@ import { GatedAccessService } from './services/gated-access.js';
 import { TrustGraphVisualizer } from './visualization/trust-graph-viz.js';
 import { DKGPublisher, type DKGClient } from './services/dkg-publisher.js';
 import { createDKGClient as createRealDKGClient, type DKGLogger, DKGClient as RealDKGClient } from '@kamiyo/dkg-quality-oracle';
-import { SwarmTeamsProver } from '@kamiyo/kamiyo-swarmteams';
+import { SwarmTeamsProver } from '@kamiyo/hive';
 import type { KamiyoHive } from '@kamiyo/hive';
 import type { AgentConfig, MoltbookPost, Job, WorkResult, MoltbookComment, OwnPost } from './types.js';
 

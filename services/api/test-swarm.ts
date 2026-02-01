@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
-import { SwarmTeamsClient, SwarmTeamsProver, MerkleTree, generateAgentId } from '@kamiyo/kamiyo-swarmteams';
+import { SwarmTeamsClient, SwarmTeamsProver, MerkleTree, generateAgentId } from '@kamiyo/hive';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';

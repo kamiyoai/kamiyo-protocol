@@ -14,7 +14,7 @@ import {
   SwarmTeamsProver,
   MerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 const CIRCUITS_PATH = '~/project/Documents/Dennis/kamiyo-protocol/circuits/build/swarmteams';
 

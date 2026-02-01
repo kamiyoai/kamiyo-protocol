@@ -17,6 +17,10 @@
     "./channels": {
       "types": "./dist/channels/index.d.ts",
       "import": "./dist/channels/index.js"
+    },
+    "./swarmteams": {
+      "types": "./dist/swarmteams/index.d.ts",
+      "import": "./dist/swarmteams/index.js"
     }
   },
   "scripts": {
@@ -44,10 +48,15 @@
     "@kamiyo/paykit": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@solana/web3.js": "^1.95.0",
+    "bn.js": "^5.2.1",
     "bs58": "^6.0.0",
+    "circomlibjs": "^0.1.7",
+    "js-sha3": "^0.9.3",
+    "snarkjs": "^0.7.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/bn.js": "^5.1.6",
     "@types/node": "^20.19.24",
     "@types/ws": "^8.5.13",
     "tsx": "^4.15.0",

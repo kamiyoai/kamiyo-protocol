@@ -1,61 +1,12 @@
 # @kamiyo/kamiyo-swarmteams
 
-ZK-private coordination for AI agent swarms on Solana.
+Private reputation proofs for AI agents on Solana.
 
 ## Overview
 
-Agents prove membership in a registry using zero-knowledge proofs. Actions (signals, votes, bids) cannot be linked to owner wallets.
+Agents prove reputation thresholds using zero-knowledge proofs without revealing their transaction history or identity. High reputation unlocks private payment rails through ShadowWire and Blindfold.
 
-## Architecture
-
-See [full architecture diagrams](./docs/architecture.md) for detailed visuals.
-
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         REGISTRATION                             │
-├─────────────────────────────────────────────────────────────────┤
-│  Owner creates identity commitment:                              │
-│  commitment = Poseidon(owner_secret, agent_id, reg_secret)      │
-│  Registers on-chain with stake, added to Merkle tree            │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      PRIVATE SIGNAL                              │
-├─────────────────────────────────────────────────────────────────┤
-│  Agent generates ZK proof of membership (without revealing ID)   │
-│  Submits signal commitment: Poseidon(type, direction, conf, ...)│
-│  Nullifier prevents double-submission per epoch                  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      SWARM VOTING                                │
-├─────────────────────────────────────────────────────────────────┤
-│  Any agent can propose coordinated actions                       │
-│  Agents vote with ZK proofs (vote nullifier prevents duplicates)│
-│  Action executes if threshold met                                │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     SIGNAL AGGREGATION                           │
-├─────────────────────────────────────────────────────────────────┤
-│  After epoch ends, signals can be revealed                       │
-│  Aggregator computes: long/short/neutral counts, avg confidence │
-│  Individual positions remain unlinkable to identities            │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Technical Stack
-
-- **Circuits**: Circom with Poseidon hash (BN254 curve)
-- **Proofs**: Groth16 via snarkjs, verified on-chain with alt_bn128 syscalls
-- **Program**: Anchor on Solana
-- **SDK**: TypeScript with proof generation
-- **MCP Server**: Claude integration for AI agents
+**Core value**: Trust without identity. Services know an agent is reputable without knowing which agent.
 
 ## Installation
 
@@ -63,131 +14,180 @@ See [full architecture diagrams](./docs/architecture.md) for detailed visuals.
 pnpm add @kamiyo/kamiyo-swarmteams
 ```
 
-## Usage
+## Quick Start
 
 ```typescript
 import {
   SwarmTeamsClient,
-  SwarmTeamsProver,
-  MerkleTree,
+  ReputationProver,
   generateOwnerSecret,
   generateAgentId,
-  createMerkleTree,
 } from '@kamiyo/kamiyo-swarmteams';
 import { Connection, Keypair } from '@solana/web3.js';
-import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
+import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 
-// Initialize client
 const connection = new Connection('https://api.devnet.solana.com');
 const wallet = new Wallet(keypair);
 const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-const client = new SwarmTeamsClient(provider);
-const prover = new SwarmTeamsProver('/path/to/circuits/build/swarmteams');
 
-// Create agent identity (off-chain secrets)
+const client = new SwarmTeamsClient(provider);
+const prover = new ReputationProver('/path/to/circuits/build/swarmteams');
+```
+
+## Usage
+
+### 1. Register Agent
+
+```typescript
+// Generate identity (keep these secret)
 const ownerSecret = generateOwnerSecret();
 const agentId = await generateAgentId(wallet.publicKey.toBytes(), 0);
 const regSecret = generateOwnerSecret();
-const commitment = await SwarmTeamsProver.generateIdentityCommitment(
+
+// Create commitment (public)
+const commitment = await prover.generateIdentityCommitment(
   ownerSecret, agentId, regSecret
 );
 
 // Register on-chain with stake
-await client.registerAgent(keypair, commitment, new BN(100_000_000)); // 0.1 SOL
+await client.registerAgent(keypair, commitment, new BN(100_000_000));
+```
 
-// Build merkle tree and get proof
-const tree = await createMerkleTree(20);
-await tree.addLeaf(commitment);
-const { proof: merkleProof, pathIndices } = await tree.generateProof(0);
+### 2. Build Reputation
 
-// Generate Groth16 ZK proof
+Agent completes escrow agreements through KAMIYO Protocol. Each successful completion improves reputation score.
+
+```typescript
+// Reputation is computed from on-chain escrow history
+const reputation = await client.getAgentReputation(commitment);
+// { score: 92, transactionCount: 127, successRate: 0.92 }
+```
+
+### 3. Generate Reputation Proof
+
+```typescript
 const registry = await client.getRegistry();
-const { proof, nullifier } = await prover.proveAgentIdentity(
-  { ownerSecret, agentId, registrationSecret: regSecret, merkleProof, merklePathIndices: pathIndices },
-  registry.agentsRoot,
-  BigInt(registry.epoch.toString())
-);
+const tree = await client.getMerkleTree();
+const { proof: merklePath, pathIndices } = await tree.generateProof(commitment);
 
-// Submit private signal
-const signalCommitment = await SwarmTeamsProver.generateSignalCommitment(
-  1, 1, 75, 50, BigInt(100_000_000), randomSecret, nullifier
-);
-await client.submitSignal(keypair, proof, nullifier, signalCommitment);
+// Generate ZK proof
+const proof = await prover.proveReputationThreshold({
+  ownerSecret,
+  agentId,
+  registrationSecret: regSecret,
+  merklePath,
+  pathIndices,
+  agentsRoot: registry.agentsRoot,
+  reputationScore: 92,        // Private - not revealed
+  transactionCount: 127,      // Private - not revealed
+  minReputation: 85,          // Public threshold
+  minTransactions: 50,        // Public threshold
+  epoch: registry.epoch,
+});
+
+// proof.publicInputs: { minReputation: 85, minTransactions: 50, nullifier: ... }
+// proof.proof: Groth16 proof bytes
 ```
 
-## MCP Integration
+### 4. Verify Proof
 
-AI agents using Claude can interact via MCP tools:
-
-```json
-{
-  "mcpServers": {
-    "kamiyo-agent-collab": {
-      "command": "node",
-      "args": ["packages/kamiyo-mcp-collab/dist/index.js"],
-      "env": {
-        "SOLANA_RPC_URL": "https://api.devnet.solana.com",
-        "SOLANA_PRIVATE_KEY": "[...]"
-      }
-    }
-  }
-}
+```typescript
+// Anyone can verify without learning agent identity
+const isValid = await client.verifyReputationProof(proof, {
+  minReputation: 85,
+  minTransactions: 50,
+});
+// true - agent meets threshold
+// Verifier doesn't know: which agent, actual score, transaction history
 ```
 
-Available tools:
-- `init_agent` - Create private identity
-- `register_agent` - Register with stake
-- `submit_signal` - Submit private signal
-- `create_swarm_action` - Propose coordinated action
-- `vote_swarm_action` - Vote anonymously
-- `get_aggregator_status` - View aggregated signals
+### 5. Unlock Private Payments
+
+```typescript
+import { ShadowWireClient } from '@kamiyo/radr';
+import { BlindfoldClient } from '@kamiyo/blindfold';
+
+// Option A: ShadowWire private transfer
+const shadowWire = new ShadowWireClient();
+await shadowWire.privateTransfer({
+  amount: 500,
+  token: 'USDC',
+  recipient: serviceProvider,
+  reputationProof: proof,
+});
+
+// Option B: Blindfold privacy card
+const blindfold = new BlindfoldClient();
+const card = await blindfold.requestCard({
+  reputationProof: proof,
+  requestedTier: 'premium',
+});
+```
+
+## API Reference
+
+### SwarmTeamsClient
+
+```typescript
+// Registration
+registerAgent(payer: Keypair, commitment: bigint, stake: BN): Promise<string>
+getRegistry(): Promise<Registry>
+getMerkleTree(): Promise<MerkleTree>
+
+// Reputation
+getAgentReputation(commitment: bigint): Promise<ReputationData>
+updateAgentsRoot(admin: Keypair, newRoot: bigint): Promise<string>
+
+// Verification
+verifyReputationProof(proof: Proof, params: ThresholdParams): Promise<boolean>
+```
+
+### ReputationProver
+
+```typescript
+// Identity
+generateIdentityCommitment(ownerSecret, agentId, regSecret): Promise<bigint>
+
+// Proofs
+proveReputationThreshold(inputs: ReputationInputs): Promise<Proof>
+proveAgentIdentity(inputs: IdentityInputs): Promise<Proof>
+```
 
 ## Circuits
 
 | Circuit | Purpose | Public Inputs |
 |---------|---------|---------------|
-| `agent_identity` | Prove membership | root, nullifier, epoch |
-| `private_signal` | Validate signal params | commitment, min_stake, min_conf, nullifier |
-| `swarm_vote` | Anonymous voting | root, action_hash, vote_nullifier, vote_commitment |
+| `reputation_threshold` | Prove reputation ≥ threshold | min_rep, min_tx, nullifier |
+| `agent_identity` | Prove registry membership | agents_root, nullifier, epoch |
 
-## Program
+## Payment Tiers
 
-Deployed on Solana Devnet: `DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26`
-
-### Instructions
-
-| Instruction | Description |
-|-------------|-------------|
-| `initialize_registry` | Create registry with config |
-| `register_agent` | Register with identity commitment + stake |
-| `update_agents_root` | Update Merkle root (admin) |
-| `submit_signal` | Submit signal with ZK proof |
-| `create_swarm_action` | Propose coordinated action |
-| `vote_swarm_action` | Cast anonymous vote |
-| `execute_swarm_action` | Execute if threshold met |
-| `reveal_signal` | Reveal signal content post-epoch |
-| `request_withdrawal` | Start 24h withdrawal timelock |
-| `claim_withdrawal` | Claim stake after timelock |
+| Reputation | Rail | Daily Limit |
+|------------|------|-------------|
+| Any | Standard | $100 |
+| ≥70% | ShadowWire basic | $500 |
+| ≥85% | ShadowWire + Blindfold | $2,000 |
+| ≥95% | Elite | $10,000 |
 
 ## Security
 
-- **Nullifiers**: Prevent double-actions per epoch/action
-- **Merkle proofs**: Prove membership in O(log n)
+- **Nullifiers**: Prevent proof replay across epochs
+- **Merkle proofs**: O(log n) membership verification
 - **Poseidon hash**: Circuit-efficient, collision-resistant
-- **Stake requirement**: Economic security for signal quality
-- **Timelock withdrawal**: Prevents rapid stake manipulation
+- **Stake requirement**: Economic security for registration
+- **Groth16**: Succinct proofs, fast verification
 
-## Tests
+## Development
 
 ```bash
-# Circuit tests (14 passing)
-cd circuits && pnpm test
+# Build
+pnpm build
 
-# SDK tests (43 passing)
-cd packages/kamiyo-agent-collab && pnpm test
+# Test
+pnpm test
 
-# Integration tests
-anchor test
+# Lint
+pnpm lint
 ```
 
 ## License

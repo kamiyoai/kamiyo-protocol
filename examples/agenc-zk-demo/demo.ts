@@ -5,8 +5,8 @@
  * Privacy-preserving reputation for AI agents.
  */
 
-import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/kamiyo-swarmteams';
-import type { GeneratedProof, TierLevel } from '@kamiyo/kamiyo-swarmteams';
+import { DarkForestProver, getQualifyingTier, getTierThreshold } from '@kamiyo/hive';
+import type { GeneratedProof, TierLevel } from '@kamiyo/hive';
 import {
   printBanner,
   printDataFlow,

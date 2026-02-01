@@ -385,7 +385,7 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
     let SwarmTeamsClient: any;
     try {
       // Use variable to prevent TypeScript from analyzing the import
-      const moduleName = '@kamiyo/kamiyo-swarmteams';
+      const moduleName = '@kamiyo/hive';
       const swarmteams = await import(/* webpackIgnore: true */ moduleName);
       SwarmTeamsClient = swarmteams.SwarmTeamsClient;
     } catch {

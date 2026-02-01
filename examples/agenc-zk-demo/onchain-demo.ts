@@ -5,8 +5,8 @@
  * Generates proof in TypeScript, verifies in Solidity.
  */
 
-import { DarkForestProver } from '@kamiyo/kamiyo-swarmteams';
-import type { GeneratedProof } from '@kamiyo/kamiyo-swarmteams';
+import { DarkForestProver } from '@kamiyo/hive';
+import type { GeneratedProof } from '@kamiyo/hive';
 import {
   createPublicClient,
   createWalletClient,

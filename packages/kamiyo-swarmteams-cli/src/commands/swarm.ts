@@ -13,7 +13,7 @@ import { showSwarmMenu, SwarmAction, confirmAction, inputText, selectOption } fr
 import { startSpinner, succeedSpinner, failSpinner, updateSpinner } from '../ui/spinner.js';
 import { generateActionHash, bytesToHex, generateRandomBytes, bytesToBigint, hexToBytes } from '../client/crypto.js';
 import { AgentIdentity } from './register.js';
-import { proveSwarmVote } from '@kamiyo/kamiyo-swarmteams-prover';
+import { proveSwarmVote } from '@kamiyo/hive-prover';
 import { getRegistrySync } from '../client/registry-sync.js';
 import { getIdentitySecrets, loadIdentity } from '../client/identity.js';
 

@@ -1,7 +1,7 @@
 /**
  * SwarmTeams Agent - Bot's on-chain ZK identity and signal management
  *
- * Uses the @kamiyo/kamiyo-swarmteams SDK for:
+ * Uses the @kamiyo/hive SDK for:
  * - Agent registration with Poseidon identity commitment
  * - Real Groth16 ZK proofs for private signals
  * - On-chain signal submission to devnet
@@ -22,7 +22,7 @@ import {
   Groth16Proof,
   AgentIdentityInputs,
   PrivateSignalInputs,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from './logger';

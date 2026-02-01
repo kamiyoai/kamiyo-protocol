@@ -6,7 +6,7 @@
     "demo": "npx ts-node demo.ts"
   },
   "dependencies": {
-    "@kamiyo/kamiyo-swarmteams": "workspace:*",
+    "@kamiyo/hive": "workspace:*",
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/web3.js": "^1.95.0",
     "bn.js": "^5.2.1"

@@ -9,7 +9,7 @@
  * 5. Query verified tier
  */
 
-import { DarkForestProver, getTierThreshold, getQualifyingTier } from '@kamiyo/kamiyo-swarmteams';
+import { DarkForestProver, getTierThreshold, getQualifyingTier } from '@kamiyo/hive';
 import { ethers } from 'ethers';
 
 const ZK_REPUTATION_ADDRESS = '0x0feb48737d7f47AF432a094E69e716c9E8fA8A22';

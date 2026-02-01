@@ -27,7 +27,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import gradient from 'gradient-string';
-import { MitamaClient, MitamaProver, MerkleTree, generateAgentId, createSignalCommitment } from '@kamiyo/kamiyo-swarmteams';
+import { MitamaClient, MitamaProver, MerkleTree, generateAgentId, createSignalCommitment } from '@kamiyo/hive';
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 

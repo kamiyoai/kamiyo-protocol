@@ -9,7 +9,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import * as crypto from 'crypto';
-import { MitamaClient, MitamaProver, generateAgentId } from '@kamiyo/kamiyo-swarmteams';
+import { MitamaClient, MitamaProver, generateAgentId } from '@kamiyo/hive';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 

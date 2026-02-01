@@ -441,6 +441,16 @@ pub struct ReputationTierVerified {
 }
 
 #[event]
+pub struct AgentReputationVerified {
+    pub user: Pubkey,
+    pub agents_root: [u8; 32],
+    pub min_reputation: u8,
+    pub min_transactions: u32,
+    pub nullifier: [u8; 32],
+    pub timestamp: i64,
+}
+
+#[event]
 pub struct OracleScoreCommitted {
     pub escrow: Pubkey,
     pub oracle: Pubkey,
@@ -3013,6 +3023,71 @@ pub mod kamiyo {
     }
 
     // ========================================================================
+    // SwarmTeams Agent Reputation Verification
+    // ========================================================================
+
+    /// Verify an agent's reputation meets thresholds using ZK proof.
+    ///
+    /// This instruction verifies a Groth16 proof that demonstrates an agent:
+    /// 1. Is a member of a registered agent set (via merkle proof)
+    /// 2. Has reputation >= min_reputation threshold
+    /// 3. Has transaction count >= min_transactions threshold
+    ///
+    /// The proof reveals nothing about the actual reputation score or identity.
+    /// A nullifier prevents proof replay within the same epoch.
+    ///
+    /// # Arguments
+    /// * `proof_a` - G1 point (64 bytes)
+    /// * `proof_b` - G2 point (128 bytes)
+    /// * `proof_c` - G1 point (64 bytes)
+    /// * `agents_root` - Merkle root of registered agents
+    /// * `min_reputation` - Minimum reputation threshold (0-100)
+    /// * `min_transactions` - Minimum transaction count
+    /// * `nullifier` - Unique value to prevent replay
+    pub fn verify_agent_reputation(
+        ctx: Context<VerifyAgentReputation>,
+        proof_a: [u8; 64],
+        proof_b: [u8; 128],
+        proof_c: [u8; 64],
+        agents_root: [u8; 32],
+        min_reputation: u8,
+        min_transactions: u32,
+        nullifier: [u8; 32],
+    ) -> Result<()> {
+        require!(min_reputation <= 100, KamiyoError::InvalidQualityScore);
+        require!(nullifier.iter().any(|&b| b != 0), KamiyoError::InvalidAmount);
+        require!(agents_root.iter().any(|&b| b != 0), KamiyoError::InvalidAmount);
+
+        let mut public_inputs: [[u8; 32]; 4] = [[0u8; 32]; 4];
+        public_inputs[0] = agents_root;
+        public_inputs[1][31] = min_reputation;
+        public_inputs[2][28..32].copy_from_slice(&min_transactions.to_be_bytes());
+        public_inputs[3] = nullifier;
+
+        zk::verify_agent_reputation_proof(&proof_a, &proof_b, &proof_c, &public_inputs)
+            .map_err(|_| KamiyoError::InvalidZKProof)?;
+
+        let nullifier_account = &mut ctx.accounts.nullifier_account;
+        nullifier_account.nullifier = nullifier;
+        nullifier_account.verified_at = Clock::get()?.unix_timestamp;
+        nullifier_account.user = ctx.accounts.user.key();
+        nullifier_account.min_reputation = min_reputation;
+        nullifier_account.min_transactions = min_transactions;
+        nullifier_account.bump = ctx.bumps.nullifier_account;
+
+        emit!(AgentReputationVerified {
+            user: ctx.accounts.user.key(),
+            agents_root,
+            min_reputation,
+            min_transactions,
+            nullifier,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    // ========================================================================
     // Migration Instructions
     // ========================================================================
 
@@ -3880,6 +3955,37 @@ pub struct VerifyReputationTier<'info> {
     pub user: Signer<'info>,
 }
 
+/// Accounts for verifying agent reputation with ZK proof (SwarmTeams).
+/// Creates a nullifier account to prevent proof replay.
+#[derive(Accounts)]
+#[instruction(
+    proof_a: [u8; 64],
+    proof_b: [u8; 128],
+    proof_c: [u8; 64],
+    agents_root: [u8; 32],
+    min_reputation: u8,
+    min_transactions: u32,
+    nullifier: [u8; 32],
+)]
+pub struct VerifyAgentReputation<'info> {
+    /// The user proving their agent's reputation
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    /// Nullifier account to prevent proof replay.
+    /// PDA seeded by ["nullifier", nullifier_bytes].
+    #[account(
+        init,
+        payer = user,
+        space = 8 + ReputationNullifier::INIT_SPACE,
+        seeds = [b"nullifier", nullifier.as_ref()],
+        bump
+    )]
+    pub nullifier_account: Account<'info, ReputationNullifier>,
+
+    pub system_program: Program<'info, System>,
+}
+
 // ============================================================================
 // State
 // ============================================================================
@@ -3900,6 +4006,19 @@ pub struct AgentIdentity {
     pub total_escrows: u64,               // 8
     pub successful_escrows: u64,          // 8
     pub disputed_escrows: u64,            // 8
+    pub bump: u8,                         // 1
+}
+
+/// Reputation proof nullifier - prevents replay of ZK proofs.
+/// Each nullifier can only be used once per epoch.
+#[account]
+#[derive(InitSpace)]
+pub struct ReputationNullifier {
+    pub nullifier: [u8; 32],              // 32 - the nullifier value
+    pub user: Pubkey,                     // 32 - who submitted the proof
+    pub verified_at: i64,                 // 8 - timestamp
+    pub min_reputation: u8,               // 1 - threshold proven
+    pub min_transactions: u32,            // 4 - min tx count proven
     pub bump: u8,                         // 1
 }
 

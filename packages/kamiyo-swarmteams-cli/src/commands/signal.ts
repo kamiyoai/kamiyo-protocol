@@ -13,7 +13,7 @@ import { confirmAction, inputText, selectOption } from '../ui/menu.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
 import { generateRandomBytes, bytesToHex, bytesToBigint } from '../client/crypto.js';
 import { AgentIdentity } from './register.js';
-import { provePrivateSignal } from '@kamiyo/kamiyo-swarmteams-prover';
+import { provePrivateSignal } from '@kamiyo/hive-prover';
 import { storeSignal, getUnrevealedSignals, SwarmTeamsIdentity, getIdentitySecrets } from '../client/identity.js';
 
 const SIGNAL_TYPES = [

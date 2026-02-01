@@ -11,7 +11,7 @@ config({ path: '.env' });
 
 import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
-import { SwarmTeamsClient } from '@kamiyo/kamiyo-swarmteams';
+import { SwarmTeamsClient } from '@kamiyo/hive';
 import * as fs from 'fs';
 import * as path from 'path';
 

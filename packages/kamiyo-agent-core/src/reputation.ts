@@ -16,7 +16,7 @@ import {
   type TierName,
   TIER_NAMES,
   TIER_THRESHOLDS,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 export interface ReputationMemory {
   commitment: string | null;
@@ -102,7 +102,7 @@ function serializeProof(proof: GeneratedProof): SerializedProof {
       [proof.b[1][0].toString(), proof.b[1][1].toString()],
     ],
     c: [proof.c[0].toString(), proof.c[1].toString()],
-    publicInputs: proof.publicInputs.map((i) => i.toString()),
+    publicInputs: proof.publicInputs.map((i: bigint) => i.toString()),
     commitment: proof.commitment,
   };
 }

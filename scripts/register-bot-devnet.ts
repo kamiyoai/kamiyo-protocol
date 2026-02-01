@@ -20,7 +20,7 @@ import {
   generateOwnerSecret,
   generateRegistrationSecret,
   generateAgentId,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';

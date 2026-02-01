@@ -92,7 +92,7 @@ export async function generateProof(
   };
 }
 
-export async function verifyProof(proof: ProofResult["proof"]): Promise<boolean> {
+export async function verifyProof(_proof: ProofResult["proof"]): Promise<boolean> {
   // In production, this calls snarkjs.groth16.verify()
   // For demo, we return true
   return true;
