@@ -1,5 +1,3 @@
-// Structured logging interface for KAMIYO Agent Paranet
-
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogContext {
@@ -95,24 +93,43 @@ const levelPriority: Record<LogLevel, number> = {
   error: 3,
 };
 
-function createFilteredLogger(logger: Logger, minLevel: LogLevel): Logger {
-  const minPriority = levelPriority[minLevel];
+let runtimeLogLevel: LogLevel | null = null;
 
+export function setRuntimeLogLevel(level: LogLevel | null): void {
+  runtimeLogLevel = level;
+}
+
+export function getRuntimeLogLevel(): LogLevel | null {
+  return runtimeLogLevel;
+}
+
+function getEffectiveLevel(configLevel: LogLevel): LogLevel {
+  if (runtimeLogLevel) return runtimeLogLevel;
+  const envLevel = process.env.LOG_LEVEL?.toLowerCase() as LogLevel | undefined;
+  if (envLevel && levelPriority[envLevel] !== undefined) return envLevel;
+  return configLevel;
+}
+
+function createFilteredLogger(logger: Logger, configLevel: LogLevel): Logger {
   return {
     debug(message: string, context?: LogContext) {
+      const minPriority = levelPriority[getEffectiveLevel(configLevel)];
       if (levelPriority.debug >= minPriority) logger.debug(message, context);
     },
     info(message: string, context?: LogContext) {
+      const minPriority = levelPriority[getEffectiveLevel(configLevel)];
       if (levelPriority.info >= minPriority) logger.info(message, context);
     },
     warn(message: string, context?: LogContext) {
+      const minPriority = levelPriority[getEffectiveLevel(configLevel)];
       if (levelPriority.warn >= minPriority) logger.warn(message, context);
     },
     error(message: string, context?: LogContext) {
+      const minPriority = levelPriority[getEffectiveLevel(configLevel)];
       if (levelPriority.error >= minPriority) logger.error(message, context);
     },
     child(context: LogContext): Logger {
-      return createFilteredLogger(logger.child(context), minLevel);
+      return createFilteredLogger(logger.child(context), configLevel);
     },
   };
 }

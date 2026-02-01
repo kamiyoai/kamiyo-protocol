@@ -39,27 +39,66 @@ function calculateDelay(attempt: number, config: RetryConfig): number {
   return Math.max(0, capped + jitter);
 }
 
-// Check if error is retryable
+// Error codes that indicate transient failures (more reliable than message matching)
+const RETRYABLE_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'EPIPE',
+  'EAI_AGAIN',
+  'ECONNABORTED',
+  'EPROTO',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+]);
+
+// HTTP status codes that indicate retryable errors
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
+
+// Check if error is retryable - checks error codes first, then falls back to message matching
 function isRetryableError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    // Network errors, timeouts, and server errors are retryable
-    if (
-      message.includes('timeout') ||
-      message.includes('econnreset') ||
-      message.includes('econnrefused') ||
-      message.includes('enotfound') ||
-      message.includes('etimedout') ||
-      message.includes('network') ||
-      message.includes('socket') ||
-      message.includes('502') ||
-      message.includes('503') ||
-      message.includes('504') ||
-      message.includes('429') // Rate limit
-    ) {
-      return true;
-    }
+  if (!(error instanceof Error)) {
+    return false;
   }
+
+  // Check error code first (most reliable)
+  const errWithCode = error as Error & { code?: string; statusCode?: number; status?: number };
+
+  if (errWithCode.code && RETRYABLE_ERROR_CODES.has(errWithCode.code)) {
+    return true;
+  }
+
+  // Check HTTP status code
+  const statusCode = errWithCode.statusCode || errWithCode.status;
+  if (statusCode && RETRYABLE_STATUS_CODES.has(statusCode)) {
+    return true;
+  }
+
+  // Fallback to message matching (for libraries that don't set codes)
+  const message = error.message.toLowerCase();
+  if (
+    message.includes('timeout') ||
+    message.includes('econnreset') ||
+    message.includes('econnrefused') ||
+    message.includes('enotfound') ||
+    message.includes('etimedout') ||
+    message.includes('network') ||
+    message.includes('socket hang up') ||
+    message.includes('socket closed') ||
+    message.includes('502') ||
+    message.includes('503') ||
+    message.includes('504') ||
+    message.includes('429') ||
+    message.includes('rate limit') ||
+    message.includes('temporarily unavailable') ||
+    message.includes('service unavailable')
+  ) {
+    return true;
+  }
+
   return false;
 }
 

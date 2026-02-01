@@ -723,6 +723,9 @@ export async function queryVerifiedHubs(
 }
 
 // Multi-hop trust chain traversal (2-hop max)
+// Optimized: limits search space and parallelizes second-hop queries
+const MAX_INTERMEDIATE_CANDIDATES = 10;
+
 export async function queryTrustChain(
   ctx: KamiyoDKGBridgeContext,
   sourceId: string,
@@ -731,6 +734,7 @@ export async function queryTrustChain(
 ): Promise<TrustChainResult | null> {
   if (sourceId === targetId) return null;
 
+  // Try direct trust first
   const direct = await queryDirectTrust(ctx, sourceId, targetId);
   if (direct) {
     return {
@@ -747,20 +751,41 @@ export async function queryTrustChain(
 
   const trustedBySource = await queryTrustedEntities(ctx, sourceId, { minTrustLevel: 50 });
 
-  for (const intermediate of trustedBySource) {
-    if (intermediate.entityId === sourceId || intermediate.entityId === targetId) continue;
+  // Limit search space to prevent excessive queries
+  const candidates = trustedBySource
+    .filter(e => e.entityId !== sourceId && e.entityId !== targetId)
+    .slice(0, MAX_INTERMEDIATE_CANDIDATES);
 
-    const secondHop = await queryDirectTrust(ctx, intermediate.entityId, targetId);
-    if (secondHop) {
-      return {
-        sourceId,
-        targetId,
-        hops: 2,
-        minTrustLevel: Math.min(intermediate.aggregateTrust, secondHop.trustLevel),
-        totalStake: secondHop.stakeAmount,
-        path: [sourceId, intermediate.entityId, targetId],
-      };
-    }
+  if (candidates.length === 0) return null;
+
+  // Parallel second-hop queries with early termination
+  const secondHopResults = await Promise.all(
+    candidates.map(async (intermediate) => {
+      const secondHop = await queryDirectTrust(ctx, intermediate.entityId, targetId);
+      if (secondHop) {
+        return { intermediate, secondHop };
+      }
+      return null;
+    })
+  );
+
+  // Find first successful path (highest trust)
+  const found = secondHopResults
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    .sort((a, b) =>
+      Math.min(b.intermediate.aggregateTrust, b.secondHop.trustLevel) -
+      Math.min(a.intermediate.aggregateTrust, a.secondHop.trustLevel)
+    )[0];
+
+  if (found) {
+    return {
+      sourceId,
+      targetId,
+      hops: 2,
+      minTrustLevel: Math.min(found.intermediate.aggregateTrust, found.secondHop.trustLevel),
+      totalStake: found.secondHop.stakeAmount,
+      path: [sourceId, found.intermediate.entityId, targetId],
+    };
   }
 
   return null;

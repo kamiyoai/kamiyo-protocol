@@ -1,5 +1,3 @@
-// Schema.org JSON-LD schemas for DKG Knowledge Assets
-
 import { z } from 'zod';
 import type {
   TaskCompletion,
@@ -11,10 +9,8 @@ const SCHEMA_ORG = 'https://schema.org/';
 const KAMIYO_PARANET = 'https://kamiyo.ai/paranet/v1';
 const ERC8004_CONTEXT = 'https://eips.ethereum.org/EIPS/eip-8004';
 
-// Schema version for forward compatibility
 export const SCHEMA_VERSION = '1.0.0';
 
-// Version info included in all assets
 export interface SchemaVersion {
   version: string;
   minCompatible: string;
@@ -25,15 +21,11 @@ export const CURRENT_VERSION: SchemaVersion = {
   minCompatible: '1.0.0',
 };
 
-// Check if a schema version is compatible with current
 export function isCompatibleVersion(version: string): boolean {
   const [major] = version.split('.').map(Number);
   const [currentMajor] = SCHEMA_VERSION.split('.').map(Number);
-  // Compatible if same major version
   return major === currentMajor;
 }
-
-// Zod schemas for validation
 
 export const TaskCompletionSchema = z.object({
   providerGlobalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
@@ -79,8 +71,6 @@ export const TrustRelationshipSchema = z.object({
   evidenceUALs: z.array(z.string()).optional(),
   reason: z.string().max(500).optional(),
 });
-
-// JSON-LD asset builders
 
 export function buildTaskCompletionAsset(task: TaskCompletion): object {
   const taskId = `${task.providerGlobalId}:${Date.parse(task.endTime)}`;
@@ -187,7 +177,86 @@ export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
   };
 }
 
-// Parse functions for query results
+const SparqlValueSchema = z.object({
+  value: z.unknown().optional(),
+}).passthrough();
+
+const SparqlResultRowSchema = z.record(z.string(), SparqlValueSchema);
+
+export const DKGQueryResponseSchema = z.object({
+  data: z.array(SparqlResultRowSchema).nullable().optional(),
+}).passthrough();
+
+export const TaskSummaryResultSchema = z.object({
+  taskCount: SparqlValueSchema.optional(),
+  avgQuality: SparqlValueSchema.optional(),
+  avgResponseTime: SparqlValueSchema.optional(),
+  firstTask: SparqlValueSchema.optional(),
+  lastTask: SparqlValueSchema.optional(),
+  disputeCount: SparqlValueSchema.optional(),
+  disputesWon: SparqlValueSchema.optional(),
+}).passthrough();
+
+export const TrustSummaryResultSchema = z.object({
+  avgTrust: SparqlValueSchema.optional(),
+  trustorCount: SparqlValueSchema.optional(),
+}).passthrough();
+
+export const TaskBreakdownResultSchema = z.object({
+  taskType: SparqlValueSchema.optional(),
+  count: SparqlValueSchema.optional(),
+  avgQuality: SparqlValueSchema.optional(),
+  avgResponseTime: SparqlValueSchema.optional(),
+  totalPayment: SparqlValueSchema.optional(),
+}).passthrough();
+
+export const ProviderResultSchema = z.object({
+  globalId: SparqlValueSchema.optional(),
+  score: SparqlValueSchema.optional(),
+  taskCount: SparqlValueSchema.optional(),
+  avgQuality: SparqlValueSchema.optional(),
+  tier: SparqlValueSchema.optional(),
+}).passthrough();
+
+export const CapabilityResultSchema = z.object({
+  capability: SparqlValueSchema.optional(),
+  confidence: SparqlValueSchema.optional(),
+  attestationType: SparqlValueSchema.optional(),
+}).passthrough();
+
+export const TrustRelationshipResultSchema = z.object({
+  trustor: SparqlValueSchema.optional(),
+  trustee: SparqlValueSchema.optional(),
+  trustLevel: SparqlValueSchema.optional(),
+  trustType: SparqlValueSchema.optional(),
+  since: SparqlValueSchema.optional(),
+}).passthrough();
+
+export function safeParseDKGResponse<T>(
+  response: unknown,
+  rowSchema?: z.ZodType<T>
+): { data: T[] | null; error?: string } {
+  const baseResult = DKGQueryResponseSchema.safeParse(response);
+  if (!baseResult.success) {
+    return { data: null, error: `Invalid response: ${baseResult.error.message}` };
+  }
+
+  const data = baseResult.data.data;
+  if (!data || !Array.isArray(data)) {
+    return { data: [] };
+  }
+
+  if (rowSchema) {
+    const rows: T[] = [];
+    for (const row of data) {
+      const r = rowSchema.safeParse(row);
+      if (r.success) rows.push(r.data);
+    }
+    return { data: rows };
+  }
+
+  return { data: data as T[] };
+}
 
 export function parseTaskCompletionResult(result: Record<string, { value?: unknown }>): Partial<TaskCompletion> & { schemaVersion?: string } {
   return {
@@ -226,31 +295,21 @@ export function parseTrustRelationshipResult(result: Record<string, { value?: un
   };
 }
 
-// Extract schema version from any parsed result
 export function extractSchemaVersion(result: Record<string, { value?: unknown }>): string | undefined {
-  // Try direct field first
-  if (result.schemaVersion?.value) {
-    return String(result.schemaVersion.value);
-  }
-  // Try version field
-  if (result.version?.value) {
-    return String(result.version.value);
-  }
+  if (result.schemaVersion?.value) return String(result.schemaVersion.value);
+  if (result.version?.value) return String(result.version.value);
   return undefined;
 }
 
-// Validate schema version compatibility
 export function validateSchemaVersion(version: string | undefined): { compatible: boolean; warning?: string } {
   if (!version) {
-    return { compatible: true, warning: 'No schema version found - assuming compatible (legacy data)' };
+    return { compatible: true, warning: 'No schema version found' };
   }
-
   if (isCompatibleVersion(version)) {
     return { compatible: true };
   }
-
   return {
     compatible: false,
-    warning: `Schema version ${version} is not compatible with current version ${SCHEMA_VERSION}`,
+    warning: `Schema ${version} incompatible with ${SCHEMA_VERSION}`,
   };
 }

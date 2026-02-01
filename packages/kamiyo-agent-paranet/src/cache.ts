@@ -109,6 +109,7 @@ export interface RedisCacheConfig {
 }
 
 // Redis adapter (requires ioredis to be installed)
+// Uses shared connection pool to prevent connection exhaustion
 export class RedisCacheAdapter<T> implements CacheAdapter<T> {
   private client: RedisClient | null = null;
   private config: RedisCacheConfig;
@@ -126,25 +127,9 @@ export class RedisCacheAdapter<T> implements CacheAdapter<T> {
     if (this.connected) return;
 
     try {
-      // Dynamic import to avoid requiring ioredis for users who don't need it
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Redis = await import('ioredis' as any).then((m: any) => m.default || m);
-      this.client = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db || 0,
-        tls: this.config.tls ? {} : undefined,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 200, 2000);
-        },
-      }) as RedisClient;
-
-      await this.client.connect();
+      // Use shared connection pool instead of creating new connection per adapter
+      this.client = await getSharedRedisClient(this.config, this.logger);
       this.connected = true;
-      this.logger.info('Redis cache connected', { host: this.config.host, port: this.config.port });
     } catch (err) {
       this.logger.error('Redis connection failed', { error: err instanceof Error ? err.message : String(err) });
       throw err;
@@ -152,11 +137,11 @@ export class RedisCacheAdapter<T> implements CacheAdapter<T> {
   }
 
   async disconnect(): Promise<void> {
-    if (this.client && this.connected) {
-      await this.client.quit();
-      this.connected = false;
-      this.logger.info('Redis cache disconnected');
-    }
+    // Don't actually disconnect - we're using shared pool
+    // The shared client is managed separately via closeSharedRedisClient()
+    this.connected = false;
+    this.client = null;
+    this.logger.debug('Redis adapter released (shared connection remains open)');
   }
 
   private prefixKey(key: string): string {
@@ -257,6 +242,72 @@ interface RedisClient {
   del(...keys: string[]): Promise<number>;
   exists(key: string): Promise<number>;
   keys(pattern: string): Promise<string[]>;
+}
+
+// Shared Redis client pool to prevent connection exhaustion
+let sharedRedisClient: RedisClient | null = null;
+let sharedRedisConfig: RedisCacheConfig | null = null;
+
+async function getSharedRedisClient(config: RedisCacheConfig, logger: Logger): Promise<RedisClient> {
+  // Check if config changed (different host/port = new connection)
+  const configChanged = !sharedRedisConfig ||
+    sharedRedisConfig.host !== config.host ||
+    sharedRedisConfig.port !== config.port ||
+    sharedRedisConfig.db !== config.db;
+
+  if (sharedRedisClient && !configChanged) {
+    return sharedRedisClient;
+  }
+
+  // Close existing connection if config changed
+  if (sharedRedisClient && configChanged) {
+    try {
+      await sharedRedisClient.quit();
+    } catch {
+      // Ignore disconnect errors
+    }
+    sharedRedisClient = null;
+  }
+
+  // Create new shared connection
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Redis = await import('ioredis' as any).then((m: any) => m.default || m);
+    sharedRedisClient = new Redis({
+      host: config.host,
+      port: config.port,
+      password: config.password,
+      db: config.db || 0,
+      tls: config.tls ? {} : undefined,
+      lazyConnect: true,
+      retryStrategy: (times: number) => {
+        if (times > 3) return null;
+        return Math.min(times * 200, 2000);
+      },
+    }) as RedisClient;
+
+    await sharedRedisClient.connect();
+    sharedRedisConfig = { ...config };
+    logger.info('Shared Redis client connected', { host: config.host, port: config.port });
+
+    return sharedRedisClient;
+  } catch (err) {
+    logger.error('Shared Redis connection failed', { error: err instanceof Error ? err.message : String(err) });
+    throw err;
+  }
+}
+
+// Close the shared Redis connection (call during shutdown)
+export async function closeSharedRedisClient(): Promise<void> {
+  if (sharedRedisClient) {
+    try {
+      await sharedRedisClient.quit();
+    } catch {
+      // Ignore disconnect errors
+    }
+    sharedRedisClient = null;
+    sharedRedisConfig = null;
+  }
 }
 
 export class LRUCache<T> {

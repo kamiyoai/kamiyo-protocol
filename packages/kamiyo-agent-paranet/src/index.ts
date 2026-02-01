@@ -22,6 +22,8 @@ export {
   nullLogger,
   generateCorrelationId,
   createTimer,
+  setRuntimeLogLevel,
+  getRuntimeLogLevel,
 } from './logger';
 export type { Logger, LogLevel, LogContext, LoggerConfig, LoggerType } from './logger';
 
@@ -110,6 +112,15 @@ export {
   isCompatibleVersion,
   extractSchemaVersion,
   validateSchemaVersion,
+  // DKG query result validation
+  DKGQueryResponseSchema,
+  TaskSummaryResultSchema,
+  TrustSummaryResultSchema,
+  TaskBreakdownResultSchema,
+  ProviderResultSchema,
+  CapabilityResultSchema,
+  TrustRelationshipResultSchema,
+  safeParseDKGResponse,
 } from './schemas/index';
 export type { SchemaVersion } from './schemas/index';
 

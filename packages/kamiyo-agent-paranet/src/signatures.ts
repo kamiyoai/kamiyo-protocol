@@ -266,8 +266,16 @@ export interface SignatureConfig {
   chainId?: number;
 }
 
-// Create signature verification middleware
-export function createSignatureVerifier(config: SignatureConfig = { requireSignatures: false }) {
+// Determine if signatures should be required by default
+const isProduction = process.env.NODE_ENV === 'production';
+const envRequireSignatures = process.env.REQUIRE_SIGNATURES !== 'false';
+
+export function createSignatureVerifier(
+  config: SignatureConfig = { requireSignatures: isProduction && envRequireSignatures }
+) {
+  if (!config.requireSignatures && isProduction) {
+    console.warn('[KAMIYO] Signature verification DISABLED in production');
+  }
   const options = {
     maxDriftMs: config.maxTimestampDriftMs,
     chainId: config.chainId,

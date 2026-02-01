@@ -185,3 +185,64 @@ export const buybackPriceImpact = new Histogram({
   buckets: [10, 25, 50, 100, 150, 200, 300, 500],
   registers: [registry],
 });
+
+// DKG Paranet metrics
+export const paranetQueryTotal = new Counter({
+  name: 'paranet_query_total',
+  help: 'Total Paranet queries',
+  labelNames: ['operation', 'status'] as const,
+  registers: [registry],
+});
+
+export const paranetPublishTotal = new Counter({
+  name: 'paranet_publish_total',
+  help: 'Total Paranet publish operations',
+  labelNames: ['type', 'status'] as const,
+  registers: [registry],
+});
+
+export const paranetQueryLatency = new Histogram({
+  name: 'paranet_query_latency_seconds',
+  help: 'Paranet query latency in seconds',
+  labelNames: ['operation'] as const,
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+  registers: [registry],
+});
+
+export const paranetCacheHits = new Counter({
+  name: 'paranet_cache_hits_total',
+  help: 'Total Paranet cache hits',
+  registers: [registry],
+});
+
+export const paranetCacheMisses = new Counter({
+  name: 'paranet_cache_misses_total',
+  help: 'Total Paranet cache misses',
+  registers: [registry],
+});
+
+export const paranetCircuitBreakerState = new Gauge({
+  name: 'paranet_circuit_breaker_state',
+  help: 'Paranet circuit breaker state (0=closed, 1=open, 2=half-open)',
+  registers: [registry],
+});
+
+export const paranetDkgConnections = new Gauge({
+  name: 'paranet_dkg_connections',
+  help: 'Number of active DKG connections',
+  registers: [registry],
+});
+
+export const paranetSignaturesVerified = new Counter({
+  name: 'paranet_signatures_verified_total',
+  help: 'Total signature verifications',
+  labelNames: ['type', 'status'] as const,
+  registers: [registry],
+});
+
+export const paranetRateLimited = new Counter({
+  name: 'paranet_rate_limited_total',
+  help: 'Total rate-limited requests',
+  labelNames: ['endpoint'] as const,
+  registers: [registry],
+});

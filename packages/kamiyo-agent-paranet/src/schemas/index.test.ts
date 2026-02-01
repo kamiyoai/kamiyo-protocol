@@ -9,6 +9,10 @@ import {
   parseTaskCompletionResult,
   parseCapabilityAttestationResult,
   parseTrustRelationshipResult,
+  DKGQueryResponseSchema,
+  TaskSummaryResultSchema,
+  TrustSummaryResultSchema,
+  safeParseDKGResponse,
 } from './index';
 import type { TaskCompletion, CapabilityAttestation, TrustRelationship } from '../types';
 
@@ -232,5 +236,148 @@ describe('parse functions', () => {
     expect(result.trustorGlobalId).toBe(validGlobalId);
     expect(result.trustLevel).toBe(80);
     expect(result.trustType).toBe('general');
+  });
+});
+
+describe('DKGQueryResponseSchema', () => {
+  it('validates valid DKG response with data', () => {
+    const response = {
+      data: [
+        { taskCount: { value: 10 }, avgQuality: { value: 85 } },
+      ],
+    };
+    const result = DKGQueryResponseSchema.safeParse(response);
+    expect(result.success).toBe(true);
+  });
+
+  it('validates response with null data', () => {
+    const response = { data: null };
+    const result = DKGQueryResponseSchema.safeParse(response);
+    expect(result.success).toBe(true);
+  });
+
+  it('validates response with undefined data', () => {
+    const response = {};
+    const result = DKGQueryResponseSchema.safeParse(response);
+    expect(result.success).toBe(true);
+  });
+
+  it('validates response with empty array', () => {
+    const response = { data: [] };
+    const result = DKGQueryResponseSchema.safeParse(response);
+    expect(result.success).toBe(true);
+  });
+
+  it('allows extra fields (passthrough)', () => {
+    const response = { data: [], metadata: { query: 'SELECT *' } };
+    const result = DKGQueryResponseSchema.safeParse(response);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('TaskSummaryResultSchema', () => {
+  it('validates complete task summary', () => {
+    const row = {
+      taskCount: { value: 100 },
+      avgQuality: { value: 87.5 },
+      avgResponseTime: { value: 3600000 },
+      firstTask: { value: '2024-01-01T00:00:00Z' },
+      lastTask: { value: '2024-06-01T00:00:00Z' },
+      disputeCount: { value: 2 },
+      disputesWon: { value: 1 },
+    };
+    const result = TaskSummaryResultSchema.safeParse(row);
+    expect(result.success).toBe(true);
+  });
+
+  it('validates partial task summary', () => {
+    const row = { taskCount: { value: 50 } };
+    const result = TaskSummaryResultSchema.safeParse(row);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('TrustSummaryResultSchema', () => {
+  it('validates trust summary', () => {
+    const row = {
+      avgTrust: { value: 75 },
+      trustorCount: { value: 5 },
+    };
+    const result = TrustSummaryResultSchema.safeParse(row);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('safeParseDKGResponse', () => {
+  it('returns empty array for null data', () => {
+    const result = safeParseDKGResponse({ data: null });
+    expect(result.data).toEqual([]);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('returns empty array for undefined data', () => {
+    const result = safeParseDKGResponse({});
+    expect(result.data).toEqual([]);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('returns error for completely invalid response', () => {
+    const result = safeParseDKGResponse('invalid');
+    expect(result.data).toBeNull();
+    expect(result.error).toBeDefined();
+  });
+
+  it('parses valid data without row schema', () => {
+    const response = {
+      data: [
+        { foo: { value: 1 } },
+        { foo: { value: 2 } },
+      ],
+    };
+    const result = safeParseDKGResponse(response);
+    expect(result.data).toHaveLength(2);
+  });
+
+  it('validates rows with provided schema', () => {
+    const response = {
+      data: [
+        { taskCount: { value: 10 }, avgQuality: { value: 85 } },
+        { taskCount: { value: 20 }, avgQuality: { value: 90 } },
+      ],
+    };
+    const result = safeParseDKGResponse(response, TaskSummaryResultSchema);
+    expect(result.data).toHaveLength(2);
+  });
+
+  it('passes all rows when using passthrough schema', () => {
+    const response = {
+      data: [
+        { taskCount: { value: 10 } },               // matches expected fields
+        { unknownField: { value: 'extra' } },       // extra field, still valid
+        { taskCount: { value: 20 }, extra: { value: 'data' } }, // mixed
+      ],
+    };
+    const result = safeParseDKGResponse(response, TaskSummaryResultSchema);
+    // All rows pass because schema uses passthrough and all fields are optional
+    expect(result.data).toHaveLength(3);
+  });
+
+  it('rejects malformed row structure in base validation', () => {
+    const response = {
+      data: [
+        { taskCount: { value: 10 } },
+        { invalid: 'not_an_object' }, // string instead of { value: ... }
+      ],
+    };
+    // Base schema validation fails because row values must be objects
+    const result = safeParseDKGResponse(response);
+    expect(result.data).toBeNull();
+    expect(result.error).toBeDefined();
+  });
+
+  it('handles malformed input gracefully', () => {
+    const result = safeParseDKGResponse(null);
+    expect(result.data).toBeNull();
+    expect(result.error).toBeDefined();
   });
 });
