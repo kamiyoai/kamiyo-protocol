@@ -1,13 +1,5 @@
-/**
- * E2E Test for kamiyo-fast-voting on Mainnet
- *
- * Tests the core flow:
- * 1. Create a fast action
- * 2. Cast votes
- * 3. Verify state
- *
- * Run: npx ts-node scripts/test-fast-voting-mainnet.ts
- */
+// Mainnet E2E test for kamiyo-fast-voting
+// Run: npx ts-node scripts/test-fast-voting-mainnet.ts
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";

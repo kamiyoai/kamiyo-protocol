@@ -1,18 +1,5 @@
-/**
- * MagicBlock Ephemeral Rollups Integration Tests
- *
- * These tests verify the full delegation → vote → tally → commit flow
- * using MagicBlock's ephemeral validator infrastructure.
- *
- * Requirements:
- * - Either ephemeral-validator running locally
- * - Or connection to MagicBlock devnet
- *
- * Run with:
- *   ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
- *   EPHEMERAL_PROVIDER_ENDPOINT=http://localhost:8899 \
- *   npx mocha --timeout 120000 tests/dist/tests/fast-voting-magicblock.test.js
- */
+// MagicBlock Ephemeral Rollups integration tests
+// Run: EPHEMERAL_PROVIDER_ENDPOINT=http://localhost:8899 anchor test
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program, web3 } from "@coral-xyz/anchor";
@@ -88,36 +75,32 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
     actionId = new anchor.BN(Date.now());
     [fastActionPDA] = deriveFastActionPDA(actionId);
 
-    // Fund accounts via transfer from provider wallet (use minimal amounts)
     const payer = (provider.wallet as any).payer as Keypair;
     const payerBalance = await provider.connection.getBalance(payer.publicKey);
     console.log("Payer balance:", payerBalance / LAMPORTS_PER_SOL, "SOL");
 
-    // Need at least 0.008 SOL for all accounts + tx fees
     if (payerBalance < 0.008 * LAMPORTS_PER_SOL) {
-      console.log("⚠️ Very low balance (need 0.008 SOL) - skipping tests");
+      console.log("Low balance - skipping tests");
       this.skip();
       return;
     }
 
     const fundTx = new Transaction();
-    // FastAction rent: 0.00190008 SOL, FastVote rent: 0.00136 SOL each
-    // Plus transaction fees (~0.00001 SOL each)
     fundTx.add(
       SystemProgram.transfer({
         fromPubkey: payer.publicKey,
         toPubkey: creator.publicKey,
-        lamports: 0.003 * LAMPORTS_PER_SOL, // Needs to pay for FastAction rent + delegation fees
+        lamports: 0.003 * LAMPORTS_PER_SOL,
       }),
       SystemProgram.transfer({
         fromPubkey: payer.publicKey,
         toPubkey: voter1.publicKey,
-        lamports: 0.002 * LAMPORTS_PER_SOL, // Needs FastVote rent + tx fees
+        lamports: 0.002 * LAMPORTS_PER_SOL,
       }),
       SystemProgram.transfer({
         fromPubkey: payer.publicKey,
         toPubkey: voter2.publicKey,
-        lamports: 0.002 * LAMPORTS_PER_SOL, // Needs FastVote rent + tx fees
+        lamports: 0.002 * LAMPORTS_PER_SOL,
       })
     );
     const fundSig = await sendAndConfirmTransaction(provider.connection, fundTx, [payer]);
@@ -129,8 +112,10 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
 
   describe("Full Delegation Flow", function() {
     it("1. Creates fast action on base layer", async function() {
-      const actionHash = Buffer.alloc(32, 1);
-      const descHash = Buffer.alloc(32, 2);
+      const actionHash = Buffer.alloc(32);
+      actionHash.write("test-action-hash-", 0);
+      const descHash = Buffer.alloc(32);
+      descHash.write("test-desc-hash-", 0);
 
       await program.methods
         .createFastAction(actionId, Array.from(actionHash), 50, Array.from(descHash))
@@ -145,7 +130,6 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
       const action = await program.account.fastAction.fetch(fastActionPDA);
       expect(action.threshold).to.equal(50);
       expect(action.executed).to.equal(false);
-      console.log("✅ Action created on base layer");
     });
 
     it("2. Delegates action to ephemeral rollup", async function() {
@@ -194,7 +178,7 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
       // Verify on ER
       const accountInfo = await providerEphemeralRollup.connection.getAccountInfo(fastActionPDA);
       console.log("Account on ER exists:", accountInfo !== null);
-      console.log("✅ Action delegated to ephemeral rollup");
+      console.log("Action delegated to ER");
     });
 
     it("3. Votes on ephemeral rollup (fast path)", async function() {
@@ -213,7 +197,7 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
         .rpc({ skipPreflight: true });
 
       console.log("Vote 1 tx:", vote1Tx);
-      console.log("✅ Vote 1 (YES) cast on ephemeral rollup");
+      console.log("Vote 1 cast on ER");
 
       // Vote 2 - YES
       const [vote2PDA] = deriveFastVotePDA(fastActionPDA, voter2.publicKey);
@@ -230,7 +214,7 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
         .rpc({ skipPreflight: true });
 
       console.log("Vote 2 tx:", vote2Tx);
-      console.log("✅ Vote 2 (YES) cast on ephemeral rollup");
+      console.log("Vote 2 cast on ER");
 
       // Verify vote counts on ER
       const action = await (ephemeralProgram.account as any).fastAction.fetch(fastActionPDA);
@@ -241,7 +225,7 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
     it("4. Waits for voting deadline", async function() {
       // In a real test we'd wait for slots to pass
       // For demo, we'll skip this or use a short window
-      console.log("⏳ Waiting for voting deadline (simulated)...");
+      console.log("Waiting for voting deadline...");
       await sleep(2000);
     });
 
@@ -263,11 +247,11 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
           .rpc({ skipPreflight: true });
 
         console.log("Tally tx:", tx);
-        console.log("✅ Tally committed to base layer");
+        console.log("Tally committed");
       } catch (e: any) {
         // If voting not ended yet, this is expected
         if (e.message?.includes("VotingNotEnded")) {
-          console.log("⚠️ Voting period not ended yet (expected in test)");
+          console.log("Voting period not ended yet (expected)");
           this.skip();
         } else {
           throw e;
@@ -281,10 +265,10 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
       try {
         const action = await program.account.fastAction.fetch(fastActionPDA);
         expect(action.executed).to.equal(true);
-        console.log("✅ Results verified on base layer");
+        console.log("Results verified on base layer");
       } catch {
         // Account may still be on ER
-        console.log("⚠️ Account still on ER, commit may need more time");
+        console.log("Account still on ER, commit pending");
       }
     });
   });
@@ -324,7 +308,7 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
       } catch (e: any) {
         // Anchor wraps constraint errors
         expect(e.message).to.include("magic_program");
-        console.log("✅ Correctly rejected invalid magic_program");
+        console.log("Rejected invalid magic_program");
       }
     });
 
@@ -359,7 +343,7 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
         expect.fail("Should have rejected invalid magic context");
       } catch (e: any) {
         expect(e.message).to.include("magic_context");
-        console.log("✅ Correctly rejected invalid magic_context");
+        console.log("Rejected invalid magic_context");
       }
     });
   });
