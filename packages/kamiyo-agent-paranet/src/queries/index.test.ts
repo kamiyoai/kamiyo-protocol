@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import * as queries from './index.js';
+import * as queries from './index';
 
 const validGlobalId = 'eip155:8453:0x935D2f0e59f5d5d5d5d5d5d5d5d5d5d5d5d5d5d5:123';
 

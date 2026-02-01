@@ -7,7 +7,7 @@ import type {
   CapabilityAttestation,
   TrustRelationship,
   PublishResult,
-} from '../types.js';
+} from '../types';
 import {
   TaskCompletionSchema,
   CapabilityAttestationSchema,
@@ -15,9 +15,9 @@ import {
   buildTaskCompletionAsset,
   buildCapabilityAttestationAsset,
   buildTrustRelationshipAsset,
-} from '../schemas/index.js';
-import { getLogger, createTimer } from '../logger.js';
-import type { Logger } from '../logger.js';
+} from '../schemas/index';
+import { getLogger, createTimer } from '../logger';
+import type { Logger } from '../logger';
 
 export class ParanetPublisher {
   private dkg: DKGClient;

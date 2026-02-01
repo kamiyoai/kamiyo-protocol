@@ -9,7 +9,7 @@ import {
   buildTrustURN,
   SCORE_WEIGHTS,
   TIER_THRESHOLDS,
-} from './types.js';
+} from './types';
 
 describe('isValidGlobalId', () => {
   it('accepts valid global IDs', () => {

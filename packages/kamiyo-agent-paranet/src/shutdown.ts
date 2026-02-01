@@ -1,9 +1,9 @@
 // Graceful shutdown handlers for KAMIYO Agent Paranet
 
-import { getLogger } from './logger.js';
-import type { Logger } from './logger.js';
-import { getMetrics, resetMetrics } from './metrics.js';
-import { getDefaultExecutor } from './resilience.js';
+import { getLogger } from './logger';
+import type { Logger } from './logger';
+import { getMetrics, resetMetrics } from './metrics';
+import { getDefaultExecutor } from './resilience';
 
 export interface ShutdownHandler {
   name: string;

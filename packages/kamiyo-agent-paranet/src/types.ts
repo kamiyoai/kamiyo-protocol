@@ -4,7 +4,7 @@ import {
   isValidGlobalId,
   scoreToTierIndex,
   TIER_THRESHOLDS as SHARED_THRESHOLDS,
-} from './shared.js';
+} from './shared';
 
 // Re-export shared utilities for convenience
 export {
@@ -27,7 +27,7 @@ export {
   extractGlobalId,
   extractTaskType,
   extractNumber,
-} from './shared.js';
+} from './shared';
 
 export type {
   TaskType,
@@ -35,9 +35,9 @@ export type {
   DisputeOutcome,
   AttestationType,
   TrustType,
-} from './shared.js';
+} from './shared';
 
-import type { TaskType, DisputeOutcome, AttestationType, TrustType } from './shared.js';
+import type { TaskType, DisputeOutcome, AttestationType, TrustType } from './shared';
 
 // Paranet configuration
 export interface ParanetConfig {

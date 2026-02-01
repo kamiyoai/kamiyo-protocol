@@ -9,7 +9,7 @@ import {
   recordScoreCalculation,
   recordSignatureVerification,
   createMetricsTimer,
-} from './metrics.js';
+} from './metrics';
 
 describe('metrics', () => {
   beforeEach(() => {

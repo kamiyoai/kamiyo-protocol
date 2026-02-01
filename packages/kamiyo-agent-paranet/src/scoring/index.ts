@@ -7,13 +7,13 @@ import type {
   TaskBreakdown,
   TaskType,
   QueryResult,
-} from '../types.js';
-import { SCORE_WEIGHTS, scoreToTier, KamiyoTier } from '../types.js';
-import * as queries from '../queries/index.js';
-import { getLogger, createTimer } from '../logger.js';
-import type { Logger } from '../logger.js';
-import { LRUCache, CacheInvalidator, createCacheWithInvalidation } from '../cache.js';
-import type { CacheStats } from '../cache.js';
+} from '../types';
+import { SCORE_WEIGHTS, scoreToTier, KamiyoTier } from '../types';
+import * as queries from '../queries/index';
+import { getLogger, createTimer } from '../logger';
+import type { Logger } from '../logger';
+import { LRUCache, CacheInvalidator, createCacheWithInvalidation } from '../cache';
+import type { CacheStats } from '../cache';
 
 interface TaskSummary {
   taskCount: number;

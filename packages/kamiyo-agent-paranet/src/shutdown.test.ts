@@ -6,8 +6,8 @@ import {
   createCacheShutdownHandler,
   createMetricsShutdownHandler,
   createCircuitBreakerShutdownHandler,
-} from './shutdown.js';
-import { nullLogger } from './logger.js';
+} from './shutdown';
+import { nullLogger } from './logger';
 
 describe('ShutdownManager', () => {
   let manager: ShutdownManager;

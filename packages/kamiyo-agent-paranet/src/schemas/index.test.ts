@@ -9,8 +9,8 @@ import {
   parseTaskCompletionResult,
   parseCapabilityAttestationResult,
   parseTrustRelationshipResult,
-} from './index.js';
-import type { TaskCompletion, CapabilityAttestation, TrustRelationship } from '../types.js';
+} from './index';
+import type { TaskCompletion, CapabilityAttestation, TrustRelationship } from '../types';
 
 const validGlobalId = 'eip155:8453:0x935D2f0e59f5d5d5d5d5d5d5d5d5d5d5d5d5d5d5:123';
 
