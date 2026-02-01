@@ -212,7 +212,7 @@ export async function createDKGClient(config: ParanetConfig): Promise<DKGClient>
     endpoint: config.dkgEndpoint,
     port: config.dkgPort || 8900,
     blockchain: {
-      name: config.blockchain.split(':')[0],
+      name: config.blockchain,
       publicKey: config.privateKey ? undefined : 'readonly',
       privateKey: config.privateKey,
     },
