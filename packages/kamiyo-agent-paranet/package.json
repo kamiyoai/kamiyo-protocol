@@ -43,15 +43,19 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./schemas": {
       "types": "./dist/schemas/index.d.ts",
-      "import": "./dist/schemas/index.js"
+      "import": "./dist/schemas/index.js",
+      "require": "./dist/schemas/index.js"
     },
     "./scoring": {
       "types": "./dist/scoring/index.d.ts",
-      "import": "./dist/scoring/index.js"
+      "import": "./dist/scoring/index.js",
+      "require": "./dist/scoring/index.js"
     }
   },
   "keywords": [
