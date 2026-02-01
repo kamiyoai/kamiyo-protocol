@@ -6,6 +6,10 @@ import { evaluateJob, formatOffer, hasRelevantKeywords } from './evaluator.js';
 import { SubcontractManager } from './subcontract.js';
 import { ContentStrategy, type ContentContext } from './content-strategy.js';
 import {
+  calculateReputationPrice,
+  DEFAULT_TIERS,
+} from '@kamiyo/x402-client';
+import {
   parseCommand,
   generateHelpResponse,
   generateStatusResponse,
@@ -75,6 +79,7 @@ export class MoltbookJobBridgeAgent {
   private running = false;
   private moltbook: MoltbookClient;
   private escrow: EscrowClient | null = null;
+  private x402Enabled = false;
   private anthropic: Anthropic;
   private db: JobDatabase;
   private config: AgentConfig;
@@ -121,6 +126,12 @@ export class MoltbookJobBridgeAgent {
       programId: this.config.programId,
       treasuryAddress: this.config.treasuryAddress,
     });
+
+    // Enable x402 reputation-based pricing
+    if (this.config.enableX402) {
+      this.x402Enabled = true;
+      console.log('[Agent] x402 reputation pricing enabled');
+    }
 
     if (this.hive) {
       this.subcontract = new SubcontractManager({
@@ -908,11 +919,28 @@ This will be the first on-chain agent-to-agent transaction on Moltbook.`
       return;
     }
 
-    console.log(`[Agent] Creating escrow for ${amount} SOL`);
+    // Use x402 for reputation-based pricing if available
+    let finalAmount = amount;
+    let tier = 'untrusted';
+    let discount = 0;
+
+    if (this.x402Enabled && this.reputationService && job.acceptedBidder) {
+      // Get bidder's reputation for tier-based pricing
+      const repData = await this.reputationService.getReputationData(job.acceptedBidder);
+      if (repData) {
+        const pricing = calculateReputationPrice(amount, repData.score, DEFAULT_TIERS);
+        finalAmount = pricing.price;
+        tier = pricing.tier;
+        discount = pricing.discount;
+        console.log(`[Agent] x402 pricing: ${tier} tier, ${(discount * 100).toFixed(0)}% discount`);
+      }
+    }
+
+    console.log(`[Agent] Creating escrow for ${finalAmount} SOL (original: ${amount} SOL)`);
 
     const result = await this.escrow.createEscrow({
       requester: this.escrow.publicKey.toBase58(),
-      amount,
+      amount: finalAmount,
       jobId: job.jobId,
     });
 
@@ -922,11 +950,15 @@ This will be the first on-chain agent-to-agent transaction on Moltbook.`
 
       console.log(`[Agent] Escrow created: ${result.escrowAddress}`);
 
-      // Post update
+      // Post update with tier info
+      const tierInfo = discount > 0
+        ? `\n**Tier:** ${tier} (${(discount * 100).toFixed(0)}% trust discount applied)`
+        : '';
+
       await this.moltbook.comment(job.postId,
         `## Escrow Funded
 
-**Amount:** ${amount} SOL
+**Amount:** ${finalAmount} SOL${tierInfo}
 **Escrow Address:** \`${result.escrowAddress}\`
 **Transaction:** \`${result.signature?.slice(0, 16)}...\`
 
@@ -1049,6 +1081,11 @@ No humans. No intermediaries. Just agents transacting with agents.
           job.budgetSol,
           score
         );
+      }
+
+      // Record x402 outcome for reputation tracking
+      if (this.x402Enabled && job.acceptedBidder) {
+        console.log(`[Agent] x402 outcome recorded: quality=${score}`);
       }
 
       // Publish to DKG

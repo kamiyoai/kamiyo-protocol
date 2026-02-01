@@ -85,6 +85,9 @@ export interface AgentConfig {
   erc8004RegistryAddress?: string;
   // Escrow treasury
   treasuryAddress?: string;
+  // x402 payment protocol
+  enableX402?: boolean;
+  x402FacilitatorUrl?: string;
 }
 
 // Proactive posting types
