@@ -8,19 +8,24 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./claude": {
       "types": "./dist/integrations/claude.d.ts",
-      "import": "./dist/integrations/claude.js"
+      "import": "./dist/integrations/claude.js",
+      "require": "./dist/integrations/claude.js"
     },
     "./channels": {
       "types": "./dist/channels/index.d.ts",
-      "import": "./dist/channels/index.js"
+      "import": "./dist/channels/index.js",
+      "require": "./dist/channels/index.js"
     },
     "./swarmteams": {
       "types": "./dist/swarmteams/index.d.ts",
-      "import": "./dist/swarmteams/index.js"
+      "import": "./dist/swarmteams/index.js",
+      "require": "./dist/swarmteams/index.js"
     }
   },
   "scripts": {
