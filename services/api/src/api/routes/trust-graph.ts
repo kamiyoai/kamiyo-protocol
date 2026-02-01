@@ -6,7 +6,13 @@ import { logger } from '../../logger';
 
 const router: IRouter = Router();
 
-type Tier = 'platinum' | 'gold' | 'silver' | 'bronze' | 'unverified';
+// Trust graph tiers (visual representation)
+// oracle: highest trust, verified track record
+// sentinel: high trust, reliable performance
+// architect: established trust, consistent quality
+// scout: emerging trust, building reputation
+// ghost: unverified, no established reputation
+type Tier = 'oracle' | 'sentinel' | 'architect' | 'scout' | 'ghost';
 
 interface TrustNode {
   id: string;
@@ -31,18 +37,18 @@ interface TrustGraphStats {
 
 // Mock trust graph data
 const MOCK_NODES: TrustNode[] = [
-  { id: 'agent-001', label: 'Oracle Agent', tier: 'platinum', reputation: 95, txCount: 1247 },
-  { id: 'agent-002', label: 'Data Fetcher', tier: 'gold', reputation: 82, txCount: 856 },
-  { id: 'agent-003', label: 'Price Bot', tier: 'gold', reputation: 78, txCount: 423 },
-  { id: 'agent-004', label: 'Arbitrage Scanner', tier: 'silver', reputation: 65, txCount: 312 },
-  { id: 'agent-005', label: 'Liquidity Monitor', tier: 'silver', reputation: 58, txCount: 234 },
-  { id: 'agent-006', label: 'Swap Executor', tier: 'bronze', reputation: 42, txCount: 156 },
-  { id: 'agent-007', label: 'Alert Bot', tier: 'bronze', reputation: 35, txCount: 89 },
-  { id: 'agent-008', label: 'Analytics Agent', tier: 'platinum', reputation: 92, txCount: 2103 },
-  { id: 'agent-009', label: 'Risk Assessor', tier: 'gold', reputation: 76, txCount: 567 },
-  { id: 'agent-010', label: 'Report Generator', tier: 'silver', reputation: 54, txCount: 178 },
-  { id: 'agent-011', label: 'New Agent', tier: 'unverified', reputation: 12, txCount: 5 },
-  { id: 'agent-012', label: 'Test Agent', tier: 'unverified', reputation: 8, txCount: 2 },
+  { id: 'agent-001', label: 'Oracle Agent', tier: 'oracle', reputation: 95, txCount: 1247 },
+  { id: 'agent-002', label: 'Data Fetcher', tier: 'sentinel', reputation: 82, txCount: 856 },
+  { id: 'agent-003', label: 'Price Bot', tier: 'sentinel', reputation: 78, txCount: 423 },
+  { id: 'agent-004', label: 'Arbitrage Scanner', tier: 'architect', reputation: 65, txCount: 312 },
+  { id: 'agent-005', label: 'Liquidity Monitor', tier: 'architect', reputation: 58, txCount: 234 },
+  { id: 'agent-006', label: 'Swap Executor', tier: 'scout', reputation: 42, txCount: 156 },
+  { id: 'agent-007', label: 'Alert Bot', tier: 'scout', reputation: 35, txCount: 89 },
+  { id: 'agent-008', label: 'Analytics Agent', tier: 'oracle', reputation: 92, txCount: 2103 },
+  { id: 'agent-009', label: 'Risk Assessor', tier: 'sentinel', reputation: 76, txCount: 567 },
+  { id: 'agent-010', label: 'Report Generator', tier: 'architect', reputation: 54, txCount: 178 },
+  { id: 'agent-011', label: 'New Agent', tier: 'ghost', reputation: 12, txCount: 5 },
+  { id: 'agent-012', label: 'Test Agent', tier: 'ghost', reputation: 8, txCount: 2 },
 ];
 
 const MOCK_EDGES: TrustEdge[] = [
@@ -67,11 +73,11 @@ const MOCK_EDGES: TrustEdge[] = [
 
 function computeStats(nodes: TrustNode[], edges: TrustEdge[]): TrustGraphStats {
   const tierCounts: Record<Tier, number> = {
-    platinum: 0,
-    gold: 0,
-    silver: 0,
-    bronze: 0,
-    unverified: 0,
+    oracle: 0,
+    sentinel: 0,
+    architect: 0,
+    scout: 0,
+    ghost: 0,
   };
 
   for (const node of nodes) {
@@ -207,6 +213,90 @@ router.get('/node/:id', async (req: Request, res: Response) => {
     connections: peers,
     totalConnections: connections.length,
   });
+});
+
+// Tier colors for SVG
+const TIER_COLORS: Record<Tier, string> = {
+  oracle: '#00f0ff',
+  sentinel: '#9944ff',
+  architect: '#ffaa22',
+  scout: '#ff44f5',
+  ghost: '#505050',
+};
+
+// GET /api/trust-graph/image - Generate SVG preview for OG image
+router.get('/image', async (req: Request, res: Response) => {
+  const width = 1200;
+  const height = 630;
+
+  const nodes = MOCK_NODES;
+  const edges = MOCK_EDGES;
+  const stats = computeStats(nodes, edges);
+
+  // Simple force-directed layout
+  const positioned = nodes.map((node, i) => {
+    const angle = (i / nodes.length) * 2 * Math.PI;
+    const radius = 200 + Math.random() * 50;
+    return {
+      ...node,
+      x: width / 2 + Math.cos(angle) * radius,
+      y: height / 2 + Math.sin(angle) * radius,
+    };
+  });
+
+  const nodeMap = new Map(positioned.map(n => [n.id, n]));
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#111111"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="${width}" height="${height}" fill="url(#bg)"/>
+  <text x="60" y="50" fill="#00f0ff" font-family="monospace" font-size="28" font-weight="bold">KAMIYO Trust Graph</text>
+  <text x="60" y="80" fill="#666" font-family="monospace" font-size="14">${stats.totalNodes} agents · ${stats.totalEdges} trust edges · ${stats.avgTrust}% avg trust</text>
+`;
+
+  // Draw edges
+  for (const edge of edges) {
+    const source = nodeMap.get(edge.source);
+    const target = nodeMap.get(edge.target);
+    if (!source || !target) continue;
+    const opacity = 0.2 + (edge.weight / 100) * 0.4;
+    svg += `  <line x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" stroke="#00f0ff" stroke-width="1" stroke-opacity="${opacity}"/>\n`;
+  }
+
+  // Draw nodes
+  for (const node of positioned) {
+    const color = TIER_COLORS[node.tier];
+    const size = node.tier === 'oracle' ? 16 : node.tier === 'sentinel' ? 14 : node.tier === 'architect' ? 12 : 10;
+    svg += `  <circle cx="${node.x}" cy="${node.y}" r="${size}" fill="${color}" filter="url(#glow)"/>\n`;
+  }
+
+  // Tier legend
+  const tiers: Tier[] = ['oracle', 'sentinel', 'architect', 'scout', 'ghost'];
+  tiers.forEach((tier, i) => {
+    const y = height - 100 + i * 18;
+    svg += `  <circle cx="70" cy="${y}" r="6" fill="${TIER_COLORS[tier]}"/>`;
+    svg += `  <text x="85" y="${y + 4}" fill="#888" font-family="monospace" font-size="12">${tier} (${stats.tierCounts[tier]})</text>\n`;
+  });
+
+  svg += '</svg>';
+
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(svg);
+});
+
+// GET /api/trust-graph/stats - Just stats for quick display
+router.get('/stats', async (_req: Request, res: Response) => {
+  const stats = computeStats(MOCK_NODES, MOCK_EDGES);
+  res.json(stats);
 });
 
 export default router;

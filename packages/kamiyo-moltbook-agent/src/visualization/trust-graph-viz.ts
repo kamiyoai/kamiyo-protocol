@@ -42,13 +42,27 @@ export interface VizConfig {
   colorByTier: boolean;
 }
 
+// Trust graph tiers (visual representation)
+export type TrustTier = 'oracle' | 'sentinel' | 'architect' | 'scout' | 'ghost';
+
 const TIER_COLORS: Record<string, string> = {
-  platinum: '#E5E4E2',
-  gold: '#FFD700',
-  silver: '#C0C0C0',
-  bronze: '#CD7F32',
-  unverified: '#808080',
+  oracle: '#00f0ff',     // cyan - highest trust
+  sentinel: '#9944ff',   // purple - high trust
+  architect: '#ffaa22',  // orange - established
+  scout: '#ff44f5',      // pink - emerging
+  ghost: '#505050',      // gray - unverified
 };
+
+// Map reputation tiers to trust graph tiers
+export function mapReputationToTrustTier(reputationTier: string | null): TrustTier {
+  switch (reputationTier) {
+    case 'platinum': return 'oracle';
+    case 'gold': return 'sentinel';
+    case 'silver': return 'architect';
+    case 'bronze': return 'scout';
+    default: return 'ghost';
+  }
+}
 
 const DEFAULT_CONFIG: VizConfig = {
   width: 800,
@@ -82,7 +96,8 @@ export class TrustGraphVisualizer {
 
     // Build nodes
     for (const rawNode of rawData.nodes) {
-      const tier = await this.getAgentTier(rawNode.id);
+      const reputationTier = await this.getAgentTier(rawNode.id);
+      const tier = mapReputationToTrustTier(reputationTier);
       const badges = this.badgeService?.getBadges(rawNode.id).length ?? 0;
 
       const node: GraphNode = {
@@ -129,15 +144,15 @@ export class TrustGraphVisualizer {
 
   private calculateStats(nodes: GraphNode[], edges: GraphEdge[]): GraphStats {
     const tierDist: Record<string, number> = {
-      platinum: 0,
-      gold: 0,
-      silver: 0,
-      bronze: 0,
-      unverified: 0,
+      oracle: 0,
+      sentinel: 0,
+      architect: 0,
+      scout: 0,
+      ghost: 0,
     };
 
     for (const node of nodes) {
-      const tier = node.tier || 'unverified';
+      const tier = node.tier || 'ghost';
       tierDist[tier] = (tierDist[tier] || 0) + 1;
     }
 
@@ -266,7 +281,7 @@ export class TrustGraphVisualizer {
     // Draw nodes
     for (const node of nodes) {
       const color = config.colorByTier
-        ? TIER_COLORS[node.tier || 'unverified']
+        ? TIER_COLORS[node.tier || 'ghost']
         : '#4a90d9';
 
       svg += `  <g class="node" transform="translate(${node.x}, ${node.y})">
