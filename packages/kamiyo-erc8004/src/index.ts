@@ -62,6 +62,10 @@ export {
   buildCredentialAsset,
   buildRelationshipAsset,
   buildAgentURN,
+  // Paranet schema builders
+  buildTaskCompletionAsset,
+  buildCapabilityAttestationAsset,
+  buildTrustRelationshipAsset,
   sparqlQueries,
 } from './context';
 export type {
@@ -80,4 +84,14 @@ export type {
   ServiceName,
   ServiceEndpoint,
   RegistrationEntry,
+  // Paranet types
+  ParanetTaskType,
+  ParanetTier,
+  DisputeOutcome,
+  TaskCompletionRecord,
+  CapabilityAttestation,
+  TrustRelationship as ParanetTrustRelationship,
+  CreditScoreBreakdown,
+  AgentCreditScore,
+  ParanetProviderResult,
 } from './context';

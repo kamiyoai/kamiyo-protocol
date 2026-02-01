@@ -8,10 +8,12 @@ export * from './unified.js';
 export * from './x402.js';
 export * from './market.js';
 export * from './search.js';
+export * from './paranet.js';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MARKET_TOOL_DEFINITIONS } from './market.js';
 import { SEARCH_TOOL_DEFINITIONS } from './search.js';
+import { PARANET_TOOLS } from './paranet.js';
 
 export const TOOL_DEFINITIONS: Tool[] = [
   {
@@ -148,4 +150,6 @@ export const TOOL_DEFINITIONS: Tool[] = [
   ...MARKET_TOOL_DEFINITIONS,
   // Web search tools
   ...SEARCH_TOOL_DEFINITIONS,
+  // Agent Paranet tools
+  ...PARANET_TOOLS,
 ];

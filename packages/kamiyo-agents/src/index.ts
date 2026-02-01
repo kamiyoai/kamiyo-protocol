@@ -7,6 +7,8 @@ export { createDKGTools, DKG_TOOL_NAMES } from './dkg-tools.js';
 export type { DKGToolName, DKGToolsConfig, DKGClient } from './dkg-tools.js';
 export { createX402Tools, X402_TOOL_NAMES } from './x402-tools.js';
 export type { X402ToolName, X402ToolsConfig, PaymentRequirement } from './x402-tools.js';
+export { createParanetTools, PARANET_TOOL_NAMES } from './paranet-tools.js';
+export type { ParanetToolName, ParanetToolsConfig, ParanetClient } from './paranet-tools.js';
 export type {
   AgentConfig,
   AgentMessage,

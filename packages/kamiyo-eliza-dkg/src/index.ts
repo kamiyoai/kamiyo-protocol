@@ -11,9 +11,14 @@ import {
   publishDisputeAction,
   publishReputationToDKGAction,
   queryReputationFromDKGAction,
+  findParanetProvidersAction,
+  getParanetCreditScoreAction,
+  publishTaskCompletionAction,
+  attestCapabilityAction,
+  recordTrustAction,
 } from './actions/index.js';
-import { dkgQualityProvider } from './providers/index.js';
-import { qualityPublisherEvaluator } from './evaluators/index.js';
+import { dkgQualityProvider, creditScoreProvider, peerReputationProvider } from './providers/index.js';
+import { qualityPublisherEvaluator, preContractEvaluator, postTaskEvaluator } from './evaluators/index.js';
 import { dkgSyncService } from './services/index.js';
 
 export const kamiyoDKGPlugin: Plugin = {
@@ -29,18 +34,30 @@ export const kamiyoDKGPlugin: Plugin = {
     publishDisputeAction,
     publishReputationToDKGAction,
     queryReputationFromDKGAction,
+    // Agent Paranet actions
+    findParanetProvidersAction,
+    getParanetCreditScoreAction,
+    publishTaskCompletionAction,
+    attestCapabilityAction,
+    recordTrustAction,
   ],
   providers: [
     // Include all KAMIYO providers
     ...(kamiyoPlugin.providers || []),
     // Add DKG quality provider
     dkgQualityProvider,
+    // Agent Paranet providers
+    creditScoreProvider,
+    peerReputationProvider,
   ],
   evaluators: [
     // Include all KAMIYO evaluators
     ...(kamiyoPlugin.evaluators || []),
     // Add DKG quality publisher
     qualityPublisherEvaluator,
+    // Agent Paranet evaluators
+    preContractEvaluator,
+    postTaskEvaluator,
   ],
   services: [
     // Include all KAMIYO services
