@@ -39,6 +39,14 @@ export interface GatedAccessConfig {
   trustGraph: TrustGraph;
   badgeService: BadgeService;
   dkg?: DKGPublisher;
+  wsHost?: string;
+}
+
+export interface AccessToken {
+  channelId: string;
+  nullifier: string;
+  tier: number;
+  expiresAt: number;
 }
 
 export class GatedAccessService {
@@ -46,6 +54,7 @@ export class GatedAccessService {
   private trustGraph: TrustGraph;
   private badgeService: BadgeService;
   private dkg?: DKGPublisher;
+  private wsHost: string;
 
   private channels = new Map<string, GatedChannel>();
   private pendingRequests = new Map<string, AccessRequest[]>();
@@ -55,6 +64,7 @@ export class GatedAccessService {
     this.trustGraph = config.trustGraph;
     this.badgeService = config.badgeService;
     this.dkg = config.dkg;
+    this.wsHost = config.wsHost || 'localhost:8080';
 
     // Initialize default channels
     this.initializeDefaultChannels();
@@ -443,5 +453,43 @@ ${channel.description}
 You proved your ${channel.requiredTier} tier status without revealing your exact reputation score.
 
 *This is what ZK-gated access looks like.*`;
+  }
+
+  generateAccessToken(
+    channelId: string,
+    proof: { nullifierHash: string; tier: number }
+  ): string {
+    const payload: AccessToken = {
+      channelId,
+      nullifier: proof.nullifierHash,
+      tier: proof.tier,
+      expiresAt: Date.now() + 3600000, // 1 hour
+    };
+    return Buffer.from(JSON.stringify(payload)).toString('base64');
+  }
+
+  verifyAccessToken(
+    token: string
+  ): { channelId: string; nullifier: string; tier: number } | null {
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const payload = JSON.parse(decoded) as AccessToken;
+
+      if (payload.expiresAt < Date.now()) {
+        return null;
+      }
+
+      return {
+        channelId: payload.channelId,
+        nullifier: payload.nullifier,
+        tier: payload.tier,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  getChannelEndpoint(channelId: string): string {
+    return `ws://${this.wsHost}/channels/${channelId}`;
   }
 }

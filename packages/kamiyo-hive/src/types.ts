@@ -35,6 +35,8 @@ export interface AgentInfo {
   registeredAt: number;
   lastActiveAt?: number;
   metadata?: Record<string, unknown>;
+  reputationTier?: string;
+  tierDiscount?: number;
 }
 
 export interface DiscoveryQuery {
@@ -63,6 +65,7 @@ export interface HireOptions {
   qualityThreshold?: number;
   preferredAgents?: string[];
   excludeAgents?: string[];
+  paymentProtocol?: 'x402' | 'direct';
 }
 
 export interface HiredAgent {
@@ -72,6 +75,7 @@ export interface HiredAgent {
   budget: number;
   deadline: number;
   status: 'pending' | 'in_progress' | 'delivered' | 'verified' | 'disputed' | 'completed';
+  x402TransactionId?: string;
   awaitDelivery(): Promise<DeliveryResult>;
   checkStatus(): Promise<HiredAgent>;
   cancel(): Promise<void>;
@@ -109,6 +113,8 @@ export interface HiveConfig {
   defaultQualityThreshold?: number;
   defaultTimeLockSeconds?: number;
   oracleEndpoint?: string;
+  x402Client?: any;
+  enableReputationPricing?: boolean;
 }
 
 export interface RegisterOptions {
