@@ -1,0 +1,21 @@
+[package]
+name = "kamiyo-fast-voting"
+version = "0.1.0"
+description = "TEE-based real-time agent voting using MagicBlock Private Ephemeral Rollups"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kamiyo_fast_voting"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+ephemeral-rollups-sdk = { version = "0.8.0", features = ["anchor", "access-control"] }

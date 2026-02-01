@@ -6,6 +6,7 @@ members = [
     "programs/kamiyo-governance",
     "programs/kamiyo-transfer-hook",
     "programs/swarmteams",
+    "programs/kamiyo-fast-voting",
 ]
 resolver = "2"
 
