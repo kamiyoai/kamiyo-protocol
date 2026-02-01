@@ -3,10 +3,11 @@
 
 use anchor_lang::prelude::*;
 use ephemeral_rollups_sdk::anchor::{delegate, ephemeral};
+use ephemeral_rollups_sdk::consts::{MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 
-declare_id!("FASTvKAMY1111111111111111111111111111111111");
+declare_id!("AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA");
 
 pub const FAST_ACTION_SEED: &[u8] = b"fast_action";
 pub const FAST_VOTE_SEED: &[u8] = b"fast_vote";
@@ -294,9 +295,11 @@ pub struct TallyAndCommit<'info> {
     pub fast_action: Account<'info, FastAction>,
     #[account(mut)]
     pub payer: Signer<'info>,
-    /// CHECK: MagicBlock context PDA
+    /// CHECK: MagicBlock context - validated via address constraint
+    #[account(address = MAGIC_CONTEXT_ID @ FastVoteError::InvalidMagicContext)]
     pub magic_context: AccountInfo<'info>,
-    /// CHECK: MagicBlock program
+    /// CHECK: MagicBlock program - validated via address constraint
+    #[account(address = MAGIC_PROGRAM_ID @ FastVoteError::InvalidMagicBlockProgram)]
     pub magic_program: AccountInfo<'info>,
 }
 
@@ -370,4 +373,8 @@ pub enum FastVoteError {
     QuorumNotMet,
     #[msg("Unauthorized")]
     Unauthorized,
+    #[msg("Invalid MagicBlock program")]
+    InvalidMagicBlockProgram,
+    #[msg("Invalid MagicBlock context")]
+    InvalidMagicContext,
 }
