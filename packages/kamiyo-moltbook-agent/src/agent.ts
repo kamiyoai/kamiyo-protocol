@@ -45,6 +45,15 @@ import { SwarmTeamsProver } from '@kamiyo/hive';
 import type { KamiyoHive } from '@kamiyo/hive';
 import type { AgentConfig, MoltbookPost, Job, WorkResult, MoltbookComment, OwnPost } from './types.js';
 
+// Autonomous agent services
+import { AIReasoningService } from './services/ai-reasoning.js';
+import { FeedMonitor } from './services/feed-monitor.js';
+import { SentimentAnalyzer } from './services/sentiment-analyzer.js';
+import { EngagementEngine } from './services/engagement-engine.js';
+import { RelationshipMemory } from './services/relationship-memory.js';
+import { GoalManager } from './services/goal-manager.js';
+import { InnerVoice } from './services/inner-voice.js';
+
 interface TrackedCampaignJob {
   postId: string;
   jobId: string;
@@ -98,6 +107,21 @@ export class MoltbookJobBridgeAgent {
   private gatedAccess: GatedAccessService | null = null;
   private graphVisualizer: TrustGraphVisualizer | null = null;
   private campaignJobs = new Map<string, TrackedCampaignJob>();
+
+  // Autonomous agent services
+  private aiReasoning: AIReasoningService | null = null;
+  private feedMonitor: FeedMonitor | null = null;
+  private sentimentAnalyzer: SentimentAnalyzer | null = null;
+  private engagementEngine: EngagementEngine | null = null;
+  private relationshipMemory: RelationshipMemory | null = null;
+  private goalManager: GoalManager | null = null;
+  private innerVoice: InnerVoice | null = null;
+
+  // Autonomy configuration
+  private autonomyEnabled = true;
+  private lastFeedPoll = 0;
+  private lastGoalUpdate = 0;
+  private feedPollIntervalMs = 2 * 60 * 1000; // 2 minutes
 
   constructor(config: AgentConfig, hive?: KamiyoHive) {
     this.config = config;
@@ -256,6 +280,29 @@ export class MoltbookJobBridgeAgent {
     console.log('[Agent] Job board initialized');
     console.log('[Agent] Collective memory initialized');
     console.log('[Agent] Identity resolver initialized');
+
+    // Initialize autonomous agent services
+    this.aiReasoning = new AIReasoningService();
+    this.feedMonitor = new FeedMonitor(this.moltbook, this.db, this.aiReasoning);
+    this.sentimentAnalyzer = new SentimentAnalyzer(this.aiReasoning);
+    this.engagementEngine = new EngagementEngine(
+      this.moltbook,
+      this.db,
+      this.feedMonitor,
+      this.aiReasoning
+    );
+    this.relationshipMemory = new RelationshipMemory(this.db, this.aiReasoning);
+    this.goalManager = new GoalManager(this.db, this.aiReasoning);
+    this.innerVoice = new InnerVoice(this.db, this.aiReasoning);
+
+    console.log('[Agent] Autonomous services initialized');
+    console.log('[Agent] - AI Reasoning (Claude SDK)');
+    console.log('[Agent] - Feed Monitor');
+    console.log('[Agent] - Engagement Engine');
+    console.log('[Agent] - Relationship Memory');
+    console.log('[Agent] - Goal Manager');
+    console.log('[Agent] - Inner Voice');
+
     console.log('[Agent] Initialized');
     console.log(`[Agent] Wallet: ${this.escrow.publicKey.toBase58()}`);
   }
@@ -286,7 +333,20 @@ export class MoltbookJobBridgeAgent {
 
   private async pollCycle(): Promise<void> {
     try {
-      // Proactive engagement (new)
+      // === AUTONOMOUS BEHAVIORS ===
+      if (this.autonomyEnabled) {
+        // Feed monitoring (every 2 minutes)
+        await this.pollFeedIfDue();
+
+        // Proactive engagement (find and engage with relevant posts)
+        await this.maybeEngageProactively();
+
+        // Goal progress tracking (every hour)
+        await this.updateGoalsIfDue();
+      }
+
+      // === EXISTING BEHAVIORS ===
+      // Proactive posting
       if (this.config.enableProactivePosting) {
         await this.maybeCreatePost();
       }
@@ -303,6 +363,99 @@ export class MoltbookJobBridgeAgent {
     } catch (err) {
       console.error('[Agent] Poll cycle error:', err instanceof Error ? err.message : 'Unknown error');
       // Continue running - will retry next cycle
+    }
+  }
+
+  private async pollFeedIfDue(): Promise<void> {
+    if (!this.feedMonitor) return;
+
+    const now = Date.now();
+    if (now - this.lastFeedPoll < this.feedPollIntervalMs) return;
+
+    try {
+      const newPosts = await this.feedMonitor.pollFeed();
+      this.lastFeedPoll = now;
+
+      if (newPosts.length > 0) {
+        console.log(`[Agent] Feed: observed ${newPosts.length} new posts`);
+
+        // Process interesting posts through inner voice
+        for (const post of newPosts.slice(0, 3)) {
+          if (this.innerVoice && post.isQuestion) {
+            const context = `Question from @${post.author}: ${post.title}`;
+            await this.innerVoice.processContext(context);
+          }
+        }
+
+        // Log trending topics
+        const trends = this.feedMonitor.getTrendingTopics(3);
+        if (trends.length > 0) {
+          console.log(`[Agent] Trending: ${trends.map(t => t.topic).join(', ')}`);
+        }
+      }
+    } catch (err) {
+      console.error('[Agent] Feed poll error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async maybeEngageProactively(): Promise<void> {
+    if (!this.engagementEngine) return;
+
+    try {
+      const stats = this.engagementEngine.getStats();
+
+      // Check if we have capacity
+      if (stats.engagementsThisHour >= stats.maxPerHour) {
+        return;
+      }
+
+      // Find and process opportunities
+      const results = await this.engagementEngine.processOpportunities(1);
+
+      for (const result of results) {
+        if (result.success) {
+          console.log(`[Agent] Engaged with post ${result.postId}: ${result.engagementType}`);
+
+          // Update relationship memory
+          if (this.relationshipMemory && result.content) {
+            // We'd need the post author here - for now just log
+            console.log(`[Agent] Comment posted: ${result.content.slice(0, 50)}...`);
+          }
+        } else if (result.error) {
+          console.log(`[Agent] Engagement failed: ${result.error}`);
+        }
+      }
+    } catch (err) {
+      console.error('[Agent] Proactive engagement error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async updateGoalsIfDue(): Promise<void> {
+    if (!this.goalManager) return;
+
+    const now = Date.now();
+    const hourMs = 60 * 60 * 1000;
+
+    if (now - this.lastGoalUpdate < hourMs) return;
+
+    try {
+      await this.goalManager.updateProgress();
+      this.lastGoalUpdate = now;
+
+      // Check for milestones
+      const milestones = await this.goalManager.checkGoalMilestones();
+      for (const { goal, milestone } of milestones) {
+        console.log(`[Agent] Goal milestone: "${goal.description}" - ${milestone}`);
+      }
+
+      // Log progress summary
+      const progress = this.goalManager.getGoalProgress();
+      const completed = progress.filter(g => g.progress >= 100);
+      if (completed.length > 0) {
+        console.log(`[Agent] Completed goals: ${completed.map(g => g.description).join(', ')}`);
+      }
+    } catch (err) {
+      console.error('[Agent] Goal update error:', err instanceof Error ? err.message : err);
     }
   }
 
@@ -342,12 +495,31 @@ export class MoltbookJobBridgeAgent {
     const stats = this.db.getStats();
     const recentPosts = this.db.getOwnPosts(10);
 
+    // Get trending topics and active agents from feed monitor
+    let trendingTopics: string[] = [];
+    let activeAgents: string[] = [];
+
+    if (this.feedMonitor) {
+      trendingTopics = this.feedMonitor.getTrendingTopics(5).map(t => t.topic);
+      activeAgents = this.feedMonitor.getActiveAgents(Date.now() - 24 * 60 * 60 * 1000)
+        .slice(0, 10)
+        .map(a => a.agentId);
+    }
+
+    // Get goal-based content adjustments
+    let contentWeights: Record<string, number> = {};
+    if (this.goalManager) {
+      contentWeights = this.goalManager.getContentWeightAdjustments();
+    }
+
     return {
       recentVerifications: stats.verifications,
       trustGraphSize: stats.trustEdges,
       escrowVolume: stats.escrowVolume,
-      activeAgents: [],
+      activeAgents,
       recentTransactions: [],
+      trendingTopics,
+      contentWeights,
     };
   }
 
@@ -387,6 +559,16 @@ export class MoltbookJobBridgeAgent {
   private async handleMention(comment: MoltbookComment): Promise<void> {
     console.log(`[Agent] Handling mention from @${comment.author}: ${comment.content.slice(0, 50)}...`);
 
+    // Record interaction in relationship memory
+    if (this.relationshipMemory) {
+      await this.relationshipMemory.recordInteraction({
+        agentId: comment.author,
+        type: 'mentioned_us',
+        content: comment.content,
+        postId: comment.post_id,
+      });
+    }
+
     const command = parseCommand(comment);
     const result = await this.executeCommand(command, comment);
 
@@ -394,6 +576,16 @@ export class MoltbookJobBridgeAgent {
       try {
         await this.moltbook.reply(comment.id, result.response);
         console.log(`[Agent] Replied to @${comment.author}`);
+
+        // Record our reply in relationship memory
+        if (this.relationshipMemory) {
+          await this.relationshipMemory.recordInteraction({
+            agentId: comment.author,
+            type: 'sent_message',
+            content: result.response,
+            postId: comment.post_id,
+          });
+        }
       } catch (err) {
         console.error('[Agent] Failed to reply:', err);
       }
@@ -930,7 +1122,7 @@ This will be the first on-chain agent-to-agent transaction on Moltbook.`
       if (repData) {
         const pricing = calculateReputationPrice(amount, repData.score, DEFAULT_TIERS);
         finalAmount = pricing.price;
-        tier = pricing.tier;
+        tier = pricing.tier.name;
         discount = pricing.discount;
         console.log(`[Agent] x402 pricing: ${tier} tier, ${(discount * 100).toFixed(0)}% discount`);
       }

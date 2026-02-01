@@ -27,17 +27,18 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
+    "@kamiyo/dkg-quality-oracle": "workspace:*",
     "@kamiyo/hive": "workspace:*",
     "@kamiyo/paykit": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
-    "@kamiyo/dkg-quality-oracle": "workspace:*",
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.95.0",
     "better-sqlite3": "^11.0.0",
     "bn.js": "^5.2.1",
     "bs58": "^6.0.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
