@@ -140,11 +140,13 @@ pub mod kamiyo_fast_voting {
             .checked_add(action.votes_against)
             .ok_or(FastVoteError::VoteOverflow)?;
 
-        // Safe: total_votes >= MIN_VOTES_FOR_QUORUM > 0
+        require!(total_votes > 0, FastVoteError::QuorumNotMet);
+
         let approval_pct = (action.votes_for as u64)
             .checked_mul(100)
             .ok_or(FastVoteError::VoteOverflow)?
-            / (total_votes as u64);
+            .checked_div(total_votes as u64)
+            .ok_or(FastVoteError::VoteOverflow)?;
 
         action.result = if approval_pct >= action.threshold as u64 {
             VoteResult::Passed
@@ -189,41 +191,39 @@ pub mod kamiyo_fast_voting {
     }
 }
 
-// Account: 8 + 8 + 32 + 32 + 32 + 1 + 4 + 4 + 4 + 8 + 8 + 1 + 2 + 1 = 145
 #[account]
 pub struct FastAction {
-    pub action_id: u64,
-    pub action_hash: [u8; 32],
-    pub description_hash: [u8; 32],
-    pub creator: Pubkey,
-    pub threshold: u8,
-    pub votes_for: u32,
-    pub votes_against: u32,
-    pub vote_count: u32,
-    pub created_slot: u64,
-    pub deadline_slot: u64,
-    pub executed: bool,
-    pub result: VoteResult,
-    pub bump: u8,
+    pub action_id: u64,          // 8
+    pub action_hash: [u8; 32],   // 32
+    pub description_hash: [u8; 32], // 32
+    pub creator: Pubkey,         // 32
+    pub threshold: u8,           // 1
+    pub votes_for: u32,          // 4
+    pub votes_against: u32,      // 4
+    pub vote_count: u32,         // 4
+    pub created_slot: u64,       // 8
+    pub deadline_slot: u64,      // 8
+    pub executed: bool,          // 1
+    pub result: VoteResult,      // 1 + 1 padding
+    pub bump: u8,                // 1
 }
 
 impl FastAction {
-    pub const LEN: usize = 145;
+    pub const LEN: usize = 145; // 8 disc + 136 fields + 1 padding
 }
 
-// Account: 8 + 32 + 32 + 32 + 1 + 8 + 1 = 114
 #[account]
 pub struct FastVote {
-    pub fast_action: Pubkey,
-    pub voter: Pubkey,
-    pub voter_commitment: [u8; 32],
-    pub vote_value: bool,
-    pub voted_slot: u64,
-    pub bump: u8,
+    pub fast_action: Pubkey,     // 32
+    pub voter: Pubkey,           // 32
+    pub voter_commitment: [u8; 32], // 32
+    pub vote_value: bool,        // 1
+    pub voted_slot: u64,         // 8
+    pub bump: u8,                // 1
 }
 
 impl FastVote {
-    pub const LEN: usize = 114;
+    pub const LEN: usize = 114; // 8 disc + 106 fields
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
