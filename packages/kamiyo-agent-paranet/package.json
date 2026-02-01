@@ -4,7 +4,6 @@
   "description": "KAMIYO Agent Paranet - Decentralized credit scores for AI agents on OriginTrail DKG",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",

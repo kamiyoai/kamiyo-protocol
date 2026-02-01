@@ -1,7 +1,7 @@
 // @kamiyo/agent-paranet - Decentralized credit scores for AI agents on OriginTrail DKG
 
 // Types (includes re-exported shared utilities)
-export * from './types.js';
+export * from './types';
 
 // Logging
 export {
@@ -11,8 +11,8 @@ export {
   nullLogger,
   generateCorrelationId,
   createTimer,
-} from './logger.js';
-export type { Logger, LogLevel, LogContext, LoggerConfig, LoggerType } from './logger.js';
+} from './logger';
+export type { Logger, LogLevel, LogContext, LoggerConfig, LoggerType } from './logger';
 
 // Resilience (retry and circuit breaker)
 export {
@@ -24,8 +24,8 @@ export {
   setDefaultExecutor,
   DEFAULT_RETRY_CONFIG,
   DEFAULT_CIRCUIT_BREAKER_CONFIG,
-} from './resilience.js';
-export type { RetryConfig, CircuitBreakerConfig } from './resilience.js';
+} from './resilience';
+export type { RetryConfig, CircuitBreakerConfig } from './resilience';
 
 // Cache
 export {
@@ -36,8 +36,8 @@ export {
   createCacheWithInvalidation,
   createRedisCache,
   DEFAULT_CACHE_CONFIG,
-} from './cache.js';
-export type { CacheEntry, CacheConfig, CacheStats, CacheAdapter, RedisCacheConfig } from './cache.js';
+} from './cache';
+export type { CacheEntry, CacheConfig, CacheStats, CacheAdapter, RedisCacheConfig } from './cache';
 
 // Health checks
 export {
@@ -45,8 +45,8 @@ export {
   checkLiveness,
   checkReadiness,
   HealthCheckRegistry,
-} from './health.js';
-export type { HealthStatus, HealthCheckResult, HealthCheckOptions } from './health.js';
+} from './health';
+export type { HealthStatus, HealthCheckResult, HealthCheckOptions } from './health';
 
 // Signature verification
 export {
@@ -63,14 +63,14 @@ export {
   hashTaskCompletion,
   hashCapabilityAttestation,
   hashTrustRelationship,
-} from './signatures.js';
+} from './signatures';
 export type {
   SignedTaskCompletion,
   SignedCapabilityAttestation,
   SignedTrustRelationship,
   SignatureVerificationResult,
   SignatureConfig,
-} from './signatures.js';
+} from './signatures';
 
 // Metrics (OpenTelemetry)
 export {
@@ -86,8 +86,8 @@ export {
   updateDkgConnections,
   updateCircuitBreakerState,
   createMetricsTimer,
-} from './metrics.js';
-export type { ParanetMetrics, ParanetMetricLabels, MetricAttributes } from './metrics.js';
+} from './metrics';
+export type { ParanetMetrics, ParanetMetricLabels, MetricAttributes } from './metrics';
 
 // Schemas
 export {
@@ -105,8 +105,8 @@ export {
   isCompatibleVersion,
   extractSchemaVersion,
   validateSchemaVersion,
-} from './schemas/index.js';
-export type { SchemaVersion } from './schemas/index.js';
+} from './schemas/index';
+export type { SchemaVersion } from './schemas/index';
 
 // Shutdown handlers
 export {
@@ -120,31 +120,31 @@ export {
   createRedisShutdownHandler,
   createMetricsShutdownHandler,
   createCircuitBreakerShutdownHandler,
-} from './shutdown.js';
-export type { ShutdownHandler, ShutdownManagerConfig } from './shutdown.js';
+} from './shutdown';
+export type { ShutdownHandler, ShutdownManagerConfig } from './shutdown';
 
 // Queries
-export * as sparqlQueries from './queries/index.js';
+export * as sparqlQueries from './queries/index';
 
 // Scoring
 export {
   CreditScoreCalculator,
   getQuickScore,
   compareAgents,
-} from './scoring/index.js';
+} from './scoring/index';
 
 // Publishing
 export {
   ParanetPublisher,
   createDKGClient,
   quickPublishTask,
-} from './publishing/index.js';
+} from './publishing/index';
 
 // Discovery
 export {
   ProviderDiscovery,
   findBestProvider,
-} from './discovery/index.js';
+} from './discovery/index';
 
 // Main client that combines all functionality
 import type {
@@ -158,10 +158,10 @@ import type {
   CreditScore,
   PublishResult,
   QueryResult,
-} from './types.js';
-import { ParanetPublisher, createDKGClient } from './publishing/index.js';
-import { ProviderDiscovery } from './discovery/index.js';
-import { CreditScoreCalculator } from './scoring/index.js';
+} from './types';
+import { ParanetPublisher, createDKGClient } from './publishing/index';
+import { ProviderDiscovery } from './discovery/index';
+import { CreditScoreCalculator } from './scoring/index';
 
 export class AgentParanetClient {
   private dkg: DKGClient;

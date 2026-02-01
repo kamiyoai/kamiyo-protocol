@@ -8,8 +8,8 @@ import {
   CacheInvalidator,
   createCacheWithInvalidation,
   DEFAULT_CACHE_CONFIG,
-} from './cache.js';
-import { nullLogger } from './logger.js';
+} from './cache';
+import { nullLogger } from './logger';
 
 describe('MemoryCacheAdapter', () => {
   let adapter: MemoryCacheAdapter<string>;

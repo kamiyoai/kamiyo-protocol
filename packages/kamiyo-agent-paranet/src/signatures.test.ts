@@ -10,7 +10,7 @@ import {
   verifyTaskCompletionSignature,
   verifyCapabilityAttestationSignature,
   verifyTrustRelationshipSignature,
-} from './signatures.js';
+} from './signatures';
 
 const validGlobalId = 'eip155:8453:0x935D2f0e59f5d5d5d5d5d5d5d5d5d5d5d5d5d5d5:123';
 const validAddress = '0x935d2f0e59f5d5d5d5d5d5d5d5d5d5d5d5d5d5d5';

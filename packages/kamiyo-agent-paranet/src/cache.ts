@@ -1,9 +1,9 @@
 // LRU cache with size limits, TTL support, and optional Redis backend
 
-import { LIMITS } from './shared.js';
-import { getLogger } from './logger.js';
-import type { Logger } from './logger.js';
-import { updateCacheSize, recordCacheAccess } from './metrics.js';
+import { LIMITS } from './shared';
+import { getLogger } from './logger';
+import type { Logger } from './logger';
+import { updateCacheSize, recordCacheAccess } from './metrics';
 
 export interface CacheEntry<T> {
   value: T;

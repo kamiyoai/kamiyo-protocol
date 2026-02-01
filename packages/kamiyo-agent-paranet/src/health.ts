@@ -1,8 +1,8 @@
 // Health check functions for KAMIYO Agent Paranet
 
-import type { DKGClient, ParanetConfig } from './types.js';
-import { getLogger, createTimer } from './logger.js';
-import type { Logger } from './logger.js';
+import type { DKGClient, ParanetConfig } from './types';
+import { getLogger, createTimer } from './logger';
+import type { Logger } from './logger';
 
 export interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';

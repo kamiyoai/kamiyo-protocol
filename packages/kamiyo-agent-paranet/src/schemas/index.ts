@@ -5,7 +5,7 @@ import type {
   TaskCompletion,
   CapabilityAttestation,
   TrustRelationship,
-} from '../types.js';
+} from '../types';
 
 const SCHEMA_ORG = 'https://schema.org/';
 const KAMIYO_PARANET = 'https://kamiyo.ai/paranet/v1';

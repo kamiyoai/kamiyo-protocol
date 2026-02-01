@@ -1,7 +1,7 @@
 // SPARQL query templates for agent discovery and credit scores
 
-import type { TaskType } from '../types.js';
-import { escapeSparql, clamp, LIMITS } from '../shared.js';
+import type { TaskType } from '../types';
+import { escapeSparql, clamp, LIMITS } from '../shared';
 
 const MAX_LIMIT = LIMITS.maxQueryResults;
 const DEFAULT_LIMIT = 20;

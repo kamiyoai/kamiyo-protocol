@@ -2,7 +2,7 @@
 // Ensures only the declared attestor can publish attestations
 
 import { verifyTypedData, hashTypedData, type TypedDataDomain, type Address } from 'viem';
-import { isValidGlobalId } from './shared.js';
+import { isValidGlobalId } from './shared';
 
 // EIP-712 domain for KAMIYO Paranet attestations
 export const EIP712_DOMAIN: TypedDataDomain = {

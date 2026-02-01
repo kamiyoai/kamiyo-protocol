@@ -1,7 +1,7 @@
 // Retry and circuit breaker patterns for DKG operations
 
-import { getLogger, createTimer } from './logger.js';
-import type { Logger } from './logger.js';
+import { getLogger, createTimer } from './logger';
+import type { Logger } from './logger';
 
 // Retry configuration
 export interface RetryConfig {

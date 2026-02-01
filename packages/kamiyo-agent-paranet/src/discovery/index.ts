@@ -8,10 +8,10 @@ import type {
   TaskType,
   QueryResult,
   KamiyoTier,
-} from '../types.js';
-import { scoreToTier } from '../types.js';
-import * as queries from '../queries/index.js';
-import { CreditScoreCalculator, getQuickScore } from '../scoring/index.js';
+} from '../types';
+import { scoreToTier } from '../types';
+import * as queries from '../queries/index';
+import { CreditScoreCalculator, getQuickScore } from '../scoring/index';
 
 export class ProviderDiscovery {
   private dkg: DKGClient;
