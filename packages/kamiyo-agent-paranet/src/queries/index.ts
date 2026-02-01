@@ -1,25 +1,36 @@
-/**
- * Paranet SPARQL Queries
- * Query templates for agent discovery and credit score calculation
- */
+// SPARQL query templates for agent discovery and credit scores
 
-import type { TaskType, KamiyoTier } from '../types.js';
+import type { TaskType } from '../types.js';
+import { escapeSparql, clamp, LIMITS } from '../shared.js';
 
-const MAX_LIMIT = 100;
+const MAX_LIMIT = LIMITS.maxQueryResults;
+const DEFAULT_LIMIT = 20;
 
-function clamp(val: number, min: number, max: number): number {
-  return Math.max(min, Math.min(val, max));
+// Alias for backward compatibility within this file
+const escape = escapeSparql;
+
+// Pagination parameters
+export interface PaginationParams {
+  limit?: number;
+  offset?: number;
 }
 
-function escape(str: string): string {
-  return str.replace(/[\\"']/g, '\\$&').replace(/\n/g, '\\n');
+// Apply pagination with safety bounds
+function applyPagination(params?: PaginationParams): { limit: number; offset: number; sql: string } {
+  const limit = clamp(params?.limit ?? DEFAULT_LIMIT, 1, MAX_LIMIT);
+  const offset = clamp(params?.offset ?? 0, 0, 100000); // Max offset to prevent abuse
+  return {
+    limit,
+    offset,
+    sql: offset > 0 ? `LIMIT ${limit} OFFSET ${offset}` : `LIMIT ${limit}`,
+  };
 }
 
 // Task completion queries
 
-export function queryTasksByProvider(providerGlobalId: string, limit = 50): string {
+export function queryTasksByProvider(providerGlobalId: string, pagination?: PaginationParams): string {
   const safe = escape(providerGlobalId);
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  const { sql } = applyPagination(pagination);
   return `
     PREFIX schema: <https://schema.org/>
     PREFIX kamiyo: <https://kamiyo.ai/paranet/v1#>
@@ -41,13 +52,13 @@ export function queryTasksByProvider(providerGlobalId: string, limit = 50): stri
       ?disputeProp schema:name "disputeOutcome" ; schema:value ?dispute .
     }
     ORDER BY DESC(?endTime)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 
-export function queryTasksByClient(clientGlobalId: string, limit = 50): string {
+export function queryTasksByClient(clientGlobalId: string, pagination?: PaginationParams): string {
   const safe = escape(clientGlobalId);
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  const { sql } = applyPagination(pagination);
   return `
     PREFIX schema: <https://schema.org/>
     SELECT ?task ?taskType ?quality ?responseTime ?dispute ?startTime ?endTime ?provider ?amount ?currency
@@ -68,7 +79,7 @@ export function queryTasksByClient(clientGlobalId: string, limit = 50): string {
       ?disputeProp schema:name "disputeOutcome" ; schema:value ?dispute .
     }
     ORDER BY DESC(?endTime)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 
@@ -95,10 +106,10 @@ export function queryTaskSummaryByProvider(providerGlobalId: string): string {
   `;
 }
 
-export function queryTasksByType(providerGlobalId: string, taskType: TaskType, limit = 50): string {
+export function queryTasksByType(providerGlobalId: string, taskType: TaskType, pagination?: PaginationParams): string {
   const safe = escape(providerGlobalId);
   const safeType = escape(taskType);
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  const { sql } = applyPagination(pagination);
   return `
     PREFIX schema: <https://schema.org/>
     SELECT ?task ?quality ?responseTime ?dispute ?endTime ?client
@@ -115,7 +126,7 @@ export function queryTasksByType(providerGlobalId: string, taskType: TaskType, l
       ?disputeProp schema:name "disputeOutcome" ; schema:value ?dispute .
     }
     ORDER BY DESC(?endTime)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 
@@ -188,9 +199,14 @@ export function queryCapabilitiesByAgent(agentGlobalId: string): string {
   `;
 }
 
-export function queryAgentsByCapability(capability: string, minConfidence = 70, limit = 20): string {
+export interface CapabilitySearchParams extends PaginationParams {
+  minConfidence?: number;
+}
+
+export function queryAgentsByCapability(capability: string, params: CapabilitySearchParams = {}): string {
   const safe = escape(capability);
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  const minConfidence = clamp(params.minConfidence ?? 70, 0, 100);
+  const { sql } = applyPagination(params);
   return `
     PREFIX schema: <https://schema.org/>
     SELECT ?agent (AVG(?confidence) as ?avgConfidence) (COUNT(?attestation) as ?attestorCount)
@@ -206,7 +222,7 @@ export function queryAgentsByCapability(capability: string, minConfidence = 70, 
     GROUP BY ?agent
     HAVING(AVG(?confidence) >= ${minConfidence})
     ORDER BY DESC(?avgConfidence)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 
@@ -296,14 +312,19 @@ export function queryDirectTrust(trustorGlobalId: string, trusteeGlobalId: strin
 
 // Provider discovery queries
 
+export interface ProviderSearchParams extends PaginationParams {
+  minQuality?: number;
+  minTasks?: number;
+}
+
 export function queryProvidersByTaskType(
   taskType: TaskType,
-  minQuality = 80,
-  minTasks = 5,
-  limit = 20
+  params: ProviderSearchParams = {}
 ): string {
   const safeType = escape(taskType);
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  const minQuality = clamp(params.minQuality ?? 80, 0, 100);
+  const minTasks = clamp(params.minTasks ?? 5, 0, 10000);
+  const { sql } = applyPagination(params);
   return `
     PREFIX schema: <https://schema.org/>
     SELECT
@@ -323,12 +344,14 @@ export function queryProvidersByTaskType(
     GROUP BY ?provider
     HAVING(COUNT(?task) >= ${minTasks} && AVG(?quality) >= ${minQuality})
     ORDER BY DESC(?avgQuality)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 
-export function queryTopProviders(minQuality = 80, minTasks = 10, limit = 20): string {
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+export function queryTopProviders(params: ProviderSearchParams = {}): string {
+  const minQuality = clamp(params.minQuality ?? 80, 0, 100);
+  const minTasks = clamp(params.minTasks ?? 10, 0, 10000);
+  const { sql } = applyPagination(params);
   return `
     PREFIX schema: <https://schema.org/>
     SELECT
@@ -347,13 +370,18 @@ export function queryTopProviders(minQuality = 80, minTasks = 10, limit = 20): s
     GROUP BY ?provider
     HAVING(COUNT(?task) >= ${minTasks} && AVG(?quality) >= ${minQuality})
     ORDER BY DESC(?avgQuality) DESC(?taskCount)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 
-export function queryProvidersTrustedBy(trustorGlobalId: string, minLevel = 70, limit = 20): string {
+export interface TrustSearchParams extends PaginationParams {
+  minLevel?: number;
+}
+
+export function queryProvidersTrustedBy(trustorGlobalId: string, params: TrustSearchParams = {}): string {
   const safe = escape(trustorGlobalId);
-  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  const minLevel = clamp(params.minLevel ?? 70, 0, 100);
+  const { sql } = applyPagination(params);
   return `
     PREFIX schema: <https://schema.org/>
     SELECT ?provider ?trustLevel ?taskCount ?avgQuality
@@ -377,7 +405,7 @@ export function queryProvidersTrustedBy(trustorGlobalId: string, minLevel = 70, 
       }
     }
     ORDER BY DESC(?trustLevel)
-    LIMIT ${safeLimit}
+    ${sql}
   `;
 }
 

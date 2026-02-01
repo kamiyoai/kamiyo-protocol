@@ -1,17 +1,11 @@
-/**
- * Agent Paranet Tools for MCP
- *
- * MCP tools for interacting with the KAMIYO Agent Paranet on OriginTrail DKG.
- * Enables AI agents to discover providers, check credit scores, and publish interaction history.
- */
+// MCP tools for KAMIYO Agent Paranet on OriginTrail DKG
 
 import { z } from 'zod';
-
-const TASK_TYPES = [
-  'code_review', 'security_audit', 'smart_contract_audit', 'code_generation',
-  'documentation', 'research', 'data_analysis', 'translation', 'content_creation',
-  'api_integration', 'testing', 'deployment', 'monitoring', 'custom'
-] as const;
+import {
+  TASK_TYPES,
+  GLOBAL_ID_REGEX,
+  LIMITS,
+} from '@kamiyo/agent-paranet';
 
 /**
  * Tool definitions for MCP server
@@ -293,74 +287,79 @@ export const PARANET_TOOLS: Array<{
   },
 ];
 
+// Use regex from shared module
+const globalIdSchema = z.string().min(20).max(100).regex(GLOBAL_ID_REGEX);
+const scoreSchema = z.number().min(0).max(100);
+const tierSchema = z.number().int().min(0).max(4);
+
 /**
- * Zod schemas for input validation
+ * Zod schemas for input validation - using core limits
  */
 export const ParanetInputSchemas = {
   findProviders: z.object({
     taskType: z.enum(TASK_TYPES).optional(),
-    minQuality: z.number().min(0).max(100).optional(),
-    minTasks: z.number().min(0).optional(),
-    capabilities: z.array(z.string()).optional(),
-    trustedBy: z.string().optional(),
-    minTier: z.number().min(0).max(4).optional(),
-    limit: z.number().min(1).max(50).optional(),
+    minQuality: scoreSchema.optional(),
+    minTasks: z.number().int().min(0).max(10000).optional(),
+    capabilities: z.array(z.string().min(1).max(128)).max(LIMITS.maxCapabilities).optional(),
+    trustedBy: globalIdSchema.optional(),
+    minTier: tierSchema.optional(),
+    limit: z.number().int().min(1).max(LIMITS.maxQueryResults).optional(),
   }),
 
   getCreditScore: z.object({
-    globalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
+    globalId: globalIdSchema,
   }),
 
   checkRequirements: z.object({
-    globalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
-    minScore: z.number().min(0).max(100).optional(),
-    minTier: z.number().min(0).max(4).optional(),
-    minTasks: z.number().min(0).optional(),
-    taskType: z.string().optional(),
+    globalId: globalIdSchema,
+    minScore: scoreSchema.optional(),
+    minTier: tierSchema.optional(),
+    minTasks: z.number().int().min(0).max(10000).optional(),
+    taskType: z.string().min(1).max(64).optional(),
   }),
 
   checkTrust: z.object({
-    trustorGlobalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
-    trusteeGlobalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
+    trustorGlobalId: globalIdSchema,
+    trusteeGlobalId: globalIdSchema,
   }),
 
   getCapabilities: z.object({
-    globalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
+    globalId: globalIdSchema,
   }),
 
   publishTaskCompletion: z.object({
-    providerGlobalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
+    providerGlobalId: globalIdSchema,
     taskType: z.enum(TASK_TYPES),
-    taskDescription: z.string().min(1).max(1000),
-    qualityScore: z.number().min(0).max(100),
-    paymentAmount: z.number().min(0),
+    taskDescription: z.string().min(1).max(LIMITS.maxDescriptionLength),
+    qualityScore: scoreSchema,
+    paymentAmount: z.number().min(0).max(1e12),
     paymentCurrency: z.string().min(1).max(10),
-    responseTimeHours: z.number().min(0).optional(),
-    escrowId: z.string().optional(),
+    responseTimeHours: z.number().min(0).max(8760).optional(),
+    escrowId: z.string().max(128).optional(),
     disputeOutcome: z.enum(['none', 'provider_won', 'client_won', 'split']).optional(),
-    evidenceUAL: z.string().optional(),
+    evidenceUAL: z.string().max(LIMITS.maxStringLength).optional(),
   }),
 
   attestCapability: z.object({
-    agentGlobalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
+    agentGlobalId: globalIdSchema,
     capability: z.string().min(1).max(128),
-    confidence: z.number().min(0).max(100),
+    confidence: scoreSchema,
     context: z.string().max(500).optional(),
-    evidenceUALs: z.array(z.string()).optional(),
+    evidenceUALs: z.array(z.string().max(LIMITS.maxStringLength)).max(LIMITS.maxEvidenceUALs).optional(),
   }),
 
   recordTrust: z.object({
-    trusteeGlobalId: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
-    trustLevel: z.number().min(0).max(100),
+    trusteeGlobalId: globalIdSchema,
+    trustLevel: scoreSchema,
     trustType: z.enum(['general', 'capability_specific', 'delegated']).optional(),
-    capability: z.string().optional(),
+    capability: z.string().max(128).optional(),
     reason: z.string().max(500).optional(),
-    stakeAmount: z.number().min(0).optional(),
+    stakeAmount: z.number().min(0).max(1e12).optional(),
   }),
 
   compareProviders: z.object({
-    globalId1: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
-    globalId2: z.string().regex(/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/),
+    globalId1: globalIdSchema,
+    globalId2: globalIdSchema,
   }),
 };
 

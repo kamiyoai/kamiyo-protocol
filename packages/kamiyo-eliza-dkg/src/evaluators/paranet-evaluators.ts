@@ -1,16 +1,25 @@
-/**
- * Paranet Evaluators for ElizaOS
- *
- * Automatic evaluation of agent interactions:
- * - Pre-contract: Check provider credit score before engaging
- * - Post-task: Publish task completion automatically
- */
+// ElizaOS evaluators: pre-contract credit checks and post-task auto-publishing
 
 import type { Evaluator, IAgentRuntime, Memory, State } from '../types.js';
 import { getBridgeContext } from '../bridge.js';
 
 const GLOBAL_ID_REGEX = /eip155:\d+:0x[a-fA-F0-9]{40}:\d+/;
 const TIER_NAMES = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'];
+
+function escapeSparql(str: string): string {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .slice(0, 256);
+}
+
+function isValidGlobalId(id: unknown): id is string {
+  return typeof id === 'string' && id.length <= 100 && GLOBAL_ID_REGEX.test(id);
+}
 
 /**
  * Pre-contract evaluator
@@ -51,11 +60,14 @@ export const preContractEvaluator: Evaluator = {
       const text = message.content.text || '';
 
       const match = text.match(GLOBAL_ID_REGEX);
-      if (!match) return { checked: false, reason: 'No provider ID found' };
+      if (!match || !isValidGlobalId(match[0])) {
+        return { checked: false, reason: 'No valid provider ID found' };
+      }
 
       const globalId = match[0];
-      const minScore = parseInt(runtime.getSetting?.('MIN_PROVIDER_SCORE') || '50', 10);
-      const minTier = parseInt(runtime.getSetting?.('MIN_PROVIDER_TIER') || '1', 10);
+      const safeGlobalId = escapeSparql(globalId);
+      const minScore = Math.max(0, Math.min(100, parseInt(runtime.getSetting?.('MIN_PROVIDER_SCORE') || '50', 10) || 50));
+      const minTier = Math.max(0, Math.min(4, parseInt(runtime.getSetting?.('MIN_PROVIDER_TIER') || '1', 10) || 1));
 
       const sparql = `
         PREFIX schema: <https://schema.org/>
@@ -63,7 +75,7 @@ export const preContractEvaluator: Evaluator = {
         WHERE {
           ?task a schema:Action ;
                 schema:name "TaskCompletion" ;
-                schema:agent/schema:@id "urn:erc8004:${globalId}" ;
+                schema:agent/schema:@id "urn:erc8004:${safeGlobalId}" ;
                 schema:result/schema:ratingValue ?quality .
         }
       `;
@@ -158,24 +170,26 @@ export const postTaskEvaluator: Evaluator = {
                                (match ? match[0] : null) ||
                                (state?.currentProvider as string);
 
-      if (!providerGlobalId) {
-        return { published: false, reason: 'No provider ID found' };
+      if (!isValidGlobalId(providerGlobalId)) {
+        return { published: false, reason: 'No valid provider ID found' };
       }
 
       // Extract quality score
-      let qualityScore: number | undefined;
+      let rawQuality: number | undefined;
       if (typeof content.qualityScore === 'number') {
-        qualityScore = content.qualityScore;
+        rawQuality = content.qualityScore;
       } else if (typeof content.quality === 'number') {
-        qualityScore = content.quality;
+        rawQuality = content.quality;
       } else {
         const qualityMatch = text.match(/(\d+)\s*%?\s*quality/i);
-        if (qualityMatch) qualityScore = parseInt(qualityMatch[1], 10);
+        if (qualityMatch) rawQuality = parseInt(qualityMatch[1], 10);
       }
 
-      if (qualityScore === undefined) {
+      if (rawQuality === undefined) {
         return { published: false, reason: 'No quality score found' };
       }
+
+      const qualityScore = Math.max(0, Math.min(100, rawQuality));
 
       // Extract task type
       const taskTypes = [

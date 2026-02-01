@@ -1,7 +1,43 @@
-/**
- * KAMIYO Agent Paranet Types
- * Core type definitions for the decentralized agent credit score system
- */
+// Core types for the agent paranet credit score system
+
+import {
+  isValidGlobalId,
+  scoreToTierIndex,
+  TIER_THRESHOLDS as SHARED_THRESHOLDS,
+} from './shared.js';
+
+// Re-export shared utilities for convenience
+export {
+  GLOBAL_ID_REGEX,
+  isValidGlobalId,
+  escapeSparql,
+  TASK_TYPES,
+  TIER_NAMES,
+  scoreToTierIndex,
+  tierIndexToName,
+  scoreToTierName,
+  clamp,
+  safeInt,
+  SCORE_WEIGHTS,
+  DISPUTE_OUTCOMES,
+  ATTESTATION_TYPES,
+  TRUST_TYPES,
+  SCHEMA_CONTEXTS,
+  LIMITS,
+  extractGlobalId,
+  extractTaskType,
+  extractNumber,
+} from './shared.js';
+
+export type {
+  TaskType,
+  TierName,
+  DisputeOutcome,
+  AttestationType,
+  TrustType,
+} from './shared.js';
+
+import type { TaskType, DisputeOutcome, AttestationType, TrustType } from './shared.js';
 
 // Paranet configuration
 export interface ParanetConfig {
@@ -13,39 +49,26 @@ export interface ParanetConfig {
   paranetUAL?: string;
 }
 
-// Task types - extensible taxonomy
-export type TaskType =
-  | 'code_review'
-  | 'security_audit'
-  | 'smart_contract_audit'
-  | 'code_generation'
-  | 'documentation'
-  | 'research'
-  | 'data_analysis'
-  | 'translation'
-  | 'content_creation'
-  | 'api_integration'
-  | 'testing'
-  | 'deployment'
-  | 'monitoring'
-  | 'custom';
-
-// Dispute outcomes
-export type DisputeOutcome = 'none' | 'provider_won' | 'client_won' | 'split';
-
-// Attestation types
-export type AttestationType = 'self' | 'peer' | 'validator' | 'oracle';
-
-// Trust types
-export type TrustType = 'general' | 'capability_specific' | 'delegated';
-
-// KAMIYO tiers
+// KAMIYO tiers (numeric enum for backward compatibility)
 export enum KamiyoTier {
   Unverified = 0,
   Bronze = 1,
   Silver = 2,
   Gold = 3,
   Platinum = 4,
+}
+
+// Tier thresholds (using enum keys for backward compatibility)
+export const TIER_THRESHOLDS = {
+  [KamiyoTier.Bronze]: SHARED_THRESHOLDS.Bronze,
+  [KamiyoTier.Silver]: SHARED_THRESHOLDS.Silver,
+  [KamiyoTier.Gold]: SHARED_THRESHOLDS.Gold,
+  [KamiyoTier.Platinum]: SHARED_THRESHOLDS.Platinum,
+} as const;
+
+// Helper to determine tier from score
+export function scoreToTier(score: number): KamiyoTier {
+  return scoreToTierIndex(score) as KamiyoTier;
 }
 
 // Task completion record
@@ -194,52 +217,28 @@ export interface DKGClient {
   };
 }
 
-// Score calculation weights
-export const SCORE_WEIGHTS = {
-  taskQuality: 0.40,
-  reliability: 0.20,
-  disputeRecord: 0.15,
-  peerTrust: 0.15,
-  tenure: 0.10,
-} as const;
-
-// Tier thresholds
-export const TIER_THRESHOLDS = {
-  [KamiyoTier.Bronze]: 25,
-  [KamiyoTier.Silver]: 50,
-  [KamiyoTier.Gold]: 75,
-  [KamiyoTier.Platinum]: 90,
-} as const;
-
-// Helper to determine tier from score
-export function scoreToTier(score: number): KamiyoTier {
-  if (score >= TIER_THRESHOLDS[KamiyoTier.Platinum]) return KamiyoTier.Platinum;
-  if (score >= TIER_THRESHOLDS[KamiyoTier.Gold]) return KamiyoTier.Gold;
-  if (score >= TIER_THRESHOLDS[KamiyoTier.Silver]) return KamiyoTier.Silver;
-  if (score >= TIER_THRESHOLDS[KamiyoTier.Bronze]) return KamiyoTier.Bronze;
-  return KamiyoTier.Unverified;
-}
-
-// Global ID format validation
-export const GLOBAL_ID_REGEX = /^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/;
-
-export function isValidGlobalId(id: string): boolean {
-  return GLOBAL_ID_REGEX.test(id);
-}
-
-// URN builders
+// URN builders with validation
 export function buildAgentURN(globalId: string): string {
+  if (!isValidGlobalId(globalId)) throw new Error('Invalid global ID');
   return `urn:erc8004:${globalId}`;
 }
 
 export function buildTaskURN(globalId: string, timestamp: number): string {
+  if (!isValidGlobalId(globalId)) throw new Error('Invalid global ID');
+  if (!Number.isFinite(timestamp) || timestamp < 0) throw new Error('Invalid timestamp');
   return `urn:kamiyo:task:${globalId}:${timestamp}`;
 }
 
 export function buildAttestationURN(agentId: string, capability: string, attestorId: string): string {
-  return `urn:kamiyo:attestation:${agentId}:${capability}:${attestorId}`;
+  if (!isValidGlobalId(agentId) || !isValidGlobalId(attestorId)) throw new Error('Invalid global ID');
+  if (typeof capability !== 'string' || capability.length === 0 || capability.length > 128) {
+    throw new Error('Invalid capability');
+  }
+  const safeCapability = capability.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `urn:kamiyo:attestation:${agentId}:${safeCapability}:${attestorId}`;
 }
 
 export function buildTrustURN(trustorId: string, trusteeId: string): string {
+  if (!isValidGlobalId(trustorId) || !isValidGlobalId(trusteeId)) throw new Error('Invalid global ID');
   return `urn:kamiyo:trust:${trustorId}:${trusteeId}`;
 }

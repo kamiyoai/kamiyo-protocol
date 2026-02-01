@@ -1,7 +1,4 @@
-/**
- * Provider Discovery Service
- * Find and evaluate agents based on paranet data
- */
+// Provider discovery and evaluation using paranet data
 
 import type {
   DKGClient,
@@ -187,7 +184,7 @@ export class ProviderDiscovery {
     minTasks: number,
     limit: number
   ): Promise<ProviderSearchResult[]> {
-    const query = queries.queryProvidersByTaskType(taskType, minQuality, minTasks, limit);
+    const query = queries.queryProvidersByTaskType(taskType, { minQuality, minTasks, limit });
     const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
       data: Array<Record<string, { value?: unknown }>>;
     };
@@ -207,7 +204,7 @@ export class ProviderDiscovery {
   }
 
   private async searchByTrust(trustorGlobalId: string, limit: number): Promise<ProviderSearchResult[]> {
-    const query = queries.queryProvidersTrustedBy(trustorGlobalId, 70, limit);
+    const query = queries.queryProvidersTrustedBy(trustorGlobalId, { minLevel: 70, limit });
     const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
       data: Array<Record<string, { value?: unknown }>>;
     };
@@ -232,7 +229,7 @@ export class ProviderDiscovery {
     const allResults: Map<string, ProviderSearchResult> = new Map();
 
     for (const cap of capabilities) {
-      const query = queries.queryAgentsByCapability(cap, 70, limit);
+      const query = queries.queryAgentsByCapability(cap, { minConfidence: 70, limit });
       const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
         data: Array<Record<string, { value?: unknown }>>;
       };
@@ -268,7 +265,7 @@ export class ProviderDiscovery {
     minTasks: number,
     limit: number
   ): Promise<ProviderSearchResult[]> {
-    const query = queries.queryTopProviders(minQuality, minTasks, limit);
+    const query = queries.queryTopProviders({ minQuality, minTasks, limit });
     const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
       data: Array<Record<string, { value?: unknown }>>;
     };

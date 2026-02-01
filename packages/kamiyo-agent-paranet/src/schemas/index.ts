@@ -1,7 +1,4 @@
-/**
- * Paranet Knowledge Asset Schemas
- * Schema.org-based JSON-LD schemas for DKG publishing
- */
+// Schema.org JSON-LD schemas for DKG Knowledge Assets
 
 import { z } from 'zod';
 import type {
@@ -13,6 +10,28 @@ import type {
 const SCHEMA_ORG = 'https://schema.org/';
 const KAMIYO_PARANET = 'https://kamiyo.ai/paranet/v1';
 const ERC8004_CONTEXT = 'https://eips.ethereum.org/EIPS/eip-8004';
+
+// Schema version for forward compatibility
+export const SCHEMA_VERSION = '1.0.0';
+
+// Version info included in all assets
+export interface SchemaVersion {
+  version: string;
+  minCompatible: string;
+}
+
+export const CURRENT_VERSION: SchemaVersion = {
+  version: SCHEMA_VERSION,
+  minCompatible: '1.0.0',
+};
+
+// Check if a schema version is compatible with current
+export function isCompatibleVersion(version: string): boolean {
+  const [major] = version.split('.').map(Number);
+  const [currentMajor] = SCHEMA_VERSION.split('.').map(Number);
+  // Compatible if same major version
+  return major === currentMajor;
+}
 
 // Zod schemas for validation
 
@@ -71,6 +90,7 @@ export function buildTaskCompletionAsset(task: TaskCompletion): object {
     '@type': 'Action',
     '@id': `urn:kamiyo:task:${taskId}`,
     name: 'TaskCompletion',
+    version: SCHEMA_VERSION,
     description: task.taskDescription,
     agent: { '@id': `urn:erc8004:${task.providerGlobalId}` },
     participant: { '@id': `urn:erc8004:${task.clientGlobalId}` },
@@ -89,6 +109,7 @@ export function buildTaskCompletionAsset(task: TaskCompletion): object {
       currency: task.payment.currency,
     },
     additionalProperty: [
+      { '@type': 'PropertyValue', name: 'schemaVersion', value: SCHEMA_VERSION },
       { '@type': 'PropertyValue', name: 'taskType', value: task.taskType },
       { '@type': 'PropertyValue', name: 'responseTimeMs', value: task.responseTimeMs },
       { '@type': 'PropertyValue', name: 'disputeOutcome', value: task.disputeOutcome },
@@ -108,6 +129,7 @@ export function buildCapabilityAttestationAsset(attestation: CapabilityAttestati
     '@type': 'EndorseAction',
     '@id': `urn:kamiyo:attestation:${attestationId}`,
     name: 'CapabilityAttestation',
+    version: SCHEMA_VERSION,
     agent: { '@id': `urn:erc8004:${attestation.attestorGlobalId}` },
     object: { '@id': `urn:erc8004:${attestation.agentGlobalId}` },
     actionStatus: 'ActiveActionStatus',
@@ -121,6 +143,7 @@ export function buildCapabilityAttestationAsset(attestation: CapabilityAttestati
       ratingExplanation: attestation.context,
     },
     additionalProperty: [
+      { '@type': 'PropertyValue', name: 'schemaVersion', value: SCHEMA_VERSION },
       { '@type': 'PropertyValue', name: 'capability', value: attestation.capability },
       { '@type': 'PropertyValue', name: 'attestationType', value: attestation.attestationType },
     ],
@@ -138,6 +161,7 @@ export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
     '@type': 'EndorseAction',
     '@id': `urn:kamiyo:trust:${trustId}`,
     name: 'TrustRelationship',
+    version: SCHEMA_VERSION,
     agent: { '@id': `urn:erc8004:${trust.trustorGlobalId}` },
     object: { '@id': `urn:erc8004:${trust.trusteeGlobalId}` },
     actionStatus: trust.until ? 'CompletedActionStatus' : 'ActiveActionStatus',
@@ -151,6 +175,7 @@ export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
       ratingExplanation: trust.reason,
     },
     additionalProperty: [
+      { '@type': 'PropertyValue', name: 'schemaVersion', value: SCHEMA_VERSION },
       { '@type': 'PropertyValue', name: 'trustType', value: trust.trustType },
       ...(trust.capability ? [{ '@type': 'PropertyValue', name: 'capability', value: trust.capability }] : []),
       ...(trust.stakeAmount !== undefined ? [{ '@type': 'PropertyValue', name: 'stakeAmount', value: trust.stakeAmount }] : []),
@@ -164,7 +189,7 @@ export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
 
 // Parse functions for query results
 
-export function parseTaskCompletionResult(result: Record<string, { value?: unknown }>): Partial<TaskCompletion> {
+export function parseTaskCompletionResult(result: Record<string, { value?: unknown }>): Partial<TaskCompletion> & { schemaVersion?: string } {
   return {
     providerGlobalId: String(result.provider?.value || '').replace('urn:erc8004:', ''),
     clientGlobalId: String(result.client?.value || '').replace('urn:erc8004:', ''),
@@ -174,20 +199,22 @@ export function parseTaskCompletionResult(result: Record<string, { value?: unkno
     disputeOutcome: String(result.dispute?.value || 'none') as TaskCompletion['disputeOutcome'],
     startTime: String(result.startTime?.value || ''),
     endTime: String(result.endTime?.value || ''),
+    schemaVersion: result.schemaVersion?.value ? String(result.schemaVersion.value) : undefined,
   };
 }
 
-export function parseCapabilityAttestationResult(result: Record<string, { value?: unknown }>): Partial<CapabilityAttestation> {
+export function parseCapabilityAttestationResult(result: Record<string, { value?: unknown }>): Partial<CapabilityAttestation> & { schemaVersion?: string } {
   return {
     agentGlobalId: String(result.agent?.value || '').replace('urn:erc8004:', ''),
     capability: String(result.capability?.value || ''),
     attestorGlobalId: String(result.attestor?.value || '').replace('urn:erc8004:', ''),
     attestationType: String(result.attestationType?.value || 'self') as CapabilityAttestation['attestationType'],
     confidence: Number(result.confidence?.value || 0),
+    schemaVersion: result.schemaVersion?.value ? String(result.schemaVersion.value) : undefined,
   };
 }
 
-export function parseTrustRelationshipResult(result: Record<string, { value?: unknown }>): Partial<TrustRelationship> {
+export function parseTrustRelationshipResult(result: Record<string, { value?: unknown }>): Partial<TrustRelationship> & { schemaVersion?: string } {
   return {
     trustorGlobalId: String(result.trustor?.value || '').replace('urn:erc8004:', ''),
     trusteeGlobalId: String(result.trustee?.value || '').replace('urn:erc8004:', ''),
@@ -195,5 +222,35 @@ export function parseTrustRelationshipResult(result: Record<string, { value?: un
     trustType: String(result.trustType?.value || 'general') as TrustRelationship['trustType'],
     capability: result.capability?.value ? String(result.capability.value) : undefined,
     since: String(result.since?.value || ''),
+    schemaVersion: result.schemaVersion?.value ? String(result.schemaVersion.value) : undefined,
+  };
+}
+
+// Extract schema version from any parsed result
+export function extractSchemaVersion(result: Record<string, { value?: unknown }>): string | undefined {
+  // Try direct field first
+  if (result.schemaVersion?.value) {
+    return String(result.schemaVersion.value);
+  }
+  // Try version field
+  if (result.version?.value) {
+    return String(result.version.value);
+  }
+  return undefined;
+}
+
+// Validate schema version compatibility
+export function validateSchemaVersion(version: string | undefined): { compatible: boolean; warning?: string } {
+  if (!version) {
+    return { compatible: true, warning: 'No schema version found - assuming compatible (legacy data)' };
+  }
+
+  if (isCompatibleVersion(version)) {
+    return { compatible: true };
+  }
+
+  return {
+    compatible: false,
+    warning: `Schema version ${version} is not compatible with current version ${SCHEMA_VERSION}`,
   };
 }

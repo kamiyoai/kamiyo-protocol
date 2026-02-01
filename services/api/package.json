@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@coral-xyz/anchor": "^0.31.1",
     "@modelcontextprotocol/sdk": "^1.25.0",
+    "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/agents": "workspace:*",
     "@kamiyo/hive": "workspace:*",
     "@kamiyo/blindfold": "workspace:*",

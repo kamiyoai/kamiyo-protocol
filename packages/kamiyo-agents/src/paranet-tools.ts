@@ -1,10 +1,15 @@
-/**
- * Agent Paranet Tools for Claude Agent SDK
- * Tools for interacting with the KAMIYO Agent Paranet on OriginTrail DKG
- */
+// Claude Agent SDK tools for the KAMIYO Agent Paranet on DKG
 
 import type { ToolConfig, ToolResult } from './types.js';
+import {
+  TASK_TYPES,
+  GLOBAL_ID_REGEX,
+  isValidGlobalId,
+  KamiyoTier,
+} from '@kamiyo/agent-paranet';
 
+// ParanetClient interface defines what the tools expect
+// This can be implemented by AgentParanetClient or a custom implementation
 export interface ParanetClient {
   findProviders(criteria: {
     taskType?: string;
@@ -119,20 +124,11 @@ export interface ParanetToolsConfig {
   agentGlobalId: string;
 }
 
-const GLOBAL_ID_REGEX = /^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/;
-const TASK_TYPES = [
-  'code_review', 'security_audit', 'smart_contract_audit', 'code_generation',
-  'documentation', 'research', 'data_analysis', 'translation', 'content_creation',
-  'api_integration', 'testing', 'deployment', 'monitoring', 'custom'
-];
-const TIERS = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'];
+const TIERS = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'] as const;
 
-function isValidGlobalId(id: unknown): id is string {
-  return typeof id === 'string' && GLOBAL_ID_REGEX.test(id);
-}
-
-function tierToName(tier: number): string {
-  return TIERS[tier] || 'Unknown';
+function tierToName(tier: number | KamiyoTier): string {
+  const tierNum = typeof tier === 'number' ? tier : tier;
+  return TIERS[tierNum] || 'Unknown';
 }
 
 export function createParanetTools(config: ParanetToolsConfig): ToolConfig[] {
