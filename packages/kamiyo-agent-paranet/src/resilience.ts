@@ -48,11 +48,14 @@ function isRetryableError(error: unknown): boolean {
       message.includes('timeout') ||
       message.includes('econnreset') ||
       message.includes('econnrefused') ||
+      message.includes('enotfound') ||
+      message.includes('etimedout') ||
       message.includes('network') ||
       message.includes('socket') ||
       message.includes('502') ||
       message.includes('503') ||
-      message.includes('504')
+      message.includes('504') ||
+      message.includes('429') // Rate limit
     ) {
       return true;
     }

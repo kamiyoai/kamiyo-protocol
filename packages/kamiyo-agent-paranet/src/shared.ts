@@ -11,14 +11,17 @@ export function isValidGlobalId(id: unknown): id is string {
 // SPARQL escape to prevent injection
 export function escapeSparql(str: string): string {
   if (typeof str !== 'string') return '';
-  return str
+  // Strip null bytes first (critical for injection prevention)
+  const clean = str.replace(/\0/g, '');
+  return clean
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/'/g, "\\'")
     .replace(/\n/g, '\\n')
     .replace(/\r/g, '\\r')
     .replace(/\t/g, '\\t')
-    .replace(/[\x00-\x1f\x7f]/g, '') // Strip remaining control characters
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/[<>{}|^`]/g, '') // Strip SPARQL special chars
     .slice(0, 256);
 }
 

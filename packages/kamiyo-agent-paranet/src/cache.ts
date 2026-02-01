@@ -319,6 +319,12 @@ export class LRUCache<T> {
   }
 
   async set(key: string, value: T, ttlMs?: number): Promise<void> {
+    // Validate key length to prevent memory abuse
+    if (key.length > 512) {
+      this.logger.warn('Cache key too long', { keyLength: key.length });
+      return;
+    }
+
     // Evict if at capacity (only for memory adapter)
     if (this.memoryAdapter) {
       const size = await this.adapter.size();

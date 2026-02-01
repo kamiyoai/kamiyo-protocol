@@ -1,5 +1,4 @@
-// KAMIYO Agent Paranet API Routes
-// Decentralized credit scores for AI agents on OriginTrail DKG
+// Paranet API routes
 
 import { Router, Request, Response } from 'express';
 import {
@@ -9,14 +8,11 @@ import {
   checkReadiness,
   createDKGClient,
   type ParanetConfig,
-  type CreditScore,
-  type ProviderSearchResult,
 } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
 
 const router = Router();
 
-// Singleton client (lazy initialized)
 let paranetClient: AgentParanetClient | null = null;
 let clientInitPromise: Promise<AgentParanetClient> | null = null;
 
@@ -57,7 +53,6 @@ async function getClient(): Promise<AgentParanetClient> {
   return clientInitPromise;
 }
 
-// Health check
 router.get('/health', async (_req: Request, res: Response) => {
   try {
     const config = getParanetConfig();
@@ -78,7 +73,6 @@ router.get('/health', async (_req: Request, res: Response) => {
   }
 });
 
-// Liveness probe
 router.get('/health/live', async (_req: Request, res: Response) => {
   try {
     const config = getParanetConfig();
@@ -95,7 +89,6 @@ router.get('/health/live', async (_req: Request, res: Response) => {
   }
 });
 
-// Readiness probe
 router.get('/health/ready', async (_req: Request, res: Response) => {
   try {
     const config = getParanetConfig();
@@ -112,9 +105,20 @@ router.get('/health/ready', async (_req: Request, res: Response) => {
   }
 });
 
-// Get credit score for an agent
+function isValidGlobalId(id: string): boolean {
+  return /^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/.test(id) && id.length <= 100;
+}
+
 router.get('/score/:globalId', async (req: Request, res: Response) => {
   const { globalId } = req.params;
+
+  if (!isValidGlobalId(globalId)) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
+    });
+    return;
+  }
+
   const useCache = req.query.cache !== 'false';
 
   try {
@@ -141,7 +145,13 @@ router.get('/score/:globalId', async (req: Request, res: Response) => {
   }
 });
 
-// Find providers matching criteria
+function clampInt(val: string | undefined, defaultVal: number, min: number, max: number): number {
+  if (!val) return defaultVal;
+  const n = parseInt(val, 10);
+  if (Number.isNaN(n)) return defaultVal;
+  return Math.max(min, Math.min(max, n));
+}
+
 router.get('/providers', async (req: Request, res: Response) => {
   const {
     taskType,
@@ -154,17 +164,24 @@ router.get('/providers', async (req: Request, res: Response) => {
     limit,
   } = req.query;
 
+  if (trustedBy && !isValidGlobalId(trustedBy as string)) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Invalid trustedBy global ID format' },
+    });
+    return;
+  }
+
   try {
     const client = await getClient();
     const result = await client.findProviders({
       taskType: taskType as any,
-      minQuality: minQuality ? parseInt(minQuality as string, 10) : undefined,
-      minTasks: minTasks ? parseInt(minTasks as string, 10) : undefined,
-      maxResponseTimeMs: maxResponseTimeMs ? parseInt(maxResponseTimeMs as string, 10) : undefined,
-      minTier: minTier ? parseInt(minTier as string, 10) : undefined,
+      minQuality: clampInt(minQuality as string, 80, 0, 100),
+      minTasks: clampInt(minTasks as string, 5, 0, 10000),
+      maxResponseTimeMs: maxResponseTimeMs ? clampInt(maxResponseTimeMs as string, 0, 0, 86400000) : undefined,
+      minTier: clampInt(minTier as string, 0, 0, 4),
       trustedBy: trustedBy as string | undefined,
-      capabilities: capabilities ? (capabilities as string).split(',') : undefined,
-      limit: limit ? parseInt(limit as string, 10) : 10,
+      capabilities: capabilities ? (capabilities as string).split(',').slice(0, 10) : undefined,
+      limit: clampInt(limit as string, 10, 1, 100),
     });
 
     if (!result.success) {
@@ -187,9 +204,16 @@ router.get('/providers', async (req: Request, res: Response) => {
   }
 });
 
-// Check if agent meets requirements
 router.get('/check/:globalId', async (req: Request, res: Response) => {
   const { globalId } = req.params;
+
+  if (!isValidGlobalId(globalId)) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
+    });
+    return;
+  }
+
   const { minScore, minTier, minTasks, taskType } = req.query;
 
   try {
@@ -213,9 +237,15 @@ router.get('/check/:globalId', async (req: Request, res: Response) => {
   }
 });
 
-// Get agent capabilities
 router.get('/capabilities/:globalId', async (req: Request, res: Response) => {
   const { globalId } = req.params;
+
+  if (!isValidGlobalId(globalId)) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
+    });
+    return;
+  }
 
   try {
     const client = await getClient();
@@ -234,9 +264,15 @@ router.get('/capabilities/:globalId', async (req: Request, res: Response) => {
   }
 });
 
-// Check trust between two agents
 router.get('/trust/:trustorId/:trusteeId', async (req: Request, res: Response) => {
   const { trustorId, trusteeId } = req.params;
+
+  if (!isValidGlobalId(trustorId) || !isValidGlobalId(trusteeId)) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
+    });
+    return;
+  }
 
   try {
     const client = await getClient();
@@ -255,13 +291,35 @@ router.get('/trust/:trustorId/:trusteeId', async (req: Request, res: Response) =
   }
 });
 
-// Publish task completion (requires auth)
+function validateTaskBody(body: unknown): { valid: boolean; error?: string } {
+  if (!body || typeof body !== 'object') return { valid: false, error: 'Request body required' };
+  const t = body as Record<string, unknown>;
+  if (!t.providerGlobalId || !isValidGlobalId(t.providerGlobalId as string)) {
+    return { valid: false, error: 'Invalid providerGlobalId' };
+  }
+  if (!t.clientGlobalId || !isValidGlobalId(t.clientGlobalId as string)) {
+    return { valid: false, error: 'Invalid clientGlobalId' };
+  }
+  if (typeof t.qualityScore !== 'number' || t.qualityScore < 0 || t.qualityScore > 100) {
+    return { valid: false, error: 'qualityScore must be 0-100' };
+  }
+  return { valid: true };
+}
+
 router.post('/task', async (req: Request, res: Response) => {
   const task = req.body;
 
   if (!process.env.DKG_PRIVATE_KEY) {
     res.status(503).json({
       error: { code: 'NOT_CONFIGURED', message: 'Publishing not enabled (no private key)' },
+    });
+    return;
+  }
+
+  const validation = validateTaskBody(task);
+  if (!validation.valid) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: validation.error },
     });
     return;
   }
@@ -289,13 +347,38 @@ router.post('/task', async (req: Request, res: Response) => {
   }
 });
 
-// Publish capability attestation (requires auth)
+function validateAttestationBody(body: unknown): { valid: boolean; error?: string } {
+  if (!body || typeof body !== 'object') return { valid: false, error: 'Request body required' };
+  const a = body as Record<string, unknown>;
+  if (!a.agentGlobalId || !isValidGlobalId(a.agentGlobalId as string)) {
+    return { valid: false, error: 'Invalid agentGlobalId' };
+  }
+  if (!a.attestorGlobalId || !isValidGlobalId(a.attestorGlobalId as string)) {
+    return { valid: false, error: 'Invalid attestorGlobalId' };
+  }
+  if (typeof a.capability !== 'string' || a.capability.length === 0 || a.capability.length > 128) {
+    return { valid: false, error: 'capability must be 1-128 chars' };
+  }
+  if (typeof a.confidence !== 'number' || a.confidence < 0 || a.confidence > 100) {
+    return { valid: false, error: 'confidence must be 0-100' };
+  }
+  return { valid: true };
+}
+
 router.post('/attestation', async (req: Request, res: Response) => {
   const attestation = req.body;
 
   if (!process.env.DKG_PRIVATE_KEY) {
     res.status(503).json({
       error: { code: 'NOT_CONFIGURED', message: 'Publishing not enabled (no private key)' },
+    });
+    return;
+  }
+
+  const validation = validateAttestationBody(attestation);
+  if (!validation.valid) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: validation.error },
     });
     return;
   }
@@ -323,13 +406,35 @@ router.post('/attestation', async (req: Request, res: Response) => {
   }
 });
 
-// Publish trust relationship (requires auth)
+function validateTrustBody(body: unknown): { valid: boolean; error?: string } {
+  if (!body || typeof body !== 'object') return { valid: false, error: 'Request body required' };
+  const t = body as Record<string, unknown>;
+  if (!t.trustorGlobalId || !isValidGlobalId(t.trustorGlobalId as string)) {
+    return { valid: false, error: 'Invalid trustorGlobalId' };
+  }
+  if (!t.trusteeGlobalId || !isValidGlobalId(t.trusteeGlobalId as string)) {
+    return { valid: false, error: 'Invalid trusteeGlobalId' };
+  }
+  if (typeof t.trustLevel !== 'number' || t.trustLevel < 0 || t.trustLevel > 100) {
+    return { valid: false, error: 'trustLevel must be 0-100' };
+  }
+  return { valid: true };
+}
+
 router.post('/trust', async (req: Request, res: Response) => {
   const trust = req.body;
 
   if (!process.env.DKG_PRIVATE_KEY) {
     res.status(503).json({
       error: { code: 'NOT_CONFIGURED', message: 'Publishing not enabled (no private key)' },
+    });
+    return;
+  }
+
+  const validation = validateTrustBody(trust);
+  if (!validation.valid) {
+    res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: validation.error },
     });
     return;
   }
