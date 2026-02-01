@@ -74,6 +74,9 @@ function getConfig(): AgentConfig {
     chainId: parseInt(process.env.CHAIN_ID || '8453', 10),
     erc8004RegistryAddress: process.env.ERC8004_REGISTRY_ADDRESS,
     treasuryAddress: process.env.TREASURY_ADDRESS,
+    // Enable x402 payment protocol with reputation tiers
+    enableX402: process.env.ENABLE_X402 === 'true',
+    x402FacilitatorUrl: process.env.X402_FACILITATOR_URL,
   };
 }
 

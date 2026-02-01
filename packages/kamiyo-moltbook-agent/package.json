@@ -30,6 +30,7 @@
     "@kamiyo/hive": "workspace:*",
     "@kamiyo/paykit": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/x402-client": "workspace:*",
     "@kamiyo/dkg-quality-oracle": "workspace:*",
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.95.0",
