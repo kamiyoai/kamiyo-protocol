@@ -7,6 +7,7 @@ import {
   checkLiveness,
   checkReadiness,
   createDKGClient,
+  isValidGlobalId,
   type ParanetConfig,
 } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
@@ -104,10 +105,6 @@ router.get('/health/ready', async (_req: Request, res: Response) => {
     res.status(503).json({ status: 'not_ready', error: err instanceof Error ? err.message : 'Check failed' });
   }
 });
-
-function isValidGlobalId(id: string): boolean {
-  return /^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/.test(id) && id.length <= 100;
-}
 
 router.get('/score/:globalId', async (req: Request, res: Response) => {
   const { globalId } = req.params;

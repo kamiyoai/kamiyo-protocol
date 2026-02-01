@@ -1,6 +1,21 @@
 export * from './types';
 
 export {
+  isValidGlobalId,
+  escapeSparql,
+  GLOBAL_ID_REGEX,
+  TASK_TYPES,
+  TIER_NAMES,
+  TIER_THRESHOLDS,
+  LIMITS,
+  scoreToTierIndex,
+  tierIndexToName,
+  scoreToTierName,
+  clamp,
+  safeInt,
+} from './shared';
+
+export {
   createLogger,
   setDefaultLogger,
   getLogger,
