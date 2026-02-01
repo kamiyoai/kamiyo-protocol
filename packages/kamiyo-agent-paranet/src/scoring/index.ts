@@ -1,5 +1,3 @@
-// Credit score calculator using DKG paranet data
-
 import type {
   DKGClient,
   CreditScore,
@@ -14,6 +12,14 @@ import { getLogger, createTimer } from '../logger';
 import type { Logger } from '../logger';
 import { LRUCache, CacheInvalidator, createCacheWithInvalidation } from '../cache';
 import type { CacheStats } from '../cache';
+
+const MS_PER_HOUR = 3600000;
+const MS_PER_DAY = 86400000;
+const MAX_TENURE_DAYS = 365;
+const TASK_RELIABILITY_MULT = 2;
+const TASK_RELIABILITY_CAP = 100;
+const RESPONSE_PENALTY = 10;
+const DEFAULT_SCORE = 50;
 
 interface TaskSummary {
   taskCount: number;
@@ -71,7 +77,6 @@ export class CreditScoreCalculator {
     const timer = createTimer();
     const log = this.logger.child({ operation: 'calculateScore', globalId });
 
-    // Validate input
     if (typeof globalId !== 'string' || !/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/.test(globalId)) {
       log.warn('Invalid global ID format');
       return {
@@ -81,7 +86,6 @@ export class CreditScoreCalculator {
       };
     }
 
-    // Check cache (use sync method for backward compatibility)
     if (useCache) {
       const cached = this.cache.getSync(globalId);
       if (cached) {
@@ -96,21 +100,15 @@ export class CreditScoreCalculator {
     }
 
     try {
-      log.debug('Fetching score data from DKG');
-      // Fetch all required data in parallel
+      log.debug('Fetching from DKG');
       const [taskData, trustData, breakdownData] = await Promise.all([
         this.queryTaskSummary(globalId),
         this.queryTrustSummary(globalId),
         this.queryTaskBreakdown(globalId),
       ]);
 
-      // Calculate components
       const components = this.calculateComponents(taskData, trustData);
-
-      // Calculate overall score
       const overallScore = this.calculateOverallScore(components);
-
-      // Build credit score
       const score: CreditScore = {
         globalId,
         overallScore: Math.round(overallScore),
@@ -131,7 +129,6 @@ export class CreditScoreCalculator {
         evidenceUALs: [],
       };
 
-      // Cache the result with tag for invalidation (use sync method)
       this.cache.setSync(globalId, score, this.cacheTTL);
       this.invalidator.register(globalId, [`globalId:${globalId}`]);
 
@@ -155,11 +152,12 @@ export class CreditScoreCalculator {
 
   private async queryTaskSummary(globalId: string): Promise<TaskSummary> {
     const query = queries.queryCreditScoreData(globalId);
-    const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
-      data: Array<Record<string, { value?: unknown }>>;
+    const response = await this.dkg.graph.query(query, 'SELECT') as {
+      data?: Array<Record<string, { value?: unknown }>> | null;
     };
 
-    if (!results.length) {
+    const results = response?.data;
+    if (!results || !Array.isArray(results) || results.length === 0) {
       return {
         taskCount: 0,
         avgQuality: 0,
@@ -185,11 +183,12 @@ export class CreditScoreCalculator {
 
   private async queryTrustSummary(globalId: string): Promise<TrustSummary> {
     const query = queries.queryTrustScore(globalId);
-    const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
-      data: Array<Record<string, { value?: unknown }>>;
+    const response = await this.dkg.graph.query(query, 'SELECT') as {
+      data?: Array<Record<string, { value?: unknown }>> | null;
     };
 
-    if (!results.length) {
+    const results = response?.data;
+    if (!results || !Array.isArray(results) || results.length === 0) {
       return { avgTrust: 0, trustorCount: 0 };
     }
 
@@ -202,48 +201,49 @@ export class CreditScoreCalculator {
 
   private async queryTaskBreakdown(globalId: string): Promise<TaskBreakdown[]> {
     const query = queries.queryTaskBreakdownByType(globalId);
-    const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
-      data: Array<Record<string, { value?: unknown }>>;
+    const response = await this.dkg.graph.query(query, 'SELECT') as {
+      data?: Array<Record<string, { value?: unknown }>> | null;
     };
+
+    const results = response?.data;
+    if (!results || !Array.isArray(results)) {
+      return [];
+    }
 
     return results.map(r => ({
       taskType: String(r.taskType?.value || 'custom') as TaskType,
       count: Number(r.count?.value || 0),
       avgQuality: Number(r.avgQuality?.value || 0),
       avgResponseTimeMs: Number(r.avgResponseTime?.value || 0),
-      disputeRate: 0, // TODO: add dispute rate per type
+      disputeRate: 0,
       totalPaymentUSD: Number(r.totalPayment?.value || 0),
     }));
   }
 
   private calculateComponents(task: TaskSummary, trust: TrustSummary): CreditScoreComponents {
-    // Clamp helper to ensure all values are bounded 0-100
     const clamp = (v: number) => Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0));
 
-    // Task Quality: direct average quality score
     const taskQuality = clamp(task.avgQuality);
 
-    // Reliability: based on consistency (low variance) and response time
-    const reliabilityFromTasks = task.taskCount > 0 ? Math.min(100, task.taskCount * 2) : 0;
+    const reliabilityFromTasks = task.taskCount > 0
+      ? Math.min(TASK_RELIABILITY_CAP, task.taskCount * TASK_RELIABILITY_MULT)
+      : 0;
     const reliabilityFromTime = task.avgResponseTime > 0
-      ? Math.max(0, 100 - (task.avgResponseTime / 3600000) * 10)
-      : 50;
+      ? Math.max(0, 100 - (task.avgResponseTime / MS_PER_HOUR) * RESPONSE_PENALTY)
+      : DEFAULT_SCORE;
     const reliability = clamp((reliabilityFromTasks + reliabilityFromTime) / 2);
 
-    // Dispute Record: win rate weighted by dispute frequency
     let disputeRecord = 100;
     if (task.disputeCount > 0 && task.taskCount > 0) {
       const winRate = task.disputesWon / task.disputeCount;
-      const disputeFrequency = task.disputeCount / task.taskCount;
-      disputeRecord = clamp(winRate * 100 * (1 - disputeFrequency * 0.5));
+      const freq = task.disputeCount / task.taskCount;
+      disputeRecord = clamp(winRate * 100 * (1 - freq * 0.5));
     }
 
-    // Peer Trust: average incoming trust level
-    const peerTrust = clamp(trust.trustorCount > 0 ? trust.avgTrust : 50);
+    const peerTrust = clamp(trust.trustorCount > 0 ? trust.avgTrust : DEFAULT_SCORE);
 
-    // Tenure: days since first task, capped at 365 for max score
     const tenureDays = this.calculateTenure(task.firstTask);
-    const tenure = clamp((tenureDays / 365) * 100);
+    const tenure = clamp((tenureDays / MAX_TENURE_DAYS) * 100);
 
     return {
       taskQuality,
@@ -269,7 +269,7 @@ export class CreditScoreCalculator {
     const first = new Date(firstTaskDate);
     const now = new Date();
     const diffMs = now.getTime() - first.getTime();
-    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    return Math.max(0, Math.floor(diffMs / MS_PER_DAY));
   }
 
   async clearCache(globalId?: string): Promise<void> {
@@ -280,17 +280,14 @@ export class CreditScoreCalculator {
     }
   }
 
-  // Invalidate cache for a specific agent (call after publishing)
   async invalidateAgent(globalId: string): Promise<number> {
     return this.invalidator.invalidateByGlobalId(globalId);
   }
 
-  // Get cache statistics
   getCacheStats(): CacheStats {
     return this.cache.getStats();
   }
 
-  // Prune expired entries
   async pruneCache(): Promise<number> {
     return this.cache.prune();
   }
@@ -303,11 +300,15 @@ export async function getQuickScore(
 ): Promise<{ score: number; tier: KamiyoTier; taskCount: number } | null> {
   try {
     const query = queries.queryCreditScoreData(globalId);
-    const { data: results } = await dkg.graph.query(query, 'SELECT') as {
-      data: Array<Record<string, { value?: unknown }>>;
+    const response = await dkg.graph.query(query, 'SELECT') as {
+      data?: Array<Record<string, { value?: unknown }>> | null;
     };
 
-    if (!results.length) return null;
+    // Defensive: handle undefined/null data from DKG
+    const results = response?.data;
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return null;
+    }
 
     const r = results[0];
     const taskCount = Number(r.taskCount?.value || 0);

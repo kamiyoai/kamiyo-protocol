@@ -1,5 +1,3 @@
-// Publishes Knowledge Assets to the KAMIYO Agent Paranet on DKG
-
 import type {
   DKGClient,
   ParanetConfig,
@@ -30,14 +28,10 @@ export class ParanetPublisher {
     this.logger = logger || getLogger();
   }
 
-  /**
-   * Publish a task completion to the paranet
-   */
   async publishTaskCompletion(task: TaskCompletion): Promise<PublishResult> {
     const timer = createTimer();
     const log = this.logger.child({ operation: 'publishTaskCompletion', provider: task.providerGlobalId });
 
-    // Validate input
     const validation = TaskCompletionSchema.safeParse(task);
     if (!validation.success) {
       const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
@@ -48,7 +42,7 @@ export class ParanetPublisher {
     const asset = buildTaskCompletionAsset(task);
 
     try {
-      log.debug('Publishing task completion to DKG');
+      log.debug('Publishing task');
       const result = await this.dkg.asset.create(
         { public: asset },
         {
@@ -67,14 +61,10 @@ export class ParanetPublisher {
     }
   }
 
-  /**
-   * Publish a capability attestation to the paranet
-   */
   async publishCapabilityAttestation(attestation: CapabilityAttestation): Promise<PublishResult> {
     const timer = createTimer();
     const log = this.logger.child({ operation: 'publishCapabilityAttestation', agent: attestation.agentGlobalId, capability: attestation.capability });
 
-    // Validate input
     const validation = CapabilityAttestationSchema.safeParse(attestation);
     if (!validation.success) {
       const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
@@ -85,7 +75,7 @@ export class ParanetPublisher {
     const asset = buildCapabilityAttestationAsset(attestation);
 
     try {
-      log.debug('Publishing capability attestation to DKG');
+      log.debug('Publishing attestation');
       const result = await this.dkg.asset.create(
         { public: asset },
         {
@@ -93,7 +83,7 @@ export class ParanetPublisher {
           paranetUAL: this.config.paranetUAL,
         }
       );
-      log.info('Capability attestation published', { duration: timer(), ual: result.UAL });
+      log.info('Attestation published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
       log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
@@ -104,14 +94,10 @@ export class ParanetPublisher {
     }
   }
 
-  /**
-   * Publish a trust relationship to the paranet
-   */
   async publishTrustRelationship(trust: TrustRelationship): Promise<PublishResult> {
     const timer = createTimer();
     const log = this.logger.child({ operation: 'publishTrustRelationship', trustor: trust.trustorGlobalId, trustee: trust.trusteeGlobalId });
 
-    // Validate input
     const validation = TrustRelationshipSchema.safeParse(trust);
     if (!validation.success) {
       const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
@@ -122,7 +108,7 @@ export class ParanetPublisher {
     const asset = buildTrustRelationshipAsset(trust);
 
     try {
-      log.debug('Publishing trust relationship to DKG');
+      log.debug('Publishing trust');
       const result = await this.dkg.asset.create(
         { public: asset },
         {
@@ -130,7 +116,7 @@ export class ParanetPublisher {
           paranetUAL: this.config.paranetUAL,
         }
       );
-      log.info('Trust relationship published', { duration: timer(), ual: result.UAL });
+      log.info('Trust published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
       log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
@@ -141,17 +127,10 @@ export class ParanetPublisher {
     }
   }
 
-  /**
-   * Batch publish multiple task completions
-   */
   async publishTaskCompletionBatch(tasks: TaskCompletion[]): Promise<PublishResult[]> {
     return Promise.all(tasks.map(task => this.publishTaskCompletion(task)));
   }
 
-  /**
-   * Publish task completion with automatic quality attestation
-   * Used by clients after receiving service from a provider
-   */
   async publishTaskWithQuality(
     task: TaskCompletion,
     autoAttest = true
@@ -162,7 +141,6 @@ export class ParanetPublisher {
       return { task: taskResult };
     }
 
-    // Auto-attest capability if quality is good
     const attestation: CapabilityAttestation = {
       agentGlobalId: task.providerGlobalId,
       capability: task.taskType,
@@ -178,9 +156,6 @@ export class ParanetPublisher {
     return { task: taskResult, attestation: attestationResult };
   }
 
-  /**
-   * Revoke a trust relationship
-   */
   async revokeTrust(
     trustorGlobalId: string,
     trusteeGlobalId: string,
@@ -200,32 +175,29 @@ export class ParanetPublisher {
   }
 }
 
-/**
- * Create a DKG client from config
- * This wraps the dkg.js library
- */
 export async function createDKGClient(config: ParanetConfig): Promise<DKGClient> {
-  // Dynamic import to support environments without dkg.js
-  const DKG = await import('dkg.js').then(m => m.default || m);
+  try {
+    const DKG = await import('dkg.js').then(m => m.default || m);
 
-  const dkg = new DKG({
-    endpoint: config.dkgEndpoint,
-    port: config.dkgPort || 8900,
-    blockchain: {
-      name: config.blockchain,
-      publicKey: config.privateKey ? undefined : 'readonly',
-      privateKey: config.privateKey,
-    },
-    maxNumberOfRetries: 3,
-    frequency: 2,
-  });
+    const dkg = new DKG({
+      endpoint: config.dkgEndpoint,
+      port: config.dkgPort || 8900,
+      blockchain: {
+        name: config.blockchain,
+        publicKey: config.privateKey ? undefined : 'readonly',
+        privateKey: config.privateKey,
+      },
+      maxNumberOfRetries: 3,
+      frequency: 2,
+    });
 
-  return dkg as DKGClient;
+    return dkg as DKGClient;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`DKG client init failed: ${message}`);
+  }
 }
 
-/**
- * Quick publish function for one-off task completions
- */
 export async function quickPublishTask(
   config: ParanetConfig,
   task: TaskCompletion

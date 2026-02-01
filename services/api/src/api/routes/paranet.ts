@@ -1,6 +1,5 @@
-// Paranet API routes
-
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   AgentParanetClient,
   checkHealth,
@@ -8,14 +7,69 @@ import {
   checkReadiness,
   createDKGClient,
   isValidGlobalId,
+  getDefaultExecutor,
+  CircuitOpenError,
   type ParanetConfig,
 } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
 
 const router = Router();
 
+const queryLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const publishLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: { code: 'RATE_LIMITED', message: 'Publishing rate exceeded, please try again later' } },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const idempotencyCache = new Map<string, { result: unknown; expires: number }>();
+const IDEMPOTENCY_TTL = 3600000;
+
+function getIdempotencyResult(key: string | undefined): unknown | null {
+  if (!key) return null;
+  const cached = idempotencyCache.get(key);
+  if (cached && Date.now() < cached.expires) {
+    return cached.result;
+  }
+  if (cached) {
+    idempotencyCache.delete(key);
+  }
+  return null;
+}
+
+function setIdempotencyResult(key: string | undefined, result: unknown): void {
+  if (!key) return;
+  idempotencyCache.set(key, { result, expires: Date.now() + IDEMPOTENCY_TTL });
+  if (idempotencyCache.size > 10000) {
+    const now = Date.now();
+    for (const [k, v] of idempotencyCache) {
+      if (v.expires < now) idempotencyCache.delete(k);
+    }
+  }
+}
+
+const TIMEOUT_MS = 30000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = TIMEOUT_MS): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Operation timeout')), timeoutMs)
+  );
+  return Promise.race([promise, timeout]);
+}
+
 let paranetClient: AgentParanetClient | null = null;
 let clientInitPromise: Promise<AgentParanetClient> | null = null;
+let lastHealthCheck = 0;
+const HEALTH_INTERVAL = 60000;
 
 function getParanetConfig(): ParanetConfig {
   const endpoint = process.env.DKG_ENDPOINT;
@@ -36,29 +90,57 @@ function getParanetConfig(): ParanetConfig {
 }
 
 async function getClient(): Promise<AgentParanetClient> {
+  if (paranetClient && Date.now() - lastHealthCheck > HEALTH_INTERVAL) {
+    try {
+      const isHealthy = await withTimeout(
+        checkLiveness(paranetClient.rawDKG, { timeoutMs: 5000 }),
+        6000
+      );
+      lastHealthCheck = Date.now();
+      if (!isHealthy) {
+        logger.warn('DKG unhealthy, recreating');
+        paranetClient = null;
+        clientInitPromise = null;
+      }
+    } catch {
+      logger.warn('DKG health check failed');
+      paranetClient = null;
+      clientInitPromise = null;
+    }
+  }
+
   if (paranetClient) return paranetClient;
 
   if (!clientInitPromise) {
     clientInitPromise = AgentParanetClient.create(getParanetConfig())
       .then(client => {
         paranetClient = client;
-        logger.info('Paranet client initialized');
+        lastHealthCheck = Date.now();
+        logger.info('Paranet client ready');
         return client;
       })
       .catch(err => {
         clientInitPromise = null;
-        throw err;
+        throw new Error(`DKG init failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       });
   }
 
   return clientInitPromise;
 }
 
+async function withResilience<T>(op: () => Promise<T>, name: string): Promise<T> {
+  return getDefaultExecutor().execute(op, name);
+}
+
+function sendError(res: Response, status: number, code: string, message: string): void {
+  res.status(status).json({ error: { code, message } });
+}
+
 router.get('/health', async (_req: Request, res: Response) => {
   try {
     const config = getParanetConfig();
-    const dkg = await createDKGClient(config);
-    const health = await checkHealth(dkg, config, { timeoutMs: 10000 });
+    const dkg = await withTimeout(createDKGClient(config), 10000);
+    const health = await withTimeout(checkHealth(dkg, config, { timeoutMs: 10000 }), 15000);
 
     res.json({
       service: 'kamiyo-paranet',
@@ -77,8 +159,8 @@ router.get('/health', async (_req: Request, res: Response) => {
 router.get('/health/live', async (_req: Request, res: Response) => {
   try {
     const config = getParanetConfig();
-    const dkg = await createDKGClient(config);
-    const isLive = await checkLiveness(dkg, { timeoutMs: 5000 });
+    const dkg = await withTimeout(createDKGClient(config), 5000);
+    const isLive = await withTimeout(checkLiveness(dkg, { timeoutMs: 5000 }), 6000);
 
     if (isLive) {
       res.json({ status: 'ok' });
@@ -93,8 +175,8 @@ router.get('/health/live', async (_req: Request, res: Response) => {
 router.get('/health/ready', async (_req: Request, res: Response) => {
   try {
     const config = getParanetConfig();
-    const dkg = await createDKGClient(config);
-    const isReady = await checkReadiness(dkg, config, { timeoutMs: 5000 });
+    const dkg = await withTimeout(createDKGClient(config), 5000);
+    const isReady = await withTimeout(checkReadiness(dkg, config, { timeoutMs: 5000 }), 6000);
 
     if (isReady) {
       res.json({ status: 'ok' });
@@ -106,27 +188,23 @@ router.get('/health/ready', async (_req: Request, res: Response) => {
   }
 });
 
-router.get('/score/:globalId', async (req: Request, res: Response) => {
+// Query endpoints (rate limited)
+router.get('/score/:globalId', queryLimiter, async (req: Request, res: Response) => {
   const { globalId } = req.params;
 
   if (!isValidGlobalId(globalId)) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', 'Invalid global ID format');
   }
-
-  const useCache = req.query.cache !== 'false';
 
   try {
     const client = await getClient();
-    const result = await client.calculateCreditScore(globalId);
+    const result = await withResilience(
+      () => withTimeout(client.calculateCreditScore(globalId)),
+      'calculateCreditScore'
+    );
 
     if (!result.success || !result.data) {
-      res.status(404).json({
-        error: { code: 'NOT_FOUND', message: result.error || 'Agent not found' },
-      });
-      return;
+      return sendError(res, 404, 'NOT_FOUND', result.error || 'Agent not found');
     }
 
     res.json({
@@ -135,10 +213,14 @@ router.get('/score/:globalId', async (req: Request, res: Response) => {
       timestamp: result.timestamp,
     });
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to get credit score', { globalId, error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to calculate credit score' },
-    });
+    const message = err instanceof Error && err.message === 'Operation timeout'
+      ? 'Request timeout'
+      : 'Failed to calculate credit score';
+    sendError(res, 500, 'INTERNAL_ERROR', message);
   }
 });
 
@@ -149,7 +231,7 @@ function clampInt(val: string | undefined, defaultVal: number, min: number, max:
   return Math.max(min, Math.min(max, n));
 }
 
-router.get('/providers', async (req: Request, res: Response) => {
+router.get('/providers', queryLimiter, async (req: Request, res: Response) => {
   const {
     taskType,
     minQuality,
@@ -162,30 +244,27 @@ router.get('/providers', async (req: Request, res: Response) => {
   } = req.query;
 
   if (trustedBy && !isValidGlobalId(trustedBy as string)) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: 'Invalid trustedBy global ID format' },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', 'Invalid trustedBy global ID format');
   }
 
   try {
     const client = await getClient();
-    const result = await client.findProviders({
-      taskType: taskType as any,
-      minQuality: clampInt(minQuality as string, 80, 0, 100),
-      minTasks: clampInt(minTasks as string, 5, 0, 10000),
-      maxResponseTimeMs: maxResponseTimeMs ? clampInt(maxResponseTimeMs as string, 0, 0, 86400000) : undefined,
-      minTier: clampInt(minTier as string, 0, 0, 4),
-      trustedBy: trustedBy as string | undefined,
-      capabilities: capabilities ? (capabilities as string).split(',').slice(0, 10) : undefined,
-      limit: clampInt(limit as string, 10, 1, 100),
-    });
+    const result = await withResilience(
+      () => withTimeout(client.findProviders({
+        taskType: taskType as any,
+        minQuality: clampInt(minQuality as string, 80, 0, 100),
+        minTasks: clampInt(minTasks as string, 5, 0, 10000),
+        maxResponseTimeMs: maxResponseTimeMs ? clampInt(maxResponseTimeMs as string, 0, 0, 86400000) : undefined,
+        minTier: clampInt(minTier as string, 0, 0, 4),
+        trustedBy: trustedBy as string | undefined,
+        capabilities: capabilities ? (capabilities as string).split(',').slice(0, 10) : undefined,
+        limit: clampInt(limit as string, 10, 1, 100),
+      })),
+      'findProviders'
+    );
 
     if (!result.success) {
-      res.status(500).json({
-        error: { code: 'QUERY_FAILED', message: result.error || 'Provider search failed' },
-      });
-      return;
+      return sendError(res, 500, 'QUERY_FAILED', result.error || 'Provider search failed');
     }
 
     res.json({
@@ -194,59 +273,61 @@ router.get('/providers', async (req: Request, res: Response) => {
       timestamp: result.timestamp,
     });
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to find providers', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to search providers' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to search providers');
   }
 });
 
-router.get('/check/:globalId', async (req: Request, res: Response) => {
+router.get('/check/:globalId', queryLimiter, async (req: Request, res: Response) => {
   const { globalId } = req.params;
 
   if (!isValidGlobalId(globalId)) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', 'Invalid global ID format');
   }
 
   const { minScore, minTier, minTasks, taskType } = req.query;
 
   try {
     const client = await getClient();
-    const result = await client.meetsRequirements(globalId, {
-      minScore: minScore ? parseInt(minScore as string, 10) : undefined,
-      minTier: minTier ? parseInt(minTier as string, 10) : undefined,
-      minTasks: minTasks ? parseInt(minTasks as string, 10) : undefined,
-      taskType: taskType as string | undefined,
-    });
+    const result = await withResilience(
+      () => withTimeout(client.meetsRequirements(globalId, {
+        minScore: minScore ? parseInt(minScore as string, 10) : undefined,
+        minTier: minTier ? parseInt(minTier as string, 10) : undefined,
+        minTasks: minTasks ? parseInt(minTasks as string, 10) : undefined,
+        taskType: taskType as string | undefined,
+      })),
+      'meetsRequirements'
+    );
 
     res.json({
       globalId,
       ...result,
     });
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to check requirements', { globalId, error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to check requirements' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to check requirements');
   }
 });
 
-router.get('/capabilities/:globalId', async (req: Request, res: Response) => {
+router.get('/capabilities/:globalId', queryLimiter, async (req: Request, res: Response) => {
   const { globalId } = req.params;
 
   if (!isValidGlobalId(globalId)) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', 'Invalid global ID format');
   }
 
   try {
     const client = await getClient();
-    const capabilities = await client.getAgentCapabilities(globalId);
+    const capabilities = await withResilience(
+      () => withTimeout(client.getAgentCapabilities(globalId)),
+      'getAgentCapabilities'
+    );
 
     res.json({
       globalId,
@@ -254,26 +335,27 @@ router.get('/capabilities/:globalId', async (req: Request, res: Response) => {
       count: capabilities.length,
     });
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to get capabilities', { globalId, error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to get capabilities' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to get capabilities');
   }
 });
 
-router.get('/trust/:trustorId/:trusteeId', async (req: Request, res: Response) => {
+router.get('/trust/:trustorId/:trusteeId', queryLimiter, async (req: Request, res: Response) => {
   const { trustorId, trusteeId } = req.params;
 
   if (!isValidGlobalId(trustorId) || !isValidGlobalId(trusteeId)) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: 'Invalid global ID format' },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', 'Invalid global ID format');
   }
 
   try {
     const client = await getClient();
-    const result = await client.checkTrust(trustorId, trusteeId);
+    const result = await withResilience(
+      () => withTimeout(client.checkTrust(trustorId, trusteeId)),
+      'checkTrust'
+    );
 
     res.json({
       trustor: trustorId,
@@ -281,13 +363,15 @@ router.get('/trust/:trustorId/:trusteeId', async (req: Request, res: Response) =
       ...result,
     });
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to check trust', { trustorId, trusteeId, error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to check trust' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to check trust');
   }
 });
 
+// Publish endpoints (stricter rate limiting + idempotency)
 function validateTaskBody(body: unknown): { valid: boolean; error?: string } {
   if (!body || typeof body !== 'object') return { valid: false, error: 'Request body required' };
   const t = body as Record<string, unknown>;
@@ -303,44 +387,44 @@ function validateTaskBody(body: unknown): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
-router.post('/task', async (req: Request, res: Response) => {
+router.post('/task', publishLimiter, async (req: Request, res: Response) => {
+  const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+  const cachedResult = getIdempotencyResult(idempotencyKey);
+  if (cachedResult) {
+    return res.status(201).json(cachedResult);
+  }
+
   const task = req.body;
 
   if (!process.env.DKG_PRIVATE_KEY) {
-    res.status(503).json({
-      error: { code: 'NOT_CONFIGURED', message: 'Publishing not enabled (no private key)' },
-    });
-    return;
+    return sendError(res, 503, 'NOT_CONFIGURED', 'Publishing not enabled (no private key)');
   }
 
   const validation = validateTaskBody(task);
   if (!validation.valid) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: validation.error },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', validation.error || 'Invalid input');
   }
 
   try {
     const client = await getClient();
-    const result = await client.publishTaskCompletion(task);
+    const result = await withResilience(
+      () => withTimeout(client.publishTaskCompletion(task), 60000),
+      'publishTaskCompletion'
+    );
 
     if (!result.success) {
-      res.status(400).json({
-        error: { code: 'PUBLISH_FAILED', message: result.error || 'Failed to publish task' },
-      });
-      return;
+      return sendError(res, 400, 'PUBLISH_FAILED', result.error || 'Failed to publish task');
     }
 
-    res.status(201).json({
-      success: true,
-      ual: result.ual,
-    });
+    const response = { success: true, ual: result.ual };
+    setIdempotencyResult(idempotencyKey, response);
+    res.status(201).json(response);
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to publish task', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to publish task' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to publish task');
   }
 });
 
@@ -362,44 +446,44 @@ function validateAttestationBody(body: unknown): { valid: boolean; error?: strin
   return { valid: true };
 }
 
-router.post('/attestation', async (req: Request, res: Response) => {
+router.post('/attestation', publishLimiter, async (req: Request, res: Response) => {
+  const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+  const cachedResult = getIdempotencyResult(idempotencyKey);
+  if (cachedResult) {
+    return res.status(201).json(cachedResult);
+  }
+
   const attestation = req.body;
 
   if (!process.env.DKG_PRIVATE_KEY) {
-    res.status(503).json({
-      error: { code: 'NOT_CONFIGURED', message: 'Publishing not enabled (no private key)' },
-    });
-    return;
+    return sendError(res, 503, 'NOT_CONFIGURED', 'Publishing not enabled (no private key)');
   }
 
   const validation = validateAttestationBody(attestation);
   if (!validation.valid) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: validation.error },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', validation.error || 'Invalid input');
   }
 
   try {
     const client = await getClient();
-    const result = await client.publishCapabilityAttestation(attestation);
+    const result = await withResilience(
+      () => withTimeout(client.publishCapabilityAttestation(attestation), 60000),
+      'publishCapabilityAttestation'
+    );
 
     if (!result.success) {
-      res.status(400).json({
-        error: { code: 'PUBLISH_FAILED', message: result.error || 'Failed to publish attestation' },
-      });
-      return;
+      return sendError(res, 400, 'PUBLISH_FAILED', result.error || 'Failed to publish attestation');
     }
 
-    res.status(201).json({
-      success: true,
-      ual: result.ual,
-    });
+    const response = { success: true, ual: result.ual };
+    setIdempotencyResult(idempotencyKey, response);
+    res.status(201).json(response);
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to publish attestation', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to publish attestation' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to publish attestation');
   }
 });
 
@@ -418,44 +502,44 @@ function validateTrustBody(body: unknown): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
-router.post('/trust', async (req: Request, res: Response) => {
+router.post('/trust', publishLimiter, async (req: Request, res: Response) => {
+  const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+  const cachedResult = getIdempotencyResult(idempotencyKey);
+  if (cachedResult) {
+    return res.status(201).json(cachedResult);
+  }
+
   const trust = req.body;
 
   if (!process.env.DKG_PRIVATE_KEY) {
-    res.status(503).json({
-      error: { code: 'NOT_CONFIGURED', message: 'Publishing not enabled (no private key)' },
-    });
-    return;
+    return sendError(res, 503, 'NOT_CONFIGURED', 'Publishing not enabled (no private key)');
   }
 
   const validation = validateTrustBody(trust);
   if (!validation.valid) {
-    res.status(400).json({
-      error: { code: 'INVALID_INPUT', message: validation.error },
-    });
-    return;
+    return sendError(res, 400, 'INVALID_INPUT', validation.error || 'Invalid input');
   }
 
   try {
     const client = await getClient();
-    const result = await client.publishTrustRelationship(trust);
+    const result = await withResilience(
+      () => withTimeout(client.publishTrustRelationship(trust), 60000),
+      'publishTrustRelationship'
+    );
 
     if (!result.success) {
-      res.status(400).json({
-        error: { code: 'PUBLISH_FAILED', message: result.error || 'Failed to publish trust' },
-      });
-      return;
+      return sendError(res, 400, 'PUBLISH_FAILED', result.error || 'Failed to publish trust');
     }
 
-    res.status(201).json({
-      success: true,
-      ual: result.ual,
-    });
+    const response = { success: true, ual: result.ual };
+    setIdempotencyResult(idempotencyKey, response);
+    res.status(201).json(response);
   } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return sendError(res, 503, 'SERVICE_UNAVAILABLE', 'DKG temporarily unavailable');
+    }
     logger.error('Failed to publish trust', { error: err instanceof Error ? err.message : String(err) });
-    res.status(500).json({
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to publish trust' },
-    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to publish trust');
   }
 });
 

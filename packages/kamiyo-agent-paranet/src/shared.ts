@@ -119,9 +119,11 @@ export const SCHEMA_CONTEXTS = {
 } as const;
 
 // Maximum limits for safety
+// Note: maxCacheSize increased to 5000 to reduce LRU eviction frequency
+// (eviction is O(N) on full cache, so larger cache = fewer evictions under load)
 export const LIMITS = {
   maxQueryResults: 100,
-  maxCacheSize: 1000,
+  maxCacheSize: 5000,
   maxStringLength: 256,
   maxDescriptionLength: 1000,
   maxArrayItems: 50,

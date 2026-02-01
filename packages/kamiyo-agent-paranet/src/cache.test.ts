@@ -252,7 +252,7 @@ describe('RedisCacheAdapter', () => {
 
 describe('DEFAULT_CACHE_CONFIG', () => {
   it('should have reasonable defaults', () => {
-    expect(DEFAULT_CACHE_CONFIG.maxSize).toBe(1000);
+    expect(DEFAULT_CACHE_CONFIG.maxSize).toBe(5000); // Increased to reduce eviction frequency
     expect(DEFAULT_CACHE_CONFIG.defaultTTLMs).toBe(5 * 60 * 1000);
   });
 });

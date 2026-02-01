@@ -225,15 +225,22 @@ export class ProviderDiscovery {
   }
 
   private async searchByCapabilities(capabilities: string[], limit: number): Promise<ProviderSearchResult[]> {
-    // Search for agents with any of the capabilities
+    // Search for agents with any of the capabilities - parallelized for performance
     const allResults: Map<string, ProviderSearchResult> = new Map();
 
-    for (const cap of capabilities) {
-      const query = queries.queryAgentsByCapability(cap, { minConfidence: 70, limit });
-      const { data: results } = await this.dkg.graph.query(query, 'SELECT') as {
-        data: Array<Record<string, { value?: unknown }>>;
-      };
+    // Parallel queries for all capabilities
+    const queryResults = await Promise.all(
+      capabilities.map(async (cap) => {
+        const query = queries.queryAgentsByCapability(cap, { minConfidence: 70, limit });
+        const response = await this.dkg.graph.query(query, 'SELECT') as {
+          data?: Array<Record<string, { value?: unknown }>> | null;
+        };
+        return { cap, results: response?.data || [] };
+      })
+    );
 
+    // Merge results
+    for (const { cap, results } of queryResults) {
       for (const r of results) {
         const globalId = String(r.agent?.value || '').replace('urn:erc8004:', '');
         const existing = allResults.get(globalId);
