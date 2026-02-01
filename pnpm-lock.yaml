@@ -188,7 +188,7 @@ importers:
         version: 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@kamiyo/hive':
         specifier: file:../../packages/kamiyo-swarmteams
-        version: link:../../packages/kamiyo-swarmteams
+        version: '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)'
       '@solana/web3.js':
         specifier: ^1.87.6
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -511,11 +511,42 @@ importers:
         specifier: ^5.5.3
         version: 5.9.3
 
+  packages/kamiyo-agent-paranet:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      dkg.js:
+        specifier: ^8.0.3
+        version: 8.2.2(@types/node@20.19.28)(bufferutil@4.1.0)(utf-8-validate@5.0.10)(web-streams-polyfill@3.3.3)
+      viem:
+        specifier: ^2.0.0
+        version: 2.44.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      zod:
+        specifier: ^3.22.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.28
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.0.0
+        version: 1.6.1(@types/node@20.19.28)
+
   packages/kamiyo-agents:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.52.0
         version: 0.52.0
+      '@kamiyo/agent-paranet':
+        specifier: workspace:*
+        version: link:../kamiyo-agent-paranet
       '@kamiyo/sdk':
         specifier: workspace:*
         version: link:../kamiyo-sdk
@@ -684,6 +715,9 @@ importers:
 
   packages/kamiyo-eliza-dkg:
     dependencies:
+      '@kamiyo/agent-paranet':
+        specifier: workspace:*
+        version: link:../kamiyo-agent-paranet
       '@kamiyo/dkg-quality-oracle':
         specifier: workspace:*
         version: link:../kamiyo-dkg-quality
@@ -845,6 +879,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/agent-paranet':
+        specifier: workspace:*
+        version: link:../kamiyo-agent-paranet
       '@kamiyo/x402-client':
         specifier: workspace:*
         version: link:../kamiyo-x402-client
@@ -1607,6 +1644,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/agent-paranet':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-agent-paranet
       '@kamiyo/agents':
         specifier: workspace:*
         version: link:../../packages/kamiyo-agents
@@ -1667,6 +1707,9 @@ importers:
       twitter-api-v2:
         specifier: ^1.18.2
         version: 1.28.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.8
@@ -1689,6 +1732,9 @@ importers:
       '@types/node':
         specifier: ^22.10.1
         version: 22.19.5
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.1
       tsx:
         specifier: ^4.7.0
         version: 4.21.0
@@ -3068,6 +3114,12 @@ packages:
 
   '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid':
     resolution: {directory: packages/kamiyo-hyperliquid, type: directory}
+
+  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams':
+    resolution: {directory: packages/kamiyo-swarmteams, type: directory}
+    peerDependencies:
+      '@coral-xyz/anchor': ^0.31.0
+      '@solana/web3.js': ^1.95.0
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -14239,6 +14291,19 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - encoding
+      - utf-8-validate
+
+  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@coral-xyz/anchor': 0.29.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3: 0.9.3
+      snarkjs: 0.7.6
+    transitivePeerDependencies:
+      - bufferutil
+      - react-native-b4a
       - utf-8-validate
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':

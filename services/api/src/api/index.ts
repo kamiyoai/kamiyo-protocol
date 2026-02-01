@@ -23,6 +23,7 @@ import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
+import paranetRoutes from './routes/paranet';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 
@@ -190,6 +191,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Trust graph visualization (public)
   app.use('/api/trust-graph', trustGraphRoutes);
+
+  // Agent Paranet - decentralized credit scores (public read, auth for write)
+  app.use('/api/paranet', paranetRoutes);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

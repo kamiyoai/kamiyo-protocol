@@ -1,37 +1,19 @@
-/**
- * Agent Paranet Actions for ElizaOS
- * Actions for interacting with the KAMIYO Agent Paranet on OriginTrail DKG
- */
+// ElizaOS actions for the KAMIYO Agent Paranet on OriginTrail DKG
 
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types.js';
 import { getBridgeContext } from '../bridge.js';
-
-const GLOBAL_ID_REGEX = /eip155:\d+:0x[a-fA-F0-9]{40}:\d+/;
-const TASK_TYPES = [
-  'code_review', 'security_audit', 'smart_contract_audit', 'code_generation',
-  'documentation', 'research', 'data_analysis', 'translation', 'content_creation',
-  'api_integration', 'testing', 'deployment', 'monitoring', 'custom'
-];
-const TIER_NAMES = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'];
-
-function extractGlobalId(text: string): string | null {
-  const match = text.match(GLOBAL_ID_REGEX);
-  return match ? match[0] : null;
-}
-
-function extractTaskType(text: string): string | null {
-  const lower = text.toLowerCase();
-  return TASK_TYPES.find(t => lower.includes(t.replace('_', ' '))) || null;
-}
-
-function extractNumber(text: string, keywords: string[]): number | null {
-  for (const kw of keywords) {
-    const pattern = new RegExp(`${kw}[:\\s]*(\\d+(?:\\.\\d+)?)`);
-    const match = text.match(pattern);
-    if (match) return parseFloat(match[1]);
-  }
-  return null;
-}
+import {
+  GLOBAL_ID_REGEX,
+  TASK_TYPES,
+  TIER_NAMES,
+  escapeSparql,
+  isValidGlobalId,
+  extractGlobalId,
+  extractTaskType,
+  extractNumber,
+  clamp,
+  safeInt,
+} from '@kamiyo/agent-paranet';
 
 export const findParanetProvidersAction: Action = {
   name: 'FIND_PARANET_PROVIDERS',
@@ -74,7 +56,12 @@ export const findParanetProvidersAction: Action = {
     const limit = (options?.limit as number) || 10;
 
     try {
-      const sparql = taskType
+      const safeMinTasks = safeInt(minTasks, 5, 0, 1000);
+      const safeMinQuality = clamp(minQuality, 0, 100);
+      const safeLimit = safeInt(limit, 10, 1, 50);
+      const safeTaskType = taskType ? escapeSparql(taskType) : null;
+
+      const sparql = safeTaskType
         ? `PREFIX schema: <https://schema.org/>
            SELECT ?provider (COUNT(?task) as ?taskCount) (AVG(?quality) as ?avgQuality)
            WHERE {
@@ -83,12 +70,12 @@ export const findParanetProvidersAction: Action = {
                    schema:agent/schema:@id ?provider ;
                    schema:result/schema:ratingValue ?quality .
              ?task schema:additionalProperty ?typeProp .
-             ?typeProp schema:name "taskType" ; schema:value "${taskType}" .
+             ?typeProp schema:name "taskType" ; schema:value "${safeTaskType}" .
            }
            GROUP BY ?provider
-           HAVING(COUNT(?task) >= ${minTasks} && AVG(?quality) >= ${minQuality})
+           HAVING(COUNT(?task) >= ${safeMinTasks} && AVG(?quality) >= ${safeMinQuality})
            ORDER BY DESC(?avgQuality)
-           LIMIT ${limit}`
+           LIMIT ${safeLimit}`
         : `PREFIX schema: <https://schema.org/>
            SELECT ?provider (COUNT(?task) as ?taskCount) (AVG(?quality) as ?avgQuality)
            WHERE {
@@ -98,9 +85,9 @@ export const findParanetProvidersAction: Action = {
                    schema:result/schema:ratingValue ?quality .
            }
            GROUP BY ?provider
-           HAVING(COUNT(?task) >= ${minTasks} && AVG(?quality) >= ${minQuality})
+           HAVING(COUNT(?task) >= ${safeMinTasks} && AVG(?quality) >= ${safeMinQuality})
            ORDER BY DESC(?avgQuality)
-           LIMIT ${limit}`;
+           LIMIT ${safeLimit}`;
 
       const results = await ctx.dkgClient.query(sparql) as Array<{
         provider?: string;
@@ -173,13 +160,14 @@ export const getParanetCreditScoreAction: Action = {
 
     const globalId = (options?.globalId as string) || extractGlobalId(text);
 
-    if (!globalId) {
-      const errorMsg = 'Please provide an agent global ID (format: eip155:chainId:address:agentId)';
+    if (!isValidGlobalId(globalId)) {
+      const errorMsg = 'Please provide a valid agent global ID (format: eip155:chainId:address:agentId)';
       if (callback) await callback({ text: errorMsg });
       return { error: errorMsg };
     }
 
     try {
+      const safeGlobalId = escapeSparql(globalId);
       const sparql = `
         PREFIX schema: <https://schema.org/>
         SELECT
@@ -190,7 +178,7 @@ export const getParanetCreditScoreAction: Action = {
         WHERE {
           ?task a schema:Action ;
                 schema:name "TaskCompletion" ;
-                schema:agent/schema:@id "urn:erc8004:${globalId}" ;
+                schema:agent/schema:@id "urn:erc8004:${safeGlobalId}" ;
                 schema:startTime ?startTime ;
                 schema:endTime ?endTime ;
                 schema:result/schema:ratingValue ?quality .
@@ -286,12 +274,14 @@ export const publishTaskCompletionAction: Action = {
     const clientGlobalId = (options?.clientGlobalId as string) || runtime.getSetting?.('AGENT_GLOBAL_ID') || '';
     const taskType = (options?.taskType as string) || extractTaskType(text) || 'custom';
     const taskDescription = (options?.taskDescription as string) || text.slice(0, 500);
-    const qualityScore = (options?.qualityScore as number) || extractNumber(text, ['quality', 'score', 'rating']) || 80;
-    const paymentAmount = (options?.paymentAmount as number) || extractNumber(text, ['paid', 'payment', 'amount']) || 0;
-    const paymentCurrency = (options?.paymentCurrency as string) || 'USDC';
+    const rawQuality = (options?.qualityScore as number) || extractNumber(text, ['quality', 'score', 'rating']) || 80;
+    const qualityScore = clamp(rawQuality, 0, 100);
+    const rawPayment = (options?.paymentAmount as number) || extractNumber(text, ['paid', 'payment', 'amount']) || 0;
+    const paymentAmount = Math.max(0, rawPayment);
+    const paymentCurrency = ((options?.paymentCurrency as string) || 'USDC').slice(0, 10);
 
-    if (!providerGlobalId) {
-      const errorMsg = 'Missing required parameter: providerGlobalId';
+    if (!isValidGlobalId(providerGlobalId)) {
+      const errorMsg = 'Missing or invalid providerGlobalId';
       if (callback) await callback({ text: errorMsg });
       return { error: errorMsg };
     }
@@ -384,11 +374,12 @@ export const attestCapabilityAction: Action = {
 
     const agentGlobalId = (options?.agentGlobalId as string) || extractGlobalId(text);
     const attestorGlobalId = runtime.getSetting?.('AGENT_GLOBAL_ID') || '';
-    const capability = (options?.capability as string) || extractTaskType(text) || 'general';
-    const confidence = (options?.confidence as number) || extractNumber(text, ['confidence', 'certainty']) || 80;
+    const capability = ((options?.capability as string) || extractTaskType(text) || 'general').slice(0, 128);
+    const rawConfidence = (options?.confidence as number) || extractNumber(text, ['confidence', 'certainty']) || 80;
+    const confidence = clamp(rawConfidence, 0, 100);
 
-    if (!agentGlobalId) {
-      const errorMsg = 'Missing required parameter: agentGlobalId';
+    if (!isValidGlobalId(agentGlobalId)) {
+      const errorMsg = 'Missing or invalid agentGlobalId';
       if (callback) await callback({ text: errorMsg });
       return { error: errorMsg };
     }
@@ -472,12 +463,13 @@ export const recordTrustAction: Action = {
 
     const trusteeGlobalId = (options?.trusteeGlobalId as string) || extractGlobalId(text);
     const trustorGlobalId = runtime.getSetting?.('AGENT_GLOBAL_ID') || '';
-    const trustLevel = (options?.trustLevel as number) || extractNumber(text, ['trust', 'level']) || 70;
+    const rawTrust = (options?.trustLevel as number) || extractNumber(text, ['trust', 'level']) || 70;
+    const trustLevel = clamp(rawTrust, 0, 100);
     const trustType = (options?.trustType as string) || 'general';
-    const reason = (options?.reason as string) || '';
+    const reason = ((options?.reason as string) || '').slice(0, 500);
 
-    if (!trusteeGlobalId) {
-      const errorMsg = 'Missing required parameter: trusteeGlobalId';
+    if (!isValidGlobalId(trusteeGlobalId)) {
+      const errorMsg = 'Missing or invalid trusteeGlobalId';
       if (callback) await callback({ text: errorMsg });
       return { error: errorMsg };
     }

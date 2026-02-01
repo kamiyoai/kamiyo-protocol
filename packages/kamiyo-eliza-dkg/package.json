@@ -1,8 +1,7 @@
 {
   "name": "@kamiyo/eliza-dkg",
   "version": "1.0.0",
-  "deprecated": "Use @kamiyo/agents with Claude Agent SDK instead. This package is maintained for existing users only.",
-  "description": "[DEPRECATED] Bridge between KAMIYO escrow/reputation and OriginTrail DKG for ElizaOS agents",
+  "description": "Bridge between KAMIYO escrow/reputation and OriginTrail DKG for ElizaOS agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -81,6 +80,7 @@
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
+    "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/eliza": "workspace:*",
     "@kamiyo/dkg-quality-oracle": "workspace:*",
     "@kamiyo/sdk": "workspace:*",

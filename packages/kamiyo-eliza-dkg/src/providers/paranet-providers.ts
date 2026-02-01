@@ -1,16 +1,15 @@
-/**
- * Paranet Providers for ElizaOS
- *
- * State providers for the agent paranet:
- * - Credit score provider: Injects credit score context into agent state
- * - Peer reputation provider: Injects trust network context
- */
+// ElizaOS state providers for credit scores and trust network context
 
 import type { Provider, IAgentRuntime, Memory, State } from '../types.js';
 import { getBridgeContext } from '../bridge.js';
-
-const GLOBAL_ID_REGEX = /eip155:\d+:0x[a-fA-F0-9]{40}:\d+/;
-const TIER_NAMES = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'];
+import {
+  GLOBAL_ID_REGEX,
+  TIER_NAMES,
+  escapeSparql,
+  isValidGlobalId,
+  scoreToTierIndex,
+  safeInt,
+} from '@kamiyo/agent-paranet';
 
 interface CreditScoreContext {
   globalId: string;
@@ -43,9 +42,11 @@ export const creditScoreProvider: Provider = {
     try {
       const ctx = await getBridgeContext(runtime);
       const scores: CreditScoreContext[] = [];
-      const minTrustedScore = parseInt(runtime.getSetting?.('MIN_TRUSTED_SCORE') || '50', 10);
+      const minTrustedScore = safeInt(runtime.getSetting?.('MIN_TRUSTED_SCORE'), 50, 0, 100);
 
       for (const globalId of matches.slice(0, 5)) {
+        if (!isValidGlobalId(globalId)) continue;
+        const safeGlobalId = escapeSparql(globalId);
         const sparql = `
           PREFIX schema: <https://schema.org/>
           SELECT
@@ -55,7 +56,7 @@ export const creditScoreProvider: Provider = {
           WHERE {
             ?task a schema:Action ;
                   schema:name "TaskCompletion" ;
-                  schema:agent/schema:@id "urn:erc8004:${globalId}" ;
+                  schema:agent/schema:@id "urn:erc8004:${safeGlobalId}" ;
                   schema:endTime ?endTime ;
                   schema:result/schema:ratingValue ?quality .
           }
@@ -70,12 +71,7 @@ export const creditScoreProvider: Provider = {
 
         const taskCount = Number(data.taskCount || 0);
         const avgQuality = Number(data.avgQuality || 0);
-
-        let tierIndex = 0;
-        if (avgQuality >= 90) tierIndex = 4;
-        else if (avgQuality >= 75) tierIndex = 3;
-        else if (avgQuality >= 50) tierIndex = 2;
-        else if (avgQuality >= 25) tierIndex = 1;
+        const tierIndex = scoreToTierIndex(avgQuality);
 
         scores.push({
           globalId,
@@ -115,10 +111,11 @@ export const peerReputationProvider: Provider = {
     _state?: State
   ): Promise<string> => {
     const agentGlobalId = runtime.getSetting?.('AGENT_GLOBAL_ID');
-    if (!agentGlobalId) return '';
+    if (!isValidGlobalId(agentGlobalId)) return '';
 
     try {
       const ctx = await getBridgeContext(runtime);
+      const safeGlobalId = escapeSparql(agentGlobalId);
 
       // Query agents we trust
       const trustedSparql = `
@@ -127,7 +124,7 @@ export const peerReputationProvider: Provider = {
         WHERE {
           ?trust a schema:EndorseAction ;
                  schema:name "TrustRelationship" ;
-                 schema:agent/schema:@id "urn:erc8004:${agentGlobalId}" ;
+                 schema:agent/schema:@id "urn:erc8004:${safeGlobalId}" ;
                  schema:object/schema:@id ?trustee ;
                  schema:result/schema:ratingValue ?trustLevel .
         }
@@ -151,7 +148,7 @@ export const peerReputationProvider: Provider = {
         WHERE {
           ?trust a schema:EndorseAction ;
                  schema:name "TrustRelationship" ;
-                 schema:object/schema:@id "urn:erc8004:${agentGlobalId}" ;
+                 schema:object/schema:@id "urn:erc8004:${safeGlobalId}" ;
                  schema:agent/schema:@id ?trustor ;
                  schema:result/schema:ratingValue ?trustLevel .
         }

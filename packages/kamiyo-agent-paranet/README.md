@@ -295,6 +295,149 @@ DKG_PRIVATE_KEY=0x...
 DKG_EPOCHS=12
 ```
 
+## Advanced Features
+
+### Redis Caching
+
+For multi-instance deployments, use Redis instead of in-memory caching:
+
+```typescript
+import { createRedisCache, CreditScoreCalculator } from '@kamiyo/agent-paranet';
+
+// Create Redis-backed cache
+const { cache, adapter, invalidator } = createRedisCache<CreditScore>({
+  host: 'localhost',
+  port: 6379,
+  password: process.env.REDIS_PASSWORD,
+  keyPrefix: 'kamiyo:paranet:',
+  tls: process.env.NODE_ENV === 'production',
+});
+
+// Use with score calculator
+const scorer = new CreditScoreCalculator(dkg, {
+  cacheTTLMs: 5 * 60 * 1000,
+  maxCacheSize: 1000,
+});
+```
+
+Redis configuration options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| host | string | required | Redis host |
+| port | number | required | Redis port |
+| password | string | - | Redis password |
+| db | number | 0 | Redis database number |
+| keyPrefix | string | 'kamiyo:paranet:' | Key prefix for namespacing |
+| tls | boolean | false | Enable TLS connection |
+
+### Graceful Shutdown
+
+Register shutdown handlers for clean resource cleanup:
+
+```typescript
+import {
+  ShutdownManager,
+  createCacheShutdownHandler,
+  createRedisShutdownHandler,
+  createMetricsShutdownHandler,
+  createCircuitBreakerShutdownHandler,
+  installProcessShutdownHandlers,
+} from '@kamiyo/agent-paranet';
+
+// Create manager
+const shutdown = new ShutdownManager({ timeoutMs: 30000 });
+
+// Register handlers (higher priority runs first)
+shutdown.register(createRedisShutdownHandler(redisAdapter));  // priority: 20
+shutdown.register(createCircuitBreakerShutdownHandler());     // priority: 15
+shutdown.register(createCacheShutdownHandler(cache));         // priority: 10
+shutdown.register(createMetricsShutdownHandler());            // priority: 5
+
+// Install process handlers (SIGTERM, SIGINT)
+shutdown.installProcessHandlers();
+
+// Or manually trigger shutdown
+const result = await shutdown.shutdown();
+// { success: boolean, errors: string[] }
+```
+
+### OpenTelemetry Metrics
+
+Initialize metrics collection:
+
+```typescript
+import { initializeMetrics, recordQuery, recordPublish } from '@kamiyo/agent-paranet';
+import { MeterProvider } from '@opentelemetry/sdk-metrics';
+
+// With custom meter provider
+const meterProvider = new MeterProvider({ /* ... */ });
+initializeMetrics(meterProvider);
+
+// Or use defaults
+initializeMetrics();
+```
+
+Available metrics:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| kamiyo.paranet.query.count | Counter | Query operations |
+| kamiyo.paranet.publish.count | Counter | Publish operations |
+| kamiyo.paranet.cache.hits | Counter | Cache hits |
+| kamiyo.paranet.cache.misses | Counter | Cache misses |
+| kamiyo.paranet.query.duration | Histogram | Query latency (ms) |
+| kamiyo.paranet.publish.duration | Histogram | Publish latency (ms) |
+| kamiyo.paranet.score.duration | Histogram | Score calculation latency |
+| kamiyo.paranet.cache.size | Gauge | Current cache size |
+| kamiyo.paranet.dkg.connections | Gauge | Active DKG connections |
+| kamiyo.paranet.circuit_breaker.state | Gauge | Circuit breaker state |
+
+### Health Checks
+
+```typescript
+import { checkHealth, checkLiveness, checkReadiness, HealthCheckRegistry } from '@kamiyo/agent-paranet';
+
+// Full health check
+const health = await checkHealth(dkg, config);
+// { status: 'healthy'|'degraded'|'unhealthy', checks: [...], latencyMs }
+
+// Kubernetes probes
+const isLive = await checkLiveness(dkg);      // Basic connectivity
+const isReady = await checkReadiness(dkg, config);  // Operational
+
+// Custom health checks
+const registry = new HealthCheckRegistry();
+registry.register('redis', async () => ({
+  name: 'redis',
+  status: redisConnected ? 'pass' : 'fail',
+}));
+```
+
+### Signature Verification
+
+Verify EIP-712 signatures on attestations:
+
+```typescript
+import {
+  verifyTaskCompletionSignature,
+  verifyCapabilityAttestationSignature,
+  verifyTrustRelationshipSignature,
+  createSignatureVerifier,
+} from '@kamiyo/agent-paranet';
+
+// Verify single attestation
+const result = await verifyTaskCompletionSignature(signedTask);
+// { valid: boolean, signer?: string, error?: string }
+
+// Create reusable verifier with config
+const verifier = createSignatureVerifier({
+  requireSignatures: true,
+  maxTimestampDriftMs: 60 * 60 * 1000, // 1 hour
+  allowedSigners: ['0x...', '0x...'],  // Optional allowlist
+});
+```
+
 ## License
 
 MIT

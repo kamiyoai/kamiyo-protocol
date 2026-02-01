@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/settlement": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",

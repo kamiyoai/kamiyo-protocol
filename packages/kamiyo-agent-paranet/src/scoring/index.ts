@@ -1,7 +1,4 @@
-/**
- * Credit Score Calculator
- * Computes verifiable credit scores from DKG paranet data
- */
+// Credit score calculator using DKG paranet data
 
 import type {
   DKGClient,
@@ -13,6 +10,10 @@ import type {
 } from '../types.js';
 import { SCORE_WEIGHTS, scoreToTier, KamiyoTier } from '../types.js';
 import * as queries from '../queries/index.js';
+import { getLogger, createTimer } from '../logger.js';
+import type { Logger } from '../logger.js';
+import { LRUCache, CacheInvalidator, createCacheWithInvalidation } from '../cache.js';
+import type { CacheStats } from '../cache.js';
 
 interface TaskSummary {
   taskCount: number;
@@ -37,24 +38,57 @@ interface TaskTypeBreakdown {
   totalPayment: number;
 }
 
+export interface CreditScoreCalculatorConfig {
+  cacheTTLMs?: number;
+  maxCacheSize?: number;
+}
+
 export class CreditScoreCalculator {
   private dkg: DKGClient;
-  private cache: Map<string, { score: CreditScore; expires: number }> = new Map();
+  private cache: LRUCache<CreditScore>;
+  private invalidator: CacheInvalidator<CreditScore>;
   private cacheTTL: number;
+  private logger: Logger;
 
-  constructor(dkg: DKGClient, cacheTTLMs = 5 * 60 * 1000) {
+  constructor(dkg: DKGClient, config: CreditScoreCalculatorConfig | number = {}, logger?: Logger) {
+    // Support legacy constructor signature (cacheTTLMs as number)
+    const normalizedConfig = typeof config === 'number' ? { cacheTTLMs: config } : config;
+    const { cacheTTLMs = 5 * 60 * 1000, maxCacheSize = 1000 } = normalizedConfig;
+
     this.dkg = dkg;
     this.cacheTTL = cacheTTLMs;
+    this.logger = logger || getLogger();
+
+    const { cache, invalidator } = createCacheWithInvalidation<CreditScore>(
+      { maxSize: maxCacheSize, defaultTTLMs: cacheTTLMs },
+      this.logger
+    );
+    this.cache = cache;
+    this.invalidator = invalidator;
   }
 
   async calculateScore(globalId: string, useCache = true): Promise<QueryResult<CreditScore>> {
-    // Check cache
+    const timer = createTimer();
+    const log = this.logger.child({ operation: 'calculateScore', globalId });
+
+    // Validate input
+    if (typeof globalId !== 'string' || !/^eip155:\d+:0x[a-fA-F0-9]{40}:\d+$/.test(globalId)) {
+      log.warn('Invalid global ID format');
+      return {
+        success: false,
+        error: 'Invalid global ID format',
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // Check cache (use sync method for backward compatibility)
     if (useCache) {
-      const cached = this.cache.get(globalId);
-      if (cached && cached.expires > Date.now()) {
+      const cached = this.cache.getSync(globalId);
+      if (cached) {
+        log.debug('Cache hit', { duration: timer() });
         return {
           success: true,
-          data: cached.score,
+          data: cached,
           cached: true,
           timestamp: new Date().toISOString(),
         };
@@ -62,6 +96,7 @@ export class CreditScoreCalculator {
     }
 
     try {
+      log.debug('Fetching score data from DKG');
       // Fetch all required data in parallel
       const [taskData, trustData, breakdownData] = await Promise.all([
         this.queryTaskSummary(globalId),
@@ -96,11 +131,11 @@ export class CreditScoreCalculator {
         evidenceUALs: [],
       };
 
-      // Cache the result
-      this.cache.set(globalId, {
-        score,
-        expires: Date.now() + this.cacheTTL,
-      });
+      // Cache the result with tag for invalidation (use sync method)
+      this.cache.setSync(globalId, score, this.cacheTTL);
+      this.invalidator.register(globalId, [`globalId:${globalId}`]);
+
+      log.info('Score calculated', { duration: timer(), score: score.overallScore, tier: score.tier });
 
       return {
         success: true,
@@ -109,6 +144,7 @@ export class CreditScoreCalculator {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
+      log.error('Score calculation failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Score calculation failed',
@@ -181,34 +217,33 @@ export class CreditScoreCalculator {
   }
 
   private calculateComponents(task: TaskSummary, trust: TrustSummary): CreditScoreComponents {
+    // Clamp helper to ensure all values are bounded 0-100
+    const clamp = (v: number) => Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0));
+
     // Task Quality: direct average quality score
-    const taskQuality = task.avgQuality;
+    const taskQuality = clamp(task.avgQuality);
 
     // Reliability: based on consistency (low variance) and response time
-    // For now, use a simplified model
     const reliabilityFromTasks = task.taskCount > 0 ? Math.min(100, task.taskCount * 2) : 0;
     const reliabilityFromTime = task.avgResponseTime > 0
-      ? Math.max(0, 100 - (task.avgResponseTime / 3600000) * 10) // Penalize slow response
+      ? Math.max(0, 100 - (task.avgResponseTime / 3600000) * 10)
       : 50;
-    const reliability = (reliabilityFromTasks + reliabilityFromTime) / 2;
+    const reliability = clamp((reliabilityFromTasks + reliabilityFromTime) / 2);
 
     // Dispute Record: win rate weighted by dispute frequency
-    let disputeRecord = 100; // Start at 100 if no disputes
-    if (task.disputeCount > 0) {
+    let disputeRecord = 100;
+    if (task.disputeCount > 0 && task.taskCount > 0) {
       const winRate = task.disputesWon / task.disputeCount;
-      const disputeFrequency = task.taskCount > 0
-        ? task.disputeCount / task.taskCount
-        : 1;
-      // Penalize high dispute frequency, reward high win rate
-      disputeRecord = winRate * 100 * (1 - disputeFrequency * 0.5);
+      const disputeFrequency = task.disputeCount / task.taskCount;
+      disputeRecord = clamp(winRate * 100 * (1 - disputeFrequency * 0.5));
     }
 
     // Peer Trust: average incoming trust level
-    const peerTrust = trust.trustorCount > 0 ? trust.avgTrust : 50;
+    const peerTrust = clamp(trust.trustorCount > 0 ? trust.avgTrust : 50);
 
     // Tenure: days since first task, capped at 365 for max score
     const tenureDays = this.calculateTenure(task.firstTask);
-    const tenure = Math.min(100, (tenureDays / 365) * 100);
+    const tenure = clamp((tenureDays / 365) * 100);
 
     return {
       taskQuality,
@@ -237,12 +272,27 @@ export class CreditScoreCalculator {
     return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
   }
 
-  clearCache(globalId?: string): void {
+  async clearCache(globalId?: string): Promise<void> {
     if (globalId) {
-      this.cache.delete(globalId);
+      await this.cache.delete(globalId);
     } else {
-      this.cache.clear();
+      await this.cache.clear();
     }
+  }
+
+  // Invalidate cache for a specific agent (call after publishing)
+  async invalidateAgent(globalId: string): Promise<number> {
+    return this.invalidator.invalidateByGlobalId(globalId);
+  }
+
+  // Get cache statistics
+  getCacheStats(): CacheStats {
+    return this.cache.getStats();
+  }
+
+  // Prune expired entries
+  async pruneCache(): Promise<number> {
+    return this.cache.prune();
   }
 }
 

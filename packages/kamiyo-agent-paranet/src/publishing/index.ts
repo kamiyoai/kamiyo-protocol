@@ -1,7 +1,4 @@
-/**
- * Paranet Publisher
- * Publishes Knowledge Assets to the KAMIYO Agent Paranet on OriginTrail DKG
- */
+// Publishes Knowledge Assets to the KAMIYO Agent Paranet on DKG
 
 import type {
   DKGClient,
@@ -19,32 +16,39 @@ import {
   buildCapabilityAttestationAsset,
   buildTrustRelationshipAsset,
 } from '../schemas/index.js';
+import { getLogger, createTimer } from '../logger.js';
+import type { Logger } from '../logger.js';
 
 export class ParanetPublisher {
   private dkg: DKGClient;
   private config: ParanetConfig;
+  private logger: Logger;
 
-  constructor(dkg: DKGClient, config: ParanetConfig) {
+  constructor(dkg: DKGClient, config: ParanetConfig, logger?: Logger) {
     this.dkg = dkg;
     this.config = config;
+    this.logger = logger || getLogger();
   }
 
   /**
    * Publish a task completion to the paranet
    */
   async publishTaskCompletion(task: TaskCompletion): Promise<PublishResult> {
+    const timer = createTimer();
+    const log = this.logger.child({ operation: 'publishTaskCompletion', provider: task.providerGlobalId });
+
     // Validate input
     const validation = TaskCompletionSchema.safeParse(task);
     if (!validation.success) {
-      return {
-        success: false,
-        error: `Validation failed: ${validation.error.issues.map(i => i.message).join(', ')}`,
-      };
+      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      log.warn('Validation failed', { error: errorMsg });
+      return { success: false, error: `Validation failed: ${errorMsg}` };
     }
 
     const asset = buildTaskCompletionAsset(task);
 
     try {
+      log.debug('Publishing task completion to DKG');
       const result = await this.dkg.asset.create(
         { public: asset },
         {
@@ -52,8 +56,10 @@ export class ParanetPublisher {
           paranetUAL: this.config.paranetUAL,
         }
       );
+      log.info('Task completion published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
+      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
@@ -65,18 +71,21 @@ export class ParanetPublisher {
    * Publish a capability attestation to the paranet
    */
   async publishCapabilityAttestation(attestation: CapabilityAttestation): Promise<PublishResult> {
+    const timer = createTimer();
+    const log = this.logger.child({ operation: 'publishCapabilityAttestation', agent: attestation.agentGlobalId, capability: attestation.capability });
+
     // Validate input
     const validation = CapabilityAttestationSchema.safeParse(attestation);
     if (!validation.success) {
-      return {
-        success: false,
-        error: `Validation failed: ${validation.error.issues.map(i => i.message).join(', ')}`,
-      };
+      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      log.warn('Validation failed', { error: errorMsg });
+      return { success: false, error: `Validation failed: ${errorMsg}` };
     }
 
     const asset = buildCapabilityAttestationAsset(attestation);
 
     try {
+      log.debug('Publishing capability attestation to DKG');
       const result = await this.dkg.asset.create(
         { public: asset },
         {
@@ -84,8 +93,10 @@ export class ParanetPublisher {
           paranetUAL: this.config.paranetUAL,
         }
       );
+      log.info('Capability attestation published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
+      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
@@ -97,18 +108,21 @@ export class ParanetPublisher {
    * Publish a trust relationship to the paranet
    */
   async publishTrustRelationship(trust: TrustRelationship): Promise<PublishResult> {
+    const timer = createTimer();
+    const log = this.logger.child({ operation: 'publishTrustRelationship', trustor: trust.trustorGlobalId, trustee: trust.trusteeGlobalId });
+
     // Validate input
     const validation = TrustRelationshipSchema.safeParse(trust);
     if (!validation.success) {
-      return {
-        success: false,
-        error: `Validation failed: ${validation.error.issues.map(i => i.message).join(', ')}`,
-      };
+      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      log.warn('Validation failed', { error: errorMsg });
+      return { success: false, error: `Validation failed: ${errorMsg}` };
     }
 
     const asset = buildTrustRelationshipAsset(trust);
 
     try {
+      log.debug('Publishing trust relationship to DKG');
       const result = await this.dkg.asset.create(
         { public: asset },
         {
@@ -116,8 +130,10 @@ export class ParanetPublisher {
           paranetUAL: this.config.paranetUAL,
         }
       );
+      log.info('Trust relationship published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
+      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
