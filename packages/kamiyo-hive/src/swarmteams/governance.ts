@@ -4,7 +4,7 @@
 
 import { Connection, PublicKey, SystemProgram } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { BN } from '@coral-xyz/anchor';
+import BN from 'bn.js';
 
 export const GOVERNANCE_PROGRAM_ID = new PublicKey('E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav');
 export const STAKING_PROGRAM_ID = new PublicKey('9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N');

@@ -6,6 +6,7 @@
 import type { groth16 as Groth16 } from 'snarkjs';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 import {
   ProofInput,
   ProverConfig,
@@ -19,6 +20,8 @@ import {
 let snarkjs: { groth16: typeof Groth16 } | null = null;
 
 // Default bundled artifact paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const BUNDLED_ARTIFACTS_DIR = path.join(__dirname, '../artifacts/reputation');
 const DEFAULT_WASM_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'reputation_threshold.wasm');
 const DEFAULT_ZKEY_PATH = path.join(BUNDLED_ARTIFACTS_DIR, 'reputation_threshold_final.zkey');
