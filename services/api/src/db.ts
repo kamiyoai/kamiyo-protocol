@@ -1640,4 +1640,71 @@ export function cleanupOldMcpSessions(olderThanHours: number = 24): number {
   return result.changes;
 }
 
+// Daily API spend tracking for cost control
+db.exec(`
+  CREATE TABLE IF NOT EXISTS daily_api_spend (
+    date TEXT PRIMARY KEY,
+    spend_micro INTEGER DEFAULT 0,
+    request_count INTEGER DEFAULT 0,
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+`);
+
+// Default daily spend cap: $50 USD (in micro units)
+const DEFAULT_DAILY_SPEND_CAP_MICRO = parseInt(process.env.DAILY_SPEND_CAP_USD || '50', 10) * 1_000_000;
+
+export function getDailySpendCapMicro(): number {
+  return DEFAULT_DAILY_SPEND_CAP_MICRO;
+}
+
+export function getTodayDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export function getDailyApiSpend(date?: string): { spend_micro: number; request_count: number } {
+  const targetDate = date || getTodayDate();
+  const row = db.prepare('SELECT spend_micro, request_count FROM daily_api_spend WHERE date = ?')
+    .get(targetDate) as { spend_micro: number; request_count: number } | undefined;
+  return row || { spend_micro: 0, request_count: 0 };
+}
+
+export function incrementDailyApiSpend(costMicro: number): { spend_micro: number; request_count: number } {
+  const date = getTodayDate();
+  db.prepare(`
+    INSERT INTO daily_api_spend (date, spend_micro, request_count)
+    VALUES (?, ?, 1)
+    ON CONFLICT(date) DO UPDATE SET
+      spend_micro = spend_micro + ?,
+      request_count = request_count + 1,
+      updated_at = unixepoch()
+  `).run(date, costMicro, costMicro);
+  return getDailyApiSpend(date);
+}
+
+export function isDailySpendCapExceeded(): boolean {
+  const { spend_micro } = getDailyApiSpend();
+  return spend_micro >= DEFAULT_DAILY_SPEND_CAP_MICRO;
+}
+
+export function getDailySpendStatus(): {
+  date: string;
+  spendUsd: number;
+  capUsd: number;
+  requestCount: number;
+  remaining: number;
+  exceeded: boolean;
+} {
+  const date = getTodayDate();
+  const { spend_micro, request_count } = getDailyApiSpend(date);
+  const capMicro = DEFAULT_DAILY_SPEND_CAP_MICRO;
+  return {
+    date,
+    spendUsd: spend_micro / 1_000_000,
+    capUsd: capMicro / 1_000_000,
+    requestCount: request_count,
+    remaining: Math.max(0, (capMicro - spend_micro) / 1_000_000),
+    exceeded: spend_micro >= capMicro,
+  };
+}
+
 export default db;

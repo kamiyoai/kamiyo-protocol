@@ -9,7 +9,7 @@ import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { getTrendingContext, formatTrendingForPrompt } from '../../trend-engine';
 import { searchWithTools, searchXHandles, isGrokToolsAvailable } from '../../grok-tools';
 import { logger } from '../../logger';
-import db from '../../db';
+import db, { isDailySpendCapExceeded, incrementDailyApiSpend, getDailySpendStatus } from '../../db';
 
 const router: IRouter = Router();
 
@@ -200,6 +200,24 @@ const MAX_MESSAGES = 20; // Max messages per request
 
 // POST /api/v1/chat
 router.post('/', async (req: Request, res: Response) => {
+  // Check daily spend cap before processing
+  if (isDailySpendCapExceeded()) {
+    const status = getDailySpendStatus();
+    logger.warn('Daily spend cap exceeded', status);
+    res.status(503).json({
+      error: {
+        code: 'SPEND_CAP_EXCEEDED',
+        message: 'Daily API spend cap reached. Service will resume tomorrow.',
+        details: {
+          spentToday: `$${status.spendUsd.toFixed(2)}`,
+          dailyCap: `$${status.capUsd.toFixed(2)}`,
+          requestsToday: status.requestCount,
+        },
+      },
+    });
+    return;
+  }
+
   // Validate content-type
   const contentType = req.headers['content-type'];
   if (!contentType || !contentType.includes('application/json')) {
@@ -369,6 +387,15 @@ router.post('/', async (req: Request, res: Response) => {
         res.end();
       });
 
+      stream.on('message', (message) => {
+        // Track API cost when message completes
+        if (message.usage) {
+          const inputCostMicro = Math.ceil((message.usage.input_tokens / 1_000_000) * 3 * 1_000_000);
+          const outputCostMicro = Math.ceil((message.usage.output_tokens / 1_000_000) * 15 * 1_000_000);
+          incrementDailyApiSpend(inputCostMicro + outputCostMicro);
+        }
+      });
+
       stream.on('end', () => {
         // Store assistant response in memory
         if (fullResponse) {
@@ -393,6 +420,13 @@ router.post('/', async (req: Request, res: Response) => {
       system: systemPrompt,
       messages: allMessages.map(m => ({ role: m.role, content: m.content })),
     });
+
+    // Track actual API cost based on token usage
+    // Claude Sonnet 4 pricing: $3/M input, $15/M output
+    const inputCostMicro = Math.ceil((response.usage.input_tokens / 1_000_000) * 3 * 1_000_000);
+    const outputCostMicro = Math.ceil((response.usage.output_tokens / 1_000_000) * 15 * 1_000_000);
+    const totalCostMicro = inputCostMicro + outputCostMicro;
+    incrementDailyApiSpend(totalCostMicro);
 
     const content = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')

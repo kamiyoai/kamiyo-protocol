@@ -7,7 +7,7 @@ import { randomBytes } from 'crypto';
 import { createPayAIFacilitator, PayAIFacilitator, PayAINetwork } from '@kamiyo/x402-client';
 import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { logger } from '../../logger';
-import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits } from '../../db';
+import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits, isDailySpendCapExceeded, incrementDailyApiSpend, getDailySpendStatus } from '../../db';
 import { getBurnService } from '../../burn-service';
 
 const router: IRouter = Router();
@@ -198,6 +198,24 @@ When discussing markets, use the data provided. Never fabricate numbers.
 For trading questions, provide analysis not financial advice.`;
 
 router.post('/chat', async (req: Request, res: Response) => {
+  // Check daily spend cap before processing
+  if (isDailySpendCapExceeded()) {
+    const status = getDailySpendStatus();
+    logger.warn('Daily spend cap exceeded', status);
+    res.status(503).json({
+      error: {
+        code: 'SPEND_CAP_EXCEEDED',
+        message: 'Daily API spend cap reached. Service will resume tomorrow.',
+        details: {
+          spentToday: `$${status.spendUsd.toFixed(2)}`,
+          dailyCap: `$${status.capUsd.toFixed(2)}`,
+          requestsToday: status.requestCount,
+        },
+      },
+    });
+    return;
+  }
+
   const middleware = await paymentMiddleware(CHAT_PRICE_USD, 'KAMIYO AI Chat', '/api/paid/chat');
   await new Promise<void>((resolve) => middleware(req, res, resolve));
 
@@ -248,6 +266,13 @@ router.post('/chat', async (req: Request, res: Response) => {
         content: m.content,
       })),
     });
+
+    // Track actual API cost based on token usage
+    // Claude Sonnet 4 pricing: $3/M input, $15/M output
+    const inputCostMicro = Math.ceil((response.usage.input_tokens / 1_000_000) * 3 * 1_000_000);
+    const outputCostMicro = Math.ceil((response.usage.output_tokens / 1_000_000) * 15 * 1_000_000);
+    const totalCostMicro = inputCostMicro + outputCostMicro;
+    incrementDailyApiSpend(totalCostMicro);
 
     const content = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
