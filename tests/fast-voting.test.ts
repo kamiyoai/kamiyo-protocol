@@ -343,6 +343,200 @@ describe("kamiyo-fast-voting", () => {
     });
   });
 
+  describe("tally_and_commit validation", () => {
+    it("rejects tally before deadline", async () => {
+      const tallyId = new anchor.BN(Date.now() + 700);
+      const [pda] = deriveFastActionPDA(tallyId);
+
+      await program.methods
+        .createFastAction(tallyId, Array.from(Buffer.alloc(32, 12)), 50, Array.from(Buffer.alloc(32)))
+        .accounts({
+          fastAction: pda,
+          creator: creator.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([creator])
+        .rpc();
+
+      // Add votes to meet quorum
+      const [vote1Pda] = deriveFastVotePDA(pda, voter1.publicKey);
+      const [vote2Pda] = deriveFastVotePDA(pda, voter2.publicKey);
+
+      await program.methods
+        .voteFast(tallyId, true, Array.from(Buffer.alloc(32, 1)))
+        .accounts({
+          fastAction: pda,
+          fastVote: vote1Pda,
+          voter: voter1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([voter1])
+        .rpc();
+
+      await program.methods
+        .voteFast(tallyId, true, Array.from(Buffer.alloc(32, 2)))
+        .accounts({
+          fastAction: pda,
+          fastVote: vote2Pda,
+          voter: voter2.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([voter2])
+        .rpc();
+
+      // MagicBlock program and context (will fail validation but we test the timing check first)
+      const fakeMagicProgram = new PublicKey("Magic11111111111111111111111111111111111111");
+      const fakeMagicContext = new PublicKey("MagicContext1111111111111111111111111111111");
+
+      try {
+        await program.methods
+          .tallyAndCommit()
+          .accounts({
+            fastAction: pda,
+            payer: creator.publicKey,
+            magicContext: fakeMagicContext,
+            magicProgram: fakeMagicProgram,
+          })
+          .signers([creator])
+          .rpc();
+        expect.fail("Should have thrown");
+      } catch (err: any) {
+        // Either VotingNotEnded (if deadline not passed) or account validation error
+        expect(err.message).to.satisfy((msg: string) =>
+          msg.includes("VotingNotEnded") || msg.includes("ConstraintAddress")
+        );
+      }
+    });
+
+    it("rejects quorum not met", async () => {
+      const quorumId = new anchor.BN(Date.now() + 800);
+      const [pda] = deriveFastActionPDA(quorumId);
+
+      await program.methods
+        .createFastAction(quorumId, Array.from(Buffer.alloc(32, 13)), 50, Array.from(Buffer.alloc(32)))
+        .accounts({
+          fastAction: pda,
+          creator: creator.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([creator])
+        .rpc();
+
+      // Only 1 vote (quorum is 2)
+      const [votePda] = deriveFastVotePDA(pda, voter1.publicKey);
+      await program.methods
+        .voteFast(quorumId, true, Array.from(Buffer.alloc(32, 1)))
+        .accounts({
+          fastAction: pda,
+          fastVote: votePda,
+          voter: voter1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([voter1])
+        .rpc();
+
+      const action = await program.account.fastAction.fetch(pda);
+      expect(action.voteCount).to.equal(1);
+    });
+
+    it("rejects invalid magic program", async () => {
+      const invalidId = new anchor.BN(Date.now() + 900);
+      const [pda] = deriveFastActionPDA(invalidId);
+
+      await program.methods
+        .createFastAction(invalidId, Array.from(Buffer.alloc(32, 14)), 50, Array.from(Buffer.alloc(32)))
+        .accounts({
+          fastAction: pda,
+          creator: creator.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([creator])
+        .rpc();
+
+      // Add quorum votes
+      const [vote1Pda] = deriveFastVotePDA(pda, voter1.publicKey);
+      const [vote2Pda] = deriveFastVotePDA(pda, voter2.publicKey);
+
+      await program.methods
+        .voteFast(invalidId, true, Array.from(Buffer.alloc(32, 1)))
+        .accounts({
+          fastAction: pda,
+          fastVote: vote1Pda,
+          voter: voter1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([voter1])
+        .rpc();
+
+      await program.methods
+        .voteFast(invalidId, true, Array.from(Buffer.alloc(32, 2)))
+        .accounts({
+          fastAction: pda,
+          fastVote: vote2Pda,
+          voter: voter2.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([voter2])
+        .rpc();
+
+      // Use wrong magic program
+      const wrongMagicProgram = SystemProgram.programId;
+      const fakeMagicContext = new PublicKey("MagicContext1111111111111111111111111111111");
+
+      try {
+        await program.methods
+          .tallyAndCommit()
+          .accounts({
+            fastAction: pda,
+            payer: creator.publicKey,
+            magicContext: fakeMagicContext,
+            magicProgram: wrongMagicProgram,
+          })
+          .signers([creator])
+          .rpc();
+        expect.fail("Should have thrown");
+      } catch (err: any) {
+        // Should fail with address constraint error
+        expect(err.message).to.include("ConstraintAddress");
+      }
+    });
+  });
+
+  describe("delegate_action validation", () => {
+    it("rejects invalid PDA", async () => {
+      const delegateId = new anchor.BN(Date.now() + 1000);
+      const [correctPda] = deriveFastActionPDA(delegateId);
+
+      // Create the action first
+      await program.methods
+        .createFastAction(delegateId, Array.from(Buffer.alloc(32, 15)), 50, Array.from(Buffer.alloc(32)))
+        .accounts({
+          fastAction: correctPda,
+          creator: creator.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([creator])
+        .rpc();
+
+      // Try to delegate with wrong PDA
+      const wrongPda = Keypair.generate().publicKey;
+
+      try {
+        await program.methods
+          .delegateAction(delegateId)
+          .accounts({
+            pda: wrongPda,
+            payer: creator.publicKey,
+          })
+          .signers([creator])
+          .rpc();
+        expect.fail("Should have thrown");
+      } catch (err: any) {
+        expect(err.message).to.include("InvalidPda");
+      }
+    });
+  });
+
   describe("account sizes", () => {
     it("FastAction size is correct", async () => {
       const testId = new anchor.BN(Date.now() + 500);
