@@ -13,6 +13,10 @@
     "./claude": {
       "types": "./dist/integrations/claude.d.ts",
       "import": "./dist/integrations/claude.js"
+    },
+    "./channels": {
+      "types": "./dist/channels/index.d.ts",
+      "import": "./dist/channels/index.js"
     }
   },
   "scripts": {
@@ -38,11 +42,14 @@
   "dependencies": {
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/paykit": "workspace:*",
+    "@kamiyo/x402-client": "workspace:*",
     "@solana/web3.js": "^1.95.0",
-    "bs58": "^6.0.0"
+    "bs58": "^6.0.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.24",
+    "@types/ws": "^8.5.13",
     "tsx": "^4.15.0",
     "typescript": "^5.4.5"
   },

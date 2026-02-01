@@ -21,6 +21,8 @@ import linkWalletRoutes from './routes/link-wallet';
 import swarmTeamRoutes from './routes/swarm-teams';
 import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import buybackRoutes from './routes/buyback';
+import channelsRoutes from './routes/channels';
+import trustGraphRoutes from './routes/trust-graph';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 
@@ -182,6 +184,12 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Buyback stats and admin controls (public read, admin write)
   app.use('/api/buyback', buybackRoutes);
+
+  // ZK-gated channels (public - proof verified on join)
+  app.use('/api/channels', channelsRoutes);
+
+  // Trust graph visualization (public)
+  app.use('/api/trust-graph', trustGraphRoutes);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

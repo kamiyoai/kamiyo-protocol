@@ -3,6 +3,7 @@ import { AgentRegistry } from './registry.js';
 import { AgentDiscovery } from './discovery.js';
 import { A2AEscrow } from './escrow.js';
 import { QualityOracle } from './oracle.js';
+import { X402HiveAdapter, type PriceResult } from './x402-adapter.js';
 import type {
   HiveConfig,
   AgentInfo,
@@ -22,13 +23,16 @@ export class KamiyoHive {
   private discovery: AgentDiscovery;
   private escrow: A2AEscrow;
   private oracle: QualityOracle;
+  private x402Adapter?: X402HiveAdapter;
 
   private keypair: Keypair;
   private connection: Connection;
+  private enableReputationPricing: boolean;
 
   constructor(config: HiveConfig) {
     this.keypair = config.keypair;
     this.connection = config.connection;
+    this.enableReputationPricing = config.enableReputationPricing ?? false;
 
     this.registry = new AgentRegistry({
       connection: config.connection,
@@ -53,6 +57,10 @@ export class KamiyoHive {
       endpoint: config.oracleEndpoint,
       defaultThreshold: config.defaultQualityThreshold,
     });
+
+    if (config.x402Client) {
+      this.x402Adapter = new X402HiveAdapter(config.x402Client);
+    }
   }
 
   get address(): string {
@@ -90,7 +98,13 @@ export class KamiyoHive {
     return this.discovery.findBestMatch(capability, options);
   }
 
-  async hire(options: HireOptions): Promise<{ escrowAddress: string; agentId: string; hire: HiredAgent } | null> {
+  async hire(options: HireOptions): Promise<{
+    escrowAddress: string;
+    agentId: string;
+    hire: HiredAgent;
+    x402TransactionId?: string;
+    priceInfo?: PriceResult;
+  } | null> {
     let targetAgent: AgentInfo | null = null;
 
     if (options.preferredAgents?.length) {
@@ -119,7 +133,30 @@ export class KamiyoHive {
       return null;
     }
 
-    const result = await this.escrow.createEscrow(targetAgent, options);
+    let x402TransactionId: string | undefined;
+    let priceInfo: PriceResult | undefined;
+    let effectiveBudget = options.budget;
+
+    if (options.paymentProtocol === 'x402' && this.x402Adapter) {
+      const basePrice = targetAgent.pricing.perTask ?? options.budget;
+      priceInfo = this.x402Adapter.calculateAgentPrice(basePrice, targetAgent.reputation);
+      effectiveBudget = priceInfo.price;
+
+      const hireId = `hire-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const paymentResult = await this.x402Adapter.payForHire(targetAgent, effectiveBudget, hireId);
+
+      if (!paymentResult.success) {
+        return null;
+      }
+
+      x402TransactionId = paymentResult.transactionId;
+    }
+
+    const result = await this.escrow.createEscrow(targetAgent, {
+      ...options,
+      budget: effectiveBudget,
+    });
+
     if (!result.success || !result.escrowAddress) {
       return null;
     }
@@ -129,10 +166,16 @@ export class KamiyoHive {
       return null;
     }
 
+    if (x402TransactionId) {
+      (hire as any).x402TransactionId = x402TransactionId;
+    }
+
     return {
       escrowAddress: result.escrowAddress,
       agentId: targetAgent.id,
       hire,
+      x402TransactionId,
+      priceInfo,
     };
   }
 
@@ -158,7 +201,16 @@ export class KamiyoHive {
       return { success: false, paid: false, error: 'Hire not found' };
     }
 
-    return hire.awaitDelivery();
+    const result = await hire.awaitDelivery();
+
+    if (this.x402Adapter && hire.x402TransactionId) {
+      const hireId = hire.x402TransactionId;
+      const quality = result.qualityScore ?? 0;
+      const outcome = result.success && result.paid ? 'released' : 'disputed';
+      await this.x402Adapter.recordOutcome(hireId, outcome, quality);
+    }
+
+    return result;
   }
 
   async assessQuality(
@@ -175,6 +227,38 @@ export class KamiyoHive {
 
   getActiveHires(): HiredAgent[] {
     return this.escrow.getAllActiveHires();
+  }
+
+  negotiatePrice(capability: Capability, reputation: number): PriceResult | null {
+    if (!this.x402Adapter && !this.enableReputationPricing) {
+      return null;
+    }
+
+    const basePrices: Record<string, number> = {
+      'code-review': 0.05,
+      'code-generation': 0.10,
+      'image-generation': 0.08,
+      'data-analysis': 0.06,
+      'text-generation': 0.03,
+      'translation': 0.04,
+      'summarization': 0.02,
+      'research': 0.07,
+      'audio-transcription': 0.05,
+      'video-analysis': 0.12,
+    };
+
+    const basePrice = basePrices[capability] ?? 0.05;
+
+    if (this.x402Adapter) {
+      return this.x402Adapter.calculateAgentPrice(basePrice, reputation);
+    }
+
+    const { calculateReputationPrice, DEFAULT_TIERS } = require('./x402-adapter.js');
+    return calculateReputationPrice(basePrice, reputation, DEFAULT_TIERS);
+  }
+
+  setX402Adapter(adapter: X402HiveAdapter): void {
+    this.x402Adapter = adapter;
   }
 }
 
@@ -212,3 +296,23 @@ export * from './types.js';
 
 export { hiveTools, createToolHandlers } from './integrations/claude.js';
 export type { ClaudeTool, HiveToolHandlers } from './integrations/claude.js';
+
+export {
+  X402HiveAdapter,
+  createX402Adapter,
+  DEFAULT_TIERS,
+  getTierForThreshold,
+  calculateReputationPrice,
+} from './x402-adapter.js';
+export type { PriceResult, X402AdapterConfig, ReputationTier } from './x402-adapter.js';
+
+export { MessageStore, ChannelServer, ChannelClient } from './channels/index.js';
+export type {
+  ChannelMessage,
+  ChannelMember,
+  ChannelAccessToken,
+  ChannelServerConfig,
+  ChannelClientConfig,
+  ServerMessage,
+  ClientPayload,
+} from './channels/index.js';
