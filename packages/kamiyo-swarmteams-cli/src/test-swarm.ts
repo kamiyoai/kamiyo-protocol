@@ -3,8 +3,8 @@ import chalk from 'chalk';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AnchorProvider, Wallet, Program } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
-import { proveSwarmVote } from '@kamiyo/kamiyo-swarmteams-prover';
-import { MerkleTree } from '@kamiyo/kamiyo-swarmteams-merkle';
+import { proveSwarmVote } from '@kamiyo/hive-prover';
+import { MerkleTree } from '@kamiyo/hive-merkle';
 import * as fs from 'fs';
 import { buildPoseidonOpt } from 'circomlibjs';
 

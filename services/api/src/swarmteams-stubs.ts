@@ -1,5 +1,5 @@
 /**
- * Stub exports for swarmteams-agent when @kamiyo/kamiyo-swarmteams is not available (e.g., on Render).
+ * Stub exports for swarmteams-agent when @kamiyo/hive is not available (e.g., on Render).
  * The real implementation is in swarmteams-agent.ts which is excluded from the production build.
  * These stubs are self-contained with no external dependencies.
  */

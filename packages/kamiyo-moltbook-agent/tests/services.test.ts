@@ -8,7 +8,7 @@ import { CollectiveMemory } from '../src/services/collective-memory.js';
 import { IdentityResolver } from '../src/services/identity-resolver.js';
 import { GatedAccessService } from '../src/services/gated-access.js';
 import { TrustGraphVisualizer } from '../src/visualization/trust-graph-viz.js';
-import { SwarmTeamsProver } from '@kamiyo/kamiyo-swarmteams';
+import { SwarmTeamsProver } from '@kamiyo/hive';
 import { getTierFromScore } from '../src/personality.js';
 import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';

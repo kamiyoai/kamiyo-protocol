@@ -1,6 +1,6 @@
 import * as snarkjs from 'snarkjs';
 import { buildPoseidon } from 'circomlibjs';
-import { MerkleProof, bigintToBytes32 } from '@kamiyo/kamiyo-swarmteams-merkle';
+import { MerkleProof, bigintToBytes32 } from '@kamiyo/hive-merkle';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';

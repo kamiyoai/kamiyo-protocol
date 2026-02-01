@@ -2,7 +2,7 @@
  * End-to-end test for DARK_FOREST ZK proof generation and verification
  */
 
-import { DarkForestProver, getTierThreshold, getQualifyingTier } from '@kamiyo/kamiyo-swarmteams';
+import { DarkForestProver, getTierThreshold, getQualifyingTier } from '@kamiyo/hive';
 
 async function main() {
   console.log('=== DARK_FOREST E2E Test ===\n');

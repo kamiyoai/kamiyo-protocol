@@ -11,7 +11,7 @@ import {
   MerkleTree,
   generateAgentId,
   generateRandomSalt,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 const CIRCUITS_PATH = '/Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/circuits/build/swarmteams';
 

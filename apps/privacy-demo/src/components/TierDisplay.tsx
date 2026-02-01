@@ -10,10 +10,10 @@ interface Props {
 }
 
 export function TierDisplay({ proof, commitment }: Props) {
-  const { connection } = useConnection();
+  useConnection(); // Keep connection available for future on-chain verification
   const { publicKey } = useWallet();
   const [verifying, setVerifying] = useState(false);
-  const [txSignature, setTxSignature] = useState<string | null>(null);
+  const [txSignature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const tier = Object.entries(TIERS).find(

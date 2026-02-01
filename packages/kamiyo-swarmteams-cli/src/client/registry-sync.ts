@@ -1,7 +1,7 @@
 // Registry sync - fetches agents from on-chain and builds merkle tree
 
 import { Connection, PublicKey } from '@solana/web3.js';
-import { createMerkleTree, PoseidonMerkleTree, bytes32ToBigint, MerkleProof } from '@kamiyo/kamiyo-swarmteams-merkle';
+import { createMerkleTree, PoseidonMerkleTree, bytes32ToBigint, MerkleProof } from '@kamiyo/hive-merkle';
 import { PROGRAM_ID } from './connection.js';
 
 const AGENT_ACCOUNT_DISCRIMINATOR = Buffer.from([

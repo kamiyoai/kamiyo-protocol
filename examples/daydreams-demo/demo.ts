@@ -18,7 +18,7 @@ import {
   getTierThreshold,
   getQualifyingTier,
 } from '@kamiyo/daydreams';
-import { DarkForestProver } from '@kamiyo/kamiyo-swarmteams';
+import { DarkForestProver } from '@kamiyo/hive';
 
 import {
   printBanner,

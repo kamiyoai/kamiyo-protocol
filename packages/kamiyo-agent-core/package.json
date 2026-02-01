@@ -29,7 +29,7 @@
   ],
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
-    "@kamiyo/kamiyo-swarmteams": "workspace:*",
+    "@kamiyo/hive": "workspace:*",
     "zod": "^3.23.8"
   },
   "devDependencies": {

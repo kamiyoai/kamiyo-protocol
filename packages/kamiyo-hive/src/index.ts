@@ -316,3 +316,6 @@ export type {
   ServerMessage,
   ClientPayload,
 } from './channels/index.js';
+
+// SwarmTeams SDK
+export * from './swarmteams/index.js';

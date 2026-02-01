@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
-    "@kamiyo/kamiyo-swarmteams": "workspace:*",
+    "@kamiyo/hive": "workspace:*",
     "ethers": "^6.9.0"
   },
   "devDependencies": {

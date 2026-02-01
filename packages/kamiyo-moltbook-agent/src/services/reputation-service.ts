@@ -1,5 +1,5 @@
-import { SwarmTeamsProver, generateOwnerSecret, generateRegistrationSecret } from '@kamiyo/kamiyo-swarmteams';
-import type { AgentReputationInputs, ReputationProofResult } from '@kamiyo/kamiyo-swarmteams';
+import { SwarmTeamsProver, generateOwnerSecret, generateRegistrationSecret } from '@kamiyo/hive';
+import type { AgentReputationInputs, ReputationProofResult } from '@kamiyo/hive';
 import { TIER_CONFIG, getTierFromScore, type TierConfig } from '../personality.js';
 import type { JobDatabase } from '../db.js';
 import type { DKGPublisher } from './dkg-publisher.js';

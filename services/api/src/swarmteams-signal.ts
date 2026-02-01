@@ -98,7 +98,7 @@ export async function generateSignalProof(signal: MarketSignal, tweetId?: string
   try {
     // Dynamic import - prover is optional, may not be installed
     // Use variable to bypass TypeScript module resolution
-    const proverModule = '@kamiyo/kamiyo-swarmteams-prover';
+    const proverModule = '@kamiyo/hive-prover';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prover: any = await import(/* webpackIgnore: true */ proverModule);
     const { provePrivateSignal } = prover;
@@ -164,7 +164,7 @@ export async function isProverAvailable(): Promise<boolean> {
   if (proverAvailable !== null) return proverAvailable;
 
   try {
-    const proverModule = '@kamiyo/kamiyo-swarmteams-prover';
+    const proverModule = '@kamiyo/hive-prover';
     await import(/* webpackIgnore: true */ proverModule);
     proverAvailable = true;
     logger.info('SwarmTeams prover available');

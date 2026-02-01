@@ -1,107 +1,250 @@
-# SwarmTeams: Private Coordination for AI Agent Swarms
+# SwarmTeams: Private Reputation Proofs for AI Agents
 
 **Solana Privacy Hackathon Submission**
 
-> When agents can see each other's bids, they can't cooperate fairly. SwarmTeams makes coordination invisible.
+> Agents prove they're trustworthy without revealing who they are.
 
-## Overview
+## The Problem
 
-SwarmTeams enables AI agents to coordinate on tasks using zero-knowledge proofs. Agents can vote on task proposals, submit hidden bids, and compete for execution rights—all without revealing their votes or bids until the reveal phase.
+AI agents need to access services, APIs, and payment rails. Service providers need to know agents are trustworthy. But revealing transaction history exposes:
 
-**Key Innovation**: Atomic vote+bid commitment in a single ZK proof. Agents prove membership in the swarm AND commit to both their vote and bid in one circuit, preventing front-running and collusion.
+- Competitive intelligence (trading strategies, API usage patterns)
+- Identity linkage (wallet → agent → owner)
+- Historical positions and behaviors
+
+**Current tradeoff**: Reveal your history to prove reputation, or stay anonymous and be untrusted.
+
+## The Solution
+
+SwarmTeams lets agents generate ZK proofs of on-chain reputation:
+
+```
+"I have >90% success rate across 50+ transactions"
+```
+
+Without revealing:
+- Which transactions
+- Which wallets
+- Which agent
+
+High reputation unlocks private payment rails through ShadowWire and Blindfold.
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. REGISTER                                                     │
+│                                                                  │
+│  Agent creates identity commitment:                              │
+│  commitment = Poseidon(owner_secret, agent_id, reg_secret)      │
+│                                                                  │
+│  Registers on-chain with stake. Identity remains private.        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  2. BUILD HISTORY                                                │
+│                                                                  │
+│  Agent completes escrow agreements through KAMIYO Protocol:      │
+│  - Successful releases recorded on-chain                         │
+│  - Disputes and resolutions tracked                              │
+│  - Reputation score computed from outcomes                       │
+│                                                                  │
+│  History is public, but not linked to agent identity.            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  3. GENERATE PROOF                                               │
+│                                                                  │
+│  Agent generates Groth16 ZK proof:                               │
+│                                                                  │
+│  Public: threshold (e.g., 85%), min_transactions (e.g., 50)     │
+│  Private: actual reputation, transaction list, identity         │
+│                                                                  │
+│  Proof says: "I meet the threshold" without revealing details.   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  4. UNLOCK PRIVATE PAYMENTS                                      │
+│                                                                  │
+│  Reputation Threshold    Payment Rail         Daily Limit        │
+│  ────────────────────    ────────────         ───────────        │
+│  Any registered agent    Standard transfer    $100               │
+│  > 70% success rate      ShadowWire basic     $500               │
+│  > 85% success rate      ShadowWire + card    $2,000             │
+│  > 95% success rate      Elite private rail   $10,000            │
+│                                                                  │
+│  Agent pays for services through private rails.                  │
+│  Service knows: agent is reputable.                              │
+│  Service doesn't know: which agent, which history.               │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     PROPOSE TASK                                 │
-│  POST /propose-task → { description, budget, minBid }           │
-│  → Creates on-chain SwarmActionBid account                      │
-│  → Opens vote+bid window                                        │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     VOTE + BID PHASE                            │
-│  Each agent:                                                    │
-│  1. Generate commitments:                                       │
-│     vote_commitment = Poseidon(vote, vote_salt, action_hash)    │
-│     bid_commitment = Poseidon(bid_amount, bid_salt, action_hash)│
-│  2. Generate ZK proof proving:                                  │
-│     - Merkle membership in agent registry                       │
-│     - Vote is binary (0 or 1)                                   │
-│     - Bid >= min_bid                                            │
-│     - Commitments are correctly formed                          │
-│  3. Submit proof on-chain → voteBidSwarmAction instruction      │
-│                                                                 │
-│  [Vote window: configurable, e.g., 60 seconds]                  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     REVEAL PHASE                                │
-│  Each agent reveals:                                            │
-│  POST /reveal-bid { voteValue, voteSalt, bidAmount, bidSalt }   │
-│  → On-chain verifies Poseidon(revealed) == stored commitment    │
-│  → Updates vote tallies and tracks highest YES bidder           │
-│                                                                 │
-│  [Reveal window: configurable, e.g., 30 seconds]                │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     EXECUTE                                     │
-│  POST /execute-proposal                                         │
-│  → Check: enough YES votes (threshold reached)                  │
-│  → Winner = highest bid among YES voters                        │
-│  → Task assigned to winner                                      │
-│  → Payment recorded                                             │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  KAMIYO Protocol │     │   SwarmTeams     │     │  Payment Rails   │
+│  (Reputation)    │     │  (ZK Proofs)     │     │                  │
+├──────────────────┤     ├──────────────────┤     ├──────────────────┤
+│ Agent Identity   │────►│ Proof Generation │────►│ ShadowWire       │
+│ Escrow History   │     │ On-chain Verify  │     │ Blindfold Cards  │
+│ Dispute Records  │     │ Threshold Gates  │     │ Private Transfer │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
-## Privacy-Preserving Technologies
+## Privacy Guarantees
 
-### Zero-Knowledge Circuits (Circom + Groth16)
+| Data | Visibility |
+|------|------------|
+| Agent's wallet address | Never revealed |
+| Transaction history | Never revealed |
+| Exact reputation score | Never revealed |
+| Reputation threshold met | Public (that's the point) |
+| Payment activity | Private (ShadowWire/Blindfold) |
 
-**`swarm_vote_bid.circom`** - 6042 non-linear constraints
+## Zero-Knowledge Circuit
 
-```circom
+**`reputation_threshold.circom`**
+
+```
 Public Inputs:
-  - agents_root      // Merkle root of registered agents
-  - action_hash      // Hash of the task proposal
-  - vote_nullifier   // Prevents double-voting
-  - vote_commitment  // Hidden vote
-  - bid_commitment   // Hidden bid amount
-  - min_bid          // Minimum bid floor
+  - agents_root          // Merkle root of registered agents
+  - min_reputation       // Required threshold (e.g., 85)
+  - min_transactions     // Minimum transaction count
+  - nullifier            // Prevents proof replay
 
 Private Inputs:
-  - owner_secret, agent_id, registration_secret
-  - merkle_path[20], path_indices[20]
-  - vote (0 or 1), vote_salt
-  - bid_amount, bid_salt
+  - owner_secret         // Agent's identity secret
+  - agent_id             // Agent identifier
+  - registration_secret  // Registration secret
+  - merkle_path[20]      // Proof of registration
+  - reputation_score     // Actual score (hidden)
+  - transaction_count    // Actual count (hidden)
+  - epoch                // Current epoch
 
 Constraints:
-  1. Merkle membership proof (agent is registered)
-  2. vote ∈ {0, 1}
-  3. vote_nullifier = Poseidon(agent_id, reg_secret, action_hash)
-  4. vote_commitment = Poseidon(vote, vote_salt, action_hash)
-  5. bid_amount >= min_bid
-  6. bid_commitment = Poseidon(bid_amount, bid_salt, action_hash)
+  1. Merkle membership in agent registry
+  2. reputation_score >= min_reputation
+  3. transaction_count >= min_transactions
+  4. nullifier = Poseidon(agent_id, epoch) // Prevents reuse
 ```
 
-**Proof Generation**: ~660ms on commodity hardware
+**Proof generation**: ~500ms
+**On-chain verification**: ~400k compute units
 
-### On-Chain Verification (Solana Program)
+## Integration
 
-- Uses `groth16-solana` crate for BN254 curve operations
-- Verification key embedded in program (~2KB)
-- Single CPI call verifies proof in ~400k compute units
+### For Agents
+
+```typescript
+import { SwarmTeamsClient, ReputationProver } from '@kamiyo/swarmteams';
+import { ShadowWireClient } from '@kamiyo/radr';
+
+// Generate reputation proof
+const prover = new ReputationProver('/path/to/circuits');
+const proof = await prover.proveReputationThreshold({
+  ownerSecret,
+  agentId,
+  registrationSecret,
+  merklePath,
+  reputationScore: 92,      // Private - not revealed
+  transactionCount: 127,    // Private - not revealed
+  minReputation: 85,        // Public threshold
+  minTransactions: 50,      // Public threshold
+});
+
+// Use proof to access private payment rail
+const shadowWire = new ShadowWireClient();
+const payment = await shadowWire.privateTransfer({
+  amount: 100,
+  token: 'USDC',
+  recipient: serviceProvider,
+  reputationProof: proof,   // Proves eligibility
+});
+// Service receives payment, knows agent is reputable, doesn't know which agent
+```
+
+### For Service Providers
+
+```typescript
+import { SwarmTeamsClient } from '@kamiyo/swarmteams';
+
+const client = new SwarmTeamsClient(provider);
+
+// Verify agent meets reputation threshold
+const isValid = await client.verifyReputationProof(proof, {
+  minReputation: 85,
+  minTransactions: 50,
+});
+
+if (isValid) {
+  // Grant access - agent is trustworthy
+  // You don't know which agent, just that they qualify
+}
+```
+
+## Blindfold Card Integration
+
+Reputation proofs unlock Blindfold privacy card tiers:
+
+```typescript
+import { BlindfoldClient } from '@kamiyo/blindfold';
+
+const blindfold = new BlindfoldClient();
+
+// Request card with reputation proof
+const card = await blindfold.requestCard({
+  reputationProof: proof,
+  requestedTier: 'premium',  // Requires 85%+ reputation
+});
+
+// Card issued to agent
+// Spending is private - not linked to agent identity
+// Daily limit based on proven reputation tier
+```
+
+## ShadowWire Integration
+
+Private transfers via Radr Labs ShadowWire:
+
+```typescript
+import { ShadowWireClient } from '@kamiyo/radr';
+
+const shadowWire = new ShadowWireClient();
+
+// Private transfer with reputation gate
+const tx = await shadowWire.privateTransfer({
+  amount: 500,
+  token: 'USDC',
+  recipient: apiProvider,
+  reputationProof: proof,
+  memo: 'API subscription',  // Encrypted
+});
+
+// Recipient sees: 500 USDC from verified agent (85%+ reputation)
+// Recipient doesn't see: which agent, transaction history
+```
+
+## Use Cases
+
+### 1. Anonymous API Access
+Trading agent proves 90%+ success rate to access premium market data API. Provider knows agent is profitable, doesn't know its strategies.
+
+### 2. Private Service Payments
+Research agent pays for compute resources through ShadowWire. Compute provider knows agent is reputable, doesn't know what it's researching.
+
+### 3. Reputation-Gated Collaboration
+Agent joins private collaboration channel by proving reputation threshold. Other agents know it's trustworthy, don't know its identity.
+
+### 4. Anonymous Credit
+Agent accesses credit/lending based on proven track record. Lender knows repayment likelihood, doesn't know borrower identity.
 
 ## Deployment
 
-**Devnet Program**: `DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km`
-
-**Registry PDA**: `DKExCEpF51Wa7iuStiEvfZ6RRBrzyWnB8kUo5MtCB7v9`
+**Solana Devnet Program**: `DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km`
 
 ## Running the Project
 
@@ -116,77 +259,59 @@ Constraints:
 ### Setup
 
 ```bash
-# Clone the repo
 git clone https://github.com/kamiyo-ai/kamiyo-protocol
 cd kamiyo-protocol
 
-# Install dependencies
 pnpm install
 
-# Build circuits (if needed)
+# Build circuits
 cd circuits/swarmteams
-./compile.sh swarm_vote_bid
+./compile.sh reputation_threshold
 
 # Build Solana program
 anchor build -p swarmteams
 
-# Build TypeScript SDK
+# Build SDK
 pnpm --filter @kamiyo/kamiyo-swarmteams run build
 ```
 
 ### Run Demo
 
 ```bash
-# Start API server
-cd services/api
-pnpm dev
+# Terminal 1: Start API
+cd services/api && pnpm dev
 
-# In another terminal, run the demo
-pnpm tsx scripts/swarmteams-full-demo.ts
+# Terminal 2: Run demo
+pnpm tsx scripts/reputation-proof-demo.ts
 ```
-
-### Run Tests
-
-```bash
-# Circuit tests
-cd packages/kamiyo-swarmteams
-pnpm test
-
-# On-chain tests (requires local validator)
-anchor test
-```
-
-## API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/swarm-teams` | Create new team |
-| `POST /api/swarm-teams/:id/propose-task` | Create task proposal with vote+bid window |
-| `POST /api/swarm-teams/:id/vote-bid` | Submit ZK proof with hidden vote+bid |
-| `POST /api/swarm-teams/:id/reveal-bid` | Reveal vote and bid after deadline |
-| `POST /api/swarm-teams/:id/execute-proposal` | Execute proposal, assign to winner |
-| `GET /api/swarm-teams/:id/proposals` | List proposals |
 
 ## Key Files
 
 | Path | Description |
 |------|-------------|
-| `circuits/swarmteams/swarm_vote_bid.circom` | ZK circuit for vote+bid |
+| `circuits/swarmteams/reputation_threshold.circom` | ZK circuit |
 | `programs/swarmteams/src/lib.rs` | Solana program |
-| `packages/kamiyo-swarmteams/src/client.ts` | TypeScript SDK |
-| `packages/kamiyo-swarmteams/src/prover.ts` | Proof generation |
-| `services/api/src/api/routes/swarm-teams.ts` | REST API |
+| `packages/kamiyo-swarmteams/src/reputation-prover.ts` | Proof generation |
+| `packages/kamiyo-radr/src/shadowwire.ts` | ShadowWire integration |
+| `packages/kamiyo-blindfold/src/reputation-gate.ts` | Blindfold integration |
 
-## Team
+## Why This Matters
 
-- **KAMIYO** - https://kamiyo.ai
+The AI agent economy is growing. Agents will transact billions in value. They need:
+
+1. **Trust** - Services need to know agents are reliable
+2. **Privacy** - Agents need to protect competitive intelligence
+3. **Interoperability** - Reputation should be portable across services
+
+SwarmTeams solves all three with a single ZK proof.
+
+## Links
+
+- [KAMIYO Protocol](https://kamiyo.ai)
+- [Radr ShadowWire](https://radr.com)
+- [Blindfold Finance](https://blindfoldfinance.com)
+- [Documentation](https://docs.kamiyo.ai/swarmteams)
 
 ## License
 
 MIT
-
-## Links
-
-- [Live Demo](https://app.kamiyo.ai/swarm)
-- [Documentation](https://docs.kamiyo.ai/swarmteams)
-- [GitHub](https://github.com/kamiyo-ai/kamiyo-protocol)

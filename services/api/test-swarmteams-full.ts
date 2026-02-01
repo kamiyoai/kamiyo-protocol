@@ -23,7 +23,7 @@ import {
   MerkleTree,
   createMerkleTree,
   generateAgentId,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CIRCUITS_PATH = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/swarmteams');

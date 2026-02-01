@@ -1,12 +1,12 @@
 import { ethers } from 'ethers';
-import { DarkForestProver, GeneratedProof } from '@kamiyo/kamiyo-swarmteams';
+import { DarkForestProver, GeneratedProof } from '@kamiyo/hive';
 
 export {
   DarkForestProver,
   getTierThreshold,
   getQualifyingTier,
   qualifiesForTier,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 export type {
   ProverConfig,
@@ -16,7 +16,7 @@ export type {
   EVMGroth16Proof as Groth16Proof,
   Commitment,
   VerificationResult,
-} from '@kamiyo/kamiyo-swarmteams';
+} from '@kamiyo/hive';
 
 export class ReputationProver extends DarkForestProver {
   formatForContract(proof: GeneratedProof): {

@@ -10,7 +10,7 @@ export interface ReputationScore {
   zkProofEligible: boolean;
 }
 
-// Stub tier functions until @kamiyo/kamiyo-swarmteams is integrated
+// Stub tier functions until @kamiyo/hive is integrated
 export type TierLevel = 0 | 1 | 2 | 3 | 4;
 export function getQualifyingTier(_score: number): TierLevel { return 0; }
 export function getTierThreshold(_tier: TierLevel): number { return 0; }

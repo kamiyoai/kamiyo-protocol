@@ -14,7 +14,7 @@
     "@coral-xyz/anchor": "^0.31.1",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@kamiyo/agents": "workspace:*",
-    "@kamiyo/kamiyo-swarmteams": "workspace:*",
+    "@kamiyo/hive": "workspace:*",
     "@kamiyo/blindfold": "workspace:*",
     "@kamiyo/daydreams": "workspace:*",
     "@kamiyo/swarm-agents": "workspace:*",

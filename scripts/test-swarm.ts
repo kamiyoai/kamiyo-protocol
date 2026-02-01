@@ -8,8 +8,8 @@ import chalk from 'chalk';
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
-import { MitamaClient, MerkleTree, generateAgentId } from '@kamiyo/kamiyo-swarmteams';
-import { proveSwarmVote } from '@kamiyo/kamiyo-swarmteams-prover';
+import { MitamaClient, MerkleTree, generateAgentId } from '@kamiyo/hive';
+import { proveSwarmVote } from '@kamiyo/hive-prover';
 import * as fs from 'fs';
 
 function bytesToBigint(bytes: Uint8Array): bigint {
