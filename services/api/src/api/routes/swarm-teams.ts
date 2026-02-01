@@ -3,12 +3,8 @@ import { randomUUID, createHash } from 'crypto';
 import { Connection, PublicKey, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, getAccount, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import db, { deductCredits, usdToCredits } from '../../db';
-import {
-  createOrchestrator,
-  SwarmOrchestrator,
-  type SwarmMember,
-  type DrawRecorder,
-} from '@kamiyo/swarm-agents';
+// NOTE: @kamiyo/swarm-agents has bun:sqlite dep that breaks on Node.js
+// Using direct task executor instead of orchestrator
 import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
 import { authMiddleware } from '../middleware';
@@ -170,15 +166,13 @@ router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
   const deleteAll = db.transaction(() => {
     db.prepare('DELETE FROM swarm_vote_bids WHERE proposal_id IN (SELECT id FROM swarm_task_proposals WHERE team_id = ?)').run(teamId);
     db.prepare('DELETE FROM swarm_task_proposals WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM blindfold_funding_states WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_fund_deposits WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_draws WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_team_members WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_teams WHERE id = ?').run(teamId);
   });
   deleteAll();
-
-  // Clean up orchestrator cache
-  orchestrators.delete(teamId);
 
   res.json({ success: true });
 });
@@ -671,93 +665,16 @@ router.get('/:id/draws', (req: Request, res: Response) => {
   });
 });
 
-// --- Orchestrator setup ---
+// --- Direct task execution (bypassing swarm-agents orchestrator due to bun:sqlite issue) ---
 
-// Orchestrator cache with LRU-style cleanup to prevent memory leaks
-const MAX_ORCHESTRATORS = 100;
-const ORCHESTRATOR_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-interface CachedOrchestrator {
-  orchestrator: SwarmOrchestrator;
-  lastUsed: number;
-}
-
-const orchestrators = new Map<string, CachedOrchestrator>();
-
-// Cleanup stale orchestrators periodically
-function cleanupOrchestrators() {
-  const now = Date.now();
-  for (const [teamId, cached] of orchestrators) {
-    if (now - cached.lastUsed > ORCHESTRATOR_TTL_MS) {
-      orchestrators.delete(teamId);
-    }
-  }
-  // If still over limit, remove oldest
-  if (orchestrators.size > MAX_ORCHESTRATORS) {
-    const sorted = [...orchestrators.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed);
-    const toRemove = sorted.slice(0, orchestrators.size - MAX_ORCHESTRATORS);
-    for (const [teamId] of toRemove) {
-      orchestrators.delete(teamId);
-    }
-  }
-}
-
-// Run cleanup every 5 minutes
-setInterval(cleanupOrchestrators, 5 * 60 * 1000);
-
-const drawRecorder: DrawRecorder = {
-  async recordDraw(draw) {
-    const drawId = `draw_${randomUUID().slice(0, 12)}`;
-    const now = Math.floor(Date.now() / 1000);
-
-    // Balance already deducted atomically at task submission
-    db.prepare(`
-      INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
-      VALUES (?, ?, ?, ?, ?, 'completed', ?)
-    `).run(drawId, draw.teamId, draw.agentId, draw.amount, draw.purpose, now);
-
-    return { drawId };
-  },
-};
-
-function getOrCreateOrchestrator(teamId: string): SwarmOrchestrator {
-  const cached = orchestrators.get(teamId);
-  if (cached) {
-    cached.lastUsed = Date.now();
-    return cached.orchestrator;
-  }
-
-  const team = db.prepare('SELECT * FROM swarm_teams WHERE id = ?').get(teamId) as {
-    id: string; name: string; currency: string; daily_limit: number;
-  } | undefined;
-
-  if (!team) throw new Error(`Team ${teamId} not found`);
-
-  const orchestrator = createOrchestrator({
-    team: {
-      teamId: team.id,
-      name: team.name,
-      currency: team.currency,
-      dailyLimit: team.daily_limit,
-      poolWalletAddress: SWARM_POOL_WALLET,
-      facilitatorUrl: FACILITATOR_URL,
-      network: SWARM_NETWORK,
-    },
-    onTaskComplete: async (result) => {
-      if (result.amountDrawn && result.amountDrawn > 0) {
-        await drawRecorder.recordDraw({
-          teamId: team.id,
-          agentId: result.memberId,
-          amount: result.amountDrawn,
-          purpose: `task:${result.taskId}`,
-          taskId: result.taskId,
-        });
-      }
-    },
-  });
-
-  orchestrators.set(teamId, { orchestrator, lastUsed: Date.now() });
-  return orchestrator;
+function recordDraw(teamId: string, agentId: string, amount: number, taskId: string) {
+  const drawId = `draw_${randomUUID().slice(0, 12)}`;
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(`
+    INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
+    VALUES (?, ?, ?, ?, ?, 'completed', ?)
+  `).run(drawId, teamId, agentId, amount, `task:${taskId}`, now);
+  return drawId;
 }
 
 // POST /api/swarm-teams/:id/tasks
@@ -819,23 +736,25 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
   }
 
   try {
-    const orchestrator = getOrCreateOrchestrator(teamId);
-
-    const swarmMember: SwarmMember = {
-      id: member.id,
-      agentId: member.agent_id,
-      role: member.role,
-      drawLimit: member.draw_limit,
-    };
-    await orchestrator.addAgent(swarmMember, taskExecutor);
+    if (!taskExecutor) {
+      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
+      return;
+    }
 
     const taskId = `task_${randomUUID().slice(0, 12)}`;
-    const result = await orchestrator.assignTask(memberId, {
+
+    // Execute task directly (bypassing orchestrator due to bun:sqlite compat issue)
+    const result = await taskExecutor({
       taskId,
       description,
       budget: taskBudget,
       teamId,
     });
+
+    // Record draw if task completed with cost
+    if (result.status === 'completed' && result.amountDrawn && result.amountDrawn > 0) {
+      recordDraw(teamId, member.agent_id, result.amountDrawn, taskId);
+    }
 
     res.json(result);
   } catch (err) {
@@ -1190,20 +1109,16 @@ router.post('/:id/execute-proposal', async (req: Request, res: Response) => {
 
   // Execute the task
   try {
-    const orchestrator = getOrCreateOrchestrator(teamId);
+    if (!taskExecutor) {
+      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
+      return;
+    }
 
     const member = db.prepare('SELECT * FROM swarm_team_members WHERE id = ?')
       .get(winner.member_id) as { id: string; agent_id: string; role: string; draw_limit: number };
 
-    const swarmMember: SwarmMember = {
-      id: member.id,
-      agentId: member.agent_id,
-      role: member.role,
-      drawLimit: member.draw_limit,
-    };
-    await orchestrator.addAgent(swarmMember, taskExecutor);
-
-    const result = await orchestrator.assignTask(winner.member_id, {
+    // Execute task directly (bypassing orchestrator due to bun:sqlite compat issue)
+    const result = await taskExecutor({
       taskId,
       description: proposal.description,
       budget: proposal.budget,
