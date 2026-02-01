@@ -4,7 +4,7 @@
 
 import { Connection, PublicKey } from '@solana/web3.js';
 import * as anchor from '@coral-xyz/anchor';
-import { BN } from '@coral-xyz/anchor';
+import BN from 'bn.js';
 
 export const TRANSFER_HOOK_PROGRAM_ID = new PublicKey('4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6');
 

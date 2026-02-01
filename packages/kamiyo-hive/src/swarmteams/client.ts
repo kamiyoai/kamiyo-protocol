@@ -1,6 +1,7 @@
 // SwarmTeams client
 
-import { Program, AnchorProvider, BN, web3 } from '@coral-xyz/anchor';
+import { Program, AnchorProvider, web3 } from '@coral-xyz/anchor';
+import BN from 'bn.js';
 import { PublicKey, Connection, Keypair, ComputeBudgetProgram, TransactionInstruction } from '@solana/web3.js';
 import { buildPoseidon, Poseidon } from 'circomlibjs';
 import {

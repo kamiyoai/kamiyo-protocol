@@ -5,6 +5,7 @@ import { buildPoseidon, Poseidon } from 'circomlibjs';
 import { randomBytes } from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 import {
   Groth16Proof,
   AgentIdentityInputs,
@@ -64,6 +65,8 @@ function bytesToBigint(arr: Uint8Array): bigint {
 }
 
 // Default circuits path (relative to package root)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const CIRCUITS_BUILD_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
 
 export class SwarmTeamsProver {
