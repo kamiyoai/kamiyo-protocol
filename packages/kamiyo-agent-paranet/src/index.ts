@@ -1,9 +1,5 @@
-// @kamiyo/agent-paranet - Decentralized credit scores for AI agents on OriginTrail DKG
-
-// Types (includes re-exported shared utilities)
 export * from './types';
 
-// Logging
 export {
   createLogger,
   setDefaultLogger,
@@ -14,7 +10,6 @@ export {
 } from './logger';
 export type { Logger, LogLevel, LogContext, LoggerConfig, LoggerType } from './logger';
 
-// Resilience (retry and circuit breaker)
 export {
   withRetry,
   CircuitBreaker,
@@ -27,7 +22,6 @@ export {
 } from './resilience';
 export type { RetryConfig, CircuitBreakerConfig } from './resilience';
 
-// Cache
 export {
   LRUCache,
   CacheInvalidator,
@@ -39,7 +33,6 @@ export {
 } from './cache';
 export type { CacheEntry, CacheConfig, CacheStats, CacheAdapter, RedisCacheConfig } from './cache';
 
-// Health checks
 export {
   checkHealth,
   checkLiveness,
@@ -48,7 +41,6 @@ export {
 } from './health';
 export type { HealthStatus, HealthCheckResult, HealthCheckOptions } from './health';
 
-// Signature verification
 export {
   EIP712_DOMAIN,
   EIP712_TYPES,
@@ -72,7 +64,6 @@ export type {
   SignatureConfig,
 } from './signatures';
 
-// Metrics (OpenTelemetry)
 export {
   initializeMetrics,
   getMetrics,
@@ -89,7 +80,6 @@ export {
 } from './metrics';
 export type { ParanetMetrics, ParanetMetricLabels, MetricAttributes } from './metrics';
 
-// Schemas
 export {
   TaskCompletionSchema,
   CapabilityAttestationSchema,
@@ -108,7 +98,6 @@ export {
 } from './schemas/index';
 export type { SchemaVersion } from './schemas/index';
 
-// Shutdown handlers
 export {
   ShutdownManager,
   getDefaultShutdownManager,
@@ -123,30 +112,25 @@ export {
 } from './shutdown';
 export type { ShutdownHandler, ShutdownManagerConfig } from './shutdown';
 
-// Queries
 export * as sparqlQueries from './queries/index';
 
-// Scoring
 export {
   CreditScoreCalculator,
   getQuickScore,
   compareAgents,
 } from './scoring/index';
 
-// Publishing
 export {
   ParanetPublisher,
   createDKGClient,
   quickPublishTask,
 } from './publishing/index';
 
-// Discovery
 export {
   ProviderDiscovery,
   findBestProvider,
 } from './discovery/index';
 
-// Main client that combines all functionality
 import type {
   DKGClient,
   ParanetConfig,

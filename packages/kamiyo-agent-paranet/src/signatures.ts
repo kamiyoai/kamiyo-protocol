@@ -88,8 +88,8 @@ export interface SignatureVerificationResult {
   expectedAddress?: string;
 }
 
-// Default max timestamp drift (1 hour)
-const DEFAULT_MAX_DRIFT_MS = 3600000;
+// Default max timestamp drift (5 minutes - tighter for security)
+const DEFAULT_MAX_DRIFT_MS = 300000;
 
 // Verify a task completion signature
 export async function verifyTaskCompletionSignature(
