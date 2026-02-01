@@ -8,9 +8,13 @@
     "strict": false,
     "noImplicitAny": false,
     "skipLibCheck": true,
-    "types": ["node", "mocha", "chai"]
+    "types": ["node", "mocha", "chai"],
+    "noEmit": true
   },
   "include": [
     "./**/*.ts"
-  ]
+  ],
+  "ts-node": {
+    "transpileOnly": true
+  }
 }
