@@ -573,9 +573,9 @@ router.post('/:id/fund-tokens', requireTeamOwner, async (req: Request, res: Resp
     // Convert to human readable amount
     const tokenAmount = Number(transferAmount) / Math.pow(10, KAMIYO_DECIMALS);
 
-    // Update pool balance (using token amount as the pool credit)
+    // Update pool balance and set currency to KAMIYO
     db.prepare(`
-      UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
+      UPDATE swarm_teams SET pool_balance = pool_balance + ?, currency = 'KAMIYO', updated_at = unixepoch()
       WHERE id = ?
     `).run(tokenAmount, teamId);
 
