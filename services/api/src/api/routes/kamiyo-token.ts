@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { logger } from '../../logger';
 import { getBurnService } from '../../burn-service';
+import { getDailySpendStatus } from '../../db';
 
 const router = Router();
 
@@ -197,6 +198,27 @@ router.get('/burns/stats', (_req: Request, res: Response) => {
   } catch (err) {
     logger.error('Failed to get burn stats', { error: String(err) });
     res.status(500).json({ error: 'Failed to get burn stats' });
+  }
+});
+
+// GET /kamiyo/spend - Get daily API spend status (for cost monitoring)
+router.get('/spend', (_req: Request, res: Response) => {
+  try {
+    const status = getDailySpendStatus();
+    res.json({
+      date: status.date,
+      spentUsd: status.spendUsd,
+      capUsd: status.capUsd,
+      remainingUsd: status.remaining,
+      requestCount: status.requestCount,
+      exceeded: status.exceeded,
+      percentUsed: status.capUsd > 0
+        ? ((status.spendUsd / status.capUsd) * 100).toFixed(1)
+        : '0',
+    });
+  } catch (err) {
+    logger.error('Failed to get spend status', { error: String(err) });
+    res.status(500).json({ error: 'Failed to get spend status' });
   }
 });
 

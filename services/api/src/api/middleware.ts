@@ -163,6 +163,14 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   // Log full error details internally
   logger.error('API error', { error: err.message, stack: err.stack, path: req.path });
 
+  // Ensure CORS headers are set on error responses
+  // This prevents browsers from showing CORS errors instead of the actual error
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+
   // Return generic message to client (don't expose internals)
   res.status(500).json({
     error: {
