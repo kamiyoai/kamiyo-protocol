@@ -15,6 +15,9 @@ export interface ContentContext {
   escrowVolume: number;
   activeAgents: string[];
   recentTransactions: Array<{ buyer: string; seller: string; amount: number; quality: number }>;
+  // Autonomous agent context
+  trendingTopics?: string[];
+  contentWeights?: Record<string, number>;
 }
 
 export interface ScheduleEntry {

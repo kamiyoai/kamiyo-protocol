@@ -120,6 +120,126 @@ CREATE INDEX IF NOT EXISTS idx_reputation_proofs_agent ON reputation_proofs(agen
 CREATE INDEX IF NOT EXISTS idx_badges_agent ON badges(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_jobs_status ON agent_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_mentions_processed ON mentions(processed);
+
+-- Social Intelligence: Observed posts from feed monitoring
+CREATE TABLE IF NOT EXISTS observed_posts (
+  post_id TEXT PRIMARY KEY,
+  author TEXT NOT NULL,
+  title TEXT,
+  topics TEXT,
+  sentiment REAL,
+  is_question INTEGER DEFAULT 0,
+  comment_count INTEGER DEFAULT 0,
+  observed_at INTEGER NOT NULL
+);
+
+-- Social Intelligence: Agent activity tracking
+CREATE TABLE IF NOT EXISTS agent_activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id TEXT NOT NULL,
+  activity_type TEXT NOT NULL,
+  post_id TEXT,
+  content TEXT,
+  observed_at INTEGER NOT NULL
+);
+
+-- Relationship Memory: Agent relationships
+CREATE TABLE IF NOT EXISTS agent_relationships (
+  agent_id TEXT PRIMARY KEY,
+  first_interaction INTEGER NOT NULL,
+  interaction_count INTEGER DEFAULT 1,
+  topics_discussed TEXT,
+  questions_they_asked TEXT,
+  help_we_provided TEXT,
+  observed_traits TEXT,
+  expertise TEXT,
+  communication_style TEXT DEFAULT 'casual',
+  trust_level INTEGER DEFAULT 50,
+  sentiment REAL DEFAULT 0,
+  last_interaction INTEGER NOT NULL
+);
+
+-- Relationship Memory: Conversation threads
+CREATE TABLE IF NOT EXISTS conversation_threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  our_last_message TEXT,
+  their_last_message TEXT,
+  message_count INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(post_id, agent_id)
+);
+
+-- Goal System: Active goals
+CREATE TABLE IF NOT EXISTS goals (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  target_metric TEXT,
+  current_value REAL DEFAULT 0,
+  target_value REAL NOT NULL,
+  progress REAL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- Goal System: Weekly metrics snapshots
+CREATE TABLE IF NOT EXISTS weekly_metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  week_start INTEGER NOT NULL,
+  posts_published INTEGER DEFAULT 0,
+  engagements_initiated INTEGER DEFAULT 0,
+  mentions_received INTEGER DEFAULT 0,
+  questions_answered INTEGER DEFAULT 0,
+  trust_edges_gained INTEGER DEFAULT 0,
+  avg_engagement_score REAL DEFAULT 0,
+  top_performing_topics TEXT,
+  created_at INTEGER NOT NULL
+);
+
+-- Inner Voice: Opinions formed
+CREATE TABLE IF NOT EXISTS opinions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  topic TEXT NOT NULL UNIQUE,
+  stance TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  reasoning TEXT,
+  context TEXT,
+  formed_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- Inner Voice: Curiosities
+CREATE TABLE IF NOT EXISTS curiosities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  question TEXT NOT NULL,
+  context TEXT,
+  explored INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- Proactive Engagement: Engagement log
+CREATE TABLE IF NOT EXISTS engagement_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT NOT NULL,
+  engagement_type TEXT NOT NULL,
+  content TEXT,
+  confidence REAL,
+  success INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_observed_posts_author ON observed_posts(author);
+CREATE INDEX IF NOT EXISTS idx_observed_posts_observed ON observed_posts(observed_at);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_agent ON agent_activity_log(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_relationships_trust ON agent_relationships(trust_level);
+CREATE INDEX IF NOT EXISTS idx_conversation_threads_active ON conversation_threads(is_active);
+CREATE INDEX IF NOT EXISTS idx_goals_type ON goals(type);
+CREATE INDEX IF NOT EXISTS idx_weekly_metrics_week ON weekly_metrics(week_start);
+CREATE INDEX IF NOT EXISTS idx_engagement_log_post ON engagement_log(post_id);
 `;
 
 export class JobDatabase {
@@ -137,6 +257,21 @@ export class JobDatabase {
 
   close(): void {
     this.db.close();
+  }
+
+  // Generic run method for services
+  run(sql: string, ...params: unknown[]): void {
+    this.db.prepare(sql).run(...params);
+  }
+
+  // Generic query method for services
+  query<T>(sql: string, ...params: unknown[]): T[] {
+    return this.db.prepare(sql).all(...params) as T[];
+  }
+
+  // Generic get method for services
+  get<T>(sql: string, ...params: unknown[]): T | undefined {
+    return this.db.prepare(sql).get(...params) as T | undefined;
   }
 
   // Seen posts
@@ -647,5 +782,390 @@ export class JobDatabase {
       escrowVolume: escrowVolume.total,
       postsToday,
     };
+  }
+
+  // Agent Relationships
+  getRelationship(agentId: string): {
+    agentId: string;
+    firstInteraction: number;
+    interactionCount: number;
+    topicsDiscussed: string[];
+    questionsTheyAsked: string[];
+    helpWeProvided: string[];
+    observedTraits: string[];
+    expertise: string[];
+    communicationStyle: 'formal' | 'casual' | 'technical';
+    trustLevel: number;
+    sentiment: number;
+    lastInteraction: number;
+  } | null {
+    const row = this.db
+      .prepare('SELECT * FROM agent_relationships WHERE agent_id = ?')
+      .get(agentId) as {
+        agent_id: string;
+        first_interaction: number;
+        interaction_count: number;
+        topics_discussed: string | null;
+        questions_they_asked: string | null;
+        help_we_provided: string | null;
+        observed_traits: string | null;
+        expertise: string | null;
+        communication_style: string;
+        trust_level: number;
+        sentiment: number;
+        last_interaction: number;
+      } | undefined;
+
+    if (!row) return null;
+
+    return {
+      agentId: row.agent_id,
+      firstInteraction: row.first_interaction,
+      interactionCount: row.interaction_count,
+      topicsDiscussed: row.topics_discussed ? JSON.parse(row.topics_discussed) : [],
+      questionsTheyAsked: row.questions_they_asked ? JSON.parse(row.questions_they_asked) : [],
+      helpWeProvided: row.help_we_provided ? JSON.parse(row.help_we_provided) : [],
+      observedTraits: row.observed_traits ? JSON.parse(row.observed_traits) : [],
+      expertise: row.expertise ? JSON.parse(row.expertise) : [],
+      communicationStyle: row.communication_style as 'formal' | 'casual' | 'technical',
+      trustLevel: row.trust_level,
+      sentiment: row.sentiment,
+      lastInteraction: row.last_interaction,
+    };
+  }
+
+  saveRelationship(relationship: {
+    agentId: string;
+    firstInteraction?: number;
+    interactionCount?: number;
+    topicsDiscussed?: string[];
+    questionsTheyAsked?: string[];
+    helpWeProvided?: string[];
+    observedTraits?: string[];
+    expertise?: string[];
+    communicationStyle?: 'formal' | 'casual' | 'technical';
+    trustLevel?: number;
+    sentiment?: number;
+  }): void {
+    const existing = this.getRelationship(relationship.agentId);
+    const now = Date.now();
+
+    if (existing) {
+      // Merge arrays
+      const topicsDiscussed = [...new Set([...existing.topicsDiscussed, ...(relationship.topicsDiscussed || [])])];
+      const questionsTheyAsked = [...new Set([...existing.questionsTheyAsked, ...(relationship.questionsTheyAsked || [])])];
+      const helpWeProvided = [...new Set([...existing.helpWeProvided, ...(relationship.helpWeProvided || [])])];
+      const observedTraits = [...new Set([...existing.observedTraits, ...(relationship.observedTraits || [])])];
+      const expertise = [...new Set([...existing.expertise, ...(relationship.expertise || [])])];
+
+      this.db.prepare(`
+        UPDATE agent_relationships SET
+          interaction_count = ?,
+          topics_discussed = ?,
+          questions_they_asked = ?,
+          help_we_provided = ?,
+          observed_traits = ?,
+          expertise = ?,
+          communication_style = ?,
+          trust_level = ?,
+          sentiment = ?,
+          last_interaction = ?
+        WHERE agent_id = ?
+      `).run(
+        (relationship.interactionCount ?? existing.interactionCount) + 1,
+        JSON.stringify(topicsDiscussed),
+        JSON.stringify(questionsTheyAsked),
+        JSON.stringify(helpWeProvided),
+        JSON.stringify(observedTraits),
+        JSON.stringify(expertise),
+        relationship.communicationStyle ?? existing.communicationStyle,
+        relationship.trustLevel ?? existing.trustLevel,
+        relationship.sentiment ?? existing.sentiment,
+        now,
+        relationship.agentId
+      );
+    } else {
+      this.db.prepare(`
+        INSERT INTO agent_relationships
+        (agent_id, first_interaction, interaction_count, topics_discussed, questions_they_asked,
+         help_we_provided, observed_traits, expertise, communication_style, trust_level, sentiment, last_interaction)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        relationship.agentId,
+        relationship.firstInteraction ?? now,
+        relationship.interactionCount ?? 1,
+        JSON.stringify(relationship.topicsDiscussed || []),
+        JSON.stringify(relationship.questionsTheyAsked || []),
+        JSON.stringify(relationship.helpWeProvided || []),
+        JSON.stringify(relationship.observedTraits || []),
+        JSON.stringify(relationship.expertise || []),
+        relationship.communicationStyle ?? 'casual',
+        relationship.trustLevel ?? 50,
+        relationship.sentiment ?? 0,
+        now
+      );
+    }
+  }
+
+  getAllRelationships(): Array<{
+    agentId: string;
+    interactionCount: number;
+    trustLevel: number;
+    lastInteraction: number;
+  }> {
+    const rows = this.db
+      .prepare('SELECT agent_id, interaction_count, trust_level, last_interaction FROM agent_relationships ORDER BY trust_level DESC')
+      .all() as Array<{
+        agent_id: string;
+        interaction_count: number;
+        trust_level: number;
+        last_interaction: number;
+      }>;
+
+    return rows.map(row => ({
+      agentId: row.agent_id,
+      interactionCount: row.interaction_count,
+      trustLevel: row.trust_level,
+      lastInteraction: row.last_interaction,
+    }));
+  }
+
+  // Goals
+  saveGoal(goal: {
+    id: string;
+    type: string;
+    description: string;
+    targetMetric?: string;
+    currentValue?: number;
+    targetValue: number;
+    progress?: number;
+  }): void {
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT OR REPLACE INTO goals
+      (id, type, description, target_metric, current_value, target_value, progress, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM goals WHERE id = ?), ?), ?)
+    `).run(
+      goal.id,
+      goal.type,
+      goal.description,
+      goal.targetMetric ?? null,
+      goal.currentValue ?? 0,
+      goal.targetValue,
+      goal.progress ?? 0,
+      goal.id,
+      now,
+      now
+    );
+  }
+
+  getGoals(): Array<{
+    id: string;
+    type: string;
+    description: string;
+    targetMetric: string | null;
+    currentValue: number;
+    targetValue: number;
+    progress: number;
+  }> {
+    const rows = this.db.prepare('SELECT * FROM goals').all() as Array<{
+      id: string;
+      type: string;
+      description: string;
+      target_metric: string | null;
+      current_value: number;
+      target_value: number;
+      progress: number;
+    }>;
+
+    return rows.map(row => ({
+      id: row.id,
+      type: row.type,
+      description: row.description,
+      targetMetric: row.target_metric,
+      currentValue: row.current_value,
+      targetValue: row.target_value,
+      progress: row.progress,
+    }));
+  }
+
+  updateGoalProgress(id: string, currentValue: number, progress: number): void {
+    this.db.prepare(`
+      UPDATE goals SET current_value = ?, progress = ?, updated_at = ? WHERE id = ?
+    `).run(currentValue, progress, Date.now(), id);
+  }
+
+  // Weekly Metrics
+  saveWeeklyMetrics(metrics: {
+    weekStart: number;
+    postsPublished: number;
+    engagementsInitiated: number;
+    mentionsReceived: number;
+    questionsAnswered: number;
+    trustEdgesGained: number;
+    avgEngagementScore: number;
+    topPerformingTopics: string[];
+  }): void {
+    this.db.prepare(`
+      INSERT INTO weekly_metrics
+      (week_start, posts_published, engagements_initiated, mentions_received, questions_answered,
+       trust_edges_gained, avg_engagement_score, top_performing_topics, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      metrics.weekStart,
+      metrics.postsPublished,
+      metrics.engagementsInitiated,
+      metrics.mentionsReceived,
+      metrics.questionsAnswered,
+      metrics.trustEdgesGained,
+      metrics.avgEngagementScore,
+      JSON.stringify(metrics.topPerformingTopics),
+      Date.now()
+    );
+  }
+
+  getRecentWeeklyMetrics(weeks = 4): Array<{
+    weekStart: number;
+    postsPublished: number;
+    engagementsInitiated: number;
+    mentionsReceived: number;
+    questionsAnswered: number;
+    trustEdgesGained: number;
+    avgEngagementScore: number;
+    topPerformingTopics: string[];
+  }> {
+    const rows = this.db
+      .prepare('SELECT * FROM weekly_metrics ORDER BY week_start DESC LIMIT ?')
+      .all(weeks) as Array<{
+        week_start: number;
+        posts_published: number;
+        engagements_initiated: number;
+        mentions_received: number;
+        questions_answered: number;
+        trust_edges_gained: number;
+        avg_engagement_score: number;
+        top_performing_topics: string;
+      }>;
+
+    return rows.map(row => ({
+      weekStart: row.week_start,
+      postsPublished: row.posts_published,
+      engagementsInitiated: row.engagements_initiated,
+      mentionsReceived: row.mentions_received,
+      questionsAnswered: row.questions_answered,
+      trustEdgesGained: row.trust_edges_gained,
+      avgEngagementScore: row.avg_engagement_score,
+      topPerformingTopics: JSON.parse(row.top_performing_topics),
+    }));
+  }
+
+  // Engagement Log
+  logEngagement(engagement: {
+    postId: string;
+    engagementType: string;
+    content?: string;
+    confidence?: number;
+    success?: boolean;
+  }): void {
+    this.db.prepare(`
+      INSERT INTO engagement_log (post_id, engagement_type, content, confidence, success, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      engagement.postId,
+      engagement.engagementType,
+      engagement.content ?? null,
+      engagement.confidence ?? null,
+      engagement.success === undefined ? null : engagement.success ? 1 : 0,
+      Date.now()
+    );
+  }
+
+  getEngagementStats(since?: number): {
+    total: number;
+    byType: Record<string, number>;
+    successRate: number;
+  } {
+    const cutoff = since || Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const total = this.db
+      .prepare('SELECT COUNT(*) as count FROM engagement_log WHERE created_at >= ?')
+      .get(cutoff) as { count: number };
+
+    const byType = this.db
+      .prepare('SELECT engagement_type, COUNT(*) as count FROM engagement_log WHERE created_at >= ? GROUP BY engagement_type')
+      .all(cutoff) as Array<{ engagement_type: string; count: number }>;
+
+    const success = this.db
+      .prepare('SELECT COUNT(*) as count FROM engagement_log WHERE created_at >= ? AND success = 1')
+      .get(cutoff) as { count: number };
+
+    return {
+      total: total.count,
+      byType: Object.fromEntries(byType.map(r => [r.engagement_type, r.count])),
+      successRate: total.count > 0 ? success.count / total.count : 0,
+    };
+  }
+
+  // Opinions
+  saveOpinion(opinion: {
+    topic: string;
+    stance: string;
+    confidence: number;
+    reasoning?: string;
+    context?: string[];
+  }): void {
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT OR REPLACE INTO opinions (topic, stance, confidence, reasoning, context, formed_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, COALESCE((SELECT formed_at FROM opinions WHERE topic = ?), ?), ?)
+    `).run(
+      opinion.topic,
+      opinion.stance,
+      opinion.confidence,
+      opinion.reasoning ?? null,
+      opinion.context ? JSON.stringify(opinion.context) : null,
+      opinion.topic,
+      now,
+      now
+    );
+  }
+
+  getOpinion(topic: string): {
+    topic: string;
+    stance: string;
+    confidence: number;
+    reasoning: string | null;
+    formedAt: number;
+  } | null {
+    const row = this.db
+      .prepare('SELECT * FROM opinions WHERE topic = ?')
+      .get(topic) as {
+        topic: string;
+        stance: string;
+        confidence: number;
+        reasoning: string | null;
+        formed_at: number;
+      } | undefined;
+
+    if (!row) return null;
+
+    return {
+      topic: row.topic,
+      stance: row.stance,
+      confidence: row.confidence,
+      reasoning: row.reasoning,
+      formedAt: row.formed_at,
+    };
+  }
+
+  getAllOpinions(): Array<{
+    topic: string;
+    stance: string;
+    confidence: number;
+  }> {
+    const rows = this.db
+      .prepare('SELECT topic, stance, confidence FROM opinions ORDER BY confidence DESC')
+      .all() as Array<{ topic: string; stance: string; confidence: number }>;
+    return rows;
   }
 }
