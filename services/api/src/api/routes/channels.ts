@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import { randomBytes } from 'crypto';
 import { logger } from '../../logger';
+import { getChannelServer } from '../../channels/ws-server';
 
 const router: IRouter = Router();
 
@@ -87,13 +88,13 @@ const MOCK_MESSAGES: ChannelMessage[] = [
   { id: 'msg-006', channelId: 'alpha', sender: 'anon-k1l2', content: 'new listing incoming...', timestamp: Date.now() - 600000 },
 ];
 
-// Tier name mapping
+// Tier name mapping (aligned with trust graph tiers)
 const TIER_NAMES: Record<ChannelTier, string> = {
-  0: 'Default',
-  1: 'Bronze',
-  2: 'Silver',
-  3: 'Gold',
-  4: 'Platinum',
+  0: 'Ghost',      // unverified
+  1: 'Scout',      // emerging reputation
+  2: 'Architect',  // established trust
+  3: 'Sentinel',   // high trust
+  4: 'Oracle',     // highest trust
 };
 
 interface JoinChannelBody {
@@ -150,11 +151,21 @@ router.post('/:id/join', async (req: Request, res: Response) => {
   }
 
   try {
-    // Generate access token (in production would be a proper JWT or session token)
+    // Generate access token
     const accessToken = randomBytes(32).toString('hex');
 
+    // Register token with WebSocket server
+    const channelServer = getChannelServer();
+    channelServer.registerToken(
+      accessToken,
+      channelId,
+      body.proof.nullifierHash,
+      body.proof.tier
+    );
+
     // Generate WebSocket URL
-    const wsUrl = `wss://ws.kamiyo.ai/channels/${channelId}?token=${accessToken}`;
+    const wsHost = process.env.WS_HOST || 'ws.kamiyo.ai';
+    const wsUrl = `wss://${wsHost}/ws/channels?token=${accessToken}`;
 
     logger.info('Channel join successful', {
       channelId,
@@ -169,7 +180,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       channel: {
         id: channel.id,
         name: channel.name,
-        memberCount: channel.memberCount,
+        memberCount: channel.memberCount + channelServer.getStats().connections,
       },
       expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hour access
     });
