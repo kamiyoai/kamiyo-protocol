@@ -5,11 +5,15 @@ import type {
   DecisionTrace,
   VerifiableCredential,
   AgentRelationship,
+  TaskCompletionRecord,
+  CapabilityAttestation,
+  TrustRelationship,
 } from './types.js';
 
 const SCHEMA_ORG = 'https://schema.org/';
 const ERC8004_CONTEXT = 'https://eips.ethereum.org/EIPS/eip-8004';
 const VC_CONTEXT = 'https://www.w3.org/2018/credentials/v1';
+const KAMIYO_PARANET_CONTEXT = 'https://kamiyo.ai/paranet/v1';
 
 export function buildAgentURN(globalId: string): string {
   return `urn:erc8004:${globalId}`;
@@ -179,5 +183,101 @@ export function buildRelationshipAsset(relationship: AgentRelationship): object 
     ...(relationship.until && { endDate: relationship.until }),
     ...(relationship.context && { description: relationship.context }),
     ...(relationship.evidenceUAL && { instrument: { '@id': relationship.evidenceUAL } }),
+  };
+}
+
+// Paranet Schema Builders for Agent Credit Score System
+
+export function buildTaskCompletionAsset(task: TaskCompletionRecord): object {
+  const now = new Date().toISOString();
+  const taskId = `${task.providerGlobalId}:${Date.now()}`;
+
+  return {
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT, ERC8004_CONTEXT],
+    '@type': 'Action',
+    '@id': `urn:kamiyo:task:${taskId}`,
+    name: 'TaskCompletion',
+    description: task.taskDescription,
+    agent: { '@id': buildAgentURN(task.providerGlobalId) },
+    participant: { '@id': buildAgentURN(task.clientGlobalId) },
+    startTime: task.responseTimeMs
+      ? new Date(Date.now() - task.responseTimeMs).toISOString()
+      : new Date(Date.now() - 3600000).toISOString(),
+    endTime: now,
+    actionStatus: 'CompletedActionStatus',
+    result: {
+      '@type': 'Rating',
+      ratingValue: task.qualityScore,
+      bestRating: 100,
+      worstRating: 0,
+    },
+    object: {
+      '@type': 'MonetaryAmount',
+      value: task.paymentAmount,
+      currency: task.paymentCurrency,
+    },
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'taskType', value: task.taskType },
+      { '@type': 'PropertyValue', name: 'responseTimeMs', value: task.responseTimeMs || 0 },
+      { '@type': 'PropertyValue', name: 'disputeOutcome', value: task.disputeOutcome || 'none' },
+      ...(task.escrowId ? [{ '@type': 'PropertyValue', name: 'escrowId', value: task.escrowId }] : []),
+      ...(task.evidenceUAL ? [{ '@type': 'PropertyValue', name: 'evidenceUAL', value: task.evidenceUAL }] : []),
+    ],
+  };
+}
+
+export function buildCapabilityAttestationAsset(attestation: CapabilityAttestation): object {
+  const attestationId = `${attestation.agentGlobalId}:${attestation.capability}:${attestation.attestorGlobalId}`;
+
+  return {
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT, ERC8004_CONTEXT],
+    '@type': 'EndorseAction',
+    '@id': `urn:kamiyo:attestation:${attestationId}`,
+    name: 'CapabilityAttestation',
+    agent: { '@id': buildAgentURN(attestation.attestorGlobalId) },
+    object: { '@id': buildAgentURN(attestation.agentGlobalId) },
+    actionStatus: 'ActiveActionStatus',
+    startTime: new Date().toISOString(),
+    result: {
+      '@type': 'Rating',
+      ratingValue: attestation.confidence,
+      bestRating: 100,
+      worstRating: 0,
+    },
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'capability', value: attestation.capability },
+      { '@type': 'PropertyValue', name: 'attestationType', value: 'peer' },
+      ...(attestation.context ? [{ '@type': 'PropertyValue', name: 'context', value: attestation.context }] : []),
+      ...(attestation.evidenceUALs?.length
+        ? [{ '@type': 'PropertyValue', name: 'evidenceUALs', value: attestation.evidenceUALs.join(',') }]
+        : []),
+    ],
+  };
+}
+
+export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
+  const trustId = `${trust.trustorGlobalId}:${trust.trusteeGlobalId}:${Date.now()}`;
+
+  return {
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT, ERC8004_CONTEXT],
+    '@type': 'EndorseAction',
+    '@id': `urn:kamiyo:trust:${trustId}`,
+    name: 'TrustRelationship',
+    agent: { '@id': buildAgentURN(trust.trustorGlobalId) },
+    object: { '@id': buildAgentURN(trust.trusteeGlobalId) },
+    actionStatus: 'ActiveActionStatus',
+    startTime: new Date().toISOString(),
+    result: {
+      '@type': 'Rating',
+      ratingValue: trust.trustLevel,
+      bestRating: 100,
+      worstRating: 0,
+      ...(trust.reason && { ratingExplanation: trust.reason }),
+    },
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'trustType', value: trust.trustType },
+      ...(trust.capability ? [{ '@type': 'PropertyValue', name: 'capability', value: trust.capability }] : []),
+      ...(trust.stakeAmount !== undefined ? [{ '@type': 'PropertyValue', name: 'stakeAmount', value: trust.stakeAmount }] : []),
+    ],
   };
 }

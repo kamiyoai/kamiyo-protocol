@@ -18,6 +18,16 @@ export type {
   ServiceName,
   ServiceEndpoint,
   RegistrationEntry,
+  // Paranet types
+  ParanetTaskType,
+  ParanetTier,
+  DisputeOutcome,
+  TaskCompletionRecord,
+  CapabilityAttestation,
+  TrustRelationship,
+  CreditScoreBreakdown,
+  AgentCreditScore,
+  ParanetProviderResult,
 } from './types.js';
 
 export {
@@ -28,6 +38,10 @@ export {
   buildCredentialAsset,
   buildRelationshipAsset,
   buildAgentURN,
+  // Paranet schema builders
+  buildTaskCompletionAsset,
+  buildCapabilityAttestationAsset,
+  buildTrustRelationshipAsset,
 } from './schemas.js';
 
 export * as sparqlQueries from './sparql.js';

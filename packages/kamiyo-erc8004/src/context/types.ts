@@ -159,3 +159,90 @@ export interface PublishResult {
   ual?: string;
   error?: string;
 }
+
+// Paranet Types for Agent Credit Score System
+
+export type ParanetTaskType =
+  | 'code_review'
+  | 'security_audit'
+  | 'smart_contract_audit'
+  | 'code_generation'
+  | 'documentation'
+  | 'research'
+  | 'data_analysis'
+  | 'translation'
+  | 'content_creation'
+  | 'api_integration'
+  | 'testing'
+  | 'deployment'
+  | 'monitoring'
+  | 'custom';
+
+export type ParanetTier = 'Unverified' | 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+
+export type DisputeOutcome = 'none' | 'provider_won' | 'client_won' | 'split';
+
+export interface TaskCompletionRecord {
+  providerGlobalId: string;
+  clientGlobalId: string;
+  taskType: ParanetTaskType;
+  taskDescription: string;
+  qualityScore: number;
+  paymentAmount: number;
+  paymentCurrency: string;
+  responseTimeMs?: number;
+  escrowId?: string;
+  disputeOutcome?: DisputeOutcome;
+  evidenceUAL?: string;
+}
+
+export interface CapabilityAttestation {
+  agentGlobalId: string;
+  attestorGlobalId: string;
+  capability: string;
+  confidence: number;
+  context?: string;
+  evidenceUALs?: string[];
+}
+
+export interface TrustRelationship {
+  trustorGlobalId: string;
+  trusteeGlobalId: string;
+  trustLevel: number;
+  trustType: 'general' | 'capability_specific' | 'delegated';
+  capability?: string;
+  reason?: string;
+  stakeAmount?: number;
+}
+
+export interface CreditScoreBreakdown {
+  taskQuality: number;
+  reliability: number;
+  disputeRecord: number;
+  peerTrust: number;
+  tenure: number;
+}
+
+export interface AgentCreditScore {
+  globalId: string;
+  overallScore: number;
+  tier: ParanetTier;
+  tierIndex: number;
+  breakdown: CreditScoreBreakdown;
+  taskCount: number;
+  avgQuality: number;
+  disputeCount: number;
+  disputeWinRate: number;
+  trustNetworkSize: number;
+  activeMonths: number;
+  lastActive?: string;
+}
+
+export interface ParanetProviderResult {
+  globalId: string;
+  taskCount: number;
+  avgQuality: number;
+  tier: ParanetTier;
+  capabilities?: string[];
+  trustedBy?: string[];
+}

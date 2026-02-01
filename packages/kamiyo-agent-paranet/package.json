@@ -1,0 +1,61 @@
+{
+  "name": "@kamiyo/agent-paranet",
+  "version": "0.1.0",
+  "description": "KAMIYO Agent Paranet - Decentralized credit scores for AI agents on OriginTrail DKG",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-agent-paranet"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "dkg.js": "^8.0.3",
+    "zod": "^3.22.0"
+  },
+  "peerDependencies": {
+    "@kamiyo/erc8004": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js"
+    },
+    "./scoring": {
+      "types": "./dist/scoring/index.d.ts",
+      "import": "./dist/scoring/index.js"
+    }
+  },
+  "keywords": [
+    "kamiyo",
+    "origintrail",
+    "dkg",
+    "paranet",
+    "agent",
+    "reputation",
+    "credit-score",
+    "ai-agents"
+  ]
+}

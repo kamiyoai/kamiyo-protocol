@@ -319,3 +319,225 @@ export function queryAgentAssetCounts(globalId: string): string {
     }
   `;
 }
+
+// Paranet SPARQL Queries for Agent Credit Score System
+
+export function queryParanetProviders(options: {
+  taskType?: string;
+  minQuality?: number;
+  minTasks?: number;
+  limit?: number;
+} = {}): string {
+  const { taskType, minQuality = 80, minTasks = 5, limit = 20 } = options;
+  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+
+  const taskTypeFilter = taskType
+    ? `
+      ?task schema:additionalProperty ?typeProp .
+      ?typeProp schema:name "taskType" ; schema:value "${escape(taskType)}" .
+    `
+    : '';
+
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?provider (COUNT(?task) as ?taskCount) (AVG(?quality) as ?avgQuality)
+    WHERE {
+      ?task a schema:Action ;
+            schema:name "TaskCompletion" ;
+            schema:agent/schema:@id ?provider ;
+            schema:result/schema:ratingValue ?quality .
+      ${taskTypeFilter}
+    }
+    GROUP BY ?provider
+    HAVING(COUNT(?task) >= ${minTasks} && AVG(?quality) >= ${minQuality})
+    ORDER BY DESC(?avgQuality)
+    LIMIT ${safeLimit}
+  `;
+}
+
+export function queryAgentCreditScore(globalId: string): string {
+  const safe = escape(globalId);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT
+      (COUNT(?task) as ?taskCount)
+      (AVG(?quality) as ?avgQuality)
+      (MIN(?startTime) as ?firstTask)
+      (MAX(?endTime) as ?lastActive)
+    WHERE {
+      ?task a schema:Action ;
+            schema:name "TaskCompletion" ;
+            schema:agent/schema:@id "urn:erc8004:${safe}" ;
+            schema:startTime ?startTime ;
+            schema:endTime ?endTime ;
+            schema:result/schema:ratingValue ?quality .
+    }
+  `;
+}
+
+export function queryAgentTaskHistory(globalId: string, limit = 20): string {
+  const safe = escape(globalId);
+  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?task ?taskType ?quality ?payment ?currency ?client ?endTime ?disputeOutcome
+    WHERE {
+      ?task a schema:Action ;
+            schema:name "TaskCompletion" ;
+            schema:agent/schema:@id "urn:erc8004:${safe}" ;
+            schema:endTime ?endTime ;
+            schema:result/schema:ratingValue ?quality ;
+            schema:object/schema:value ?payment ;
+            schema:object/schema:currency ?currency ;
+            schema:participant/schema:@id ?client .
+      OPTIONAL {
+        ?task schema:additionalProperty ?typeProp .
+        ?typeProp schema:name "taskType" ; schema:value ?taskType .
+      }
+      OPTIONAL {
+        ?task schema:additionalProperty ?disputeProp .
+        ?disputeProp schema:name "disputeOutcome" ; schema:value ?disputeOutcome .
+      }
+    }
+    ORDER BY DESC(?endTime)
+    LIMIT ${safeLimit}
+  `;
+}
+
+export function queryAgentCapabilities(globalId: string): string {
+  const safe = escape(globalId);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?capability ?confidence ?attestor ?date
+    WHERE {
+      ?attestation a schema:EndorseAction ;
+                   schema:name "CapabilityAttestation" ;
+                   schema:object/schema:@id "urn:erc8004:${safe}" ;
+                   schema:agent/schema:@id ?attestor ;
+                   schema:startTime ?date ;
+                   schema:result/schema:ratingValue ?confidence .
+      ?attestation schema:additionalProperty ?capProp .
+      ?capProp schema:name "capability" ; schema:value ?capability .
+    }
+    ORDER BY ?capability DESC(?confidence)
+  `;
+}
+
+export function queryAgentTrustNetwork(globalId: string): string {
+  const safe = escape(globalId);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?trustee ?trustor ?trustLevel ?trustType ?isOutgoing
+    WHERE {
+      {
+        ?trust a schema:EndorseAction ;
+               schema:name "TrustRelationship" ;
+               schema:agent/schema:@id "urn:erc8004:${safe}" ;
+               schema:object/schema:@id ?trustee ;
+               schema:result/schema:ratingValue ?trustLevel .
+        OPTIONAL {
+          ?trust schema:additionalProperty ?typeProp .
+          ?typeProp schema:name "trustType" ; schema:value ?trustType .
+        }
+        BIND(true as ?isOutgoing)
+      }
+      UNION
+      {
+        ?trust a schema:EndorseAction ;
+               schema:name "TrustRelationship" ;
+               schema:object/schema:@id "urn:erc8004:${safe}" ;
+               schema:agent/schema:@id ?trustor ;
+               schema:result/schema:ratingValue ?trustLevel .
+        OPTIONAL {
+          ?trust schema:additionalProperty ?typeProp .
+          ?typeProp schema:name "trustType" ; schema:value ?trustType .
+        }
+        BIND(false as ?isOutgoing)
+      }
+    }
+  `;
+}
+
+export function queryTrustRelationship(trustorGlobalId: string, trusteeGlobalId: string): string {
+  const safeTrustor = escape(trustorGlobalId);
+  const safeTrustee = escape(trusteeGlobalId);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?trustLevel ?trustType ?stakeAmount ?date
+    WHERE {
+      ?trust a schema:EndorseAction ;
+             schema:name "TrustRelationship" ;
+             schema:agent/schema:@id "urn:erc8004:${safeTrustor}" ;
+             schema:object/schema:@id "urn:erc8004:${safeTrustee}" ;
+             schema:startTime ?date ;
+             schema:result/schema:ratingValue ?trustLevel .
+      OPTIONAL {
+        ?trust schema:additionalProperty ?typeProp .
+        ?typeProp schema:name "trustType" ; schema:value ?trustType .
+      }
+      OPTIONAL {
+        ?trust schema:additionalProperty ?stakeProp .
+        ?stakeProp schema:name "stakeAmount" ; schema:value ?stakeAmount .
+      }
+    }
+    ORDER BY DESC(?date)
+    LIMIT 1
+  `;
+}
+
+export function queryProvidersByCapability(capability: string, minConfidence = 70, limit = 20): string {
+  const safe = escape(capability);
+  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?agent (MAX(?confidence) as ?maxConfidence) (COUNT(?attestation) as ?attestationCount)
+    WHERE {
+      ?attestation a schema:EndorseAction ;
+                   schema:name "CapabilityAttestation" ;
+                   schema:object/schema:@id ?agent ;
+                   schema:result/schema:ratingValue ?confidence .
+      ?attestation schema:additionalProperty ?capProp .
+      ?capProp schema:name "capability" ; schema:value "${safe}" .
+    }
+    GROUP BY ?agent
+    HAVING(MAX(?confidence) >= ${minConfidence})
+    ORDER BY DESC(?maxConfidence) DESC(?attestationCount)
+    LIMIT ${safeLimit}
+  `;
+}
+
+export function queryAgentDisputeHistory(globalId: string): string {
+  const safe = escape(globalId);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?outcome (COUNT(?task) as ?count)
+    WHERE {
+      ?task a schema:Action ;
+            schema:name "TaskCompletion" ;
+            schema:agent/schema:@id "urn:erc8004:${safe}" .
+      ?task schema:additionalProperty ?disputeProp .
+      ?disputeProp schema:name "disputeOutcome" ; schema:value ?outcome .
+      FILTER(?outcome != "none")
+    }
+    GROUP BY ?outcome
+  `;
+}
+
+export function queryTrustedProviders(trustorGlobalId: string, minTrustLevel = 50, limit = 20): string {
+  const safe = escape(trustorGlobalId);
+  const safeLimit = clamp(limit, 1, MAX_LIMIT);
+  return `
+    PREFIX schema: <https://schema.org/>
+    SELECT ?trustee ?trustLevel
+    WHERE {
+      ?trust a schema:EndorseAction ;
+             schema:name "TrustRelationship" ;
+             schema:agent/schema:@id "urn:erc8004:${safe}" ;
+             schema:object/schema:@id ?trustee ;
+             schema:result/schema:ratingValue ?trustLevel .
+      FILTER(?trustLevel >= ${minTrustLevel})
+    }
+    ORDER BY DESC(?trustLevel)
+    LIMIT ${safeLimit}
+  `;
+}
