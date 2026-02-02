@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID, createHash } from 'crypto';
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
-import { getAssociatedTokenAddress, getAccount, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
+import { getAssociatedTokenAddress, getAccount, createTransferCheckedInstruction, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import bs58 from 'bs58';
 import db, { deductCredits, usdToCredits } from '../../db';
 // NOTE: @kamiyo/swarm-agents has bun:sqlite dep that breaks on Node.js
 // Using direct task executor instead of orchestrator
@@ -13,6 +14,18 @@ const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump'
 const KAMIYO_DECIMALS = 6;
 const SOLANA_RPC = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const connection = new Connection(SOLANA_RPC, 'confirmed');
+
+// Treasury wallet for hive pool funds
+const HIVE_TREASURY = new PublicKey('F7ZxVjxGvirpvkbcF8HUMofR81TkjHqKKS6ABxQYeEtV');
+const getTreasuryKeypair = (): Keypair | null => {
+  const key = process.env.HIVE_TREASURY_PRIVATE_KEY;
+  if (!key) return null;
+  try {
+    return Keypair.fromSecretKey(bs58.decode(key));
+  } catch {
+    return null;
+  }
+};
 
 // Helper to verify team ownership
 function isTeamOwner(teamId: string, wallet: string): boolean {
@@ -153,9 +166,15 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/swarm-teams/:id - requires owner
-// Returns pool balance for client-side refund transfer
-router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
+// Performs on-chain refund of pool balance to owner wallet
+router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   const teamId = req.params.id;
+  const ownerWallet = req.auth?.wallet;
+
+  if (!ownerWallet) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
 
   const team = db.prepare('SELECT id, pool_balance, currency FROM swarm_teams WHERE id = ?').get(teamId) as {
     id: string; pool_balance: number; currency: string;
@@ -167,6 +186,80 @@ router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
 
   const refundAmount = team.pool_balance;
   const currency = team.currency;
+  let refundSignature: string | null = null;
+
+  // Perform on-chain refund if there's a balance and it's KAMIYO tokens
+  if (refundAmount > 0 && currency === 'KAMIYO') {
+    const treasuryKeypair = getTreasuryKeypair();
+    if (!treasuryKeypair) {
+      res.status(500).json({ error: 'Treasury not configured for refunds' });
+      return;
+    }
+
+    try {
+      const ownerPubkey = new PublicKey(ownerWallet);
+
+      // Determine token program (try Token-2022 first)
+      let tokenProgram = TOKEN_2022_PROGRAM_ID;
+      let treasuryAta: PublicKey;
+      try {
+        treasuryAta = await getAssociatedTokenAddress(KAMIYO_MINT, HIVE_TREASURY, false, TOKEN_2022_PROGRAM_ID);
+        await getAccount(connection, treasuryAta, 'confirmed', TOKEN_2022_PROGRAM_ID);
+      } catch {
+        tokenProgram = TOKEN_PROGRAM_ID;
+        treasuryAta = await getAssociatedTokenAddress(KAMIYO_MINT, HIVE_TREASURY, false, TOKEN_PROGRAM_ID);
+      }
+
+      // Get or create owner's token account
+      const ownerAta = await getAssociatedTokenAddress(KAMIYO_MINT, ownerPubkey, false, tokenProgram);
+
+      // Build refund transaction
+      const tokenAmount = BigInt(Math.floor(refundAmount * Math.pow(10, KAMIYO_DECIMALS)));
+      const tx = new Transaction();
+
+      // Check if owner ATA exists, it should since they funded originally
+      try {
+        await getAccount(connection, ownerAta, 'confirmed', tokenProgram);
+      } catch {
+        // Owner ATA doesn't exist - this shouldn't happen but handle gracefully
+        res.status(400).json({ error: 'Owner token account not found' });
+        return;
+      }
+
+      tx.add(createTransferCheckedInstruction(
+        treasuryAta,
+        KAMIYO_MINT,
+        ownerAta,
+        HIVE_TREASURY,
+        tokenAmount,
+        KAMIYO_DECIMALS,
+        [],
+        tokenProgram
+      ));
+
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = blockhash;
+      tx.lastValidBlockHeight = lastValidBlockHeight;
+      tx.feePayer = HIVE_TREASURY;
+
+      tx.sign(treasuryKeypair);
+      refundSignature = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+      });
+
+      await connection.confirmTransaction({
+        signature: refundSignature,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed');
+
+    } catch (err) {
+      console.error('Refund transfer failed:', err);
+      res.status(500).json({ error: `Refund failed: ${err instanceof Error ? err.message : 'Unknown error'}` });
+      return;
+    }
+  }
 
   // Use transaction for atomic cascade delete
   const deleteAll = db.transaction(() => {
@@ -180,7 +273,7 @@ router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
   });
   deleteAll();
 
-  res.json({ success: true, refundAmount, currency });
+  res.json({ success: true, refundAmount, currency, refundSignature });
 });
 
 // POST /api/swarm-teams/:id/members - requires owner

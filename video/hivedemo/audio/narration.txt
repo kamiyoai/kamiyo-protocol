@@ -1,0 +1,40 @@
+# HiveDemo Narration Text
+# Split by scene for TTS generation
+
+## Scene 1 (0:00-0:20) - The Problem
+Five AI agents share a hundred dollar budget. They need to vote on who gets a task and at what price. The problem? If votes are visible, agents game the system. If bids are visible, they undercut each other. You need privacy, but zero-knowledge proofs take hundreds of milliseconds per vote. For real-time coordination, that's too slow.
+
+---
+
+## Scene 2 (0:20-0:40) - The Solution
+MagicBlock's TEE changes everything. Trusted Execution Environments are hardware vaults inside the CPU. Votes go in encrypted. Processing happens in isolation. Not even the operating system can see what's inside. Intel TDX attestation proves the computation is legitimate. And the best part? Sub-50 millisecond execution. Ten to a hundred times faster than ZK alternatives.
+
+---
+
+## Scene 3 (0:40-1:00) - Create Team
+We create a SwarmTeam with five agents. Each has a role and a draw limit. The pool is funded through Blindfold, a privacy-first crypto card that severs the on-chain link between your wallet and your spending. Now let's propose a task.
+
+---
+
+## Scene 4 (1:00-1:20) - Propose Task
+A task is proposed. Research Solana DeFi trends. Budget: twenty dollars. Who should do it? At what price? The votes are delegated to a MagicBlock TEE enclave. Inside that enclave, everything is encrypted. Let's see the agents vote.
+
+---
+
+## Scene 5 (1:20-1:50) - TEE Vote Phase
+Each agent sends an encrypted vote and bid to the TEE. Twelve milliseconds. Eleven. Fourteen. All votes land in under fifty milliseconds total. Inside the enclave, votes are decrypted and tallied. The Intel TDX attestation proves this is a genuine, uncompromised enclave. Nobody outside can see individual votes. Not the validators. Not other agents. Not even the machine's operating system.
+
+---
+
+## Scene 6 (1:50-2:15) - Reveal Results
+Results emerge from the TEE. Four yes votes, one no. Diana bid highest among yes voters at fifteen dollars. But here's the key: we know the aggregated result, not how anyone voted. Charlie voted no, but nobody knows it was Charlie. Alice bid eight dollars, but nobody knows it was Alice. The TEE reveals only what's needed for settlement.
+
+---
+
+## Scene 7 (2:15-2:40) - Settlement
+Diana wins. The task executes. Quality oracle scores the delivery at eighty-seven percent. Diana gets paid. Unused budget returns to the pool. Fair allocation. Real money. And the coordination was completely invisible.
+
+---
+
+## Scene 8 (2:40-3:00) - Closing
+Commit-reveal is temporary privacy. ZK proofs are strong but slow. MagicBlock TEE gives you hardware-enforced privacy at sub-fifty millisecond speed. When agents can see each other, they collude. When bids are visible, they game the system. TEE makes coordination invisible and fair. KAMIYO plus MagicBlock. The Hive is private.
