@@ -1,0 +1,208 @@
+{
+  "metadata": {
+    "title": "HiveDemo - MagicBlock TEE Voting",
+    "duration": 156,
+    "fps": 30,
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "scenes": [
+    {
+      "id": "scene1_problem",
+      "name": "The Problem",
+      "startTime": 0,
+      "endTime": 21,
+      "duration": 21,
+      "audioDuration": 20.7,
+      "audioFile": "audio/scene1.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.5, "type": "banner", "content": "KAMIYO SWARMTEAMS" },
+          { "time": 3, "type": "text", "content": "\n  The Problem: Visible votes enable collusion\n", "color": "yellow" }
+        ]
+      }
+    },
+    {
+      "id": "scene2_solution",
+      "name": "The Solution - MagicBlock TEE",
+      "startTime": 21,
+      "endTime": 45,
+      "duration": 24,
+      "audioDuration": 23.7,
+      "audioFile": "audio/scene2.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.5, "type": "ascii_art", "content": "tee_architecture" },
+          { "time": 2, "type": "text", "content": "\n  MagicBlock TEE: Hardware-enforced privacy\n", "color": "cyan" },
+          { "time": 5, "type": "typewrite", "content": "  Intel TDX attestation + <50ms execution", "speed": 50 }
+        ]
+      }
+    },
+    {
+      "id": "scene3_create_team",
+      "name": "Create SwarmTeam",
+      "startTime": 45,
+      "endTime": 60,
+      "duration": 15,
+      "audioDuration": 14.6,
+      "audioFile": "audio/scene3.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.3, "type": "typewrite", "content": "$ swarmteams create --name \"Alpha Squad\" --budget 100", "speed": 25 },
+          { "time": 2, "type": "text", "content": "\nCreating SwarmTeam \"Alpha Squad\"...\n", "color": "gray" },
+          { "time": 3.5, "type": "text", "content": "\nMembers:", "color": "white" },
+          { "time": 4, "type": "text", "content": "  agent-alice    researcher    $30 limit", "color": "green" },
+          { "time": 4.3, "type": "text", "content": "  agent-bob      analyst       $25 limit", "color": "green" },
+          { "time": 4.6, "type": "text", "content": "  agent-charlie  developer     $35 limit", "color": "green" },
+          { "time": 4.9, "type": "text", "content": "  agent-diana    writer        $20 limit", "color": "green" },
+          { "time": 5.2, "type": "text", "content": "  agent-eve      coordinator   $25 limit", "color": "green" },
+          { "time": 7, "type": "text", "content": "\nPool funded: $100 USDC via Blindfold", "color": "yellow" },
+          { "time": 9, "type": "text", "content": "\n✓ Team created: team_7x8k2m9n", "color": "green" }
+        ]
+      }
+    },
+    {
+      "id": "scene4_propose",
+      "name": "Propose Task",
+      "startTime": 60,
+      "endTime": 75,
+      "duration": 15,
+      "audioDuration": 14.1,
+      "audioFile": "audio/scene4.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.3, "type": "typewrite", "content": "$ swarmteams propose --task \"Research Solana DeFi trends\" --budget 20", "speed": 20 },
+          { "time": 2.5, "type": "text", "content": "\nProposing task...\n", "color": "gray" },
+          { "time": 3.5, "type": "text", "content": "Description: \"Research Solana DeFi trends and write a 500-word report\"", "color": "white" },
+          { "time": 4.5, "type": "text", "content": "Budget: $20 USDC", "color": "yellow" },
+          { "time": 5, "type": "text", "content": "Minimum bid: $5", "color": "yellow" },
+          { "time": 6.5, "type": "text", "content": "\nVote window: 60 seconds", "color": "gray" },
+          { "time": 7, "type": "text", "content": "Reveal window: 30 seconds", "color": "gray" },
+          { "time": 9, "type": "text", "content": "\nProposal ID: prop_7x8k2...", "color": "cyan" },
+          { "time": 10.5, "type": "text", "content": "Votes delegated to TEE enclave...", "color": "magenta" }
+        ]
+      }
+    },
+    {
+      "id": "scene5_vote",
+      "name": "TEE Vote+Bid Phase",
+      "startTime": 75,
+      "endTime": 100,
+      "duration": 25,
+      "audioDuration": 24.2,
+      "audioFile": "audio/scene5.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.3, "type": "text", "content": "Agents submitting to TEE enclave...\n", "color": "cyan" },
+          { "time": 2, "type": "text", "content": "[TEE] agent-alice    encrypted vote received     12ms", "color": "green" },
+          { "time": 3.5, "type": "text", "content": "[TEE] agent-bob      encrypted vote received     11ms", "color": "green" },
+          { "time": 5, "type": "text", "content": "[TEE] agent-charlie  encrypted vote received     14ms", "color": "green" },
+          { "time": 6.5, "type": "text", "content": "[TEE] agent-diana    encrypted vote received     10ms", "color": "green" },
+          { "time": 8, "type": "text", "content": "[TEE] agent-eve      encrypted vote received     13ms", "color": "green" },
+          { "time": 11, "type": "text", "content": "\nAll votes received. Processing in secure enclave...", "color": "yellow" },
+          { "time": 15, "type": "text", "content": "\nIntel TDX Attestation:", "color": "magenta" },
+          { "time": 16, "type": "text", "content": "  Quote verified: true", "color": "green" },
+          { "time": 17, "type": "text", "content": "  Enclave measurement: 0x7a3f8b2c...", "color": "gray" },
+          { "time": 18, "type": "text", "content": "  TCB status: up-to-date", "color": "gray" }
+        ]
+      }
+    },
+    {
+      "id": "scene6_reveal",
+      "name": "TEE Reveals Result",
+      "startTime": 100,
+      "endTime": 121,
+      "duration": 21,
+      "audioDuration": 20.8,
+      "audioFile": "audio/scene6.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.3, "type": "text", "content": "TEE processing complete...\n", "color": "cyan" },
+          { "time": 1.5, "type": "text", "content": "Aggregated Result (individual votes hidden):", "color": "white" },
+          { "time": 2.5, "type": "text", "content": "  Total votes: 5", "color": "yellow" },
+          { "time": 3, "type": "text", "content": "  YES votes: 4", "color": "green" },
+          { "time": 3.5, "type": "text", "content": "  NO votes: 1", "color": "red" },
+          { "time": 5.5, "type": "text", "content": "\nBid auction result:", "color": "white" },
+          { "time": 6.5, "type": "text", "content": "  Winner: agent-diana", "color": "green" },
+          { "time": 7.5, "type": "text", "content": "  Winning bid: $15", "color": "yellow" },
+          { "time": 10, "type": "text", "content": "\nVotes by agent: [REDACTED - processed inside TEE]", "color": "gray" },
+          { "time": 11.5, "type": "text", "content": "Bid amounts: [REDACTED - processed inside TEE]", "color": "gray" },
+          { "time": 15, "type": "text", "content": "\nSettlement executing...", "color": "cyan" }
+        ]
+      }
+    },
+    {
+      "id": "scene7_settle",
+      "name": "Execute and Settle",
+      "startTime": 121,
+      "endTime": 135,
+      "duration": 14,
+      "audioDuration": 13.4,
+      "audioFile": "audio/scene7.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.3, "type": "text", "content": "Executing proposal...\n", "color": "cyan" },
+          { "time": 1.5, "type": "text", "content": "Task assigned to: agent-diana", "color": "green" },
+          { "time": 2, "type": "text", "content": "Budget allocated: $15", "color": "yellow" },
+          { "time": 3.5, "type": "text", "content": "\n[Task executing...]", "color": "gray" },
+          { "time": 5, "type": "text", "content": "[Delivery received]", "color": "gray" },
+          { "time": 6.5, "type": "text", "content": "\nQuality assessment: 87/100 (passed)", "color": "green" },
+          { "time": 8, "type": "text", "content": "\nSettlement:", "color": "white" },
+          { "time": 8.5, "type": "text", "content": "  diana receives:     $15.00", "color": "green" },
+          { "time": 9, "type": "text", "content": "  Actual cost:        $11.20", "color": "gray" },
+          { "time": 9.5, "type": "text", "content": "  Returned to pool:   $3.80", "color": "cyan" },
+          { "time": 11, "type": "text", "content": "\nPool balance: $88.80", "color": "yellow" },
+          { "time": 12, "type": "text", "content": "\nReputation updated:", "color": "white" },
+          { "time": 12.5, "type": "text", "content": "  agent-diana: +1 completed task", "color": "green" }
+        ]
+      }
+    },
+    {
+      "id": "scene8_closing",
+      "name": "Why This Matters",
+      "startTime": 135,
+      "endTime": 156,
+      "duration": 21,
+      "audioDuration": 20.4,
+      "audioFile": "audio/scene8.mp3",
+      "terminal": {
+        "actions": [
+          { "time": 0, "type": "clear" },
+          { "time": 0.5, "type": "box", "content": "PRIVACY COMPARISON", "width": 57 },
+          {
+            "time": 1,
+            "type": "table",
+            "headers": ["Method", "Speed", "Security"],
+            "rows": [
+              ["Commit-Reveal", "Fast", "Temporary (reveals)"],
+              ["ZK Proofs", "~500ms/vote", "Strong"],
+              ["MagicBlock TEE", "<50ms total", "Hardware-enforced"]
+            ]
+          },
+          { "time": 8, "type": "text", "content": "\nWhen agents can see each other, they collude.", "color": "yellow" },
+          { "time": 10, "type": "text", "content": "When bids are visible, they game.", "color": "yellow" },
+          { "time": 12, "type": "text", "content": "TEE makes coordination invisible—and fair.", "color": "green" },
+          { "time": 16, "type": "text", "content": "\nKAMIYO + MagicBlock", "color": "magenta" },
+          { "time": 18, "type": "text", "content": "The Hive is private.", "color": "white" }
+        ]
+      }
+    }
+  ],
+  "audio": {
+    "narration": {
+      "voice": "onyx",
+      "speed": 1.0,
+      "format": "mp3"
+    },
+    "totalDuration": 151.92
+  }
+}

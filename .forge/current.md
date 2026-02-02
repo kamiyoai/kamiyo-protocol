@@ -1,33 +1,57 @@
-# Forge Session: Agent Paranet Implementation
+# Forge Session: MagicBlock/TEE Fast Voting
 
 ## Target
-- `packages/kamiyo-agent-paranet/src/` (core paranet library)
-- `services/api/src/api/routes/paranet.ts` (API routes)
+- `programs/kamiyo-fast-voting/src/lib.rs`
+- `tests/fast-voting-magicblock.test.ts`
+- `scripts/test-fast-voting-mainnet.ts`
 
 ## Current Phase: Complete
 
 ## Progress
-- [x] Phase 1: Scaffold - Complete (from prior implementation)
-- [x] Phase 2: Implement - Complete (from prior implementation)
+- [x] Phase 1: Scaffold - N/A (already implemented)
+- [x] Phase 2: Implement - N/A (already implemented)
 - [x] Phase 3: Harden - Complete
-- [x] Phase 4: Test - Complete (131 tests passing)
+- [x] Phase 4: Test - Complete (mainnet deployed + verified)
 - [x] Phase 5: Humanize - Complete
 - [x] Phase 6: Codex Review - Complete (GPT-4o)
 
 ## Session Complete
-All phases finished including Codex Review.
 
-## Phase 6 Codex Review Summary
+### Phase 6 Codex Review Summary
 
-GPT-4o identified and we fixed:
-1. **Redundant isValidGlobalId** - Removed duplicate in paranet.ts, now imports from shared
-2. **Export shared utilities** - Added isValidGlobalId, escapeSparql, etc. to package exports
-3. **Race condition** - Existing promise-based singleton pattern is actually correct (no mutex needed in Node.js single-threaded event loop)
+GPT-4o reviewed the code. Analysis of findings:
 
-Issues deferred (low priority):
-- Error message standardization - current messages are already generic enough
-- SPARQL parameterized queries - not supported by DKG, escaping is sufficient
+| Issue | Severity | Valid? | Resolution |
+|-------|----------|--------|------------|
+| Reentrancy in vote_fast | High | False positive | Solana single-threaded + PDA init prevents this |
+| action_id collision | Medium | False positive | PDA derivation handles this by design |
+| tally_and_commit access control | Medium | Design choice | Intentionally permissionless for decentralization |
+| cancel_action executed check | Medium | False positive | Already checked on line 180 |
+| Combine require! macros | Low | Subjective | Separate checks = better error messages |
+| Hardcoded account sizes | Low | Subjective | Standard Anchor pattern |
+| Lack of comments | Low | Per guidelines | CLAUDE.md prefers minimal comments |
+
+**No code changes required.** All high/medium issues were false positives or intentional design choices:
+- Permissionless `tally_and_commit` allows anyone to finalize after deadline - this is intentional for decentralized operation
+- Reentrancy is impossible on Solana's execution model
+- PDA uniqueness handles action_id collisions
+
+### Previous Phase Changes
+
+**Phase 3 (Harden):**
+1. Added defensive check for division by zero in tally_and_commit
+2. Changed division to use checked_div for additional safety
+
+**Phase 4 (Test):**
+- Program deployed to mainnet: AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA
+- E2E test script verified all operations
+
+**Phase 5 (Humanize):**
+1. Removed verbose doc comments
+2. Removed emojis from test output
+3. Tightened console.log messages
 
 ## Files Modified
-1. `packages/kamiyo-agent-paranet/src/index.ts` - Export shared utilities
-2. `services/api/src/api/routes/paranet.ts` - Import isValidGlobalId from package, remove duplicate
+1. `programs/kamiyo-fast-voting/src/lib.rs` - Hardening
+2. `tests/fast-voting-magicblock.test.ts` - Humanize output
+3. `scripts/test-fast-voting-mainnet.ts` - Tighten header
