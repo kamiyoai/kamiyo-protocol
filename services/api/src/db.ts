@@ -1357,18 +1357,24 @@ db.exec(`
     expires_at INTEGER NOT NULL,
     created_at INTEGER DEFAULT (unixepoch()),
     completed_at INTEGER,
-    idempotency_key TEXT UNIQUE,
     FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_funding_states_token ON blindfold_funding_states(state_token);
   CREATE INDEX IF NOT EXISTS idx_funding_states_team ON blindfold_funding_states(team_id);
-  CREATE INDEX IF NOT EXISTS idx_funding_states_idempotency ON blindfold_funding_states(idempotency_key);
 `);
 
 // Migration: add owner_wallet column if it doesn't exist
 try {
   db.exec('ALTER TABLE swarm_teams ADD COLUMN owner_wallet TEXT');
+} catch {
+  // Column already exists
+}
+
+// Migration: add idempotency_key column to blindfold_funding_states if it doesn't exist
+try {
+  db.exec('ALTER TABLE blindfold_funding_states ADD COLUMN idempotency_key TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_funding_states_idempotency ON blindfold_funding_states(idempotency_key)');
 } catch {
   // Column already exists
 }
