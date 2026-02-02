@@ -82,7 +82,8 @@ describe('EigenAIError', () => {
 
 describe('constants', () => {
   it('EIGENAI_DEFAULTS has expected values', () => {
-    expect(EIGENAI_DEFAULTS.BASE_URL).toBe('https://determinal-api.eigenarcade.com');
+    expect(EIGENAI_DEFAULTS.BASE_URL).toBe('https://eigenai.eigencloud.xyz');
+    expect(EIGENAI_DEFAULTS.GRANT_API_URL).toBe('https://determinal-api.eigenarcade.com');
     expect(EIGENAI_DEFAULTS.MODEL).toBe('gpt-oss-120b-f16');
     expect(EIGENAI_DEFAULTS.ESCROW_AMOUNT_SOL).toBeGreaterThan(0);
     expect(EIGENAI_DEFAULTS.QUALITY_THRESHOLD).toBeGreaterThanOrEqual(0);

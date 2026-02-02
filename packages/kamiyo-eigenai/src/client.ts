@@ -17,99 +17,66 @@ import {
 } from './types.js';
 
 function validateInferenceParams(params: InferenceParams): void {
-  if (!params.messages?.length) {
-    throw EigenAIError.invalidInput('messages', 'At least one message is required');
-  }
-  if (params.messages.length > LIMITS.MAX_MESSAGES) {
-    throw EigenAIError.invalidInput('messages', `Maximum ${LIMITS.MAX_MESSAGES} messages allowed`);
-  }
+  if (!params.messages?.length)
+    throw EigenAIError.invalidInput('messages', 'At least one message required');
+  if (params.messages.length > LIMITS.MAX_MESSAGES)
+    throw EigenAIError.invalidInput('messages', `Max ${LIMITS.MAX_MESSAGES} messages`);
+
   for (const msg of params.messages) {
-    if (msg.content.length > LIMITS.MAX_MESSAGE_LENGTH) {
-      throw EigenAIError.invalidInput('messages', `Message exceeds ${LIMITS.MAX_MESSAGE_LENGTH} characters`);
-    }
+    if (msg.content.length > LIMITS.MAX_MESSAGE_LENGTH)
+      throw EigenAIError.invalidInput('messages', `Message exceeds ${LIMITS.MAX_MESSAGE_LENGTH} chars`);
   }
-  if (params.escrowAmount < LIMITS.MIN_ESCROW_SOL) {
-    throw EigenAIError.invalidInput('escrowAmount', `Minimum ${LIMITS.MIN_ESCROW_SOL} SOL`);
-  }
-  if (params.escrowAmount > LIMITS.MAX_ESCROW_SOL) {
-    throw EigenAIError.invalidInput('escrowAmount', `Maximum ${LIMITS.MAX_ESCROW_SOL} SOL`);
-  }
+
+  const escrowAmt = params.escrowAmount;
+  if (typeof escrowAmt !== 'number' || !Number.isFinite(escrowAmt) || escrowAmt <= 0)
+    throw EigenAIError.invalidInput('escrowAmount', 'Must be positive number');
+  if (escrowAmt < LIMITS.MIN_ESCROW_SOL)
+    throw EigenAIError.invalidInput('escrowAmount', `Min ${LIMITS.MIN_ESCROW_SOL} SOL`);
+  if (escrowAmt > LIMITS.MAX_ESCROW_SOL)
+    throw EigenAIError.invalidInput('escrowAmount', `Max ${LIMITS.MAX_ESCROW_SOL} SOL`);
+
   if (params.timeLockSeconds !== undefined) {
-    if (params.timeLockSeconds < LIMITS.MIN_TIME_LOCK_SECONDS) {
-      throw EigenAIError.invalidInput('timeLockSeconds', `Minimum ${LIMITS.MIN_TIME_LOCK_SECONDS} seconds`);
-    }
-    if (params.timeLockSeconds > LIMITS.MAX_TIME_LOCK_SECONDS) {
-      throw EigenAIError.invalidInput('timeLockSeconds', `Maximum ${LIMITS.MAX_TIME_LOCK_SECONDS} seconds`);
-    }
+    if (params.timeLockSeconds < LIMITS.MIN_TIME_LOCK_SECONDS)
+      throw EigenAIError.invalidInput('timeLockSeconds', `Min ${LIMITS.MIN_TIME_LOCK_SECONDS}s`);
+    if (params.timeLockSeconds > LIMITS.MAX_TIME_LOCK_SECONDS)
+      throw EigenAIError.invalidInput('timeLockSeconds', `Max ${LIMITS.MAX_TIME_LOCK_SECONDS}s`);
   }
+
   if (params.timeoutMs !== undefined) {
-    if (params.timeoutMs < LIMITS.MIN_TIMEOUT_MS) {
-      throw EigenAIError.invalidInput('timeoutMs', `Minimum ${LIMITS.MIN_TIMEOUT_MS}ms`);
-    }
-    if (params.timeoutMs > LIMITS.MAX_TIMEOUT_MS) {
-      throw EigenAIError.invalidInput('timeoutMs', `Maximum ${LIMITS.MAX_TIMEOUT_MS}ms`);
-    }
+    if (params.timeoutMs < LIMITS.MIN_TIMEOUT_MS)
+      throw EigenAIError.invalidInput('timeoutMs', `Min ${LIMITS.MIN_TIMEOUT_MS}ms`);
+    if (params.timeoutMs > LIMITS.MAX_TIMEOUT_MS)
+      throw EigenAIError.invalidInput('timeoutMs', `Max ${LIMITS.MAX_TIMEOUT_MS}ms`);
   }
-  if (params.sessionId && params.sessionId.length !== LIMITS.SESSION_ID_LENGTH) {
+
+  if (params.sessionId && params.sessionId.length !== LIMITS.SESSION_ID_LENGTH)
     throw EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`);
-  }
-  if (params.qualityThreshold !== undefined && (params.qualityThreshold < 0 || params.qualityThreshold > 100)) {
-    throw EigenAIError.invalidInput('qualityThreshold', 'Must be between 0 and 100');
-  }
-  if (params.temperature !== undefined && (params.temperature < 0 || params.temperature > 2)) {
-    throw EigenAIError.invalidInput('temperature', 'Must be between 0 and 2');
-  }
+  if (params.qualityThreshold !== undefined && (params.qualityThreshold < 0 || params.qualityThreshold > 100))
+    throw EigenAIError.invalidInput('qualityThreshold', 'Must be 0-100');
+  if (params.temperature !== undefined && (params.temperature < 0 || params.temperature > 2))
+    throw EigenAIError.invalidInput('temperature', 'Must be 0-2');
 }
 
 export class KamiyoEigenAI {
   private readonly eigenAi: EigenAIClient;
   private readonly escrow: EscrowHandler;
-  private readonly config: Required<
-    Pick<
-      KamiyoEigenAIConfig,
-      | 'defaultEscrowAmount'
-      | 'defaultQualityThreshold'
-      | 'defaultTimeLockSeconds'
-      | 'defaultTimeoutMs'
-      | 'debug'
-    >
-  > &
-    KamiyoEigenAIConfig;
+  private readonly config: Required<Pick<KamiyoEigenAIConfig,
+    'defaultEscrowAmount' | 'defaultQualityThreshold' | 'defaultTimeLockSeconds' | 'defaultTimeoutMs' | 'debug'
+  >> & KamiyoEigenAIConfig;
 
-  private readonly activeEscrows = new Map<
-    string,
-    {
-      sessionId: Uint8Array;
-      treasury: PublicKey;
-      attestation?: EigenAIAttestation;
-      prompt: string;
-      output?: string;
-    }
-  >();
+  private readonly activeEscrows = new Map<string, { sessionId: Uint8Array; treasury: PublicKey; attestation?: EigenAIAttestation; prompt: string; output?: string }>();
 
   constructor(config: KamiyoEigenAIConfig) {
     this.config = {
       ...config,
       defaultEscrowAmount: config.defaultEscrowAmount ?? EIGENAI_DEFAULTS.ESCROW_AMOUNT_SOL,
-      defaultQualityThreshold:
-        config.defaultQualityThreshold ?? EIGENAI_DEFAULTS.QUALITY_THRESHOLD,
-      defaultTimeLockSeconds:
-        config.defaultTimeLockSeconds ?? EIGENAI_DEFAULTS.TIME_LOCK_SECONDS,
+      defaultQualityThreshold: config.defaultQualityThreshold ?? EIGENAI_DEFAULTS.QUALITY_THRESHOLD,
+      defaultTimeLockSeconds: config.defaultTimeLockSeconds ?? EIGENAI_DEFAULTS.TIME_LOCK_SECONDS,
       defaultTimeoutMs: config.defaultTimeoutMs ?? EIGENAI_DEFAULTS.TIMEOUT_MS,
       debug: config.debug ?? false,
     };
-
-    this.eigenAi = new EigenAIClient(
-      config.wallet,
-      config.eigenAiBaseUrl,
-      this.config.defaultTimeoutMs
-    );
-
-    this.escrow = new EscrowHandler({
-      connection: config.connection,
-      wallet: config.wallet,
-      programId: config.programId,
-    });
+    this.eigenAi = new EigenAIClient(config.eigenAiAuth, config.eigenAiBaseUrl, this.config.defaultTimeoutMs);
+    this.escrow = new EscrowHandler({ connection: config.connection, wallet: config.wallet, programId: config.programId });
   }
 
   async inferenceWithEscrow(
@@ -122,7 +89,7 @@ export class KamiyoEigenAI {
     const startTime = Date.now();
     const sessionId = params.sessionId || this.escrow.generateSessionId();
     const escrowId = Buffer.from(sessionId).toString('hex');
-    const escrowAmount = params.escrowAmount || this.config.defaultEscrowAmount;
+    const escrowAmount = params.escrowAmount ?? this.config.defaultEscrowAmount;
     const qualityThreshold = params.qualityThreshold ?? this.config.defaultQualityThreshold;
     const timeoutMs = params.timeoutMs ?? this.config.defaultTimeoutMs;
 
@@ -180,10 +147,7 @@ export class KamiyoEigenAI {
     }
 
     const escrowData = this.activeEscrows.get(escrowId);
-    if (escrowData) {
-      escrowData.attestation = inferenceResponse.attestation;
-      escrowData.output = inferenceResponse.content;
-    }
+    if (escrowData) { escrowData.attestation = inferenceResponse.attestation; escrowData.output = inferenceResponse.content; }
 
     const attestationValid = await this.eigenAi.verifyAttestation(inferenceResponse.attestation);
     if (!attestationValid) {
@@ -205,8 +169,20 @@ export class KamiyoEigenAI {
 
     if (autoRelease) {
       this.log(`Auto-releasing escrow: ${escrowId}`);
-      await this.escrow.rateAndRelease({ sessionId, rating: 5, treasury });
+      const releaseResult = await this.escrow.rateAndRelease({ sessionId, rating: 5, treasury });
       this.activeEscrows.delete(escrowId);
+
+      if (!releaseResult.success) {
+        return {
+          success: false,
+          response: inferenceResponse.content,
+          attestation: inferenceResponse.attestation,
+          escrowId,
+          escrowPda: escrowResult.escrowPda,
+          latencyMs,
+          error: releaseResult.error,
+        };
+      }
 
       return {
         success: true,
@@ -262,9 +238,7 @@ export class KamiyoEigenAI {
       treasury: escrowData.treasury,
     });
 
-    if (result.success) {
-      this.activeEscrows.delete(escrowId);
-    }
+    if (result.success) this.activeEscrows.delete(escrowId);
     return result;
   }
 
@@ -282,55 +256,27 @@ export class KamiyoEigenAI {
 
   getDisputeEvidence(escrowId: string): DisputeEvidence | null {
     const escrowData = this.activeEscrows.get(escrowId);
-    if (!escrowData || !escrowData.attestation) {
-      return null;
-    }
-
-    return {
-      attestation: escrowData.attestation,
-      prompt: escrowData.prompt,
-      output: escrowData.output || '',
-    };
+    if (!escrowData?.attestation) return null;
+    return { attestation: escrowData.attestation, prompt: escrowData.prompt, output: escrowData.output || '' };
   }
 
   async getEscrowStatus(escrowId: string) {
     const escrowData = this.activeEscrows.get(escrowId);
-    if (!escrowData) {
-      return { exists: false };
-    }
-    return this.escrow.getStatus(escrowData.sessionId);
+    return escrowData ? this.escrow.getStatus(escrowData.sessionId) : { exists: false };
   }
 
-  async getBalance(): Promise<number> {
-    return this.escrow.getBalance();
-  }
-
-  getActiveEscrows(): string[] {
-    return Array.from(this.activeEscrows.keys());
-  }
+  getBalance(): Promise<number> { return this.escrow.getBalance(); }
+  getActiveEscrows(): string[] { return Array.from(this.activeEscrows.keys()); }
 
   getQualityTier(score: number): { tier: string; refundPercent: number } {
-    if (score >= QUALITY_TIERS.EXCELLENT.min) {
-      return { tier: 'excellent', refundPercent: QUALITY_TIERS.EXCELLENT.refundPercent };
-    }
-    if (score >= QUALITY_TIERS.GOOD.min) {
-      return { tier: 'good', refundPercent: QUALITY_TIERS.GOOD.refundPercent };
-    }
-    if (score >= QUALITY_TIERS.POOR.min) {
-      return { tier: 'poor', refundPercent: QUALITY_TIERS.POOR.refundPercent };
-    }
+    if (score >= QUALITY_TIERS.EXCELLENT.min) return { tier: 'excellent', refundPercent: QUALITY_TIERS.EXCELLENT.refundPercent };
+    if (score >= QUALITY_TIERS.GOOD.min) return { tier: 'good', refundPercent: QUALITY_TIERS.GOOD.refundPercent };
+    if (score >= QUALITY_TIERS.POOR.min) return { tier: 'poor', refundPercent: QUALITY_TIERS.POOR.refundPercent };
     return { tier: 'failed', refundPercent: QUALITY_TIERS.FAILED.refundPercent };
   }
 
-  generateSessionId(): Uint8Array {
-    return this.escrow.generateSessionId();
-  }
-
-  private log(message: string): void {
-    if (this.config.debug) {
-      console.log(`[KamiyoEigenAI] ${message}`);
-    }
-  }
+  generateSessionId(): Uint8Array { return this.escrow.generateSessionId(); }
+  private log(msg: string): void { if (this.config.debug) console.log(`[KamiyoEigenAI] ${msg}`); }
 }
 
 export function createKamiyoEigenAI(config: KamiyoEigenAIConfig): KamiyoEigenAI {

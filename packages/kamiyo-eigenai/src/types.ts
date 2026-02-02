@@ -1,11 +1,16 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 
-export type EigenAIModel = 'gpt-oss-120b-f16';
+export type EigenAIModel = 'gpt-oss-120b-f16' | 'qwen3-32b-128k-bf16';
+
+export type EigenAIAuthConfig =
+  | { type: 'apiKey'; apiKey: string }
+  | { type: 'grant'; privateKey: Uint8Array; walletAddress: string };
 
 export interface KamiyoEigenAIConfig {
   connection: Connection;
   wallet: Keypair;
   programId: PublicKey;
+  eigenAiAuth: EigenAIAuthConfig;
   eigenAiBaseUrl?: string;
   defaultEscrowAmount?: number;
   defaultQualityThreshold?: number;
@@ -156,7 +161,9 @@ export const FEE_CREATE_ESCROW = 50_000_000;
 export const BURN_RATE_BPS = 100;
 
 export const EIGENAI_DEFAULTS = {
-  BASE_URL: 'https://determinal-api.eigenarcade.com',
+  BASE_URL: 'https://eigenai.eigencloud.xyz',
+  BASE_URL_TESTNET: 'https://eigenai-sepolia.eigencloud.xyz',
+  GRANT_API_URL: 'https://determinal-api.eigenarcade.com',
   ESCROW_AMOUNT_SOL: 0.01,
   QUALITY_THRESHOLD: 70,
   TIME_LOCK_SECONDS: 3600,
