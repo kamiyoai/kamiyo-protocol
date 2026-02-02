@@ -627,6 +627,13 @@ router.post('/:id/fund-tokens', requireTeamOwner, async (req: Request, res: Resp
     // Convert to human readable amount
     const tokenAmount = Number(transferAmount) / Math.pow(10, KAMIYO_DECIMALS);
 
+    // Minimum 100k KAMIYO to fund pool
+    const MIN_FUND_AMOUNT = 100_000;
+    if (tokenAmount < MIN_FUND_AMOUNT) {
+      res.status(400).json({ error: `Minimum funding amount is ${MIN_FUND_AMOUNT.toLocaleString()} $KAMIYO` });
+      return;
+    }
+
     // Update pool balance and set currency to KAMIYO
     db.prepare(`
       UPDATE swarm_teams SET pool_balance = pool_balance + ?, currency = 'KAMIYO', updated_at = unixepoch()
