@@ -1,57 +1,60 @@
-# Forge Session: MagicBlock/TEE Fast Voting
+# Forge Session: @kamiyo/eigenai Package
 
 ## Target
-- `programs/kamiyo-fast-voting/src/lib.rs`
-- `tests/fast-voting-magicblock.test.ts`
-- `scripts/test-fast-voting-mainnet.ts`
+- `packages/kamiyo-eigenai/src/types.ts`
+- `packages/kamiyo-eigenai/src/eigenai-client.ts`
+- `packages/kamiyo-eigenai/src/escrow.ts`
+- `packages/kamiyo-eigenai/src/client.ts`
+- `packages/kamiyo-eigenai/src/index.ts`
 
 ## Current Phase: Complete
 
 ## Progress
-- [x] Phase 1: Scaffold - N/A (already implemented)
-- [x] Phase 2: Implement - N/A (already implemented)
+- [x] Phase 1: Scaffold - Complete
+- [x] Phase 2: Implement - Complete
 - [x] Phase 3: Harden - Complete
-- [x] Phase 4: Test - Complete (mainnet deployed + verified)
+- [x] Phase 4: Test - Complete (40 tests passing)
 - [x] Phase 5: Humanize - Complete
 - [x] Phase 6: Codex Review - Complete (GPT-4o)
 
-## Session Complete
+## Phase 3 (Harden) Changes
+1. Added LIMITS constant with validation bounds
+2. Added validateInferenceParams() with full input validation
+3. Escrow.create() checks for existing escrow before creating
+4. Escrow.release() validates state before releasing
+5. Escrow.dispute() validates state, idempotent on already-disputed
+6. Better error detection for insufficient funds
 
-### Phase 6 Codex Review Summary
+## Phase 4 (Test) Changes
+- types.test.ts: Error class, constants, limits validation
+- eigenai-client.test.ts: Constructor, attestation verification
+- client.test.ts: Input validation, quality tier calculation
+- 40 tests total, all passing
 
-GPT-4o reviewed the code. Analysis of findings:
+## Phase 5 (Humanize) Changes
+1. Removed verbose comments
+2. Tightened log messages
+3. Simplified disputeWithAttestation return
+4. Re-run: removed 6 obvious comments in escrow.ts
+5. Re-run: removed unused LAMPORTS_PER_SOL import from client.ts
 
-| Issue | Severity | Valid? | Resolution |
-|-------|----------|--------|------------|
-| Reentrancy in vote_fast | High | False positive | Solana single-threaded + PDA init prevents this |
-| action_id collision | Medium | False positive | PDA derivation handles this by design |
-| tally_and_commit access control | Medium | Design choice | Intentionally permissionless for decentralization |
-| cancel_action executed check | Medium | False positive | Already checked on line 180 |
-| Combine require! macros | Low | Subjective | Separate checks = better error messages |
-| Hardcoded account sizes | Low | Subjective | Standard Anchor pattern |
-| Lack of comments | Low | Per guidelines | CLAUDE.md prefers minimal comments |
+## Phase 6 (Codex Review) Changes
+GPT-4o reviewed and identified 8 issues. Applied fixes:
+1. HTTPS enforcement for API URL (eigenai-client.ts)
+2. Removed error-swallowing catch in getStatus (escrow.ts)
+3. Added transactionId length validation before buffer creation (escrow.ts)
+4. Added test for HTTPS validation
+- 41 tests total, all passing
 
-**No code changes required.** All high/medium issues were false positives or intentional design choices:
-- Permissionless `tally_and_commit` allows anyone to finalize after deadline - this is intentional for decentralized operation
-- Reentrancy is impossible on Solana's execution model
-- PDA uniqueness handles action_id collisions
-
-### Previous Phase Changes
-
-**Phase 3 (Harden):**
-1. Added defensive check for division by zero in tally_and_commit
-2. Changed division to use checked_div for additional safety
-
-**Phase 4 (Test):**
-- Program deployed to mainnet: AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA
-- E2E test script verified all operations
-
-**Phase 5 (Humanize):**
-1. Removed verbose doc comments
-2. Removed emojis from test output
-3. Tightened console.log messages
-
-## Files Modified
-1. `programs/kamiyo-fast-voting/src/lib.rs` - Hardening
-2. `tests/fast-voting-magicblock.test.ts` - Humanize output
-3. `scripts/test-fast-voting-mainnet.ts` - Tighten header
+## Files Created/Modified
+- `package.json`
+- `tsconfig.json`
+- `jest.config.js`
+- `src/types.ts` - Added LIMITS constant
+- `src/eigenai-client.ts` - HTTPS validation, removed verbose comment
+- `src/escrow.ts` - State validation, duplicate check, buffer bounds
+- `src/client.ts` - Added validation, removed comments
+- `src/index.ts` - Export LIMITS
+- `src/types.test.ts`
+- `src/eigenai-client.test.ts` - Added HTTPS rejection test
+- `src/client.test.ts`
