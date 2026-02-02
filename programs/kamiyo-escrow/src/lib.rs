@@ -4,7 +4,7 @@ use anchor_spl::token_interface::{
     self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
 };
 
-declare_id!("AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu");
+declare_id!("EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT");
 
 /// $KAMIYO token mint on pump.fun (6 decimals)
 pub const KAMIYO_MINT: Pubkey = pubkey!("Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump");
@@ -204,6 +204,18 @@ pub mod kamiyo_escrow {
         emit!(OracleRemoved {
             oracle: oracle_pubkey,
             total_oracles: config.registered_oracles.len() as u8,
+        });
+
+        Ok(())
+    }
+
+    /// Initialize token treasury PDA (one-time admin setup)
+    /// Must be called before any escrows can be created
+    pub fn initialize_treasury(ctx: Context<InitializeTreasury>) -> Result<()> {
+        emit!(TreasuryInitialized {
+            treasury: ctx.accounts.token_treasury.key(),
+            admin: ctx.accounts.admin.key(),
+            mint: ctx.accounts.kamiyo_mint.key(),
         });
 
         Ok(())
@@ -755,6 +767,30 @@ pub struct RemoveOracle<'info> {
 }
 
 #[derive(Accounts)]
+pub struct InitializeTreasury<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    #[account(
+        constraint = kamiyo_mint.key() == KAMIYO_MINT @ EscrowError::InvalidKamiyoMint
+    )]
+    pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
+
+    #[account(
+        init,
+        payer = admin,
+        seeds = [b"token_treasury"],
+        bump,
+        token::mint = kamiyo_mint,
+        token::authority = token_treasury,
+    )]
+    pub token_treasury: InterfaceAccount<'info, TokenAccountInterface>,
+
+    pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+}
+
+#[derive(Accounts)]
 #[instruction(session_id: [u8; 32])]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
@@ -1011,6 +1047,13 @@ pub struct OracleRegistered {
 pub struct OracleRemoved {
     pub oracle: Pubkey,
     pub total_oracles: u8,
+}
+
+#[event]
+pub struct TreasuryInitialized {
+    pub treasury: Pubkey,
+    pub admin: Pubkey,
+    pub mint: Pubkey,
 }
 
 #[event]

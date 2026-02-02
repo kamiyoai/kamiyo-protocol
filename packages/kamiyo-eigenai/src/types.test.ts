@@ -112,7 +112,7 @@ describe('constants', () => {
 
   it('PROGRAM_IDS has valid addresses', () => {
     expect(PROGRAM_IDS.MAINNET.toBase58()).toBe('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
-    expect(PROGRAM_IDS.DEVNET.toBase58()).toBe('J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY');
+    expect(PROGRAM_IDS.DEVNET.toBase58()).toBe('EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT');
   });
 
   it('KAMIYO_MINT is correct', () => {
