@@ -269,6 +269,66 @@ router.get('/:id/fund/blindfold', (req: Request, res: Response) => {
   });
 });
 
+// POST /api/swarm-teams/:id/fund/initiate — Proxy to Blindfold initiate-funding API
+router.post('/:id/fund/initiate', requireTeamOwner, async (req: Request, res: Response) => {
+  const teamId = req.params.id;
+  const { walletAddress, amountUsd, stateToken } = req.body;
+  const wallet = req.auth?.wallet;
+
+  if (!walletAddress || !amountUsd || !stateToken) {
+    res.status(400).json({ error: 'walletAddress, amountUsd, and stateToken required' });
+    return;
+  }
+
+  if (typeof amountUsd !== 'number' || amountUsd <= 0 || amountUsd > 10000) {
+    res.status(400).json({ error: 'amountUsd must be between 0 and 10000' });
+    return;
+  }
+
+  // Verify state token belongs to this team
+  const state = db.prepare(`
+    SELECT id, team_id, status FROM blindfold_funding_states
+    WHERE state_token = ? AND team_id = ? AND expires_at > unixepoch()
+  `).get(stateToken, teamId) as { id: string; team_id: string; status: string } | undefined;
+
+  if (!state) {
+    res.status(400).json({ error: 'Invalid or expired state token' });
+    return;
+  }
+
+  if (state.status !== 'pending') {
+    res.status(400).json({ error: 'State token already used' });
+    return;
+  }
+
+  try {
+    const blindfoldRes = await fetch('https://www.blindfoldfinance.com/api/partner/initiate-funding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallet_address: walletAddress,
+        amount_usd: amountUsd,
+        currency: 'SOL',
+        partner_id: 'kamiyo',
+        pool_id: teamId,
+        state: stateToken,
+      }),
+    });
+
+    if (!blindfoldRes.ok) {
+      const errBody = await blindfoldRes.json().catch(() => ({})) as { message?: string; error?: string };
+      res.status(blindfoldRes.status).json({ error: errBody.message || errBody.error || 'Blindfold API error' });
+      return;
+    }
+
+    const result = await blindfoldRes.json();
+    res.json(result);
+  } catch (err) {
+    console.error('Blindfold initiate-funding error:', err);
+    res.status(500).json({ error: 'Failed to initiate Blindfold funding' });
+  }
+});
+
 // POST /api/swarm-teams/:id/fund
 router.post('/:id/fund', async (req: Request, res: Response) => {
   const { amount } = req.body;
