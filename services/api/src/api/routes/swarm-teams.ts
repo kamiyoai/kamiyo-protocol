@@ -352,7 +352,7 @@ router.get('/:id/fund/blindfold', (req: Request, res: Response) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(stateId, teamId, stateToken, wallet || null, expiresAt);
 
-  const blindfoldBaseUrl = process.env.BLINDFOLD_FUND_URL || 'https://www.blindfoldfinance.com/fund';
+  const blindfoldBaseUrl = process.env.BLINDFOLD_FUND_URL || 'https://app.blindfold.finance/partner/funding';
   const callbackUrl = `${process.env.API_URL || 'https://api.kamiyo.ai'}/api/fund/callback`;
 
   const fundingUrl = new URL(blindfoldBaseUrl);
@@ -360,6 +360,9 @@ router.get('/:id/fund/blindfold', (req: Request, res: Response) => {
   fundingUrl.searchParams.set('pool_id', teamId);
   fundingUrl.searchParams.set('redirect_uri', callbackUrl);
   fundingUrl.searchParams.set('state', stateToken);
+  if (wallet) {
+    fundingUrl.searchParams.set('wallet', wallet);
+  }
 
   res.json({
     fundingUrl: fundingUrl.toString(),
