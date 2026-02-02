@@ -106,13 +106,20 @@ GPT-4.1 reviewed codebase and identified 20 issues:
 ### Devnet Status
 - **Escrow Program**: `EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT` ✅
 - **Oracle Config**: Initialized ✅
+- **Oracles Registered**: 5 oracles ✅
+  - `4RUSNRP3ZrgdVZPRLyspavBqCVVdPMpFF2uUSsYTg2VC`
+  - `J42jm17dA5f6Um8qbf8Pe39m7mLtYZfqJf1a3qZHT2NW`
+  - `5uFjCKXDyCspcmV1jDRFg7askNZPDxHDqXqzgfPnpsqj`
+  - `725XNA5HRFJGxNj6ZmX1pvYJs7rqKZN69orCn9djSzaw`
+  - `BePGQmohYFHdpXQQt9ELb5rrAhPBshaQyiWN5ZUdxvbt`
 - **Treasury**: Not initialized (requires KAMIYO token on devnet)
 
 ### Mainnet Remaining
-1. Deploy updated escrow program to mainnet (old one is closed)
-2. Initialize treasury PDA (KAMIYO token exists on mainnet)
-3. Initialize oracle config
-4. Register oracles
+1. **Fund program-authority wallet** - Need ~1.8 SOL for deployment (currently ~0.001 SOL)
+2. Deploy updated escrow program to mainnet (old one is closed)
+3. Initialize treasury PDA (KAMIYO token exists on mainnet)
+4. Initialize oracle config
+5. Register oracles
 
 ### Tests
 - All 48 eigenai package tests passing ✅
