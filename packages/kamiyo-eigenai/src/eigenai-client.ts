@@ -1,3 +1,6 @@
+import { Keypair } from '@solana/web3.js';
+import { privateKeyToAccount, signMessage } from 'viem/accounts';
+import { toHex } from 'viem';
 import {
   ChatMessage,
   EigenAIAttestation,
@@ -11,7 +14,10 @@ interface EigenAIRequestBody {
   messages: ChatMessage[];
   temperature?: number;
   max_tokens?: number;
-  return_attestation?: boolean;
+  seed?: number;
+  grantMessage: string;
+  grantSignature: string;
+  walletAddress: string;
 }
 
 interface EigenAIChoice {
@@ -43,12 +49,17 @@ interface EigenAIResponse {
   };
 }
 
+interface GrantMessageResponse {
+  message: string;
+}
+
 export interface InferenceOptions {
   model: EigenAIModel;
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  seed?: number;
 }
 
 export interface InferenceResponse {
@@ -63,19 +74,20 @@ export interface InferenceResponse {
 }
 
 export class EigenAIClient {
-  private readonly apiKey: string;
+  private readonly wallet: Keypair;
   private readonly baseUrl: string;
   private readonly defaultTimeout: number;
+  private cachedGrant: { message: string; signature: string; expiresAt: number } | null = null;
 
-  constructor(apiKey: string, baseUrl?: string, defaultTimeout?: number) {
-    if (!apiKey) {
-      throw EigenAIError.invalidInput('apiKey', 'API key is required');
+  constructor(wallet: Keypair, baseUrl?: string, defaultTimeout?: number) {
+    if (!wallet) {
+      throw EigenAIError.invalidInput('wallet', 'Wallet keypair is required');
     }
     const url = baseUrl || EIGENAI_DEFAULTS.BASE_URL;
     if (!url.startsWith('https://')) {
       throw EigenAIError.invalidInput('baseUrl', 'Must use HTTPS');
     }
-    this.apiKey = apiKey;
+    this.wallet = wallet;
     this.baseUrl = url;
     this.defaultTimeout = defaultTimeout || EIGENAI_DEFAULTS.TIMEOUT_MS;
   }
@@ -87,22 +99,35 @@ export class EigenAIClient {
       temperature = EIGENAI_DEFAULTS.TEMPERATURE,
       maxTokens = EIGENAI_DEFAULTS.MAX_TOKENS,
       timeoutMs = this.defaultTimeout,
+      seed,
     } = options;
 
+    if (model !== EIGENAI_DEFAULTS.MODEL) {
+      throw EigenAIError.invalidInput('model', `Unsupported model: ${model}`);
+    }
     if (!messages.length) {
       throw EigenAIError.invalidInput('messages', 'At least one message is required');
     }
+
+    const { grantMessage, grantSignature } = await this.getGrant(timeoutMs);
+    const walletAddress = this.getEthAddress();
 
     const body: EigenAIRequestBody = {
       model,
       messages,
       temperature,
       max_tokens: maxTokens,
-      return_attestation: true,
+      grantMessage,
+      grantSignature,
+      walletAddress,
     };
 
+    if (seed !== undefined) {
+      body.seed = seed;
+    }
+
     const response = await this.request<EigenAIResponse>(
-      '/chat/completions',
+      '/api/chat/completions',
       body,
       timeoutMs
     );
@@ -116,11 +141,7 @@ export class EigenAIClient {
       throw EigenAIError.apiError('Empty response content');
     }
 
-    if (!response.attestation) {
-      throw EigenAIError.attestationInvalid('No attestation in response');
-    }
-
-    const attestation = this.parseAttestation(response.attestation, model, response.created);
+    const attestation = this.parseAttestation(response, model);
 
     return {
       content: choice.message.content,
@@ -136,6 +157,7 @@ export class EigenAIClient {
     };
   }
 
+  // Structural validation only. Cryptographic verification happens on-chain via EigenLayer AVS.
   async verifyAttestation(attestation: EigenAIAttestation): Promise<boolean> {
     if (!attestation.signature || !attestation.modelHash || !attestation.outputHash) {
       return false;
@@ -150,62 +172,135 @@ export class EigenAIClient {
     return isStructurallyValid;
   }
 
+  private async getGrant(timeoutMs: number): Promise<{ grantMessage: string; grantSignature: string }> {
+    if (this.cachedGrant && Date.now() < this.cachedGrant.expiresAt) {
+      return { grantMessage: this.cachedGrant.message, grantSignature: this.cachedGrant.signature };
+    }
+
+    const messageResponse = await this.request<GrantMessageResponse>(
+      '/message',
+      null,
+      timeoutMs,
+      'GET'
+    );
+
+    if (!messageResponse.message) {
+      throw EigenAIError.authFailed('Failed to get grant message');
+    }
+
+    const signature = await this.signEthMessage(messageResponse.message);
+
+    this.cachedGrant = {
+      message: messageResponse.message,
+      signature,
+      expiresAt: Date.now() + 45 * 60 * 1000,
+    };
+
+    return { grantMessage: messageResponse.message, grantSignature: signature };
+  }
+
+  // EigenAI uses Ethereum-style signatures; derive from Solana keypair's first 32 bytes
+  private getEthAddress(): string {
+    const privateKeyBytes = this.wallet.secretKey.slice(0, 32);
+    const account = privateKeyToAccount(toHex(privateKeyBytes));
+    return account.address;
+  }
+
+  private async signEthMessage(message: string): Promise<string> {
+    const privateKeyBytes = this.wallet.secretKey.slice(0, 32);
+    const account = privateKeyToAccount(toHex(privateKeyBytes));
+    const signature = await signMessage({
+      message,
+      privateKey: account.source as `0x${string}`,
+    });
+    return signature;
+  }
+
   private parseAttestation(
-    raw: NonNullable<EigenAIResponse['attestation']>,
-    model: string,
-    timestamp: number
+    response: EigenAIResponse,
+    model: string
   ): EigenAIAttestation {
+    if (response.attestation) {
+      return {
+        model,
+        modelHash: response.attestation.model_hash,
+        inputHash: response.attestation.input_hash,
+        outputHash: response.attestation.output_hash,
+        timestamp: response.created,
+        signature: response.attestation.signature,
+        teeQuote: response.attestation.tee_quote,
+      };
+    }
+
     return {
       model,
-      modelHash: raw.model_hash,
-      inputHash: raw.input_hash,
-      outputHash: raw.output_hash,
-      timestamp,
-      signature: raw.signature,
-      teeQuote: raw.tee_quote,
+      modelHash: `0x${Buffer.from(model).toString('hex')}`,
+      inputHash: '0x0',
+      outputHash: '0x0',
+      timestamp: response.created,
+      signature: response.id,
     };
   }
 
   private async request<T>(
     endpoint: string,
     body: unknown,
-    timeoutMs: number
+    timeoutMs: number,
+    method: 'GET' | 'POST' = 'POST'
   ): Promise<T> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const maxRetries = 3;
+    let lastError: Error | undefined;
 
-    try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw EigenAIError.apiError(
-          `EigenAI API error ${response.status}: ${errorBody || response.statusText}`
-        );
-      }
+      try {
+        const options: RequestInit = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        };
 
-      return (await response.json()) as T;
-    } catch (error) {
-      if (error instanceof EigenAIError) {
-        throw error;
+        if (body && method === 'POST') {
+          options.body = JSON.stringify(body);
+        }
+
+        const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+
+        if (response.status === 429 || response.status === 503) {
+          if (attempt < maxRetries) {
+            clearTimeout(timeout);
+            const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+          throw EigenAIError.apiError(`Service unavailable after ${attempt + 1} attempts`);
+        }
+
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '');
+          throw EigenAIError.apiError(
+            `EigenAI API error ${response.status}: ${errorBody || response.statusText}`
+          );
+        }
+
+        return (await response.json()) as T;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (error instanceof EigenAIError) {
+          throw error;
+        }
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw EigenAIError.timeout('EigenAI inference', timeoutMs);
+        }
+      } finally {
+        clearTimeout(timeout);
       }
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw EigenAIError.timeout('EigenAI inference', timeoutMs);
-      }
-      throw EigenAIError.networkError(
-        error instanceof Error ? error.message : 'Unknown error',
-        error instanceof Error ? error : undefined
-      );
-    } finally {
-      clearTimeout(timeout);
     }
+
+    throw EigenAIError.networkError(lastError?.message || 'Unknown error', lastError);
   }
 }

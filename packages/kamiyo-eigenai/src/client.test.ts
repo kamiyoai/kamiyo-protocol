@@ -9,24 +9,13 @@ describe('KamiyoEigenAI', () => {
   } as unknown as Connection;
 
   const mockWallet = Keypair.generate();
-  const mockProgramId = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+  const mockProgramId = new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
+  const mockTreasury = Keypair.generate().publicKey;
+  const mockTokenAccount = Keypair.generate().publicKey;
 
   describe('constructor', () => {
-    it('throws on missing API key', () => {
-      expect(
-        () =>
-          new KamiyoEigenAI({
-            eigenAiApiKey: '',
-            connection: mockConnection,
-            wallet: mockWallet,
-            programId: mockProgramId,
-          })
-      ).toThrow(EigenAIError);
-    });
-
     it('creates client with valid config', () => {
       const client = new KamiyoEigenAI({
-        eigenAiApiKey: 'test-key',
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
@@ -36,7 +25,6 @@ describe('KamiyoEigenAI', () => {
 
     it('uses default values', () => {
       const client = new KamiyoEigenAI({
-        eigenAiApiKey: 'test-key',
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
@@ -50,7 +38,6 @@ describe('KamiyoEigenAI', () => {
 
     beforeEach(() => {
       client = new KamiyoEigenAI({
-        eigenAiApiKey: 'test-key',
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
@@ -59,11 +46,15 @@ describe('KamiyoEigenAI', () => {
 
     it('rejects empty messages', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [],
-          escrowAmount: 0.01,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [],
+            escrowAmount: 0.01,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow('At least one message is required');
     });
 
@@ -73,118 +64,162 @@ describe('KamiyoEigenAI', () => {
         content: 'test',
       });
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages,
-          escrowAmount: 0.01,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages,
+            escrowAmount: 0.01,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Maximum ${LIMITS.MAX_MESSAGES} messages`);
     });
 
     it('rejects message too long', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'x'.repeat(LIMITS.MAX_MESSAGE_LENGTH + 1) }],
-          escrowAmount: 0.01,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'x'.repeat(LIMITS.MAX_MESSAGE_LENGTH + 1) }],
+            escrowAmount: 0.01,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`exceeds ${LIMITS.MAX_MESSAGE_LENGTH}`);
     });
 
     it('rejects escrow amount too small', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.0001,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.0001,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Minimum ${LIMITS.MIN_ESCROW_SOL}`);
     });
 
     it('rejects escrow amount too large', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: LIMITS.MAX_ESCROW_SOL + 1,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: LIMITS.MAX_ESCROW_SOL + 1,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Maximum ${LIMITS.MAX_ESCROW_SOL}`);
     });
 
     it('rejects time lock too short', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          timeLockSeconds: 10,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            timeLockSeconds: 10,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Minimum ${LIMITS.MIN_TIME_LOCK_SECONDS}`);
     });
 
     it('rejects time lock too long', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          timeLockSeconds: LIMITS.MAX_TIME_LOCK_SECONDS + 1,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            timeLockSeconds: LIMITS.MAX_TIME_LOCK_SECONDS + 1,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Maximum ${LIMITS.MAX_TIME_LOCK_SECONDS}`);
     });
 
     it('rejects timeout too short', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          timeoutMs: 100,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            timeoutMs: 100,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Minimum ${LIMITS.MIN_TIMEOUT_MS}`);
     });
 
     it('rejects timeout too long', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          timeoutMs: LIMITS.MAX_TIMEOUT_MS + 1,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            timeoutMs: LIMITS.MAX_TIMEOUT_MS + 1,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow(`Maximum ${LIMITS.MAX_TIMEOUT_MS}`);
     });
 
-    it('rejects transaction ID too long', async () => {
+    it('rejects session ID wrong length', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          transactionId: 'x'.repeat(LIMITS.MAX_TRANSACTION_ID_LENGTH + 1),
-        })
-      ).rejects.toThrow(`Maximum ${LIMITS.MAX_TRANSACTION_ID_LENGTH}`);
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            sessionId: new Uint8Array(16),
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
+      ).rejects.toThrow(`Must be ${LIMITS.SESSION_ID_LENGTH} bytes`);
     });
 
     it('rejects invalid quality threshold', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          qualityThreshold: 150,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            qualityThreshold: 150,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow('between 0 and 100');
     });
 
     it('rejects invalid temperature', async () => {
       await expect(
-        client.inferenceWithEscrow({
-          model: 'qwen3-32b',
-          messages: [{ role: 'user', content: 'test' }],
-          escrowAmount: 0.01,
-          temperature: 3,
-        })
+        client.inferenceWithEscrow(
+          {
+            model: 'gpt-oss-120b-f16',
+            messages: [{ role: 'user', content: 'test' }],
+            escrowAmount: 0.01,
+            temperature: 3,
+          },
+          mockTokenAccount,
+          mockTreasury
+        )
       ).rejects.toThrow('between 0 and 2');
     });
   });
@@ -194,7 +229,6 @@ describe('KamiyoEigenAI', () => {
 
     beforeEach(() => {
       client = new KamiyoEigenAI({
-        eigenAiApiKey: 'test-key',
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
@@ -219,6 +253,29 @@ describe('KamiyoEigenAI', () => {
     it('returns failed for score < 50', () => {
       expect(client.getQualityTier(49)).toEqual({ tier: 'failed', refundPercent: 100 });
       expect(client.getQualityTier(0)).toEqual({ tier: 'failed', refundPercent: 100 });
+    });
+  });
+
+  describe('generateSessionId', () => {
+    let client: KamiyoEigenAI;
+
+    beforeEach(() => {
+      client = new KamiyoEigenAI({
+        connection: mockConnection,
+        wallet: mockWallet,
+        programId: mockProgramId,
+      });
+    });
+
+    it('generates 32-byte session ID', () => {
+      const sessionId = client.generateSessionId();
+      expect(sessionId.length).toBe(32);
+    });
+
+    it('generates unique session IDs', () => {
+      const id1 = client.generateSessionId();
+      const id2 = client.generateSessionId();
+      expect(Buffer.from(id1).toString('hex')).not.toBe(Buffer.from(id2).toString('hex'));
     });
   });
 });

@@ -1,13 +1,12 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 
-export type EigenAIModel = 'qwen3-32b' | 'gpt-oss-120b';
+export type EigenAIModel = 'gpt-oss-120b-f16';
 
 export interface KamiyoEigenAIConfig {
-  eigenAiApiKey: string;
-  eigenAiBaseUrl?: string;
   connection: Connection;
   wallet: Keypair;
   programId: PublicKey;
+  eigenAiBaseUrl?: string;
   defaultEscrowAmount?: number;
   defaultQualityThreshold?: number;
   defaultTimeLockSeconds?: number;
@@ -27,10 +26,11 @@ export interface InferenceParams {
   provider?: PublicKey;
   qualityThreshold?: number;
   timeLockSeconds?: number;
-  transactionId?: string;
+  sessionId?: Uint8Array;
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  seed?: number;
 }
 
 export interface EigenAIAttestation {
@@ -56,18 +56,24 @@ export interface InferenceResult {
 }
 
 export interface EscrowParams {
-  provider: PublicKey;
+  sessionId: Uint8Array;
   amount: number;
-  timeLockSeconds: number;
-  transactionId: string;
+  treasury: PublicKey;
+  userTokenAccount: PublicKey;
 }
 
 export interface EscrowResult {
   success: boolean;
   signature?: string;
   escrowPda?: PublicKey;
-  transactionId?: string;
+  sessionId?: Uint8Array;
   error?: EigenAIError;
+}
+
+export interface ReleaseParams {
+  sessionId: Uint8Array;
+  rating: number;
+  treasury: PublicKey;
 }
 
 export interface DisputeEvidence {
@@ -86,7 +92,8 @@ export type EigenAIErrorCode =
   | 'NETWORK_ERROR'
   | 'INVALID_INPUT'
   | 'INSUFFICIENT_FUNDS'
-  | 'DISPUTE_FAILED';
+  | 'DISPUTE_FAILED'
+  | 'AUTH_FAILED';
 
 export class EigenAIError extends Error {
   constructor(
@@ -132,16 +139,31 @@ export class EigenAIError extends Error {
   static disputeFailed(message: string, cause?: Error): EigenAIError {
     return new EigenAIError('DISPUTE_FAILED', message, cause);
   }
+
+  static authFailed(message: string, cause?: Error): EigenAIError {
+    return new EigenAIError('AUTH_FAILED', message, cause);
+  }
 }
 
+export const PROGRAM_IDS = {
+  MAINNET: new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu'),
+  DEVNET: new PublicKey('J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY'),
+} as const;
+
+export const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
+
+export const FEE_CREATE_ESCROW = 50_000_000;
+export const BURN_RATE_BPS = 100;
+
 export const EIGENAI_DEFAULTS = {
-  BASE_URL: 'https://api.eigencloud.xyz/v1',
+  BASE_URL: 'https://determinal-api.eigenarcade.com',
   ESCROW_AMOUNT_SOL: 0.01,
   QUALITY_THRESHOLD: 70,
   TIME_LOCK_SECONDS: 3600,
   TIMEOUT_MS: 60000,
   MAX_TOKENS: 4096,
   TEMPERATURE: 0.7,
+  MODEL: 'gpt-oss-120b-f16' as EigenAIModel,
 } as const;
 
 export const LIMITS = {
@@ -153,7 +175,7 @@ export const LIMITS = {
   MAX_TIMEOUT_MS: 300_000,
   MAX_MESSAGES: 100,
   MAX_MESSAGE_LENGTH: 100_000,
-  MAX_TRANSACTION_ID_LENGTH: 64,
+  SESSION_ID_LENGTH: 32,
 } as const;
 
 export const QUALITY_TIERS = {
@@ -162,3 +184,18 @@ export const QUALITY_TIERS = {
   POOR: { min: 50, max: 64, refundPercent: 75 },
   FAILED: { min: 0, max: 49, refundPercent: 100 },
 } as const;
+
+export const DISCRIMINATORS = {
+  CREATE_ESCROW: Buffer.from([253, 215, 165, 116, 36, 108, 68, 80]),
+  RATE_AND_RELEASE: Buffer.from([14, 35, 187, 205, 46, 136, 5, 37]),
+  MARK_DISPUTED: Buffer.from([136, 86, 152, 120, 3, 21, 223, 251]),
+  FINALIZE_DISPUTE: Buffer.from([190, 211, 17, 122, 247, 157, 27, 223]),
+} as const;
+
+export enum EscrowStatus {
+  Active = 0,
+  Disputed = 1,
+  Resolved = 2,
+  Released = 3,
+  Refunded = 4,
+}
