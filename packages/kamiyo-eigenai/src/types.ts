@@ -147,7 +147,7 @@ export class EigenAIError extends Error {
 
 export const PROGRAM_IDS = {
   MAINNET: new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu'),
-  DEVNET: new PublicKey('J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY'),
+  DEVNET: new PublicKey('EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT'),
 } as const;
 
 export const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
