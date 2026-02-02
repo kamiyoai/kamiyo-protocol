@@ -1,0 +1,66 @@
+{
+  "name": "@kamiyo/eigenai",
+  "version": "0.1.0",
+  "description": "EigenAI inference client with KAMIYO escrow protection. Verifiable LLM outputs with quality-based payment settlement.",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo.git",
+    "directory": "packages/kamiyo-eigenai"
+  },
+  "bugs": {
+    "url": "https://github.com/kamiyo-ai/kamiyo/issues"
+  },
+  "keywords": [
+    "eigenai",
+    "eigencloud",
+    "verifiable-ai",
+    "llm",
+    "inference",
+    "escrow",
+    "kamiyo",
+    "solana",
+    "ai-agents",
+    "deterministic",
+    "attestation"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.0",
+    "@kamiyo/sdk": "workspace:*",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@solana/web3.js": "^1.90.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
