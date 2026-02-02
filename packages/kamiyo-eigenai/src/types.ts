@@ -146,7 +146,7 @@ export class EigenAIError extends Error {
 }
 
 export const PROGRAM_IDS = {
-  MAINNET: new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu'),
+  MAINNET: new PublicKey('FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u'),
   DEVNET: new PublicKey('EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT'),
 } as const;
 

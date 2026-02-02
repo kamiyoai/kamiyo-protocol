@@ -4,7 +4,7 @@ use anchor_spl::token_interface::{
     self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
 };
 
-declare_id!("EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT");
+declare_id!("FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u");
 
 /// $KAMIYO token mint on pump.fun (6 decimals)
 pub const KAMIYO_MINT: Pubkey = pubkey!("Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump");
