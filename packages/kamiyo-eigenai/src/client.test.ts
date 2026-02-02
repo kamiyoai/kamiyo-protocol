@@ -1,6 +1,6 @@
 import { Keypair, PublicKey, Connection } from '@solana/web3.js';
 import { KamiyoEigenAI } from './client';
-import { EigenAIError, LIMITS } from './types';
+import { EigenAIError, LIMITS, EigenAIAuthConfig } from './types';
 
 describe('KamiyoEigenAI', () => {
   const mockConnection = {
@@ -12,6 +12,7 @@ describe('KamiyoEigenAI', () => {
   const mockProgramId = new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
   const mockTreasury = Keypair.generate().publicKey;
   const mockTokenAccount = Keypair.generate().publicKey;
+  const testAuth: EigenAIAuthConfig = { type: 'apiKey', apiKey: 'test-api-key-12345' };
 
   describe('constructor', () => {
     it('creates client with valid config', () => {
@@ -19,6 +20,7 @@ describe('KamiyoEigenAI', () => {
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
+        eigenAiAuth: testAuth,
       });
       expect(client).toBeInstanceOf(KamiyoEigenAI);
     });
@@ -28,6 +30,7 @@ describe('KamiyoEigenAI', () => {
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
+        eigenAiAuth: testAuth,
       });
       expect(client.getActiveEscrows()).toEqual([]);
     });
@@ -41,6 +44,7 @@ describe('KamiyoEigenAI', () => {
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
+        eigenAiAuth: testAuth,
       });
     });
 
@@ -55,7 +59,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow('At least one message is required');
+      ).rejects.toThrow('At least one message required');
     });
 
     it('rejects too many messages', async () => {
@@ -73,7 +77,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Maximum ${LIMITS.MAX_MESSAGES} messages`);
+      ).rejects.toThrow(`Max ${LIMITS.MAX_MESSAGES} messages`);
     });
 
     it('rejects message too long', async () => {
@@ -101,7 +105,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Minimum ${LIMITS.MIN_ESCROW_SOL}`);
+      ).rejects.toThrow(`Min ${LIMITS.MIN_ESCROW_SOL}`);
     });
 
     it('rejects escrow amount too large', async () => {
@@ -115,7 +119,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Maximum ${LIMITS.MAX_ESCROW_SOL}`);
+      ).rejects.toThrow(`Max ${LIMITS.MAX_ESCROW_SOL}`);
     });
 
     it('rejects time lock too short', async () => {
@@ -130,7 +134,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Minimum ${LIMITS.MIN_TIME_LOCK_SECONDS}`);
+      ).rejects.toThrow(`Min ${LIMITS.MIN_TIME_LOCK_SECONDS}`);
     });
 
     it('rejects time lock too long', async () => {
@@ -145,7 +149,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Maximum ${LIMITS.MAX_TIME_LOCK_SECONDS}`);
+      ).rejects.toThrow(`Max ${LIMITS.MAX_TIME_LOCK_SECONDS}`);
     });
 
     it('rejects timeout too short', async () => {
@@ -160,7 +164,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Minimum ${LIMITS.MIN_TIMEOUT_MS}`);
+      ).rejects.toThrow(`Min ${LIMITS.MIN_TIMEOUT_MS}`);
     });
 
     it('rejects timeout too long', async () => {
@@ -175,7 +179,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow(`Maximum ${LIMITS.MAX_TIMEOUT_MS}`);
+      ).rejects.toThrow(`Max ${LIMITS.MAX_TIMEOUT_MS}`);
     });
 
     it('rejects session ID wrong length', async () => {
@@ -205,7 +209,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow('between 0 and 100');
+      ).rejects.toThrow('0-100');
     });
 
     it('rejects invalid temperature', async () => {
@@ -220,7 +224,7 @@ describe('KamiyoEigenAI', () => {
           mockTokenAccount,
           mockTreasury
         )
-      ).rejects.toThrow('between 0 and 2');
+      ).rejects.toThrow('0-2');
     });
   });
 
@@ -232,6 +236,7 @@ describe('KamiyoEigenAI', () => {
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
+        eigenAiAuth: testAuth,
       });
     });
 
@@ -264,6 +269,7 @@ describe('KamiyoEigenAI', () => {
         connection: mockConnection,
         wallet: mockWallet,
         programId: mockProgramId,
+        eigenAiAuth: testAuth,
       });
     });
 

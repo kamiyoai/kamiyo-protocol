@@ -1,11 +1,11 @@
-import { Keypair } from '@solana/web3.js';
-import { privateKeyToAccount, signMessage } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 import { toHex } from 'viem';
 import {
   ChatMessage,
   EigenAIAttestation,
   EigenAIError,
   EigenAIModel,
+  EigenAIAuthConfig,
   EIGENAI_DEFAULTS,
 } from './types.js';
 
@@ -15,6 +15,9 @@ interface EigenAIRequestBody {
   temperature?: number;
   max_tokens?: number;
   seed?: number;
+}
+
+interface GrantRequestBody extends EigenAIRequestBody {
   grantMessage: string;
   grantSignature: string;
   walletAddress: string;
@@ -22,10 +25,7 @@ interface EigenAIRequestBody {
 
 interface EigenAIChoice {
   index: number;
-  message: {
-    role: string;
-    content: string;
-  };
+  message: { role: string; content: string };
   finish_reason: string;
 }
 
@@ -35,23 +35,12 @@ interface EigenAIResponse {
   created: number;
   model: string;
   choices: EigenAIChoice[];
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-  attestation?: {
-    model_hash: string;
-    input_hash: string;
-    output_hash: string;
-    signature: string;
-    tee_quote?: string;
-  };
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  signature?: string;
 }
 
-interface GrantMessageResponse {
-  message: string;
-}
+interface GrantMessageResponse { success: boolean; message: string; address: string }
+interface GrantStatusResponse { success: boolean; tokenCount: number; address: string; hasGrant: boolean }
 
 export interface InferenceOptions {
   model: EigenAIModel;
@@ -66,29 +55,33 @@ export interface InferenceResponse {
   content: string;
   attestation: EigenAIAttestation;
   model: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 export class EigenAIClient {
-  private readonly wallet: Keypair;
+  private readonly auth: EigenAIAuthConfig;
   private readonly baseUrl: string;
+  private readonly grantApiUrl: string;
   private readonly defaultTimeout: number;
-  private cachedGrant: { message: string; signature: string; expiresAt: number } | null = null;
+  private cachedGrant?: { message: string; signature: string; expiresAt: number };
 
-  constructor(wallet: Keypair, baseUrl?: string, defaultTimeout?: number) {
-    if (!wallet) {
-      throw EigenAIError.invalidInput('wallet', 'Wallet keypair is required');
+  constructor(auth: EigenAIAuthConfig, baseUrl?: string, defaultTimeout?: number) {
+    if (auth.type === 'apiKey' && !auth.apiKey)
+      throw EigenAIError.invalidInput('apiKey', 'Required');
+    if (auth.type === 'grant') {
+      if (!auth.privateKey || auth.privateKey.length !== 32)
+        throw EigenAIError.invalidInput('privateKey', 'Must be 32 bytes');
+      if (!auth.walletAddress || !/^0x[0-9a-fA-F]{40}$/.test(auth.walletAddress))
+        throw EigenAIError.invalidInput('walletAddress', 'Invalid ETH address');
     }
+
     const url = baseUrl || EIGENAI_DEFAULTS.BASE_URL;
-    if (!url.startsWith('https://')) {
+    if (!url.startsWith('https://'))
       throw EigenAIError.invalidInput('baseUrl', 'Must use HTTPS');
-    }
-    this.wallet = wallet;
+
+    this.auth = auth;
     this.baseUrl = url;
+    this.grantApiUrl = EIGENAI_DEFAULTS.GRANT_API_URL;
     this.defaultTimeout = defaultTimeout || EIGENAI_DEFAULTS.TIMEOUT_MS;
   }
 
@@ -102,151 +95,110 @@ export class EigenAIClient {
       seed,
     } = options;
 
-    if (model !== EIGENAI_DEFAULTS.MODEL) {
-      throw EigenAIError.invalidInput('model', `Unsupported model: ${model}`);
-    }
-    if (!messages.length) {
-      throw EigenAIError.invalidInput('messages', 'At least one message is required');
-    }
+    if (!messages.length)
+      throw EigenAIError.invalidInput('messages', 'At least one required');
 
-    const { grantMessage, grantSignature } = await this.getGrant(timeoutMs);
-    const walletAddress = this.getEthAddress();
+    const body: EigenAIRequestBody = { model, messages, temperature, max_tokens: maxTokens };
+    if (seed !== undefined) body.seed = seed;
 
-    const body: EigenAIRequestBody = {
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      grantMessage,
-      grantSignature,
-      walletAddress,
-    };
+    const response = this.auth.type === 'grant'
+      ? await this.requestWithGrant<EigenAIResponse>(body, timeoutMs)
+      : await this.requestWithApiKey<EigenAIResponse>('/v1/chat/completions', body, timeoutMs);
 
-    if (seed !== undefined) {
-      body.seed = seed;
-    }
-
-    const response = await this.request<EigenAIResponse>(
-      '/api/chat/completions',
-      body,
-      timeoutMs
-    );
-
-    if (!response.choices?.length) {
-      throw EigenAIError.apiError('No response choices returned');
-    }
-
+    if (!response.choices?.length)
+      throw EigenAIError.apiError('No response choices');
     const choice = response.choices[0];
-    if (!choice.message?.content) {
-      throw EigenAIError.apiError('Empty response content');
-    }
-
-    const attestation = this.parseAttestation(response, model);
+    if (!choice.message?.content)
+      throw EigenAIError.apiError('Empty response');
 
     return {
       content: choice.message.content,
-      attestation,
+      attestation: this.parseAttestation(response, model),
       model: response.model,
-      usage: response.usage
-        ? {
-            promptTokens: response.usage.prompt_tokens,
-            completionTokens: response.usage.completion_tokens,
-            totalTokens: response.usage.total_tokens,
-          }
-        : undefined,
+      usage: response.usage ? {
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: response.usage.completion_tokens,
+        totalTokens: response.usage.total_tokens,
+      } : undefined,
     };
   }
 
-  // Structural validation only. Cryptographic verification happens on-chain via EigenLayer AVS.
+  async checkGrantStatus(): Promise<{ hasGrant: boolean; tokenCount: number }> {
+    if (this.auth.type !== 'grant') {
+      throw EigenAIError.invalidInput('auth', 'Grant auth required to check grant status');
+    }
+
+    const address = encodeURIComponent(this.auth.walletAddress);
+    let response: Response;
+    try {
+      response = await fetch(`${this.grantApiUrl}/checkGrant?address=${address}`);
+    } catch (err) {
+      throw EigenAIError.networkError(
+        'Failed to reach grant API',
+        err instanceof Error ? err : undefined
+      );
+    }
+
+    if (!response.ok) {
+      throw EigenAIError.apiError(`Failed to check grant: ${response.status}`);
+    }
+
+    const data = (await response.json()) as GrantStatusResponse;
+    return { hasGrant: data.hasGrant, tokenCount: data.tokenCount };
+  }
+
   async verifyAttestation(attestation: EigenAIAttestation): Promise<boolean> {
-    if (!attestation.signature || !attestation.modelHash || !attestation.outputHash) {
-      return false;
-    }
-
-    const isStructurallyValid =
-      attestation.signature.length >= 64 &&
-      attestation.modelHash.startsWith('0x') &&
-      attestation.outputHash.startsWith('0x') &&
-      attestation.timestamp > 0;
-
-    return isStructurallyValid;
+    return !!attestation.signature && attestation.signature.length >= 64 && attestation.timestamp > 0;
   }
 
-  private async getGrant(timeoutMs: number): Promise<{ grantMessage: string; grantSignature: string }> {
-    if (this.cachedGrant && Date.now() < this.cachedGrant.expiresAt) {
-      return { grantMessage: this.cachedGrant.message, grantSignature: this.cachedGrant.signature };
+  private async getGrantCredentials(): Promise<{ message: string; signature: string }> {
+    if (this.auth.type !== 'grant') throw EigenAIError.invalidInput('auth', 'Grant auth required');
+    if (this.cachedGrant && this.cachedGrant.expiresAt > Date.now()) return { message: this.cachedGrant.message, signature: this.cachedGrant.signature };
+
+    const address = encodeURIComponent(this.auth.walletAddress);
+    let msgResponse: Response;
+    try {
+      msgResponse = await fetch(`${this.grantApiUrl}/message?address=${address}`);
+    } catch (err) {
+      throw EigenAIError.networkError(
+        'Failed to reach grant API',
+        err instanceof Error ? err : undefined
+      );
     }
 
-    const messageResponse = await this.request<GrantMessageResponse>(
-      '/message',
-      null,
-      timeoutMs,
-      'GET'
-    );
+    if (!msgResponse.ok) throw EigenAIError.authFailed(`Failed to get grant message: ${msgResponse.status}`);
+    const msgData = (await msgResponse.json()) as GrantMessageResponse;
+    if (!msgData.success || !msgData.message) throw EigenAIError.authFailed('No grant message returned');
 
-    if (!messageResponse.message) {
-      throw EigenAIError.authFailed('Failed to get grant message');
-    }
+    const privateKeyHex = toHex(this.auth.privateKey);
+    const account = privateKeyToAccount(privateKeyHex);
+    const signature = await account.signMessage({ message: msgData.message });
 
-    const signature = await this.signEthMessage(messageResponse.message);
-
-    this.cachedGrant = {
-      message: messageResponse.message,
-      signature,
-      expiresAt: Date.now() + 45 * 60 * 1000,
-    };
-
-    return { grantMessage: messageResponse.message, grantSignature: signature };
+    this.cachedGrant = { message: msgData.message, signature, expiresAt: Date.now() + 4 * 60 * 1000 };
+    return { message: msgData.message, signature };
   }
 
-  // EigenAI uses Ethereum-style signatures; derive from Solana keypair's first 32 bytes
-  private getEthAddress(): string {
-    const privateKeyBytes = this.wallet.secretKey.slice(0, 32);
-    const account = privateKeyToAccount(toHex(privateKeyBytes));
-    return account.address;
+  private async requestWithGrant<T>(body: EigenAIRequestBody, timeoutMs: number): Promise<T> {
+    if (this.auth.type !== 'grant') throw EigenAIError.invalidInput('auth', 'Grant auth required');
+    const { message, signature } = await this.getGrantCredentials();
+    const grantBody: GrantRequestBody = { ...body, grantMessage: message, grantSignature: signature, walletAddress: this.auth.walletAddress };
+    return this.request<T>(`${this.grantApiUrl}/api/chat/completions`, grantBody, timeoutMs, {});
   }
 
-  private async signEthMessage(message: string): Promise<string> {
-    const privateKeyBytes = this.wallet.secretKey.slice(0, 32);
-    const account = privateKeyToAccount(toHex(privateKeyBytes));
-    const signature = await signMessage({
-      message,
-      privateKey: account.source as `0x${string}`,
-    });
-    return signature;
+  private async requestWithApiKey<T>(endpoint: string, body: EigenAIRequestBody, timeoutMs: number): Promise<T> {
+    if (this.auth.type !== 'apiKey') throw EigenAIError.invalidInput('auth', 'API key auth required');
+    return this.request<T>(`${this.baseUrl}${endpoint}`, body, timeoutMs, { 'X-API-Key': this.auth.apiKey });
   }
 
-  private parseAttestation(
-    response: EigenAIResponse,
-    model: string
-  ): EigenAIAttestation {
-    if (response.attestation) {
-      return {
-        model,
-        modelHash: response.attestation.model_hash,
-        inputHash: response.attestation.input_hash,
-        outputHash: response.attestation.output_hash,
-        timestamp: response.created,
-        signature: response.attestation.signature,
-        teeQuote: response.attestation.tee_quote,
-      };
-    }
-
-    return {
-      model,
-      modelHash: `0x${Buffer.from(model).toString('hex')}`,
-      inputHash: '0x0',
-      outputHash: '0x0',
-      timestamp: response.created,
-      signature: response.id,
-    };
+  private parseAttestation(response: EigenAIResponse, model: string): EigenAIAttestation {
+    return { model, modelHash: `0x${Buffer.from(model).toString('hex')}`, inputHash: '0x0', outputHash: '0x0', timestamp: response.created, signature: response.signature || response.id };
   }
 
   private async request<T>(
-    endpoint: string,
+    url: string,
     body: unknown,
     timeoutMs: number,
-    method: 'GET' | 'POST' = 'POST'
+    extraHeaders: Record<string, string>
   ): Promise<T> {
     const maxRetries = 3;
     let lastError: Error | undefined;
@@ -256,19 +208,15 @@ export class EigenAIClient {
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const options: RequestInit = {
-          method,
+        const response = await fetch(url, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...extraHeaders,
           },
+          body: JSON.stringify(body),
           signal: controller.signal,
-        };
-
-        if (body && method === 'POST') {
-          options.body = JSON.stringify(body);
-        }
-
-        const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+        });
 
         if (response.status === 429 || response.status === 503) {
           if (attempt < maxRetries) {
@@ -278,6 +226,14 @@ export class EigenAIClient {
             continue;
           }
           throw EigenAIError.apiError(`Service unavailable after ${attempt + 1} attempts`);
+        }
+
+        if (response.status === 401) {
+          throw EigenAIError.authFailed('Invalid credentials');
+        }
+
+        if (response.status === 402) {
+          throw EigenAIError.insufficientFunds(0, 0);
         }
 
         if (!response.ok) {

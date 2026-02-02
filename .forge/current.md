@@ -15,7 +15,7 @@
 - [x] Phase 3: Harden - Complete
 - [x] Phase 4: Test - Complete (48 tests passing)
 - [x] Phase 5: Humanize - Complete
-- [x] Phase 6: Codex Review - Complete (GPT-4o)
+- [x] Phase 6: Codex Review - Complete (GPT-5.2)
 - [x] Phase 7: Integration Alignment - Complete
 
 ## Phase 3 (Harden) Changes
@@ -45,6 +45,36 @@ Focused on EigenAI/EigenCloud documentation and comment cleanup:
 - types.ts: Removed 5 obvious comments (Program addresses, KAMIYO mint, etc.)
 - escrow.ts: Removed 6 inline comments (fee split, burn, transfer, create, layout)
 - 48 tests passing
+
+## Phase 5 (Humanize) Changes - Round 3
+Tightened code after GPT-5.2 review:
+
+| File | Changes |
+|------|---------|
+| client.ts | Condensed config type, one-line Map type, inline conditionals, compact getters |
+| eigenai-client.ts | Collapsed interface blocks, inline verifyAttestation, tightened grant flow |
+| escrow.ts | Replaced switch with lookup map, one-line constructor, removed comments, compact methods |
+
+All 50 tests passing.
+
+---
+
+## Phase 6 (Codex Review) Changes - Round 4 (GPT-5.2)
+GPT-5.2 reviewed codebase and identified 25+ issues. Applied fixes:
+
+### Security
+| File | Issue | Fix |
+|------|-------|-----|
+| eigenai-client.ts | Weak ETH address validation | Added regex `/^0x[0-9a-fA-F]{40}$/` |
+| client.ts | `escrowAmount` 0 treated as default | Added explicit positive number check |
+| client.ts | `\|\|` instead of `??` for escrowAmount | Changed to nullish coalescing |
+| escrow.ts | Floating-point precision loss | Use BigInt for lamports calculation |
+| escrow.ts | `crypto.getRandomValues` unavailable in Node | Use `node:crypto` randomBytes |
+
+### Tests
+- All 50 tests passing
+
+---
 
 ## Phase 6 (Codex Review) Changes - Round 3 (GPT-4.1)
 GPT-4.1 reviewed codebase and identified 20 issues:

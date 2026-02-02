@@ -27,4 +27,5 @@ export type {
   EigenAIAttestation,
   EigenAIErrorCode,
   DisputeEvidence,
+  EigenAIAuthConfig,
 } from './types.js';

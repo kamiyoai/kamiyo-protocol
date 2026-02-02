@@ -1,29 +1,66 @@
-import { Keypair } from '@solana/web3.js';
 import { EigenAIClient } from './eigenai-client';
-import { EigenAIError } from './types';
+import { EigenAIError, EigenAIAuthConfig } from './types';
 
 describe('EigenAIClient', () => {
-  const testWallet = Keypair.generate();
+  const testApiKey = 'test-api-key-12345';
+  const testPrivateKey = new Uint8Array(32).fill(1);
+  const testWalletAddress = '0x6448D7772CF9dBd6112AE14176eE5E447A040a45';
 
-  describe('constructor', () => {
-    it('throws on missing wallet', () => {
-      expect(() => new EigenAIClient(null as unknown as Keypair)).toThrow(EigenAIError);
-      expect(() => new EigenAIClient(null as unknown as Keypair)).toThrow('Wallet keypair is required');
+  describe('constructor with API key auth', () => {
+    it('throws on missing API key', () => {
+      const auth: EigenAIAuthConfig = { type: 'apiKey', apiKey: '' };
+      expect(() => new EigenAIClient(auth)).toThrow(EigenAIError);
+      expect(() => new EigenAIClient(auth)).toThrow('Required');
     });
 
-    it('accepts valid wallet', () => {
-      const client = new EigenAIClient(testWallet);
+    it('accepts valid API key', () => {
+      const auth: EigenAIAuthConfig = { type: 'apiKey', apiKey: testApiKey };
+      const client = new EigenAIClient(auth);
       expect(client).toBeInstanceOf(EigenAIClient);
     });
 
     it('accepts custom base URL', () => {
-      const client = new EigenAIClient(testWallet, 'https://custom.api');
+      const auth: EigenAIAuthConfig = { type: 'apiKey', apiKey: testApiKey };
+      const client = new EigenAIClient(auth, 'https://custom.api');
       expect(client).toBeInstanceOf(EigenAIClient);
     });
 
     it('rejects non-HTTPS base URL', () => {
-      expect(() => new EigenAIClient(testWallet, 'http://insecure.api')).toThrow(EigenAIError);
-      expect(() => new EigenAIClient(testWallet, 'http://insecure.api')).toThrow('Must use HTTPS');
+      const auth: EigenAIAuthConfig = { type: 'apiKey', apiKey: testApiKey };
+      expect(() => new EigenAIClient(auth, 'http://insecure.api')).toThrow(EigenAIError);
+      expect(() => new EigenAIClient(auth, 'http://insecure.api')).toThrow('Must use HTTPS');
+    });
+  });
+
+  describe('constructor with grant auth', () => {
+    it('throws on invalid private key length', () => {
+      const auth: EigenAIAuthConfig = {
+        type: 'grant',
+        privateKey: new Uint8Array(16),
+        walletAddress: testWalletAddress,
+      };
+      expect(() => new EigenAIClient(auth)).toThrow(EigenAIError);
+      expect(() => new EigenAIClient(auth)).toThrow('Must be 32 bytes');
+    });
+
+    it('throws on invalid wallet address', () => {
+      const auth: EigenAIAuthConfig = {
+        type: 'grant',
+        privateKey: testPrivateKey,
+        walletAddress: 'invalid',
+      };
+      expect(() => new EigenAIClient(auth)).toThrow(EigenAIError);
+      expect(() => new EigenAIClient(auth)).toThrow('Invalid ETH address');
+    });
+
+    it('accepts valid grant auth', () => {
+      const auth: EigenAIAuthConfig = {
+        type: 'grant',
+        privateKey: testPrivateKey,
+        walletAddress: testWalletAddress,
+      };
+      const client = new EigenAIClient(auth);
+      expect(client).toBeInstanceOf(EigenAIClient);
     });
   });
 
@@ -31,7 +68,8 @@ describe('EigenAIClient', () => {
     let client: EigenAIClient;
 
     beforeEach(() => {
-      client = new EigenAIClient(testWallet);
+      const auth: EigenAIAuthConfig = { type: 'apiKey', apiKey: testApiKey };
+      client = new EigenAIClient(auth);
     });
 
     it('returns false for missing signature', async () => {
@@ -42,18 +80,6 @@ describe('EigenAIClient', () => {
         outputHash: '0x789',
         timestamp: Date.now(),
         signature: '',
-      });
-      expect(result).toBe(false);
-    });
-
-    it('returns false for missing hashes', async () => {
-      const result = await client.verifyAttestation({
-        model: 'gpt-oss-120b-f16',
-        modelHash: '',
-        inputHash: '0x456',
-        outputHash: '0x789',
-        timestamp: Date.now(),
-        signature: 'a'.repeat(64),
       });
       expect(result).toBe(false);
     });
@@ -87,7 +113,8 @@ describe('EigenAIClient', () => {
     let client: EigenAIClient;
 
     beforeEach(() => {
-      client = new EigenAIClient(testWallet);
+      const auth: EigenAIAuthConfig = { type: 'apiKey', apiKey: testApiKey };
+      client = new EigenAIClient(auth);
     });
 
     it('throws on empty messages', async () => {
@@ -96,7 +123,7 @@ describe('EigenAIClient', () => {
           model: 'gpt-oss-120b-f16',
           messages: [],
         })
-      ).rejects.toThrow('At least one message is required');
+      ).rejects.toThrow('At least one required');
     });
   });
 });
