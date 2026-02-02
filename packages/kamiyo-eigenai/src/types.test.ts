@@ -3,6 +3,12 @@ import {
   EIGENAI_DEFAULTS,
   QUALITY_TIERS,
   LIMITS,
+  PROGRAM_IDS,
+  KAMIYO_MINT,
+  FEE_CREATE_ESCROW,
+  BURN_RATE_BPS,
+  DISCRIMINATORS,
+  EscrowStatus,
 } from './types';
 
 describe('EigenAIError', () => {
@@ -66,12 +72,18 @@ describe('EigenAIError', () => {
       const error = EigenAIError.disputeFailed('already resolved');
       expect(error.code).toBe('DISPUTE_FAILED');
     });
+
+    it('authFailed', () => {
+      const error = EigenAIError.authFailed('invalid signature');
+      expect(error.code).toBe('AUTH_FAILED');
+    });
   });
 });
 
 describe('constants', () => {
   it('EIGENAI_DEFAULTS has expected values', () => {
-    expect(EIGENAI_DEFAULTS.BASE_URL).toContain('eigencloud');
+    expect(EIGENAI_DEFAULTS.BASE_URL).toBe('https://determinal-api.eigenarcade.com');
+    expect(EIGENAI_DEFAULTS.MODEL).toBe('gpt-oss-120b-f16');
     expect(EIGENAI_DEFAULTS.ESCROW_AMOUNT_SOL).toBeGreaterThan(0);
     expect(EIGENAI_DEFAULTS.QUALITY_THRESHOLD).toBeGreaterThanOrEqual(0);
     expect(EIGENAI_DEFAULTS.QUALITY_THRESHOLD).toBeLessThanOrEqual(100);
@@ -95,6 +107,35 @@ describe('constants', () => {
     expect(LIMITS.MIN_TIMEOUT_MS).toBeLessThan(LIMITS.MAX_TIMEOUT_MS);
     expect(LIMITS.MAX_MESSAGES).toBeGreaterThan(0);
     expect(LIMITS.MAX_MESSAGE_LENGTH).toBeGreaterThan(0);
-    expect(LIMITS.MAX_TRANSACTION_ID_LENGTH).toBeGreaterThan(0);
+    expect(LIMITS.SESSION_ID_LENGTH).toBe(32);
+  });
+
+  it('PROGRAM_IDS has valid addresses', () => {
+    expect(PROGRAM_IDS.MAINNET.toBase58()).toBe('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
+    expect(PROGRAM_IDS.DEVNET.toBase58()).toBe('J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY');
+  });
+
+  it('KAMIYO_MINT is correct', () => {
+    expect(KAMIYO_MINT.toBase58()).toBe('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
+  });
+
+  it('fee constants are correct', () => {
+    expect(FEE_CREATE_ESCROW).toBe(50_000_000);
+    expect(BURN_RATE_BPS).toBe(100);
+  });
+
+  it('DISCRIMINATORS have correct length', () => {
+    expect(DISCRIMINATORS.CREATE_ESCROW.length).toBe(8);
+    expect(DISCRIMINATORS.RATE_AND_RELEASE.length).toBe(8);
+    expect(DISCRIMINATORS.MARK_DISPUTED.length).toBe(8);
+    expect(DISCRIMINATORS.FINALIZE_DISPUTE.length).toBe(8);
+  });
+
+  it('EscrowStatus enum has correct values', () => {
+    expect(EscrowStatus.Active).toBe(0);
+    expect(EscrowStatus.Disputed).toBe(1);
+    expect(EscrowStatus.Resolved).toBe(2);
+    expect(EscrowStatus.Released).toBe(3);
+    expect(EscrowStatus.Refunded).toBe(4);
   });
 });

@@ -8,16 +8,26 @@ import {
   LAMPORTS_PER_SOL,
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
+import {
+  TOKEN_2022_PROGRAM_ID,
+  createBurnInstruction,
+  createTransferCheckedInstruction,
+} from '@solana/spl-token';
 import { BN } from '@coral-xyz/anchor';
-import { EigenAIError, EscrowParams, EscrowResult, LIMITS } from './types.js';
+import {
+  EigenAIError,
+  EscrowParams,
+  EscrowResult,
+  ReleaseParams,
+  LIMITS,
+  KAMIYO_MINT,
+  FEE_CREATE_ESCROW,
+  BURN_RATE_BPS,
+  DISCRIMINATORS,
+  EscrowStatus,
+} from './types.js';
 
-const DISCRIMINATORS = {
-  INITIALIZE_ESCROW: Buffer.from([0x3d, 0x2c, 0x1e, 0x4f, 0x5a, 0x6b, 0x7c, 0x8d]),
-  RELEASE_FUNDS: Buffer.from([0x8a, 0x9b, 0xac, 0xbd, 0xce, 0xdf, 0xe0, 0xf1]),
-  MARK_DISPUTED: Buffer.from([0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]),
-} as const;
-
-export type EscrowState = 'active' | 'released' | 'disputed' | 'resolved' | 'unknown';
+export type EscrowState = 'active' | 'disputed' | 'resolved' | 'released' | 'refunded' | 'unknown';
 
 export interface EscrowHandlerConfig {
   connection: Connection;
@@ -25,22 +35,26 @@ export interface EscrowHandlerConfig {
   programId: PublicKey;
 }
 
-export interface EscrowStatus {
+export interface EscrowStatusResult {
   exists: boolean;
   state?: EscrowState;
   balance?: number;
+  qualityScore?: number;
+  refundPercentage?: number;
 }
 
 function parseEscrowState(statusByte: number): EscrowState {
   switch (statusByte) {
-    case 0:
+    case EscrowStatus.Active:
       return 'active';
-    case 1:
-      return 'released';
-    case 2:
+    case EscrowStatus.Disputed:
       return 'disputed';
-    case 3:
+    case EscrowStatus.Resolved:
       return 'resolved';
+    case EscrowStatus.Released:
+      return 'released';
+    case EscrowStatus.Refunded:
+      return 'refunded';
     default:
       return 'unknown';
   }
@@ -57,94 +71,114 @@ export class EscrowHandler {
     this.programId = config.programId;
   }
 
-  deriveEscrowPDA(agent: PublicKey, transactionId: string): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from('escrow'), agent.toBuffer(), Buffer.from(transactionId)],
-      this.programId
-    );
-  }
-
-  private deriveProtocolConfigPDA(): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from('protocol_config')],
-      this.programId
-    );
-  }
-
-  private deriveFeeVaultPDA(): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync([Buffer.from('fee_vault')], this.programId);
-  }
-
-  private buildInitializeEscrowInstruction(params: EscrowParams): TransactionInstruction {
-    if (params.transactionId.length > LIMITS.MAX_TRANSACTION_ID_LENGTH) {
-      throw EigenAIError.invalidInput('transactionId', `Exceeds ${LIMITS.MAX_TRANSACTION_ID_LENGTH} bytes`);
+  deriveEscrowPDA(user: PublicKey, sessionId: Uint8Array): [PublicKey, number] {
+    if (sessionId.length !== LIMITS.SESSION_ID_LENGTH) {
+      throw EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`);
     }
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('escrow'), user.toBuffer(), Buffer.from(sessionId)],
+      this.programId
+    );
+  }
 
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, params.transactionId);
-    const [protocolConfigPda] = this.deriveProtocolConfigPDA();
-    const [feeVaultPda] = this.deriveFeeVaultPDA();
+  private deriveTokenTreasuryPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('token_treasury')],
+      this.programId
+    );
+  }
 
-    const transactionIdBytes = Buffer.from(params.transactionId);
+  private buildCreateEscrowInstruction(
+    params: EscrowParams,
+    escrowPda: PublicKey,
+    escrowBump: number
+  ): TransactionInstruction[] {
+    const [tokenTreasuryPda] = this.deriveTokenTreasuryPDA();
     const amountLamports = Math.floor(params.amount * LAMPORTS_PER_SOL);
 
+    const burnAmount = BigInt(FEE_CREATE_ESCROW) * BigInt(BURN_RATE_BPS) / 10000n;
+    const treasuryAmount = BigInt(FEE_CREATE_ESCROW) - burnAmount;
+
+    const instructions: TransactionInstruction[] = [];
+
+    instructions.push(
+      createBurnInstruction(
+        params.userTokenAccount,
+        KAMIYO_MINT,
+        this.wallet.publicKey,
+        burnAmount,
+        [],
+        TOKEN_2022_PROGRAM_ID
+      )
+    );
+
+    instructions.push(
+      createTransferCheckedInstruction(
+        params.userTokenAccount,
+        KAMIYO_MINT,
+        tokenTreasuryPda,
+        this.wallet.publicKey,
+        treasuryAmount,
+        6,
+        [],
+        TOKEN_2022_PROGRAM_ID
+      )
+    );
+
     const data = Buffer.concat([
-      DISCRIMINATORS.INITIALIZE_ESCROW,
+      DISCRIMINATORS.CREATE_ESCROW,
+      Buffer.from(params.sessionId),
       new BN(amountLamports).toArrayLike(Buffer, 'le', 8),
-      new BN(params.timeLockSeconds).toArrayLike(Buffer, 'le', 8),
-      Buffer.from([transactionIdBytes.length, 0, 0, 0]),
-      transactionIdBytes,
-      Buffer.from([0]),
+    ]);
+
+    instructions.push(
+      new TransactionInstruction({
+        keys: [
+          { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: params.treasury, isSigner: false, isWritable: false },
+          { pubkey: escrowPda, isSigner: false, isWritable: true },
+          { pubkey: KAMIYO_MINT, isSigner: false, isWritable: true },
+          { pubkey: params.userTokenAccount, isSigner: false, isWritable: true },
+          { pubkey: tokenTreasuryPda, isSigner: false, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        ],
+        programId: this.programId,
+        data,
+      })
+    );
+
+    return instructions;
+  }
+
+  private buildRateAndReleaseInstruction(
+    params: ReleaseParams,
+    escrowPda: PublicKey
+  ): TransactionInstruction {
+    const data = Buffer.concat([
+      DISCRIMINATORS.RATE_AND_RELEASE,
+      Buffer.from([params.rating]),
     ]);
 
     return new TransactionInstruction({
       keys: [
-        { pubkey: escrowPda, isSigner: false, isWritable: true },
         { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-        { pubkey: params.provider, isSigner: false, isWritable: false },
-        { pubkey: protocolConfigPda, isSigner: false, isWritable: true },
-        { pubkey: feeVaultPda, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: params.treasury, isSigner: false, isWritable: true },
+        { pubkey: escrowPda, isSigner: false, isWritable: true },
       ],
       programId: this.programId,
       data,
     });
   }
 
-  private buildReleaseFundsInstruction(
-    transactionId: string,
-    provider: PublicKey
+  private buildMarkDisputedInstruction(
+    sessionId: Uint8Array,
+    escrowPda: PublicKey
   ): TransactionInstruction {
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
-
     return new TransactionInstruction({
       keys: [
+        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: false },
         { pubkey: escrowPda, isSigner: false, isWritable: true },
-        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-        { pubkey: provider, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      programId: this.programId,
-      data: DISCRIMINATORS.RELEASE_FUNDS,
-    });
-  }
-
-  private buildMarkDisputedInstruction(transactionId: string): TransactionInstruction {
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
-    const [reputationPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('reputation'), this.wallet.publicKey.toBuffer()],
-      this.programId
-    );
-    const [protocolConfigPda] = this.deriveProtocolConfigPDA();
-    const [feeVaultPda] = this.deriveFeeVaultPDA();
-
-    return new TransactionInstruction({
-      keys: [
-        { pubkey: escrowPda, isSigner: false, isWritable: true },
-        { pubkey: reputationPda, isSigner: false, isWritable: true },
-        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-        { pubkey: protocolConfigPda, isSigner: false, isWritable: true },
-        { pubkey: feeVaultPda, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
       data: DISCRIMINATORS.MARK_DISPUTED,
@@ -152,10 +186,16 @@ export class EscrowHandler {
   }
 
   async create(params: EscrowParams): Promise<EscrowResult> {
-    if (!params.transactionId || params.transactionId.length > LIMITS.MAX_TRANSACTION_ID_LENGTH) {
+    if (params.sessionId.length !== LIMITS.SESSION_ID_LENGTH) {
       return {
         success: false,
-        error: EigenAIError.invalidInput('transactionId', 'Invalid or missing transaction ID'),
+        error: EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`),
+      };
+    }
+    if (typeof params.amount !== 'number' || isNaN(params.amount) || params.amount <= 0) {
+      return {
+        success: false,
+        error: EigenAIError.invalidInput('amount', 'Must be a positive number'),
       };
     }
     if (params.amount < LIMITS.MIN_ESCROW_SOL || params.amount > LIMITS.MAX_ESCROW_SOL) {
@@ -164,26 +204,26 @@ export class EscrowHandler {
         error: EigenAIError.invalidInput('amount', `Must be between ${LIMITS.MIN_ESCROW_SOL} and ${LIMITS.MAX_ESCROW_SOL} SOL`),
       };
     }
-    if (params.timeLockSeconds < LIMITS.MIN_TIME_LOCK_SECONDS || params.timeLockSeconds > LIMITS.MAX_TIME_LOCK_SECONDS) {
+    if (!PublicKey.isOnCurve(params.treasury)) {
       return {
         success: false,
-        error: EigenAIError.invalidInput('timeLockSeconds', `Must be between ${LIMITS.MIN_TIME_LOCK_SECONDS} and ${LIMITS.MAX_TIME_LOCK_SECONDS} seconds`),
+        error: EigenAIError.invalidInput('treasury', 'Invalid treasury public key'),
       };
     }
 
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, params.transactionId);
+    const [escrowPda, bump] = this.deriveEscrowPDA(this.wallet.publicKey, params.sessionId);
     const existing = await this.connection.getAccountInfo(escrowPda);
     if (existing) {
       return {
         success: false,
         escrowPda,
-        error: EigenAIError.escrowFailed('Escrow with this transaction ID already exists'),
+        error: EigenAIError.escrowFailed('Escrow with this session ID already exists'),
       };
     }
 
     try {
-      const instruction = this.buildInitializeEscrowInstruction(params);
-      const transaction = new Transaction().add(instruction);
+      const instructions = this.buildCreateEscrowInstruction(params, escrowPda, bump);
+      const transaction = new Transaction().add(...instructions);
       const signature = await sendAndConfirmTransaction(
         this.connection,
         transaction,
@@ -195,7 +235,7 @@ export class EscrowHandler {
         success: true,
         signature,
         escrowPda,
-        transactionId: params.transactionId,
+        sessionId: params.sessionId,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -212,9 +252,28 @@ export class EscrowHandler {
     }
   }
 
-  async release(transactionId: string, provider: PublicKey): Promise<EscrowResult> {
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
-    const status = await this.getStatus(transactionId);
+  async rateAndRelease(params: ReleaseParams): Promise<EscrowResult> {
+    if (params.sessionId.length !== LIMITS.SESSION_ID_LENGTH) {
+      return {
+        success: false,
+        error: EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`),
+      };
+    }
+    if (!Number.isInteger(params.rating) || params.rating < 1 || params.rating > 5) {
+      return {
+        success: false,
+        error: EigenAIError.invalidInput('rating', 'Must be an integer between 1 and 5'),
+      };
+    }
+    if (!PublicKey.isOnCurve(params.treasury)) {
+      return {
+        success: false,
+        error: EigenAIError.invalidInput('treasury', 'Invalid treasury public key'),
+      };
+    }
+
+    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, params.sessionId);
+    const status = await this.getStatus(params.sessionId);
     if (!status.exists) {
       return {
         success: false,
@@ -231,7 +290,7 @@ export class EscrowHandler {
     }
 
     try {
-      const instruction = this.buildReleaseFundsInstruction(transactionId, provider);
+      const instruction = this.buildRateAndReleaseInstruction(params, escrowPda);
       const transaction = new Transaction().add(instruction);
       const signature = await sendAndConfirmTransaction(
         this.connection,
@@ -244,7 +303,7 @@ export class EscrowHandler {
         success: true,
         signature,
         escrowPda,
-        transactionId,
+        sessionId: params.sessionId,
       };
     } catch (error) {
       return {
@@ -258,9 +317,16 @@ export class EscrowHandler {
     }
   }
 
-  async dispute(transactionId: string): Promise<EscrowResult> {
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
-    const status = await this.getStatus(transactionId);
+  async dispute(sessionId: Uint8Array): Promise<EscrowResult> {
+    if (sessionId.length !== LIMITS.SESSION_ID_LENGTH) {
+      return {
+        success: false,
+        error: EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`),
+      };
+    }
+
+    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, sessionId);
+    const status = await this.getStatus(sessionId);
     if (!status.exists) {
       return {
         success: false,
@@ -272,7 +338,7 @@ export class EscrowHandler {
       return {
         success: true,
         escrowPda,
-        transactionId,
+        sessionId,
       };
     }
     if (status.state !== 'active') {
@@ -284,7 +350,7 @@ export class EscrowHandler {
     }
 
     try {
-      const instruction = this.buildMarkDisputedInstruction(transactionId);
+      const instruction = this.buildMarkDisputedInstruction(sessionId, escrowPda);
       const transaction = new Transaction().add(instruction);
 
       const signature = await sendAndConfirmTransaction(
@@ -298,7 +364,7 @@ export class EscrowHandler {
         success: true,
         signature,
         escrowPda,
-        transactionId,
+        sessionId,
       };
     } catch (error) {
       return {
@@ -312,25 +378,39 @@ export class EscrowHandler {
     }
   }
 
-  async getStatus(transactionId: string): Promise<EscrowStatus> {
-    const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, transactionId);
-    const info = await this.connection.getAccountInfo(escrowPda);
+  async getStatus(sessionId: Uint8Array): Promise<EscrowStatusResult> {
+    try {
+      const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, sessionId);
+      const info = await this.connection.getAccountInfo(escrowPda);
 
-    if (!info) {
-      return { exists: false };
-    }
+      if (!info) {
+        return { exists: false };
+      }
 
     const balance = info.lamports / LAMPORTS_PER_SOL;
+
     let state: EscrowState = 'unknown';
-    if (info.data.length >= 97) {
-      state = parseEscrowState(info.data[96]);
+    let qualityScore: number | undefined;
+    let refundPercentage: number | undefined;
+
+    if (info.data.length >= 122) {
+      state = parseEscrowState(info.data[121]);
     }
 
-    return { exists: true, state, balance };
+    return { exists: true, state, balance, qualityScore, refundPercentage };
+    } catch {
+      return { exists: false };
+    }
   }
 
   async getBalance(): Promise<number> {
     const lamports = await this.connection.getBalance(this.wallet.publicKey);
     return lamports / LAMPORTS_PER_SOL;
+  }
+
+  generateSessionId(): Uint8Array {
+    const sessionId = new Uint8Array(LIMITS.SESSION_ID_LENGTH);
+    crypto.getRandomValues(sessionId);
+    return sessionId;
   }
 }

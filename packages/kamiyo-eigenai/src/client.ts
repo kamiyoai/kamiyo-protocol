@@ -7,6 +7,7 @@ import {
   InferenceResult,
   EscrowParams,
   EscrowResult,
+  ReleaseParams,
   DisputeEvidence,
   EigenAIError,
   EigenAIAttestation,
@@ -14,12 +15,6 @@ import {
   QUALITY_TIERS,
   LIMITS,
 } from './types.js';
-
-function generateTransactionId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `eigenai-${timestamp}-${random}`;
-}
 
 function validateInferenceParams(params: InferenceParams): void {
   if (!params.messages?.length) {
@@ -55,8 +50,8 @@ function validateInferenceParams(params: InferenceParams): void {
       throw EigenAIError.invalidInput('timeoutMs', `Maximum ${LIMITS.MAX_TIMEOUT_MS}ms`);
     }
   }
-  if (params.transactionId && params.transactionId.length > LIMITS.MAX_TRANSACTION_ID_LENGTH) {
-    throw EigenAIError.invalidInput('transactionId', `Maximum ${LIMITS.MAX_TRANSACTION_ID_LENGTH} characters`);
+  if (params.sessionId && params.sessionId.length !== LIMITS.SESSION_ID_LENGTH) {
+    throw EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`);
   }
   if (params.qualityThreshold !== undefined && (params.qualityThreshold < 0 || params.qualityThreshold > 100)) {
     throw EigenAIError.invalidInput('qualityThreshold', 'Must be between 0 and 100');
@@ -84,17 +79,15 @@ export class KamiyoEigenAI {
   private readonly activeEscrows = new Map<
     string,
     {
-      provider: PublicKey;
+      sessionId: Uint8Array;
+      treasury: PublicKey;
       attestation?: EigenAIAttestation;
       prompt: string;
+      output?: string;
     }
   >();
 
   constructor(config: KamiyoEigenAIConfig) {
-    if (!config.eigenAiApiKey) {
-      throw EigenAIError.invalidInput('eigenAiApiKey', 'API key is required');
-    }
-
     this.config = {
       ...config,
       defaultEscrowAmount: config.defaultEscrowAmount ?? EIGENAI_DEFAULTS.ESCROW_AMOUNT_SOL,
@@ -107,7 +100,7 @@ export class KamiyoEigenAI {
     };
 
     this.eigenAi = new EigenAIClient(
-      config.eigenAiApiKey,
+      config.wallet,
       config.eigenAiBaseUrl,
       this.config.defaultTimeoutMs
     );
@@ -119,15 +112,18 @@ export class KamiyoEigenAI {
     });
   }
 
-  async inferenceWithEscrow(params: InferenceParams): Promise<InferenceResult> {
+  async inferenceWithEscrow(
+    params: InferenceParams,
+    userTokenAccount: PublicKey,
+    treasury: PublicKey
+  ): Promise<InferenceResult> {
     validateInferenceParams(params);
 
     const startTime = Date.now();
-    const transactionId = params.transactionId || generateTransactionId();
-    const provider = params.provider || this.config.wallet.publicKey;
+    const sessionId = params.sessionId || this.escrow.generateSessionId();
+    const escrowId = Buffer.from(sessionId).toString('hex');
     const escrowAmount = params.escrowAmount || this.config.defaultEscrowAmount;
     const qualityThreshold = params.qualityThreshold ?? this.config.defaultQualityThreshold;
-    const timeLockSeconds = params.timeLockSeconds ?? this.config.defaultTimeLockSeconds;
     const timeoutMs = params.timeoutMs ?? this.config.defaultTimeoutMs;
 
     const balance = await this.escrow.getBalance();
@@ -140,22 +136,22 @@ export class KamiyoEigenAI {
 
     this.log(`Creating escrow: ${escrowAmount} SOL`);
     const escrowResult = await this.escrow.create({
-      provider,
+      sessionId,
       amount: escrowAmount,
-      timeLockSeconds,
-      transactionId,
+      treasury,
+      userTokenAccount,
     });
 
     if (!escrowResult.success) {
       return {
         success: false,
-        escrowId: transactionId,
+        escrowId,
         error: escrowResult.error,
       };
     }
 
     const promptText = params.messages.map((m) => m.content).join('\n');
-    this.activeEscrows.set(transactionId, { provider, prompt: promptText });
+    this.activeEscrows.set(escrowId, { sessionId, treasury, prompt: promptText });
 
     let inferenceResponse: InferenceResponse;
     try {
@@ -166,12 +162,14 @@ export class KamiyoEigenAI {
         temperature: params.temperature,
         maxTokens: params.maxTokens,
         timeoutMs,
+        seed: params.seed,
       });
     } catch (error) {
       this.log(`EigenAI failed: ${error}`);
+      this.activeEscrows.delete(escrowId);
       return {
         success: false,
-        escrowId: transactionId,
+        escrowId,
         escrowPda: escrowResult.escrowPda,
         latencyMs: Date.now() - startTime,
         error:
@@ -181,19 +179,21 @@ export class KamiyoEigenAI {
       };
     }
 
-    const escrowData = this.activeEscrows.get(transactionId);
+    const escrowData = this.activeEscrows.get(escrowId);
     if (escrowData) {
       escrowData.attestation = inferenceResponse.attestation;
+      escrowData.output = inferenceResponse.content;
     }
 
     const attestationValid = await this.eigenAi.verifyAttestation(inferenceResponse.attestation);
     if (!attestationValid) {
-      this.log(`Invalid attestation for ${transactionId}`);
+      this.log(`Invalid attestation for ${escrowId}`);
+      this.activeEscrows.delete(escrowId);
       return {
         success: false,
         response: inferenceResponse.content,
         attestation: inferenceResponse.attestation,
-        escrowId: transactionId,
+        escrowId,
         escrowPda: escrowResult.escrowPda,
         latencyMs: Date.now() - startTime,
         error: EigenAIError.attestationInvalid('Verification failed'),
@@ -201,19 +201,18 @@ export class KamiyoEigenAI {
     }
 
     const latencyMs = Date.now() - startTime;
-
     const autoRelease = qualityThreshold <= 0;
 
     if (autoRelease) {
-      this.log(`Auto-releasing escrow: ${transactionId}`);
-      await this.escrow.release(transactionId, provider);
-      this.activeEscrows.delete(transactionId);
+      this.log(`Auto-releasing escrow: ${escrowId}`);
+      await this.escrow.rateAndRelease({ sessionId, rating: 5, treasury });
+      this.activeEscrows.delete(escrowId);
 
       return {
         success: true,
         response: inferenceResponse.content,
         attestation: inferenceResponse.attestation,
-        escrowId: transactionId,
+        escrowId,
         escrowPda: escrowResult.escrowPda,
         autoReleased: true,
         latencyMs,
@@ -224,7 +223,7 @@ export class KamiyoEigenAI {
       success: true,
       response: inferenceResponse.content,
       attestation: inferenceResponse.attestation,
-      escrowId: transactionId,
+      escrowId,
       escrowPda: escrowResult.escrowPda,
       autoReleased: false,
       latencyMs,
@@ -244,10 +243,11 @@ export class KamiyoEigenAI {
       temperature: params.temperature,
       maxTokens: params.maxTokens,
       timeoutMs: params.timeoutMs ?? this.config.defaultTimeoutMs,
+      seed: params.seed,
     });
   }
 
-  async releaseEscrow(escrowId: string): Promise<EscrowResult> {
+  async releaseEscrow(escrowId: string, rating: number): Promise<EscrowResult> {
     const escrowData = this.activeEscrows.get(escrowId);
     if (!escrowData) {
       return {
@@ -256,7 +256,12 @@ export class KamiyoEigenAI {
       };
     }
 
-    const result = await this.escrow.release(escrowId, escrowData.provider);
+    const result = await this.escrow.rateAndRelease({
+      sessionId: escrowData.sessionId,
+      rating,
+      treasury: escrowData.treasury,
+    });
+
     if (result.success) {
       this.activeEscrows.delete(escrowId);
     }
@@ -272,7 +277,7 @@ export class KamiyoEigenAI {
       };
     }
 
-    return this.escrow.dispute(escrowId);
+    return this.escrow.dispute(escrowData.sessionId);
   }
 
   getDisputeEvidence(escrowId: string): DisputeEvidence | null {
@@ -284,12 +289,16 @@ export class KamiyoEigenAI {
     return {
       attestation: escrowData.attestation,
       prompt: escrowData.prompt,
-      output: '',
+      output: escrowData.output || '',
     };
   }
 
   async getEscrowStatus(escrowId: string) {
-    return this.escrow.getStatus(escrowId);
+    const escrowData = this.activeEscrows.get(escrowId);
+    if (!escrowData) {
+      return { exists: false };
+    }
+    return this.escrow.getStatus(escrowData.sessionId);
   }
 
   async getBalance(): Promise<number> {
@@ -311,6 +320,10 @@ export class KamiyoEigenAI {
       return { tier: 'poor', refundPercent: QUALITY_TIERS.POOR.refundPercent };
     }
     return { tier: 'failed', refundPercent: QUALITY_TIERS.FAILED.refundPercent };
+  }
+
+  generateSessionId(): Uint8Array {
+    return this.escrow.generateSessionId();
   }
 
   private log(message: string): void {
