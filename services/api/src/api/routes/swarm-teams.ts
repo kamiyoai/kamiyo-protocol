@@ -153,14 +153,20 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // DELETE /api/swarm-teams/:id - requires owner
+// Returns pool balance for client-side refund transfer
 router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
   const teamId = req.params.id;
 
-  const team = db.prepare('SELECT id FROM swarm_teams WHERE id = ?').get(teamId);
+  const team = db.prepare('SELECT id, pool_balance, currency FROM swarm_teams WHERE id = ?').get(teamId) as {
+    id: string; pool_balance: number; currency: string;
+  } | undefined;
   if (!team) {
     res.status(404).json({ error: 'Team not found' });
     return;
   }
+
+  const refundAmount = team.pool_balance;
+  const currency = team.currency;
 
   // Use transaction for atomic cascade delete
   const deleteAll = db.transaction(() => {
@@ -174,7 +180,7 @@ router.delete('/:id', requireTeamOwner, (req: Request, res: Response) => {
   });
   deleteAll();
 
-  res.json({ success: true });
+  res.json({ success: true, refundAmount, currency });
 });
 
 // POST /api/swarm-teams/:id/members - requires owner
