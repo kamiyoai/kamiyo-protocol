@@ -111,7 +111,7 @@ describe('constants', () => {
   });
 
   it('PROGRAM_IDS has valid addresses', () => {
-    expect(PROGRAM_IDS.MAINNET.toBase58()).toBe('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
+    expect(PROGRAM_IDS.MAINNET.toBase58()).toBe('FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u');
     expect(PROGRAM_IDS.DEVNET.toBase58()).toBe('EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT');
   });
 
