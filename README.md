@@ -253,6 +253,8 @@ anchor test
 npm run build --workspaces
 ```
 
+See [BUILD.md](BUILD.md) for detailed setup, prerequisites, and troubleshooting.
+
 ## Program Addresses
 
 ### Solana
