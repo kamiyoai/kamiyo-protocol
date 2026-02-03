@@ -1,17 +1,17 @@
-// Trust graph visualization routes
+// Trust graph visualization routes - DKG-powered
 
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import { logger } from '../../logger';
+import {
+  AgentParanetClient,
+  sparqlQueries,
+  scoreToTierName,
+} from '@kamiyo/agent-paranet';
 
 const router: IRouter = Router();
 
 // Trust graph tiers (visual representation)
-// oracle: highest trust, verified track record
-// sentinel: high trust, reliable performance
-// architect: established trust, consistent quality
-// scout: emerging trust, building reputation
-// ghost: unverified, no established reputation
 type Tier = 'oracle' | 'sentinel' | 'architect' | 'scout' | 'ghost';
 
 interface TrustNode {
@@ -35,7 +35,137 @@ interface TrustGraphStats {
   tierCounts: Record<Tier, number>;
 }
 
-// Mock trust graph data
+// Map kamiyo tier names to visualization tiers
+function mapTier(tierName: string): Tier {
+  const mapping: Record<string, Tier> = {
+    platinum: 'oracle',
+    gold: 'sentinel',
+    silver: 'architect',
+    bronze: 'scout',
+    unverified: 'ghost',
+  };
+  return mapping[tierName.toLowerCase()] || 'ghost';
+}
+
+// Lazy-initialized DKG client
+let dkgClient: AgentParanetClient | null = null;
+
+type BlockchainId = 'base:8453' | 'gnosis:100' | 'otp:2043';
+
+function getBlockchainId(): BlockchainId {
+  const env = process.env.DKG_BLOCKCHAIN;
+  if (env === 'gnosis:100' || env === 'otp:2043') return env;
+  return 'base:8453';
+}
+
+async function getDKGClient(): Promise<AgentParanetClient | null> {
+  if (dkgClient) return dkgClient;
+
+  const endpoint = process.env.DKG_ENDPOINT;
+  if (!endpoint) {
+    logger.warn('DKG_ENDPOINT not configured, using mock data');
+    return null;
+  }
+
+  try {
+    dkgClient = await AgentParanetClient.create({
+      dkgEndpoint: endpoint,
+      dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
+      blockchain: getBlockchainId(),
+      privateKey: process.env.DKG_PRIVATE_KEY,
+    });
+    logger.info('DKG client initialized for trust-graph');
+    return dkgClient;
+  } catch (err) {
+    logger.error('Failed to initialize DKG client', { error: String(err) });
+    return null;
+  }
+}
+
+// Fetch nodes and edges from DKG
+async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEdge[] }> {
+  const client = await getDKGClient();
+  if (!client) {
+    return { nodes: MOCK_NODES, edges: MOCK_EDGES };
+  }
+
+  try {
+    const dkg = client.rawDKG;
+
+    // Query all providers with reputation data
+    const providerQuery = sparqlQueries.queryTopProviders({ limit: 100, minQuality: 0, minTasks: 0 });
+    const providerResult = await dkg.graph.query(providerQuery, 'SELECT');
+
+    const nodes: TrustNode[] = [];
+    const nodeIds = new Set<string>();
+
+    if (providerResult.data && Array.isArray(providerResult.data)) {
+      for (const item of providerResult.data) {
+        const row = item as Record<string, unknown>;
+        const id = String(row.provider || '').replace('urn:erc8004:', '');
+        if (!id || nodeIds.has(id)) continue;
+        nodeIds.add(id);
+
+        const avgQuality = Number(row.avgQuality) || 0;
+        const taskCount = Number(row.taskCount) || 0;
+        const tierName = scoreToTierName(avgQuality);
+
+        nodes.push({
+          id,
+          label: id.slice(0, 16) + '...',
+          tier: mapTier(tierName),
+          reputation: Math.round(avgQuality),
+          txCount: taskCount,
+        });
+      }
+    }
+
+    // Query trust relationships for edges
+    const edges: TrustEdge[] = [];
+    const edgeSet = new Set<string>();
+
+    for (const node of nodes.slice(0, 20)) {
+      try {
+        const trustQuery = sparqlQueries.queryOutgoingTrust(node.id);
+        const trustResult = await dkg.graph.query(trustQuery, 'SELECT');
+
+        if (trustResult.data && Array.isArray(trustResult.data)) {
+          for (const item of trustResult.data) {
+            const row = item as Record<string, unknown>;
+            const target = String(row.trustee || '').replace('urn:erc8004:', '');
+            const weight = Number(row.trustLevel) || 50;
+
+            if (!target || !nodeIds.has(target)) continue;
+
+            const edgeKey = `${node.id}:${target}`;
+            if (edgeSet.has(edgeKey)) continue;
+            edgeSet.add(edgeKey);
+
+            edges.push({
+              source: node.id,
+              target,
+              weight: Math.round(weight),
+            });
+          }
+        }
+      } catch {
+        // Skip failed trust queries
+      }
+    }
+
+    if (nodes.length === 0) {
+      logger.warn('No nodes from DKG, falling back to mock data');
+      return { nodes: MOCK_NODES, edges: MOCK_EDGES };
+    }
+
+    return { nodes, edges };
+  } catch (err) {
+    logger.error('Failed to fetch graph from DKG', { error: String(err) });
+    return { nodes: MOCK_NODES, edges: MOCK_EDGES };
+  }
+}
+
+// Mock trust graph data (fallback)
 const MOCK_NODES: TrustNode[] = [
   { id: 'agent-001', label: 'Oracle Agent', tier: 'oracle', reputation: 95, txCount: 1247 },
   { id: 'agent-002', label: 'Data Fetcher', tier: 'sentinel', reputation: 82, txCount: 856 },
@@ -119,7 +249,6 @@ function filterGraphByDepth(
     const { id, d } = queue.shift()!;
     if (d >= depth) continue;
 
-    // Find connected nodes
     for (const edge of edges) {
       let neighborId: string | null = null;
       if (edge.source === id && !visited.has(edge.target)) {
@@ -143,14 +272,32 @@ function filterGraphByDepth(
   return { nodes: filteredNodes, edges: filteredEdges };
 }
 
+// Cache for graph data (refresh every 5 minutes)
+let graphCache: { nodes: TrustNode[]; edges: TrustEdge[]; timestamp: number } | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getCachedGraph(): Promise<{ nodes: TrustNode[]; edges: TrustEdge[] }> {
+  if (graphCache && Date.now() - graphCache.timestamp < CACHE_TTL_MS) {
+    return { nodes: graphCache.nodes, edges: graphCache.edges };
+  }
+
+  const { nodes, edges } = await fetchGraphFromDKG();
+  graphCache = { nodes, edges, timestamp: Date.now() };
+  return { nodes, edges };
+}
+
 // GET /api/trust-graph
 router.get('/', async (req: Request, res: Response) => {
   const center = req.query.center as string | undefined;
   const depth = Math.min(Math.max(parseInt(req.query.depth as string) || 3, 1), 10);
+  const refresh = req.query.refresh === 'true';
 
   try {
-    let nodes = MOCK_NODES;
-    let edges = MOCK_EDGES;
+    if (refresh) {
+      graphCache = null;
+    }
+
+    let { nodes, edges } = await getCachedGraph();
 
     // Filter by center node and depth if specified
     if (center) {
@@ -160,6 +307,7 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const stats = computeStats(nodes, edges);
+    const usingDKG = !!process.env.DKG_ENDPOINT;
 
     res.json({
       nodes,
@@ -169,6 +317,7 @@ router.get('/', async (req: Request, res: Response) => {
         center: center || null,
         depth,
       },
+      source: usingDKG ? 'dkg' : 'mock',
     });
   } catch (err) {
     logger.error('Failed to fetch trust graph', { error: String(err) });
@@ -182,7 +331,9 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/node/:id', async (req: Request, res: Response) => {
   const nodeId = req.params.id;
 
-  const node = MOCK_NODES.find(n => n.id === nodeId);
+  const { nodes, edges } = await getCachedGraph();
+  const node = nodes.find(n => n.id === nodeId);
+
   if (!node) {
     res.status(404).json({
       error: { code: 'NOT_FOUND', message: 'Node not found' },
@@ -191,7 +342,7 @@ router.get('/node/:id', async (req: Request, res: Response) => {
   }
 
   // Find connected edges
-  const connections = MOCK_EDGES.filter(
+  const connections = edges.filter(
     e => e.source === nodeId || e.target === nodeId
   ).map(e => ({
     ...e,
@@ -201,7 +352,7 @@ router.get('/node/:id', async (req: Request, res: Response) => {
 
   // Get peer node details
   const peers = connections.map(c => {
-    const peer = MOCK_NODES.find(n => n.id === c.peerId);
+    const peer = nodes.find(n => n.id === c.peerId);
     return {
       ...c,
       peer: peer ? { id: peer.id, label: peer.label, tier: peer.tier } : null,
@@ -225,12 +376,11 @@ const TIER_COLORS: Record<Tier, string> = {
 };
 
 // GET /api/trust-graph/image - Generate SVG preview for OG image
-router.get('/image', async (req: Request, res: Response) => {
+router.get('/image', async (_req: Request, res: Response) => {
   const width = 1200;
   const height = 630;
 
-  const nodes = MOCK_NODES;
-  const edges = MOCK_EDGES;
+  const { nodes, edges } = await getCachedGraph();
   const stats = computeStats(nodes, edges);
 
   // Simple force-directed layout
@@ -289,14 +439,16 @@ router.get('/image', async (req: Request, res: Response) => {
   svg += '</svg>';
 
   res.setHeader('Content-Type', 'image/svg+xml');
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Cache-Control', 'public, max-age=300');
   res.send(svg);
 });
 
 // GET /api/trust-graph/stats - Just stats for quick display
 router.get('/stats', async (_req: Request, res: Response) => {
-  const stats = computeStats(MOCK_NODES, MOCK_EDGES);
-  res.json(stats);
+  const { nodes, edges } = await getCachedGraph();
+  const stats = computeStats(nodes, edges);
+  const usingDKG = !!process.env.DKG_ENDPOINT;
+  res.json({ ...stats, source: usingDKG ? 'dkg' : 'mock' });
 });
 
 export default router;
