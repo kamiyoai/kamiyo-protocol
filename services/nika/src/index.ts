@@ -65,8 +65,8 @@ async function validateConnections(config: ReturnType<typeof getConfig>): Promis
       throw new Error('get_user tool not found');
     }
 
-    // Fetch authenticated user to validate credentials
-    const result = await getUserTool.handler({});
+    // Fetch configured user to validate credentials
+    const result = await getUserTool.handler({ username: config.TWITTER_HANDLE });
     if (!result.success) {
       throw new Error(`Twitter validation failed: ${result.error}`);
     }
