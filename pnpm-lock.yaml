@@ -1753,6 +1753,40 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  services/agent-factory:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.52.0
+        version: 0.52.0
+      '@kamiyo/agents':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-agents
+      '@kamiyo/sdk':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-sdk
+      '@kamiyo/solana-privacy':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-solana-privacy
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      zod:
+        specifier: ^4.0.0
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.19.5
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   services/api:
     dependencies:
       '@anthropic-ai/sdk':
