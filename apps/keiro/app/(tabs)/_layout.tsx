@@ -1,5 +1,23 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View, Text, StyleSheet } from 'react-native';
+
+function TabIcon({ name, focused }: { name: string; focused: boolean }) {
+  const icons: Record<string, string> = {
+    home: '🏠',
+    jobs: '💼',
+    earnings: '💰',
+    reputation: '⭐',
+    settings: '⚙️',
+  };
+
+  return (
+    <View style={styles.iconContainer}>
+      <Text style={[styles.icon, focused && styles.iconFocused]}>
+        {icons[name] || '•'}
+      </Text>
+    </View>
+  );
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -8,16 +26,20 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         tabBarActiveTintColor: '#8b5cf6',
         tabBarInactiveTintColor: isDark ? '#6b7280' : '#9ca3af',
         tabBarStyle: {
           backgroundColor: isDark ? '#000' : '#fff',
           borderTopColor: isDark ? '#1f2937' : '#e5e7eb',
+          height: 84,
+          paddingTop: 8,
+          paddingBottom: 24,
         },
-        headerStyle: {
-          backgroundColor: isDark ? '#000' : '#fff',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
         },
-        headerTintColor: isDark ? '#fff' : '#000',
       }}
     >
       <Tabs.Screen
@@ -25,6 +47,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarLabel: 'Home',
+          tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -32,6 +55,7 @@ export default function TabLayout() {
         options={{
           title: 'Jobs',
           tabBarLabel: 'Jobs',
+          tabBarIcon: ({ focused }) => <TabIcon name="jobs" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -39,6 +63,9 @@ export default function TabLayout() {
         options={{
           title: 'Earnings',
           tabBarLabel: 'Earnings',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="earnings" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -46,8 +73,35 @@ export default function TabLayout() {
         options={{
           title: 'Reputation',
           tabBarLabel: 'Reputation',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="reputation" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarLabel: 'Settings',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="settings" focused={focused} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    fontSize: 22,
+    opacity: 0.6,
+  },
+  iconFocused: {
+    opacity: 1,
+  },
+});
