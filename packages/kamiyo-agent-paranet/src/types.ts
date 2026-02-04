@@ -207,7 +207,7 @@ export interface DKGClient {
   asset: {
     create(
       content: { public: object; private?: object },
-      options?: { epochs?: number; paranetUAL?: string }
+      options?: { epochsNum?: number; paranetUAL?: string }
     ): Promise<{ UAL: string }>;
     get(ual: string): Promise<{ public: object; private?: object }>;
     update(ual: string, content: { public?: object; private?: object }): Promise<{ UAL: string }>;
