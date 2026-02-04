@@ -32,6 +32,7 @@ export {
 // Phase 4: DKG + Identity
 export { CollectiveMemory } from './services/collective-memory.js';
 export { IdentityResolver } from './services/identity-resolver.js';
+export { ReputationPublisher } from './services/reputation-publisher.js';
 
 // Phase 5: Viral Moments
 export { FirstTransactionCampaign } from './campaigns/first-transaction.js';

@@ -240,6 +240,17 @@ CREATE INDEX IF NOT EXISTS idx_conversation_threads_active ON conversation_threa
 CREATE INDEX IF NOT EXISTS idx_goals_type ON goals(type);
 CREATE INDEX IF NOT EXISTS idx_weekly_metrics_week ON weekly_metrics(week_start);
 CREATE INDEX IF NOT EXISTS idx_engagement_log_post ON engagement_log(post_id);
+
+-- DKG TaskCompletion Publishing: Track posts published to DKG as TaskCompletions
+CREATE TABLE IF NOT EXISTS published_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT UNIQUE NOT NULL,
+  task_ual TEXT,
+  quality_score INTEGER NOT NULL,
+  published_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_published_tasks_post ON published_tasks(post_id);
 `;
 
 export class JobDatabase {
@@ -1167,5 +1178,82 @@ export class JobDatabase {
       .prepare('SELECT topic, stance, confidence FROM opinions ORDER BY confidence DESC')
       .all() as Array<{ topic: string; stance: string; confidence: number }>;
     return rows;
+  }
+
+  // Published Tasks (DKG TaskCompletion tracking)
+  isPostPublished(postId: string): boolean {
+    if (!postId || postId.length > 100) return false;
+    const row = this.db
+      .prepare('SELECT 1 FROM published_tasks WHERE post_id = ?')
+      .get(postId);
+    return row !== undefined;
+  }
+
+  markPostPublished(postId: string, ual: string | null, qualityScore: number): void {
+    if (!postId || postId.length > 100) return;
+    this.db
+      .prepare(`
+        INSERT OR REPLACE INTO published_tasks (post_id, task_ual, quality_score, published_at)
+        VALUES (?, ?, ?, ?)
+      `)
+      .run(postId, ual, qualityScore, Date.now());
+  }
+
+  getUnpublishedPosts(minAgeMs: number): OwnPost[] {
+    const cutoff = Date.now() - minAgeMs;
+    const rows = this.db
+      .prepare(`
+        SELECT op.* FROM own_posts op
+        LEFT JOIN published_tasks pt ON op.post_id = pt.post_id
+        WHERE pt.id IS NULL AND op.posted_at < ?
+        ORDER BY op.posted_at ASC
+      `)
+      .all(cutoff) as Array<{
+        id: number;
+        post_id: string;
+        title: string;
+        body: string;
+        submolt: string;
+        category: string;
+        topic: string;
+        posted_at: number;
+        upvotes: number;
+        comment_count: number;
+      }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      postId: row.post_id,
+      title: row.title,
+      body: row.body,
+      submolt: row.submolt,
+      category: row.category,
+      topic: row.topic,
+      postedAt: row.posted_at,
+      upvotes: row.upvotes,
+      commentCount: row.comment_count,
+    }));
+  }
+
+  getPublishedTaskStats(): {
+    total: number;
+    avgQuality: number;
+    lastPublished: number | null;
+  } {
+    const total = this.db
+      .prepare('SELECT COUNT(*) as count FROM published_tasks')
+      .get() as { count: number };
+    const avgQuality = this.db
+      .prepare('SELECT AVG(quality_score) as avg FROM published_tasks')
+      .get() as { avg: number | null };
+    const lastPublished = this.db
+      .prepare('SELECT MAX(published_at) as last FROM published_tasks')
+      .get() as { last: number | null };
+
+    return {
+      total: total.count,
+      avgQuality: avgQuality.avg ?? 0,
+      lastPublished: lastPublished.last,
+    };
   }
 }
