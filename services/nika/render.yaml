@@ -1,0 +1,54 @@
+services:
+  - type: worker
+    name: kamiyo-nika
+    runtime: node
+    rootDir: services/nika
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /health
+    envVars:
+      # Anthropic
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+      # Twitter OAuth 1.0a
+      - key: TWITTER_API_KEY
+        sync: false
+      - key: TWITTER_API_SECRET
+        sync: false
+      - key: TWITTER_ACCESS_TOKEN
+        sync: false
+      - key: TWITTER_ACCESS_SECRET
+        sync: false
+
+      # DKG (OriginTrail)
+      - key: DKG_ENDPOINT
+        value: https://positron.origin-trail.network
+      - key: DKG_PORT
+        value: "8900"
+      - key: DKG_BLOCKCHAIN
+        value: otp::mainnet
+      - key: DKG_PRIVATE_KEY
+        sync: false
+      - key: NIKA_PARANET_UAL
+        sync: false
+
+      # Scheduling
+      - key: POST_INTERVAL_MIN_MS
+        value: "10800000"  # 3 hours
+      - key: POST_INTERVAL_MAX_MS
+        value: "18000000"  # 5 hours
+
+      # Infrastructure
+      - key: PORT
+        value: "4020"
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+
+      # Alerting (optional)
+      - key: ALERT_WEBHOOK_URL
+        sync: false
+      - key: ALERT_WEBHOOK_TYPE
+        value: slack
