@@ -12,6 +12,8 @@ const metrics = getMetrics();
 export interface MentionMonitorConfig {
   twitter: XToolsConfig;
   checkIntervalMs: number;
+  maxRepliesPerCycle: number;
+  replyDelayMs: number;
   onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
 }
 
@@ -39,7 +41,11 @@ export class MentionMonitor extends EventEmitter {
     this.processedCache = new LRUCache<boolean>({ maxSize: 1000, ttlMs: 24 * 60 * 60 * 1000 });
     this.xTools = createXTools(config.twitter);
 
-    log.info('Mention monitor initialized', { checkIntervalMs: config.checkIntervalMs });
+    log.info('Mention monitor initialized', {
+      checkIntervalMs: config.checkIntervalMs,
+      maxRepliesPerCycle: config.maxRepliesPerCycle,
+      replyDelayMs: config.replyDelayMs,
+    });
   }
 
   async start(): Promise<void> {
@@ -110,10 +116,20 @@ export class MentionMonitor extends EventEmitter {
         this.lastMentionId = mentions[0].id;
       }
 
-      // Process mentions (oldest first)
+      // Process mentions (oldest first), limited per cycle
       const mentionsToProcess = [...mentions].reverse();
+      let repliesThisCycle = 0;
 
       for (const mention of mentionsToProcess) {
+        // Respect rate limit
+        if (repliesThisCycle >= this.config.maxRepliesPerCycle) {
+          log.info('Rate limit reached, deferring remaining mentions', {
+            processed: repliesThisCycle,
+            remaining: mentionsToProcess.length - repliesThisCycle,
+          });
+          break;
+        }
+
         // Skip if already processed
         if (this.processedCache.get(mention.id)) {
           log.debug('Skipping already processed mention', { mentionId: mention.id });
@@ -137,6 +153,7 @@ export class MentionMonitor extends EventEmitter {
 
           // Mark as processed
           this.processedCache.set(mention.id, true);
+          repliesThisCycle++;
 
           this.emit('processed', {
             mentionId: mention.id,
@@ -145,6 +162,11 @@ export class MentionMonitor extends EventEmitter {
           });
 
           metrics.incrementCounter('nika_mentions_processed');
+
+          // Delay between replies to avoid spam
+          if (repliesThisCycle < this.config.maxRepliesPerCycle) {
+            await new Promise((resolve) => setTimeout(resolve, this.config.replyDelayMs));
+          }
         } catch (error) {
           log.error('Failed to process mention', {
             mentionId: mention.id,
@@ -206,14 +228,20 @@ export class MentionMonitor extends EventEmitter {
   }
 }
 
-export function createMentionMonitor(
-  twitter: XToolsConfig,
-  checkIntervalMs: number,
-  onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>
-): MentionMonitor {
+export interface CreateMentionMonitorOptions {
+  twitter: XToolsConfig;
+  checkIntervalMs: number;
+  maxRepliesPerCycle?: number;
+  replyDelayMs?: number;
+  onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
+}
+
+export function createMentionMonitor(options: CreateMentionMonitorOptions): MentionMonitor {
   return new MentionMonitor({
-    twitter,
-    checkIntervalMs,
-    onMention,
+    twitter: options.twitter,
+    checkIntervalMs: options.checkIntervalMs,
+    maxRepliesPerCycle: options.maxRepliesPerCycle ?? 3,
+    replyDelayMs: options.replyDelayMs ?? 60000, // 1 minute between replies
+    onMention: options.onMention,
   });
 }

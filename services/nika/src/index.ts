@@ -193,15 +193,17 @@ async function main(): Promise<void> {
   }, 30);
 
   // Initialize mention monitor
-  mentionMonitor = createMentionMonitor(
-    {
+  mentionMonitor = createMentionMonitor({
+    twitter: {
       apiKey: config.TWITTER_API_KEY,
       apiSecret: config.TWITTER_API_SECRET,
       accessToken: config.TWITTER_ACCESS_TOKEN,
       accessSecret: config.TWITTER_ACCESS_SECRET,
     },
-    5 * 60 * 1000, // 5 minutes
-    async (mentionId, mentionText, authorUsername) => {
+    checkIntervalMs: 30 * 60 * 1000, // 30 minutes
+    maxRepliesPerCycle: 2, // Max 2 replies per cycle
+    replyDelayMs: 5 * 60 * 1000, // 5 minutes between replies
+    onMention: async (mentionId, mentionText, authorUsername) => {
       if (!agent) return;
       if (shutdownManager.isShutdown()) {
         log.warn('Skipping mention during shutdown', { mentionId });
@@ -232,8 +234,8 @@ async function main(): Promise<void> {
       } finally {
         complete();
       }
-    }
-  );
+    },
+  });
 
   mentionMonitor.on('error', (error) => {
     log.error('Mention monitor error', { error: String(error) });
@@ -406,7 +408,8 @@ async function main(): Promise<void> {
     port: config.PORT,
     postIntervalMin: `${config.POST_INTERVAL_MIN_MS / (60 * 60 * 1000)}h`,
     postIntervalMax: `${config.POST_INTERVAL_MAX_MS / (60 * 60 * 1000)}h`,
-    mentionCheckInterval: '5m',
+    mentionCheckInterval: '30m',
+    maxRepliesPerCycle: 2,
   });
 
   // Log metrics periodically
