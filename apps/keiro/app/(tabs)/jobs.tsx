@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,132 +7,104 @@ import {
   ScrollView,
   Pressable,
   RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAgentStore, AgentSkill } from '../../src/stores/agent';
+import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore } from '../../src/stores/wallet';
 import { AGENT_SKILLS, TIER_THRESHOLDS } from '../../src/lib/constants';
-
-interface Job {
-  id: string;
-  title: string;
-  description: string;
-  skills: AgentSkill[];
-  payment: number;
-  paymentToken: 'SOL' | 'USDC';
-  requiredTier: keyof typeof TIER_THRESHOLDS;
-  estimatedTime: string;
-  poster: string;
-  postedAt: string;
-}
-
-const MOCK_JOBS: Job[] = [
-  {
-    id: '1',
-    title: 'Research DeFi Protocol Security',
-    description:
-      'Analyze the smart contract architecture and identify potential vulnerabilities in a new DeFi lending protocol.',
-    skills: ['research', 'code_review'],
-    payment: 0.5,
-    paymentToken: 'SOL',
-    requiredTier: 'unverified',
-    estimatedTime: '2-3 hours',
-    poster: 'DefiProtocol.sol',
-    postedAt: '2 hours ago',
-  },
-  {
-    id: '2',
-    title: 'Technical Documentation Update',
-    description:
-      'Update API documentation for a blockchain indexer service. Must be clear and developer-friendly.',
-    skills: ['writing', 'research'],
-    payment: 25,
-    paymentToken: 'USDC',
-    requiredTier: 'unverified',
-    estimatedTime: '1-2 hours',
-    poster: 'IndexerDAO',
-    postedAt: '4 hours ago',
-  },
-  {
-    id: '3',
-    title: 'Data Analysis - Token Metrics',
-    description:
-      'Analyze on-chain data for token holder distribution and trading patterns over the past 30 days.',
-    skills: ['data_analysis', 'research'],
-    payment: 1.2,
-    paymentToken: 'SOL',
-    requiredTier: 'bronze',
-    estimatedTime: '3-4 hours',
-    poster: 'TokenAnalytics',
-    postedAt: '1 day ago',
-  },
-  {
-    id: '4',
-    title: 'Smart Contract Code Review',
-    description:
-      'Review Anchor program for a new NFT staking mechanism. Check for reentrancy and overflow issues.',
-    skills: ['code_review'],
-    payment: 100,
-    paymentToken: 'USDC',
-    requiredTier: 'silver',
-    estimatedTime: '4-6 hours',
-    poster: 'NFTStaking.xyz',
-    postedAt: '3 days ago',
-  },
-  {
-    id: '5',
-    title: 'Translate Whitepaper to Spanish',
-    description:
-      'Translate 15-page technical whitepaper from English to Spanish. Must maintain technical accuracy.',
-    skills: ['translation', 'writing'],
-    payment: 0.8,
-    paymentToken: 'SOL',
-    requiredTier: 'unverified',
-    estimatedTime: '5-6 hours',
-    poster: 'GlobalDAO',
-    postedAt: '6 hours ago',
-  },
-];
+import { api, ApiJob } from '../../src/lib/api';
 
 export default function JobsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<ApiJob[]>([]);
   const [filter, setFilter] = useState<'all' | 'matching'>('all');
+  const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
 
   const { agent } = useAgentStore();
-  const { connected } = useWalletStore();
+  const { connected, publicKey } = useWalletStore();
 
-  const onRefresh = () => {
+  const fetchJobs = useCallback(async () => {
+    try {
+      if (filter === 'matching' && agent?.id) {
+        const matchingJobs = await api.getMatchingJobs(agent.id);
+        setJobs(matchingJobs);
+      } else {
+        const openJobs = await api.getOpenJobs();
+        setJobs(openJobs);
+      }
+    } catch (error) {
+      console.error('Failed to fetch jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [filter, agent?.id]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await fetchJobs();
+    setRefreshing(false);
   };
 
-  const filteredJobs =
-    filter === 'matching' && agent?.skills
-      ? MOCK_JOBS.filter(job =>
-          job.skills.some(skill => agent.skills.includes(skill))
-        )
-      : MOCK_JOBS;
-
-  const canAcceptJob = (job: Job) => {
-    if (!connected) return { allowed: false, reason: 'Connect wallet to accept jobs' };
-    if (!agent?.isActive) return { allowed: false, reason: 'Activate your agent first' };
+  const canAcceptJob = (job: ApiJob) => {
+    if (!connected) return { allowed: false, reason: 'Connect wallet' };
+    if (!agent?.isActive) return { allowed: false, reason: 'Activate agent' };
 
     const tierOrder = ['unverified', 'bronze', 'silver', 'gold', 'platinum'];
     const agentTierIndex = tierOrder.indexOf(agent?.tier || 'unverified');
     const requiredTierIndex = tierOrder.indexOf(job.requiredTier);
 
     if (agentTierIndex < requiredTierIndex) {
-      return { allowed: false, reason: `Requires ${job.requiredTier} tier` };
+      return { allowed: false, reason: `Requires ${job.requiredTier}` };
     }
 
-    const hasMatchingSkill = job.skills.some(skill => agent?.skills?.includes(skill));
+    const hasMatchingSkill = job.requiredSkills.some((skill) =>
+      agent?.skills?.includes(skill)
+    );
     if (!hasMatchingSkill) {
-      return { allowed: false, reason: 'Missing required skills' };
+      return { allowed: false, reason: 'Missing skills' };
     }
 
     return { allowed: true, reason: null };
+  };
+
+  const handleAcceptJob = async (job: ApiJob) => {
+    if (!agent || !publicKey) return;
+
+    setAcceptingJobId(job.id);
+    try {
+      const result = await api.acceptJob(job.id, agent.id, publicKey.toString());
+      Alert.alert(
+        'Job Accepted',
+        `You've accepted "${job.title}". Escrow ID: ${result.escrowId.slice(0, 8)}...`,
+        [{ text: 'OK', onPress: () => fetchJobs() }]
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to accept job';
+      Alert.alert('Error', message);
+    } finally {
+      setAcceptingJobId(null);
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    return 'Just now';
   };
 
   return (
@@ -143,7 +115,7 @@ export default function JobsScreen() {
       <View style={styles.header}>
         <Text style={[styles.title, isDark && styles.textDark]}>Jobs</Text>
         <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-          {filteredJobs.length} available job{filteredJobs.length !== 1 ? 's' : ''}
+          {jobs.length} available job{jobs.length !== 1 ? 's' : ''}
         </Text>
       </View>
 
@@ -179,117 +151,131 @@ export default function JobsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {filteredJobs.length === 0 ? (
-          <View style={[styles.emptyState, isDark && styles.cardDark]}>
-            <Text style={[styles.emptyText, isDark && styles.subtitleDark]}>
-              No jobs match your skills
-            </Text>
-            <Text style={[styles.emptySubtext, isDark && styles.subtitleDark]}>
-              Add more skills to see more opportunities
-            </Text>
-          </View>
-        ) : (
-          filteredJobs.map(job => {
-            const { allowed, reason } = canAcceptJob(job);
-            return (
-              <View
-                key={job.id}
-                style={[styles.jobCard, isDark && styles.cardDark]}
-              >
-                <View style={styles.jobHeader}>
-                  <Text style={[styles.jobTitle, isDark && styles.textDark]}>
-                    {job.title}
-                  </Text>
-                  <View style={styles.paymentBadge}>
-                    <Text style={styles.paymentText}>
-                      {job.payment} {job.paymentToken}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8b5cf6" />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {jobs.length === 0 ? (
+            <View style={[styles.emptyState, isDark && styles.cardDark]}>
+              <Text style={[styles.emptyText, isDark && styles.subtitleDark]}>
+                {filter === 'matching' ? 'No jobs match your skills' : 'No jobs available'}
+              </Text>
+              <Text style={[styles.emptySubtext, isDark && styles.subtitleDark]}>
+                {filter === 'matching'
+                  ? 'Add more skills to see more opportunities'
+                  : 'Check back later for new opportunities'}
+              </Text>
+            </View>
+          ) : (
+            jobs.map((job) => {
+              const { allowed, reason } = canAcceptJob(job);
+              const isAccepting = acceptingJobId === job.id;
+              return (
+                <View
+                  key={job.id}
+                  style={[styles.jobCard, isDark && styles.cardDark]}
+                >
+                  <View style={styles.jobHeader}>
+                    <Text style={[styles.jobTitle, isDark && styles.textDark]}>
+                      {job.title}
                     </Text>
+                    <View style={styles.paymentBadge}>
+                      <Text style={styles.paymentText}>
+                        {job.payment} {job.paymentToken}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <Text style={[styles.jobDesc, isDark && styles.subtitleDark]}>
-                  {job.description}
-                </Text>
+                  <Text style={[styles.jobDesc, isDark && styles.subtitleDark]}>
+                    {job.description}
+                  </Text>
 
-                <View style={styles.skillsRow}>
-                  {job.skills.map(skill => {
-                    const hasSkill = agent?.skills?.includes(skill);
-                    return (
-                      <View
-                        key={skill}
-                        style={[
-                          styles.skillTag,
-                          hasSkill ? styles.skillMatch : styles.skillNoMatch,
-                        ]}
-                      >
-                        <Text
+                  <View style={styles.skillsRow}>
+                    {job.requiredSkills.map((skill) => {
+                      const hasSkill = agent?.skills?.includes(skill);
+                      return (
+                        <View
+                          key={skill}
                           style={[
-                            styles.skillTagText,
-                            hasSkill
-                              ? styles.skillMatchText
-                              : styles.skillNoMatchText,
+                            styles.skillTag,
+                            hasSkill ? styles.skillMatch : styles.skillNoMatch,
                           ]}
                         >
-                          {AGENT_SKILLS[skill]?.label || skill}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
+                          <Text
+                            style={[
+                              styles.skillTagText,
+                              hasSkill
+                                ? styles.skillMatchText
+                                : styles.skillNoMatchText,
+                            ]}
+                          >
+                            {AGENT_SKILLS[skill]?.label || skill}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
 
-                <View style={styles.jobMeta}>
-                  <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
-                    {job.estimatedTime}
-                  </Text>
-                  <Text style={[styles.metaDot, isDark && styles.subtitleDark]}>
-                    •
-                  </Text>
-                  <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
-                    {job.requiredTier !== 'unverified'
-                      ? `${job.requiredTier.charAt(0).toUpperCase()}${job.requiredTier.slice(1)}+ required`
-                      : 'Any tier'}
-                  </Text>
-                  <Text style={[styles.metaDot, isDark && styles.subtitleDark]}>
-                    •
-                  </Text>
-                  <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
-                    {job.postedAt}
-                  </Text>
-                </View>
-
-                <View style={styles.jobFooter}>
-                  <Text style={[styles.posterText, isDark && styles.subtitleDark]}>
-                    Posted by {job.poster}
-                  </Text>
-                  <Pressable
-                    style={[
-                      styles.acceptButton,
-                      !allowed && styles.acceptButtonDisabled,
-                    ]}
-                    disabled={!allowed}
-                  >
-                    <Text
-                      style={[
-                        styles.acceptButtonText,
-                        !allowed && styles.acceptButtonTextDisabled,
-                      ]}
-                    >
-                      {allowed ? 'Accept Job' : reason}
+                  <View style={styles.jobMeta}>
+                    <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
+                      {job.estimatedTime}
                     </Text>
-                  </Pressable>
+                    <Text style={[styles.metaDot, isDark && styles.subtitleDark]}>
+                      •
+                    </Text>
+                    <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
+                      {job.requiredTier !== 'unverified'
+                        ? `${job.requiredTier.charAt(0).toUpperCase()}${job.requiredTier.slice(1)}+ required`
+                        : 'Any tier'}
+                    </Text>
+                    <Text style={[styles.metaDot, isDark && styles.subtitleDark]}>
+                      •
+                    </Text>
+                    <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
+                      {formatTimeAgo(job.createdAt)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.jobFooter}>
+                    <Text style={[styles.posterText, isDark && styles.subtitleDark]}>
+                      Posted by {job.poster}
+                    </Text>
+                    <Pressable
+                      style={[
+                        styles.acceptButton,
+                        !allowed && styles.acceptButtonDisabled,
+                      ]}
+                      disabled={!allowed || isAccepting}
+                      onPress={() => handleAcceptJob(job)}
+                    >
+                      {isAccepting ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.acceptButtonText,
+                            !allowed && styles.acceptButtonTextDisabled,
+                          ]}
+                        >
+                          {allowed ? 'Accept Job' : reason}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
                 </View>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -344,6 +330,11 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
@@ -462,6 +453,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
   },
   acceptButtonDisabled: {
     backgroundColor: '#e5e7eb',

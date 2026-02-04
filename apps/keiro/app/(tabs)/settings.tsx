@@ -21,15 +21,23 @@ export default function SettingsScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
 
-  const { agent, setActive, clearAgent } = useAgentStore();
+  const { agent, toggleActive, clearAgent } = useAgentStore();
   const { connected, publicKey, disconnect } = useWalletStore();
   const { resetOnboarding } = useAppStore();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [autoAcceptJobs, setAutoAcceptJobs] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
 
-  const handleToggleActive = () => {
-    setActive(!agent?.isActive);
+  const handleToggleActive = async () => {
+    setTogglingActive(true);
+    try {
+      await toggleActive();
+    } catch (error) {
+      console.error('Failed to toggle active:', error);
+    } finally {
+      setTogglingActive(false);
+    }
   };
 
   const handleDisconnectWallet = () => {
@@ -95,6 +103,7 @@ export default function SettingsScreen() {
               onValueChange={handleToggleActive}
               trackColor={{ false: '#e5e7eb', true: '#c4b5fd' }}
               thumbColor={agent?.isActive ? '#8b5cf6' : '#fff'}
+              disabled={togglingActive}
             />
           </View>
 

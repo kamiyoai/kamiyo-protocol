@@ -14,7 +14,7 @@ export const KAMIYO_ESCROW_PROGRAM_ID =
   'FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u';
 
 // API Configuration
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 
 // App Configuration
 export const APP_NAME = 'KEIRO';

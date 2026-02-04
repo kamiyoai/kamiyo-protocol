@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,33 +12,47 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore, getShortAddress } from '../../src/stores/wallet';
 import { useAgentStore } from '../../src/stores/agent';
-
-interface Transaction {
-  id: string;
-  type: 'earning' | 'withdrawal' | 'stake';
-  amount: number;
-  token: 'SOL' | 'USDC';
-  description: string;
-  timestamp: string;
-  status: 'completed' | 'pending';
-}
-
-const MOCK_TRANSACTIONS: Transaction[] = [];
+import { api, ApiEarning, EarningsStats } from '../../src/lib/api';
 
 export default function EarningsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<EarningsStats | null>(null);
+  const [earnings, setEarnings] = useState<ApiEarning[]>([]);
 
   const { connected, connecting, balance, connect, disconnect, refreshBalance, publicKey } =
     useWalletStore();
   const { agent } = useAgentStore();
 
+  const fetchEarningsData = useCallback(async () => {
+    if (!agent?.id) return;
+
+    try {
+      const [statsData, earningsData] = await Promise.all([
+        api.getEarningsStats(agent.id),
+        api.getEarnings(agent.id),
+      ]);
+      setStats(statsData);
+      setEarnings(earningsData);
+    } catch (error) {
+      console.error('Failed to fetch earnings:', error);
+    }
+  }, [agent?.id]);
+
+  useEffect(() => {
+    if (agent?.id) {
+      setLoading(true);
+      fetchEarningsData().finally(() => setLoading(false));
+    }
+  }, [agent?.id, fetchEarningsData]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshBalance();
+    await Promise.all([refreshBalance(), fetchEarningsData()]);
     setRefreshing(false);
-  }, [refreshBalance]);
+  }, [refreshBalance, fetchEarningsData]);
 
   const handleConnect = async () => {
     await connect();
@@ -51,6 +65,23 @@ export default function EarningsScreen() {
   // Calculate USD value (mock rate)
   const solPrice = 150;
   const usdBalance = balance * solPrice;
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    return 'Just now';
+  };
+
+  const formatUsd = (sol: number, usdc: number) => {
+    const solInUsd = sol * solPrice;
+    return (solInUsd + usdc).toFixed(2);
+  };
 
   return (
     <SafeAreaView
@@ -118,7 +149,7 @@ export default function EarningsScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              $0.00
+              ${stats?.today.toFixed(2) || '0.00'}
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               Today
@@ -126,7 +157,7 @@ export default function EarningsScreen() {
           </View>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              $0.00
+              ${stats?.thisWeek.toFixed(2) || '0.00'}
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               This Week
@@ -134,7 +165,7 @@ export default function EarningsScreen() {
           </View>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              $0.00
+              ${stats?.thisMonth.toFixed(2) || '0.00'}
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               This Month
@@ -151,22 +182,24 @@ export default function EarningsScreen() {
               Total Earned
             </Text>
             <Text style={[styles.summaryValue, isDark && styles.textDark]}>
-              $0.00
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
-              Total Withdrawn
-            </Text>
-            <Text style={[styles.summaryValue, isDark && styles.textDark]}>
-              $0.00
+              ${stats ? formatUsd(stats.totalEarned.sol, stats.totalEarned.usdc) : '0.00'}
             </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
               Pending
             </Text>
-            <Text style={[styles.summaryValue, styles.pendingValue]}>$0.00</Text>
+            <Text style={[styles.summaryValue, styles.pendingValue]}>
+              ${stats ? formatUsd(stats.totalPending.sol, stats.totalPending.usdc) : '0.00'}
+            </Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
+              Transactions
+            </Text>
+            <Text style={[styles.summaryValue, isDark && styles.textDark]}>
+              {stats?.transactionCount || 0}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
@@ -182,7 +215,11 @@ export default function EarningsScreen() {
           Transaction History
         </Text>
 
-        {MOCK_TRANSACTIONS.length === 0 ? (
+        {loading ? (
+          <View style={[styles.emptyState, isDark && styles.cardDark]}>
+            <ActivityIndicator size="large" color="#8b5cf6" />
+          </View>
+        ) : earnings.length === 0 ? (
           <View style={[styles.emptyState, isDark && styles.cardDark]}>
             <Text style={[styles.emptyText, isDark && styles.subtitleDark]}>
               No transactions yet
@@ -193,33 +230,29 @@ export default function EarningsScreen() {
           </View>
         ) : (
           <View style={[styles.transactionList, isDark && styles.cardDark]}>
-            {MOCK_TRANSACTIONS.map(tx => (
+            {earnings.map((tx) => (
               <View key={tx.id} style={styles.transactionRow}>
                 <View style={styles.transactionLeft}>
                   <View
                     style={[
                       styles.transactionIcon,
-                      tx.type === 'earning'
+                      tx.status === 'released'
                         ? styles.iconEarning
-                        : tx.type === 'withdrawal'
-                          ? styles.iconWithdrawal
-                          : styles.iconStake,
+                        : tx.status === 'pending'
+                          ? styles.iconPending
+                          : styles.iconDisputed,
                     ]}
                   >
                     <Text style={styles.iconText}>
-                      {tx.type === 'earning'
-                        ? '+'
-                        : tx.type === 'withdrawal'
-                          ? '-'
-                          : 'S'}
+                      {tx.status === 'released' ? '+' : tx.status === 'pending' ? '...' : '!'}
                     </Text>
                   </View>
                   <View>
                     <Text style={[styles.txDescription, isDark && styles.textDark]}>
-                      {tx.description}
+                      Job #{tx.jobId.slice(0, 8)}
                     </Text>
                     <Text style={[styles.txTime, isDark && styles.subtitleDark]}>
-                      {tx.timestamp}
+                      {formatTimeAgo(tx.createdAt)}
                     </Text>
                   </View>
                 </View>
@@ -227,20 +260,21 @@ export default function EarningsScreen() {
                   <Text
                     style={[
                       styles.txAmount,
-                      tx.type === 'earning'
+                      tx.status === 'released'
                         ? styles.amountPositive
-                        : styles.amountNegative,
+                        : styles.amountPending,
                     ]}
                   >
-                    {tx.type === 'earning' ? '+' : '-'}
-                    {tx.amount} {tx.token}
+                    +{tx.amount} {tx.token}
                   </Text>
                   <Text
                     style={[
                       styles.txStatus,
-                      tx.status === 'completed'
+                      tx.status === 'released'
                         ? styles.statusCompleted
-                        : styles.statusPending,
+                        : tx.status === 'pending'
+                          ? styles.statusPending
+                          : styles.statusDisputed,
                     ]}
                   >
                     {tx.status}
@@ -251,19 +285,26 @@ export default function EarningsScreen() {
           </View>
         )}
 
-        {connected && (
+        {connected && stats && stats.totalPending.sol + stats.totalPending.usdc > 0 && (
           <View style={[styles.actionCard, isDark && styles.cardDark]}>
             <Text style={[styles.actionTitle, isDark && styles.textDark]}>
-              Withdraw Earnings
+              Pending Earnings
             </Text>
             <Text style={[styles.actionDesc, isDark && styles.subtitleDark]}>
-              Transfer your earnings to an external wallet or exchange.
+              You have pending earnings that will be released after job completion approval.
             </Text>
-            <Pressable style={[styles.actionButton, styles.buttonDisabled]}>
-              <Text style={[styles.actionButtonText, styles.buttonTextDisabled]}>
-                Nothing to Withdraw
-              </Text>
-            </Pressable>
+            <View style={styles.pendingBreakdown}>
+              {stats.totalPending.sol > 0 && (
+                <Text style={[styles.pendingItem, isDark && styles.subtitleDark]}>
+                  {stats.totalPending.sol.toFixed(4)} SOL
+                </Text>
+              )}
+              {stats.totalPending.usdc > 0 && (
+                <Text style={[styles.pendingItem, isDark && styles.subtitleDark]}>
+                  {stats.totalPending.usdc.toFixed(2)} USDC
+                </Text>
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -480,11 +521,11 @@ const styles = StyleSheet.create({
   iconEarning: {
     backgroundColor: '#dcfce7',
   },
-  iconWithdrawal: {
-    backgroundColor: '#fee2e2',
+  iconPending: {
+    backgroundColor: '#fef3c7',
   },
-  iconStake: {
-    backgroundColor: '#ddd6fe',
+  iconDisputed: {
+    backgroundColor: '#fee2e2',
   },
   iconText: {
     fontSize: 18,
@@ -510,8 +551,8 @@ const styles = StyleSheet.create({
   amountPositive: {
     color: '#16a34a',
   },
-  amountNegative: {
-    color: '#dc2626',
+  amountPending: {
+    color: '#f59e0b',
   },
   txStatus: {
     fontSize: 12,
@@ -522,6 +563,9 @@ const styles = StyleSheet.create({
   },
   statusPending: {
     color: '#f59e0b',
+  },
+  statusDisputed: {
+    color: '#dc2626',
   },
   actionCard: {
     backgroundColor: '#f9fafb',
@@ -540,18 +584,13 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 16,
   },
-  actionButton: {
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
+  pendingBreakdown: {
+    flexDirection: 'row',
+    gap: 16,
   },
-  actionButtonText: {
+  pendingItem: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
-  },
-  buttonTextDisabled: {
-    color: '#9ca3af',
+    color: '#f59e0b',
   },
 });

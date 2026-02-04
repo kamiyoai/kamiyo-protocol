@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -5,27 +6,61 @@ import {
   useColorScheme,
   ScrollView,
   Pressable,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore } from '../../src/stores/agent';
-import { TIER_COLORS, TIER_THRESHOLDS, AGENT_SKILLS, AGENT_PERSONALITIES } from '../../src/lib/constants';
+import { TIER_COLORS, AGENT_SKILLS, AGENT_PERSONALITIES } from '../../src/lib/constants';
+import { api, ReputationData } from '../../src/lib/api';
 
 export default function ReputationScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [reputation, setReputation] = useState<ReputationData | null>(null);
 
-  const { agent } = useAgentStore();
+  const { agent, syncFromServer } = useAgentStore();
+
+  const fetchReputation = useCallback(async () => {
+    if (!agent?.id) return;
+
+    try {
+      const reputationData = await api.getReputation(agent.id);
+      setReputation(reputationData);
+    } catch (error) {
+      console.error('Failed to fetch reputation:', error);
+    }
+  }, [agent?.id]);
+
+  useEffect(() => {
+    if (agent?.id) {
+      setLoading(true);
+      fetchReputation().finally(() => setLoading(false));
+    }
+  }, [agent?.id, fetchReputation]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchReputation(), syncFromServer()]);
+    setRefreshing(false);
+  }, [fetchReputation, syncFromServer]);
 
   const tierColor = agent?.tier ? TIER_COLORS[agent.tier] : TIER_COLORS.unverified;
-  const nextTier = getNextTier(agent?.tier);
-  const progressToNextTier = getProgressToNextTier(agent?.creditScore || 0, agent?.tier);
 
   return (
     <SafeAreaView
       style={[styles.container, isDark && styles.containerDark]}
       edges={['top']}
     >
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <Text style={[styles.title, isDark && styles.textDark]}>Reputation</Text>
         <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
           Your agent's permanent career on the DKG
@@ -52,30 +87,45 @@ export default function ReputationScreen() {
                 : 'Unverified'}
             </Text>
           </View>
+          {agent?.globalId && (
+            <Text style={[styles.globalIdText, isDark && styles.subtitleDark]}>
+              DKG: {agent.globalId.slice(0, 16)}...
+            </Text>
+          )}
         </View>
 
         <View style={[styles.scoreCard, isDark && styles.cardDark]}>
-          <Text style={[styles.scoreLabel, isDark && styles.subtitleDark]}>
-            Credit Score
-          </Text>
-          <Text style={[styles.scoreValue, { color: tierColor }]}>
-            {agent?.creditScore || 0}
-          </Text>
-          {nextTier && (
-            <View style={styles.progressSection}>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${progressToNextTier}%`, backgroundColor: tierColor },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.progressText, isDark && styles.subtitleDark]}>
-                {TIER_THRESHOLDS[nextTier] - (agent?.creditScore || 0)} points to{' '}
-                {nextTier.charAt(0).toUpperCase() + nextTier.slice(1)}
+          {loading ? (
+            <ActivityIndicator size="large" color="#8b5cf6" />
+          ) : (
+            <>
+              <Text style={[styles.scoreLabel, isDark && styles.subtitleDark]}>
+                Credit Score
               </Text>
-            </View>
+              <Text style={[styles.scoreValue, { color: tierColor }]}>
+                {reputation?.creditScore ?? agent?.creditScore ?? 0}
+              </Text>
+              {reputation?.tierProgress && reputation.tierProgress.nextTier && (
+                <View style={styles.progressSection}>
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${reputation.tierProgress.progress}%`,
+                          backgroundColor: tierColor,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.progressText, isDark && styles.subtitleDark]}>
+                    {reputation.tierProgress.pointsToNext} points to{' '}
+                    {reputation.tierProgress.nextTier.charAt(0).toUpperCase() +
+                      reputation.tierProgress.nextTier.slice(1)}
+                  </Text>
+                </View>
+              )}
+            </>
           )}
         </View>
 
@@ -83,57 +133,34 @@ export default function ReputationScreen() {
           Score Components
         </Text>
         <View style={[styles.breakdownCard, isDark && styles.cardDark]}>
-          {[
-            {
-              label: 'Task Quality',
-              value: agent?.avgQuality ? `${agent.avgQuality}%` : '--',
-              weight: '40%',
-              description: 'Average quality rating from completed tasks',
-            },
-            {
-              label: 'Reliability',
-              value: calculateReliability(agent?.tasksCompleted || 0),
-              weight: '20%',
-              description: 'Consistent task completion rate',
-            },
-            {
-              label: 'Dispute Record',
-              value: calculateDisputeScore(agent?.disputeCount || 0, agent?.tasksCompleted || 0),
-              weight: '15%',
-              description: 'Low disputes = higher score',
-            },
-            {
-              label: 'Peer Trust',
-              value: '--',
-              weight: '15%',
-              description: 'Trust from other agents on the network',
-            },
-            {
-              label: 'Tenure',
-              value: agent?.tenureDays ? `${agent.tenureDays}d` : '--',
-              weight: '10%',
-              description: 'Time active on the network',
-            },
-          ].map(item => (
-            <View key={item.label} style={styles.breakdownRow}>
-              <View style={styles.breakdownLeft}>
-                <Text style={[styles.breakdownLabel, isDark && styles.textDark]}>
-                  {item.label}
-                </Text>
-                <Text style={[styles.breakdownDesc, isDark && styles.subtitleDark]}>
-                  {item.description}
-                </Text>
+          {reputation?.components ? (
+            Object.entries(reputation.components).map(([key, component]) => (
+              <View key={key} style={styles.breakdownRow}>
+                <View style={styles.breakdownLeft}>
+                  <Text style={[styles.breakdownLabel, isDark && styles.textDark]}>
+                    {formatComponentName(key)}
+                  </Text>
+                  <Text style={[styles.breakdownDesc, isDark && styles.subtitleDark]}>
+                    {component.description}
+                  </Text>
+                </View>
+                <View style={styles.breakdownRight}>
+                  <Text style={[styles.breakdownValue, isDark && styles.textDark]}>
+                    {component.score}
+                  </Text>
+                  <Text style={[styles.breakdownWeight, isDark && styles.subtitleDark]}>
+                    /{component.weight}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.breakdownRight}>
-                <Text style={[styles.breakdownValue, isDark && styles.textDark]}>
-                  {item.value}
-                </Text>
-                <Text style={[styles.breakdownWeight, isDark && styles.subtitleDark]}>
-                  {item.weight}
-                </Text>
-              </View>
+            ))
+          ) : (
+            <View style={styles.loadingPlaceholder}>
+              <Text style={[styles.placeholderText, isDark && styles.subtitleDark]}>
+                {loading ? 'Loading...' : 'No reputation data'}
+              </Text>
             </View>
-          ))}
+          )}
         </View>
 
         <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
@@ -142,7 +169,7 @@ export default function ReputationScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {agent?.tasksCompleted || 0}
+              {reputation?.stats?.tasksCompleted ?? agent?.tasksCompleted ?? 0}
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               Tasks Completed
@@ -150,7 +177,7 @@ export default function ReputationScreen() {
           </View>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {agent?.disputeCount || 0}
+              {reputation?.stats?.disputeCount ?? agent?.disputeCount ?? 0}
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               Disputes
@@ -160,7 +187,7 @@ export default function ReputationScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {agent?.tenureDays || 0}d
+              {reputation?.stats?.tenureDays ?? agent?.tenureDays ?? 0}d
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               Tenure
@@ -168,7 +195,9 @@ export default function ReputationScreen() {
           </View>
           <View style={[styles.statCard, isDark && styles.cardDark]}>
             <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {agent?.avgQuality ? `${agent.avgQuality}%` : '--'}
+              {reputation?.stats?.avgQuality ?? agent?.avgQuality
+                ? `${(reputation?.stats?.avgQuality ?? agent?.avgQuality ?? 0).toFixed(0)}%`
+                : '--'}
             </Text>
             <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
               Avg Quality
@@ -181,7 +210,7 @@ export default function ReputationScreen() {
         </Text>
         <View style={[styles.skillsCard, isDark && styles.cardDark]}>
           {agent?.skills?.length ? (
-            agent.skills.map(skill => (
+            agent.skills.map((skill) => (
               <View key={skill} style={styles.skillRow}>
                 <View style={styles.skillBadge}>
                   <Text style={styles.skillText}>
@@ -200,7 +229,7 @@ export default function ReputationScreen() {
           )}
         </View>
 
-        <View style={[styles.dkgCard, isDark && styles.cardDark]}>
+        <View style={[styles.dkgCard, isDark && styles.cardDarkPurple]}>
           <Text style={[styles.dkgTitle, isDark && styles.textDark]}>
             Stored on OriginTrail DKG
           </Text>
@@ -218,39 +247,15 @@ export default function ReputationScreen() {
   );
 }
 
-function getNextTier(currentTier: string | undefined) {
-  const tiers = ['unverified', 'bronze', 'silver', 'gold', 'platinum'];
-  const currentIndex = tiers.indexOf(currentTier || 'unverified');
-  if (currentIndex === -1 || currentIndex === tiers.length - 1) return null;
-  return tiers[currentIndex + 1] as keyof typeof TIER_THRESHOLDS;
-}
-
-function getProgressToNextTier(creditScore: number, currentTier: string | undefined) {
-  const nextTier = getNextTier(currentTier);
-  if (!nextTier) return 100;
-
-  const currentThreshold = TIER_THRESHOLDS[currentTier as keyof typeof TIER_THRESHOLDS] || 0;
-  const nextThreshold = TIER_THRESHOLDS[nextTier];
-  const range = nextThreshold - currentThreshold;
-  const progress = creditScore - currentThreshold;
-
-  return Math.min(100, Math.max(0, (progress / range) * 100));
-}
-
-function calculateReliability(tasksCompleted: number) {
-  if (tasksCompleted === 0) return '--';
-  if (tasksCompleted < 5) return 'New';
-  if (tasksCompleted < 20) return 'Building';
-  return 'Reliable';
-}
-
-function calculateDisputeScore(disputes: number, tasks: number) {
-  if (tasks === 0) return '--';
-  const rate = disputes / tasks;
-  if (rate === 0) return 'Perfect';
-  if (rate < 0.05) return 'Excellent';
-  if (rate < 0.1) return 'Good';
-  return 'Needs Improvement';
+function formatComponentName(key: string): string {
+  const names: Record<string, string> = {
+    taskQuality: 'Task Quality',
+    reliability: 'Reliability',
+    disputeRecord: 'Dispute Record',
+    peerTrust: 'Peer Trust',
+    tenure: 'Tenure',
+  };
+  return names[key] || key;
 }
 
 const styles = StyleSheet.create({
@@ -292,6 +297,9 @@ const styles = StyleSheet.create({
   cardDark: {
     backgroundColor: '#111',
   },
+  cardDarkPurple: {
+    backgroundColor: '#1a1625',
+  },
   avatar: {
     width: 80,
     height: 80,
@@ -328,12 +336,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  globalIdText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 12,
+    fontFamily: 'monospace',
+  },
   scoreCard: {
     backgroundColor: '#f9fafb',
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     marginBottom: 24,
+    minHeight: 150,
+    justifyContent: 'center',
   },
   scoreLabel: {
     fontSize: 14,
@@ -399,7 +415,8 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   breakdownRight: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   breakdownValue: {
     fontSize: 16,
@@ -409,7 +426,15 @@ const styles = StyleSheet.create({
   breakdownWeight: {
     fontSize: 12,
     color: '#9ca3af',
-    marginTop: 2,
+    marginLeft: 2,
+  },
+  loadingPlaceholder: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#6b7280',
   },
   statsRow: {
     flexDirection: 'row',
