@@ -1,7 +1,7 @@
 /**
  * Nika Agent
  *
- * Uses @kamiyo/agents with X tools.
+ * Uses @kamiyo/agents with X tools and DKG memory.
  */
 
 import { createKamiyoAgent, createXTools, type KamiyoAgent, type XToolsConfig } from '@kamiyo/agents';
@@ -27,6 +27,7 @@ import {
   type TweetType,
   type TweetStyle,
 } from './personality';
+import { getDKGMemory, type DKGMemory } from './dkg-memory';
 import type { Config } from './config';
 
 const log = createLogger('nika:agent');
@@ -35,6 +36,7 @@ const metrics = getMetrics();
 export interface NikaAgentConfig {
   anthropicApiKey: string;
   twitter: XToolsConfig;
+  dkgMemory?: DKGMemory;
 }
 
 export interface PostResult {
@@ -63,9 +65,11 @@ const twitterCircuit = new CircuitBreaker('twitter', {
 export class NikaAgent {
   private agent: KamiyoAgent;
   private config: NikaAgentConfig;
+  private dkgMemory: DKGMemory | null;
 
   constructor(config: NikaAgentConfig) {
     this.config = config;
+    this.dkgMemory = config.dkgMemory || getDKGMemory();
 
     const xTools = createXTools(config.twitter);
 
@@ -78,7 +82,7 @@ export class NikaAgent {
       timeoutMs: 180000,
     });
 
-    log.info('Nika agent initialized');
+    log.info('Nika agent initialized', { dkgEnabled: !!this.dkgMemory });
   }
 
   async generatePost(options?: {
@@ -93,9 +97,20 @@ export class NikaAgent {
     const type = options?.type || selectTweetType();
     const style = options?.style || selectTweetStyle();
 
-    const prompt = buildTweetPrompt(mood, type, style, options?.recentTopics);
+    // Fetch recent topics from DKG to avoid repetition
+    let recentTopics = options?.recentTopics;
+    if (!recentTopics && this.dkgMemory) {
+      try {
+        recentTopics = await this.dkgMemory.getRecentTopics(24);
+        log.debug('Fetched recent topics from DKG', { count: recentTopics.length });
+      } catch (error) {
+        log.warn('Failed to fetch recent topics from DKG', { error: String(error) });
+      }
+    }
 
-    log.info('Generating post', { mood, type, style });
+    const prompt = buildTweetPrompt(mood, type, style, recentTopics);
+
+    log.info('Generating post', { mood, type, style, recentTopicsCount: recentTopics?.length || 0 });
 
     let tweetContent = '';
 
@@ -144,12 +159,34 @@ export class NikaAgent {
       metrics.incrementCounter(`nika_post_type_${type}`);
       metrics.incrementCounter(`nika_post_style_${style}`);
 
+      // Store tweet in DKG memory (async, don't block)
+      let dkgGrounded = false;
+      if (this.dkgMemory) {
+        this.dkgMemory
+          .storeTweet({
+            content: tweetContent,
+            mood,
+            topics: this.extractTopics(tweetContent),
+          })
+          .then((ual) => {
+            if (ual) {
+              log.debug('Tweet stored in DKG', { ual });
+              metrics.incrementCounter('dkg_tweet_stored');
+            }
+          })
+          .catch((error) => {
+            log.warn('Failed to store tweet in DKG', { error: String(error) });
+          });
+        dkgGrounded = true; // Intent to store
+      }
+
       log.info('Post generated', {
         tweetLength: tweetContent.length,
         mood,
         type,
         style,
         durationMs: duration,
+        dkgGrounded,
       });
 
       return {
@@ -157,7 +194,7 @@ export class NikaAgent {
         mood,
         tweetType: type,
         tweetStyle: style,
-        dkgGrounded: false,
+        dkgGrounded,
         durationMs: duration,
       };
     } catch (error) {
@@ -165,6 +202,31 @@ export class NikaAgent {
       log.error('Post generation failed', { error: String(error), mood, type, style });
       throw error;
     }
+  }
+
+  private extractTopics(content: string): string[] {
+    // Extract hashtags
+    const hashtags = content.match(/#\w+/g)?.map((h) => h.slice(1)) || [];
+
+    // Extract key terms (simple approach)
+    const stopwords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'and', 'or', 'but', 'not', 'this', 'that', 'it', 'its']);
+    const words = content
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .split(/\s+/)
+      .filter((w) => w.length > 4 && !stopwords.has(w));
+
+    const freq: Record<string, number> = {};
+    for (const w of words) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+
+    const topWords = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([w]) => w);
+
+    return [...new Set([...hashtags, ...topWords])].slice(0, 5);
   }
 
   async generateReply(
@@ -251,15 +313,38 @@ Return ONLY the reply text, nothing else.`;
       metrics.incrementCounter('nika_reply_success');
       metrics.recordHistogram('nika_reply_duration_ms', duration);
 
+      // Store reply in DKG memory (async, don't block)
+      let dkgGrounded = false;
+      if (this.dkgMemory) {
+        this.dkgMemory
+          .storeReply({
+            content: replyContent,
+            inReplyTo: mentionId,
+            originalAuthor: safeUsername,
+            originalContent: safeContent,
+          })
+          .then((ual) => {
+            if (ual) {
+              log.debug('Reply stored in DKG', { ual });
+              metrics.incrementCounter('dkg_reply_stored');
+            }
+          })
+          .catch((error) => {
+            log.warn('Failed to store reply in DKG', { error: String(error) });
+          });
+        dkgGrounded = true;
+      }
+
       log.info('Reply generated', {
         mentionId,
         replyLength: replyContent.length,
         durationMs: duration,
+        dkgGrounded,
       });
 
       return {
         reply: replyContent,
-        dkgGrounded: false,
+        dkgGrounded,
         durationMs: duration,
       };
     } catch (error) {
@@ -350,15 +435,38 @@ Return ONLY the quote text, nothing else.`;
       metrics.incrementCounter('nika_quote_success');
       metrics.recordHistogram('nika_quote_duration_ms', duration);
 
+      // Store quote in DKG memory (async, don't block)
+      let dkgGrounded = false;
+      if (this.dkgMemory) {
+        this.dkgMemory
+          .storeQuote({
+            content: quoteContent,
+            quotedTweetId: tweetId,
+            originalAuthor: safeUsername,
+            originalContent: safeContent,
+          })
+          .then((ual) => {
+            if (ual) {
+              log.debug('Quote stored in DKG', { ual });
+              metrics.incrementCounter('dkg_quote_stored');
+            }
+          })
+          .catch((error) => {
+            log.warn('Failed to store quote in DKG', { error: String(error) });
+          });
+        dkgGrounded = true;
+      }
+
       log.info('Quote generated', {
         tweetId,
         quoteLength: quoteContent.length,
         durationMs: duration,
+        dkgGrounded,
       });
 
       return {
         quote: quoteContent,
-        dkgGrounded: false,
+        dkgGrounded,
         durationMs: duration,
       };
     } catch (error) {
@@ -368,10 +476,15 @@ Return ONLY the quote text, nothing else.`;
     }
   }
 
-  getCircuitStatus(): { twitter: string } {
+  getCircuitStatus(): { twitter: string; dkg: string } {
     return {
       twitter: twitterCircuit.getState(),
+      dkg: this.dkgMemory?.getCircuitStatus() || 'disabled',
     };
+  }
+
+  getDKGMemory(): DKGMemory | null {
+    return this.dkgMemory;
   }
 }
 

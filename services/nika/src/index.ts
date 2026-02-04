@@ -20,6 +20,7 @@ import { ProductionScheduler } from './scheduler';
 import { HealthMonitor } from './health';
 import { MentionMonitor, createMentionMonitor } from './mention-monitor';
 import { createServer, Server, tweetsPosted, mentionsProcessed, agentDuration } from './server';
+import { initializeDKGMemory, getDKGMemory, type DKGMemory } from './dkg-memory';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -30,6 +31,7 @@ let scheduler: ProductionScheduler | null = null;
 let mentionMonitor: MentionMonitor | null = null;
 let health: HealthMonitor | null = null;
 let server: Server | null = null;
+let dkgMemory: DKGMemory | null = null;
 
 /**
  * Validate external service connections at startup.
@@ -102,9 +104,28 @@ async function main(): Promise<void> {
   // Validate external connections before starting
   await validateConnections(config);
 
+  // Initialize DKG memory (optional - continues without if fails)
+  if (config.NIKA_PARANET_UAL || config.DKG_PRIVATE_KEY) {
+    try {
+      dkgMemory = await initializeDKGMemory(config);
+      log.info('DKG memory initialized', {
+        endpoint: config.DKG_ENDPOINT,
+        blockchain: config.DKG_BLOCKCHAIN,
+        paranetUAL: config.NIKA_PARANET_UAL || '(none)',
+      });
+    } catch (error) {
+      log.warn('DKG memory initialization failed - continuing without', {
+        error: String(error),
+      });
+      // Continue without DKG - not fatal
+    }
+  } else {
+    log.info('DKG memory disabled (no paranet UAL or private key)');
+  }
+
   // Initialize agent
   agent = createNikaAgent(config);
-  log.info('Agent initialized');
+  log.info('Agent initialized', { dkgEnabled: !!dkgMemory });
 
   // Initialize health monitor
   health = new HealthMonitor();
@@ -249,7 +270,11 @@ async function main(): Promise<void> {
           running: mentionMonitor?.isRunning() ?? false,
           lastCheckAt: null, // TODO: Track in mention monitor
         },
-        circuitBreaker: agent?.getCircuitStatus() ?? { twitter: 'unknown' },
+        circuitBreaker: agent?.getCircuitStatus() ?? { twitter: 'unknown', dkg: 'unknown' },
+        dkg: {
+          enabled: !!dkgMemory,
+          circuitStatus: dkgMemory?.getCircuitStatus() ?? 'disabled',
+        },
       },
     }),
     getReadiness: async () => {
@@ -257,11 +282,15 @@ async function main(): Promise<void> {
       const schedulerOk = scheduler?.isRunning() ?? false;
       const mentionMonitorOk = mentionMonitor?.isRunning() ?? false;
 
+      // DKG is optional - not required for readiness
+      const dkgOk = !dkgMemory || dkgMemory.getCircuitStatus() !== 'open';
+
       return {
         ready: schedulerOk && mentionMonitorOk,
         checks: {
           twitter: { ok: mentionMonitorOk, error: mentionMonitorOk ? undefined : 'Not running' },
           anthropic: { ok: true }, // Validated at startup
+          dkg: { ok: dkgOk, error: dkgOk ? undefined : 'Circuit open' },
         },
       };
     },
