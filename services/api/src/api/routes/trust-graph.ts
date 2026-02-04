@@ -451,4 +451,174 @@ router.get('/stats', async (_req: Request, res: Response) => {
   res.json({ ...stats, source: usingDKG ? 'dkg' : 'mock' });
 });
 
+// Tier priority for sorting
+const TIER_PRIORITY: Record<Tier, number> = {
+  oracle: 5,
+  sentinel: 4,
+  architect: 3,
+  scout: 2,
+  ghost: 1,
+};
+
+// GET /api/trust-graph/leaderboard - Ranked agent list
+router.get('/leaderboard', async (req: Request, res: Response) => {
+  const sort = (req.query.sort as string) || 'reputation';
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+  const tierFilter = req.query.tier as string | undefined;
+
+  try {
+    let { nodes } = await getCachedGraph();
+
+    // Filter by tier if specified (comma-separated)
+    if (tierFilter) {
+      const allowedTiers = new Set(tierFilter.split(',').map(t => t.trim().toLowerCase()));
+      nodes = nodes.filter(n => allowedTiers.has(n.tier));
+    }
+
+    // Sort by requested field
+    const sorted = [...nodes].sort((a, b) => {
+      switch (sort) {
+        case 'txCount':
+        case 'tasks':
+          return b.txCount - a.txCount;
+        case 'tier':
+          return TIER_PRIORITY[b.tier] - TIER_PRIORITY[a.tier] || b.reputation - a.reputation;
+        case 'reputation':
+        default:
+          return b.reputation - a.reputation;
+      }
+    });
+
+    // Apply limit and add rank
+    const ranked = sorted.slice(0, limit).map((node, i) => ({
+      rank: i + 1,
+      ...node,
+    }));
+
+    // Compute tier counts from full (unfiltered) data
+    const { nodes: allNodes } = await getCachedGraph();
+    const tierCounts: Record<Tier, number> = {
+      oracle: 0,
+      sentinel: 0,
+      architect: 0,
+      scout: 0,
+      ghost: 0,
+    };
+    for (const node of allNodes) {
+      tierCounts[node.tier]++;
+    }
+
+    const usingDKG = !!process.env.DKG_ENDPOINT;
+
+    res.json({
+      agents: ranked,
+      totalAgents: allNodes.length,
+      filteredCount: nodes.length,
+      tierCounts,
+      query: { sort, limit, tier: tierFilter || null },
+      source: usingDKG ? 'dkg' : 'mock',
+    });
+  } catch (err) {
+    logger.error('Failed to fetch leaderboard', { error: String(err) });
+    res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch leaderboard' },
+    });
+  }
+});
+
+// Extended agent details for detail panel
+interface AgentDetails extends TrustNode {
+  incomingTrust: number;
+  outgoingTrust: number;
+  peerCount: number;
+  topPeers: Array<{ id: string; label: string; tier: Tier; direction: 'incoming' | 'outgoing'; weight: number }>;
+}
+
+// GET /api/trust-graph/agent/:id/details - Full agent details with trust connections
+router.get('/agent/:id/details', async (req: Request, res: Response) => {
+  const agentId = req.params.id;
+
+  try {
+    const { nodes, edges } = await getCachedGraph();
+    const node = nodes.find(n => n.id === agentId);
+
+    if (!node) {
+      res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Agent not found' },
+      });
+      return;
+    }
+
+    // Find all connections
+    const incoming = edges.filter(e => e.target === agentId);
+    const outgoing = edges.filter(e => e.source === agentId);
+
+    // Calculate trust scores
+    const incomingTrust = incoming.length > 0
+      ? Math.round(incoming.reduce((sum, e) => sum + e.weight, 0) / incoming.length)
+      : 0;
+    const outgoingTrust = outgoing.length > 0
+      ? Math.round(outgoing.reduce((sum, e) => sum + e.weight, 0) / outgoing.length)
+      : 0;
+
+    // Build peer list
+    const peers: AgentDetails['topPeers'] = [];
+
+    for (const edge of incoming) {
+      const peer = nodes.find(n => n.id === edge.source);
+      if (peer) {
+        peers.push({
+          id: peer.id,
+          label: peer.label,
+          tier: peer.tier,
+          direction: 'incoming',
+          weight: edge.weight,
+        });
+      }
+    }
+
+    for (const edge of outgoing) {
+      const peer = nodes.find(n => n.id === edge.target);
+      if (peer) {
+        peers.push({
+          id: peer.id,
+          label: peer.label,
+          tier: peer.tier,
+          direction: 'outgoing',
+          weight: edge.weight,
+        });
+      }
+    }
+
+    // Sort peers by weight, limit to top 10
+    peers.sort((a, b) => b.weight - a.weight);
+    const topPeers = peers.slice(0, 10);
+
+    // Calculate rank
+    const sortedNodes = [...nodes].sort((a, b) => b.reputation - a.reputation);
+    const rank = sortedNodes.findIndex(n => n.id === agentId) + 1;
+
+    const details: AgentDetails & { rank: number } = {
+      ...node,
+      rank,
+      incomingTrust,
+      outgoingTrust,
+      peerCount: incoming.length + outgoing.length,
+      topPeers,
+    };
+
+    const usingDKG = !!process.env.DKG_ENDPOINT;
+
+    res.json({
+      agent: details,
+      source: usingDKG ? 'dkg' : 'mock',
+    });
+  } catch (err) {
+    logger.error('Failed to fetch agent details', { error: String(err) });
+    res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch agent details' },
+    });
+  }
+});
+
 export default router;
