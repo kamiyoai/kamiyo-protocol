@@ -67,3 +67,16 @@ export {
   type ModerationResult,
   type ModerationConfig,
 } from './moderation';
+export {
+  AlertManager,
+  getAlertManager,
+  initializeAlerting,
+  sendAlert,
+  alertInfo,
+  alertWarning,
+  alertError,
+  alertCritical,
+  type Alert,
+  type AlertSeverity,
+  type AlertingConfig,
+} from './alerting';

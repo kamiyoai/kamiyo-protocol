@@ -27,6 +27,10 @@ export interface Config {
   PORT: number;
   NODE_ENV: 'development' | 'production' | 'test';
   LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error';
+
+  // Alerting
+  ALERT_WEBHOOK_URL: string;
+  ALERT_WEBHOOK_TYPE: 'slack' | 'discord' | 'generic';
 }
 
 const REQUIRED_VARS = [
@@ -48,6 +52,8 @@ const DEFAULTS: Partial<Config> = {
   PORT: 4020,
   NODE_ENV: 'development',
   LOG_LEVEL: 'info',
+  ALERT_WEBHOOK_URL: '',
+  ALERT_WEBHOOK_TYPE: 'generic',
 };
 
 let cachedConfig: Config | null = null;
@@ -193,6 +199,11 @@ export function getConfig(): Config {
     PORT: parseInt(process.env.PORT || String(DEFAULTS.PORT)),
     NODE_ENV: (process.env.NODE_ENV as Config['NODE_ENV']) || DEFAULTS.NODE_ENV!,
     LOG_LEVEL: (process.env.LOG_LEVEL as Config['LOG_LEVEL']) || DEFAULTS.LOG_LEVEL!,
+
+    ALERT_WEBHOOK_URL: process.env.ALERT_WEBHOOK_URL || DEFAULTS.ALERT_WEBHOOK_URL!,
+    ALERT_WEBHOOK_TYPE:
+      (process.env.ALERT_WEBHOOK_TYPE as Config['ALERT_WEBHOOK_TYPE']) ||
+      DEFAULTS.ALERT_WEBHOOK_TYPE!,
   };
 
   return cachedConfig;
@@ -220,5 +231,7 @@ export function getRedactedConfig(): Record<string, string> {
     PORT: String(config.PORT),
     NODE_ENV: config.NODE_ENV,
     LOG_LEVEL: config.LOG_LEVEL,
+    ALERT_WEBHOOK_URL: config.ALERT_WEBHOOK_URL ? '[CONFIGURED]' : '(not set)',
+    ALERT_WEBHOOK_TYPE: config.ALERT_WEBHOOK_TYPE,
   };
 }

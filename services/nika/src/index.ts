@@ -13,6 +13,10 @@ import {
   initializeShutdownManager,
   getShutdownManager,
   getRateLimiter,
+  initializeAlerting,
+  alertError,
+  alertCritical,
+  alertWarning,
 } from './lib';
 import { validateConfig, getConfig, getRedactedConfig } from './config';
 import { NikaAgent, createNikaAgent } from './nika-agent';
@@ -21,6 +25,7 @@ import { HealthMonitor } from './health';
 import { MentionMonitor, createMentionMonitor } from './mention-monitor';
 import { createServer, Server, tweetsPosted, mentionsProcessed, agentDuration } from './server';
 import { initializeDKGMemory, getDKGMemory, type DKGMemory } from './dkg-memory';
+import { createEngagementTracker, type EngagementTracker } from './engagement-tracker';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -32,6 +37,7 @@ let mentionMonitor: MentionMonitor | null = null;
 let health: HealthMonitor | null = null;
 let server: Server | null = null;
 let dkgMemory: DKGMemory | null = null;
+let engagementTracker: EngagementTracker | null = null;
 
 /**
  * Validate external service connections at startup.
@@ -100,6 +106,17 @@ async function main(): Promise<void> {
   const config = getConfig();
   setLogLevel(config.LOG_LEVEL);
   log.info('Configuration validated', getRedactedConfig());
+
+  // Initialize alerting
+  if (config.ALERT_WEBHOOK_URL) {
+    initializeAlerting({
+      webhookUrl: config.ALERT_WEBHOOK_URL,
+      webhookType: config.ALERT_WEBHOOK_TYPE,
+      serviceName: 'nika',
+      environment: config.NODE_ENV,
+    });
+    log.info('Alerting initialized', { type: config.ALERT_WEBHOOK_TYPE });
+  }
 
   // Validate external connections before starting
   await validateConnections(config);
@@ -242,7 +259,9 @@ async function main(): Promise<void> {
 
   scheduler.on('alert', (message: string) => {
     log.error('Scheduler alert', { message });
-    // TODO: Send to alerting webhook
+    alertError('Scheduler Alert', message, 'scheduler').catch(() => {
+      // Ignore alert send failures
+    });
   });
 
   await scheduler.start();
@@ -253,6 +272,25 @@ async function main(): Promise<void> {
     scheduler?.stop();
     scheduler?.removeAllListeners();
   }, 10);
+
+  // Initialize engagement tracker (only if DKG is enabled)
+  if (dkgMemory) {
+    engagementTracker = createEngagementTracker(
+      {
+        apiKey: config.TWITTER_API_KEY,
+        apiSecret: config.TWITTER_API_SECRET,
+        accessToken: config.TWITTER_ACCESS_TOKEN,
+        accessSecret: config.TWITTER_ACCESS_SECRET,
+      },
+      { intervalMs: 30 * 60 * 1000 } // 30 minutes
+    );
+    await engagementTracker.start();
+    log.info('Engagement tracker started');
+
+    shutdownManager.register('engagementTracker', async () => {
+      engagementTracker?.stop();
+    }, 15);
+  }
 
   // Initialize HTTP server
   server = createServer({
@@ -274,6 +312,9 @@ async function main(): Promise<void> {
         dkg: {
           enabled: !!dkgMemory,
           circuitStatus: dkgMemory?.getCircuitStatus() ?? 'disabled',
+        },
+        engagementTracker: {
+          running: engagementTracker?.isRunning() ?? false,
         },
       },
     }),
@@ -316,12 +357,14 @@ async function main(): Promise<void> {
   process.on('uncaughtException', async (error) => {
     log.error('Uncaught exception', { error: error.message, stack: error.stack });
     metrics.incrementCounter('nika_uncaught_exceptions');
+    await alertCritical('Uncaught Exception', error.message, 'process').catch(() => {});
     await handleShutdown('uncaughtException');
   });
 
   process.on('unhandledRejection', (reason) => {
     log.error('Unhandled rejection', { reason: String(reason) });
     metrics.incrementCounter('nika_unhandled_rejections');
+    alertWarning('Unhandled Rejection', String(reason), 'process').catch(() => {});
   });
 
   log.info('Nika service started', {
