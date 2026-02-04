@@ -2,7 +2,7 @@
  * Builder Tools
  */
 
-import type { ToolConfig } from '@kamiyo/agents';
+import type { ToolConfig } from '../types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';

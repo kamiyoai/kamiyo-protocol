@@ -2,7 +2,7 @@
  * Colosseum Hackathon Tools
  */
 
-import type { ToolConfig } from '@kamiyo/agents';
+import type { ToolConfig } from '../types.js';
 
 interface ColosseumToolsConfig {
   apiKey: string;
