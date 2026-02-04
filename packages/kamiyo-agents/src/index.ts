@@ -9,6 +9,8 @@ export { createX402Tools, X402_TOOL_NAMES } from './x402-tools.js';
 export type { X402ToolName, X402ToolsConfig, PaymentRequirement } from './x402-tools.js';
 export { createParanetTools, PARANET_TOOL_NAMES } from './paranet-tools.js';
 export type { ParanetToolName, ParanetToolsConfig, ParanetClient } from './paranet-tools.js';
+export { createXTools, X_TOOL_NAMES } from './x-tools.js';
+export type { XToolName, XToolsConfig } from './x-tools.js';
 export type {
   AgentConfig,
   AgentMessage,
