@@ -10,7 +10,7 @@ const envSchema = z.object({
   SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'),
   SOLANA_PRIVATE_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().default('claude-3-5-sonnet-20241022'),
+  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-20250514'),
   ANTHROPIC_MAX_TOKENS: z.coerce.number().default(8192),
   ANTHROPIC_REQUEST_TIMEOUT_MS: z.coerce.number().default(60000),
   TOOL_TIMEOUT_MS: z.coerce.number().default(45000),

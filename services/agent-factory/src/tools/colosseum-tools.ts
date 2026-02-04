@@ -272,6 +272,24 @@ export function createColosseumTools(config: ColosseumToolsConfig): ToolConfig[]
     },
 
     {
+      name: 'colosseum_submit_project',
+      description: 'Submit your project for judging. WARNING: This is a one-way action - project cannot be edited after submission.',
+      parameters: {},
+      handler: async () => {
+        try {
+          const result = await colosseumRequest<{ success: boolean; message: string }>(
+            '/my-project/submit',
+            apiKey,
+            { method: 'POST' }
+          );
+          return { success: true, data: result };
+        } catch (error) {
+          return { success: false, error: error instanceof Error ? error.message : 'Failed to submit project' };
+        }
+      },
+    },
+
+    {
       name: 'colosseum_get_my_posts',
       description: 'Get your own forum posts to check for replies',
       parameters: {},
@@ -319,6 +337,7 @@ export const COLOSSEUM_TOOL_NAMES = [
   'colosseum_vote_project',
   'colosseum_get_leaderboard',
   'colosseum_update_project',
+  'colosseum_submit_project',
   'colosseum_get_my_posts',
   'colosseum_get_post_comments',
 ] as const;

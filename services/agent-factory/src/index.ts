@@ -12,6 +12,11 @@ import { runAutonomousTask } from './agent.js';
 import { colosseum } from './colosseum-client.js';
 import { env } from './config.js';
 
+// Export for viral-loop.ts
+export async function runAgentTask(task: string): Promise<void> {
+  await runAutonomousTask(task);
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
