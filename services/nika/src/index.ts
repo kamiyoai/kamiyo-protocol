@@ -26,6 +26,12 @@ import { MentionMonitor, createMentionMonitor } from './mention-monitor';
 import { createServer, Server, tweetsPosted, mentionsProcessed, agentDuration } from './server';
 import { initializeDKGMemory, getDKGMemory, type DKGMemory } from './dkg-memory';
 import { createEngagementTracker, type EngagementTracker } from './engagement-tracker';
+import { initializeQualityGate } from './quality-gate';
+import {
+  postRelaunchAnnouncement,
+  shouldPostRelaunchAnnouncement,
+  hasAnnouncementBeenPosted,
+} from './relaunch-announcement';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -140,9 +146,37 @@ async function main(): Promise<void> {
     log.info('DKG memory disabled (no paranet UAL or private key)');
   }
 
+  // Initialize quality gate
+  initializeQualityGate({
+    anthropicApiKey: config.ANTHROPIC_API_KEY,
+    enabled: true,
+  });
+  log.info('Quality gate initialized');
+
   // Initialize agent
   agent = createNikaAgent(config);
   log.info('Agent initialized', { dkgEnabled: !!dkgMemory });
+
+  // Post relaunch announcement if enabled (one-time)
+  if (shouldPostRelaunchAnnouncement() && !hasAnnouncementBeenPosted()) {
+    try {
+      const announcementResult = await postRelaunchAnnouncement({
+        twitter: {
+          apiKey: config.TWITTER_API_KEY,
+          apiSecret: config.TWITTER_API_SECRET,
+          accessToken: config.TWITTER_ACCESS_TOKEN,
+          accessSecret: config.TWITTER_ACCESS_SECRET,
+        },
+      });
+      log.info('Relaunch announcement posted', {
+        tweetId: announcementResult.tweetId,
+        variant: announcementResult.variant,
+      });
+    } catch (error) {
+      log.error('Failed to post relaunch announcement', { error: String(error) });
+      // Don't fail startup - this is optional
+    }
+  }
 
   // Initialize health monitor
   health = new HealthMonitor();
@@ -306,7 +340,7 @@ async function main(): Promise<void> {
         },
         mentionMonitor: {
           running: mentionMonitor?.isRunning() ?? false,
-          lastCheckAt: null, // TODO: Track in mention monitor
+          lastCheckAt: mentionMonitor?.getLastCheckAt()?.getTime() ?? null,
         },
         circuitBreaker: agent?.getCircuitStatus() ?? { twitter: 'unknown', dkg: 'unknown' },
         dkg: {
@@ -396,6 +430,60 @@ async function main(): Promise<void> {
 
 // Export for testing
 export { NikaAgent, createNikaAgent, ProductionScheduler, HealthMonitor, MentionMonitor };
+
+// Export new Claude Agent SDK implementation
+export { NikaAgentSDK, createNikaAgentSDK } from './nika-agent-sdk';
+export { createXMcpServer, X_MCP_TOOL_NAMES } from './x-mcp-server';
+
+// Export Phase 2: dRAG (Decentralized RAG) with vector embeddings
+export { NikaDRAG, initializeDRAG, getDRAG } from './drag';
+export type { SemanticSearchResult, EmbeddingVector, DRAGConfig } from './drag';
+
+// Export Phase 2: SPARQL generation from natural language
+export { SPARQLGenerator, initializeSPARQLGenerator, getSPARQLGenerator } from './sparql-generator';
+export type { SPARQLGenerationResult, QueryResult, SPARQLGeneratorConfig } from './sparql-generator';
+
+// Export Phase 3: Engagement-driven optimization
+export { EngagementOptimizer, initializeEngagementOptimizer, getEngagementOptimizer } from './engagement-optimizer';
+export type { TweetPerformance, ParameterStats, EngagementOptimizerConfig } from './engagement-optimizer';
+
+// Export Quality Gate
+export { shouldTweet, requiresQualityCheck, initializeQualityGate, isQualityGateEnabled } from './quality-gate';
+export type { QualityCheckResult, QualityGateConfig } from './quality-gate';
+
+// Export Phase 4: Full KAMIYO protocol tools
+export { createProtocolMcpServer, PROTOCOL_MCP_TOOL_NAMES } from './protocol-tools-mcp';
+export type { ProtocolMcpConfig, ProtocolMcpToolName } from './protocol-tools-mcp';
+
+// Export Phase 5: Trending topic awareness
+export { TrendingMonitor, initializeTrendingMonitor, getTrendingMonitor } from './trending-monitor';
+export type { TrendingTopic, CommentaryOpportunity, TrendingMonitorConfig } from './trending-monitor';
+
+// Export relaunch announcement
+export {
+  postRelaunchAnnouncement,
+  shouldPostRelaunchAnnouncement,
+  hasAnnouncementBeenPosted,
+  markAnnouncementPosted,
+} from './relaunch-announcement';
+export type { RelaunchAnnouncementConfig, RelaunchAnnouncementResult } from './relaunch-announcement';
+
+// Export DKG query tools
+export {
+  queryKnowledge,
+  getAgentReputation,
+  findProviders,
+  getQueryCircuitStatus,
+} from './dkg-query-tools';
+export type {
+  KnowledgeQueryResult,
+  AgentReputationResult,
+  ProviderResult,
+} from './dkg-query-tools';
+
+// Export Market Intel Monitor
+export { MarketIntelMonitor, createMarketIntelMonitor } from './market-intel-monitor';
+export type { MarketIntel, MarketIntelMonitorConfig } from './market-intel-monitor';
 
 // Main entry point
 main().catch((error) => {

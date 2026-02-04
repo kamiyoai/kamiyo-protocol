@@ -1,7 +1,5 @@
 /**
- * Alerting
- *
- * Send alerts to external webhooks (Slack, Discord, PagerDuty).
+ * Alerting - webhooks for Slack, Discord, PagerDuty.
  */
 
 import { createLogger, getMetrics, withRetry } from './index';

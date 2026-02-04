@@ -1,7 +1,5 @@
 /**
- * Graceful Shutdown Manager
- *
- * Tracks in-flight operations and waits for completion on shutdown.
+ * Graceful shutdown with in-flight operation tracking.
  */
 
 import { createLogger } from './logger';

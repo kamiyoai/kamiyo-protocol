@@ -1,7 +1,5 @@
 /**
- * Mention Monitor for Nika
- *
- * Polls for mentions and triggers replies.
+ * Mention Monitor - polls for mentions, triggers replies.
  */
 
 import { EventEmitter } from 'events';
@@ -31,6 +29,7 @@ export class MentionMonitor extends EventEmitter {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private lastMentionId: string | null = null;
+  private lastCheckAt: Date | null = null;
   private processedCache: LRUCache<boolean>;
   private xTools: ReturnType<typeof createXTools>;
 
@@ -69,6 +68,7 @@ export class MentionMonitor extends EventEmitter {
 
   private async checkMentions(): Promise<void> {
     const startTime = Date.now();
+    this.lastCheckAt = new Date();
 
     log.debug('Checking mentions', { sinceId: this.lastMentionId });
     metrics.incrementCounter('nika_mention_checks');
@@ -199,6 +199,10 @@ export class MentionMonitor extends EventEmitter {
 
   getProcessedCount(): number {
     return this.processedCache.size;
+  }
+
+  getLastCheckAt(): Date | null {
+    return this.lastCheckAt;
   }
 }
 

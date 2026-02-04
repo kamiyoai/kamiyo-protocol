@@ -1,7 +1,5 @@
 /**
- * Rate Limiter
- *
- * Token bucket implementation for Twitter API rate limiting.
+ * Token bucket rate limiter for Twitter API.
  */
 
 import { createLogger } from './logger';

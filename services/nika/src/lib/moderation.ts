@@ -1,7 +1,5 @@
 /**
- * Content Moderation
- *
- * Filters content before posting to protect brand and prevent harmful output.
+ * Content moderation - filters harmful content before posting.
  */
 
 import { createLogger } from './logger';

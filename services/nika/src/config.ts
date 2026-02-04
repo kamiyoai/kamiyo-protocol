@@ -18,6 +18,7 @@ export interface Config {
   TWITTER_API_SECRET: string;
   TWITTER_ACCESS_TOKEN: string;
   TWITTER_ACCESS_SECRET: string;
+  TWITTER_HANDLE: string;
 
   // Scheduling
   POST_INTERVAL_MIN_MS: number;
@@ -47,6 +48,7 @@ const DEFAULTS: Partial<Config> = {
   DKG_PORT: 8900,
   DKG_BLOCKCHAIN: 'otp::mainnet',
   NIKA_PARANET_UAL: '',
+  TWITTER_HANDLE: 'nika_entity',
   POST_INTERVAL_MIN_MS: 3 * 60 * 60 * 1000, // 3 hours
   POST_INTERVAL_MAX_MS: 5 * 60 * 60 * 1000, // 5 hours
   PORT: 4020,
@@ -188,6 +190,7 @@ export function getConfig(): Config {
     TWITTER_API_SECRET: process.env.TWITTER_API_SECRET!,
     TWITTER_ACCESS_TOKEN: process.env.TWITTER_ACCESS_TOKEN!,
     TWITTER_ACCESS_SECRET: process.env.TWITTER_ACCESS_SECRET!,
+    TWITTER_HANDLE: process.env.TWITTER_HANDLE || DEFAULTS.TWITTER_HANDLE!,
 
     POST_INTERVAL_MIN_MS: parseInt(
       process.env.POST_INTERVAL_MIN_MS || String(DEFAULTS.POST_INTERVAL_MIN_MS)
@@ -226,6 +229,7 @@ export function getRedactedConfig(): Record<string, string> {
     TWITTER_API_SECRET: '[REDACTED]',
     TWITTER_ACCESS_TOKEN: '[REDACTED]',
     TWITTER_ACCESS_SECRET: '[REDACTED]',
+    TWITTER_HANDLE: config.TWITTER_HANDLE,
     POST_INTERVAL_MIN_MS: String(config.POST_INTERVAL_MIN_MS),
     POST_INTERVAL_MAX_MS: String(config.POST_INTERVAL_MAX_MS),
     PORT: String(config.PORT),

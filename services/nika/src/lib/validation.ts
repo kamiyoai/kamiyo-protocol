@@ -1,7 +1,5 @@
 /**
- * Input Validation and Sanitization
- *
- * Runtime validation and security utilities.
+ * Input validation and sanitization.
  */
 
 export interface ValidationResult<T> {
@@ -119,12 +117,17 @@ export function validateTweetId(input: unknown): ValidationResult<string> {
  * Prevents prompt injection attacks.
  */
 export function sanitizeForPrompt(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+
   return input
     // Remove potential prompt injection markers
     .replace(/\[INST\]/gi, '[inst]')
     .replace(/\[\/INST\]/gi, '[/inst]')
     .replace(/<<SYS>>/gi, '<<sys>>')
     .replace(/<<\/SYS>>/gi, '<</sys>>')
+    .replace(/<\|.*?\|>/gi, '') // Remove special tokens like <|im_start|>
     .replace(/\n{3,}/g, '\n\n') // Collapse multiple newlines
     .replace(/```/g, "'''") // Replace code blocks
     // Remove common injection patterns
@@ -134,6 +137,9 @@ export function sanitizeForPrompt(input: string): string {
     .replace(/you are now/gi, '[filtered]')
     .replace(/new instructions?:/gi, '[filtered]')
     .replace(/system prompt/gi, '[filtered]')
+    .replace(/override (all )?(your )?(previous )?/gi, '[filtered]')
+    .replace(/act as if/gi, '[filtered]')
+    .replace(/pretend (you are|to be)/gi, '[filtered]')
     // Limit length
     .slice(0, 2000);
 }
@@ -142,6 +148,9 @@ export function sanitizeForPrompt(input: string): string {
  * Sanitize username for display.
  */
 export function sanitizeUsername(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
   return input
     .replace(/[^a-zA-Z0-9_]/g, '')
     .slice(0, 15); // Twitter max username length
@@ -151,13 +160,17 @@ export function sanitizeUsername(input: string): string {
  * Sanitize for SPARQL queries.
  */
 export function sanitizeForSPARQL(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
   return input
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/'/g, "\\'")
     .replace(/\n/g, ' ')
     .replace(/\r/g, ' ')
-    .replace(/[<>{}|^`]/g, ''); // Remove SPARQL special chars
+    .replace(/[<>{}|^`]/g, '') // Remove SPARQL special chars
+    .slice(0, 1000); // Limit query param length
 }
 
 /**
@@ -219,6 +232,12 @@ export function containsHarmfulContent(content: string): { harmful: boolean; rea
  * Truncate string to max length with ellipsis.
  */
 export function truncate(input: string, maxLength: number): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  if (maxLength < 4) {
+    return input.slice(0, maxLength);
+  }
   if (input.length <= maxLength) return input;
   return input.slice(0, maxLength - 3) + '...';
 }
