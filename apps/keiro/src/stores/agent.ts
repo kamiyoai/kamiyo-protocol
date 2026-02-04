@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type AgentPersonality = 'professional' | 'creative' | 'efficient' | 'balanced';
 
@@ -38,55 +40,64 @@ interface AgentState {
   clearAgent: () => void;
 }
 
-export const useAgentStore = create<AgentState>((set, get) => ({
-  agent: null,
-  isLoading: false,
-  error: null,
+export const useAgentStore = create<AgentState>()(
+  persist(
+    (set, get) => ({
+      agent: null,
+      isLoading: false,
+      error: null,
 
-  createAgent: (name, personality, skills) => {
-    const newAgent: Agent = {
-      id: `agent_${Date.now()}`,
-      name,
-      personality,
-      skills,
-      tier: 'unverified',
-      creditScore: 0,
-      tasksCompleted: 0,
-      disputeCount: 0,
-      tenureDays: 0,
-      avgQuality: 0,
-      isActive: false,
-      createdAt: new Date().toISOString(),
-    };
+      createAgent: (name, personality, skills) => {
+        const newAgent: Agent = {
+          id: `agent_${Date.now()}`,
+          name,
+          personality,
+          skills,
+          tier: 'unverified',
+          creditScore: 0,
+          tasksCompleted: 0,
+          disputeCount: 0,
+          tenureDays: 0,
+          avgQuality: 0,
+          isActive: false,
+          createdAt: new Date().toISOString(),
+        };
 
-    set({ agent: newAgent });
-  },
-
-  updateAgent: updates => {
-    const { agent } = get();
-    if (!agent) return;
-
-    set({
-      agent: {
-        ...agent,
-        ...updates,
+        set({ agent: newAgent });
       },
-    });
-  },
 
-  setActive: active => {
-    const { agent } = get();
-    if (!agent) return;
+      updateAgent: updates => {
+        const { agent } = get();
+        if (!agent) return;
 
-    set({
-      agent: {
-        ...agent,
-        isActive: active,
+        set({
+          agent: {
+            ...agent,
+            ...updates,
+          },
+        });
       },
-    });
-  },
 
-  clearAgent: () => {
-    set({ agent: null, error: null });
-  },
-}));
+      setActive: active => {
+        const { agent } = get();
+        if (!agent) return;
+
+        set({
+          agent: {
+            ...agent,
+            isActive: active,
+          },
+        });
+      },
+
+      clearAgent: () => {
+        set({ agent: null, error: null });
+      },
+    }),
+    {
+      name: 'keiro-agent-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: state => ({ agent: state.agent }),
+    }
+  )
+);
