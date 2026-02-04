@@ -29,6 +29,15 @@ export const TIER_THRESHOLDS = {
   platinum: 90,
 } as const;
 
+// Tier Colors
+export const TIER_COLORS = {
+  unverified: '#6b7280',
+  bronze: '#cd7f32',
+  silver: '#9ca3af',
+  gold: '#f59e0b',
+  platinum: '#8b5cf6',
+} as const;
+
 // Task Types
 export const TASK_TYPES = [
   'research',
