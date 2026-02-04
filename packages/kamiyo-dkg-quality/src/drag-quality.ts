@@ -39,10 +39,7 @@ export class DragQualityClient {
   async queryWithQuality<T = unknown>(
     query: QualityQuery
   ): Promise<QualityQueryResult<T>[]> {
-    // Execute base SPARQL query
     const rawResults = await this.dkgClient.query(query.sparql);
-
-    // Filter by quality requirements
     const filtered: QualityQueryResult<T>[] = [];
 
     for (const result of rawResults) {
@@ -51,8 +48,6 @@ export class DragQualityClient {
 
       const metadata = await this.getQualityMetadata(ual);
       if (!metadata) continue;
-
-      // Apply quality filters
       if (!this.passesQualityFilters(metadata, query.qualityRequirements)) {
         continue;
       }
@@ -67,8 +62,6 @@ export class DragQualityClient {
         },
       });
     }
-
-    // Sort by quality score descending
     filtered.sort((a, b) => b.metadata.qualityScore - a.metadata.qualityScore);
 
     return filtered;
@@ -125,23 +118,13 @@ export class DragQualityClient {
   }
 
   async getQualityMetadata(ual: UAL): Promise<QualityMetadata | null> {
-    // Check cache with TTL
     const cached = this.qualityCache.get(ual);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
-
-    // Remove expired entry
-    if (cached) {
-      this.qualityCache.delete(ual);
-    }
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (cached) this.qualityCache.delete(ual);
 
     try {
       const asset = await this.dkgClient.get(ual);
-      const rawMetadata = asset.metadata || {};
-
-      // Extract KAMIYO quality metadata
-      const metadata = this.parseQualityMetadata(rawMetadata);
+      const metadata = this.parseQualityMetadata(asset.metadata || {});
       if (metadata) {
         this.setCacheEntry(ual, metadata);
       }
@@ -153,28 +136,14 @@ export class DragQualityClient {
   }
 
   private setCacheEntry(ual: UAL, metadata: QualityMetadata): void {
-    // Evict oldest entries if at capacity
     if (this.qualityCache.size >= this.cacheConfig.maxSize) {
-      const keysToDelete: string[] = [];
       const now = Date.now();
-
-      // First pass: delete expired entries
       for (const [key, entry] of this.qualityCache) {
-        if (entry.expiresAt <= now) {
-          keysToDelete.push(key);
-        }
+        if (entry.expiresAt <= now) this.qualityCache.delete(key);
       }
-
-      for (const key of keysToDelete) {
-        this.qualityCache.delete(key);
-      }
-
-      // If still at capacity, delete oldest entry
       if (this.qualityCache.size >= this.cacheConfig.maxSize) {
         const firstKey = this.qualityCache.keys().next().value;
-        if (firstKey) {
-          this.qualityCache.delete(firstKey);
-        }
+        if (firstKey) this.qualityCache.delete(firstKey);
       }
     }
 
@@ -184,26 +153,12 @@ export class DragQualityClient {
     });
   }
 
-  buildQualityFilteredSparql(
-    baseSparql: string,
-    minScore: number
-  ): string {
-    // Add quality filter to WHERE clause
-    const qualityFilter = `
-      ?asset <https://kamiyo.ai/schema/qualityScore> ?qualityScore .
-      FILTER(?qualityScore >= ${minScore})
-    `;
-
-    // Insert before closing brace of WHERE clause
-    const whereMatch = baseSparql.match(/WHERE\s*\{([^}]*)\}/i);
-    if (!whereMatch) {
-      return baseSparql;
-    }
-
-    const whereContent = whereMatch[1];
-    const enhancedWhere = `WHERE { ${whereContent} ${qualityFilter} }`;
-
-    return baseSparql.replace(/WHERE\s*\{[^}]*\}/i, enhancedWhere);
+  buildQualityFilteredSparql(baseSparql: string, minScore: number): string {
+    const safeMin = Math.max(0, Math.min(Number.isFinite(minScore) ? Math.floor(minScore) : 0, 100));
+    const filter = `?asset <https://kamiyo.ai/schema/qualityScore> ?qualityScore . FILTER(?qualityScore >= ${safeMin})`;
+    const match = baseSparql.match(/WHERE\s*\{([^}]*)\}/i);
+    if (!match) return baseSparql;
+    return baseSparql.replace(/WHERE\s*\{[^}]*\}/i, `WHERE { ${match[1]} ${filter} }`);
   }
 
   clearCache(): void {
@@ -263,14 +218,11 @@ export class DragQualityClient {
   }
 
   private extractUAL(result: unknown): UAL | null {
-    if (typeof result === 'object' && result !== null) {
-      const obj = result as Record<string, unknown>;
-      // Look for common UAL field names
-      const ualFields = ['@id', 'id', 'ual', 'assetUal', 'asset'];
-      for (const field of ualFields) {
-        if (typeof obj[field] === 'string' && obj[field].startsWith('did:dkg:')) {
-          return obj[field] as UAL;
-        }
+    if (typeof result !== 'object' || result === null) return null;
+    const obj = result as Record<string, unknown>;
+    for (const field of ['@id', 'id', 'ual', 'assetUal', 'asset']) {
+      if (typeof obj[field] === 'string' && obj[field].startsWith('did:dkg:')) {
+        return obj[field] as UAL;
       }
     }
     return null;

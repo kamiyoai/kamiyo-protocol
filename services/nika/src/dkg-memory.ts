@@ -1,8 +1,5 @@
 /**
- * DKG Memory Manager for Nika
- *
- * Stores tweets, replies, and observations as knowledge assets on OriginTrail DKG.
- * Uses @kamiyo/agent-paranet for DKG client infrastructure.
+ * DKG Memory - stores tweets and observations on OriginTrail.
  */
 
 import { createDKGClient, type DKGClient, type ParanetConfig } from '@kamiyo/agent-paranet';
@@ -56,6 +53,7 @@ export interface DKGMemoryConfig {
   blockchain: string;
   privateKey: string;
   paranetUAL: string;
+  twitterHandle: string;
 }
 
 type SupportedBlockchain = ParanetConfig['blockchain'];
@@ -169,7 +167,7 @@ export class DKGMemory {
       'schema:author': {
         '@type': 'schema:Person',
         'schema:name': 'Nika (二化)',
-        'schema:url': 'https://x.com/nika_entity',
+        'schema:url': `https://x.com/${this.config.twitterHandle}`,
       },
       'schema:datePublished': new Date().toISOString(),
       'sioc:reply_of': {
@@ -211,7 +209,7 @@ export class DKGMemory {
       'schema:author': {
         '@type': 'schema:Person',
         'schema:name': 'Nika (二化)',
-        'schema:url': 'https://x.com/nika_entity',
+        'schema:url': `https://x.com/${this.config.twitterHandle}`,
       },
       'schema:datePublished': new Date().toISOString(),
       'schema:citation': {
@@ -310,6 +308,7 @@ export class DKGMemory {
     const sparql = `
       PREFIX schema: <https://schema.org/>
       PREFIX nika: <https://kamiyo.ai/ontology/nika/>
+      PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
       SELECT ?ual ?content ?type ?date
       WHERE {
@@ -339,7 +338,14 @@ export class DKGMemory {
    * Search memories by topic/keyword.
    */
   async searchByTopic(topic: string, limit = 10): Promise<SearchResult[]> {
-    const safeTopic = sanitizeForSPARQL(topic);
+    if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
+      return [];
+    }
+    if (topic.length > 200) {
+      log.warn('Topic too long, truncating', { length: topic.length });
+      topic = topic.slice(0, 200);
+    }
+    const safeTopic = sanitizeForSPARQL(topic.trim());
 
     const sparql = `
       PREFIX schema: <https://schema.org/>
@@ -426,10 +432,13 @@ export class DKGMemory {
    * Get Nika's recent tweet topics (for avoiding repetition).
    */
   async getRecentTopics(hours = 24): Promise<string[]> {
-    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+    // Clamp hours to reasonable bounds
+    const safeHours = Math.min(Math.max(1, hours), 168); // 1 hour to 1 week
+    const since = new Date(Date.now() - safeHours * 60 * 60 * 1000);
     const sparql = `
       PREFIX schema: <https://schema.org/>
       PREFIX nika: <https://kamiyo.ai/ontology/nika/>
+      PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
       SELECT DISTINCT ?keyword
       WHERE {
@@ -457,6 +466,7 @@ export class DKGMemory {
     const sparql = `
       PREFIX schema: <https://schema.org/>
       PREFIX nika: <https://kamiyo.ai/ontology/nika/>
+      PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
       SELECT ?mood (COUNT(?ual) as ?count)
       WHERE {
@@ -604,7 +614,7 @@ export class DKGMemory {
       'schema:author': {
         '@type': 'schema:Person',
         'schema:name': 'Nika (二化)',
-        'schema:url': 'https://x.com/nika_entity',
+        'schema:url': `https://x.com/${this.config.twitterHandle}`,
       },
       'schema:datePublished': new Date().toISOString(),
       'schema:keywords': params.topics || this.extractKeywords(params.content),
@@ -682,6 +692,7 @@ export async function initializeDKGMemory(config: Config): Promise<DKGMemory> {
     blockchain: config.DKG_BLOCKCHAIN,
     privateKey: config.DKG_PRIVATE_KEY,
     paranetUAL: config.NIKA_PARANET_UAL,
+    twitterHandle: config.TWITTER_HANDLE,
   });
 
   await memory.initialize();

@@ -86,9 +86,7 @@ export class DKGClient implements DKGClientInterface {
 
   private async ensureInitialized(): Promise<void> {
     if (this.initialized) return;
-
     try {
-      // Dynamic import to avoid bundling issues
       const DKG = await import('dkg.js');
       const DKGClient = DKG.default || DKG;
 
