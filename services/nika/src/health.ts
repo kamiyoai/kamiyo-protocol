@@ -30,6 +30,7 @@ export class HealthMonitor extends EventEmitter {
   private healthMetrics: HealthMetrics;
   private checkInterval: NodeJS.Timeout | null = null;
   private dailyResetInterval: NodeJS.Timeout | null = null;
+  private midnightTimeout: NodeJS.Timeout | null = null;
   private checkIntervalMs = 60 * 1000;
 
   private maxHoursSincePost = 6;
@@ -66,7 +67,7 @@ export class HealthMonitor extends EventEmitter {
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).getTime() -
       now.getTime();
 
-    setTimeout(() => {
+    this.midnightTimeout = setTimeout(() => {
       this.resetDailyCounters();
       this.dailyResetInterval = setInterval(() => {
         this.resetDailyCounters();
@@ -245,6 +246,11 @@ export class HealthMonitor extends EventEmitter {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
+    }
+
+    if (this.midnightTimeout) {
+      clearTimeout(this.midnightTimeout);
+      this.midnightTimeout = null;
     }
 
     if (this.dailyResetInterval) {

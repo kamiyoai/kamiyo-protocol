@@ -44,6 +44,7 @@ let health: HealthMonitor | null = null;
 let server: Server | null = null;
 let dkgMemory: DKGMemory | null = null;
 let engagementTracker: EngagementTracker | null = null;
+let statusInterval: NodeJS.Timeout | null = null;
 
 /**
  * Validate external service connections at startup.
@@ -51,7 +52,9 @@ let engagementTracker: EngagementTracker | null = null;
 async function validateConnections(config: ReturnType<typeof getConfig>): Promise<void> {
   log.info('Validating external connections');
 
-  // Validate Twitter credentials
+  const VALIDATION_TIMEOUT_MS = 30000;
+
+  // Validate Twitter credentials with timeout
   try {
     const xTools = createXTools({
       apiKey: config.TWITTER_API_KEY,
@@ -65,8 +68,14 @@ async function validateConnections(config: ReturnType<typeof getConfig>): Promis
       throw new Error('get_user tool not found');
     }
 
-    // Fetch configured user to validate credentials
-    const result = await getUserTool.handler({ username: config.TWITTER_HANDLE });
+    // Fetch configured user to validate credentials with timeout
+    const result = await Promise.race([
+      getUserTool.handler({ username: config.TWITTER_HANDLE }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Twitter validation timed out')), VALIDATION_TIMEOUT_MS)
+      ),
+    ]) as Awaited<ReturnType<typeof getUserTool.handler>>;
+
     if (!result.success) {
       throw new Error(`Twitter validation failed: ${result.error}`);
     }
@@ -75,9 +84,6 @@ async function validateConnections(config: ReturnType<typeof getConfig>): Promis
   } catch (error) {
     throw new Error(`Twitter connection failed: ${error instanceof Error ? error.message : String(error)}`);
   }
-
-  // Note: Anthropic validation happens on first agent call
-  // Could add explicit validation here if needed
 
   log.info('External connections validated');
 }
@@ -423,7 +429,7 @@ async function main(): Promise<void> {
   });
 
   // Log metrics periodically
-  setInterval(() => {
+  statusInterval = setInterval(() => {
     const healthStatus = health?.getStatus();
     const schedulerStatus = scheduler?.getHealthStatus();
     const rateLimiter = getRateLimiter();
@@ -439,6 +445,14 @@ async function main(): Promise<void> {
       inFlightOps: getShutdownManager().getInFlightCount(),
     });
   }, 5 * 60 * 1000);
+
+  // Register status interval cleanup
+  shutdownManager.register('statusInterval', async () => {
+    if (statusInterval) {
+      clearInterval(statusInterval);
+      statusInterval = null;
+    }
+  }, 50);
 }
 
 // Export for testing
