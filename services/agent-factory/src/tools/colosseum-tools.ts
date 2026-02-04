@@ -1,6 +1,5 @@
 /**
  * Colosseum Hackathon Tools
- * Tools for autonomous agent participation in the Colosseum hackathon
  */
 
 import type { ToolConfig } from '@kamiyo/agents';
@@ -8,17 +7,36 @@ import type { ToolConfig } from '@kamiyo/agents';
 interface ColosseumToolsConfig {
   apiKey: string;
   baseUrl?: string;
+  timeoutMs?: number;
 }
 
 const API_BASE = 'https://agents.colosseum.com/api';
+const DEFAULT_TIMEOUT_MS = 30000;
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 async function colosseumRequest<T>(
   endpoint: string,
   apiKey: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeoutMs = DEFAULT_TIMEOUT_MS
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const controller = new AbortController();
+  const fetchPromise = fetch(`${API_BASE}${endpoint}`, {
     ...options,
+    signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
@@ -26,12 +44,14 @@ async function colosseumRequest<T>(
     },
   });
 
+  const response = await withTimeout(fetchPromise, timeoutMs);
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(`Colosseum API error: ${response.status} - ${JSON.stringify(error)}`);
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 export function createColosseumTools(config: ColosseumToolsConfig): ToolConfig[] {

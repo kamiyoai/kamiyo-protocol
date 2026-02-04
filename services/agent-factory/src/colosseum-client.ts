@@ -74,7 +74,7 @@ export class ColosseumClient {
       throw new Error(`Colosseum API error: ${response.status} - ${JSON.stringify(error)}`);
     }
 
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   async getStatus(): Promise<AgentStatus> {

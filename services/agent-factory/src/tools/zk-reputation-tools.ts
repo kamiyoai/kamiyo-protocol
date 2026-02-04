@@ -1,100 +1,120 @@
 /**
  * ZK Reputation Tools
- * Tools for generating and verifying zero-knowledge reputation proofs
- * Allows agents to prove reputation thresholds without revealing identity
  */
 
-import type { ToolConfig } from '@kamiyo/agents';
+interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+type ToolHandler = (params: Record<string, unknown>) => Promise<ToolResult>;
+
+interface ToolConfig {
+  name: string;
+  description: string;
+  parameters: Record<string, {
+    type: string;
+    description: string;
+    required?: boolean;
+    enum?: string[];
+  }>;
+  handler: ToolHandler;
+}
 
 interface ZKReputationConfig {
-  // Optional: path to circuit artifacts if not using bundled ones
   artifactsPath?: string;
 }
 
-// Lazy-loaded prover to avoid startup overhead
+const SCORE_MIN = 0;
+const SCORE_MAX = 100;
+
 let proverInstance: any = null;
+let proverLoadError: Error | null = null;
 
 async function getProver() {
-  if (!proverInstance) {
+  if (proverLoadError) throw proverLoadError;
+  if (proverInstance) return proverInstance;
+
+  // Dynamic imports with string variables to bypass compile-time module resolution
+  const modules = ['@kamiyo/swarmteams', '@kamiyo/hive'];
+
+  for (const moduleName of modules) {
     try {
-      const { DarkForestProver } = await import('@kamiyo/swarmteams');
-      proverInstance = new DarkForestProver();
-    } catch (e) {
-      // Fallback: try from kamiyo-hive
-      const { DarkForestProver } = await import('@kamiyo/hive');
-      proverInstance = new DarkForestProver();
+      const mod = await import(moduleName);
+      if (mod.DarkForestProver) {
+        proverInstance = new mod.DarkForestProver();
+        return proverInstance;
+      }
+    } catch {
+      continue;
     }
   }
-  return proverInstance;
+
+  proverLoadError = new Error('ZK prover not available: install @kamiyo/swarmteams or @kamiyo/hive');
+  throw proverLoadError;
 }
 
-export function createZKReputationTools(config?: ZKReputationConfig): ToolConfig[] {
+function validateScore(score: number): void {
+  if (typeof score !== 'number' || !Number.isFinite(score)) {
+    throw new Error('Score must be a finite number');
+  }
+  if (score < SCORE_MIN || score > SCORE_MAX) {
+    throw new Error(`Score must be between ${SCORE_MIN} and ${SCORE_MAX}`);
+  }
+}
+
+export function createZKReputationTools(_config?: ZKReputationConfig): ToolConfig[] {
   return [
     {
       name: 'zk_generate_commitment',
-      description: 'Generate a cryptographic commitment to a reputation score. The commitment can be published without revealing the actual score.',
+      description: 'Generate a cryptographic commitment to a reputation score.',
       parameters: {
-        type: 'object',
-        properties: {
-          score: {
-            type: 'number',
-            description: 'Reputation score (0-100)',
-          },
-        },
-        required: ['score'],
+        score: { type: 'number', description: 'Reputation score (0-100)', required: true },
       },
-      handler: async ({ score }: { score: number }) => {
+      handler: async (params) => {
         try {
+          const score = params.score as number;
+          validateScore(score);
           const prover = await getProver();
           const commitment = await prover.generateCommitment(score);
 
           return {
             success: true,
-            commitment: {
-              // The public commitment hash (can be shared)
+            data: {
               hash: '0x' + commitment.value.toString(16).padStart(64, '0'),
-              // The secret (MUST be kept private for proof generation)
               secret: commitment.secret.toString(),
             },
-            message: `Commitment generated for score ${score}. Keep the secret safe - you'll need it to generate proofs.`,
           };
         } catch (e: any) {
-          return {
-            success: false,
-            error: e.message,
-          };
+          return { success: false, error: e.message };
         }
       },
     },
 
     {
       name: 'zk_prove_reputation_threshold',
-      description: 'Generate a ZK proof that your reputation meets a threshold WITHOUT revealing your actual score. Use this to access tier-gated services anonymously.',
+      description: 'Generate a ZK proof that your reputation meets a threshold WITHOUT revealing your actual score.',
       parameters: {
-        type: 'object',
-        properties: {
-          score: {
-            type: 'number',
-            description: 'Your actual reputation score (0-100)',
-          },
-          secret: {
-            type: 'string',
-            description: 'The secret from your commitment',
-          },
-          threshold: {
-            type: 'number',
-            description: 'Minimum score to prove (e.g., 75 for "premium" tier)',
-          },
-        },
-        required: ['score', 'secret', 'threshold'],
+        score: { type: 'number', description: 'Your actual reputation score (0-100)', required: true },
+        secret: { type: 'string', description: 'The secret from your commitment', required: true },
+        threshold: { type: 'number', description: 'Minimum score to prove', required: true },
       },
-      handler: async ({ score, secret, threshold }: { score: number; secret: string; threshold: number }) => {
+      handler: async (params) => {
         try {
+          const score = params.score as number;
+          const secret = params.secret as string;
+          const threshold = params.threshold as number;
+
+          validateScore(score);
+          validateScore(threshold);
+
           if (score < threshold) {
-            return {
-              success: false,
-              error: `Score ${score} is below threshold ${threshold}. Cannot generate valid proof.`,
-            };
+            return { success: false, error: 'Score below threshold' };
+          }
+
+          if (!secret || typeof secret !== 'string') {
+            return { success: false, error: 'Invalid secret' };
           }
 
           const prover = await getProver();
@@ -106,10 +126,9 @@ export function createZKReputationTools(config?: ZKReputationConfig): ToolConfig
 
           return {
             success: true,
-            proof: {
+            data: {
               commitment: proof.commitment,
               threshold,
-              // Groth16 proof components (EVM-compatible format)
               a: proof.a.map((x: bigint) => '0x' + x.toString(16).padStart(64, '0')),
               b: proof.b.map((row: bigint[]) =>
                 row.map((x: bigint) => '0x' + x.toString(16).padStart(64, '0'))
@@ -117,35 +136,34 @@ export function createZKReputationTools(config?: ZKReputationConfig): ToolConfig
               c: proof.c.map((x: bigint) => '0x' + x.toString(16).padStart(64, '0')),
               publicInputs: proof.publicInputs.map((x: bigint) => '0x' + x.toString(16).padStart(64, '0')),
             },
-            message: `ZK proof generated: You proved reputation >= ${threshold} without revealing your actual score of ${score}`,
           };
         } catch (e: any) {
-          return {
-            success: false,
-            error: e.message,
-          };
+          return { success: false, error: e.message };
         }
       },
     },
 
     {
       name: 'zk_verify_reputation_proof',
-      description: 'Verify a ZK reputation proof from another agent. Returns true if they proved their reputation meets the claimed threshold.',
+      description: 'Verify a ZK reputation proof from another agent.',
       parameters: {
-        type: 'object',
-        properties: {
-          proof: {
-            type: 'object',
-            description: 'The proof object from zk_prove_reputation_threshold',
-          },
-        },
-        required: ['proof'],
+        proofJson: { type: 'string', description: 'JSON-encoded proof object', required: true },
       },
-      handler: async ({ proof }: { proof: any }) => {
+      handler: async (params) => {
         try {
+          const proofJson = params.proofJson as string;
+          const proof = JSON.parse(proofJson);
+
+          if (!proof || typeof proof !== 'object') {
+            return { success: false, error: 'Invalid proof object' };
+          }
+
+          if (!proof.a || !proof.b || !proof.c || !proof.publicInputs) {
+            return { success: false, error: 'Malformed proof' };
+          }
+
           const prover = await getProver();
 
-          // Reconstruct proof in prover format
           const reconstructedProof = {
             commitment: proof.commitment,
             a: proof.a.map((x: string) => BigInt(x)),
@@ -158,17 +176,13 @@ export function createZKReputationTools(config?: ZKReputationConfig): ToolConfig
 
           return {
             success: true,
-            valid: result.valid,
-            threshold: proof.threshold,
-            message: result.valid
-              ? `Proof verified: Agent proved reputation >= ${proof.threshold}`
-              : `Proof invalid: ${result.error || 'Verification failed'}`,
+            data: {
+              valid: result.valid,
+              threshold: proof.threshold,
+            },
           };
         } catch (e: any) {
-          return {
-            success: false,
-            error: e.message,
-          };
+          return { success: false, error: e.message };
         }
       },
     },
@@ -178,18 +192,17 @@ export function createZKReputationTools(config?: ZKReputationConfig): ToolConfig
       description: 'Get information about reputation tiers and their thresholds',
       parameters: {},
       handler: async () => {
-        const tiers = [
-          { tier: 0, name: 'Unverified', threshold: 0, benefits: ['Basic access'] },
-          { tier: 1, name: 'Verified', threshold: 25, benefits: ['Standard escrows', 'Forum posting'] },
-          { tier: 2, name: 'Trusted', threshold: 50, benefits: ['Higher escrow limits', 'Priority matching'] },
-          { tier: 3, name: 'Premium', threshold: 75, benefits: ['Premium APIs', 'Reduced fees', 'Expedited disputes'] },
-          { tier: 4, name: 'Elite', threshold: 90, benefits: ['All premium benefits', 'Oracle voting rights', 'Governance participation'] },
-        ];
-
         return {
           success: true,
-          tiers,
-          message: 'Use zk_prove_reputation_threshold to prove you meet a tier threshold without revealing your exact score.',
+          data: {
+            tiers: [
+              { tier: 0, name: 'Unverified', threshold: 0 },
+              { tier: 1, name: 'Verified', threshold: 25 },
+              { tier: 2, name: 'Trusted', threshold: 50 },
+              { tier: 3, name: 'Premium', threshold: 75 },
+              { tier: 4, name: 'Elite', threshold: 90 },
+            ],
+          },
         };
       },
     },
