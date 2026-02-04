@@ -3,6 +3,10 @@ import type { Earning } from '../types/index.js';
 // In-memory earnings store
 const earnings = new Map<string, Earning>();
 
+function newId(): string {
+  return `earning_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export const earningsService = {
   getAll(): Earning[] {
     return Array.from(earnings.values()).sort(
@@ -36,7 +40,7 @@ export const earningsService = {
     amount: number,
     token: 'SOL' | 'USDC'
   ): Earning {
-    const id = `earning_${Date.now()}`;
+    const id = newId();
     const earning: Earning = {
       id,
       agentId,

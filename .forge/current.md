@@ -1,63 +1,66 @@
-# Forge Session: OriginTrail DKG Integration
+# Forge Session: KEIRO Mobile App & API
 
 ## Target Files
-- `packages/kamiyo-dkg-quality/src/dkg-client.ts`
-- `packages/kamiyo-dkg-quality/src/drag-quality.ts`
-- `packages/kamiyo-dkg-quality/src/types.ts`
-- `packages/kamiyo-agents/src/dkg-tools.ts`
-- `packages/kamiyo-mcp/src/tools/dkg-quality.ts`
-- `packages/kamiyo-eliza-dkg/src/index.ts`
-- `packages/kamiyo-eliza-dkg/src/services/dkg-sync.ts`
-- `packages/kamiyo-eliza-dkg/src/providers/dkg-quality.ts`
-- `services/nika/src/dkg-memory.ts`
 
-## Current Phase: Complete (Phases 5 & 6)
+### API (services/keiro-api)
+- `src/index.ts`
+- `src/types/index.ts`
+- `src/routes/agents.ts`
+- `src/routes/jobs.ts`
+- `src/services/agents.ts`
+- `src/services/jobs.ts`
+
+### Mobile App (apps/keiro)
+- `src/lib/api.ts`
+- `src/lib/constants.ts`
+- `src/lib/solana.ts`
+- `src/stores/wallet.ts`
+- `src/stores/agent.ts`
+- `src/stores/app.ts`
+
+## Current Phase: 6 (Complete)
 
 ## Progress
-- [x] Phase 1: Scaffold - Skipped (existing code)
-- [x] Phase 2: Implement - Skipped (existing code)
-- [x] Phase 3: Harden - Applied via Phase 6
-- [x] Phase 4: Test - Verified (167 tests passing)
-- [x] Phase 5: Humanize - Complete
-- [x] Phase 6: Codex Review - Complete
+- [x] Phase 3: Harden - GPT-5 batch execution
+- [x] Phase 4: Test - GPT-5 batch execution
+- [x] Phase 5: Humanize - GPT-5 batch execution
+- [x] Phase 6: External Review - GPT-5 batch execution
 
-## Phase 5 (Humanize) Summary
+## GPT-5 Findings
 
-Removed verbose comments, tightened code structure, eliminated redundant patterns.
+### Critical
+- Route order bug: GET /wallet/:address unreachable due to /:id catch-all - **Fixed**
+- Anyone can start a job without verification - **Fixed**: Added StartJobRequestSchema
+- AbortController reused across retries - **Fixed**: New controller per attempt
+- JSON parsing breaks for non-JSON responses - **Fixed**: Content-type check
 
-### Changes Applied
+### High
+- Rate limiter never prunes expired entries - **Fixed**: Added periodic cleanup
+- Submit route doesn't verify wallet ownership - **Fixed**: Validates agent exists
+- Agent ID collision under concurrency - **Fixed**: Uses time+random suffix
+- URL double-slash concatenation - **Fixed**: Normalize baseUrl/endpoints
+- Retrying non-idempotent requests - **Fixed**: Only retry GET/HEAD
 
-| File | Change |
-|------|--------|
-| dkg-tools.ts | Removed comment on escapeSparql |
-| dkg-tools.ts | Removed section comments in tool names array |
-| dkg-quality.ts (MCP) | Removed file header docblock |
-| dkg-quality.ts (MCP) | Removed section header comments |
-| dkg-quality.ts (MCP) | Condensed placeholder comments to TODO |
-| dkg-quality.ts (MCP) | Prefixed unused params with underscore |
-| dkg-quality.ts (MCP) | Inlined verbose return statements |
-| drag-quality.ts | Removed 5 obvious comments |
-| drag-quality.ts | Inlined cache check conditionals |
-| drag-quality.ts | Condensed buildQualityFilteredSparql (14→6 lines) |
-| drag-quality.ts | Early return pattern in extractUAL |
-| drag-quality.ts | Tightened setCacheEntry eviction loop |
-| dkg-client.ts | Removed "Dynamic import" comment |
-| dkg-sync.ts | Removed 5 obvious comments |
+### Medium
+- IP only from x-forwarded-for - **Fixed**: Added cf-connecting-ip, x-real-ip
+- Shared Connection instance in solana.ts - **Fixed**: getConnection() singleton
+- Unused bs58 import - **Fixed**: Removed
 
-## Phase 6 (Codex Review) Summary
-
-GPT-4.1 reviewed all DKG files. Security fixes applied:
-
-| File | Issue | Fix |
-|------|-------|-----|
-| dkg-tools.ts | Weak SPARQL escaping | Enhanced to strip `<>{}|^`` |
-| dkg-tools.ts | NaN bypass in clampLimit | Added `Number.isFinite()` check |
-| drag-quality.ts | minScore not validated | Added range clamping |
-| dkg-quality.ts (MCP) | Weak UAL validation | Added regex pattern |
-| dkg-quality.ts (MCP) | Unbounded reason field | Added 1000 char max |
-| dkg-sync.ts | Event data unvalidated | Added null checks and type coercion |
-| dkg-memory.ts | Topic length unbounded | Added 200 char limit |
+## Security Improvements
+- Rate limiting with periodic cleanup (60s sweep)
+- Request ID tracking for debugging
+- Proper CORS origin normalization
+- Global exception handlers
+- StartJobRequestSchema for wallet verification
 
 ## Test Results
-- kamiyo-dkg-quality: 167 tests passing
-- All TypeScript compilation successful
+- 53 tests passing
+  - Service tests: agents (9), jobs (10)
+  - Route tests: agents (11), jobs (14), earnings (9)
+- TypeScript compilation successful
+
+## Additional Hardening
+- Fixed earnings service ID collision (uses time+random suffix)
+- Added route tests verifying /wallet/:address reachable before /:id
+- Added full job workflow tests (accept → start → submit → rate)
+- Added earnings route tests
