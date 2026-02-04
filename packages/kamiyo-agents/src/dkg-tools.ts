@@ -36,12 +36,19 @@ function isValidQualityScore(val: unknown): val is number {
 }
 
 function escapeSparql(str: string): string {
-  return str.replace(/[\\"']/g, '\\$&').replace(/\n/g, '\\n');
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/[<>{}|^`]/g, '');
 }
 
 function clampLimit(val: unknown, defaultVal: number): number {
-  if (typeof val !== 'number') return defaultVal;
-  return Math.max(1, Math.min(val, MAX_QUERY_LIMIT));
+  if (typeof val !== 'number' || !Number.isFinite(val)) return defaultVal;
+  return Math.max(1, Math.min(Math.floor(val), MAX_QUERY_LIMIT));
 }
 
 function sanitizeError(error: unknown): string {
@@ -1108,7 +1115,6 @@ export function createDKGTools(config: DKGToolsConfig): ToolConfig[] {
 }
 
 export const DKG_TOOL_NAMES = [
-  // Query tools
   'query_provider_quality',
   'query_trusted_entities',
   'verify_hub_entity',
@@ -1119,7 +1125,6 @@ export const DKG_TOOL_NAMES = [
   'query_reputation_commitment',
   'query_payment_history',
   'query_providers_by_reputation',
-  // Publish tools
   'publish_quality_attestation',
   'publish_dispute_outcome',
   'publish_reputation_commitment',

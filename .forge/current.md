@@ -1,155 +1,63 @@
-# Forge Session: @kamiyo/eigenai Package
+# Forge Session: OriginTrail DKG Integration
 
-## Target
-- `packages/kamiyo-eigenai/src/types.ts`
-- `packages/kamiyo-eigenai/src/eigenai-client.ts`
-- `packages/kamiyo-eigenai/src/escrow.ts`
-- `packages/kamiyo-eigenai/src/client.ts`
-- `packages/kamiyo-eigenai/src/index.ts`
+## Target Files
+- `packages/kamiyo-dkg-quality/src/dkg-client.ts`
+- `packages/kamiyo-dkg-quality/src/drag-quality.ts`
+- `packages/kamiyo-dkg-quality/src/types.ts`
+- `packages/kamiyo-agents/src/dkg-tools.ts`
+- `packages/kamiyo-mcp/src/tools/dkg-quality.ts`
+- `packages/kamiyo-eliza-dkg/src/index.ts`
+- `packages/kamiyo-eliza-dkg/src/services/dkg-sync.ts`
+- `packages/kamiyo-eliza-dkg/src/providers/dkg-quality.ts`
+- `services/nika/src/dkg-memory.ts`
 
-## Current Phase: Complete
+## Current Phase: Complete (Phases 5 & 6)
 
 ## Progress
-- [x] Phase 1: Scaffold - Complete
-- [x] Phase 2: Implement - Complete
-- [x] Phase 3: Harden - Complete
-- [x] Phase 4: Test - Complete (48 tests passing)
+- [x] Phase 1: Scaffold - Skipped (existing code)
+- [x] Phase 2: Implement - Skipped (existing code)
+- [x] Phase 3: Harden - Applied via Phase 6
+- [x] Phase 4: Test - Verified (167 tests passing)
 - [x] Phase 5: Humanize - Complete
-- [x] Phase 6: Codex Review - Complete (GPT-5.2)
-- [x] Phase 7: Integration Alignment - Complete
+- [x] Phase 6: Codex Review - Complete
 
-## Phase 3 (Harden) Changes
-1. Added LIMITS constant with validation bounds
-2. Added validateInferenceParams() with full input validation
-3. Escrow.create() checks for existing escrow before creating
-4. Escrow.release() validates state before releasing
-5. Escrow.dispute() validates state, idempotent on already-disputed
-6. Better error detection for insufficient funds
+## Phase 5 (Humanize) Summary
 
-## Phase 4 (Test) Changes
-- types.test.ts: Error class, constants, limits validation
-- eigenai-client.test.ts: Constructor, attestation verification
-- client.test.ts: Input validation, quality tier calculation
-- 40 tests total, all passing
+Removed verbose comments, tightened code structure, eliminated redundant patterns.
 
-## Phase 5 (Humanize) Changes
-1. Removed verbose comments
-2. Tightened log messages
-3. Simplified disputeWithAttestation return
-4. Re-run: removed 6 obvious comments in escrow.ts
-5. Re-run: removed unused LAMPORTS_PER_SOL import from client.ts
+### Changes Applied
 
-## Phase 5 (Humanize) - Round 2
-Focused on EigenAI/EigenCloud documentation and comment cleanup:
-- eigenai-client.ts: Condensed JSDoc to single-line comments
-- types.ts: Removed 5 obvious comments (Program addresses, KAMIYO mint, etc.)
-- escrow.ts: Removed 6 inline comments (fee split, burn, transfer, create, layout)
-- 48 tests passing
+| File | Change |
+|------|--------|
+| dkg-tools.ts | Removed comment on escapeSparql |
+| dkg-tools.ts | Removed section comments in tool names array |
+| dkg-quality.ts (MCP) | Removed file header docblock |
+| dkg-quality.ts (MCP) | Removed section header comments |
+| dkg-quality.ts (MCP) | Condensed placeholder comments to TODO |
+| dkg-quality.ts (MCP) | Prefixed unused params with underscore |
+| dkg-quality.ts (MCP) | Inlined verbose return statements |
+| drag-quality.ts | Removed 5 obvious comments |
+| drag-quality.ts | Inlined cache check conditionals |
+| drag-quality.ts | Condensed buildQualityFilteredSparql (14→6 lines) |
+| drag-quality.ts | Early return pattern in extractUAL |
+| drag-quality.ts | Tightened setCacheEntry eviction loop |
+| dkg-client.ts | Removed "Dynamic import" comment |
+| dkg-sync.ts | Removed 5 obvious comments |
 
-## Phase 5 (Humanize) Changes - Round 3
-Tightened code after GPT-5.2 review:
+## Phase 6 (Codex Review) Summary
 
-| File | Changes |
-|------|---------|
-| client.ts | Condensed config type, one-line Map type, inline conditionals, compact getters |
-| eigenai-client.ts | Collapsed interface blocks, inline verifyAttestation, tightened grant flow |
-| escrow.ts | Replaced switch with lookup map, one-line constructor, removed comments, compact methods |
+GPT-4.1 reviewed all DKG files. Security fixes applied:
 
-All 50 tests passing.
-
----
-
-## Phase 6 (Codex Review) Changes - Round 4 (GPT-5.2)
-GPT-5.2 reviewed codebase and identified 25+ issues. Applied fixes:
-
-### Security
 | File | Issue | Fix |
 |------|-------|-----|
-| eigenai-client.ts | Weak ETH address validation | Added regex `/^0x[0-9a-fA-F]{40}$/` |
-| client.ts | `escrowAmount` 0 treated as default | Added explicit positive number check |
-| client.ts | `\|\|` instead of `??` for escrowAmount | Changed to nullish coalescing |
-| escrow.ts | Floating-point precision loss | Use BigInt for lamports calculation |
-| escrow.ts | `crypto.getRandomValues` unavailable in Node | Use `node:crypto` randomBytes |
+| dkg-tools.ts | Weak SPARQL escaping | Enhanced to strip `<>{}|^`` |
+| dkg-tools.ts | NaN bypass in clampLimit | Added `Number.isFinite()` check |
+| drag-quality.ts | minScore not validated | Added range clamping |
+| dkg-quality.ts (MCP) | Weak UAL validation | Added regex pattern |
+| dkg-quality.ts (MCP) | Unbounded reason field | Added 1000 char max |
+| dkg-sync.ts | Event data unvalidated | Added null checks and type coercion |
+| dkg-memory.ts | Topic length unbounded | Added 200 char limit |
 
-### Tests
-- All 50 tests passing
-
----
-
-## Phase 6 (Codex Review) Changes - Round 3 (GPT-4.1)
-GPT-4.1 reviewed codebase and identified 20 issues:
-
-### HIGH Priority
-| # | File | Issue | Action |
-|---|------|-------|--------|
-| 1 | eigenai-client.ts | Attestation not cryptographically verified | Document (needs EigenAI pubkey) |
-| 3 | eigenai-client.ts | Solana keypair as Ethereum key | Document (EigenAI design) |
-
-### MEDIUM Priority Applied
-| # | File | Issue | Fix |
-|---|------|-------|-----|
-| 4 | eigenai-client.ts | Grant expiry not validated | Reduced cache to 45 min |
-| 5 | eigenai-client.ts | No model validation | Added model check |
-| 6 | escrow.ts | No sessionId check in rate/dispute | Added validation |
-| 8 | escrow.ts | No userTokenAccount ownership check | Documented limitation |
-| 10 | eigenai-client.ts | Resource leak in retry | Refactored to loop |
-| 11 | escrow.ts | No treasury validation in rate/dispute | Added PublicKey.isOnCurve |
-| 12 | escrow.ts | No error handling in getStatus | Added try/catch |
-
-### LOW Priority Applied
-| # | File | Issue | Fix |
-|---|------|-------|-----|
-| 13 | client.ts | activeEscrows not cleaned on failure | Added cleanup on error |
-| 16 | escrow.ts | No integer check for rating | Added Number.isInteger |
-| 19 | client.ts | Dispute evidence output empty | Populated from response |
-| 20 | escrow.ts | No NaN/negative check for amount | Added type/value check |
-
-- 48 tests total, all passing
-
-## Files Created/Modified
-- `package.json`
-- `tsconfig.json`
-- `jest.config.js`
-- `src/types.ts` - Added LIMITS constant, updated DEVNET program ID
-- `src/eigenai-client.ts` - HTTPS validation, removed verbose comment
-- `src/escrow.ts` - State validation, duplicate check, buffer bounds
-- `src/client.ts` - Added validation, removed comments
-- `src/index.ts` - Export LIMITS
-- `src/types.test.ts`
-- `src/eigenai-client.test.ts` - Added HTTPS rejection test
-- `src/client.test.ts`
-
-## Phase 7 (Integration Alignment) - Continued
-
-### Escrow Program Updates
-1. Added `initialize_treasury` instruction to `programs/kamiyo-escrow/src/lib.rs`
-2. Added `InitializeTreasury` account context with PDA-based token account
-3. Added `TreasuryInitialized` event
-4. Deployed updated program to devnet: `EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT`
-
-### Initialization Scripts
-- Created `scripts/init-escrow-devnet.ts`
-- Created `scripts/init-escrow-mainnet.ts`
-- Oracle config initialized on devnet: `HH6BfbKcx391CcAN5c3b5T2aUVwYEuY5Ru7S5qwq6yoh`
-- Treasury PDA requires KAMIYO token (mainnet only): `Eqrep7tdbDmUie7WB3tYcY2TpmdeJMGSe1hUExaYyqQX`
-
-### Devnet Status
-- **Escrow Program**: `EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT` ✅
-- **Oracle Config**: Initialized ✅
-- **Oracles Registered**: 5 oracles ✅
-  - `4RUSNRP3ZrgdVZPRLyspavBqCVVdPMpFF2uUSsYTg2VC`
-  - `J42jm17dA5f6Um8qbf8Pe39m7mLtYZfqJf1a3qZHT2NW`
-  - `5uFjCKXDyCspcmV1jDRFg7askNZPDxHDqXqzgfPnpsqj`
-  - `725XNA5HRFJGxNj6ZmX1pvYJs7rqKZN69orCn9djSzaw`
-  - `BePGQmohYFHdpXQQt9ELb5rrAhPBshaQyiWN5ZUdxvbt`
-- **Treasury**: Not initialized (requires KAMIYO token on devnet)
-
-### Mainnet Remaining
-1. **Fund program-authority wallet** - Need ~1.8 SOL for deployment (currently ~0.001 SOL)
-2. Deploy updated escrow program to mainnet (old one is closed)
-3. Initialize treasury PDA (KAMIYO token exists on mainnet)
-4. Initialize oracle config
-5. Register oracles
-
-### Tests
-- All 48 eigenai package tests passing ✅
+## Test Results
+- kamiyo-dkg-quality: 167 tests passing
+- All TypeScript compilation successful

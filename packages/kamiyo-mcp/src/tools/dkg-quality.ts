@@ -1,15 +1,5 @@
-/**
- * DKG Quality Oracle Tools for MCP
- *
- * MCP tools for publishing quality-staked Knowledge Assets,
- * querying verified knowledge, and managing quality assessments.
- */
-
 import { z } from 'zod';
 
-/**
- * Tool definitions for MCP server
- */
 export const DKG_QUALITY_TOOLS = [
   {
     name: 'dkg_publish_with_quality_stake',
@@ -164,9 +154,6 @@ export const DKG_QUALITY_TOOLS = [
   },
 ];
 
-/**
- * Zod schemas for validation
- */
 export const PublishWithQualityStakeSchema = z.object({
   content: z.record(z.unknown()),
   stakeAmount: z.number().min(0.1),
@@ -180,12 +167,14 @@ export const QueryVerifiedSchema = z.object({
   excludeDisputed: z.boolean().optional().default(true),
 });
 
+const UAL_PATTERN = /^did:dkg:[a-z]+:\d+\/0x[a-fA-F0-9]+\/\d+$/;
+
 export const AssessQualitySchema = z.object({
-  assetUAL: z.string().startsWith('did:dkg:'),
-  factualAccuracy: z.number().min(0).max(100),
-  sourceQuality: z.number().min(0).max(100).optional(),
-  completeness: z.number().min(0).max(100).optional(),
-  consistency: z.number().min(0).max(100).optional(),
+  assetUAL: z.string().regex(UAL_PATTERN, 'Invalid UAL format'),
+  factualAccuracy: z.number().int().min(0).max(100),
+  sourceQuality: z.number().int().min(0).max(100).optional(),
+  completeness: z.number().int().min(0).max(100).optional(),
+  consistency: z.number().int().min(0).max(100).optional(),
 });
 
 export const GetPublisherReputationSchema = z.object({
@@ -193,9 +182,9 @@ export const GetPublisherReputationSchema = z.object({
 });
 
 export const DisputeQualitySchema = z.object({
-  assetUAL: z.string().startsWith('did:dkg:'),
-  evidenceUAL: z.string().optional(),
-  reason: z.string().min(1),
+  assetUAL: z.string().regex(UAL_PATTERN, 'Invalid UAL format'),
+  evidenceUAL: z.string().regex(UAL_PATTERN, 'Invalid evidence UAL format').optional(),
+  reason: z.string().min(1).max(1000),
 });
 
 export const RecordInferenceSchema = z.object({
@@ -209,9 +198,6 @@ export const RecordInferenceSchema = z.object({
   confidence: z.number().min(0).max(100).optional(),
 });
 
-/**
- * Tool handlers
- */
 export async function handleDkgPublishWithQualityStake(
   params: z.infer<typeof PublishWithQualityStakeSchema>,
   config: { walletAddress: string }
@@ -225,9 +211,7 @@ export async function handleDkgPublishWithQualityStake(
   try {
     const validated = PublishWithQualityStakeSchema.parse(params);
 
-    // Placeholder - actual implementation would:
-    // 1. Publish to DKG via dkg.js
-    // 2. Create quality stake via KAMIYO SDK
+    // TODO: implement DKG publish + stake creation
     const mockUal = `did:dkg:otp/0x1234/${Date.now()}`;
     const mockEscrow = `escrow_${Date.now()}`;
 
@@ -256,13 +240,9 @@ export async function handleDkgQueryVerified(
   error?: string;
 }> {
   try {
-    const validated = QueryVerifiedSchema.parse(params);
+    QueryVerifiedSchema.parse(params);
 
-    // Placeholder - actual implementation would:
-    // 1. Execute SPARQL via dkg.js
-    // 2. Filter by quality metadata
-    // 3. Return with quality scores
-
+    // TODO: implement SPARQL query with quality filter
     return {
       success: true,
       results: [],
@@ -337,7 +317,7 @@ export async function handleDkgGetPublisherReputation(
   try {
     const validated = GetPublisherReputationSchema.parse(params);
 
-    // Placeholder - actual implementation would query on-chain reputation
+    // TODO: query on-chain reputation
     return {
       success: true,
       reputation: {
@@ -355,19 +335,15 @@ export async function handleDkgGetPublisherReputation(
 
 export async function handleDkgDisputeQuality(
   params: z.infer<typeof DisputeQualitySchema>,
-  config: { walletAddress: string }
+  _config: { walletAddress: string }
 ): Promise<{
   success: boolean;
   disputeId?: string;
   error?: string;
 }> {
   try {
-    const validated = DisputeQualitySchema.parse(params);
-
-    return {
-      success: true,
-      disputeId: `dispute_${Date.now()}`,
-    };
+    DisputeQualitySchema.parse(params);
+    return { success: true, disputeId: `dispute_${Date.now()}` };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -375,7 +351,7 @@ export async function handleDkgDisputeQuality(
 
 export async function handleDkgRecordInference(
   params: z.infer<typeof RecordInferenceSchema>,
-  config: { walletAddress: string }
+  _config: { walletAddress: string }
 ): Promise<{
   success: boolean;
   inferenceId?: string;
@@ -383,21 +359,14 @@ export async function handleDkgRecordInference(
   error?: string;
 }> {
   try {
-    const validated = RecordInferenceSchema.parse(params);
-
-    return {
-      success: true,
-      inferenceId: `inference_${Date.now()}`,
-      provenanceHash: `hash_${Date.now()}`,
-    };
+    RecordInferenceSchema.parse(params);
+    const ts = Date.now();
+    return { success: true, inferenceId: `inference_${ts}`, provenanceHash: `hash_${ts}` };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Route tool call to handler
- */
 export async function handleDkgQualityTool(
   toolName: string,
   params: unknown,
