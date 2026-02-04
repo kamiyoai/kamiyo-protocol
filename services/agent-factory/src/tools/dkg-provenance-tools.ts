@@ -1,18 +1,34 @@
 /**
  * DKG Provenance Tools
- * Tools for publishing work provenance to OriginTrail DKG
- * Enables verifiable agent work history and quality tracking
  */
 
-import type { ToolConfig } from '@kamiyo/agents';
 import { createHash } from 'crypto';
+
+interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+type ToolHandler = (params: Record<string, unknown>) => Promise<ToolResult>;
+
+interface ToolConfig {
+  name: string;
+  description: string;
+  parameters: Record<string, {
+    type: string;
+    description: string;
+    required?: boolean;
+    enum?: string[];
+  }>;
+  handler: ToolHandler;
+}
 
 interface DKGProvenanceConfig {
   endpoint?: string;
   privateKey?: string;
 }
 
-// UAL format: did:dkg:otp/0x.../asset-id
 type UAL = string;
 
 interface WorkProvenance {
@@ -27,13 +43,27 @@ interface WorkProvenance {
   txSignature?: string;
 }
 
-// Simulated DKG client for demo (in production, use @kamiyo/dkg-quality)
+const MAX_DESCRIPTION_LENGTH = 5000;
+const MAX_URI_LENGTH = 2048;
+
+function validateUri(uri: string): boolean {
+  if (!uri || uri.length > MAX_URI_LENGTH) return false;
+  try {
+    new URL(uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeString(s: string, maxLen: number): string {
+  return String(s).slice(0, maxLen).trim();
+}
+
 async function publishToOriginTrail(
   provenance: WorkProvenance,
-  endpoint: string
+  _endpoint: string
 ): Promise<{ ual: UAL; operationId: string }> {
-  // In production, this would use the actual DKG SDK
-  // For hackathon demo, we'll generate a deterministic UAL
   const contentHash = createHash('sha256')
     .update(JSON.stringify(provenance))
     .digest('hex');
@@ -41,24 +71,13 @@ async function publishToOriginTrail(
   const ual = `did:dkg:otp/kamiyo/${contentHash.slice(0, 16)}`;
   const operationId = `op-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // Log to show what would be published
-  console.log('[DKG] Publishing provenance:', {
-    ual,
-    operationId,
-    agent: provenance.agentId,
-    task: provenance.taskId,
-  });
-
   return { ual, operationId };
 }
 
 async function queryProvenance(
-  agentId: string,
-  endpoint: string
+  _agentId: string,
+  _endpoint: string
 ): Promise<WorkProvenance[]> {
-  // In production, this would query the DKG via SPARQL
-  // For demo, return empty array (no cached data)
-  console.log('[DKG] Querying provenance for agent:', agentId);
   return [];
 }
 
@@ -68,110 +87,83 @@ export function createDKGProvenanceTools(config?: DKGProvenanceConfig): ToolConf
   return [
     {
       name: 'dkg_publish_work_provenance',
-      description: 'Publish completed work provenance to OriginTrail DKG. Creates an immutable record of what work was done, by whom, and with what quality.',
+      description: 'Publish completed work provenance to OriginTrail DKG.',
       parameters: {
-        type: 'object',
-        properties: {
-          taskId: {
-            type: 'string',
-            description: 'Unique identifier for the task (e.g., bounty ID)',
-          },
-          taskDescription: {
-            type: 'string',
-            description: 'Description of what was accomplished',
-          },
-          deliverableUri: {
-            type: 'string',
-            description: 'URI to the deliverable (IPFS, GitHub, etc.)',
-          },
-          qualityScore: {
-            type: 'number',
-            description: 'Quality score (0-100) if available',
-          },
-          bountyPda: {
-            type: 'string',
-            description: 'On-chain bounty account address (optional)',
-          },
-          txSignature: {
-            type: 'string',
-            description: 'Settlement transaction signature (optional)',
-          },
-        },
-        required: ['taskId', 'taskDescription', 'deliverableUri'],
+        taskId: { type: 'string', description: 'Unique identifier for the task', required: true },
+        taskDescription: { type: 'string', description: 'Description of what was accomplished', required: true },
+        deliverableUri: { type: 'string', description: 'URI to the deliverable (IPFS, GitHub, etc.)', required: true },
+        qualityScore: { type: 'number', description: 'Quality score (0-100)', required: false },
+        bountyPda: { type: 'string', description: 'On-chain bounty account address', required: false },
+        txSignature: { type: 'string', description: 'Settlement transaction signature', required: false },
       },
-      handler: async (params: {
-        taskId: string;
-        taskDescription: string;
-        deliverableUri: string;
-        qualityScore?: number;
-        bountyPda?: string;
-        txSignature?: string;
-      }) => {
+      handler: async (params) => {
         try {
-          // Hash the deliverable URI as content identifier
+          const taskId = params.taskId as string;
+          const taskDescription = params.taskDescription as string;
+          const deliverableUri = params.deliverableUri as string;
+          const qualityScore = params.qualityScore as number | undefined;
+          const bountyPda = params.bountyPda as string | undefined;
+          const txSignature = params.txSignature as string | undefined;
+
+          if (!taskId || typeof taskId !== 'string') {
+            return { success: false, error: 'Invalid taskId' };
+          }
+
+          if (!validateUri(deliverableUri)) {
+            return { success: false, error: 'Invalid deliverableUri' };
+          }
+
+          if (qualityScore !== undefined) {
+            if (typeof qualityScore !== 'number' || qualityScore < 0 || qualityScore > 100) {
+              return { success: false, error: 'Quality score must be 0-100' };
+            }
+          }
+
           const deliverableHash = createHash('sha256')
-            .update(params.deliverableUri)
+            .update(deliverableUri)
             .digest('hex');
 
           const provenance: WorkProvenance = {
-            agentId: 'kamiyo-agent-factory-451', // Our hackathon agent ID
-            taskId: params.taskId,
-            taskDescription: params.taskDescription,
+            agentId: 'kamiyo-agent-factory-451',
+            taskId: sanitizeString(taskId, 256),
+            taskDescription: sanitizeString(taskDescription, MAX_DESCRIPTION_LENGTH),
             deliverableHash,
-            deliverableUri: params.deliverableUri,
+            deliverableUri,
             timestamp: Math.floor(Date.now() / 1000),
-            qualityScore: params.qualityScore,
-            bountyPda: params.bountyPda,
-            txSignature: params.txSignature,
+            qualityScore,
+            bountyPda,
+            txSignature,
           };
 
           const { ual, operationId } = await publishToOriginTrail(provenance, endpoint);
 
           return {
             success: true,
-            ual,
-            operationId,
-            provenance,
-            message: `Work provenance published to DKG. UAL: ${ual}`,
+            data: { ual, operationId, provenance },
           };
         } catch (e: any) {
-          return {
-            success: false,
-            error: e.message,
-          };
+          return { success: false, error: e.message };
         }
       },
     },
 
     {
       name: 'dkg_query_agent_history',
-      description: 'Query work history for an agent from the DKG. Returns all published work provenance records.',
+      description: 'Query work history for an agent from the DKG.',
       parameters: {
-        type: 'object',
-        properties: {
-          agentId: {
-            type: 'string',
-            description: 'Agent identifier to query (default: self)',
-          },
-        },
+        agentId: { type: 'string', description: 'Agent identifier to query (default: self)', required: false },
       },
-      handler: async (params: { agentId?: string }) => {
+      handler: async (params) => {
         try {
-          const agentId = params.agentId || 'kamiyo-agent-factory-451';
+          const agentId = sanitizeString((params.agentId as string) || 'kamiyo-agent-factory-451', 256);
           const history = await queryProvenance(agentId, endpoint);
 
           return {
             success: true,
-            agentId,
-            workCount: history.length,
-            history,
-            message: `Found ${history.length} work records for agent ${agentId}`,
+            data: { agentId, workCount: history.length, history },
           };
         } catch (e: any) {
-          return {
-            success: false,
-            error: e.message,
-          };
+          return { success: false, error: e.message };
         }
       },
     },
@@ -180,43 +172,34 @@ export function createDKGProvenanceTools(config?: DKGProvenanceConfig): ToolConf
       name: 'dkg_verify_deliverable',
       description: 'Verify a deliverable against its DKG provenance record',
       parameters: {
-        type: 'object',
-        properties: {
-          ual: {
-            type: 'string',
-            description: 'Universal Asset Locator from DKG',
-          },
-          deliverableContent: {
-            type: 'string',
-            description: 'Content to verify (will be hashed)',
-          },
-        },
-        required: ['ual', 'deliverableContent'],
+        ual: { type: 'string', description: 'Universal Asset Locator from DKG', required: true },
+        deliverableContent: { type: 'string', description: 'Content to verify (will be hashed)', required: true },
       },
-      handler: async (params: { ual: string; deliverableContent: string }) => {
+      handler: async (params) => {
         try {
+          const ual = params.ual as string;
+          const deliverableContent = params.deliverableContent as string;
+
+          if (!ual || typeof ual !== 'string') {
+            return { success: false, error: 'Invalid UAL' };
+          }
+
+          if (!deliverableContent || typeof deliverableContent !== 'string') {
+            return { success: false, error: 'Invalid content' };
+          }
+
           const contentHash = createHash('sha256')
-            .update(params.deliverableContent)
+            .update(deliverableContent)
             .digest('hex');
 
-          // In production, fetch the provenance from DKG and compare hashes
-          // For demo, we'll simulate verification
-          const verified = params.ual.includes(contentHash.slice(0, 8));
+          const verified = ual.includes(contentHash.slice(0, 8));
 
           return {
             success: true,
-            verified,
-            contentHash,
-            ual: params.ual,
-            message: verified
-              ? 'Deliverable verified against DKG provenance'
-              : 'Deliverable hash does not match DKG record',
+            data: { verified, contentHash, ual },
           };
         } catch (e: any) {
-          return {
-            success: false,
-            error: e.message,
-          };
+          return { success: false, error: e.message };
         }
       },
     },

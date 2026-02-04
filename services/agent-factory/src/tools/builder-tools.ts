@@ -1,6 +1,5 @@
 /**
  * Builder Tools
- * Tools for autonomous code generation and Solana program building
  */
 
 import type { ToolConfig } from '@kamiyo/agents';
@@ -14,10 +13,28 @@ const execAsync = promisify(exec);
 interface BuilderToolsConfig {
   workDir: string;
   solanaRpcUrl?: string;
+  maxFileSizeBytes?: number;
+}
+
+const MAX_FILE_SIZE = 1024 * 1024; // 1MB default
+const BLOCKED_PATTERNS = [
+  /rm\s+-rf\s+\//, /sudo\s/, /chmod\s+777/, />\s*\/dev\//, /mkfs/,
+  /curl.*\|.*sh/, /wget.*\|.*sh/, /eval\s*\(/, /\$\(.*\).*\|.*sh/,
+];
+
+function isPathSafe(filePath: string, workDir: string): boolean {
+  const normalized = path.normalize(filePath);
+  if (normalized.startsWith('..') || path.isAbsolute(normalized)) return false;
+  const resolved = path.resolve(workDir, normalized);
+  return resolved.startsWith(path.resolve(workDir));
+}
+
+function isCommandSafe(command: string): boolean {
+  return !BLOCKED_PATTERNS.some(pattern => pattern.test(command));
 }
 
 export function createBuilderTools(config: BuilderToolsConfig): ToolConfig[] {
-  const { workDir, solanaRpcUrl = 'https://api.mainnet-beta.solana.com' } = config;
+  const { workDir, solanaRpcUrl = 'https://api.mainnet-beta.solana.com', maxFileSizeBytes = MAX_FILE_SIZE } = config;
 
   return [
     {
@@ -32,12 +49,15 @@ export function createBuilderTools(config: BuilderToolsConfig): ToolConfig[] {
           const filePath = params.filePath as string;
           const content = params.content as string;
 
-          // Security: prevent path traversal
-          const normalizedPath = path.normalize(filePath);
-          if (normalizedPath.startsWith('..') || path.isAbsolute(normalizedPath)) {
+          if (!isPathSafe(filePath, workDir)) {
             return { success: false, error: 'Invalid path: must be relative to workspace' };
           }
 
+          if (content.length > maxFileSizeBytes) {
+            return { success: false, error: `File too large: ${content.length} > ${maxFileSizeBytes} bytes` };
+          }
+
+          const normalizedPath = path.normalize(filePath);
           const fullPath = path.join(workDir, normalizedPath);
           await fs.mkdir(path.dirname(fullPath), { recursive: true });
           await fs.writeFile(fullPath, content, 'utf-8');
@@ -59,12 +79,18 @@ export function createBuilderTools(config: BuilderToolsConfig): ToolConfig[] {
         try {
           const filePath = params.filePath as string;
 
-          const normalizedPath = path.normalize(filePath);
-          if (normalizedPath.startsWith('..') || path.isAbsolute(normalizedPath)) {
+          if (!isPathSafe(filePath, workDir)) {
             return { success: false, error: 'Invalid path: must be relative to workspace' };
           }
 
+          const normalizedPath = path.normalize(filePath);
           const fullPath = path.join(workDir, normalizedPath);
+          const stat = await fs.stat(fullPath);
+
+          if (stat.size > maxFileSizeBytes) {
+            return { success: false, error: `File too large: ${stat.size} > ${maxFileSizeBytes} bytes` };
+          }
+
           const content = await fs.readFile(fullPath, 'utf-8');
 
           return { success: true, data: { path: normalizedPath, content, bytes: content.length } };
@@ -130,11 +156,9 @@ export function createBuilderTools(config: BuilderToolsConfig): ToolConfig[] {
       handler: async (params) => {
         try {
           const command = params.command as string;
-          const timeout = ((params.timeout as number) || 60) * 1000;
+          const timeout = Math.min(((params.timeout as number) || 60) * 1000, 600000);
 
-          // Security: block dangerous commands
-          const blocked = ['rm -rf /', 'sudo', 'chmod 777', '> /dev/', 'mkfs'];
-          if (blocked.some(b => command.includes(b))) {
+          if (!isCommandSafe(command)) {
             return { success: false, error: 'Command blocked for security' };
           }
 
@@ -142,6 +166,7 @@ export function createBuilderTools(config: BuilderToolsConfig): ToolConfig[] {
             cwd: workDir,
             timeout,
             env: { ...process.env, SOLANA_RPC_URL: solanaRpcUrl },
+            maxBuffer: 10 * 1024 * 1024,
           });
 
           return {
