@@ -1,0 +1,215 @@
+/**
+ * Mention Monitor for Nika
+ *
+ * Polls for mentions and triggers replies.
+ */
+
+import { EventEmitter } from 'events';
+import { createXTools, type XToolsConfig, type ToolResult } from '@kamiyo/agents';
+import { createLogger, getMetrics, withRetry, LRUCache } from './lib';
+
+const log = createLogger('nika:mentions');
+const metrics = getMetrics();
+
+export interface MentionMonitorConfig {
+  twitter: XToolsConfig;
+  checkIntervalMs: number;
+  onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
+}
+
+export interface Mention {
+  id: string;
+  text: string;
+  authorId: string;
+  authorUsername?: string;
+  createdAt?: string;
+  conversationId?: string;
+}
+
+export class MentionMonitor extends EventEmitter {
+  private config: MentionMonitorConfig;
+  private timer: NodeJS.Timeout | null = null;
+  private running = false;
+  private lastMentionId: string | null = null;
+  private processedCache: LRUCache<boolean>;
+  private xTools: ReturnType<typeof createXTools>;
+
+  constructor(config: MentionMonitorConfig) {
+    super();
+    this.config = config;
+    this.processedCache = new LRUCache<boolean>({ maxSize: 1000, ttlMs: 24 * 60 * 60 * 1000 });
+    this.xTools = createXTools(config.twitter);
+
+    log.info('Mention monitor initialized', { checkIntervalMs: config.checkIntervalMs });
+  }
+
+  async start(): Promise<void> {
+    if (this.running) {
+      log.warn('Mention monitor already running');
+      return;
+    }
+
+    this.running = true;
+    log.info('Mention monitor starting');
+
+    // Initial check
+    await this.checkMentions();
+
+    // Schedule periodic checks
+    this.timer = setInterval(() => {
+      this.checkMentions().catch((error) => {
+        log.error('Mention check failed', { error: String(error) });
+        this.emit('error', error);
+      });
+    }, this.config.checkIntervalMs);
+
+    this.emit('started');
+    metrics.incrementCounter('nika_mention_monitor_started');
+  }
+
+  private async checkMentions(): Promise<void> {
+    const startTime = Date.now();
+
+    log.debug('Checking mentions', { sinceId: this.lastMentionId });
+    metrics.incrementCounter('nika_mention_checks');
+
+    try {
+      // Find the get_mentions tool
+      const getMentionsTool = this.xTools.find((t) => t.name === 'get_mentions');
+      if (!getMentionsTool) {
+        throw new Error('get_mentions tool not found');
+      }
+
+      const result = await withRetry(
+        () =>
+          getMentionsTool.handler({
+            limit: 20,
+            ...(this.lastMentionId ? { sinceId: this.lastMentionId } : {}),
+          }),
+        { maxAttempts: 3, initialDelayMs: 1000 }
+      ) as ToolResult;
+
+      if (!result.success || !result.data) {
+        log.warn('Failed to fetch mentions', { error: result.error });
+        return;
+      }
+
+      const data = result.data as { mentions: Mention[] };
+      const mentions = data.mentions || [];
+
+      if (mentions.length === 0) {
+        log.debug('No new mentions');
+        return;
+      }
+
+      log.info('Found mentions', { count: mentions.length });
+      metrics.incrementCounter('nika_mentions_found');
+
+      // Update last mention ID (first one is most recent)
+      if (mentions.length > 0) {
+        this.lastMentionId = mentions[0].id;
+      }
+
+      // Process mentions (oldest first)
+      const mentionsToProcess = [...mentions].reverse();
+
+      for (const mention of mentionsToProcess) {
+        // Skip if already processed
+        if (this.processedCache.get(mention.id)) {
+          log.debug('Skipping already processed mention', { mentionId: mention.id });
+          continue;
+        }
+
+        try {
+          // Get author username if not present
+          let authorUsername = mention.authorUsername || 'unknown';
+          if (!mention.authorUsername && mention.authorId) {
+            authorUsername = mention.authorId;
+          }
+
+          log.info('Processing mention', {
+            mentionId: mention.id,
+            author: authorUsername,
+            preview: mention.text.slice(0, 50),
+          });
+
+          await this.config.onMention(mention.id, mention.text, authorUsername);
+
+          // Mark as processed
+          this.processedCache.set(mention.id, true);
+
+          this.emit('processed', {
+            mentionId: mention.id,
+            authorUsername,
+            skipped: false,
+          });
+
+          metrics.incrementCounter('nika_mentions_processed');
+        } catch (error) {
+          log.error('Failed to process mention', {
+            mentionId: mention.id,
+            error: String(error),
+          });
+
+          this.emit('error', error);
+          metrics.incrementCounter('nika_mention_processing_errors');
+
+          // Still mark as processed to avoid infinite retry
+          this.processedCache.set(mention.id, true);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      metrics.recordHistogram('nika_mention_check_duration_ms', duration);
+    } catch (error) {
+      metrics.incrementCounter('nika_mention_check_errors');
+      throw error;
+    }
+  }
+
+  stop(): void {
+    if (!this.running) {
+      return;
+    }
+
+    this.running = false;
+
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+
+    log.info('Mention monitor stopped');
+    metrics.incrementCounter('nika_mention_monitor_stopped');
+    this.emit('stopped');
+  }
+
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  setLastMentionId(id: string): void {
+    this.lastMentionId = id;
+    log.debug('Last mention ID set', { id });
+  }
+
+  getLastMentionId(): string | null {
+    return this.lastMentionId;
+  }
+
+  getProcessedCount(): number {
+    return this.processedCache.size;
+  }
+}
+
+export function createMentionMonitor(
+  twitter: XToolsConfig,
+  checkIntervalMs: number,
+  onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>
+): MentionMonitor {
+  return new MentionMonitor({
+    twitter,
+    checkIntervalMs,
+    onMention,
+  });
+}
