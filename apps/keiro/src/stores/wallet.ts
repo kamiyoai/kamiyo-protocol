@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Connection, PublicKey, LAMPORTS_PER_SOL, Transaction } from '@solana/web3.js';
+import { PublicKey, LAMPORTS_PER_SOL, Transaction } from '@solana/web3.js';
 import { transact, Web3MobileWallet } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
 import { Platform } from 'react-native';
-import bs58 from 'bs58';
-import { SOLANA_RPC_URL, SOLANA_NETWORK, APP_NAME } from '../lib/constants';
+import { SOLANA_NETWORK, APP_NAME } from '../lib/constants';
+import { getConnection } from '../lib/solana';
 
 interface WalletState {
   publicKey: PublicKey | null;
@@ -21,8 +21,6 @@ interface WalletState {
   signTransaction: (transaction: Transaction) => Promise<Transaction | null>;
   signMessage: (message: Uint8Array) => Promise<Uint8Array | null>;
 }
-
-const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 export const useWalletStore = create<WalletState>()(
   persist(
@@ -44,8 +42,7 @@ export const useWalletStore = create<WalletState>()(
 
         try {
           const result = await transact(async (wallet: Web3MobileWallet) => {
-            // Authorize with the wallet
-            const authResult = await wallet.authorize({
+            const auth = await wallet.authorize({
               cluster: SOLANA_NETWORK as 'devnet' | 'mainnet-beta' | 'testnet',
               identity: {
                 name: APP_NAME,
@@ -54,16 +51,10 @@ export const useWalletStore = create<WalletState>()(
               },
             });
 
-            // Get the first account
-            const account = authResult.accounts[0];
-            if (!account) {
-              throw new Error('No accounts returned from wallet');
-            }
+            const account = auth.accounts[0];
+            if (!account) throw new Error('No accounts returned from wallet');
 
-            return {
-              publicKey: account.address,
-              authToken: authResult.auth_token,
-            };
+            return { publicKey: account.address, authToken: auth.auth_token };
           });
 
           const publicKey = new PublicKey(result.publicKey);
@@ -76,17 +67,11 @@ export const useWalletStore = create<WalletState>()(
             authToken: result.authToken,
           });
 
-          get().refreshBalance();
-
+          void get().refreshBalance();
           return true;
         } catch (error) {
           console.error('Wallet connection failed:', error);
-          set({
-            connecting: false,
-            connected: false,
-            publicKey: null,
-            publicKeyBase58: null,
-          });
+          set({ connecting: false, connected: false, publicKey: null, publicKeyBase58: null });
           return false;
         }
       },
@@ -96,6 +81,7 @@ export const useWalletStore = create<WalletState>()(
           publicKey: null,
           publicKeyBase58: null,
           connected: false,
+          connecting: false,
           balance: 0,
           authToken: null,
         });
@@ -104,11 +90,10 @@ export const useWalletStore = create<WalletState>()(
       refreshBalance: async () => {
         const { publicKeyBase58 } = get();
         if (!publicKeyBase58) return;
-
         try {
           const publicKey = new PublicKey(publicKeyBase58);
-          const balance = await connection.getBalance(publicKey);
-          set({ balance: balance / LAMPORTS_PER_SOL });
+          const lamports = await getConnection().getBalance(publicKey);
+          set({ balance: lamports / LAMPORTS_PER_SOL });
         } catch (error) {
           console.error('Failed to fetch balance:', error);
         }
@@ -129,36 +114,25 @@ export const useWalletStore = create<WalletState>()(
               try {
                 await wallet.reauthorize({
                   auth_token: authToken,
-                  identity: {
-                    name: APP_NAME,
-                    uri: 'https://keiro.kamiyo.ai',
-                    icon: 'favicon.ico',
-                  },
+                  identity: { name: APP_NAME, uri: 'https://keiro.kamiyo.ai', icon: 'favicon.ico' },
                 });
               } catch {
                 await wallet.authorize({
                   cluster: SOLANA_NETWORK as 'devnet' | 'mainnet-beta' | 'testnet',
-                  identity: {
-                    name: APP_NAME,
-                    uri: 'https://keiro.kamiyo.ai',
-                    icon: 'favicon.ico',
-                  },
+                  identity: { name: APP_NAME, uri: 'https://keiro.kamiyo.ai', icon: 'favicon.ico' },
                 });
               }
             }
 
-            const { blockhash } = await connection.getLatestBlockhash();
+            const { blockhash } = await getConnection().getLatestBlockhash();
             transaction.recentBlockhash = blockhash;
             transaction.feePayer = new PublicKey(publicKeyBase58);
 
-            const signedTransactions = await wallet.signTransactions({
-              transactions: [transaction],
-            });
-
-            return signedTransactions[0];
+            const signed = await wallet.signTransactions({ transactions: [transaction] });
+            return signed[0];
           });
 
-          return signedTransaction;
+          return signedTransaction || null;
         } catch (error) {
           console.error('Transaction signing failed:', error);
           return null;
@@ -166,7 +140,7 @@ export const useWalletStore = create<WalletState>()(
       },
 
       signMessage: async (message: Uint8Array) => {
-        const { authToken } = get();
+        const { authToken, publicKeyBase58 } = get();
 
         if (Platform.OS === 'web') {
           console.log('Web message signing not implemented');
@@ -179,33 +153,25 @@ export const useWalletStore = create<WalletState>()(
               try {
                 await wallet.reauthorize({
                   auth_token: authToken,
-                  identity: {
-                    name: APP_NAME,
-                    uri: 'https://keiro.kamiyo.ai',
-                    icon: 'favicon.ico',
-                  },
+                  identity: { name: APP_NAME, uri: 'https://keiro.kamiyo.ai', icon: 'favicon.ico' },
                 });
               } catch {
                 await wallet.authorize({
                   cluster: SOLANA_NETWORK as 'devnet' | 'mainnet-beta' | 'testnet',
-                  identity: {
-                    name: APP_NAME,
-                    uri: 'https://keiro.kamiyo.ai',
-                    icon: 'favicon.ico',
-                  },
+                  identity: { name: APP_NAME, uri: 'https://keiro.kamiyo.ai', icon: 'favicon.ico' },
                 });
               }
             }
 
-            const signedMessages = await wallet.signMessages({
-              addresses: [get().publicKeyBase58!],
+            const signed = await wallet.signMessages({
+              addresses: [publicKeyBase58!],
               payloads: [message],
             });
 
-            return signedMessages[0];
+            return signed[0];
           });
 
-          return signature;
+          return signature || null;
         } catch (error) {
           console.error('Message signing failed:', error);
           return null;
@@ -215,12 +181,12 @@ export const useWalletStore = create<WalletState>()(
     {
       name: 'keiro-wallet-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: state => ({
+      partialize: (state) => ({
         publicKeyBase58: state.publicKeyBase58,
         connected: state.connected,
         authToken: state.authToken,
       }),
-      onRehydrateStorage: () => state => {
+      onRehydrateStorage: () => (state) => {
         if (state?.publicKeyBase58) {
           try {
             state.publicKey = new PublicKey(state.publicKeyBase58);
@@ -235,7 +201,6 @@ export const useWalletStore = create<WalletState>()(
   )
 );
 
-// Helper to get short address for display
 export function getShortAddress(publicKey: PublicKey | string | null): string {
   if (!publicKey) return '';
   const address = typeof publicKey === 'string' ? publicKey : publicKey.toBase58();

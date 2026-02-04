@@ -7,6 +7,10 @@ function tierMeetsRequirement(agentTier: AgentTier, requiredTier: AgentTier): bo
   return TIER_ORDER.indexOf(agentTier) >= TIER_ORDER.indexOf(requiredTier);
 }
 
+function newId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function seedJobs() {
   const mockJobs: Omit<Job, 'id' | 'createdAt'>[] = [
     {
@@ -116,7 +120,7 @@ function seedJobs() {
   ];
 
   mockJobs.forEach((job, index) => {
-    const id = `job_${Date.now()}_${index}`;
+    const id = newId('job');
     jobs.set(id, {
       ...job,
       id,
@@ -139,27 +143,27 @@ export const jobService = {
   },
 
   getOpen(): Job[] {
-    return this.getAll().filter(job => job.status === 'open');
+    return this.getAll().filter((job) => job.status === 'open');
   },
 
   getByStatus(status: JobStatus): Job[] {
-    return this.getAll().filter(job => job.status === status);
+    return this.getAll().filter((job) => job.status === status);
   },
 
   getMatchingJobs(skills: AgentSkill[], tier: AgentTier): Job[] {
-    return this.getOpen().filter(job => {
-      const hasRequiredSkill = job.requiredSkills.some(skill => skills.includes(skill));
+    return this.getOpen().filter((job) => {
+      const hasRequiredSkill = job.requiredSkills.some((skill) => skills.includes(skill));
       const meetsTierRequirement = tierMeetsRequirement(tier, job.requiredTier);
       return hasRequiredSkill && meetsTierRequirement;
     });
   },
 
   getByAgent(agentId: string): Job[] {
-    return this.getAll().filter(job => job.assignedAgent === agentId);
+    return this.getAll().filter((job) => job.assignedAgent === agentId);
   },
 
   create(job: Omit<Job, 'id' | 'createdAt' | 'status'>): Job {
-    const id = `job_${Date.now()}`;
+    const id = newId('job');
     const newJob: Job = {
       ...job,
       id,

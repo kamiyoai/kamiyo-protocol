@@ -1,7 +1,6 @@
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { SOLANA_RPC_URL } from './constants';
 
-// Singleton connection instance
 let connectionInstance: Connection | null = null;
 
 export function getConnection(): Connection {
@@ -12,8 +11,7 @@ export function getConnection(): Connection {
 }
 
 export async function getBalance(publicKey: PublicKey): Promise<number> {
-  const connection = getConnection();
-  const balance = await connection.getBalance(publicKey);
+  const balance = await getConnection().getBalance(publicKey);
   return balance / LAMPORTS_PER_SOL;
 }
 
@@ -38,11 +36,7 @@ export function isValidPublicKey(address: string): boolean {
   }
 }
 
-export function formatSol(
-  amount: number,
-  decimals = 4,
-  showSymbol = true
-): string {
+export function formatSol(amount: number, decimals = 4, showSymbol = true): string {
   const formatted = amount.toFixed(decimals);
   return showSymbol ? `${formatted} SOL` : formatted;
 }
@@ -51,8 +45,7 @@ export function formatUsd(amount: number, decimals = 2): string {
   return `$${amount.toFixed(decimals)}`;
 }
 
-// Approximate SOL to USD conversion (would use an oracle in production)
-const SOL_USD_RATE = 150; // Placeholder rate
+const SOL_USD_RATE = 150;
 
 export function solToUsd(sol: number): number {
   return sol * SOL_USD_RATE;

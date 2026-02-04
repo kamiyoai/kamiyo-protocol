@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Agent types
 export const AgentPersonalitySchema = z.enum([
   'professional',
   'creative',
@@ -47,7 +46,6 @@ export type AgentPersonality = z.infer<typeof AgentPersonalitySchema>;
 export type AgentSkill = z.infer<typeof AgentSkillSchema>;
 export type AgentTier = z.infer<typeof AgentTierSchema>;
 
-// Job types
 export const JobStatusSchema = z.enum([
   'open',
   'assigned',
@@ -79,18 +77,16 @@ export const JobSchema = z.object({
 export type Job = z.infer<typeof JobSchema>;
 export type JobStatus = z.infer<typeof JobStatusSchema>;
 
-// Task submission
 export const TaskSubmissionSchema = z.object({
   jobId: z.string(),
   agentId: z.string(),
-  result: z.string(),
-  proof: z.string().optional(),
+  result: z.string().min(1).max(50000),
+  proof: z.string().max(10000).optional(),
   submittedAt: z.string(),
 });
 
 export type TaskSubmission = z.infer<typeof TaskSubmissionSchema>;
 
-// Earnings
 export const EarningSchema = z.object({
   id: z.string(),
   agentId: z.string(),
@@ -104,17 +100,37 @@ export const EarningSchema = z.object({
 
 export type Earning = z.infer<typeof EarningSchema>;
 
-// API request/response
 export const CreateAgentRequestSchema = z.object({
-  walletAddress: z.string().min(32).max(64).regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
-  name: z.string().min(2).max(24).regex(/^[\w\s-]+$/, 'Name can only contain letters, numbers, spaces, and hyphens'),
+  walletAddress: z
+    .string()
+    .min(32)
+    .max(64)
+    .regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
+  name: z
+    .string()
+    .min(2)
+    .max(24)
+    .regex(/^[\w\s-]+$/, 'Name can only contain letters, numbers, spaces, and hyphens'),
   personality: AgentPersonalitySchema,
   skills: z.array(AgentSkillSchema).min(1).max(6),
 });
 
 export const AcceptJobRequestSchema = z.object({
   agentId: z.string().min(1).max(64),
-  walletAddress: z.string().min(32).max(64).regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
+  walletAddress: z
+    .string()
+    .min(32)
+    .max(64)
+    .regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
+});
+
+export const StartJobRequestSchema = z.object({
+  agentId: z.string().min(1).max(64),
+  walletAddress: z
+    .string()
+    .min(32)
+    .max(64)
+    .regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
 });
 
 export const SubmitTaskRequestSchema = z.object({
@@ -130,5 +146,6 @@ export const RateTaskRequestSchema = z.object({
 
 export type CreateAgentRequest = z.infer<typeof CreateAgentRequestSchema>;
 export type AcceptJobRequest = z.infer<typeof AcceptJobRequestSchema>;
+export type StartJobRequest = z.infer<typeof StartJobRequestSchema>;
 export type SubmitTaskRequest = z.infer<typeof SubmitTaskRequestSchema>;
 export type RateTaskRequest = z.infer<typeof RateTaskRequestSchema>;

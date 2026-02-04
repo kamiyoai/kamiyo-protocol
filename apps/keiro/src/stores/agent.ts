@@ -38,11 +38,9 @@ interface AgentState {
   isSyncing: boolean;
   error: string | null;
 
-  // Local actions
   setWalletAddress: (address: string | null) => void;
   clearAgent: () => void;
 
-  // API-synced actions
   createAgent: (
     walletAddress: string,
     name: string,
@@ -93,17 +91,8 @@ export const useAgentStore = create<AgentState>()(
       createAgent: async (walletAddress, name, personality, skills) => {
         set({ isLoading: true, error: null });
         try {
-          const apiAgent = await api.createAgent({
-            walletAddress,
-            name,
-            personality,
-            skills,
-          });
-          set({
-            agent: apiAgentToLocal(apiAgent),
-            walletAddress,
-            isLoading: false,
-          });
+          const apiAgent = await api.createAgent({ walletAddress, name, personality, skills });
+          set({ agent: apiAgentToLocal(apiAgent), walletAddress, isLoading: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to create agent';
           set({ error: message, isLoading: false });
@@ -116,11 +105,7 @@ export const useAgentStore = create<AgentState>()(
         try {
           const apiAgent = await api.getAgentByWallet(walletAddress);
           if (apiAgent) {
-            set({
-              agent: apiAgentToLocal(apiAgent),
-              walletAddress,
-              isLoading: false,
-            });
+            set({ agent: apiAgentToLocal(apiAgent), walletAddress, isLoading: false });
           } else {
             set({ agent: null, walletAddress, isLoading: false });
           }
@@ -137,10 +122,7 @@ export const useAgentStore = create<AgentState>()(
         set({ isSyncing: true, error: null });
         try {
           const apiAgent = await api.updateAgent(agent.id, updates);
-          set({
-            agent: apiAgentToLocal(apiAgent),
-            isSyncing: false,
-          });
+          set({ agent: apiAgentToLocal(apiAgent), isSyncing: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to update agent';
           set({ error: message, isSyncing: false });
@@ -155,10 +137,7 @@ export const useAgentStore = create<AgentState>()(
         set({ isSyncing: true, error: null });
         try {
           const apiAgent = await api.toggleAgentActive(agent.id);
-          set({
-            agent: apiAgentToLocal(apiAgent),
-            isSyncing: false,
-          });
+          set({ agent: apiAgentToLocal(apiAgent), isSyncing: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to toggle active status';
           set({ error: message, isSyncing: false });
@@ -173,11 +152,8 @@ export const useAgentStore = create<AgentState>()(
         set({ isSyncing: true });
         try {
           const apiAgent = await api.getAgent(agent.id);
-          set({
-            agent: apiAgentToLocal(apiAgent),
-            isSyncing: false,
-          });
-        } catch (error) {
+          set({ agent: apiAgentToLocal(apiAgent), isSyncing: false });
+        } catch {
           set({ isSyncing: false });
         }
       },
