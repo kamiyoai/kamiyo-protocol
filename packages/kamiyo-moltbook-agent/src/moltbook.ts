@@ -201,7 +201,7 @@ export class MoltbookClient {
       method: 'POST',
       body: JSON.stringify({
         title: params.title,
-        body: params.body,
+        content: params.body,
         submolt: params.submolt,
       }),
     });
