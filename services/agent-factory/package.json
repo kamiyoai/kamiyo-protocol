@@ -7,6 +7,8 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx src/index.ts",
+    "viral": "tsx src/viral-loop.ts",
+    "viral:prod": "node dist/viral-loop.js",
     "dev": "tsx watch src/index.ts",
     "heartbeat": "tsx src/heartbeat.ts",
     "task": "tsx src/index.ts",
