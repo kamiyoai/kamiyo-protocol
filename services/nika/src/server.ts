@@ -1,7 +1,5 @@
 /**
- * HTTP Server for Nika
- *
- * Exposes health, readiness, and metrics endpoints.
+ * HTTP server - health, readiness, metrics endpoints.
  */
 
 import express, { Request, Response, NextFunction } from 'express';

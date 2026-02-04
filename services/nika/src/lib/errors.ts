@@ -1,7 +1,5 @@
 /**
- * Error Classification
- *
- * Distinguishes between retryable and permanent errors.
+ * Error classification - retryable vs permanent.
  */
 
 /**

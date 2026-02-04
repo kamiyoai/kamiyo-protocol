@@ -1,7 +1,5 @@
 /**
- * Nika Agent
- *
- * Uses @kamiyo/agents with X tools and DKG memory.
+ * Nika Agent - posts tweets via X tools with DKG memory.
  */
 
 import { createKamiyoAgent, createXTools, type KamiyoAgent, type XToolsConfig } from '@kamiyo/agents';
@@ -28,6 +26,7 @@ import {
   type TweetStyle,
 } from './personality';
 import { getDKGMemory, type DKGMemory } from './dkg-memory';
+import { shouldTweet, requiresQualityCheck, isQualityGateEnabled } from './quality-gate';
 import type { Config } from './config';
 
 const log = createLogger('nika:agent');
@@ -46,6 +45,8 @@ export interface PostResult {
   tweetType: TweetType;
   tweetStyle: TweetStyle;
   dkgGrounded: boolean;
+  qualityChecked: boolean;
+  improvedByQualityGate: boolean;
   durationMs: number;
 }
 
@@ -108,7 +109,12 @@ export class NikaAgent {
       }
     }
 
-    const prompt = buildTweetPrompt(mood, type, style, recentTopics);
+    // Sanitize topics before including in prompt
+    const sanitizedTopics = recentTopics?.map(t =>
+      sanitizeForPrompt(t).slice(0, 50)
+    ).slice(0, 20);
+
+    const prompt = buildTweetPrompt(mood, type, style, sanitizedTopics);
 
     log.info('Generating post', { mood, type, style, recentTopicsCount: recentTopics?.length || 0 });
 
@@ -151,6 +157,43 @@ export class NikaAgent {
         throw new ModerationError(modResult.reasons);
       }
 
+      // Quality gate for sensitive content
+      let qualityChecked = false;
+      let improvedByQualityGate = false;
+      if (isQualityGateEnabled() && requiresQualityCheck(type, mood)) {
+        qualityChecked = true;
+        const qualityResult = await shouldTweet(tweetContent, `${mood} ${type}`);
+        if (!qualityResult.approved && qualityResult.improvedVersion) {
+          // Re-validate improved version
+          const improvedValidation = validateTweet(qualityResult.improvedVersion);
+          const improvedModResult = moderator.check(qualityResult.improvedVersion);
+
+          if (improvedValidation.valid &&
+              qualityResult.improvedVersion.length >= 20 &&
+              qualityResult.improvedVersion.length <= 280 &&
+              improvedModResult.allowed) {
+            log.info('Tweet improved by quality gate', {
+              original: tweetContent.slice(0, 50),
+              improved: qualityResult.improvedVersion.slice(0, 50),
+              reason: qualityResult.reason,
+            });
+            tweetContent = qualityResult.improvedVersion;
+            improvedByQualityGate = true;
+            metrics.incrementCounter('nika_post_quality_improved');
+          } else {
+            log.warn('Quality gate improved version failed validation', {
+              validationOk: improvedValidation.valid,
+              moderationOk: improvedModResult.allowed,
+            });
+          }
+        } else if (!qualityResult.approved) {
+          log.warn('Tweet rejected by quality gate without improvement', {
+            reason: qualityResult.reason,
+          });
+          metrics.incrementCounter('nika_post_quality_rejected');
+        }
+      }
+
       const duration = Date.now() - startTime;
 
       metrics.incrementCounter('nika_post_success');
@@ -187,6 +230,8 @@ export class NikaAgent {
         style,
         durationMs: duration,
         dkgGrounded,
+        qualityChecked,
+        improvedByQualityGate,
       });
 
       return {
@@ -195,6 +240,8 @@ export class NikaAgent {
         tweetType: type,
         tweetStyle: style,
         dkgGrounded,
+        qualityChecked,
+        improvedByQualityGate,
         durationMs: duration,
       };
     } catch (error) {
@@ -255,9 +302,7 @@ Tweet ID: ${mentionId}
 Content: "${safeContent}"
 
 TASK:
-1. Understand what the user is asking or saying
-2. Craft a thoughtful reply fitting Nika's voice
-3. Post the reply using the reply_to_tweet tool
+Craft a thoughtful reply fitting Nika's voice.
 
 GUIDELINES:
 - Be genuine, not performative
@@ -265,10 +310,10 @@ GUIDELINES:
 - Technical accuracy matters
 - Under 280 characters
 - No emojis
-- You are Nika (二化), not "KAMIYO Companion"
+- You are Nika (二化)
 
 OUTPUT:
-Return ONLY the reply text, nothing else.`;
+Return ONLY the reply text. Do not use any tools.`;
 
     let replyContent = '';
 
@@ -376,13 +421,10 @@ Return ONLY the reply text, nothing else.`;
 
 ORIGINAL TWEET:
 From: @${safeUsername}
-Tweet ID: ${tweetId}
 Content: "${safeContent}"
 
 TASK:
-1. Analyze the original tweet
-2. Craft commentary that adds value (not just agreement/disagreement)
-3. Post using the quote_tweet tool
+Craft commentary that adds value (not just agreement/disagreement).
 
 GUIDELINES:
 - Add genuine insight or perspective
@@ -391,7 +433,7 @@ GUIDELINES:
 - No emojis
 
 OUTPUT:
-Return ONLY the quote text, nothing else.`;
+Return ONLY the quote text. Do not use any tools.`;
 
     let quoteContent = '';
 

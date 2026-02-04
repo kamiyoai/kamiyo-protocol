@@ -1,8 +1,5 @@
 /**
- * Structured Logger for Nika Service
- *
- * Outputs JSON in production, human-readable in development.
- * Supports trace ID correlation across components.
+ * Structured logger with trace ID correlation.
  */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';

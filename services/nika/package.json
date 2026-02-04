@@ -12,11 +12,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.31",
+    "@anthropic-ai/sdk": "^0.52.0",
     "@kamiyo/agents": "workspace:*",
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
     "express": "^4.21.0",
-    "prom-client": "^15.1.0"
+    "prom-client": "^15.1.0",
+    "twitter-api-v2": "^1.19.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

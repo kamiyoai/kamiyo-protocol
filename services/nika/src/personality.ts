@@ -1,7 +1,5 @@
 /**
- * Nika (二化) Personality Context
- *
- * Defines voice, mood system, and behavioral constraints.
+ * Nika personality - voice, moods, and constraints.
  */
 
 export type Mood =

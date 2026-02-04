@@ -1,8 +1,5 @@
 /**
- * Engagement Tracker
- *
- * Periodically fetches tweet engagement metrics from Twitter
- * and updates DKG memory with the stats.
+ * Engagement Tracker - fetches metrics, updates DKG.
  */
 
 import { createXTools, type XToolsConfig } from '@kamiyo/agents';
