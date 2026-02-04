@@ -2,7 +2,7 @@
  * Nika Agent - posts tweets via X tools with DKG memory.
  */
 
-import { createKamiyoAgent, createXTools, type KamiyoAgent, type XToolsConfig } from '@kamiyo/agents';
+import { createKamiyoAgent, createXTools, type KamiyoAgent, type XToolsConfig, type ToolConfig } from '@kamiyo/agents';
 import {
   createLogger,
   getMetrics,
@@ -67,18 +67,19 @@ export class NikaAgent {
   private agent: KamiyoAgent;
   private config: NikaAgentConfig;
   private dkgMemory: DKGMemory | null;
+  private xTools: ToolConfig[];
 
   constructor(config: NikaAgentConfig) {
     this.config = config;
     this.dkgMemory = config.dkgMemory || getDKGMemory();
 
-    const xTools = createXTools(config.twitter);
+    this.xTools = createXTools(config.twitter);
 
     this.agent = createKamiyoAgent({
       name: 'nika',
       apiKey: config.anthropicApiKey,
       systemPrompt: SYSTEM_PROMPT,
-      tools: [...xTools],
+      tools: [...this.xTools],
       maxTurns: 25,
       timeoutMs: 180000,
     });
@@ -516,6 +517,105 @@ Return ONLY the quote text. Do not use any tools.`;
       log.error('Quote generation failed', { error: String(error), tweetId });
       throw error;
     }
+  }
+
+  /**
+   * Post a tweet to Twitter using X tools.
+   */
+  async postTweet(text: string): Promise<string> {
+    const postTweetTool = this.xTools.find((t) => t.name === 'post_tweet');
+    if (!postTweetTool) {
+      throw new Error('post_tweet tool not found');
+    }
+
+    log.debug('Posting tweet', { textLength: text.length });
+
+    const result = await twitterCircuit.execute(() =>
+      withRetry(
+        async () => postTweetTool.handler({ text }),
+        { maxAttempts: 2, initialDelayMs: 2000 }
+      )
+    );
+
+    if (!result.success) {
+      metrics.incrementCounter('nika_tweet_post_failed');
+      throw new Error(`Failed to post tweet: ${result.error}`);
+    }
+
+    const tweetId = (result.data as { id?: string })?.id;
+    if (!tweetId) {
+      throw new Error('Tweet posted but no ID returned');
+    }
+
+    log.info('Tweet posted', { tweetId });
+    metrics.incrementCounter('nika_tweet_posted');
+    return tweetId;
+  }
+
+  /**
+   * Reply to a tweet using X tools.
+   */
+  async replyToTweet(inReplyToId: string, text: string): Promise<string> {
+    const replyTool = this.xTools.find((t) => t.name === 'reply_to_tweet');
+    if (!replyTool) {
+      throw new Error('reply_to_tweet tool not found');
+    }
+
+    log.debug('Posting reply', { inReplyToId, textLength: text.length });
+
+    const result = await twitterCircuit.execute(() =>
+      withRetry(
+        async () => replyTool.handler({ tweet_id: inReplyToId, text }),
+        { maxAttempts: 2, initialDelayMs: 2000 }
+      )
+    );
+
+    if (!result.success) {
+      metrics.incrementCounter('nika_reply_post_failed');
+      throw new Error(`Failed to post reply: ${result.error}`);
+    }
+
+    const replyId = (result.data as { id?: string })?.id;
+    if (!replyId) {
+      throw new Error('Reply posted but no ID returned');
+    }
+
+    log.info('Reply posted', { replyId, inReplyToId });
+    metrics.incrementCounter('nika_reply_posted');
+    return replyId;
+  }
+
+  /**
+   * Quote a tweet using X tools.
+   */
+  async quoteTweet(quotedTweetId: string, text: string): Promise<string> {
+    const quoteTool = this.xTools.find((t) => t.name === 'quote_tweet');
+    if (!quoteTool) {
+      throw new Error('quote_tweet tool not found');
+    }
+
+    log.debug('Posting quote', { quotedTweetId, textLength: text.length });
+
+    const result = await twitterCircuit.execute(() =>
+      withRetry(
+        async () => quoteTool.handler({ tweet_id: quotedTweetId, text }),
+        { maxAttempts: 2, initialDelayMs: 2000 }
+      )
+    );
+
+    if (!result.success) {
+      metrics.incrementCounter('nika_quote_post_failed');
+      throw new Error(`Failed to post quote: ${result.error}`);
+    }
+
+    const quoteId = (result.data as { id?: string })?.id;
+    if (!quoteId) {
+      throw new Error('Quote posted but no ID returned');
+    }
+
+    log.info('Quote posted', { quoteId, quotedTweetId });
+    metrics.incrementCounter('nika_quote_posted');
+    return quoteId;
   }
 
   getCircuitStatus(): { twitter: string; dkg: string } {

@@ -36,7 +36,6 @@ export interface Config {
 
 const REQUIRED_VARS = [
   'ANTHROPIC_API_KEY',
-  'DKG_PRIVATE_KEY',
   'TWITTER_API_KEY',
   'TWITTER_API_SECRET',
   'TWITTER_ACCESS_TOKEN',
