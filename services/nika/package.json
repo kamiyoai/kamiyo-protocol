@@ -12,9 +12,12 @@
   "dependencies": {
     "@kamiyo/agents": "workspace:*",
     "@kamiyo/agent-paranet": "workspace:*",
-    "@kamiyo/sdk": "workspace:*"
+    "@kamiyo/sdk": "workspace:*",
+    "express": "^4.21.0",
+    "prom-client": "^15.1.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^22.10.1",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2"

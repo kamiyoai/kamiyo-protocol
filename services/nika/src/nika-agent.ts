@@ -5,7 +5,17 @@
  */
 
 import { createKamiyoAgent, createXTools, type KamiyoAgent, type XToolsConfig } from '@kamiyo/agents';
-import { createLogger, getMetrics, withRetry, CircuitBreaker } from './lib';
+import {
+  createLogger,
+  getMetrics,
+  withRetry,
+  CircuitBreaker,
+  sanitizeForPrompt,
+  sanitizeUsername,
+  validateTweetId,
+  getModerator,
+  ModerationError,
+} from './lib';
 import {
   SYSTEM_PROMPT,
   selectMood,
@@ -118,6 +128,14 @@ export class NikaAgent {
         throw new Error('Failed to generate valid tweet content');
       }
 
+      // Content moderation check
+      const moderator = getModerator();
+      const modResult = moderator.check(tweetContent);
+      if (!modResult.allowed) {
+        metrics.incrementCounter('nika_post_moderation_blocked');
+        throw new ModerationError(modResult.reasons);
+      }
+
       const duration = Date.now() - startTime;
 
       metrics.incrementCounter('nika_post_success');
@@ -156,14 +174,23 @@ export class NikaAgent {
   ): Promise<ReplyResult> {
     const startTime = Date.now();
 
-    log.info('Generating reply', { mentionId, authorUsername });
+    // Validate and sanitize inputs
+    const tweetIdValidation = validateTweetId(mentionId);
+    if (!tweetIdValidation.valid) {
+      throw new Error(`Invalid mention ID: ${tweetIdValidation.errors.join(', ')}`);
+    }
+
+    const safeUsername = sanitizeUsername(authorUsername);
+    const safeContent = sanitizeForPrompt(mentionText);
+
+    log.info('Generating reply', { mentionId, authorUsername: safeUsername });
 
     const prompt = `A user mentioned Nika on Twitter.
 
 MENTION:
-From: @${authorUsername}
+From: @${safeUsername}
 Tweet ID: ${mentionId}
-Content: "${mentionText}"
+Content: "${safeContent}"
 
 TASK:
 1. Understand what the user is asking or saying
@@ -211,6 +238,14 @@ Return ONLY the reply text, nothing else.`;
         throw new Error('Failed to generate valid reply content');
       }
 
+      // Content moderation check
+      const moderator = getModerator();
+      const modResult = moderator.check(replyContent);
+      if (!modResult.allowed) {
+        metrics.incrementCounter('nika_reply_moderation_blocked');
+        throw new ModerationError(modResult.reasons);
+      }
+
       const duration = Date.now() - startTime;
 
       metrics.incrementCounter('nika_reply_success');
@@ -241,14 +276,23 @@ Return ONLY the reply text, nothing else.`;
   ): Promise<{ quote: string; dkgGrounded: boolean; durationMs: number }> {
     const startTime = Date.now();
 
-    log.info('Generating quote', { tweetId, authorUsername });
+    // Validate and sanitize inputs
+    const tweetIdValidation = validateTweetId(tweetId);
+    if (!tweetIdValidation.valid) {
+      throw new Error(`Invalid tweet ID: ${tweetIdValidation.errors.join(', ')}`);
+    }
+
+    const safeUsername = sanitizeUsername(authorUsername);
+    const safeContent = sanitizeForPrompt(tweetText);
+
+    log.info('Generating quote', { tweetId, authorUsername: safeUsername });
 
     const prompt = `Generate a quote tweet for Nika (二化).
 
 ORIGINAL TWEET:
-From: @${authorUsername}
+From: @${safeUsername}
 Tweet ID: ${tweetId}
-Content: "${tweetText}"
+Content: "${safeContent}"
 
 TASK:
 1. Analyze the original tweet
@@ -291,6 +335,14 @@ Return ONLY the quote text, nothing else.`;
       if (!quoteContent) {
         metrics.incrementCounter('nika_quote_generation_failed');
         throw new Error('Failed to generate valid quote content');
+      }
+
+      // Content moderation check
+      const moderator = getModerator();
+      const modResult = moderator.check(quoteContent);
+      if (!modResult.allowed) {
+        metrics.incrementCounter('nika_quote_moderation_blocked');
+        throw new ModerationError(modResult.reasons);
       }
 
       const duration = Date.now() - startTime;
