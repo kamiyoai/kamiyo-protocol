@@ -26,6 +26,7 @@ import { MentionMonitor, createMentionMonitor } from './mention-monitor';
 import { createServer, Server, tweetsPosted, mentionsProcessed, agentDuration } from './server';
 import { initializeDKGMemory, getDKGMemory, type DKGMemory } from './dkg-memory';
 import { createEngagementTracker, type EngagementTracker } from './engagement-tracker';
+import { createTaskCompletionPublisher, type TaskCompletionPublisher } from './task-completion-publisher';
 import { initializeQualityGate } from './quality-gate';
 import {
   postRelaunchAnnouncement,
@@ -44,6 +45,7 @@ let health: HealthMonitor | null = null;
 let server: Server | null = null;
 let dkgMemory: DKGMemory | null = null;
 let engagementTracker: EngagementTracker | null = null;
+let taskPublisher: TaskCompletionPublisher | null = null;
 let statusInterval: NodeJS.Timeout | null = null;
 
 /**
@@ -342,6 +344,15 @@ async function main(): Promise<void> {
     shutdownManager.register('engagementTracker', async () => {
       engagementTracker?.stop();
     }, 15);
+
+    // Initialize TaskCompletion publisher for DKG leaderboard
+    taskPublisher = createTaskCompletionPublisher(config);
+    await taskPublisher.start();
+    log.info('TaskCompletion publisher started');
+
+    shutdownManager.register('taskPublisher', async () => {
+      taskPublisher?.stop();
+    }, 14);
   }
 
   // Initialize HTTP server
@@ -367,6 +378,10 @@ async function main(): Promise<void> {
         },
         engagementTracker: {
           running: engagementTracker?.isRunning() ?? false,
+        },
+        taskPublisher: {
+          running: taskPublisher?.isRunning() ?? false,
+          published: taskPublisher?.getStats().published ?? 0,
         },
       },
     }),
@@ -511,6 +526,10 @@ export type {
 // Export Market Intel Monitor
 export { MarketIntelMonitor, createMarketIntelMonitor } from './market-intel-monitor';
 export type { MarketIntel, MarketIntelMonitorConfig } from './market-intel-monitor';
+
+// Export TaskCompletion Publisher (DKG Leaderboard)
+export { TaskCompletionPublisher, createTaskCompletionPublisher, getTaskCompletionPublisher } from './task-completion-publisher';
+export type { TaskCompletionPublisherConfig } from './task-completion-publisher';
 
 // Main entry point
 main().catch((error) => {
