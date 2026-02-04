@@ -39,7 +39,8 @@ import { CollectiveMemory } from './services/collective-memory.js';
 import { IdentityResolver } from './services/identity-resolver.js';
 import { GatedAccessService } from './services/gated-access.js';
 import { TrustGraphVisualizer } from './visualization/trust-graph-viz.js';
-import { DKGPublisher, type DKGClient } from './services/dkg-publisher.js';
+import { DKGPublisher } from './services/dkg-publisher.js';
+import type { DKGClient } from './services/dkg-publisher.js';
 import { createDKGClient as createRealDKGClient, type DKGLogger, DKGClient as RealDKGClient } from '@kamiyo/dkg-quality-oracle';
 import { SwarmTeamsProver } from '@kamiyo/hive';
 import type { KamiyoHive } from '@kamiyo/hive';
@@ -53,6 +54,7 @@ import { EngagementEngine } from './services/engagement-engine.js';
 import { RelationshipMemory } from './services/relationship-memory.js';
 import { GoalManager } from './services/goal-manager.js';
 import { InnerVoice } from './services/inner-voice.js';
+import { ReputationPublisher } from './services/reputation-publisher.js';
 
 interface TrackedCampaignJob {
   postId: string;
@@ -116,12 +118,15 @@ export class MoltbookJobBridgeAgent {
   private relationshipMemory: RelationshipMemory | null = null;
   private goalManager: GoalManager | null = null;
   private innerVoice: InnerVoice | null = null;
+  private reputationPublisher: ReputationPublisher | null = null;
 
   // Autonomy configuration
   private autonomyEnabled = true;
   private lastFeedPoll = 0;
   private lastGoalUpdate = 0;
+  private lastReputationPublish = 0;
   private feedPollIntervalMs = 2 * 60 * 1000; // 2 minutes
+  private reputationPublishIntervalMs = 30 * 60 * 1000; // 30 minutes
 
   constructor(config: AgentConfig, hive?: KamiyoHive) {
     this.config = config;
@@ -303,6 +308,50 @@ export class MoltbookJobBridgeAgent {
     console.log('[Agent] - Goal Manager');
     console.log('[Agent] - Inner Voice');
 
+    // Initialize Reputation Publisher (DKG TaskCompletion publishing)
+    if (this.config.dkgEndpoint && this.config.dkgPrivateKey) {
+      const agentGlobalId = process.env.AGENT_GLOBAL_ID || `eip155:8453:0x0000000000000000000000000000000000000000:0`;
+      const minPostAgeMs = parseInt(process.env.MIN_POST_AGE_HOURS || '24', 10) * 60 * 60 * 1000;
+      const minQualityScore = parseInt(process.env.MIN_QUALITY_SCORE || '20', 10);
+
+      // Create DKG client for reputation publishing
+      const dkgLogger: DKGLogger = {
+        debug: (msg: string) => console.log(`[ReputationDKG] ${msg}`),
+        info: (msg: string) => console.log(`[ReputationDKG] ${msg}`),
+        warn: (msg: string) => console.warn(`[ReputationDKG] ${msg}`),
+        error: (msg: string) => console.error(`[ReputationDKG] ${msg}`),
+      };
+
+      const reputationDkgClient = createRealDKGClient({
+        endpoint: this.config.dkgEndpoint,
+        port: this.config.dkgPort,
+        blockchain: this.config.dkgBlockchain ? {
+          name: this.config.dkgBlockchain,
+          publicKey: this.config.dkgPublicKey,
+          privateKey: this.config.dkgPrivateKey,
+        } : undefined,
+      }, dkgLogger) as RealDKGClient;
+
+      // Wrap for ReputationPublisher's expected interface
+      const dkgClientWrapper: DKGClient = {
+        query: (sparql: string) => reputationDkgClient.query(sparql),
+        get: (ual: string) => reputationDkgClient.get(ual),
+        publish: (content: object, options?: { epochs?: number }) =>
+          reputationDkgClient.publish(content, options),
+      };
+
+      this.reputationPublisher = new ReputationPublisher({
+        db: this.db,
+        dkg: dkgClientWrapper,
+        agentGlobalId,
+        minPostAgeMs,
+        minQualityScore,
+        defaultEpochs: 12,
+      });
+
+      console.log('[Agent] - Reputation Publisher (DKG TaskCompletion)');
+    }
+
     console.log('[Agent] Initialized');
     console.log(`[Agent] Wallet: ${this.escrow.publicKey.toBase58()}`);
   }
@@ -343,6 +392,9 @@ export class MoltbookJobBridgeAgent {
 
         // Goal progress tracking (every hour)
         await this.updateGoalsIfDue();
+
+        // DKG reputation publishing (every 30 minutes)
+        await this.publishReputationIfDue();
       }
 
       // === EXISTING BEHAVIORS ===
@@ -456,6 +508,24 @@ export class MoltbookJobBridgeAgent {
       }
     } catch (err) {
       console.error('[Agent] Goal update error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async publishReputationIfDue(): Promise<void> {
+    if (!this.reputationPublisher) return;
+
+    const now = Date.now();
+    if (now - this.lastReputationPublish < this.reputationPublishIntervalMs) return;
+
+    try {
+      const result = await this.reputationPublisher.processUnpublishedPosts();
+      this.lastReputationPublish = now;
+
+      if (result.published > 0) {
+        console.log(`[Agent] Published ${result.published} posts to DKG as TaskCompletions`);
+      }
+    } catch (err) {
+      console.error('[Agent] Reputation publish error:', err instanceof Error ? err.message : err);
     }
   }
 
