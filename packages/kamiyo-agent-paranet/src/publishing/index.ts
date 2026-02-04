@@ -46,7 +46,7 @@ export class ParanetPublisher {
       const result = await this.dkg.asset.create(
         { public: asset },
         {
-          epochs: this.config.epochs ?? 12,
+          epochsNum: this.config.epochs ?? 12,
           paranetUAL: this.config.paranetUAL,
         }
       );
@@ -79,7 +79,7 @@ export class ParanetPublisher {
       const result = await this.dkg.asset.create(
         { public: asset },
         {
-          epochs: this.config.epochs ?? 12,
+          epochsNum: this.config.epochs ?? 12,
           paranetUAL: this.config.paranetUAL,
         }
       );
@@ -112,7 +112,7 @@ export class ParanetPublisher {
       const result = await this.dkg.asset.create(
         { public: asset },
         {
-          epochs: this.config.epochs ?? 12,
+          epochsNum: this.config.epochs ?? 12,
           paranetUAL: this.config.paranetUAL,
         }
       );
