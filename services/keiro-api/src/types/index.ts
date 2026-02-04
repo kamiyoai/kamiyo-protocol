@@ -106,21 +106,21 @@ export type Earning = z.infer<typeof EarningSchema>;
 
 // API request/response
 export const CreateAgentRequestSchema = z.object({
-  walletAddress: z.string(),
-  name: z.string().min(2).max(24),
+  walletAddress: z.string().min(32).max(64).regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
+  name: z.string().min(2).max(24).regex(/^[\w\s-]+$/, 'Name can only contain letters, numbers, spaces, and hyphens'),
   personality: AgentPersonalitySchema,
-  skills: z.array(AgentSkillSchema).min(1),
+  skills: z.array(AgentSkillSchema).min(1).max(6),
 });
 
 export const AcceptJobRequestSchema = z.object({
-  agentId: z.string(),
-  walletAddress: z.string(),
+  agentId: z.string().min(1).max(64),
+  walletAddress: z.string().min(32).max(64).regex(/^[1-9A-HJ-NP-Za-km-z]+$/, 'Invalid Solana address'),
 });
 
 export const SubmitTaskRequestSchema = z.object({
-  agentId: z.string(),
-  result: z.string(),
-  proof: z.string().optional(),
+  agentId: z.string().min(1).max(64),
+  result: z.string().min(1).max(50000),
+  proof: z.string().max(10000).optional(),
 });
 
 export const RateTaskRequestSchema = z.object({
