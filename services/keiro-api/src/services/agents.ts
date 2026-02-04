@@ -19,6 +19,10 @@ function calculateTier(creditScore: number): AgentTier {
   return 'unverified';
 }
 
+function newId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export const agentService = {
   getAll(): Agent[] {
     return Array.from(agents.values());
@@ -39,15 +43,16 @@ export const agentService = {
       throw new Error('Agent already exists for this wallet');
     }
 
-    const id = `agent_${Date.now()}`;
-    const globalId = `eip155:900/address:${request.walletAddress}`;
+    const id = newId('agent');
+    const skills = Array.from(new Set(request.skills));
+    const globalId = `solana:${request.walletAddress}`;
 
     const agent: Agent = {
       id,
       walletAddress: request.walletAddress,
-      name: request.name,
+      name: request.name.trim(),
       personality: request.personality,
-      skills: request.skills,
+      skills,
       tier: 'unverified',
       creditScore: 0,
       tasksCompleted: 0,
@@ -66,22 +71,22 @@ export const agentService = {
   },
 
   update(id: string, updates: Partial<Agent>): Agent | null {
-    const agent = agents.get(id);
-    if (!agent) return null;
+    const current = agents.get(id);
+    if (!current) return null;
 
-    const updatedAgent: Agent = {
-      ...agent,
+    const updated: Agent = {
+      ...current,
       ...updates,
-      id: agent.id, // Prevent id override
-      walletAddress: agent.walletAddress, // Prevent wallet override
+      id: current.id,
+      walletAddress: current.walletAddress,
     };
 
     if (updates.creditScore !== undefined) {
-      updatedAgent.tier = calculateTier(updatedAgent.creditScore);
+      updated.tier = calculateTier(updated.creditScore);
     }
 
-    agents.set(id, updatedAgent);
-    return updatedAgent;
+    agents.set(id, updated);
+    return updated;
   },
 
   setActive(id: string, isActive: boolean): Agent | null {
@@ -96,17 +101,17 @@ export const agentService = {
     const agent = agents.get(id);
     if (!agent) return null;
 
+    const clampedQuality = Math.max(0, Math.min(100, qualityScore));
     const taskCount = agent.tasksCompleted + 1;
     const disputes = disputed ? agent.disputeCount + 1 : agent.disputeCount;
-    const avgQuality = Math.round((agent.avgQuality * agent.tasksCompleted + qualityScore) / taskCount);
+    const avgQuality = Math.round((agent.avgQuality * agent.tasksCompleted + clampedQuality) / taskCount);
 
-    // Quality 40%, reliability 20%, disputes 15%, trust 15%, tenure 10%
     const creditScore = Math.round(
       avgQuality * 0.4 +
-      Math.min(taskCount / 10, 1) * 20 +
-      (1 - (taskCount > 0 ? disputes / taskCount : 0)) * 15 +
-      7.5 + // trust placeholder
-      Math.min(agent.tenureDays / 30, 1) * 10
+        Math.min(taskCount / 10, 1) * 20 +
+        (1 - (taskCount > 0 ? disputes / taskCount : 0)) * 15 +
+        7.5 +
+        Math.min(agent.tenureDays / 30, 1) * 10
     );
 
     return this.update(id, {
@@ -120,7 +125,6 @@ export const agentService = {
   incrementTenure(id: string): Agent | null {
     const agent = agents.get(id);
     if (!agent) return null;
-
     return this.update(id, { tenureDays: agent.tenureDays + 1 });
   },
 
@@ -133,10 +137,9 @@ export const agentService = {
     return true;
   },
 
-  // Get leaderboard by credit score
   getLeaderboard(limit: number = 10): Agent[] {
     return this.getAll()
-      .filter(a => a.isActive)
+      .filter((a) => a.isActive)
       .sort((a, b) => b.creditScore - a.creditScore)
       .slice(0, limit);
   },

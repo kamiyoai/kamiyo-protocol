@@ -98,25 +98,55 @@ const MAX_RETRIES = 2;
 
 class KeiroApi {
   private baseUrl: string;
+  private authToken: string | null = null;
 
   constructor(baseUrl: string = API_URL) {
-    this.baseUrl = baseUrl;
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
+  }
+
+  setAuthToken(token: string | null) {
+    this.authToken = token;
+  }
+
+  private buildUrl(endpoint: string): string {
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${this.baseUrl}${path}`;
+  }
+
+  private isRetriable(method: string, err: unknown): boolean {
+    const upper = method.toUpperCase();
+    const isIdempotent = upper === 'GET' || upper === 'HEAD';
+
+    if (err instanceof ApiError) {
+      return isIdempotent && err.status >= 500;
+    }
+
+    const e = err as Error;
+    if (e && (e.name === 'AbortError' || e.name === 'TypeError')) {
+      return isIdempotent;
+    }
+
+    return false;
   }
 
   private async fetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const url = this.buildUrl(endpoint);
+    const method = (options.method || 'GET').toString().toUpperCase();
 
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
       try {
-        const response = await fetch(url, {
+        const response = await globalThis.fetch(url, {
           ...options,
           signal: controller.signal,
           headers: {
-            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
             ...options.headers,
           },
         });
@@ -124,7 +154,7 @@ class KeiroApi {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
+          const body = await response.json().catch(() => ({} as any));
           throw new ApiError(
             body.error || `Request failed with status ${response.status}`,
             response.status,
@@ -132,7 +162,12 @@ class KeiroApi {
           );
         }
 
-        return response.json();
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json') || response.status === 204) {
+          return {} as T;
+        }
+
+        return (await response.json()) as T;
       } catch (err) {
         lastError = err as Error;
 
@@ -140,13 +175,18 @@ class KeiroApi {
           throw err;
         }
 
-        if (attempt < MAX_RETRIES) {
-          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        if (attempt < MAX_RETRIES && this.isRetriable(method, err)) {
+          const backoff = 500 * Math.pow(2, attempt) + Math.random() * 200;
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
         }
+
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
-    clearTimeout(timeoutId);
     throw lastError || new ApiError('Request failed', 500);
   }
 
@@ -310,11 +350,16 @@ class KeiroApi {
   }
 
   async health(): Promise<boolean> {
+    const url = this.buildUrl('/health');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), Math.min(REQUEST_TIMEOUT, 5000));
     try {
-      await this.fetch('/health');
-      return true;
+      const res = await globalThis.fetch(url, { signal: controller.signal, method: 'GET' });
+      return res.ok;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 }

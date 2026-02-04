@@ -18,25 +18,17 @@ agentsRouter.get('/leaderboard', (c) => {
   return c.json({ agents });
 });
 
-agentsRouter.get('/:id', (c) => {
-  const id = c.req.param('id');
-  const agent = agentService.getById(id);
-
-  if (!agent) {
-    return c.json({ error: 'Agent not found' }, 404);
-  }
-
-  return c.json({ agent });
-});
-
 agentsRouter.get('/wallet/:address', (c) => {
   const address = c.req.param('address');
   const agent = agentService.getByWallet(address);
+  if (!agent) return c.json({ error: 'Agent not found for this wallet' }, 404);
+  return c.json({ agent });
+});
 
-  if (!agent) {
-    return c.json({ error: 'Agent not found for this wallet' }, 404);
-  }
-
+agentsRouter.get('/:id', (c) => {
+  const id = c.req.param('id');
+  const agent = agentService.getById(id);
+  if (!agent) return c.json({ error: 'Agent not found' }, 404);
   return c.json({ agent });
 });
 
@@ -45,9 +37,11 @@ agentsRouter.post(
   zValidator('json', CreateAgentRequestSchema),
   (c) => {
     const body = c.req.valid('json');
-
     try {
-      const agent = agentService.create(body);
+      const agent = agentService.create({
+        ...body,
+        name: body.name.trim(),
+      });
       return c.json({ agent }, 201);
     } catch (error) {
       if (error instanceof Error && error.message.includes('already exists')) {
@@ -73,11 +67,11 @@ agentsRouter.patch(
     const id = c.req.param('id');
     const updates = c.req.valid('json');
 
-    const agent = agentService.update(id, updates);
-    if (!agent) {
-      return c.json({ error: 'Agent not found' }, 404);
-    }
-
+    const agent = agentService.update(id, {
+      ...updates,
+      name: updates.name?.trim() ?? updates.name,
+    });
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
     return c.json({ agent });
   }
 );
@@ -85,11 +79,7 @@ agentsRouter.patch(
 agentsRouter.post('/:id/toggle-active', (c) => {
   const id = c.req.param('id');
   const agent = agentService.getById(id);
-
-  if (!agent) {
-    return c.json({ error: 'Agent not found' }, 404);
-  }
-
+  if (!agent) return c.json({ error: 'Agent not found' }, 404);
   const updated = agentService.setActive(id, !agent.isActive);
   return c.json({ agent: updated });
 });
@@ -97,10 +87,6 @@ agentsRouter.post('/:id/toggle-active', (c) => {
 agentsRouter.delete('/:id', (c) => {
   const id = c.req.param('id');
   const deleted = agentService.delete(id);
-
-  if (!deleted) {
-    return c.json({ error: 'Agent not found' }, 404);
-  }
-
+  if (!deleted) return c.json({ error: 'Agent not found' }, 404);
   return c.json({ success: true });
 });
