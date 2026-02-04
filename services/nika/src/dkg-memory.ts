@@ -556,7 +556,7 @@ export class DKGMemory {
             return dkg.asset.create(
               { public: content },
               {
-                epochs: 2,
+                epochsNum: 2,
                 paranetUAL: this.config.paranetUAL || undefined,
               }
             );
