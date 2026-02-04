@@ -40,6 +40,7 @@ const authRateLimiter = rateLimit({
     },
   },
   keyGenerator: (req) => req.ip || 'unknown',
+  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
 });
 
 // Stricter rate limiter for verify/refresh endpoints
@@ -55,6 +56,7 @@ const apiKeyRateLimiter = rateLimit({
     },
   },
   keyGenerator: (req) => req.ip || 'unknown',
+  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
 });
 
 // Blindfold callback rate limiter (IP-based)
@@ -70,6 +72,7 @@ const blindfoldCallbackLimiter = rateLimit({
     },
   },
   keyGenerator: (req) => req.ip || 'unknown',
+  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
 });
 
 // Per-team callback rate limiter
@@ -88,11 +91,21 @@ const perTeamCallbackLimiter = rateLimit({
     const poolId = (req.query.pool_id as string) || req.body?.pool_id || 'unknown';
     return `team:${poolId}`;
   },
+  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
 });
 
 const BLINDFOLD_ORIGINS = [
   'https://blindfoldfinance.com',
   'https://www.blindfoldfinance.com',
+];
+
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  'https://app.kamiyo.ai',
+  'https://kamiyo.ai',
+  'https://www.kamiyo.ai',
+  'https://companion.kamiyo.ai',
+  ...BLINDFOLD_ORIGINS,
 ];
 
 export interface ApiServerConfig {
@@ -115,18 +128,30 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   // Initialize credits system
   initCreditsRoutes();
 
-  // CORS - allow Blindfold origins + general access
+  // CORS - allow known origins + localhost for development
   app.use(
     cors({
       origin: (origin, callback) => {
+        // Allow requests with no origin (server-to-server, curl, mobile apps)
         if (!origin) return callback(null, true);
-        if (BLINDFOLD_ORIGINS.includes(origin)) return callback(null, true);
+        // Allow known origins
+        if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+        // Allow localhost for development
+        if (origin.startsWith('http://localhost:')) return callback(null, true);
+        // Allow all in development mode
+        if (process.env.NODE_ENV === 'development') return callback(null, true);
+        // Default: allow (permissive for now, can tighten later)
         return callback(null, true);
       },
       methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true,
     })
   );
+
+  // Handle preflight requests explicitly before rate limiters
+  app.options('*', cors());
+
   app.use(express.json({ limit: '1mb' }));
 
   // Health check (no auth)
