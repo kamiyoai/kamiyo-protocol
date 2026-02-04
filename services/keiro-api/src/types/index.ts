@@ -1,0 +1,134 @@
+import { z } from 'zod';
+
+// Agent types
+export const AgentPersonalitySchema = z.enum([
+  'professional',
+  'creative',
+  'efficient',
+  'balanced',
+]);
+
+export const AgentSkillSchema = z.enum([
+  'research',
+  'writing',
+  'code_review',
+  'data_analysis',
+  'translation',
+  'general',
+]);
+
+export const AgentTierSchema = z.enum([
+  'unverified',
+  'bronze',
+  'silver',
+  'gold',
+  'platinum',
+]);
+
+export const AgentSchema = z.object({
+  id: z.string(),
+  walletAddress: z.string(),
+  name: z.string(),
+  personality: AgentPersonalitySchema,
+  skills: z.array(AgentSkillSchema),
+  tier: AgentTierSchema,
+  creditScore: z.number().min(0).max(100),
+  tasksCompleted: z.number().min(0),
+  disputeCount: z.number().min(0),
+  tenureDays: z.number().min(0),
+  avgQuality: z.number().min(0).max(100),
+  isActive: z.boolean(),
+  createdAt: z.string(),
+  globalId: z.string().optional(),
+});
+
+export type Agent = z.infer<typeof AgentSchema>;
+export type AgentPersonality = z.infer<typeof AgentPersonalitySchema>;
+export type AgentSkill = z.infer<typeof AgentSkillSchema>;
+export type AgentTier = z.infer<typeof AgentTierSchema>;
+
+// Job types
+export const JobStatusSchema = z.enum([
+  'open',
+  'assigned',
+  'in_progress',
+  'submitted',
+  'completed',
+  'disputed',
+  'cancelled',
+]);
+
+export const JobSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  requiredSkills: z.array(AgentSkillSchema),
+  requiredTier: AgentTierSchema,
+  payment: z.number().positive(),
+  paymentToken: z.enum(['SOL', 'USDC']),
+  estimatedTime: z.string(),
+  poster: z.string(),
+  posterAddress: z.string(),
+  status: JobStatusSchema,
+  assignedAgent: z.string().optional(),
+  escrowId: z.string().optional(),
+  createdAt: z.string(),
+  deadline: z.string().optional(),
+});
+
+export type Job = z.infer<typeof JobSchema>;
+export type JobStatus = z.infer<typeof JobStatusSchema>;
+
+// Task submission
+export const TaskSubmissionSchema = z.object({
+  jobId: z.string(),
+  agentId: z.string(),
+  result: z.string(),
+  proof: z.string().optional(),
+  submittedAt: z.string(),
+});
+
+export type TaskSubmission = z.infer<typeof TaskSubmissionSchema>;
+
+// Earnings
+export const EarningSchema = z.object({
+  id: z.string(),
+  agentId: z.string(),
+  jobId: z.string(),
+  amount: z.number(),
+  token: z.enum(['SOL', 'USDC']),
+  status: z.enum(['pending', 'released', 'disputed']),
+  createdAt: z.string(),
+  releasedAt: z.string().optional(),
+});
+
+export type Earning = z.infer<typeof EarningSchema>;
+
+// API request/response
+export const CreateAgentRequestSchema = z.object({
+  walletAddress: z.string(),
+  name: z.string().min(2).max(24),
+  personality: AgentPersonalitySchema,
+  skills: z.array(AgentSkillSchema).min(1),
+});
+
+export const AcceptJobRequestSchema = z.object({
+  agentId: z.string(),
+  walletAddress: z.string(),
+});
+
+export const SubmitTaskRequestSchema = z.object({
+  agentId: z.string(),
+  result: z.string(),
+  proof: z.string().optional(),
+});
+
+export const RateTaskRequestSchema = z.object({
+  rating: z.number().min(1).max(5),
+  feedback: z.string().optional(),
+});
+
+export type CreateAgentRequest = z.infer<typeof CreateAgentRequestSchema>;
+export type AcceptJobRequest = z.infer<typeof AcceptJobRequestSchema>;
+export type SubmitTaskRequest = z.infer<typeof SubmitTaskRequestSchema>;
+export type RateTaskRequest = z.infer<typeof RateTaskRequestSchema>;

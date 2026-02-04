@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,20 +6,24 @@ import {
   Pressable,
   useColorScheme,
   Animated,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore } from '../../src/stores/wallet';
 import { useAppStore } from '../../src/stores/app';
+import { api } from '../../src/lib/api';
 
 export default function CompleteScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const [activating, setActivating] = useState(false);
 
-  const { agent, setActive } = useAgentStore();
-  const { connected } = useWalletStore();
+  const { agent } = useAgentStore();
+  const { connected, publicKey } = useWalletStore();
   const { completeOnboarding } = useAppStore();
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -42,15 +46,79 @@ export default function CompleteScreen() {
     ]).start();
   }, []);
 
-  const handleActivate = () => {
-    setActive(true);
-    completeOnboarding();
-    router.replace('/(tabs)');
+  const handleActivate = async () => {
+    if (!agent) return;
+
+    setActivating(true);
+    try {
+      // Create agent on the server
+      const walletAddress = publicKey?.toString() || `temp_${Date.now()}`;
+      const serverAgent = await api.createAgent({
+        walletAddress,
+        name: agent.name,
+        personality: agent.personality,
+        skills: agent.skills,
+      });
+
+      // Update local state with server response
+      useAgentStore.setState({
+        agent: {
+          ...serverAgent,
+          isActive: true,
+        },
+        walletAddress,
+      });
+
+      // Toggle active on server
+      await api.toggleAgentActive(serverAgent.id);
+
+      completeOnboarding();
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Failed to activate agent:', error);
+      // Fallback: still complete onboarding but keep agent local-only
+      useAgentStore.setState({
+        agent: {
+          ...agent,
+          isActive: true,
+        },
+      });
+      completeOnboarding();
+      router.replace('/(tabs)');
+    } finally {
+      setActivating(false);
+    }
   };
 
-  const handleViewProfile = () => {
-    completeOnboarding();
-    router.replace('/(tabs)/reputation');
+  const handleViewProfile = async () => {
+    if (!agent) {
+      completeOnboarding();
+      router.replace('/(tabs)/reputation');
+      return;
+    }
+
+    setActivating(true);
+    try {
+      // Create agent on the server without activating
+      const walletAddress = publicKey?.toString() || `temp_${Date.now()}`;
+      const serverAgent = await api.createAgent({
+        walletAddress,
+        name: agent.name,
+        personality: agent.personality,
+        skills: agent.skills,
+      });
+
+      useAgentStore.setState({
+        agent: serverAgent,
+        walletAddress,
+      });
+    } catch (error) {
+      console.error('Failed to create agent on server:', error);
+    } finally {
+      setActivating(false);
+      completeOnboarding();
+      router.replace('/(tabs)/reputation');
+    }
   };
 
   return (
@@ -142,7 +210,7 @@ export default function CompleteScreen() {
         {!connected && (
           <Animated.View style={[styles.warning, { opacity: fadeAnim }]}>
             <Text style={styles.warningText}>
-              ⚠️ Without a wallet, your agent cannot receive earnings. You can
+              Without a wallet, your agent cannot receive earnings. You can
               connect one later in Settings.
             </Text>
           </Animated.View>
@@ -150,11 +218,23 @@ export default function CompleteScreen() {
       </View>
 
       <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
-        <Pressable style={styles.button} onPress={handleActivate}>
-          <Text style={styles.buttonText}>Activate Agent</Text>
+        <Pressable
+          style={[styles.button, activating && styles.buttonDisabled]}
+          onPress={handleActivate}
+          disabled={activating}
+        >
+          {activating ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Activate Agent</Text>
+          )}
         </Pressable>
 
-        <Pressable style={styles.secondaryButton} onPress={handleViewProfile}>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={handleViewProfile}
+          disabled={activating}
+        >
           <Text style={[styles.secondaryButtonText, isDark && styles.subtitleDark]}>
             View Agent Profile
           </Text>
@@ -287,6 +367,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
