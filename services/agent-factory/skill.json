@@ -1,0 +1,116 @@
+{
+  "name": "kamiyo-trust",
+  "version": "1.0.0",
+  "description": "Trust infrastructure for autonomous agent commerce on Solana. Provides escrow, dispute resolution, reputation tracking, and ZK privacy proofs.",
+  "author": "KAMIYO",
+  "homepage": "https://protocol.kamiyo.ai",
+  "repository": "https://github.com/kamiyo-ai/kamiyo-protocol",
+  "license": "MIT",
+  "endpoints": {
+    "api": "https://api.kamiyo.ai",
+    "mcp": "https://api.kamiyo.ai/mcp"
+  },
+  "programs": {
+    "mainnet": {
+      "kamiyo": "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM",
+      "escrow": "FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u",
+      "governance": "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav",
+      "staking": "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N",
+      "bounty_resolver": "GMbEsB7vzD7mXLHFXs8xe5wsP25f4jLWbCHL5Fgms8MF"
+    }
+  },
+  "capabilities": [
+    {
+      "name": "create_escrow",
+      "description": "Create a payment escrow between agent and provider",
+      "params": {
+        "provider": "Provider's Solana address",
+        "amount": "Amount in lamports",
+        "timeLock": "Seconds until auto-release",
+        "slaUri": "IPFS/HTTPS URI to SLA document"
+      }
+    },
+    {
+      "name": "file_dispute",
+      "description": "Dispute an escrow for quality issues",
+      "params": {
+        "escrowId": "Escrow account address",
+        "qualityScore": "0-100 quality assessment",
+        "evidence": "Evidence URI (IPFS preferred)"
+      }
+    },
+    {
+      "name": "get_reputation",
+      "description": "Query on-chain reputation score for an agent",
+      "params": {
+        "agent": "Agent's Solana address"
+      },
+      "returns": {
+        "score": "-1000 to 1000",
+        "totalTasks": "Number of completed tasks",
+        "disputeRate": "Percentage of disputed tasks"
+      }
+    },
+    {
+      "name": "prove_reputation",
+      "description": "Generate ZK proof of reputation threshold without revealing identity",
+      "params": {
+        "minReputation": "Minimum reputation to prove (0-100)",
+        "ownerSecret": "Private key for proof generation"
+      },
+      "returns": {
+        "proof": "Groth16 proof bytes",
+        "publicInputs": "Public signals for verification"
+      }
+    },
+    {
+      "name": "x402_fetch",
+      "description": "Fetch from x402-protected API with automatic payment",
+      "params": {
+        "url": "API endpoint URL",
+        "maxPriceUsd": "Maximum price willing to pay"
+      }
+    },
+    {
+      "name": "create_bounty",
+      "description": "Create a bounty with SOL reward for agent tasks",
+      "params": {
+        "bountyId": "Unique bounty identifier",
+        "rewardAmount": "SOL reward in lamports",
+        "description": "Task description (max 500 chars)",
+        "deadlineHours": "Hours until deadline"
+      },
+      "returns": {
+        "bountyPda": "Bounty account address",
+        "txSignature": "Transaction signature"
+      }
+    },
+    {
+      "name": "submit_bounty_work",
+      "description": "Submit work for an open bounty",
+      "params": {
+        "bountyPda": "Bounty account address",
+        "submissionUri": "Link to deliverable",
+        "contentHash": "SHA256 of content (auto-computed if not provided)"
+      }
+    },
+    {
+      "name": "resolve_bounty",
+      "description": "Accept or reject bounty submission",
+      "params": {
+        "bountyPda": "Bounty account address",
+        "accept": "true to pay worker, false to refund creator"
+      }
+    }
+  ],
+  "integrations": {
+    "claude_mcp": {
+      "url": "https://api.kamiyo.ai/mcp",
+      "auth": "oauth2"
+    },
+    "elizaos": "@kamiyo/eliza",
+    "langchain": "@kamiyo/langchain",
+    "vercel_ai": "@kamiyo/vercel-ai"
+  },
+  "tags": ["trust", "escrow", "reputation", "zk-proofs", "payments", "x402", "solana"]
+}
