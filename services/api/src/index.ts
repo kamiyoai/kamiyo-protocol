@@ -1502,11 +1502,17 @@ async function main(): Promise<void> {
   let twitter: TwitterApi | undefined;
   if (process.env.TWITTER_API_KEY && process.env.TWITTER_API_SECRET &&
       process.env.TWITTER_ACCESS_TOKEN && process.env.TWITTER_ACCESS_SECRET) {
-    const twitterCreds = getTwitterCredentials();
-    twitter = new TwitterApi(twitterCreds);
-    globalTwitter = twitter; // Store globally for demo command
-    const me = await twitter.v2.me();
-    logger.info(`Twitter authenticated as @${me.data.username}`);
+    try {
+      const twitterCreds = getTwitterCredentials();
+      twitter = new TwitterApi(twitterCreds);
+      globalTwitter = twitter; // Store globally for demo command
+      const me = await twitter.v2.me();
+      logger.info(`Twitter authenticated as @${me.data.username}`);
+    } catch (err) {
+      logger.error('Twitter authentication failed - X bot disabled', { error: String(err) });
+      twitter = undefined;
+      globalTwitter = undefined;
+    }
   } else {
     logger.info('Twitter credentials not set - X bot disabled');
   }
