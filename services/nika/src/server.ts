@@ -3,6 +3,7 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
+import type { Server as HttpServer } from 'http';
 import { Registry, collectDefaultMetrics, Counter, Histogram, Gauge } from 'prom-client';
 import { createLogger } from './lib';
 
@@ -21,7 +22,9 @@ export interface HealthStatus {
   components: {
     scheduler: { running: boolean; consecutiveFailures: number };
     mentionMonitor: { running: boolean; lastCheckAt: number | null };
-    circuitBreaker: { twitter: string };
+    circuitBreaker: { twitter: string; dkg: string };
+    dkg: { enabled: boolean; circuitStatus: string };
+    engagementTracker: { running: boolean };
   };
 }
 
@@ -30,6 +33,7 @@ export interface ReadinessStatus {
   checks: {
     twitter: { ok: boolean; error?: string };
     anthropic: { ok: boolean; error?: string };
+    dkg: { ok: boolean; error?: string };
   };
 }
 
@@ -89,7 +93,7 @@ export const schedulerFailures = new Gauge({
 
 export class Server {
   private app: express.Application;
-  private server: ReturnType<typeof express.application.listen> | null = null;
+  private server: HttpServer | null = null;
   private config: ServerConfig;
 
   constructor(config: ServerConfig) {

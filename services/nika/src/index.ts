@@ -218,8 +218,13 @@ async function main(): Promise<void> {
       const startTime = Date.now();
       try {
         const result = await agent.generateReply(mentionId, mentionText, authorUsername);
+
+        // Actually post the reply to Twitter
+        const replyId = await agent.replyToTweet(mentionId, result.reply);
+
         log.info('Replied to mention', {
           mentionId,
+          replyId,
           replyLength: result.reply.length,
         });
         health?.recordTweet();
@@ -270,7 +275,12 @@ async function main(): Promise<void> {
       const startTime = Date.now();
       try {
         const result = await agent.generatePost();
+
+        // Actually post the tweet to Twitter
+        const tweetId = await agent.postTweet(result.tweet);
+
         log.info('Scheduled post complete', {
+          tweetId,
           preview: result.tweet.slice(0, 50),
           mood: result.mood,
           type: result.tweetType,
@@ -382,19 +392,19 @@ async function main(): Promise<void> {
   }, 1);
 
   // Setup graceful shutdown
-  const handleShutdown = async (signal: string) => {
+  const handleShutdown = async (signal: string, exitCode = 0) => {
     await shutdownManager.shutdown(signal);
-    process.exit(0);
+    process.exit(exitCode);
   };
 
-  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-  process.on('SIGINT', () => handleShutdown('SIGINT'));
+  process.on('SIGTERM', () => handleShutdown('SIGTERM', 0));
+  process.on('SIGINT', () => handleShutdown('SIGINT', 0));
 
   process.on('uncaughtException', async (error) => {
     log.error('Uncaught exception', { error: error.message, stack: error.stack });
     metrics.incrementCounter('nika_uncaught_exceptions');
     await alertCritical('Uncaught Exception', error.message, 'process').catch(() => {});
-    await handleShutdown('uncaughtException');
+    await handleShutdown('uncaughtException', 1);
   });
 
   process.on('unhandledRejection', (reason) => {
