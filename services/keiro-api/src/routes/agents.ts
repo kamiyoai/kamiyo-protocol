@@ -6,20 +6,18 @@ import { z } from 'zod';
 
 export const agentsRouter = new Hono();
 
-// Get all agents
 agentsRouter.get('/', (c) => {
   const agents = agentService.getAll();
   return c.json({ agents });
 });
 
-// Get leaderboard
 agentsRouter.get('/leaderboard', (c) => {
-  const limit = parseInt(c.req.query('limit') || '10');
+  const rawLimit = parseInt(c.req.query('limit') || '10', 10);
+  const limit = Math.min(100, Math.max(1, isNaN(rawLimit) ? 10 : rawLimit));
   const agents = agentService.getLeaderboard(limit);
   return c.json({ agents });
 });
 
-// Get agent by ID
 agentsRouter.get('/:id', (c) => {
   const id = c.req.param('id');
   const agent = agentService.getById(id);
@@ -31,7 +29,6 @@ agentsRouter.get('/:id', (c) => {
   return c.json({ agent });
 });
 
-// Get agent by wallet address
 agentsRouter.get('/wallet/:address', (c) => {
   const address = c.req.param('address');
   const agent = agentService.getByWallet(address);
@@ -43,7 +40,6 @@ agentsRouter.get('/wallet/:address', (c) => {
   return c.json({ agent });
 });
 
-// Create new agent
 agentsRouter.post(
   '/',
   zValidator('json', CreateAgentRequestSchema),
@@ -62,7 +58,6 @@ agentsRouter.post(
   }
 );
 
-// Update agent
 agentsRouter.patch(
   '/:id',
   zValidator(
@@ -87,7 +82,6 @@ agentsRouter.patch(
   }
 );
 
-// Toggle agent active status
 agentsRouter.post('/:id/toggle-active', (c) => {
   const id = c.req.param('id');
   const agent = agentService.getById(id);
@@ -100,7 +94,6 @@ agentsRouter.post('/:id/toggle-active', (c) => {
   return c.json({ agent: updated });
 });
 
-// Delete agent
 agentsRouter.delete('/:id', (c) => {
   const id = c.req.param('id');
   const deleted = agentService.delete(id);

@@ -4,31 +4,41 @@ import { z } from 'zod';
 import { jobService } from '../services/jobs.js';
 import { agentService } from '../services/agents.js';
 import { earningsService } from '../services/earnings.js';
-import { AcceptJobRequestSchema, SubmitTaskRequestSchema, RateTaskRequestSchema } from '../types/index.js';
+import {
+  AcceptJobRequestSchema,
+  SubmitTaskRequestSchema,
+  RateTaskRequestSchema,
+  JobStatusSchema,
+  AgentSkillSchema,
+} from '../types/index.js';
 
 export const jobsRouter = new Hono();
 
-// Get all jobs (with optional filters)
+const VALID_STATUSES = ['open', 'assigned', 'in_progress', 'submitted', 'completed', 'disputed', 'cancelled'] as const;
+const VALID_SKILLS = ['research', 'writing', 'code_review', 'data_analysis', 'translation', 'general'] as const;
+
 jobsRouter.get('/', (c) => {
   const status = c.req.query('status');
   const skill = c.req.query('skill');
 
-  let jobs = status ? jobService.getByStatus(status as any) : jobService.getAll();
+  let jobs = jobService.getAll();
 
-  if (skill) {
-    jobs = jobs.filter(j => j.requiredSkills.includes(skill as any));
+  if (status && VALID_STATUSES.includes(status as any)) {
+    jobs = jobs.filter((j) => j.status === status);
+  }
+
+  if (skill && VALID_SKILLS.includes(skill as any)) {
+    jobs = jobs.filter((j) => j.requiredSkills.includes(skill as any));
   }
 
   return c.json({ jobs });
 });
 
-// Get open jobs
 jobsRouter.get('/open', (c) => {
   const jobs = jobService.getOpen();
   return c.json({ jobs });
 });
 
-// Get jobs matching agent skills
 jobsRouter.get('/matching/:agentId', (c) => {
   const agentId = c.req.param('agentId');
   const agent = agentService.getById(agentId);
@@ -41,14 +51,12 @@ jobsRouter.get('/matching/:agentId', (c) => {
   return c.json({ jobs });
 });
 
-// Get jobs by agent (assigned/in-progress)
 jobsRouter.get('/agent/:agentId', (c) => {
   const agentId = c.req.param('agentId');
   const jobs = jobService.getByAgent(agentId);
   return c.json({ jobs });
 });
 
-// Get job by ID
 jobsRouter.get('/:id', (c) => {
   const id = c.req.param('id');
   const job = jobService.getById(id);
@@ -60,7 +68,6 @@ jobsRouter.get('/:id', (c) => {
   return c.json({ job });
 });
 
-// Create new job (for posters)
 jobsRouter.post(
   '/',
   zValidator(
@@ -85,7 +92,6 @@ jobsRouter.post(
   }
 );
 
-// Accept a job
 jobsRouter.post(
   '/:id/accept',
   zValidator('json', AcceptJobRequestSchema),
@@ -121,13 +127,11 @@ jobsRouter.post(
       return c.json({ error: 'Agent does not have required skills' }, 400);
     }
 
-    // Check tier requirement
     const tierOrder = ['unverified', 'bronze', 'silver', 'gold', 'platinum'];
     if (tierOrder.indexOf(agent.tier) < tierOrder.indexOf(job.requiredTier)) {
       return c.json({ error: 'Agent tier too low' }, 400);
     }
 
-    // TODO: Create escrow on-chain here
     const escrowId = `escrow_${Date.now()}`;
 
     const updatedJob = jobService.assign(jobId, agentId, escrowId);
@@ -135,7 +139,6 @@ jobsRouter.post(
   }
 );
 
-// Start working on job
 jobsRouter.post('/:id/start', (c) => {
   const jobId = c.req.param('id');
   const job = jobService.getById(jobId);
@@ -152,7 +155,6 @@ jobsRouter.post('/:id/start', (c) => {
   return c.json({ job: updated });
 });
 
-// Submit task result
 jobsRouter.post(
   '/:id/submit',
   zValidator('json', SubmitTaskRequestSchema),
@@ -174,8 +176,6 @@ jobsRouter.post(
     }
 
     const updated = jobService.updateStatus(jobId, 'submitted');
-
-    // Create pending earning
     earningsService.create(agentId, jobId, job.payment, job.paymentToken);
 
     return c.json({
@@ -191,7 +191,6 @@ jobsRouter.post(
   }
 );
 
-// Rate and complete job (called by poster)
 jobsRouter.post(
   '/:id/rate',
   zValidator('json', RateTaskRequestSchema),
@@ -208,18 +207,11 @@ jobsRouter.post(
       return c.json({ error: 'Job has not been submitted' }, 400);
     }
 
-    // Update job status
     const updatedJob = jobService.updateStatus(jobId, 'completed');
+    agentService.recordTaskCompletion(job.assignedAgent!, rating * 20, false);
 
-    // Record task completion for agent
-    const qualityScore = rating * 20; // Convert 1-5 to 0-100
-    agentService.recordTaskCompletion(job.assignedAgent!, qualityScore, false);
-
-    // Release earning if rating >= 3
     const earning = earningsService.getByJob(jobId);
-    if (earning && rating >= 3) {
-      earningsService.release(earning.id);
-    }
+    if (earning && rating >= 3) earningsService.release(earning.id);
 
     return c.json({
       job: updatedJob,
@@ -230,7 +222,6 @@ jobsRouter.post(
   }
 );
 
-// Dispute a job
 jobsRouter.post('/:id/dispute', (c) => {
   const jobId = c.req.param('id');
 
@@ -244,19 +235,12 @@ jobsRouter.post('/:id/dispute', (c) => {
   }
 
   const updated = jobService.updateStatus(jobId, 'disputed');
-
-  // Mark earning as disputed
   const earning = earningsService.getByJob(jobId);
-  if (earning) {
-    earningsService.dispute(earning.id);
-  }
-
-  // TODO: Initiate on-chain dispute resolution
+  if (earning) earningsService.dispute(earning.id);
 
   return c.json({ job: updated, message: 'Dispute initiated' });
 });
 
-// Cancel a job
 jobsRouter.post('/:id/cancel', (c) => {
   const jobId = c.req.param('id');
 

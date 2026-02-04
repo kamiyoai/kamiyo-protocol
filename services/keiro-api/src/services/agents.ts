@@ -1,10 +1,8 @@
 import type { Agent, AgentSkill, AgentPersonality, AgentTier, CreateAgentRequest } from '../types/index.js';
 
-// In-memory agent store
 const agents = new Map<string, Agent>();
-const agentsByWallet = new Map<string, string>(); // wallet -> agentId
+const agentsByWallet = new Map<string, string>();
 
-// Tier thresholds
 const TIER_THRESHOLDS: Record<AgentTier, number> = {
   unverified: 0,
   bronze: 20,
@@ -37,14 +35,12 @@ export const agentService = {
   },
 
   create(request: CreateAgentRequest): Agent {
-    // Check if agent already exists for wallet
-    const existing = this.getByWallet(request.walletAddress);
-    if (existing) {
+    if (this.getByWallet(request.walletAddress)) {
       throw new Error('Agent already exists for this wallet');
     }
 
     const id = `agent_${Date.now()}`;
-    const globalId = `eip155:900/address:${request.walletAddress}`; // Solana as chain 900
+    const globalId = `eip155:900/address:${request.walletAddress}`;
 
     const agent: Agent = {
       id,
@@ -80,7 +76,6 @@ export const agentService = {
       walletAddress: agent.walletAddress, // Prevent wallet override
     };
 
-    // Recalculate tier if credit score changed
     if (updates.creditScore !== undefined) {
       updatedAgent.tier = calculateTier(updatedAgent.creditScore);
     }
@@ -101,31 +96,23 @@ export const agentService = {
     const agent = agents.get(id);
     if (!agent) return null;
 
-    const newTaskCount = agent.tasksCompleted + 1;
-    const newDisputeCount = disputed ? agent.disputeCount + 1 : agent.disputeCount;
+    const taskCount = agent.tasksCompleted + 1;
+    const disputes = disputed ? agent.disputeCount + 1 : agent.disputeCount;
+    const avgQuality = Math.round((agent.avgQuality * agent.tasksCompleted + qualityScore) / taskCount);
 
-    // Calculate new average quality
-    const newAvgQuality = Math.round(
-      (agent.avgQuality * agent.tasksCompleted + qualityScore) / newTaskCount
-    );
-
-    // Calculate credit score based on components
-    // Quality (40%) + Reliability (20%) + Disputes (15%) + Trust (15%) + Tenure (10%)
-    const qualityComponent = newAvgQuality * 0.4;
-    const reliabilityComponent = Math.min(newTaskCount / 10, 1) * 20; // Max at 10 tasks
-    const disputeRate = newTaskCount > 0 ? newDisputeCount / newTaskCount : 0;
-    const disputeComponent = (1 - disputeRate) * 15;
-    const trustComponent = 7.5; // Placeholder - would come from DKG
-    const tenureComponent = Math.min(agent.tenureDays / 30, 1) * 10; // Max at 30 days
-
+    // Quality 40%, reliability 20%, disputes 15%, trust 15%, tenure 10%
     const creditScore = Math.round(
-      qualityComponent + reliabilityComponent + disputeComponent + trustComponent + tenureComponent
+      avgQuality * 0.4 +
+      Math.min(taskCount / 10, 1) * 20 +
+      (1 - (taskCount > 0 ? disputes / taskCount : 0)) * 15 +
+      7.5 + // trust placeholder
+      Math.min(agent.tenureDays / 30, 1) * 10
     );
 
     return this.update(id, {
-      tasksCompleted: newTaskCount,
-      disputeCount: newDisputeCount,
-      avgQuality: newAvgQuality,
+      tasksCompleted: taskCount,
+      disputeCount: disputes,
+      avgQuality,
       creditScore: Math.min(100, creditScore),
     });
   },

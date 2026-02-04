@@ -76,7 +76,6 @@ export const useWalletStore = create<WalletState>()(
             authToken: result.authToken,
           });
 
-          // Fetch balance after connecting
           get().refreshBalance();
 
           return true;
@@ -126,7 +125,6 @@ export const useWalletStore = create<WalletState>()(
 
         try {
           const signedTransaction = await transact(async (wallet: Web3MobileWallet) => {
-            // Reauthorize if we have an auth token
             if (authToken) {
               try {
                 await wallet.reauthorize({
@@ -138,7 +136,6 @@ export const useWalletStore = create<WalletState>()(
                   },
                 });
               } catch {
-                // If reauthorization fails, do a fresh authorization
                 await wallet.authorize({
                   cluster: SOLANA_NETWORK as 'devnet' | 'mainnet-beta' | 'testnet',
                   identity: {
@@ -150,12 +147,10 @@ export const useWalletStore = create<WalletState>()(
               }
             }
 
-            // Get latest blockhash
             const { blockhash } = await connection.getLatestBlockhash();
             transaction.recentBlockhash = blockhash;
             transaction.feePayer = new PublicKey(publicKeyBase58);
 
-            // Sign the transaction
             const signedTransactions = await wallet.signTransactions({
               transactions: [transaction],
             });
@@ -180,7 +175,6 @@ export const useWalletStore = create<WalletState>()(
 
         try {
           const signature = await transact(async (wallet: Web3MobileWallet) => {
-            // Reauthorize if we have an auth token
             if (authToken) {
               try {
                 await wallet.reauthorize({
@@ -227,11 +221,9 @@ export const useWalletStore = create<WalletState>()(
         authToken: state.authToken,
       }),
       onRehydrateStorage: () => state => {
-        // Reconstruct PublicKey from base58 string after rehydration
         if (state?.publicKeyBase58) {
           try {
             state.publicKey = new PublicKey(state.publicKeyBase58);
-            // Refresh balance on rehydration
             state.refreshBalance();
           } catch {
             state.publicKey = null;

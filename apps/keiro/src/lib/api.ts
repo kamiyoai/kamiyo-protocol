@@ -1,7 +1,6 @@
 import { API_URL } from './constants';
 import type { AgentPersonality, AgentSkill } from '../stores/agent';
 
-// Types matching the API
 export interface ApiAgent {
   id: string;
   walletAddress: string;
@@ -83,6 +82,20 @@ export interface ReputationData {
   };
 }
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+const REQUEST_TIMEOUT = 15_000;
+const MAX_RETRIES = 2;
+
 class KeiroApi {
   private baseUrl: string;
 
@@ -90,42 +103,67 @@ class KeiroApi {
     this.baseUrl = baseUrl;
   }
 
-  private async fetch<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async fetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+    let lastError: Error | null = null;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new ApiError(
+            body.error || `Request failed with status ${response.status}`,
+            response.status,
+            body.code
+          );
+        }
+
+        return response.json();
+      } catch (err) {
+        lastError = err as Error;
+
+        if (err instanceof ApiError && err.status < 500) {
+          throw err;
+        }
+
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        }
+      }
     }
 
-    return response.json();
+    clearTimeout(timeoutId);
+    throw lastError || new ApiError('Request failed', 500);
   }
 
-  // Agents
   async getAgent(id: string): Promise<ApiAgent> {
-    const { agent } = await this.fetch<{ agent: ApiAgent }>(`/api/agents/${id}`);
+    const { agent } = await this.fetch<{ agent: ApiAgent }>(`/api/agents/${encodeURIComponent(id)}`);
     return agent;
   }
 
   async getAgentByWallet(walletAddress: string): Promise<ApiAgent | null> {
     try {
       const { agent } = await this.fetch<{ agent: ApiAgent }>(
-        `/api/agents/wallet/${walletAddress}`
+        `/api/agents/wallet/${encodeURIComponent(walletAddress)}`
       );
       return agent;
-    } catch {
-      return null;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
     }
   }
 
@@ -146,31 +184,31 @@ class KeiroApi {
     id: string,
     updates: Partial<Pick<ApiAgent, 'name' | 'personality' | 'skills' | 'isActive'>>
   ): Promise<ApiAgent> {
-    const { agent } = await this.fetch<{ agent: ApiAgent }>(`/api/agents/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
+    const { agent } = await this.fetch<{ agent: ApiAgent }>(
+      `/api/agents/${encodeURIComponent(id)}`,
+      { method: 'PATCH', body: JSON.stringify(updates) }
+    );
     return agent;
   }
 
   async toggleAgentActive(id: string): Promise<ApiAgent> {
     const { agent } = await this.fetch<{ agent: ApiAgent }>(
-      `/api/agents/${id}/toggle-active`,
+      `/api/agents/${encodeURIComponent(id)}/toggle-active`,
       { method: 'POST' }
     );
     return agent;
   }
 
-  async getLeaderboard(limit: number = 10): Promise<ApiAgent[]> {
+  async getLeaderboard(limit = 10): Promise<ApiAgent[]> {
+    const safeLimit = Math.min(100, Math.max(1, limit));
     const { agents } = await this.fetch<{ agents: ApiAgent[] }>(
-      `/api/agents/leaderboard?limit=${limit}`
+      `/api/agents/leaderboard?limit=${safeLimit}`
     );
     return agents;
   }
 
-  // Jobs
   async getJobs(status?: string): Promise<ApiJob[]> {
-    const query = status ? `?status=${status}` : '';
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
     const { jobs } = await this.fetch<{ jobs: ApiJob[] }>(`/api/jobs${query}`);
     return jobs;
   }
@@ -182,20 +220,20 @@ class KeiroApi {
 
   async getMatchingJobs(agentId: string): Promise<ApiJob[]> {
     const { jobs } = await this.fetch<{ jobs: ApiJob[] }>(
-      `/api/jobs/matching/${agentId}`
+      `/api/jobs/matching/${encodeURIComponent(agentId)}`
     );
     return jobs;
   }
 
   async getAgentJobs(agentId: string): Promise<ApiJob[]> {
     const { jobs } = await this.fetch<{ jobs: ApiJob[] }>(
-      `/api/jobs/agent/${agentId}`
+      `/api/jobs/agent/${encodeURIComponent(agentId)}`
     );
     return jobs;
   }
 
   async getJob(id: string): Promise<ApiJob> {
-    const { job } = await this.fetch<{ job: ApiJob }>(`/api/jobs/${id}`);
+    const { job } = await this.fetch<{ job: ApiJob }>(`/api/jobs/${encodeURIComponent(id)}`);
     return job;
   }
 
@@ -204,16 +242,17 @@ class KeiroApi {
     agentId: string,
     walletAddress: string
   ): Promise<{ job: ApiJob; escrowId: string }> {
-    return this.fetch(`/api/jobs/${jobId}/accept`, {
+    return this.fetch(`/api/jobs/${encodeURIComponent(jobId)}/accept`, {
       method: 'POST',
       body: JSON.stringify({ agentId, walletAddress }),
     });
   }
 
   async startJob(jobId: string): Promise<ApiJob> {
-    const { job } = await this.fetch<{ job: ApiJob }>(`/api/jobs/${jobId}/start`, {
-      method: 'POST',
-    });
+    const { job } = await this.fetch<{ job: ApiJob }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/start`,
+      { method: 'POST' }
+    );
     return job;
   }
 
@@ -222,32 +261,32 @@ class KeiroApi {
     agentId: string,
     result: string,
     proof?: string
-  ): Promise<{ job: ApiJob; submission: any }> {
-    return this.fetch(`/api/jobs/${jobId}/submit`, {
+  ): Promise<{ job: ApiJob; submission: { jobId: string; agentId: string; submittedAt: string } }> {
+    return this.fetch(`/api/jobs/${encodeURIComponent(jobId)}/submit`, {
       method: 'POST',
       body: JSON.stringify({ agentId, result, proof }),
     });
   }
 
   async disputeJob(jobId: string): Promise<ApiJob> {
-    const { job } = await this.fetch<{ job: ApiJob }>(`/api/jobs/${jobId}/dispute`, {
-      method: 'POST',
-    });
+    const { job } = await this.fetch<{ job: ApiJob }>(
+      `/api/jobs/${encodeURIComponent(jobId)}/dispute`,
+      { method: 'POST' }
+    );
     return job;
   }
 
-  // Earnings
   async getEarnings(agentId: string, status?: string): Promise<ApiEarning[]> {
-    const query = status ? `?status=${status}` : '';
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
     const { earnings } = await this.fetch<{ earnings: ApiEarning[] }>(
-      `/api/earnings/agent/${agentId}${query}`
+      `/api/earnings/agent/${encodeURIComponent(agentId)}${query}`
     );
     return earnings;
   }
 
   async getEarningsStats(agentId: string): Promise<EarningsStats> {
     const { stats } = await this.fetch<{ stats: EarningsStats }>(
-      `/api/earnings/agent/${agentId}/stats`
+      `/api/earnings/agent/${encodeURIComponent(agentId)}/stats`
     );
     return stats;
   }
@@ -255,25 +294,21 @@ class KeiroApi {
   async getPendingEarnings(
     agentId: string
   ): Promise<{ earnings: ApiEarning[]; total: { sol: number; usdc: number } }> {
-    return this.fetch(`/api/earnings/agent/${agentId}/pending`);
+    return this.fetch(`/api/earnings/agent/${encodeURIComponent(agentId)}/pending`);
   }
 
-  // Reputation
   async getReputation(agentId: string): Promise<ReputationData> {
     const { reputation } = await this.fetch<{ reputation: ReputationData }>(
-      `/api/reputation/agent/${agentId}`
+      `/api/reputation/agent/${encodeURIComponent(agentId)}`
     );
     return reputation;
   }
 
-  async getTiers(): Promise<Record<string, any>> {
-    const { tiers } = await this.fetch<{ tiers: Record<string, any> }>(
-      '/api/reputation/tiers'
-    );
+  async getTiers(): Promise<Record<string, unknown>> {
+    const { tiers } = await this.fetch<{ tiers: Record<string, unknown> }>('/api/reputation/tiers');
     return tiers;
   }
 
-  // Health check
   async health(): Promise<boolean> {
     try {
       await this.fetch('/health');
@@ -284,8 +319,5 @@ class KeiroApi {
   }
 }
 
-// Export singleton instance
 export const api = new KeiroApi();
-
-// Export class for custom instances
 export { KeiroApi };

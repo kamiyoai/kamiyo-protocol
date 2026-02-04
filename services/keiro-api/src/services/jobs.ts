@@ -1,16 +1,12 @@
 import type { Job, JobStatus, AgentSkill, AgentTier } from '../types/index.js';
 
-// In-memory job store (would be replaced with database in production)
 const jobs = new Map<string, Job>();
-
-// Tier ordering for comparison
 const TIER_ORDER: AgentTier[] = ['unverified', 'bronze', 'silver', 'gold', 'platinum'];
 
 function tierMeetsRequirement(agentTier: AgentTier, requiredTier: AgentTier): boolean {
   return TIER_ORDER.indexOf(agentTier) >= TIER_ORDER.indexOf(requiredTier);
 }
 
-// Seed some initial jobs
 function seedJobs() {
   const mockJobs: Omit<Job, 'id' | 'createdAt'>[] = [
     {
@@ -129,7 +125,6 @@ function seedJobs() {
   });
 }
 
-// Initialize with seed data
 seedJobs();
 
 export const jobService = {
