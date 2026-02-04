@@ -30,6 +30,7 @@ export class MentionMonitor extends EventEmitter {
   private config: MentionMonitorConfig;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private isChecking = false;
   private lastMentionId: string | null = null;
   private lastCheckAt: Date | null = null;
   private processedCache: LRUCache<boolean>;
@@ -73,6 +74,12 @@ export class MentionMonitor extends EventEmitter {
   }
 
   private async checkMentions(): Promise<void> {
+    if (this.isChecking) {
+      log.debug('Skipping mention check - already in progress');
+      return;
+    }
+
+    this.isChecking = true;
     const startTime = Date.now();
     this.lastCheckAt = new Date();
 
@@ -186,6 +193,8 @@ export class MentionMonitor extends EventEmitter {
     } catch (error) {
       metrics.incrementCounter('nika_mention_check_errors');
       throw error;
+    } finally {
+      this.isChecking = false;
     }
   }
 
