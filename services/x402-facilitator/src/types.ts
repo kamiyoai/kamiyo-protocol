@@ -29,6 +29,8 @@ export interface SettleResponse {
   amount: number;
   fee: number;
   net: number;
+  network: string;
+  feeDiscount?: { discountPct: number; effectiveFeeBps: number; reason: string };
   error?: string;
 }
 
