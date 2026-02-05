@@ -2,11 +2,19 @@ import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentScheme } from '../services/signature';
 import { settlePayment, toBaseUnits } from '../services/settlement';
+import { ethers } from 'ethers';
+import { settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
 import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
 import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger, getSettlementStats, getWalletDisputeStats, getWalletAverageQuality, getMonthlyVolume } from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
 import { SettleRequest } from '../types';
+
+function getSupportedNetworks(): string[] {
+  const networks = ['solana:mainnet'];
+  if (isBaseEnabled()) networks.push('eip155:8453');
+  return networks;
+}
 
 export function createSettleRouter(connection: Connection, facilitatorKeypair: Keypair): Router {
   const router = Router();
@@ -31,10 +39,12 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
     }
 
     const scheme = parsePaymentScheme(paymentHeader);
-    if (!scheme || scheme.network !== 'solana:mainnet') {
+    if (!scheme || !getSupportedNetworks().includes(scheme.network)) {
       res.status(400).json({ success: false, error: 'Unsupported network' });
       return;
     }
+
+    const isBase = scheme.network === 'eip155:8453';
 
     const payment = decodePaymentHeader(paymentHeader);
     if (!payment) {
@@ -69,12 +79,18 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       return;
     }
 
-    let merchantKey: PublicKey;
-    try {
-      merchantKey = new PublicKey(merchantWallet);
-    } catch {
-      res.status(400).json({ success: false, error: 'Invalid wallet address' });
-      return;
+    if (isBase) {
+      if (!ethers.isAddress(merchantWallet)) {
+        res.status(400).json({ success: false, error: 'Invalid Base wallet address' });
+        return;
+      }
+    } else {
+      try {
+        new PublicKey(merchantWallet);
+      } catch {
+        res.status(400).json({ success: false, error: 'Invalid Solana wallet address' });
+        return;
+      }
     }
 
     const settlement = await insertSettlement(
@@ -85,7 +101,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       'USDC',
       '',
       'pending',
-      'solana:mainnet'
+      scheme.network
     );
 
     try {
@@ -105,13 +121,19 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
       const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
 
-      const result = await settlePayment(
-        connection,
-        facilitatorKeypair,
-        merchantKey,
-        amount,
-        effectiveFeeBps
-      );
+      let result: { txHash: string; fee: number; net: number };
+
+      if (isBase) {
+        result = await settlePaymentBase(merchantWallet, amount, effectiveFeeBps);
+      } else {
+        result = await settlePayment(
+          connection,
+          facilitatorKeypair,
+          new PublicKey(merchantWallet),
+          amount,
+          effectiveFeeBps
+        );
+      }
 
       await updateSettlementConfirmed(settlement.id, result.txHash, result.fee);
       await insertFeeLedger(settlement.id, null, 'settlement', result.fee, result.txHash);
@@ -122,6 +144,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         amount,
         fee: result.fee,
         net: result.net,
+        network: scheme.network,
         feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined,
       });
     } catch (err: any) {

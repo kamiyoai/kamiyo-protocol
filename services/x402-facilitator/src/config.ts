@@ -17,6 +17,9 @@ export interface Config {
   SHADOWPAY_API_URL: string;
   SHADOWPAY_API_KEY: string;
   SHADOWPAY_REFERRAL_ID: string;
+  BASE_RPC_URL: string;
+  BASE_FACILITATOR_KEY: string;
+  BASE_TREASURY_ADDRESS: string;
 }
 
 const REQUIRED_VARS = [
@@ -39,6 +42,9 @@ const DEFAULTS: Partial<Config> = {
   SHADOWPAY_API_URL: 'https://shadow.radr.fun/shadowpay/api',
   SHADOWPAY_API_KEY: '',
   SHADOWPAY_REFERRAL_ID: '64b30531ab33da27',
+  BASE_RPC_URL: '',
+  BASE_FACILITATOR_KEY: '',
+  BASE_TREASURY_ADDRESS: '',
 };
 
 let cachedConfig: Config | null = null;
@@ -120,6 +126,18 @@ export function validateConfig(): ValidationResult {
     warnings.push('PRIVACY_ENABLED=true but SHADOWPAY_API_KEY is empty');
   }
 
+  const baseRpc = process.env.BASE_RPC_URL;
+  if (baseRpc && !/^https?:\/\//i.test(baseRpc)) {
+    errors.push('BASE_RPC_URL must be http(s)');
+  }
+  if (baseRpc && !process.env.BASE_FACILITATOR_KEY) {
+    warnings.push('BASE_RPC_URL set but BASE_FACILITATOR_KEY is empty');
+  }
+  const baseKey = process.env.BASE_FACILITATOR_KEY;
+  if (baseKey && !/^0x[0-9a-fA-F]{64}$/.test(baseKey)) {
+    errors.push('BASE_FACILITATOR_KEY must be a 0x-prefixed 32-byte hex string');
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }
 
@@ -146,6 +164,9 @@ export function getConfig(): Config {
     SHADOWPAY_API_URL: process.env.SHADOWPAY_API_URL || DEFAULTS.SHADOWPAY_API_URL!,
     SHADOWPAY_API_KEY: process.env.SHADOWPAY_API_KEY || DEFAULTS.SHADOWPAY_API_KEY!,
     SHADOWPAY_REFERRAL_ID: process.env.SHADOWPAY_REFERRAL_ID || DEFAULTS.SHADOWPAY_REFERRAL_ID!,
+    BASE_RPC_URL: process.env.BASE_RPC_URL || DEFAULTS.BASE_RPC_URL!,
+    BASE_FACILITATOR_KEY: process.env.BASE_FACILITATOR_KEY || DEFAULTS.BASE_FACILITATOR_KEY!,
+    BASE_TREASURY_ADDRESS: process.env.BASE_TREASURY_ADDRESS || DEFAULTS.BASE_TREASURY_ADDRESS!,
   };
 
   return cachedConfig;
@@ -174,5 +195,8 @@ export function getRedactedConfig(): Record<string, string> {
     SHADOWPAY_API_URL: config.SHADOWPAY_API_URL,
     SHADOWPAY_API_KEY: config.SHADOWPAY_API_KEY ? '[REDACTED]' : '',
     SHADOWPAY_REFERRAL_ID: config.SHADOWPAY_REFERRAL_ID,
+    BASE_RPC_URL: config.BASE_RPC_URL || '',
+    BASE_FACILITATOR_KEY: config.BASE_FACILITATOR_KEY ? '[REDACTED]' : '',
+    BASE_TREASURY_ADDRESS: config.BASE_TREASURY_ADDRESS || '',
   };
 }
