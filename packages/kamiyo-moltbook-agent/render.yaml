@@ -1,0 +1,39 @@
+services:
+  - type: worker
+    name: kamiyo-moltbook-agent
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: pnpm install && pnpm --filter @kamiyo/sdk build && pnpm --filter @kamiyo/x402-client build && pnpm --filter @kamiyo/dkg-quality-oracle build && pnpm --filter @kamiyo/hive build && pnpm --filter @kamiyo/paykit build && pnpm --filter @kamiyo/moltbook-agent build
+    startCommand: node packages/kamiyo-moltbook-agent/dist/cli.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MOLTBOOK_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AGENT_PRIVATE_KEY
+        sync: false
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: KAMIYO_PROGRAM_ID
+        value: 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+      - key: POLL_INTERVAL_MS
+        value: "60000"
+      - key: MIN_JOB_PRICE_SOL
+        value: "0.01"
+      - key: MAX_CONCURRENT_JOBS
+        value: "3"
+      - key: DB_PATH
+        value: ./moltbook-agent.db
+      - key: ENABLE_PROACTIVE_POSTING
+        value: "true"
+      - key: MIN_POST_INTERVAL_MS
+        value: "3600000"
+      - key: HACKATHON_SUBMISSION_ID
+        value: ef2371ee-66d5-4edf-9b1e-51b64a661e04
+      - key: DKG_ENDPOINT
+        value: https://dkg.origintrail.io
+      - key: TREASURY_ADDRESS
+        value: Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx

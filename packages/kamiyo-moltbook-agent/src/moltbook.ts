@@ -216,8 +216,19 @@ export class MoltbookClient {
 
   async getMentions(_since?: number): Promise<MoltbookComment[]> {
     // Mentions endpoint is 404 - return empty for now
-    // TODO: Scan posts/comments for @mentions manually when API is fixed
+    // Actual mention scanning happens in agent.ts via scanOwnPostsForMentions()
     return [];
+  }
+
+  async getSubmoltPosts(submolt: string, sort: 'hot' | 'new' | 'top' = 'new', limit = 50): Promise<MoltbookPost[]> {
+    if (!submolt || !/^[a-zA-Z0-9/_-]+$/.test(submolt)) {
+      throw new Error('Invalid submolt format');
+    }
+
+    const result = await this.request<{ posts: MoltbookPost[] }>(
+      `/posts?submolt=${encodeURIComponent(submolt)}&sort=${sort}&limit=${limit}`
+    );
+    return result.posts || [];
   }
 
   async getAgentProfile(handle: string): Promise<{
