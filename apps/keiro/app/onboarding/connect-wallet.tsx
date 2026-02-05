@@ -3,37 +3,38 @@ import {
   StyleSheet,
   Text,
   View,
-  Pressable,
-  useColorScheme,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useWalletStore } from '../../src/stores/wallet';
+import { useWalletStore, getShortAddress } from '../../src/stores/wallet';
 import { useAgentStore } from '../../src/stores/agent';
+import { colors, typography, spacing } from '../../src/theme';
+import { TerminalHeader, TerminalFrame, TerminalDivider, Badge, Button, ScanlineOverlay } from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function ConnectWalletScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   const [isSkipping, setIsSkipping] = useState(false);
-  const { connected, connecting, connect, shortAddress } = useWalletStore(
-    state => ({
-      connected: state.connected,
-      connecting: state.connecting,
-      connect: state.connect,
-      shortAddress: state.publicKey
-        ? `${state.publicKey.toBase58().slice(0, 4)}...${state.publicKey.toBase58().slice(-4)}`
-        : null,
-    })
-  );
+  const connected = useWalletStore((s) => s.connected);
+  const connecting = useWalletStore((s) => s.connecting);
+  const connect = useWalletStore((s) => s.connect);
+  const publicKeyBase58 = useWalletStore((s) => s.publicKeyBase58);
+  const shortAddress = getShortAddress(publicKeyBase58);
   const { agent } = useAgentStore();
 
   const handleConnect = async () => {
     await connect();
-    // If connection succeeds, continue to completion
     if (useWalletStore.getState().connected) {
       router.push('/onboarding/complete');
     }
@@ -41,7 +42,6 @@ export default function ConnectWalletScreen() {
 
   const handleSkip = () => {
     setIsSkipping(true);
-    // Allow skipping wallet for now, but they won't be able to earn
     router.push('/onboarding/complete');
   };
 
@@ -50,262 +50,175 @@ export default function ConnectWalletScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.backButton, isDark && styles.textDark]}>
-            ← Back
-          </Text>
-        </Pressable>
-        <Text style={[styles.step, isDark && styles.stepDark]}>3 of 4</Text>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={[styles.title, isDark && styles.textDark]}>
-          Connect your wallet
-        </Text>
-        <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-          {agent?.name || 'Your agent'} needs a wallet to receive earnings and
-          stake collateral.
-        </Text>
-
-        {connected ? (
-          <View style={[styles.connectedCard, isDark && styles.cardDark]}>
-            <View style={styles.connectedIcon}>
-              <Text style={styles.checkmark}>✓</Text>
-            </View>
-            <Text style={[styles.connectedTitle, isDark && styles.textDark]}>
-              Wallet Connected
-            </Text>
-            <Text style={[styles.connectedAddress, isDark && styles.subtitleDark]}>
-              {shortAddress}
-            </Text>
-          </View>
-        ) : (
-          <View style={[styles.walletCard, isDark && styles.cardDark]}>
-            <Text style={[styles.walletIcon]}>👛</Text>
-            <Text style={[styles.walletTitle, isDark && styles.textDark]}>
-              Solana Wallet Required
-            </Text>
-            <Text style={[styles.walletDesc, isDark && styles.subtitleDark]}>
-              Connect with Phantom, Solflare, or any Solana wallet to enable
-              earnings.
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.benefits}>
-          <Text style={[styles.benefitsTitle, isDark && styles.textDark]}>
-            With a connected wallet:
-          </Text>
-          {[
-            'Receive SOL/USDC for completed tasks',
-            'Build verifiable on-chain reputation',
-            'Access premium job opportunities',
-            'Stake to unlock higher-paying jobs',
-          ].map((benefit, index) => (
-            <View key={index} style={styles.benefitRow}>
-              <Text style={styles.benefitBullet}>•</Text>
-              <Text style={[styles.benefitText, isDark && styles.subtitleDark]}>
-                {benefit}
-              </Text>
-            </View>
-          ))}
+    <View style={styles.root}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TerminalHeader command="connect-wallet" />
+          <Text style={styles.step}>[3/4]</Text>
         </View>
-      </View>
 
-      <View style={styles.footer}>
-        {connected ? (
-          <Pressable style={styles.button} onPress={handleContinue}>
-            <Text style={styles.buttonText}>Continue</Text>
-          </Pressable>
-        ) : (
-          <>
-            <Pressable
-              style={[styles.button, connecting && styles.buttonDisabled]}
-              onPress={handleConnect}
-              disabled={connecting}
-            >
-              {connecting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Connect Wallet</Text>
-              )}
-            </Pressable>
+        <View style={styles.content}>
+          <Text style={styles.title}>connect your wallet</Text>
+          <Text style={styles.subtitle}>
+            {agent?.name || 'your agent'} needs a wallet to receive earnings and
+            stake collateral.
+          </Text>
 
-            <Pressable
-              style={styles.skipButton}
-              onPress={handleSkip}
-              disabled={isSkipping}
-            >
-              <Text style={[styles.skipButtonText, isDark && styles.subtitleDark]}>
-                Skip for now
+          {connected ? (
+            <TerminalFrame title="WALLET" accent={colors.accent}>
+              <View style={styles.walletContent}>
+                <Badge variant="status" active>CONNECTED</Badge>
+                <Text style={styles.connectedAddress}>{shortAddress}</Text>
+              </View>
+            </TerminalFrame>
+          ) : (
+            <TerminalFrame title="WALLET">
+              <View style={styles.walletContent}>
+                <Badge variant="status" active={false}>NOT CONNECTED</Badge>
+                <Text style={styles.walletDesc}>
+                  connect with phantom, solflare, or any solana wallet to enable
+                  earnings.
+                </Text>
+              </View>
+            </TerminalFrame>
+          )}
+
+          <TerminalDivider label="BENEFITS" marginVertical={spacing.xl} />
+
+          <View style={styles.benefits}>
+            {[
+              'receive SOL/USDC for completed tasks',
+              'build verifiable on-chain reputation',
+              'access premium job opportunities',
+              'stake to unlock higher-paying jobs',
+            ].map((benefit, index) => (
+              <Text key={index} style={styles.benefitRow}>
+                <Text style={styles.benefitMarkerText}>
+                  {String(index + 1).padStart(2, '0')}
+                </Text>
+                <Text style={styles.benefitSeparator}> │ </Text>
+                <Text style={styles.benefitText}>{benefit}</Text>
               </Text>
-            </Pressable>
-          </>
-        )}
-      </View>
-    </SafeAreaView>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          {connected ? (
+            <Button onPress={handleContinue} style={{ width: '100%' }}>
+              Continue
+            </Button>
+          ) : (
+            <>
+              <Button
+                onPress={handleConnect}
+                loading={connecting}
+                style={{ width: '100%' }}
+              >
+                Connect Wallet
+              </Button>
+
+              <Button
+                variant="ghost"
+                onPress={handleSkip}
+                disabled={isSkipping}
+              >
+                skip for now
+              </Button>
+            </>
+          )}
+
+          <Button variant="ghost" onPress={() => router.back()}>
+            back
+          </Button>
+        </View>
+      </SafeAreaView>
+      <ScanlineOverlay />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#000',
+    padding: spacing['2xl'],
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 24,
-    paddingBottom: 0,
-  },
-  backButton: {
-    fontSize: 16,
-    color: '#000',
+    marginBottom: spacing.lg,
   },
   step: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
-  stepDark: {
-    color: '#6b7280',
-  },
-  textDark: {
-    color: '#fff',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
   },
   content: {
     flex: 1,
-    padding: 24,
-    paddingTop: 16,
   },
   title: {
-    fontSize: 28,
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize['2xl'],
     fontWeight: '700',
-    color: '#000',
-    marginBottom: 8,
+    color: colors.white,
+    letterSpacing: typography.letterSpacing.wide,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
+    fontFamily,
+    fontSize: typography.fontSize.base,
+    color: colors.bodyText,
+    marginBottom: spacing.xl,
   },
-  subtitleDark: {
-    color: '#9ca3af',
-  },
-  walletCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 24,
+  walletContent: {
     alignItems: 'center',
-    marginBottom: 24,
+    gap: spacing.md,
+    paddingVertical: spacing.md,
   },
-  cardDark: {
-    backgroundColor: '#111',
-  },
-  walletIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  walletTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
+  connectedAddress: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray400,
   },
   walletDesc: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
     textAlign: 'center',
     lineHeight: 20,
   },
-  connectedCard: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: '#10b981',
-  },
-  connectedIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#10b981',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  connectedTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  connectedAddress: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-  },
   benefits: {
-    gap: 8,
-  },
-  benefitsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
+    gap: spacing.md,
   },
   benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  benefitBullet: {
-    color: '#8b5cf6',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  benefitText: {
-    fontSize: 15,
-    color: '#6b7280',
-    flex: 1,
+    fontFamily,
+    fontSize: typography.fontSize.sm,
     lineHeight: 22,
   },
+  benefitMarkerText: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  benefitSeparator: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+  },
+  benefitText: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.bodyText,
+  },
   footer: {
-    padding: 24,
-    gap: 12,
-  },
-  button: {
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 16,
-    borderRadius: 12,
+    gap: spacing.md,
     alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  skipButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  skipButtonText: {
-    fontSize: 16,
-    color: '#6b7280',
   },
 });

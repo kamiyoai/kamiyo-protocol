@@ -3,20 +3,36 @@ import {
   StyleSheet,
   Text,
   View,
-  Pressable,
-  useColorScheme,
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore, getShortAddress } from '../../src/stores/wallet';
 import { useAgentStore } from '../../src/stores/agent';
 import { api, ApiEarning, EarningsStats } from '../../src/lib/api';
+import { colors, typography, spacing } from '../../src/theme';
+import {
+  TerminalFrame,
+  TerminalButton,
+  TerminalBadge,
+  TerminalHeader,
+  TerminalDivider,
+  DotLeaderRow,
+} from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function EarningsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<EarningsStats | null>(null);
@@ -62,7 +78,6 @@ export default function EarningsScreen() {
     disconnect();
   };
 
-  // Calculate USD value (mock rate)
   const solPrice = 150;
   const usdBalance = balance * solPrice;
 
@@ -75,7 +90,7 @@ export default function EarningsScreen() {
 
     if (diffDays > 0) return `${diffDays}d ago`;
     if (diffHours > 0) return `${diffHours}h ago`;
-    return 'Just now';
+    return 'just now';
   };
 
   const formatUsd = (sol: number, usdc: number) => {
@@ -83,230 +98,193 @@ export default function EarningsScreen() {
     return (solInUsd + usdc).toFixed(2);
   };
 
+  const getStatusColor = (status: string) => {
+    if (status === 'released') return colors.accent;
+    if (status === 'pending') return colors.orange500;
+    return colors.red500;
+  };
+
+  const getStatusPrefix = (status: string) => {
+    if (status === 'released') return '+';
+    if (status === 'pending') return '~';
+    return '!';
+  };
+
+  const getStatusVariant = (status: string): 'cyan' | 'warning' | 'danger' => {
+    if (status === 'released') return 'cyan';
+    if (status === 'pending') return 'warning';
+    return 'danger';
+  };
+
   return (
-    <SafeAreaView
-      style={[styles.container, isDark && styles.containerDark]}
-      edges={['top']}
-    >
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+          />
         }
       >
-        <Text style={[styles.title, isDark && styles.textDark]}>Earnings</Text>
+        <TerminalHeader command="earnings" />
 
-        <View style={[styles.balanceCard, isDark && styles.cardDark]}>
+        <TerminalFrame title="BALANCE" style={styles.section}>
           {connected ? (
             <>
-              <Text style={[styles.balanceLabel, isDark && styles.subtitleDark]}>
-                Total Balance
-              </Text>
-              <Text style={[styles.balanceAmount, isDark && styles.textDark]}>
+              <Text style={styles.balanceLarge}>
                 ${usdBalance.toFixed(2)}
               </Text>
-              <Text style={[styles.balanceSol, isDark && styles.subtitleDark]}>
+              <Text style={styles.balanceSol}>
                 {balance.toFixed(4)} SOL
               </Text>
 
-              <View style={styles.walletInfo}>
-                <View style={styles.addressRow}>
-                  <View style={styles.connectedDot} />
-                  <Text style={[styles.addressText, isDark && styles.subtitleDark]}>
-                    {getShortAddress(publicKey)}
-                  </Text>
-                </View>
-                <Pressable style={styles.disconnectButton} onPress={handleDisconnect}>
-                  <Text style={styles.disconnectText}>Disconnect</Text>
-                </Pressable>
+              <View style={styles.addressRow}>
+                <Text style={styles.addressDot}>{'\u25CF'} </Text>
+                <Text style={styles.addressText}>
+                  {getShortAddress(publicKey)}
+                </Text>
               </View>
+
+              <TerminalButton
+                variant="danger"
+                onPress={handleDisconnect}
+                style={styles.disconnectBtn}
+              >
+                DISCONNECT
+              </TerminalButton>
             </>
           ) : (
             <>
-              <Text style={[styles.balanceLabel, isDark && styles.subtitleDark]}>
-                Connect Wallet
+              <Text style={styles.dimText}>
+                connect your solana wallet to view balance and receive earnings
               </Text>
-              <Text style={[styles.walletMessage, isDark && styles.subtitleDark]}>
-                Connect your Solana wallet to view your balance and receive
-                earnings from completed tasks.
-              </Text>
-              <Pressable
-                style={[styles.connectButton, connecting && styles.buttonDisabled]}
+              <TerminalButton
+                variant="primary"
                 onPress={handleConnect}
-                disabled={connecting}
+                loading={connecting}
+                style={styles.connectBtn}
               >
-                {connecting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.connectButtonText}>Connect Wallet</Text>
-                )}
-              </Pressable>
+                CONNECT WALLET
+              </TerminalButton>
             </>
           )}
+        </TerminalFrame>
+
+        <TerminalDivider label="PERIOD" />
+
+        <View style={styles.dataSection}>
+          <DotLeaderRow
+            label="today"
+            value={`$${stats?.today.toFixed(2) || '0.00'}`}
+          />
+          <DotLeaderRow
+            label="this week"
+            value={`$${stats?.thisWeek.toFixed(2) || '0.00'}`}
+          />
+          <DotLeaderRow
+            label="this month"
+            value={`$${stats?.thisMonth.toFixed(2) || '0.00'}`}
+          />
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              ${stats?.today.toFixed(2) || '0.00'}
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              Today
-            </Text>
-          </View>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              ${stats?.thisWeek.toFixed(2) || '0.00'}
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              This Week
-            </Text>
-          </View>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              ${stats?.thisMonth.toFixed(2) || '0.00'}
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              This Month
-            </Text>
-          </View>
+        <TerminalDivider label="SUMMARY" />
+
+        <View style={styles.dataSection}>
+          <DotLeaderRow
+            label="total earned"
+            value={`$${stats ? formatUsd(stats.totalEarned.sol, stats.totalEarned.usdc) : '0.00'}`}
+            valueColor={colors.accent}
+          />
+          <DotLeaderRow
+            label="pending"
+            value={`$${stats ? formatUsd(stats.totalPending.sol, stats.totalPending.usdc) : '0.00'}`}
+            valueColor={colors.orange500}
+          />
+          <DotLeaderRow
+            label="transactions"
+            value={stats?.transactionCount || 0}
+          />
+          <DotLeaderRow
+            label="tasks completed"
+            value={agent?.tasksCompleted || 0}
+          />
         </View>
 
-        <View style={[styles.summaryCard, isDark && styles.cardDark]}>
-          <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-            Earnings Summary
-          </Text>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
-              Total Earned
-            </Text>
-            <Text style={[styles.summaryValue, isDark && styles.textDark]}>
-              ${stats ? formatUsd(stats.totalEarned.sol, stats.totalEarned.usdc) : '0.00'}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
-              Pending
-            </Text>
-            <Text style={[styles.summaryValue, styles.pendingValue]}>
-              ${stats ? formatUsd(stats.totalPending.sol, stats.totalPending.usdc) : '0.00'}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
-              Transactions
-            </Text>
-            <Text style={[styles.summaryValue, isDark && styles.textDark]}>
-              {stats?.transactionCount || 0}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, isDark && styles.subtitleDark]}>
-              Tasks Completed
-            </Text>
-            <Text style={[styles.summaryValue, isDark && styles.textDark]}>
-              {agent?.tasksCompleted || 0}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-          Transaction History
-        </Text>
+        <TerminalDivider label="HISTORY" />
 
         {loading ? (
-          <View style={[styles.emptyState, isDark && styles.cardDark]}>
-            <ActivityIndicator size="large" color="#8b5cf6" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.accent} />
           </View>
         ) : earnings.length === 0 ? (
-          <View style={[styles.emptyState, isDark && styles.cardDark]}>
-            <Text style={[styles.emptyText, isDark && styles.subtitleDark]}>
-              No transactions yet
-            </Text>
-            <Text style={[styles.emptySubtext, isDark && styles.subtitleDark]}>
-              Complete tasks to start earning
+          <View style={styles.dataSection}>
+            <Text style={styles.dimText}>no transactions yet</Text>
+            <Text style={styles.dimSubtext}>
+              complete tasks to start earning
             </Text>
           </View>
         ) : (
-          <View style={[styles.transactionList, isDark && styles.cardDark]}>
+          <View style={styles.dataSection}>
             {earnings.map((tx) => (
-              <View key={tx.id} style={styles.transactionRow}>
-                <View style={styles.transactionLeft}>
-                  <View
-                    style={[
-                      styles.transactionIcon,
-                      tx.status === 'released'
-                        ? styles.iconEarning
-                        : tx.status === 'pending'
-                          ? styles.iconPending
-                          : styles.iconDisputed,
-                    ]}
-                  >
-                    <Text style={styles.iconText}>
-                      {tx.status === 'released' ? '+' : tx.status === 'pending' ? '...' : '!'}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.txDescription, isDark && styles.textDark]}>
-                      Job #{tx.jobId.slice(0, 8)}
-                    </Text>
-                    <Text style={[styles.txTime, isDark && styles.subtitleDark]}>
-                      {formatTimeAgo(tx.createdAt)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.transactionRight}>
-                  <Text
-                    style={[
-                      styles.txAmount,
-                      tx.status === 'released'
-                        ? styles.amountPositive
-                        : styles.amountPending,
-                    ]}
-                  >
-                    +{tx.amount} {tx.token}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.txStatus,
-                      tx.status === 'released'
-                        ? styles.statusCompleted
-                        : tx.status === 'pending'
-                          ? styles.statusPending
-                          : styles.statusDisputed,
-                    ]}
-                  >
-                    {tx.status}
-                  </Text>
-                </View>
+              <View key={tx.id} style={styles.txRow}>
+                <Text
+                  style={[
+                    styles.txPrefix,
+                    { color: getStatusColor(tx.status) },
+                  ]}
+                >
+                  {getStatusPrefix(tx.status)}
+                </Text>
+                <Text style={styles.txAmount}>
+                  {tx.amount} {tx.token}
+                </Text>
+                <Text style={styles.txJob}>
+                  job#{tx.jobId.slice(0, 4)}..
+                </Text>
+                <Text style={styles.txTime}>
+                  {formatTimeAgo(tx.createdAt)}
+                </Text>
+                <TerminalBadge variant={getStatusVariant(tx.status)}>
+                  {tx.status.toUpperCase()}
+                </TerminalBadge>
               </View>
             ))}
           </View>
         )}
 
         {connected && stats && stats.totalPending.sol + stats.totalPending.usdc > 0 && (
-          <View style={[styles.actionCard, isDark && styles.cardDark]}>
-            <Text style={[styles.actionTitle, isDark && styles.textDark]}>
-              Pending Earnings
-            </Text>
-            <Text style={[styles.actionDesc, isDark && styles.subtitleDark]}>
-              You have pending earnings that will be released after job completion approval.
+          <TerminalFrame
+            title="PENDING"
+            accent={colors.orange500}
+            style={styles.section}
+          >
+            <Text style={styles.pendingDesc}>
+              pending earnings will be released after job completion approval
             </Text>
             <View style={styles.pendingBreakdown}>
               {stats.totalPending.sol > 0 && (
-                <Text style={[styles.pendingItem, isDark && styles.subtitleDark]}>
+                <Text style={styles.pendingItem}>
                   {stats.totalPending.sol.toFixed(4)} SOL
                 </Text>
               )}
               {stats.totalPending.usdc > 0 && (
-                <Text style={[styles.pendingItem, isDark && styles.subtitleDark]}>
+                <Text style={styles.pendingItem}>
                   {stats.totalPending.usdc.toFixed(2)} USDC
                 </Text>
               )}
             </View>
-          </View>
+          </TerminalFrame>
         )}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>KAMIYO PROTOCOL</Text>
+          <Text style={styles.footerSubtext}>
+            ai agents with permanent careers on origintrail dkg
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -315,282 +293,128 @@ export default function EarningsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#000',
+    backgroundColor: colors.bg.primary,
   },
   scrollView: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: spacing.xl,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 16,
+  section: {
+    marginBottom: spacing.md,
   },
-  textDark: {
-    color: '#fff',
-  },
-  subtitleDark: {
-    color: '#9ca3af',
-  },
-  balanceCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  cardDark: {
-    backgroundColor: '#111',
-  },
-  balanceLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  balanceAmount: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#000',
+  balanceLarge: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize['4xl'],
+    color: colors.white,
+    letterSpacing: typography.letterSpacing.tight,
   },
   balanceSol: {
-    fontSize: 18,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  walletInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    fontFamily,
+    fontSize: typography.fontSize.lg,
+    color: colors.accent,
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
   },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: spacing.lg,
   },
-  connectedDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#22c55e',
+  addressDot: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.accent,
   },
   addressText: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontFamily: 'monospace',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray400,
   },
-  disconnectButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#fee2e2',
+  disconnectBtn: {
+    marginTop: spacing.sm,
   },
-  disconnectText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#dc2626',
+  connectBtn: {
+    marginTop: spacing.lg,
   },
-  walletMessage: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-    paddingHorizontal: 20,
+  dimText: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
   },
-  connectButton: {
-    backgroundColor: '#8b5cf6',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-    minWidth: 180,
+  dimSubtext: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    marginTop: spacing.xs,
+  },
+  dataSection: {
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  loadingContainer: {
+    padding: spacing['3xl'],
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  connectButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  statsRow: {
+  txRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
     alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#000',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  summaryCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 16,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  pendingValue: {
-    color: '#f59e0b',
-  },
-  emptyState: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  transactionList: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  transactionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: colors.border,
   },
-  transactionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconEarning: {
-    backgroundColor: '#dcfce7',
-  },
-  iconPending: {
-    backgroundColor: '#fef3c7',
-  },
-  iconDisputed: {
-    backgroundColor: '#fee2e2',
-  },
-  iconText: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  txDescription: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#000',
-  },
-  txTime: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 2,
-  },
-  transactionRight: {
-    alignItems: 'flex-end',
+  txPrefix: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    width: 14,
   },
   txAmount: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    minWidth: 80,
   },
-  amountPositive: {
-    color: '#16a34a',
+  txJob: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    flex: 1,
   },
-  amountPending: {
-    color: '#f59e0b',
+  txTime: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    marginRight: spacing.sm,
   },
-  txStatus: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  statusCompleted: {
-    color: '#16a34a',
-  },
-  statusPending: {
-    color: '#f59e0b',
-  },
-  statusDisputed: {
-    color: '#dc2626',
-  },
-  actionCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
-  },
-  actionDesc: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
+  pendingDesc: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.bodyText,
+    marginBottom: spacing.md,
   },
   pendingBreakdown: {
     flexDirection: 'row',
-    gap: 16,
+    gap: spacing.lg,
   },
   pendingItem: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#f59e0b',
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.base,
+    color: colors.orange500,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: spacing['3xl'],
+  },
+  footerText: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
+  },
+  footerSubtext: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray600,
+    marginTop: spacing.xs,
   },
 });

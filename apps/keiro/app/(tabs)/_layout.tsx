@@ -1,44 +1,60 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme, View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, Platform } from 'react-native';
+import { colors, typography } from '../../src/theme';
 
-function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    home: '🏠',
-    jobs: '💼',
-    earnings: '💰',
-    reputation: '⭐',
-    settings: '⚙️',
-  };
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
+
+const TAB_CONFIG: Record<string, { key: string; label: string }> = {
+  index: { key: 'H', label: 'OME' },
+  jobs: { key: 'J', label: 'OBS' },
+  earnings: { key: 'E', label: 'ARN' },
+  reputation: { key: 'R', label: 'EP' },
+  settings: { key: 'S', label: 'ET' },
+};
+
+function HotkeyLabel({ name, focused }: { name: string; focused: boolean }) {
+  const config = TAB_CONFIG[name];
+  if (!config) return null;
 
   return (
-    <View style={styles.iconContainer}>
-      <Text style={[styles.icon, focused && styles.iconFocused]}>
-        {icons[name] || '•'}
-      </Text>
-    </View>
+    <Text style={styles.tabLabel}>
+      <Text style={focused ? styles.bracketActive : styles.bracketDim}>[</Text>
+      <Text style={focused ? styles.keyActive : styles.keyDim}>{config.key}</Text>
+      <Text style={focused ? styles.bracketActive : styles.bracketDim}>]</Text>
+      <Text style={focused ? styles.labelActive : styles.labelDim}>{config.label}</Text>
+    </Text>
   );
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#8b5cf6',
-        tabBarInactiveTintColor: isDark ? '#6b7280' : '#9ca3af',
+        tabBarActiveTintColor: colors.violet,
+        tabBarInactiveTintColor: colors.gray500,
         tabBarStyle: {
-          backgroundColor: isDark ? '#000' : '#fff',
-          borderTopColor: isDark ? '#1f2937' : '#e5e7eb',
-          height: 84,
-          paddingTop: 8,
-          paddingBottom: 24,
+          backgroundColor: '#000000',
+          borderTopColor: '#1F2937',
+          borderTopWidth: 1,
+          height: 70,
+          paddingTop: 12,
+          paddingBottom: 16,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontFamily,
+          fontSize: typography.fontSize.xs,
+        },
+        tabBarIconStyle: {
+          display: 'none',
         },
       }}
     >
@@ -46,25 +62,29 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
+          tabBarIcon: () => null,
+          tabBarLabel: ({ focused }) => (
+            <HotkeyLabel name="index" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="jobs"
         options={{
           title: 'Jobs',
-          tabBarLabel: 'Jobs',
-          tabBarIcon: ({ focused }) => <TabIcon name="jobs" focused={focused} />,
+          tabBarIcon: () => null,
+          tabBarLabel: ({ focused }) => (
+            <HotkeyLabel name="jobs" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="earnings"
         options={{
           title: 'Earnings',
-          tabBarLabel: 'Earnings',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="earnings" focused={focused} />
+          tabBarIcon: () => null,
+          tabBarLabel: ({ focused }) => (
+            <HotkeyLabel name="earnings" focused={focused} />
           ),
         }}
       />
@@ -72,9 +92,9 @@ export default function TabLayout() {
         name="reputation"
         options={{
           title: 'Reputation',
-          tabBarLabel: 'Reputation',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="reputation" focused={focused} />
+          tabBarIcon: () => null,
+          tabBarLabel: ({ focused }) => (
+            <HotkeyLabel name="reputation" focused={focused} />
           ),
         }}
       />
@@ -82,9 +102,9 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          tabBarLabel: 'Settings',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="settings" focused={focused} />
+          tabBarIcon: () => null,
+          tabBarLabel: ({ focused }) => (
+            <HotkeyLabel name="settings" focused={focused} />
           ),
         }}
       />
@@ -93,15 +113,33 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  tabLabel: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    letterSpacing: typography.letterSpacing.wide,
   },
-  icon: {
-    fontSize: 22,
-    opacity: 0.6,
+  bracketActive: {
+    fontFamily,
+    color: colors.gray400,
   },
-  iconFocused: {
-    opacity: 1,
+  bracketDim: {
+    fontFamily,
+    color: colors.gray500,
+  },
+  keyActive: {
+    fontFamily: fontFamilyBold,
+    color: colors.violet,
+  },
+  keyDim: {
+    fontFamily,
+    color: colors.gray500,
+  },
+  labelActive: {
+    fontFamily,
+    color: colors.white,
+  },
+  labelDim: {
+    fontFamily,
+    color: colors.gray500,
   },
 });

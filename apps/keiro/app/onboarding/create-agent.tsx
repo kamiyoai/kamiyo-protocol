@@ -5,7 +5,6 @@ import {
   View,
   TextInput,
   Pressable,
-  useColorScheme,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -13,22 +12,30 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore, AgentPersonality } from '../../src/stores/agent';
 import { AGENT_PERSONALITIES } from '../../src/lib/constants';
+import { colors, typography, spacing } from '../../src/theme';
+import { TerminalHeader, TerminalDivider, Button, ScanlineOverlay } from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function CreateAgentScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState('KEIRO-7');
   const [personality, setPersonality] = useState<AgentPersonality | null>(null);
-  const { createAgent } = useAgentStore();
 
   const canContinue = name.trim().length >= 2 && personality !== null;
 
   const handleContinue = () => {
     if (!canContinue || !personality) return;
 
-    // Store partial agent data in temp state, will finalize after skills selection
     useAgentStore.setState({
       agent: {
         id: `agent_${Date.now()}`,
@@ -50,217 +57,214 @@ export default function CreateAgentScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={[styles.backButton, isDark && styles.textDark]}>
-              ← Back
-            </Text>
-          </Pressable>
-          <Text style={[styles.step, isDark && styles.stepDark]}>1 of 4</Text>
-        </View>
-
-        <View style={styles.content}>
-          <Text style={[styles.title, isDark && styles.textDark]}>
-            Name your agent
-          </Text>
-          <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-            Give your AI agent an identity. This will be visible to others.
-          </Text>
-
-          <TextInput
-            style={[
-              styles.input,
-              isDark && styles.inputDark,
-              isDark && styles.textDark,
-            ]}
-            placeholder="Enter agent name"
-            placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
-            value={name}
-            onChangeText={setName}
-            maxLength={24}
-            autoFocus
-          />
-
-          <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-            Choose personality
-          </Text>
-          <Text style={[styles.sectionSubtitle, isDark && styles.subtitleDark]}>
-            This affects how your agent communicates and approaches tasks.
-          </Text>
-
-          <View style={styles.personalityGrid}>
-            {(Object.keys(AGENT_PERSONALITIES) as AgentPersonality[]).map(key => {
-              const { label, description } = AGENT_PERSONALITIES[key];
-              const isSelected = personality === key;
-
-              return (
-                <Pressable
-                  key={key}
-                  style={[
-                    styles.personalityCard,
-                    isDark && styles.personalityCardDark,
-                    isSelected && styles.personalityCardSelected,
-                  ]}
-                  onPress={() => setPersonality(key)}
-                >
-                  <Text
-                    style={[
-                      styles.personalityLabel,
-                      isDark && styles.textDark,
-                      isSelected && styles.personalityLabelSelected,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.personalityDesc,
-                      isDark && styles.subtitleDark,
-                    ]}
-                  >
-                    {description}
-                  </Text>
-                </Pressable>
-              );
-            })}
+    <View style={styles.root}>
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <View style={styles.header}>
+            <TerminalHeader command="create-agent" />
+            <Text style={styles.step}>[1/4]</Text>
           </View>
-        </View>
 
-        <View style={styles.footer}>
-          <Pressable
-            style={[styles.button, !canContinue && styles.buttonDisabled]}
-            onPress={handleContinue}
-            disabled={!canContinue}
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          <View style={styles.content}>
+            <Text style={styles.title}>name your agent</Text>
+            <Text style={styles.subtitle}>
+              give your AI agent an identity. this will be visible to others.
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="enter agent name"
+              placeholderTextColor={colors.gray500}
+              value={name}
+              onChangeText={setName}
+              maxLength={24}
+              autoFocus
+            />
+
+            <TerminalDivider label="PERSONALITY" marginVertical={spacing.lg} />
+            <Text style={styles.sectionSubtitle}>
+              this affects how your agent communicates and approaches tasks.
+            </Text>
+
+            <View style={styles.personalityList}>
+              {(Object.keys(AGENT_PERSONALITIES) as AgentPersonality[]).map((key) => {
+                const { label, description } = AGENT_PERSONALITIES[key];
+                const isSelected = personality === key;
+
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setPersonality(key)}
+                    style={styles.personalityRow}
+                  >
+                    <View style={styles.personalityPrefix}>
+                      <Text style={[
+                        styles.personalityArrow,
+                        isSelected && styles.personalityArrowSelected,
+                      ]}>
+                        {isSelected ? '>' : ' '}
+                      </Text>
+                    </View>
+                    <View style={styles.personalityContent}>
+                      <View style={styles.personalityRadioRow}>
+                        <Text style={[
+                          styles.personalityCheckbox,
+                          isSelected && styles.personalityCheckboxSelected,
+                        ]}>
+                          {isSelected ? '[x]' : '[ ]'}
+                        </Text>
+                        <Text style={[
+                          styles.personalityLabel,
+                          isSelected && styles.personalityLabelSelected,
+                        ]}>
+                          {label.toLowerCase()}
+                        </Text>
+                      </View>
+                      <Text style={styles.personalityDesc}>
+                        {'      '}{description.toLowerCase()}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.footer}>
+            <Button
+              onPress={handleContinue}
+              disabled={!canContinue}
+              style={{ width: '100%' }}
+            >
+              Continue
+            </Button>
+
+            <Button variant="ghost" onPress={() => router.back()}>
+              back
+            </Button>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+      <ScanlineOverlay />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#000',
   },
   keyboardView: {
     flex: 1,
-    padding: 24,
+    padding: spacing['2xl'],
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 32,
-  },
-  backButton: {
-    fontSize: 16,
-    color: '#000',
+    marginBottom: spacing.lg,
   },
   step: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
-  stepDark: {
-    color: '#6b7280',
-  },
-  textDark: {
-    color: '#fff',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
   },
   content: {
     flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize['2xl'],
     fontWeight: '700',
-    color: '#000',
-    marginBottom: 8,
+    color: colors.white,
+    letterSpacing: typography.letterSpacing.wide,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
-  },
-  subtitleDark: {
-    color: '#9ca3af',
+    fontFamily,
+    fontSize: typography.fontSize.base,
+    color: colors.bodyText,
+    marginBottom: spacing.xl,
   },
   input: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 18,
-    color: '#000',
-    marginBottom: 32,
-  },
-  inputDark: {
-    backgroundColor: '#111',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
+    fontFamily,
+    backgroundColor: colors.bg.primary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 0,
+    padding: spacing.lg,
+    fontSize: typography.fontSize.lg,
+    color: colors.white,
+    marginBottom: spacing.md,
   },
   sectionSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 16,
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.bodyText,
+    marginBottom: spacing.lg,
   },
-  personalityGrid: {
-    gap: 12,
+  personalityList: {
+    gap: spacing.md,
   },
-  personalityCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+  personalityRow: {
+    flexDirection: 'row',
+    paddingVertical: spacing.sm,
   },
-  personalityCardDark: {
-    backgroundColor: '#111',
-  },
-  personalityCardSelected: {
-    borderColor: '#8b5cf6',
-    backgroundColor: '#f5f3ff',
-  },
-  personalityLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  personalityLabelSelected: {
-    color: '#8b5cf6',
-  },
-  personalityDesc: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  footer: {
-    paddingTop: 16,
-  },
-  button: {
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 16,
-    borderRadius: 12,
+  personalityPrefix: {
+    width: 20,
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  personalityArrow: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.base,
+    fontWeight: '700',
+    color: colors.gray500,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+  personalityArrowSelected: {
+    color: colors.violet,
+  },
+  personalityContent: {
+    flex: 1,
+  },
+  personalityRadioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  personalityCheckbox: {
+    fontFamily,
+    fontSize: typography.fontSize.base,
+    color: colors.gray500,
+  },
+  personalityCheckboxSelected: {
+    color: colors.violet,
+  },
+  personalityLabel: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.base,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  personalityLabelSelected: {
+    color: colors.violet,
+  },
+  personalityDesc: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    marginTop: 2,
+  },
+  footer: {
+    paddingTop: spacing.lg,
+    gap: spacing.md,
+    alignItems: 'center',
   },
 });

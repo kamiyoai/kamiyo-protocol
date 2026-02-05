@@ -3,22 +3,38 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
   ScrollView,
-  Pressable,
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore } from '../../src/stores/wallet';
-import { AGENT_SKILLS, TIER_THRESHOLDS } from '../../src/lib/constants';
+import { AGENT_SKILLS } from '../../src/lib/constants';
 import { api, ApiJob } from '../../src/lib/api';
+import { colors, typography, spacing, tierColors } from '../../src/theme';
+import {
+  TerminalFrame,
+  TerminalButton,
+  TerminalBadge,
+  TerminalHeader,
+  TerminalDivider,
+  DotLeaderRow,
+} from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function JobsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<ApiJob[]>([]);
@@ -104,176 +120,144 @@ export default function JobsScreen() {
 
     if (diffDays > 0) return `${diffDays}d ago`;
     if (diffHours > 0) return `${diffHours}h ago`;
-    return 'Just now';
+    return 'just now';
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, isDark && styles.containerDark]}
-      edges={['top']}
-    >
-      <View style={styles.header}>
-        <Text style={[styles.title, isDark && styles.textDark]}>Jobs</Text>
-        <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.headerArea}>
+        <TerminalHeader command="jobs --list" />
+
+        <Text style={styles.countText}>
           {jobs.length} available job{jobs.length !== 1 ? 's' : ''}
         </Text>
-      </View>
 
-      <View style={styles.filterRow}>
-        <Pressable
-          style={[styles.filterButton, filter === 'all' && styles.filterActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === 'all' && styles.filterTextActive,
-            ]}
+        <View style={styles.filterRow}>
+          <TerminalButton
+            variant={filter === 'all' ? 'primary' : 'secondary'}
+            onPress={() => setFilter('all')}
+            style={styles.filterButton}
           >
-            All Jobs
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.filterButton,
-            filter === 'matching' && styles.filterActive,
-          ]}
-          onPress={() => setFilter('matching')}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === 'matching' && styles.filterTextActive,
-            ]}
+            ALL JOBS
+          </TerminalButton>
+          <TerminalButton
+            variant={filter === 'matching' ? 'primary' : 'secondary'}
+            onPress={() => setFilter('matching')}
+            style={styles.filterButton}
           >
-            Matching Skills
-          </Text>
-        </Pressable>
+            MATCHING
+          </TerminalButton>
+        </View>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8b5cf6" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : (
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.accent}
+            />
           }
         >
           {jobs.length === 0 ? (
-            <View style={[styles.emptyState, isDark && styles.cardDark]}>
-              <Text style={[styles.emptyText, isDark && styles.subtitleDark]}>
-                {filter === 'matching' ? 'No jobs match your skills' : 'No jobs available'}
-              </Text>
-              <Text style={[styles.emptySubtext, isDark && styles.subtitleDark]}>
+            <TerminalFrame style={styles.emptyState}>
+              <Text style={styles.emptyText}>
                 {filter === 'matching'
-                  ? 'Add more skills to see more opportunities'
-                  : 'Check back later for new opportunities'}
+                  ? 'no jobs match your skills'
+                  : 'no jobs available'}
               </Text>
-            </View>
+              <Text style={styles.emptySubtext}>
+                {filter === 'matching'
+                  ? 'add more skills to see more opportunities'
+                  : 'check back later for new opportunities'}
+              </Text>
+            </TerminalFrame>
           ) : (
             jobs.map((job) => {
               const { allowed, reason } = canAcceptJob(job);
               const isAccepting = acceptingJobId === job.id;
-              return (
-                <View
-                  key={job.id}
-                  style={[styles.jobCard, isDark && styles.cardDark]}
-                >
-                  <View style={styles.jobHeader}>
-                    <Text style={[styles.jobTitle, isDark && styles.textDark]}>
-                      {job.title}
-                    </Text>
-                    <View style={styles.paymentBadge}>
-                      <Text style={styles.paymentText}>
-                        {job.payment} {job.paymentToken}
-                      </Text>
-                    </View>
-                  </View>
+              const tierColor =
+                tierColors[job.requiredTier as keyof typeof tierColors] ||
+                colors.gray500;
 
-                  <Text style={[styles.jobDesc, isDark && styles.subtitleDark]}>
-                    {job.description}
-                  </Text>
+              return (
+                <TerminalFrame
+                  key={job.id}
+                  title={job.title}
+                  style={styles.jobCard}
+                >
+                  <Text style={styles.jobDesc}>{job.description}</Text>
 
                   <View style={styles.skillsRow}>
                     {job.requiredSkills.map((skill) => {
                       const hasSkill = agent?.skills?.includes(skill);
                       return (
-                        <View
+                        <TerminalBadge
                           key={skill}
-                          style={[
-                            styles.skillTag,
-                            hasSkill ? styles.skillMatch : styles.skillNoMatch,
-                          ]}
+                          variant={hasSkill ? 'cyan' : 'dim'}
                         >
-                          <Text
-                            style={[
-                              styles.skillTagText,
-                              hasSkill
-                                ? styles.skillMatchText
-                                : styles.skillNoMatchText,
-                            ]}
-                          >
-                            {AGENT_SKILLS[skill]?.label || skill}
-                          </Text>
-                        </View>
+                          {AGENT_SKILLS[skill]?.label || skill}
+                        </TerminalBadge>
                       );
                     })}
                   </View>
 
-                  <View style={styles.jobMeta}>
-                    <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
-                      {job.estimatedTime}
-                    </Text>
-                    <Text style={[styles.metaDot, isDark && styles.subtitleDark]}>
-                      •
-                    </Text>
-                    <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
+                  <Text style={styles.metaText}>
+                    {job.estimatedTime} / {' '}
+                    <Text style={{ color: tierColor }}>
                       {job.requiredTier !== 'unverified'
-                        ? `${job.requiredTier.charAt(0).toUpperCase()}${job.requiredTier.slice(1)}+ required`
-                        : 'Any tier'}
+                        ? `${job.requiredTier.charAt(0).toUpperCase()}${job.requiredTier.slice(1)}+`
+                        : 'any tier'}
                     </Text>
-                    <Text style={[styles.metaDot, isDark && styles.subtitleDark]}>
-                      •
-                    </Text>
-                    <Text style={[styles.metaText, isDark && styles.subtitleDark]}>
-                      {formatTimeAgo(job.createdAt)}
-                    </Text>
-                  </View>
+                    {' '} / {formatTimeAgo(job.createdAt)}
+                  </Text>
+
+                  <TerminalDivider marginVertical={spacing.md} />
+
+                  <DotLeaderRow
+                    label="reward"
+                    value={`${job.payment} ${job.paymentToken}`}
+                    valueColor={colors.accent}
+                  />
 
                   <View style={styles.jobFooter}>
-                    <Text style={[styles.posterText, isDark && styles.subtitleDark]}>
-                      Posted by {job.poster}
+                    <Text style={styles.posterText}>
+                      posted by {job.poster.toLowerCase()}
                     </Text>
-                    <Pressable
-                      style={[
-                        styles.acceptButton,
-                        !allowed && styles.acceptButtonDisabled,
-                      ]}
-                      disabled={!allowed || isAccepting}
-                      onPress={() => handleAcceptJob(job)}
-                    >
-                      {isAccepting ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text
-                          style={[
-                            styles.acceptButtonText,
-                            !allowed && styles.acceptButtonTextDisabled,
-                          ]}
-                        >
-                          {allowed ? 'Accept Job' : reason}
-                        </Text>
-                      )}
-                    </Pressable>
+                    {allowed ? (
+                      <TerminalButton
+                        variant="primary"
+                        disabled={isAccepting}
+                        loading={isAccepting}
+                        onPress={() => handleAcceptJob(job)}
+                        style={styles.acceptButton}
+                      >
+                        ACCEPT
+                      </TerminalButton>
+                    ) : (
+                      <TerminalBadge variant="dim">
+                        {reason || ''}
+                      </TerminalBadge>
+                    )}
                   </View>
-                </View>
+                </TerminalFrame>
               );
             })
           )}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>KAMIYO PROTOCOL</Text>
+            <Text style={styles.footerSubtext}>
+              ai agents with permanent careers on origintrail dkg
+            </Text>
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -283,53 +267,27 @@ export default function JobsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.bg.primary,
   },
-  containerDark: {
-    backgroundColor: '#000',
-  },
-  header: {
-    padding: 20,
+  headerArea: {
+    padding: spacing.xl,
     paddingBottom: 0,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  subtitleDark: {
-    color: '#9ca3af',
-  },
-  textDark: {
-    color: '#fff',
+  countText: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray400,
+    marginBottom: spacing.lg,
   },
   filterRow: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   filterButton: {
-    paddingHorizontal: 16,
+    minHeight: 36,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-  },
-  filterActive: {
-    backgroundColor: '#8b5cf6',
-  },
-  filterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  filterTextActive: {
-    color: '#fff',
+    paddingHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -338,133 +296,74 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   emptyState: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-  },
-  cardDark: {
-    backgroundColor: '#111',
+    marginBottom: spacing.xl,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.base,
+    color: colors.white,
+    marginBottom: spacing.sm,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray400,
   },
   jobCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  jobHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  jobTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    flex: 1,
-    marginRight: 12,
-  },
-  paymentBadge: {
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  paymentText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#15803d',
+    marginBottom: spacing.lg,
   },
   jobDesc: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.bodyText,
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   skillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  skillTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  skillMatch: {
-    backgroundColor: '#ddd6fe',
-  },
-  skillNoMatch: {
-    backgroundColor: '#e5e7eb',
-  },
-  skillTagText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  skillMatchText: {
-    color: '#7c3aed',
-  },
-  skillNoMatchText: {
-    color: '#6b7280',
-  },
-  jobMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   metaText: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  metaDot: {
-    marginHorizontal: 6,
-    color: '#9ca3af',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
   },
   jobFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    paddingTop: 12,
+    marginTop: spacing.md,
   },
   posterText: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
   },
   acceptButton: {
-    backgroundColor: '#8b5cf6',
+    minHeight: 36,
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    minWidth: 100,
+  },
+  footer: {
     alignItems: 'center',
+    paddingVertical: spacing['3xl'],
   },
-  acceptButtonDisabled: {
-    backgroundColor: '#e5e7eb',
+  footerText: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
   },
-  acceptButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  acceptButtonTextDisabled: {
-    color: '#9ca3af',
+  footerSubtext: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray600,
+    marginTop: spacing.xs,
   },
 });

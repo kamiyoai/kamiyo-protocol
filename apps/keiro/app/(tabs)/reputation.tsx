@@ -3,20 +3,37 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
   ScrollView,
-  Pressable,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore } from '../../src/stores/agent';
-import { TIER_COLORS, AGENT_SKILLS, AGENT_PERSONALITIES } from '../../src/lib/constants';
+import { AGENT_SKILLS, AGENT_PERSONALITIES } from '../../src/lib/constants';
 import { api, ReputationData } from '../../src/lib/api';
+import { colors, typography, spacing, tierColors } from '../../src/theme';
+import {
+  TerminalFrame,
+  TerminalBadge,
+  TerminalButton,
+  TerminalHeader,
+  TerminalDivider,
+  DotLeaderRow,
+  AsciiProgress,
+} from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function ReputationScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [reputation, setReputation] = useState<ReputationData | null>(null);
@@ -47,78 +64,72 @@ export default function ReputationScreen() {
     setRefreshing(false);
   }, [fetchReputation, syncFromServer]);
 
-  const tierColor = agent?.tier ? TIER_COLORS[agent.tier] : TIER_COLORS.unverified;
+  const tierColor = agent?.tier
+    ? tierColors[agent.tier as keyof typeof tierColors]
+    : tierColors.unverified;
+
+  const creditScore = reputation?.creditScore ?? agent?.creditScore ?? 0;
 
   return (
-    <SafeAreaView
-      style={[styles.container, isDark && styles.containerDark]}
-      edges={['top']}
-    >
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+          />
         }
       >
-        <Text style={[styles.title, isDark && styles.textDark]}>Reputation</Text>
-        <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-          Your agent's permanent career on the DKG
-        </Text>
+        <TerminalHeader command="reputation" />
 
-        <View style={[styles.profileCard, isDark && styles.cardDark]}>
-          <View style={[styles.avatar, { borderColor: tierColor }]}>
-            <Text style={styles.avatarText}>
-              {agent?.name?.charAt(0).toUpperCase() || '?'}
+        <TerminalFrame title="AGENT" style={styles.section}>
+          <View style={styles.profileCenter}>
+            <View style={[styles.avatar, { borderColor: tierColor }]}>
+              <Text style={styles.avatarText}>
+                {agent?.name?.charAt(0).toUpperCase() || '?'}
+              </Text>
+            </View>
+            <Text style={styles.agentName}>
+              {agent?.name || 'your agent'}
             </Text>
-          </View>
-          <Text style={[styles.agentName, isDark && styles.textDark]}>
-            {agent?.name || 'Your Agent'}
-          </Text>
-          <Text style={[styles.personalityText, isDark && styles.subtitleDark]}>
-            {agent?.personality
-              ? AGENT_PERSONALITIES[agent.personality]?.label
-              : 'No personality set'}
-          </Text>
-          <View style={[styles.tierBadge, { backgroundColor: tierColor }]}>
-            <Text style={styles.tierText}>
+            <Text style={styles.personalityText}>
+              {agent?.personality
+                ? AGENT_PERSONALITIES[agent.personality]?.label?.toLowerCase()
+                : 'no personality set'}
+            </Text>
+            <TerminalBadge variant="cyan">
               {agent?.tier
                 ? agent.tier.charAt(0).toUpperCase() + agent.tier.slice(1)
                 : 'Unverified'}
-            </Text>
+            </TerminalBadge>
+            {agent?.globalId && (
+              <Text style={styles.globalIdText}>
+                DKG: {agent.globalId.slice(0, 16)}...
+              </Text>
+            )}
           </View>
-          {agent?.globalId && (
-            <Text style={[styles.globalIdText, isDark && styles.subtitleDark]}>
-              DKG: {agent.globalId.slice(0, 16)}...
-            </Text>
-          )}
-        </View>
+        </TerminalFrame>
 
-        <View style={[styles.scoreCard, isDark && styles.cardDark]}>
+        <TerminalFrame title="CREDIT SCORE" style={styles.section}>
           {loading ? (
-            <ActivityIndicator size="large" color="#8b5cf6" />
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
           ) : (
             <>
-              <Text style={[styles.scoreLabel, isDark && styles.subtitleDark]}>
-                Credit Score
-              </Text>
               <Text style={[styles.scoreValue, { color: tierColor }]}>
-                {reputation?.creditScore ?? agent?.creditScore ?? 0}
+                {creditScore}
               </Text>
               {reputation?.tierProgress && reputation.tierProgress.nextTier && (
                 <View style={styles.progressSection}>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${reputation.tierProgress.progress}%`,
-                          backgroundColor: tierColor,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.progressText, isDark && styles.subtitleDark]}>
+                  <AsciiProgress
+                    value={reputation.tierProgress.progress}
+                    color={tierColor}
+                  />
+                  <Text style={styles.progressText}>
                     {reputation.tierProgress.pointsToNext} points to{' '}
                     {reputation.tierProgress.nextTier.charAt(0).toUpperCase() +
                       reputation.tierProgress.nextTier.slice(1)}
@@ -127,120 +138,86 @@ export default function ReputationScreen() {
               )}
             </>
           )}
-        </View>
+        </TerminalFrame>
 
-        <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-          Score Components
-        </Text>
-        <View style={[styles.breakdownCard, isDark && styles.cardDark]}>
+        <TerminalDivider label="COMPONENTS" />
+
+        <View style={styles.dataSection}>
           {reputation?.components ? (
             Object.entries(reputation.components).map(([key, component]) => (
-              <View key={key} style={styles.breakdownRow}>
-                <View style={styles.breakdownLeft}>
-                  <Text style={[styles.breakdownLabel, isDark && styles.textDark]}>
-                    {formatComponentName(key)}
-                  </Text>
-                  <Text style={[styles.breakdownDesc, isDark && styles.subtitleDark]}>
-                    {component.description}
-                  </Text>
-                </View>
-                <View style={styles.breakdownRight}>
-                  <Text style={[styles.breakdownValue, isDark && styles.textDark]}>
-                    {component.score}
-                  </Text>
-                  <Text style={[styles.breakdownWeight, isDark && styles.subtitleDark]}>
-                    /{component.weight}
-                  </Text>
-                </View>
-              </View>
+              <DotLeaderRow
+                key={key}
+                label={formatComponentName(key).toLowerCase()}
+                value={`${component.score}/${component.weight}`}
+                valueColor={colors.accent}
+              />
             ))
           ) : (
-            <View style={styles.loadingPlaceholder}>
-              <Text style={[styles.placeholderText, isDark && styles.subtitleDark]}>
-                {loading ? 'Loading...' : 'No reputation data'}
-              </Text>
-            </View>
+            <Text style={styles.dimText}>
+              {loading ? 'loading...' : 'no reputation data'}
+            </Text>
           )}
         </View>
 
-        <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-          Career Statistics
-        </Text>
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {reputation?.stats?.tasksCompleted ?? agent?.tasksCompleted ?? 0}
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              Tasks Completed
-            </Text>
-          </View>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {reputation?.stats?.disputeCount ?? agent?.disputeCount ?? 0}
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              Disputes
-            </Text>
-          </View>
-        </View>
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {reputation?.stats?.tenureDays ?? agent?.tenureDays ?? 0}d
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              Tenure
-            </Text>
-          </View>
-          <View style={[styles.statCard, isDark && styles.cardDark]}>
-            <Text style={[styles.statValue, isDark && styles.textDark]}>
-              {reputation?.stats?.avgQuality ?? agent?.avgQuality
+        <TerminalDivider label="STATS" />
+
+        <View style={styles.dataSection}>
+          <DotLeaderRow
+            label="tasks completed"
+            value={reputation?.stats?.tasksCompleted ?? agent?.tasksCompleted ?? 0}
+          />
+          <DotLeaderRow
+            label="disputes"
+            value={reputation?.stats?.disputeCount ?? agent?.disputeCount ?? 0}
+          />
+          <DotLeaderRow
+            label="tenure"
+            value={`${reputation?.stats?.tenureDays ?? agent?.tenureDays ?? 0}d`}
+          />
+          <DotLeaderRow
+            label="avg quality"
+            value={
+              reputation?.stats?.avgQuality ?? agent?.avgQuality
                 ? `${(reputation?.stats?.avgQuality ?? agent?.avgQuality ?? 0).toFixed(0)}%`
-                : '--'}
-            </Text>
-            <Text style={[styles.statLabel, isDark && styles.subtitleDark]}>
-              Avg Quality
-            </Text>
-          </View>
+                : '--'
+            }
+          />
         </View>
 
-        <Text style={[styles.sectionTitle, isDark && styles.textDark]}>
-          Skills
-        </Text>
-        <View style={[styles.skillsCard, isDark && styles.cardDark]}>
+        <TerminalDivider label="SKILLS" />
+
+        <View style={styles.dataSection}>
           {agent?.skills?.length ? (
             agent.skills.map((skill) => (
               <View key={skill} style={styles.skillRow}>
-                <View style={styles.skillBadge}>
-                  <Text style={styles.skillText}>
-                    {AGENT_SKILLS[skill]?.label || skill}
-                  </Text>
-                </View>
-                <Text style={[styles.skillDesc, isDark && styles.subtitleDark]}>
+                <TerminalBadge variant="cyan">
+                  {AGENT_SKILLS[skill]?.label || skill}
+                </TerminalBadge>
+                <Text style={styles.skillDesc}>
                   {AGENT_SKILLS[skill]?.description || ''}
                 </Text>
               </View>
             ))
           ) : (
-            <Text style={[styles.noSkills, isDark && styles.subtitleDark]}>
-              No skills configured
-            </Text>
+            <Text style={styles.dimText}>no skills configured</Text>
           )}
         </View>
 
-        <View style={[styles.dkgCard, isDark && styles.cardDarkPurple]}>
-          <Text style={[styles.dkgTitle, isDark && styles.textDark]}>
-            Stored on OriginTrail DKG
+        <TerminalFrame title="DKG" accent={colors.accent} style={styles.section}>
+          <Text style={styles.dkgDesc}>
+            your reputation is permanently stored on the decentralized knowledge
+            graph. this creates an immutable record of your agent's career.
           </Text>
-          <Text style={[styles.dkgDesc, isDark && styles.subtitleDark]}>
-            Your reputation is permanently stored on the Decentralized Knowledge
-            Graph. This creates an immutable record of your agent's career that
-            follows them forever.
+          <TerminalButton variant="primary" onPress={() => {}}>
+            VIEW ON DKG EXPLORER
+          </TerminalButton>
+        </TerminalFrame>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>KAMIYO PROTOCOL</Text>
+          <Text style={styles.footerSubtext}>
+            ai agents with permanent careers on origintrail dkg
           </Text>
-          <Pressable style={styles.dkgButton}>
-            <Text style={styles.dkgButtonText}>View on DKG Explorer</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -261,263 +238,112 @@ function formatComponentName(key: string): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#000',
+    backgroundColor: colors.bg.primary,
   },
   scrollView: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: spacing.xl,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 4,
+  section: {
+    marginBottom: spacing.md,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 20,
-  },
-  subtitleDark: {
-    color: '#9ca3af',
-  },
-  textDark: {
-    color: '#fff',
-  },
-  profileCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 24,
+  profileCenter: {
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  cardDark: {
-    backgroundColor: '#111',
-  },
-  cardDarkPurple: {
-    backgroundColor: '#1a1625',
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#e5e7eb',
+    width: 64,
+    height: 64,
+    backgroundColor: colors.bg.secondary,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    marginBottom: 12,
+    borderWidth: 2,
+    marginBottom: spacing.md,
   },
   avatarText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#374151',
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize['2xl'],
+    color: colors.white,
   },
   agentName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 4,
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.xl,
+    color: colors.white,
+    letterSpacing: typography.letterSpacing.tight,
+    marginBottom: spacing.xs,
   },
   personalityText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 12,
-  },
-  tierBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  tierText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray400,
+    marginBottom: spacing.md,
   },
   globalIdText: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 12,
-    fontFamily: 'monospace',
-  },
-  scoreCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    minHeight: 150,
-    justifyContent: 'center',
-  },
-  scoreLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    marginTop: spacing.md,
   },
   scoreValue: {
-    fontSize: 64,
-    fontWeight: '700',
+    fontFamily: fontFamilyBold,
+    fontSize: 56,
+    letterSpacing: typography.letterSpacing.tight,
+    textAlign: 'center',
   },
   progressSection: {
-    width: '100%',
-    marginTop: 16,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
+    marginTop: spacing.lg,
+    alignItems: 'center',
   },
   progressText: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    marginTop: spacing.sm,
     textAlign: 'center',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 12,
-  },
-  breakdownCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  breakdownLeft: {
-    flex: 1,
-    marginRight: 16,
-  },
-  breakdownLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 2,
-  },
-  breakdownDesc: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  breakdownRight: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  breakdownValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  breakdownWeight: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginLeft: 2,
-  },
-  loadingPlaceholder: {
-    padding: 24,
+  loadingContainer: {
+    padding: spacing.xl,
     alignItems: 'center',
   },
-  placeholderText: {
-    fontSize: 14,
-    color: '#6b7280',
+  dataSection: {
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  skillsCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
+  dimText: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
   },
   skillRow: {
-    marginBottom: 12,
-  },
-  skillBadge: {
-    backgroundColor: '#8b5cf6',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 4,
-  },
-  skillText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#fff',
+    paddingVertical: spacing.sm,
   },
   skillDesc: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  noSkills: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    padding: 16,
-  },
-  dkgCard: {
-    backgroundColor: '#f5f3ff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 32,
-  },
-  dkgTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#5b21b6',
-    marginBottom: 8,
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    marginTop: spacing.xs,
+    paddingLeft: spacing.sm,
   },
   dkgDesc: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.bodyText,
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
-  dkgButton: {
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 12,
-    borderRadius: 8,
+  footer: {
     alignItems: 'center',
+    paddingVertical: spacing['3xl'],
   },
-  dkgButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
+  footerText: {
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
+  },
+  footerSubtext: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray600,
+    marginTop: spacing.xs,
   },
 });

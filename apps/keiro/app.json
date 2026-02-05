@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "KEIRO",
-    "slug": "keiro",
+    "name": "KAMIYO",
+    "slug": "kamiyo",
     "version": "0.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "keiro",
+    "scheme": "kamiyo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -28,8 +28,9 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/favicon.png"
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "unstable_transformProfile": "default"
     },
     "plugins": ["expo-router"],
     "experiments": {
