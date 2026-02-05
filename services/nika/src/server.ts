@@ -22,7 +22,7 @@ export interface HealthStatus {
   components: {
     scheduler: { running: boolean; consecutiveFailures: number };
     mentionMonitor: { running: boolean; lastCheckAt: number | null };
-    circuitBreaker: { twitter: string; dkg: string };
+    circuitBreaker: { posting: string; replies: string; dkg: string };
     dkg: { enabled: boolean; circuitStatus: string };
     engagementTracker: { running: boolean };
   };

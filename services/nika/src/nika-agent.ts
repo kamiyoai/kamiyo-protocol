@@ -59,10 +59,17 @@ export interface ReplyResult {
   durationMs: number;
 }
 
-const twitterCircuit = new CircuitBreaker('twitter', {
+// Separate circuits: posting failures shouldn't block replies and vice versa
+const postingCircuit = new CircuitBreaker('twitter-posting', {
   failureThreshold: 3,
   resetTimeoutMs: 60000,
   halfOpenSuccessThreshold: 2,
+});
+
+const replyCircuit = new CircuitBreaker('twitter-replies', {
+  failureThreshold: 3,
+  resetTimeoutMs: 120000, // longer cooldown for replies
+  halfOpenSuccessThreshold: 1,
 });
 
 export class NikaAgent {
@@ -137,7 +144,7 @@ export class NikaAgent {
     let tweetContent = '';
 
     try {
-      const result = await twitterCircuit.execute(() =>
+      const result = await postingCircuit.execute(() =>
         withRetry(async () => {
           const runResult = await this.agent.run(prompt);
           return runResult.finalResponse;
@@ -334,7 +341,7 @@ Return ONLY the reply text. Do not use any tools.`;
     let replyContent = '';
 
     try {
-      const result = await twitterCircuit.execute(() =>
+      const result = await replyCircuit.execute(() =>
         withRetry(async () => {
           const runResult = await this.agent.run(prompt);
           return runResult.finalResponse;
@@ -454,7 +461,7 @@ Return ONLY the quote text. Do not use any tools.`;
     let quoteContent = '';
 
     try {
-      const result = await twitterCircuit.execute(() =>
+      const result = await replyCircuit.execute(() =>
         withRetry(async () => {
           const runResult = await this.agent.run(prompt);
           return runResult.finalResponse;
@@ -545,7 +552,7 @@ Return ONLY the quote text. Do not use any tools.`;
 
     log.debug('Posting tweet', { textLength: text.length });
 
-    const result = await twitterCircuit.execute(() =>
+    const result = await postingCircuit.execute(() =>
       withRetry(
         async () => postTweetTool.handler({ content: text }),
         { maxAttempts: 2, initialDelayMs: 2000 }
@@ -578,7 +585,7 @@ Return ONLY the quote text. Do not use any tools.`;
 
     log.debug('Posting reply', { inReplyToId, textLength: text.length });
 
-    const result = await twitterCircuit.execute(() =>
+    const result = await replyCircuit.execute(() =>
       withRetry(
         async () => replyTool.handler({ tweetId: inReplyToId, content: text }),
         { maxAttempts: 2, initialDelayMs: 2000 }
@@ -611,7 +618,7 @@ Return ONLY the quote text. Do not use any tools.`;
 
     log.debug('Posting quote', { quotedTweetId, textLength: text.length });
 
-    const result = await twitterCircuit.execute(() =>
+    const result = await replyCircuit.execute(() =>
       withRetry(
         async () => quoteTool.handler({ tweetId: quotedTweetId, content: text }),
         { maxAttempts: 2, initialDelayMs: 2000 }
@@ -633,9 +640,10 @@ Return ONLY the quote text. Do not use any tools.`;
     return quoteId;
   }
 
-  getCircuitStatus(): { twitter: string; dkg: string } {
+  getCircuitStatus(): { posting: string; replies: string; dkg: string } {
     return {
-      twitter: twitterCircuit.getState(),
+      posting: postingCircuit.getState(),
+      replies: replyCircuit.getState(),
       dkg: this.dkgMemory?.getCircuitStatus() || 'disabled',
     };
   }
