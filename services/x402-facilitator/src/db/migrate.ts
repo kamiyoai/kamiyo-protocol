@@ -72,6 +72,74 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_api_keys_wallet ON api_keys(merchant_wallet);
     `,
   },
+  {
+    name: '002_disputes_reputation',
+    sql: `
+      CREATE TABLE IF NOT EXISTS disputes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        escrow_id UUID NOT NULL REFERENCES escrow_records(id),
+        escrow_address TEXT NOT NULL,
+        opener_wallet TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        median_score SMALLINT,
+        refund_percentage SMALLINT,
+        resolution TEXT,
+        finalize_tx TEXT,
+        status TEXT NOT NULL DEFAULT 'commit_phase',
+        commit_phase_ends_at TIMESTAMPTZ NOT NULL,
+        reveal_phase_ends_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      );
+
+      CREATE TABLE IF NOT EXISTS oracle_votes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        dispute_id UUID NOT NULL REFERENCES disputes(id),
+        oracle TEXT NOT NULL,
+        commitment_hash TEXT NOT NULL,
+        quality_score SMALLINT,
+        committed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        revealed_at TIMESTAMPTZ,
+        UNIQUE(dispute_id, oracle)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_disputes_escrow ON disputes(escrow_address);
+      CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
+      CREATE INDEX IF NOT EXISTS idx_disputes_opener ON disputes(opener_wallet);
+      CREATE INDEX IF NOT EXISTS idx_oracle_votes_dispute ON oracle_votes(dispute_id);
+
+      ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute
+        FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+    `,
+  },
+  {
+    name: '003_value_checks',
+    sql: `
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_escrow_quality') THEN
+          ALTER TABLE escrow_records ADD CONSTRAINT chk_escrow_quality CHECK (quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 100));
+        END IF;
+      END $$;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_oracle_quality') THEN
+          ALTER TABLE oracle_votes ADD CONSTRAINT chk_oracle_quality CHECK (quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 100));
+        END IF;
+      END $$;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dispute_median') THEN
+          ALTER TABLE disputes ADD CONSTRAINT chk_dispute_median CHECK (median_score IS NULL OR (median_score >= 0 AND median_score <= 100));
+        END IF;
+      END $$;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_dispute_refund') THEN
+          ALTER TABLE disputes ADD CONSTRAINT chk_dispute_refund CHECK (refund_percentage IS NULL OR (refund_percentage >= 0 AND refund_percentage <= 100));
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

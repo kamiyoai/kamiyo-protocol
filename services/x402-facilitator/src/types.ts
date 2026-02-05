@@ -109,3 +109,83 @@ export interface EscrowRecord {
   releasedAt: Date | null;
   expiresAt: Date;
 }
+
+export type DisputeStatus = 'commit_phase' | 'reveal_phase' | 'finalizing' | 'resolved' | 'timeout';
+
+export interface DisputeRecord {
+  id: string;
+  escrowId: string;
+  escrowAddress: string;
+  openerWallet: string;
+  reason: string;
+  oracleVotes: OracleVoteRecord[];
+  medianScore: number | null;
+  refundPercentage: number | null;
+  resolution: string | null;
+  finalizeTx: string | null;
+  status: DisputeStatus;
+  commitPhaseEndsAt: Date;
+  revealPhaseEndsAt: Date;
+  createdAt: Date;
+  resolvedAt: Date | null;
+}
+
+export interface OracleVoteRecord {
+  oracle: string;
+  commitmentHash: string;
+  qualityScore: number | null;
+  committedAt: Date;
+  revealedAt: Date | null;
+}
+
+export interface DisputeOpenRequest {
+  escrowAddress: string;
+  reason: string;
+}
+
+export interface DisputeOpenResponse {
+  success: boolean;
+  disputeId: string;
+  escrowAddress: string;
+  commitPhaseEndsAt: number;
+  revealPhaseEndsAt: number;
+  error?: string;
+}
+
+export interface DisputeFinalizeRequest {
+  disputeId: string;
+}
+
+export interface DisputeFinalizeResponse {
+  success: boolean;
+  txHash: string;
+  medianScore: number;
+  refundPercentage: number;
+  merchantReceived: number;
+  payerRefunded: number;
+  outlierOracles: string[];
+  error?: string;
+}
+
+export type TrustTier = 'untrusted' | 'new' | 'basic' | 'good' | 'excellent' | 'trusted';
+
+export interface ReputationRecord {
+  wallet: string;
+  totalTransactions: number;
+  disputesFiled: number;
+  disputesWon: number;
+  disputesLost: number;
+  averageQuality: number;
+  reputationScore: number;
+  trustTier: TrustTier;
+  monthlyVolume: number;
+  volumeTier: string;
+  feeDiscountPct: number;
+  updatedAt: Date;
+}
+
+export interface VolumeTier {
+  name: string;
+  minMonthlyVolume: number;
+  discountPct: number;
+}

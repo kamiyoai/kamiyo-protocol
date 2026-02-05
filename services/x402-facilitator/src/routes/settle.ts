@@ -2,8 +2,10 @@ import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentScheme } from '../services/signature';
 import { settlePayment, toBaseUnits } from '../services/settlement';
+import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
-import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger } from '../db/queries';
+import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger, getSettlementStats, getWalletDisputeStats, getWalletAverageQuality, getMonthlyVolume } from '../db/queries';
+import { calculateReputationScore } from '../services/reputation';
 import { SettleRequest } from '../types';
 
 export function createSettleRouter(connection: Connection, facilitatorKeypair: Keypair): Router {
@@ -87,18 +89,41 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
     );
 
     try {
+      const [stats, disputeStats, avgQuality, monthlyVol] = await Promise.all([
+        getSettlementStats(merchantWallet),
+        getWalletDisputeStats(merchantWallet),
+        getWalletAverageQuality(merchantWallet),
+        getMonthlyVolume(merchantWallet),
+      ]);
+
+      const repScore = calculateReputationScore(
+        stats.totalSettlements,
+        disputeStats.filed,
+        disputeStats.won,
+        avgQuality
+      );
+      const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
+      const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
+
       const result = await settlePayment(
         connection,
         facilitatorKeypair,
         merchantKey,
         amount,
-        config.SETTLEMENT_FEE_BPS
+        effectiveFeeBps
       );
 
       await updateSettlementConfirmed(settlement.id, result.txHash, result.fee);
       await insertFeeLedger(settlement.id, null, 'settlement', result.fee, result.txHash);
 
-      res.json({ success: true, txHash: result.txHash, amount, fee: result.fee, net: result.net });
+      res.json({
+        success: true,
+        txHash: result.txHash,
+        amount,
+        fee: result.fee,
+        net: result.net,
+        feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined,
+      });
     } catch (err: any) {
       await updateSettlementStatus(settlement.id, 'failed');
       res.status(500).json({ success: false, error: `Settlement failed: ${err.message}` });

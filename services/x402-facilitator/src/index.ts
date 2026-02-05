@@ -14,6 +14,8 @@ import { createSettleRouter } from './routes/settle';
 import { createEscrowRouter } from './routes/escrow';
 import { createNetworksRouter } from './routes/networks';
 import { createFeesRouter } from './routes/fees';
+import { createDisputeRouter } from './routes/dispute';
+import { createReputationRouter } from './routes/reputation';
 
 async function main() {
   const validation = validateConfig();
@@ -75,6 +77,8 @@ async function main() {
   app.use('/verify', apiKeyAuth, createVerifyRouter(connection));
   app.use('/settle', apiKeyAuth, createSettleRouter(connection, facilitatorKeypair));
   app.use('/escrow', apiKeyAuth, createEscrowRouter(connection, facilitatorKeypair));
+  app.use('/dispute', apiKeyAuth, createDisputeRouter(connection, facilitatorKeypair));
+  app.use('/reputation', createReputationRouter());
 
   app.use(errorHandler);
 

@@ -1,5 +1,5 @@
 import { query, queryOne } from './pool';
-import { Settlement, EscrowRecord } from '../types';
+import { Settlement, EscrowRecord, DisputeRecord, OracleVoteRecord } from '../types';
 
 export async function insertSettlement(
   merchantWallet: string,
@@ -97,4 +97,129 @@ export async function getSettlementStats(merchantWallet: string): Promise<{ tota
     totalVolume: parseFloat(row?.volume || '0'),
     totalFees: parseFloat(row?.fees || '0'),
   };
+}
+
+export async function updateEscrowDisputed(escrowAddress: string, disputeId: string): Promise<void> {
+  await query('UPDATE escrow_records SET status = $1, dispute_id = $2 WHERE escrow_address = $3', [
+    'disputed',
+    disputeId,
+    escrowAddress,
+  ]);
+}
+
+export async function insertDispute(
+  escrowId: string,
+  escrowAddress: string,
+  openerWallet: string,
+  reason: string,
+  commitPhaseEndsAt: Date,
+  revealPhaseEndsAt: Date
+): Promise<DisputeRecord> {
+  const rows = await query<DisputeRecord>(
+    `INSERT INTO disputes (escrow_id, escrow_address, opener_wallet, reason, commit_phase_ends_at, reveal_phase_ends_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [escrowId, escrowAddress, openerWallet, reason, commitPhaseEndsAt, revealPhaseEndsAt]
+  );
+  return rows[0];
+}
+
+export async function getDisputeById(id: string): Promise<DisputeRecord | null> {
+  return queryOne<DisputeRecord>('SELECT * FROM disputes WHERE id = $1', [id]);
+}
+
+export async function getDisputeByEscrow(escrowAddress: string): Promise<DisputeRecord | null> {
+  return queryOne<DisputeRecord>('SELECT * FROM disputes WHERE escrow_address = $1 AND status != $2', [
+    escrowAddress,
+    'resolved',
+  ]);
+}
+
+export async function updateDisputeStatus(id: string, status: string): Promise<void> {
+  await query('UPDATE disputes SET status = $1 WHERE id = $2', [status, id]);
+}
+
+export async function updateDisputeResolved(
+  id: string,
+  medianScore: number,
+  refundPercentage: number,
+  resolution: string,
+  finalizeTx: string
+): Promise<void> {
+  await query(
+    `UPDATE disputes SET status = 'resolved', median_score = $1, refund_percentage = $2,
+     resolution = $3, finalize_tx = $4, resolved_at = NOW() WHERE id = $5`,
+    [medianScore, refundPercentage, resolution, finalizeTx, id]
+  );
+}
+
+export async function insertOracleVote(
+  disputeId: string,
+  oracle: string,
+  commitmentHash: string
+): Promise<void> {
+  await query(
+    `INSERT INTO oracle_votes (dispute_id, oracle, commitment_hash)
+     VALUES ($1, $2, $3)`,
+    [disputeId, oracle, commitmentHash]
+  );
+}
+
+export async function updateOracleVoteRevealed(
+  disputeId: string,
+  oracle: string,
+  qualityScore: number
+): Promise<void> {
+  await query(
+    `UPDATE oracle_votes SET quality_score = $1, revealed_at = NOW()
+     WHERE dispute_id = $2 AND oracle = $3`,
+    [qualityScore, disputeId, oracle]
+  );
+}
+
+export async function getOracleVotes(disputeId: string): Promise<OracleVoteRecord[]> {
+  return query<OracleVoteRecord>('SELECT * FROM oracle_votes WHERE dispute_id = $1', [disputeId]);
+}
+
+export async function getRevealedVotes(disputeId: string): Promise<Array<{ oracle: string; quality_score: number }>> {
+  return query('SELECT oracle, quality_score FROM oracle_votes WHERE dispute_id = $1 AND quality_score IS NOT NULL', [
+    disputeId,
+  ]);
+}
+
+export async function getWalletDisputeStats(
+  wallet: string
+): Promise<{ filed: number; won: number; lost: number }> {
+  const row = await queryOne<{ filed: string; won: string; lost: string }>(
+    `SELECT
+       COUNT(*) as filed,
+       COUNT(*) FILTER (WHERE resolution = 'payer_wins') as won,
+       COUNT(*) FILTER (WHERE resolution = 'merchant_wins') as lost
+     FROM disputes WHERE opener_wallet = $1 AND status = 'resolved'`,
+    [wallet]
+  );
+  return {
+    filed: parseInt(row?.filed || '0', 10),
+    won: parseInt(row?.won || '0', 10),
+    lost: parseInt(row?.lost || '0', 10),
+  };
+}
+
+export async function getMonthlyVolume(wallet: string): Promise<number> {
+  const row = await queryOne<{ volume: string }>(
+    `SELECT COALESCE(SUM(amount), 0) as volume FROM settlements
+     WHERE merchant_wallet = $1 AND status = 'confirmed'
+     AND created_at >= date_trunc('month', NOW())`,
+    [wallet]
+  );
+  return parseFloat(row?.volume || '0');
+}
+
+export async function getWalletAverageQuality(wallet: string): Promise<number> {
+  const row = await queryOne<{ avg_quality: string }>(
+    `SELECT COALESCE(AVG(quality_score), 0) as avg_quality
+     FROM escrow_records WHERE merchant_wallet = $1 AND quality_score IS NOT NULL`,
+    [wallet]
+  );
+  return parseFloat(row?.avg_quality || '0');
 }
