@@ -1597,11 +1597,17 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
       const comments = submission.comments || [];
 
       for (const comment of comments) {
+        // Ensure author is string (API sometimes returns object)
+        const author = typeof comment.author === 'object' && comment.author !== null
+          ? (comment.author as { name?: string }).name ?? ''
+          : String(comment.author ?? '');
+        if (!author) continue;
+
         // Skip our own comments
-        if (comment.author === 'kamiyo') continue;
+        if (author === 'kamiyo') continue;
 
         // Skip already-reciprocated users (DB-persisted)
-        if (this.db.hasEngagedUser(comment.author)) continue;
+        if (this.db.hasEngagedUser(author)) continue;
 
         // Check if this is a vote or substantive engagement
         const isVote = comment.content.includes('#USDCHackathon Vote');
@@ -1609,7 +1615,7 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
 
         if (!isEngagement) continue;
 
-        console.log(`[Hackathon] Detected engagement from @${comment.author} on our submission`);
+        console.log(`[Hackathon] Detected engagement from @${author} on our submission`);
 
         // Find their submission across multiple submolts
         const submolts = ['usdc', 'usdc-hackathon', 'agenticcommerce', 'smartcontract', 'skill'];
@@ -1620,7 +1626,7 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
             try {
               const posts = await this.moltbook.getSubmoltPosts(submolt, 'new', 50);
               theirSubmission = posts.find(p =>
-                p.author === comment.author &&
+                p.author === author &&
                 (p.body?.includes('#USDCHackathon ProjectSubmission') ||
                  p.body?.includes('#USDCHackathon') ||
                  p.title?.toLowerCase().includes('submission'))
@@ -1633,26 +1639,26 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
           if (theirSubmission && !this.db.hasVotedSubmission(theirSubmission.id)) {
             // Upvote their submission
             await this.moltbook.upvote(theirSubmission.id);
-            console.log(`[Hackathon] Upvoted @${comment.author}'s submission (reciprocal)`);
+            console.log(`[Hackathon] Upvoted @${author}'s submission (reciprocal)`);
             await sleep(1000);
 
             // Generate and post analysis
             const analysis = await this.generateHackathonVoteComment(theirSubmission);
             if (analysis) {
               await this.moltbook.comment(theirSubmission.id, analysis);
-              console.log(`[Hackathon] Reciprocal vote + comment for @${comment.author}`);
+              console.log(`[Hackathon] Reciprocal vote + comment for @${author}`);
             }
 
-            this.db.markVotedSubmission(theirSubmission.id, comment.author, theirSubmission.title, true, true);
+            this.db.markVotedSubmission(theirSubmission.id, author, theirSubmission.title, true, true);
             this.votedSubmissions.add(theirSubmission.id);
             await sleep(3000);
           }
 
           // Mark user as reciprocally engaged regardless
-          this.db.markEngagedUser(comment.author, isVote ? 'reciprocal_vote' : 'reciprocal_engage');
-          this.reciprocalEngagedUsers.add(comment.author);
+          this.db.markEngagedUser(author, isVote ? 'reciprocal_vote' : 'reciprocal_engage');
+          this.reciprocalEngagedUsers.add(author);
         } catch (err) {
-          console.error(`[Hackathon] Reciprocal error for @${comment.author}:`, err instanceof Error ? err.message : err);
+          console.error(`[Hackathon] Reciprocal error for @${author}:`, err instanceof Error ? err.message : err);
         }
       }
     } catch (err) {
