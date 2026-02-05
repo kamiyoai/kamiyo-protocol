@@ -189,3 +189,37 @@ export interface VolumeTier {
   minMonthlyVolume: number;
   discountPct: number;
 }
+
+export type PrivacyTier = 'none' | 'basic' | 'full';
+
+export interface PrivacyTierConfig {
+  tier: PrivacyTier;
+  minReputationScore: number;
+  maxTransferAmount: number;
+  relayerFeeBps: number;
+}
+
+export interface PrivateSettleRequest {
+  paymentHeader: string;
+  merchantWallet: string;
+  amount: number;
+  asset: string;
+  privacyTier?: PrivacyTier;
+}
+
+export interface PrivateSettleResponse {
+  success: boolean;
+  shadowCommitment?: string;
+  shadowNullifier?: string;
+  relayerFee?: number;
+  amount?: number;
+  net?: number;
+  fee?: number;
+  privacyTier?: PrivacyTier;
+  error?: string;
+}
+
+export interface ShadowProof {
+  commitment: string;
+  nullifier: string;
+}

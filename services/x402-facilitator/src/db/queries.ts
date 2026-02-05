@@ -215,6 +215,63 @@ export async function getMonthlyVolume(wallet: string): Promise<number> {
   return parseFloat(row?.volume || '0');
 }
 
+export async function updateSettlementShadowProof(
+  id: string,
+  shadowCommitment: string,
+  shadowNullifier: string,
+  privacyTier: string
+): Promise<void> {
+  await query(
+    'UPDATE settlements SET shadow_commitment = $1, shadow_nullifier = $2, privacy_tier = $3 WHERE id = $4',
+    [shadowCommitment, shadowNullifier, privacyTier, id]
+  );
+}
+
+export async function updateEscrowShadowProof(
+  escrowAddress: string,
+  shadowCommitment: string,
+  shadowNullifier: string,
+  privacyTier: string
+): Promise<void> {
+  await query(
+    'UPDATE escrow_records SET shadow_commitment = $1, shadow_nullifier = $2, privacy_tier = $3 WHERE escrow_address = $4',
+    [shadowCommitment, shadowNullifier, privacyTier, escrowAddress]
+  );
+}
+
+export async function getSettlementByNullifier(
+  nullifier: string
+): Promise<{ id: string; shadow_commitment: string } | null> {
+  return queryOne<{ id: string; shadow_commitment: string }>(
+    'SELECT id, shadow_commitment FROM settlements WHERE shadow_nullifier = $1',
+    [nullifier]
+  );
+}
+
+export async function getSettlementByNullifierFull(
+  nullifier: string
+): Promise<({
+  id: string;
+  merchant_wallet: string;
+  payer_wallet: string;
+  amount: string;
+  fee_amount: string | null;
+  asset: string;
+  tx_hash: string | null;
+  status: string;
+  network: string;
+  shadow_commitment: string | null;
+  shadow_nullifier: string | null;
+  privacy_tier: string | null;
+}) | null> {
+  return queryOne(
+    `SELECT id, merchant_wallet, payer_wallet, amount::text, fee_amount::text, asset, tx_hash, status, network,
+            shadow_commitment, shadow_nullifier, privacy_tier
+     FROM settlements WHERE shadow_nullifier = $1`,
+    [nullifier]
+  );
+}
+
 export async function getWalletAverageQuality(wallet: string): Promise<number> {
   const row = await queryOne<{ avg_quality: string }>(
     `SELECT COALESCE(AVG(quality_score), 0) as avg_quality

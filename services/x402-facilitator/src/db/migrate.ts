@@ -140,6 +140,22 @@ const MIGRATIONS = [
       END $$;
     `,
   },
+  {
+    name: '004_privacy',
+    sql: `
+      ALTER TABLE settlements ADD COLUMN IF NOT EXISTS shadow_commitment TEXT;
+      ALTER TABLE settlements ADD COLUMN IF NOT EXISTS shadow_nullifier TEXT;
+      ALTER TABLE settlements ADD COLUMN IF NOT EXISTS privacy_tier TEXT;
+
+      ALTER TABLE escrow_records ADD COLUMN IF NOT EXISTS shadow_commitment TEXT;
+      ALTER TABLE escrow_records ADD COLUMN IF NOT EXISTS shadow_nullifier TEXT;
+      ALTER TABLE escrow_records ADD COLUMN IF NOT EXISTS privacy_tier TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_settlements_shadow ON settlements(shadow_commitment) WHERE shadow_commitment IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_settlements_nullifier ON settlements(shadow_nullifier) WHERE shadow_nullifier IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_escrow_shadow ON escrow_records(shadow_commitment) WHERE shadow_commitment IS NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
