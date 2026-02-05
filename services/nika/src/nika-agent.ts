@@ -547,7 +547,7 @@ Return ONLY the quote text. Do not use any tools.`;
 
     const result = await twitterCircuit.execute(() =>
       withRetry(
-        async () => postTweetTool.handler({ text }),
+        async () => postTweetTool.handler({ content: text }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       )
     );
@@ -557,7 +557,7 @@ Return ONLY the quote text. Do not use any tools.`;
       throw new Error(`Failed to post tweet: ${result.error}`);
     }
 
-    const tweetId = (result.data as { id?: string })?.id;
+    const tweetId = (result.data as { tweetId?: string })?.tweetId;
     if (!tweetId) {
       throw new Error('Tweet posted but no ID returned');
     }
@@ -580,7 +580,7 @@ Return ONLY the quote text. Do not use any tools.`;
 
     const result = await twitterCircuit.execute(() =>
       withRetry(
-        async () => replyTool.handler({ tweet_id: inReplyToId, text }),
+        async () => replyTool.handler({ tweetId: inReplyToId, content: text }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       )
     );
@@ -590,7 +590,7 @@ Return ONLY the quote text. Do not use any tools.`;
       throw new Error(`Failed to post reply: ${result.error}`);
     }
 
-    const replyId = (result.data as { id?: string })?.id;
+    const replyId = (result.data as { tweetId?: string })?.tweetId;
     if (!replyId) {
       throw new Error('Reply posted but no ID returned');
     }
@@ -613,7 +613,7 @@ Return ONLY the quote text. Do not use any tools.`;
 
     const result = await twitterCircuit.execute(() =>
       withRetry(
-        async () => quoteTool.handler({ tweet_id: quotedTweetId, text }),
+        async () => quoteTool.handler({ tweetId: quotedTweetId, content: text }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       )
     );
@@ -623,7 +623,7 @@ Return ONLY the quote text. Do not use any tools.`;
       throw new Error(`Failed to post quote: ${result.error}`);
     }
 
-    const quoteId = (result.data as { id?: string })?.id;
+    const quoteId = (result.data as { tweetId?: string })?.tweetId;
     if (!quoteId) {
       throw new Error('Quote posted but no ID returned');
     }

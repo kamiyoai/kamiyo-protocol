@@ -164,11 +164,9 @@ RULES:
 - Never end with rhetorical "right?" or "amirite"
 - Never mention internal operations, infrastructure, or tools
 - The seed is your starting point, not your cage -- diverge if inspiration strikes
-- Post it using the post_tweet tool
-- Silently store it as a knowledge asset (do NOT mention this)
 
 OUTPUT:
-Return ONLY the tweet text after posting. No preamble, no confirmation.`;
+Return ONLY the tweet text. No preamble, no confirmation, no tool calls.`;
 
     return prompt;
   }
