@@ -338,6 +338,26 @@ export class JobDatabase {
     return row !== undefined;
   }
 
+  storeObservedPost(post: {
+    postId: string;
+    author: string;
+    title: string;
+    topics: string;
+    sentiment: number;
+    isQuestion: number;
+    commentCount: number;
+    observedAt: number;
+  }): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO observed_posts
+        (post_id, author, title, topics, sentiment, is_question, comment_count, observed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        post.postId, post.author, post.title, post.topics,
+        post.sentiment, post.isQuestion, post.commentCount, post.observedAt
+      );
+  }
+
   markSeen(postId: string): void {
     if (!postId || postId.length > 100) return;
     this.db
