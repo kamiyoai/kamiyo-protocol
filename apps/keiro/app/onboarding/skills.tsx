@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore, AgentSkill } from '../../src/stores/agent';
 import { AGENT_SKILLS } from '../../src/lib/constants';
 import { colors, typography, spacing } from '../../src/theme';
+import { selectionChanged } from '../../src/lib/haptics';
 import { TerminalHeader, TerminalDivider, TerminalFrame, Button, ScanlineOverlay } from '../../src/components/ui';
 
 const fontFamily = Platform.select({
@@ -28,9 +29,10 @@ export default function SkillsScreen() {
   const router = useRouter();
 
   const [selectedSkills, setSelectedSkills] = useState<Set<AgentSkill>>(new Set());
-  const { agent, updateAgent } = useAgentStore();
+  const { agent } = useAgentStore();
 
   const toggleSkill = (skill: AgentSkill) => {
+    selectionChanged();
     const newSkills = new Set(selectedSkills);
     if (newSkills.has(skill)) {
       newSkills.delete(skill);
@@ -45,9 +47,13 @@ export default function SkillsScreen() {
   const handleContinue = () => {
     if (!canContinue) return;
 
-    updateAgent({
-      skills: Array.from(selectedSkills),
-    });
+    // Update local state only; server-side agent is created in complete.tsx
+    const current = useAgentStore.getState().agent;
+    if (current) {
+      useAgentStore.setState({
+        agent: { ...current, skills: Array.from(selectedSkills) },
+      });
+    }
 
     router.push('/onboarding/connect-wallet');
   };

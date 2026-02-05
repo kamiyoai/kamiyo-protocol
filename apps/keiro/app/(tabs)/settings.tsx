@@ -109,8 +109,8 @@ export default function SettingsScreen() {
             <Switch
               value={agent?.isActive || false}
               onValueChange={handleToggleActive}
-              trackColor={{ false: colors.gray700, true: 'rgba(153, 68, 255, 0.3)' }}
-              thumbColor={agent?.isActive ? colors.violet : colors.gray500}
+              trackColor={{ false: colors.gray700, true: 'rgba(255,255,255,0.18)' }}
+              thumbColor={agent?.isActive ? colors.white : colors.gray500}
               disabled={togglingActive}
             />
           </View>
@@ -138,6 +138,15 @@ export default function SettingsScreen() {
                 ? new Date(agent.createdAt).toLocaleDateString()
                 : 'unknown'
             }
+          />
+          <DotLeaderRow
+            label="on-chain"
+            value={
+              agent?.agentPda
+                ? `${agent.agentPda.slice(0, 4)}...${agent.agentPda.slice(-4)}`
+                : 'not registered'
+            }
+            valueColor={agent?.agentPda ? colors.violet : colors.gray500}
           />
         </View>
 
@@ -186,8 +195,8 @@ export default function SettingsScreen() {
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: colors.gray700, true: 'rgba(153, 68, 255, 0.3)' }}
-              thumbColor={notificationsEnabled ? colors.violet : colors.gray500}
+              trackColor={{ false: colors.gray700, true: 'rgba(255,255,255,0.18)' }}
+              thumbColor={notificationsEnabled ? colors.white : colors.gray500}
             />
           </View>
 
@@ -201,8 +210,8 @@ export default function SettingsScreen() {
             <Switch
               value={autoAcceptJobs}
               onValueChange={setAutoAcceptJobs}
-              trackColor={{ false: colors.gray700, true: 'rgba(153, 68, 255, 0.3)' }}
-              thumbColor={autoAcceptJobs ? colors.violet : colors.gray500}
+              trackColor={{ false: colors.gray700, true: 'rgba(255,255,255,0.18)' }}
+              thumbColor={autoAcceptJobs ? colors.white : colors.gray500}
               disabled
             />
           </View>

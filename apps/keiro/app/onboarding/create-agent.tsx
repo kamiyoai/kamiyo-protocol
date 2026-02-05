@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore, AgentPersonality } from '../../src/stores/agent';
 import { AGENT_PERSONALITIES } from '../../src/lib/constants';
 import { colors, typography, spacing } from '../../src/theme';
+import { selectionChanged } from '../../src/lib/haptics';
 import { TerminalHeader, TerminalDivider, Button, ScanlineOverlay } from '../../src/components/ui';
 
 const fontFamily = Platform.select({
@@ -97,7 +98,7 @@ export default function CreateAgentScreen() {
                 return (
                   <Pressable
                     key={key}
-                    onPress={() => setPersonality(key)}
+                    onPress={() => { selectionChanged(); setPersonality(key); }}
                     style={styles.personalityRow}
                   >
                     <View style={styles.personalityPrefix}>
