@@ -156,6 +156,19 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_escrow_shadow ON escrow_records(shadow_commitment) WHERE shadow_commitment IS NOT NULL;
     `,
   },
+  {
+    name: '005_discovery_resources',
+    sql: `
+      CREATE TABLE IF NOT EXISTS discovery_resources (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        merchant_wallet TEXT NOT NULL,
+        resource_url TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_discovery_merchant ON discovery_resources(merchant_wallet);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
