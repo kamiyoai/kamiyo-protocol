@@ -82,12 +82,20 @@ export class MoltbookClient {
     });
   }
 
+  private normalizeAuthor(author: unknown): string {
+    if (typeof author === 'object' && author !== null) {
+      return (author as { name?: string }).name ?? '';
+    }
+    return String(author ?? '');
+  }
+
   private normalizePost(post: MoltbookPost): MoltbookPost {
-    // API returns author as { id, name } but we store as string
-    const author = typeof post.author === 'object' && post.author !== null
-      ? (post.author as { name?: string }).name ?? ''
-      : String(post.author ?? '');
-    return { ...post, author };
+    const author = this.normalizeAuthor(post.author);
+    const comments = post.comments?.map(c => ({
+      ...c,
+      author: this.normalizeAuthor(c.author),
+    }));
+    return { ...post, author, comments };
   }
 
   async getPost(postId: string): Promise<MoltbookPost> {
@@ -236,7 +244,7 @@ export class MoltbookClient {
     const result = await this.request<{ posts: MoltbookPost[] }>(
       `/posts?submolt=${encodeURIComponent(submolt)}&sort=${sort}&limit=${limit}`
     );
-    return result.posts || [];
+    return (result.posts || []).map(p => this.normalizePost(p));
   }
 
   async getAgentProfile(handle: string): Promise<{
