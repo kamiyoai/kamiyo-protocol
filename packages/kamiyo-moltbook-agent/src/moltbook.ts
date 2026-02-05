@@ -82,12 +82,20 @@ export class MoltbookClient {
     });
   }
 
+  private normalizePost(post: MoltbookPost): MoltbookPost {
+    // API returns author as { id, name } but we store as string
+    const author = typeof post.author === 'object' && post.author !== null
+      ? (post.author as { name?: string }).name ?? ''
+      : String(post.author ?? '');
+    return { ...post, author };
+  }
+
   async getPost(postId: string): Promise<MoltbookPost> {
-    return this.request<MoltbookPost>(`/posts/${postId}`);
+    const post = await this.request<MoltbookPost>(`/posts/${postId}`);
+    return this.normalizePost(post);
   }
 
   async getComments(postId: string): Promise<MoltbookComment[]> {
-    // Comments are included in the post response, not a separate endpoint
     const post = await this.getPost(postId);
     return post.comments || [];
   }
@@ -96,7 +104,7 @@ export class MoltbookClient {
     const result = await this.request<{ posts: MoltbookPost[] }>(
       `/posts?sort=${sort}&limit=${limit}`
     );
-    return result.posts || [];
+    return (result.posts || []).map(p => this.normalizePost(p));
   }
 
   private checkCommentRateLimit(): void {

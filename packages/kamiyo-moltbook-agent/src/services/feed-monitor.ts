@@ -189,23 +189,19 @@ export class FeedMonitor {
 
   private storeObservedPost(observed: ObservedPost): void {
     try {
-      this.db.run(`
-        INSERT OR REPLACE INTO observed_posts
-        (post_id, author, title, topics, sentiment, is_question, comment_count, observed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        observed.postId,
-        observed.author,
-        observed.title,
-        JSON.stringify(observed.topics),
-        observed.sentiment,
-        observed.isQuestion ? 1 : 0,
-        observed.commentCount,
-        observed.observedAt
-      );
+      this.db.storeObservedPost({
+        postId: observed.postId ?? '',
+        author: observed.author ?? '',
+        title: observed.title ?? '',
+        topics: JSON.stringify(observed.topics ?? []),
+        sentiment: observed.sentiment ?? 0,
+        isQuestion: observed.isQuestion ? 1 : 0,
+        commentCount: observed.commentCount ?? 0,
+        observedAt: observed.observedAt ?? Date.now(),
+      });
     } catch (err) {
-      // Table might not exist yet, that's ok
-      console.debug('[FeedMonitor] Could not store post:', err);
+      console.error('[FeedMonitor] storeObservedPost failed:', err instanceof Error ? err.message : err,
+        'postId=', observed.postId, 'author=', observed.author);
     }
   }
 
