@@ -26,8 +26,10 @@ import {
   type TweetStyle,
 } from './personality';
 import { getDKGMemory, type DKGMemory } from './dkg-memory';
-import { shouldTweet, requiresQualityCheck, isQualityGateEnabled } from './quality-gate';
+import { shouldTweet, isQualityGateEnabled } from './quality-gate';
 import type { Config } from './config';
+import type { OrchestratedPlan } from './post-orchestrator';
+import type { PostSlot } from './daily-scheduler';
 
 const log = createLogger('nika:agent');
 const metrics = getMetrics();
@@ -92,32 +94,45 @@ export class NikaAgent {
     type?: TweetType;
     style?: TweetStyle;
     recentTopics?: string[];
+    orchestrated?: OrchestratedPlan;
   }): Promise<PostResult> {
     const startTime = Date.now();
 
-    const mood = options?.mood || selectMood();
-    const type = options?.type || selectTweetType();
-    const style = options?.style || selectTweetStyle();
+    // Use orchestrated plan if provided, otherwise fall back to legacy random selection
+    const isOrchestrated = !!options?.orchestrated;
+    const mood = options?.orchestrated?.topicPlan.mood ?? options?.mood ?? selectMood();
+    const type = options?.orchestrated?.topicPlan.tweetType ?? options?.type ?? selectTweetType();
+    const style = options?.orchestrated?.topicPlan.tweetStyle ?? options?.style ?? selectTweetStyle();
 
-    // Fetch recent topics from DKG to avoid repetition
-    let recentTopics = options?.recentTopics;
-    if (!recentTopics && this.dkgMemory) {
-      try {
-        recentTopics = await this.dkgMemory.getRecentTopics(24);
-        log.debug('Fetched recent topics from DKG', { count: recentTopics.length });
-      } catch (error) {
-        log.warn('Failed to fetch recent topics from DKG', { error: String(error) });
+    let prompt: string;
+
+    if (options?.orchestrated) {
+      // Rich orchestrated prompt
+      prompt = options.orchestrated.prompt;
+      log.info('Using orchestrated prompt', {
+        category: options.orchestrated.topicPlan.category,
+        slot: options.orchestrated.slot,
+      });
+    } else {
+      // Legacy fallback
+      let recentTopics = options?.recentTopics;
+      if (!recentTopics && this.dkgMemory) {
+        try {
+          recentTopics = await this.dkgMemory.getRecentTopics(24);
+          log.debug('Fetched recent topics from DKG', { count: recentTopics.length });
+        } catch (error) {
+          log.warn('Failed to fetch recent topics from DKG', { error: String(error) });
+        }
       }
+
+      const sanitizedTopics = recentTopics?.map(t =>
+        sanitizeForPrompt(t).slice(0, 50)
+      ).slice(0, 20);
+
+      prompt = buildTweetPrompt(mood, type, style, sanitizedTopics);
     }
 
-    // Sanitize topics before including in prompt
-    const sanitizedTopics = recentTopics?.map(t =>
-      sanitizeForPrompt(t).slice(0, 50)
-    ).slice(0, 20);
-
-    const prompt = buildTweetPrompt(mood, type, style, sanitizedTopics);
-
-    log.info('Generating post', { mood, type, style, recentTopicsCount: recentTopics?.length || 0 });
+    log.info('Generating post', { mood, type, style, orchestrated: isOrchestrated });
 
     let tweetContent = '';
 
@@ -158,10 +173,10 @@ export class NikaAgent {
         throw new ModerationError(modResult.reasons);
       }
 
-      // Quality gate for sensitive content
+      // Quality gate for all content
       let qualityChecked = false;
       let improvedByQualityGate = false;
-      if (isQualityGateEnabled() && requiresQualityCheck(type, mood)) {
+      if (isQualityGateEnabled()) {
         qualityChecked = true;
         const qualityResult = await shouldTweet(tweetContent, `${mood} ${type}`);
         if (!qualityResult.approved && qualityResult.improvedVersion) {
