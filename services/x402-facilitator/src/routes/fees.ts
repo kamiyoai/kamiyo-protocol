@@ -12,7 +12,7 @@ export function createFeesRouter(): Router {
       settlement: { feeBps: config.SETTLEMENT_FEE_BPS, feePercent: `${config.SETTLEMENT_FEE_BPS / 100}%` },
       escrow: { feeBps: config.ESCROW_FEE_BPS, feePercent: `${config.ESCROW_FEE_BPS / 100}%` },
       asset: 'USDC',
-      networks: ['solana:mainnet'],
+      networks: ['solana:mainnet']
     };
 
     if (isBaseEnabled()) {
