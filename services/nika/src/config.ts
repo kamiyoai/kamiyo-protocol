@@ -20,9 +20,19 @@ export interface Config {
   TWITTER_ACCESS_SECRET: string;
   TWITTER_HANDLE: string;
 
-  // Scheduling
+  // Scheduling (legacy interval-based)
   POST_INTERVAL_MIN_MS: number;
   POST_INTERVAL_MAX_MS: number;
+
+  // Scheduling (daily windows)
+  POSTS_PER_DAY: number;
+  MORNING_WINDOW_START_UTC: number;
+  MORNING_WINDOW_END_UTC: number;
+  EVENING_WINDOW_START_UTC: number;
+  EVENING_WINDOW_END_UTC: number;
+
+  // Content context
+  THOUGHTLEADER_ACCOUNTS: string[];
 
   // Infrastructure
   PORT: number;
@@ -48,8 +58,14 @@ const DEFAULTS: Partial<Config> = {
   DKG_BLOCKCHAIN: 'otp::mainnet',
   NIKA_PARANET_UAL: '',
   TWITTER_HANDLE: 'nika_entity',
-  POST_INTERVAL_MIN_MS: 3 * 60 * 60 * 1000, // 3 hours
-  POST_INTERVAL_MAX_MS: 5 * 60 * 60 * 1000, // 5 hours
+  POST_INTERVAL_MIN_MS: 3 * 60 * 60 * 1000, // 3 hours (legacy)
+  POST_INTERVAL_MAX_MS: 5 * 60 * 60 * 1000, // 5 hours (legacy)
+  POSTS_PER_DAY: 2,
+  MORNING_WINDOW_START_UTC: 7,
+  MORNING_WINDOW_END_UTC: 10,
+  EVENING_WINDOW_START_UTC: 17,
+  EVENING_WINDOW_END_UTC: 21,
+  THOUGHTLEADER_ACCOUNTS: [],
   PORT: 4020,
   NODE_ENV: 'development',
   LOG_LEVEL: 'info',
@@ -197,6 +213,24 @@ export function getConfig(): Config {
     POST_INTERVAL_MAX_MS: parseInt(
       process.env.POST_INTERVAL_MAX_MS || String(DEFAULTS.POST_INTERVAL_MAX_MS)
     ),
+
+    POSTS_PER_DAY: parseInt(process.env.POSTS_PER_DAY || String(DEFAULTS.POSTS_PER_DAY)),
+    MORNING_WINDOW_START_UTC: parseInt(
+      process.env.MORNING_WINDOW_START_UTC || String(DEFAULTS.MORNING_WINDOW_START_UTC)
+    ),
+    MORNING_WINDOW_END_UTC: parseInt(
+      process.env.MORNING_WINDOW_END_UTC || String(DEFAULTS.MORNING_WINDOW_END_UTC)
+    ),
+    EVENING_WINDOW_START_UTC: parseInt(
+      process.env.EVENING_WINDOW_START_UTC || String(DEFAULTS.EVENING_WINDOW_START_UTC)
+    ),
+    EVENING_WINDOW_END_UTC: parseInt(
+      process.env.EVENING_WINDOW_END_UTC || String(DEFAULTS.EVENING_WINDOW_END_UTC)
+    ),
+
+    THOUGHTLEADER_ACCOUNTS: process.env.THOUGHTLEADER_ACCOUNTS
+      ? process.env.THOUGHTLEADER_ACCOUNTS.split(',').map((s) => s.trim()).filter(Boolean)
+      : DEFAULTS.THOUGHTLEADER_ACCOUNTS!,
 
     PORT: parseInt(process.env.PORT || String(DEFAULTS.PORT)),
     NODE_ENV: (process.env.NODE_ENV as Config['NODE_ENV']) || DEFAULTS.NODE_ENV!,

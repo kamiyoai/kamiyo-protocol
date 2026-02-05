@@ -33,7 +33,7 @@ export class HealthMonitor extends EventEmitter {
   private midnightTimeout: NodeJS.Timeout | null = null;
   private checkIntervalMs = 60 * 1000;
 
-  private maxHoursSincePost = 6;
+  private maxHoursSincePost = 14;
   private maxHoursSinceDKG = 2;
   private maxConsecutiveErrors = 3;
   private maxHoursSinceMentionCheck = 1;
