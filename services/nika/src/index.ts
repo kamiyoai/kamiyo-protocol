@@ -468,7 +468,7 @@ async function main(): Promise<void> {
           running: mentionMonitor?.isRunning() ?? false,
           lastCheckAt: mentionMonitor?.getLastCheckAt()?.getTime() ?? null,
         },
-        circuitBreaker: agent?.getCircuitStatus() ?? { twitter: 'unknown', dkg: 'unknown' },
+        circuitBreaker: agent?.getCircuitStatus() ?? { posting: 'unknown', replies: 'unknown', dkg: 'unknown' },
         dkg: {
           enabled: !!dkgMemory,
           circuitStatus: dkgMemory?.getCircuitStatus() ?? 'disabled',

@@ -14,6 +14,7 @@ export interface MentionMonitorConfig {
   checkIntervalMs: number;
   maxRepliesPerCycle: number;
   replyDelayMs: number;
+  startupDelayMs: number;
   onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
 }
 
@@ -56,7 +57,15 @@ export class MentionMonitor extends EventEmitter {
     }
 
     this.running = true;
-    log.info('Mention monitor starting');
+    log.info('Mention monitor starting', {
+      startupDelayMs: this.config.startupDelayMs,
+    });
+
+    // Delay first check to let the system stabilize after deploy
+    if (this.config.startupDelayMs > 0) {
+      log.info('Delaying first mention check', { delayMs: this.config.startupDelayMs });
+      await new Promise((resolve) => setTimeout(resolve, this.config.startupDelayMs));
+    }
 
     // Initial check
     await this.checkMentions();
@@ -242,6 +251,7 @@ export interface CreateMentionMonitorOptions {
   checkIntervalMs: number;
   maxRepliesPerCycle?: number;
   replyDelayMs?: number;
+  startupDelayMs?: number;
   onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
 }
 
@@ -251,6 +261,7 @@ export function createMentionMonitor(options: CreateMentionMonitorOptions): Ment
     checkIntervalMs: options.checkIntervalMs,
     maxRepliesPerCycle: options.maxRepliesPerCycle ?? 3,
     replyDelayMs: options.replyDelayMs ?? 60000, // 1 minute between replies
+    startupDelayMs: options.startupDelayMs ?? 30000, // 30s delay before first check
     onMention: options.onMention,
   });
 }
