@@ -1,12 +1,6 @@
 /**
- * AIReasoningService - Central AI reasoning using Claude SDK
- *
- * Handles:
- * - Sentiment analysis and intent detection
- * - Engagement opportunity evaluation
- * - Comment/response generation
- * - Opinion formation and self-reflection
- * - Goal progress analysis
+ * Reasoning service for sentiment analysis, intent detection,
+ * engagement evaluation, and response generation.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -161,13 +155,14 @@ export class AIReasoningService {
   }
 
   private parseJSON<T>(text: string, schema: z.ZodSchema<T>): T {
-    // Extract JSON from potential markdown code blocks
     let jsonStr = text.trim();
     if (jsonStr.startsWith('```')) {
       const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (match) jsonStr = match[1].trim();
     }
-    return schema.parse(JSON.parse(jsonStr));
+    const objMatch = jsonStr.match(/[\[{][\s\S]*[\]}]/);
+    if (!objMatch) throw new Error('No JSON found in response');
+    return schema.parse(JSON.parse(objMatch[0]));
   }
 
   async analyzeSentiment(text: string): Promise<SentimentResult> {
@@ -225,7 +220,9 @@ Return JSON array: ["topic1", "topic2", ...]`,
 
     const content = response.content[0];
     if (content.type !== 'text') throw new Error('Expected text response');
-    return z.array(z.string()).parse(JSON.parse(content.text.trim()));
+    const arrMatch = content.text.trim().match(/\[[\s\S]*\]/);
+    if (!arrMatch) return [];
+    return z.array(z.string()).parse(JSON.parse(arrMatch[0]));
   }
 
   async evaluateOpportunity(

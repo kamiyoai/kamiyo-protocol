@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { KamiyoHive, AgentInfo, HiredAgent, DeliveryResult, Capability } from '@kamiyo/hive';
-import type { Job, WorkResult } from './types.js';
+import { DEFAULT_MODEL, type Job, type WorkResult } from './types.js';
 
 export interface Subtask {
   id: string;
@@ -73,7 +73,7 @@ export class SubcontractManager {
 
   async assessComplexity(job: Job): Promise<ComplexityAssessment> {
     const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: DEFAULT_MODEL,
       max_tokens: 1000,
       system: `Assess job complexity. Return JSON:
 {"needsSubcontracting": bool, "reason": "...", "subtasks": [{"id": "...", "type": "capability", "spec": "...", "budget": 0.0, "priority": 1-5, "dependencies": []}]}
@@ -248,7 +248,7 @@ Only subcontract if multiple distinct skills required. Budget per subtask: 0.01-
     }
 
     const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: DEFAULT_MODEL,
       max_tokens: 4000,
       system: 'Assemble deliverables into cohesive output. Remove redundancy, ensure consistency.',
       messages: [

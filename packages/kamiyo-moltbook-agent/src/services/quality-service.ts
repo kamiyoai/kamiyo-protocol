@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { DEFAULT_MODEL } from '../types.js';
 import type { DKGPublisher } from './dkg-publisher.js';
 
 export interface QualityAssessment {
@@ -28,7 +29,7 @@ export class QualityService {
     deliverable: string
   ): Promise<QualityAssessment> {
     const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: DEFAULT_MODEL,
       max_tokens: 1000,
       system: `You are a quality assessor for agent work deliverables.
 

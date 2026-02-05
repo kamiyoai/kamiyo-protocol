@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { KAMIYO_PERSONALITY, type TopicConfig, type PersonalityConfig } from './personality.js';
+import { DEFAULT_MODEL } from './types.js';
 
 export interface PostDraft {
   title: string;
@@ -104,7 +105,7 @@ export class ContentStrategy {
     const templateHint = topic.templates[Math.floor(Math.random() * topic.templates.length)];
 
     const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: DEFAULT_MODEL,
       max_tokens: 1000,
       system: `You are ${this.personality.name}, ${this.personality.tagline}.
 
