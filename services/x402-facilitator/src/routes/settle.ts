@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentScheme } from '../services/signature';
 import { settlePayment, toBaseUnits } from '../services/settlement';
-import { ethers } from 'ethers';
+import { isAddress } from 'ethers';
 import { settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
 import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
@@ -80,7 +80,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
     }
 
     if (isBase) {
-      if (!ethers.isAddress(merchantWallet)) {
+      if (!isAddress(merchantWallet)) {
         res.status(400).json({ success: false, error: 'Invalid Base wallet address' });
         return;
       }
@@ -109,7 +109,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         getSettlementStats(merchantWallet),
         getWalletDisputeStats(merchantWallet),
         getWalletAverageQuality(merchantWallet),
-        getMonthlyVolume(merchantWallet),
+        getMonthlyVolume(merchantWallet)
       ]);
 
       const repScore = calculateReputationScore(
@@ -121,12 +121,12 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
       const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
 
-      let result: { txHash: string; fee: number; net: number };
+      let onchain: { txHash: string; fee: number; net: number };
 
       if (isBase) {
-        result = await settlePaymentBase(merchantWallet, amount, effectiveFeeBps);
+        onchain = await settlePaymentBase(merchantWallet, amount, effectiveFeeBps);
       } else {
-        result = await settlePayment(
+        onchain = await settlePayment(
           connection,
           facilitatorKeypair,
           new PublicKey(merchantWallet),
@@ -135,17 +135,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         );
       }
 
-      await updateSettlementConfirmed(settlement.id, result.txHash, result.fee);
-      await insertFeeLedger(settlement.id, null, 'settlement', result.fee, result.txHash);
+      await updateSettlementConfirmed(settlement.id, onchain.txHash, onchain.fee);
+      await insertFeeLedger(settlement.id, null, 'settlement', onchain.fee, onchain.txHash);
 
       res.json({
         success: true,
-        txHash: result.txHash,
+        txHash: onchain.txHash,
         amount,
-        fee: result.fee,
-        net: result.net,
+        fee: onchain.fee,
+        net: onchain.net,
         network: scheme.network,
-        feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined,
+        feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined
       });
     } catch (err: any) {
       await updateSettlementStatus(settlement.id, 'failed');

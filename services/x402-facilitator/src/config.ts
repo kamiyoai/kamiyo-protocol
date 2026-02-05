@@ -26,7 +26,7 @@ const REQUIRED_VARS = [
   'SOLANA_RPC_URL',
   'FACILITATOR_PRIVATE_KEY',
   'TREASURY_WALLET',
-  'DATABASE_URL',
+  'DATABASE_URL'
 ] as const;
 
 const DEFAULTS: Partial<Config> = {
@@ -44,7 +44,7 @@ const DEFAULTS: Partial<Config> = {
   SHADOWPAY_REFERRAL_ID: '64b30531ab33da27',
   BASE_RPC_URL: '',
   BASE_FACILITATOR_KEY: '',
-  BASE_TREASURY_ADDRESS: '',
+  BASE_TREASURY_ADDRESS: ''
 };
 
 let cachedConfig: Config | null = null;
@@ -138,6 +138,14 @@ export function validateConfig(): ValidationResult {
     errors.push('BASE_FACILITATOR_KEY must be a 0x-prefixed 32-byte hex string');
   }
 
+  const baseTreasury = process.env.BASE_TREASURY_ADDRESS;
+  if (baseTreasury && !/^0x[0-9a-fA-F]{40}$/.test(baseTreasury)) {
+    errors.push('BASE_TREASURY_ADDRESS must be a valid EVM address');
+  }
+  if (!baseRpc && baseKey) {
+    warnings.push('BASE_FACILITATOR_KEY set but BASE_RPC_URL is empty');
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }
 
@@ -166,7 +174,7 @@ export function getConfig(): Config {
     SHADOWPAY_REFERRAL_ID: process.env.SHADOWPAY_REFERRAL_ID || DEFAULTS.SHADOWPAY_REFERRAL_ID!,
     BASE_RPC_URL: process.env.BASE_RPC_URL || DEFAULTS.BASE_RPC_URL!,
     BASE_FACILITATOR_KEY: process.env.BASE_FACILITATOR_KEY || DEFAULTS.BASE_FACILITATOR_KEY!,
-    BASE_TREASURY_ADDRESS: process.env.BASE_TREASURY_ADDRESS || DEFAULTS.BASE_TREASURY_ADDRESS!,
+    BASE_TREASURY_ADDRESS: process.env.BASE_TREASURY_ADDRESS || DEFAULTS.BASE_TREASURY_ADDRESS!
   };
 
   return cachedConfig;
@@ -197,6 +205,6 @@ export function getRedactedConfig(): Record<string, string> {
     SHADOWPAY_REFERRAL_ID: config.SHADOWPAY_REFERRAL_ID,
     BASE_RPC_URL: config.BASE_RPC_URL || '',
     BASE_FACILITATOR_KEY: config.BASE_FACILITATOR_KEY ? '[REDACTED]' : '',
-    BASE_TREASURY_ADDRESS: config.BASE_TREASURY_ADDRESS || '',
+    BASE_TREASURY_ADDRESS: config.BASE_TREASURY_ADDRESS || ''
   };
 }
