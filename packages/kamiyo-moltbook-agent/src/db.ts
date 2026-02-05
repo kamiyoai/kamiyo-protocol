@@ -251,6 +251,43 @@ CREATE TABLE IF NOT EXISTS published_tasks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_published_tasks_post ON published_tasks(post_id);
+
+-- Hackathon: Voted submissions (persisted across restarts)
+CREATE TABLE IF NOT EXISTS hackathon_voted_submissions (
+  post_id TEXT PRIMARY KEY,
+  author TEXT NOT NULL,
+  title TEXT,
+  upvoted INTEGER DEFAULT 0,
+  commented INTEGER DEFAULT 0,
+  voted_at INTEGER NOT NULL
+);
+
+-- Hackathon: Reciprocally engaged users
+CREATE TABLE IF NOT EXISTS hackathon_engaged_users (
+  username TEXT PRIMARY KEY,
+  engagement_type TEXT NOT NULL,
+  engaged_at INTEGER NOT NULL
+);
+
+-- Hackathon: Strategic posts (scheduled content tracking)
+CREATE TABLE IF NOT EXISTS hackathon_strategic_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id TEXT,
+  submolt TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  posted_at INTEGER NOT NULL
+);
+
+-- Hackathon: Vote exchange threads we've engaged with
+CREATE TABLE IF NOT EXISTS hackathon_vote_exchanges (
+  post_id TEXT PRIMARY KEY,
+  author TEXT NOT NULL,
+  engaged_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_hackathon_voted_author ON hackathon_voted_submissions(author);
+CREATE INDEX IF NOT EXISTS idx_hackathon_strategic_type ON hackathon_strategic_posts(content_type);
 `;
 
 export class JobDatabase {
@@ -1255,5 +1292,84 @@ export class JobDatabase {
       avgQuality: avgQuality.avg ?? 0,
       lastPublished: lastPublished.last,
     };
+  }
+
+  // === Hackathon Persistence ===
+
+  hasVotedSubmission(postId: string): boolean {
+    const row = this.db
+      .prepare('SELECT 1 FROM hackathon_voted_submissions WHERE post_id = ?')
+      .get(postId);
+    return !!row;
+  }
+
+  markVotedSubmission(postId: string, author: string, title: string, upvoted: boolean, commented: boolean): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO hackathon_voted_submissions (post_id, author, title, upvoted, commented, voted_at)
+        VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(postId, author, title, upvoted ? 1 : 0, commented ? 1 : 0, Date.now());
+  }
+
+  getVotedSubmissionCount(): number {
+    const row = this.db
+      .prepare('SELECT COUNT(*) as count FROM hackathon_voted_submissions')
+      .get() as { count: number };
+    return row.count;
+  }
+
+  hasEngagedUser(username: string): boolean {
+    const row = this.db
+      .prepare('SELECT 1 FROM hackathon_engaged_users WHERE username = ?')
+      .get(username);
+    return !!row;
+  }
+
+  markEngagedUser(username: string, engagementType: string): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO hackathon_engaged_users (username, engagement_type, engaged_at)
+        VALUES (?, ?, ?)`)
+      .run(username, engagementType, Date.now());
+  }
+
+  getLastStrategicPostTime(contentType: string): number {
+    const row = this.db
+      .prepare('SELECT MAX(posted_at) as last FROM hackathon_strategic_posts WHERE content_type = ?')
+      .get(contentType) as { last: number | null };
+    return row.last ?? 0;
+  }
+
+  saveStrategicPost(postId: string, submolt: string, contentType: string, title: string): void {
+    this.db
+      .prepare(`INSERT INTO hackathon_strategic_posts (post_id, submolt, content_type, title, posted_at)
+        VALUES (?, ?, ?, ?, ?)`)
+      .run(postId, submolt, contentType, title, Date.now());
+  }
+
+  hasEngagedVoteExchange(postId: string): boolean {
+    const row = this.db
+      .prepare('SELECT 1 FROM hackathon_vote_exchanges WHERE post_id = ?')
+      .get(postId);
+    return !!row;
+  }
+
+  markVoteExchangeEngaged(postId: string, author: string): void {
+    this.db
+      .prepare(`INSERT OR REPLACE INTO hackathon_vote_exchanges (post_id, author, engaged_at)
+        VALUES (?, ?, ?)`)
+      .run(postId, author, Date.now());
+  }
+
+  getAllVotedSubmissionIds(): string[] {
+    const rows = this.db
+      .prepare('SELECT post_id FROM hackathon_voted_submissions')
+      .all() as Array<{ post_id: string }>;
+    return rows.map(r => r.post_id);
+  }
+
+  getAllEngagedUsernames(): string[] {
+    const rows = this.db
+      .prepare('SELECT username FROM hackathon_engaged_users')
+      .all() as Array<{ username: string }>;
+    return rows.map(r => r.username);
   }
 }
