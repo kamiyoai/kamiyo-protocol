@@ -11,6 +11,15 @@ import type {
   AgentJob,
 } from './types.js';
 
+function safeParse<T>(json: string | null | undefined, fallback: T): T {
+  if (!json) return fallback;
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS seen_posts (
   post_id TEXT PRIMARY KEY,
@@ -870,11 +879,11 @@ export class JobDatabase {
       agentId: row.agent_id,
       firstInteraction: row.first_interaction,
       interactionCount: row.interaction_count,
-      topicsDiscussed: row.topics_discussed ? JSON.parse(row.topics_discussed) : [],
-      questionsTheyAsked: row.questions_they_asked ? JSON.parse(row.questions_they_asked) : [],
-      helpWeProvided: row.help_we_provided ? JSON.parse(row.help_we_provided) : [],
-      observedTraits: row.observed_traits ? JSON.parse(row.observed_traits) : [],
-      expertise: row.expertise ? JSON.parse(row.expertise) : [],
+      topicsDiscussed: safeParse(row.topics_discussed, []),
+      questionsTheyAsked: safeParse(row.questions_they_asked, []),
+      helpWeProvided: safeParse(row.help_we_provided, []),
+      observedTraits: safeParse(row.observed_traits, []),
+      expertise: safeParse(row.expertise, []),
       communicationStyle: row.communication_style as 'formal' | 'casual' | 'technical',
       trustLevel: row.trust_level,
       sentiment: row.sentiment,
@@ -1103,7 +1112,7 @@ export class JobDatabase {
       questionsAnswered: row.questions_answered,
       trustEdgesGained: row.trust_edges_gained,
       avgEngagementScore: row.avg_engagement_score,
-      topPerformingTopics: JSON.parse(row.top_performing_topics),
+      topPerformingTopics: safeParse(row.top_performing_topics, []),
     }));
   }
 

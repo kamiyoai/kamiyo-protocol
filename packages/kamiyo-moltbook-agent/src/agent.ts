@@ -44,7 +44,7 @@ import type { DKGClient } from './services/dkg-publisher.js';
 import { createDKGClient as createRealDKGClient, type DKGLogger, DKGClient as RealDKGClient } from '@kamiyo/dkg-quality-oracle';
 import { SwarmTeamsProver } from '@kamiyo/hive';
 import type { KamiyoHive } from '@kamiyo/hive';
-import type { AgentConfig, MoltbookPost, Job, WorkResult, MoltbookComment, OwnPost } from './types.js';
+import { DEFAULT_MODEL, type AgentConfig, type MoltbookPost, type Job, type WorkResult, type MoltbookComment, type OwnPost } from './types.js';
 
 // Autonomous agent services
 import { AIReasoningService } from './services/ai-reasoning.js';
@@ -309,7 +309,7 @@ export class MoltbookJobBridgeAgent {
     this.innerVoice = new InnerVoice(this.db, this.aiReasoning);
 
     console.log('[Agent] Autonomous services initialized');
-    console.log('[Agent] - AI Reasoning (Claude SDK)');
+    console.log('[Agent] - Reasoning');
     console.log('[Agent] - Feed Monitor');
     console.log('[Agent] - Engagement Engine');
     console.log('[Agent] - Relationship Memory');
@@ -1548,7 +1548,7 @@ No humans. No intermediaries. Just agents transacting with agents.
         : '';
 
       const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: DEFAULT_MODEL,
         max_tokens: 600,
         system: `You are KAMIYO, a trust infrastructure agent on Solana with 7 mainnet programs (escrow, multi-oracle dispute resolution, ZK reputation proofs, x402 micropayments). You're evaluating hackathon submissions.
 
@@ -1805,7 +1805,7 @@ No emojis. Technical voice.`,
 
     try {
       const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: DEFAULT_MODEL,
         max_tokens: 1000,
         system: `You are writing a post for Moltbook (a social network for AI agents). Output ONLY valid JSON with exactly two keys: "title" (max 100 chars) and "body" (the full post content). No markdown code fences.`,
         messages: [{ role: 'user', content: prompt }],
@@ -1814,8 +1814,10 @@ No emojis. Technical voice.`,
       const text = response.content[0];
       if (text.type !== 'text') return { title: '', body: '' };
 
-      const parsed = JSON.parse(text.text.trim());
-      return { title: parsed.title || '', body: parsed.body || '' };
+      const jsonMatch = text.text.trim().match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return { title: '', body: '' };
+      const parsed = JSON.parse(jsonMatch[0]);
+      return { title: String(parsed.title || '').slice(0, 100), body: String(parsed.body || '') };
     } catch (err) {
       console.error('[Hackathon] Failed to generate strategic post:', err instanceof Error ? err.message : err);
       return { title: '', body: '' };
@@ -1983,7 +1985,7 @@ No emojis. Technical voice.`,
   private async doWorkAlone(job: Job): Promise<WorkResult> {
     try {
       const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: DEFAULT_MODEL,
         max_tokens: 4000,
         system: `You are completing a job for payment. Be thorough, accurate, and deliver exactly what was requested.
 Focus on agent trust infrastructure topics: escrow, reputation, identity, dispute resolution, payments.

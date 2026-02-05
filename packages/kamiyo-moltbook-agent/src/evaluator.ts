@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { MoltbookPost, JobEvaluation } from './types.js';
+import { DEFAULT_MODEL, type MoltbookPost, type JobEvaluation } from './types.js';
 
 const RELEVANT_KEYWORDS = [
   'escrow',
@@ -67,7 +67,7 @@ export async function evaluateJob(
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: DEFAULT_MODEL,
       max_tokens: 300,
       system: EVALUATION_SYSTEM,
       messages: [
