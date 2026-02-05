@@ -68,9 +68,14 @@ export default function HomeScreen() {
               {agent?.name?.toLowerCase() || 'agent'}
             </Text>
           </Text>
-          <TerminalBadge variant="status" active={agent?.isActive || false}>
-            {agent?.isActive ? 'ACTIVE' : 'INACTIVE'}
-          </TerminalBadge>
+          <View style={styles.badgeRow}>
+            {agent?.agentPda && (
+              <TerminalBadge variant="cyan">ON-CHAIN</TerminalBadge>
+            )}
+            <TerminalBadge variant="status" active={agent?.isActive || false}>
+              {agent?.isActive ? 'ACTIVE' : 'INACTIVE'}
+            </TerminalBadge>
+          </View>
         </View>
 
         <TerminalFrame title="CREDIT SCORE" style={styles.section}>
@@ -115,6 +120,13 @@ export default function HomeScreen() {
                 label="usd"
                 value={`~$${(balance * 150).toFixed(2)}`}
               />
+              {agent?.agentPda && (
+                <DotLeaderRow
+                  label="agent pda"
+                  value={`${agent.agentPda.slice(0, 4)}...${agent.agentPda.slice(-4)}`}
+                  valueColor={colors.violet}
+                />
+              )}
             </>
           ) : (
             <Text style={styles.dimText}>no wallet connected</Text>
@@ -188,6 +200,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.xl,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'center',
   },
   greetingText: {
     fontFamily,

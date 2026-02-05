@@ -12,6 +12,8 @@ import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore } from '../../src/stores/wallet';
 import { useAppStore } from '../../src/stores/app';
 import { api } from '../../src/lib/api';
+import { registerAgentOnChain } from '../../src/lib/on-chain';
+import { successNotification } from '../../src/lib/haptics';
 import { colors, typography, spacing } from '../../src/theme';
 import { TerminalHeader, TerminalFrame, DotLeaderRow, Button, ScanlineOverlay } from '../../src/components/ui';
 
@@ -28,9 +30,12 @@ const fontFamilyBold = Platform.select({
 export default function CompleteScreen() {
   const router = useRouter();
   const [activating, setActivating] = useState(false);
+  const [statusText, setStatusText] = useState('');
 
   const { agent } = useAgentStore();
   const { connected, publicKey } = useWalletStore();
+  const publicKeyBase58 = useWalletStore((s) => s.publicKeyBase58);
+  const authToken = useWalletStore((s) => s.authToken);
   const { completeOnboarding } = useAppStore();
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -57,38 +62,61 @@ export default function CompleteScreen() {
 
     setActivating(true);
     try {
-      const walletAddress = publicKey?.toString() || `temp_${Date.now()}`;
-      const serverAgent = await api.createAgent({
-        walletAddress,
-        name: agent.name,
-        personality: agent.personality,
-        skills: agent.skills,
-      });
+      const walletAddress = publicKey?.toString() || null;
+
+      // Step 1: Create agent record on API
+      setStatusText('syncing with server...');
+      const isApiUp = walletAddress ? await api.health() : false;
+
+      let updatedAgent = { ...agent, isActive: true };
+
+      if (isApiUp && walletAddress) {
+        const serverAgent = await api.createAgent({
+          walletAddress,
+          name: agent.name,
+          personality: agent.personality,
+          skills: agent.skills,
+        });
+        updatedAgent = { ...serverAgent, isActive: true };
+        await api.toggleAgentActive(serverAgent.id).catch(() => {});
+      }
+
+      // Step 2: Register on-chain if wallet connected (native only)
+      if (walletAddress && publicKeyBase58 && Platform.OS !== 'web') {
+        setStatusText('registering on-chain...');
+        try {
+          const result = await registerAgentOnChain(
+            publicKeyBase58,
+            authToken,
+            agent.name,
+            agent.personality
+          );
+          updatedAgent.agentPda = result.agentPda;
+          updatedAgent.onChainSignature = result.signature;
+        } catch (chainError) {
+          console.warn('On-chain registration failed:', chainError);
+          // Continue without on-chain — agent still works off-chain
+        }
+      }
 
       useAgentStore.setState({
-        agent: {
-          ...serverAgent,
-          isActive: true,
-        },
-        walletAddress,
+        agent: updatedAgent,
+        ...(walletAddress && { walletAddress }),
       });
 
-      await api.toggleAgentActive(serverAgent.id);
-
+      successNotification();
       completeOnboarding();
       router.replace('/(tabs)');
     } catch (error) {
-      console.error('Failed to activate agent:', error);
+      console.warn('Failed to activate agent:', error);
       useAgentStore.setState({
-        agent: {
-          ...agent,
-          isActive: true,
-        },
+        agent: { ...agent, isActive: true },
       });
       completeOnboarding();
       router.replace('/(tabs)');
     } finally {
       setActivating(false);
+      setStatusText('');
     }
   };
 
@@ -101,20 +129,26 @@ export default function CompleteScreen() {
 
     setActivating(true);
     try {
-      const walletAddress = publicKey?.toString() || `temp_${Date.now()}`;
-      const serverAgent = await api.createAgent({
-        walletAddress,
-        name: agent.name,
-        personality: agent.personality,
-        skills: agent.skills,
-      });
+      const walletAddress = publicKey?.toString() || null;
+      const isApiUp = walletAddress ? await api.health() : false;
 
-      useAgentStore.setState({
-        agent: serverAgent,
-        walletAddress,
-      });
+      if (isApiUp && walletAddress) {
+        const serverAgent = await api.createAgent({
+          walletAddress,
+          name: agent.name,
+          personality: agent.personality,
+          skills: agent.skills,
+        });
+
+        useAgentStore.setState({
+          agent: serverAgent,
+          walletAddress,
+        });
+      } else if (walletAddress) {
+        useAgentStore.setState({ walletAddress });
+      }
     } catch (error) {
-      console.error('Failed to create agent on server:', error);
+      console.warn('Failed to create agent on server:', error);
     } finally {
       setActivating(false);
       completeOnboarding();
@@ -189,6 +223,9 @@ export default function CompleteScreen() {
         </View>
 
         <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
+          {statusText ? (
+            <Text style={styles.statusText}>{statusText}</Text>
+          ) : null}
           <Button
             onPress={handleActivate}
             loading={activating}
@@ -280,5 +317,12 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: spacing.md,
+  },
+  statusText: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.violet,
+    textAlign: 'center',
+    letterSpacing: typography.letterSpacing.wide,
   },
 });

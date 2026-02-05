@@ -29,6 +29,8 @@ export interface Agent {
   isActive: boolean;
   createdAt: string;
   globalId?: string;
+  agentPda?: string;
+  onChainSignature?: string;
 }
 
 interface AgentState {

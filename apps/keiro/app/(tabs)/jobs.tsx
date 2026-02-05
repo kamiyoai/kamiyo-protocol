@@ -14,6 +14,8 @@ import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore } from '../../src/stores/wallet';
 import { AGENT_SKILLS } from '../../src/lib/constants';
 import { api, ApiJob } from '../../src/lib/api';
+import { createEscrowOnChain } from '../../src/lib/on-chain';
+import { mediumTap } from '../../src/lib/haptics';
 import { colors, typography, spacing, tierColors } from '../../src/theme';
 import {
   TerminalFrame,
@@ -46,6 +48,9 @@ export default function JobsScreen() {
 
   const fetchJobs = useCallback(async () => {
     try {
+      const isApiUp = await api.health();
+      if (!isApiUp) return;
+
       if (filter === 'matching' && agent?.id) {
         const matchingJobs = await api.getMatchingJobs(agent.id);
         setJobs(matchingJobs);
@@ -54,7 +59,7 @@ export default function JobsScreen() {
         setJobs(openJobs);
       }
     } catch (error) {
-      console.error('Failed to fetch jobs:', error);
+      console.warn('Failed to fetch jobs:', error);
     } finally {
       setLoading(false);
     }
@@ -95,12 +100,44 @@ export default function JobsScreen() {
   const handleAcceptJob = async (job: ApiJob) => {
     if (!agent || !publicKey) return;
 
+    const publicKeyBase58 = useWalletStore.getState().publicKeyBase58;
+    const authToken = useWalletStore.getState().authToken;
+    if (!publicKeyBase58) return;
+
+    mediumTap();
     setAcceptingJobId(job.id);
     try {
+      // Step 1: Accept on API
       const result = await api.acceptJob(job.id, agent.id, publicKey.toString());
+
+      // Step 2: Create on-chain escrow (native only)
+      let escrowSig: string | null = null;
+      if (Platform.OS !== 'web') {
+        try {
+          const solLamports = job.paymentToken === 'SOL'
+            ? Math.floor(job.payment * 1_000_000_000)
+            : Math.floor(job.payment * 1_000_000); // USDC uses 6 decimals
+          const escrowResult = await createEscrowOnChain(
+            publicKeyBase58,
+            authToken,
+            job.posterAddress,
+            solLamports,
+            result.escrowId
+          );
+          escrowSig = escrowResult.signature;
+        } catch (chainError) {
+          console.warn('On-chain escrow creation failed:', chainError);
+        }
+      }
+
+      const escrowDisplay = result.escrowId.slice(0, 8);
+      const message = escrowSig
+        ? `Escrow: ${escrowDisplay}...\nTx: ${escrowSig.slice(0, 8)}...`
+        : `Escrow ID: ${escrowDisplay}...`;
+
       Alert.alert(
         'Job Accepted',
-        `You've accepted "${job.title}". Escrow ID: ${result.escrowId.slice(0, 8)}...`,
+        `You've accepted "${job.title}".\n${message}`,
         [{ text: 'OK', onPress: () => fetchJobs() }]
       );
     } catch (error) {
