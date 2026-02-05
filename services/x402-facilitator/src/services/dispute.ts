@@ -25,6 +25,8 @@ export function computeCommitmentHash(
   qualityScore: number,
   salt: Uint8Array
 ): Uint8Array {
+  if (sessionId.length > 255) throw new Error('sessionId too long');
+  if (salt.length > 255) throw new Error('salt too long');
   const oracleBytes = oracle.toBytes();
   const data = Buffer.concat([
     Buffer.from(COMMITMENT_DOMAIN),
@@ -57,10 +59,10 @@ export function calculateMedian(scores: number[]): number {
   return sorted[mid];
 }
 
-export function calculateConsensus(submissions: OracleSubmission[]): ConsensusResult {
+export function calculateConsensus(submissions: OracleSubmission[]): { medianScore: number; refundPercentage: number; outliers: string[]; validCount: number } {
   if (submissions.length < MIN_CONSENSUS_ORACLES) {
     throw new Error(`Need at least ${MIN_CONSENSUS_ORACLES} oracle submissions`);
-  }
+    }
 
   for (const s of submissions) {
     if (!Number.isInteger(s.qualityScore) || s.qualityScore < 0 || s.qualityScore > 100) {
@@ -146,7 +148,7 @@ async function sendAndConfirmWithTimeout(
 
 export async function markDisputedOnChain(
   connection: Connection,
-  facilitatorKeypair: Keypair,
+  operatorKeypair: Keypair,
   escrowPda: PublicKey,
   programId: PublicKey
 ): Promise<string> {
@@ -154,19 +156,19 @@ export async function markDisputedOnChain(
   const ix = new TransactionInstruction({
     programId,
     keys: [
-      { pubkey: facilitatorKeypair.publicKey, isSigner: true, isWritable: false },
+      { pubkey: operatorKeypair.publicKey, isSigner: true, isWritable: false },
       { pubkey: escrowPda, isSigner: false, isWritable: true },
     ],
     data: discriminator,
   });
 
   const tx = new Transaction().add(ix);
-  return sendAndConfirmWithTimeout(connection, tx, [facilitatorKeypair], { commitment: 'confirmed', timeoutMs: 20_000 });
+  return sendAndConfirmWithTimeout(connection, tx, [operatorKeypair], { commitment: 'confirmed', timeoutMs: 20_000 });
 }
 
 export async function finalizeDisputeOnChain(
   connection: Connection,
-  facilitatorKeypair: Keypair,
+  operatorKeypair: Keypair,
   escrowPda: PublicKey,
   userWallet: PublicKey,
   treasuryWallet: PublicKey,
@@ -187,7 +189,7 @@ export async function finalizeDisputeOnChain(
   });
 
   const tx = new Transaction().add(ix);
-  return sendAndConfirmWithTimeout(connection, tx, [facilitatorKeypair], { commitment: 'confirmed', timeoutMs: 25_000 });
+  return sendAndConfirmWithTimeout(connection, tx, [operatorKeypair], { commitment: 'confirmed', timeoutMs: 25_000 });
 }
 
 export { COMMIT_PHASE_DURATION, REVEAL_PHASE_DURATION, MIN_CONSENSUS_ORACLES, MAX_SCORE_DEVIATION };

@@ -19,6 +19,12 @@ const DISPUTE_REASONS = [
   { label: 'Other', value: 'other' },
 ] as const;
 
+function assertValidEscrowId(id: string): string {
+  const trimmed = id.trim();
+  if (!/^[a-z0-9_:\-]{3,128}$/i.test(trimmed)) throw new Error('Invalid Escrow ID');
+  return trimmed;
+}
+
 export function getDisputeAction(requestUrl: URL): ActionGetResponse {
   const escrowId = requestUrl.searchParams.get('escrowId');
 
@@ -27,28 +33,36 @@ export function getDisputeAction(requestUrl: URL): ActionGetResponse {
       type: 'action',
       icon: ICON_URL,
       title: `Dispute Escrow ${escrowId.slice(0, 12)}...`,
-      description: 'File a dispute for oracle arbitration. Oracles will vote on refund percentage based on evidence.',
+      description:
+        'File a dispute for oracle arbitration. Oracles will vote on refund percentage based on evidence.',
       label: 'File Dispute',
       links: {
         actions: [
           {
             type: 'transaction',
             label: 'File Dispute',
-            href: `${BASE_URL}/api/actions/dispute?escrowId=${escrowId}&reason={reason}`,
+            href: `${BASE_URL}/api/actions/dispute?escrowId=${encodeURIComponent(
+              escrowId
+            )}&reason={reason}`,
             parameters: [
               {
                 name: 'reason',
                 label: 'Reason for dispute',
                 required: true,
                 type: 'select',
-                options: DISPUTE_REASONS.map(r => ({ label: r.label, value: r.value })),
+                options: DISPUTE_REASONS.map((r) => ({
+                  label: r.label,
+                  value: r.value,
+                })),
               },
             ],
           },
           {
             type: 'transaction',
             label: 'Release Instead',
-            href: `${BASE_URL}/api/actions/release-escrow?escrowId=${escrowId}&provider={provider}`,
+            href: `${BASE_URL}/api/actions/release-escrow?escrowId=${encodeURIComponent(
+              escrowId
+            )}&provider={provider}`,
             parameters: [
               {
                 name: 'provider',
@@ -67,7 +81,8 @@ export function getDisputeAction(requestUrl: URL): ActionGetResponse {
     type: 'action',
     icon: ICON_URL,
     title: 'File KAMIYO Dispute',
-    description: 'File a dispute for oracle arbitration. Refund determined by quality assessment.',
+    description:
+      'File a dispute for oracle arbitration. Refund determined by quality assessment.',
     label: 'File Dispute',
     links: {
       actions: [
@@ -87,7 +102,10 @@ export function getDisputeAction(requestUrl: URL): ActionGetResponse {
               label: 'Reason for dispute',
               required: true,
               type: 'select',
-              options: DISPUTE_REASONS.map(r => ({ label: r.label, value: r.value })),
+              options: DISPUTE_REASONS.map((r) => ({
+                label: r.label,
+                value: r.value,
+              })),
             },
           ],
         },
@@ -100,39 +118,49 @@ export async function postDispute(
   request: ActionPostRequest,
   requestUrl: URL
 ): Promise<ActionPostResponse> {
-  const escrowId = requestUrl.searchParams.get('escrowId');
-  const reason = requestUrl.searchParams.get('reason') || 'other';
+  const escrowIdParam = requestUrl.searchParams.get('escrowId');
+  const reasonParam = requestUrl.searchParams.get('reason') || 'other';
 
-  if (!escrowId) {
-    throw new Error('Escrow ID is required');
-  }
+  if (!escrowIdParam) throw new Error('Escrow ID is required');
+  const escrowId = assertValidEscrowId(escrowIdParam);
 
   const payerPubkey = validatePublicKey(request.account, 'payer');
-
   const connection = getConnection();
   const client = createReadOnlyClient(payerPubkey);
 
-  const ix = client.buildMarkDisputedInstruction(payerPubkey, escrowId);
-  const transaction = await buildAndSerializeTransaction(connection, payerPubkey, ix);
+  try {
+    const ix = client.buildMarkDisputedInstruction(payerPubkey, escrowId);
+    const transaction = await buildAndSerializeTransaction(
+      connection,
+      payerPubkey,
+      ix
+    );
 
-  const reasonLabel = DISPUTE_REASONS.find(r => r.value === reason)?.label || reason;
+    const reasonLabel =
+      DISPUTE_REASONS.find((r) => r.value === reasonParam)?.label || reasonParam;
 
-  return {
-    type: 'transaction',
-    transaction,
-    message: `Dispute filed: ${reasonLabel}. Oracles will arbitrate within 24-48 hours.`,
-    links: {
-      next: {
-        type: 'inline',
-        action: {
-          type: 'action',
-          icon: ICON_URL,
-          title: 'Dispute Filed',
-          description: 'Your dispute has been submitted. Switchboard oracles will vote on the outcome.',
-          label: 'Pending',
-          disabled: true,
+    return {
+      type: 'transaction',
+      transaction,
+      message:
+        `Dispute filed: ${reasonLabel}. Oracles will arbitrate within 24-48 hours.`,
+      links: {
+        next: {
+          type: 'inline',
+          action: {
+            type: 'action',
+            icon: ICON_URL,
+            title: 'Dispute Filed',
+            description:
+              'Your dispute has been submitted. Switchboard oracles will vote on the outcome.',
+            label: 'Pending',
+            disabled: true,
+          },
         },
       },
-    },
-  };
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Transaction build failed';
+    throw new Error(`Dispute failed: ${msg}`);
+  }
 }

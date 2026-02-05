@@ -46,34 +46,40 @@ async function getProgram(connection: Connection, signer: Keypair, programId: Pu
 
 export async function createEscrow(
   connection: Connection,
-  facilitatorKeypair: Keypair,
+  operatorKeypair: Keypair,
   payerWallet: PublicKey,
   amount: number,
   sessionId: string,
   timeLockSeconds: number = 86400
 ): Promise<{ escrowAddress: string; txHash: string; fee: number; expiresAt: number }> {
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid amount');
+  if (typeof sessionId !== 'string' || sessionId.length === 0) throw new Error('Invalid sessionId');
+  const lock = Math.max(60, Math.min(30 * 24 * 3600, Math.floor(timeLockSeconds)));
+
   const config = getConfig();
   const programId = new PublicKey(config.ESCROW_PROGRAM_ID);
   const fee = calculateFee(amount, config.ESCROW_FEE_BPS);
 
   const sessionIdBytes = sessionIdToBytes(sessionId);
   const escrowPda = deriveEscrowPda(programId, payerWallet, sessionIdBytes);
-  const amountLamports = new BN(Math.round(amount * 10 ** USDC_DECIMALS));
+  const amountUnits = Math.round(amount * 10 ** USDC_DECIMALS);
+  if (!Number.isFinite(amountUnits) || amountUnits <= 0) throw new Error('Invalid scaled amount');
+  const amountBn = new BN(amountUnits.toString());
 
-  const program = await getProgram(connection, facilitatorKeypair, programId);
+  const program = await getProgram(connection, operatorKeypair, programId);
   const txHash = await (program.methods as any)
-    .createEscrow(Array.from(sessionIdBytes), amountLamports)
+    .createEscrow(Array.from(sessionIdBytes), amountBn)
     .accounts({ user: payerWallet, escrow: escrowPda })
-    .signers([facilitatorKeypair])
+    .signers([operatorKeypair])
     .rpc();
 
-  const expiresAt = Date.now() + timeLockSeconds * 1000;
+  const expiresAt = Date.now() + lock * 1000;
   return { escrowAddress: escrowPda.toBase58(), txHash, fee, expiresAt };
 }
 
 export async function releaseEscrow(
   connection: Connection,
-  facilitatorKeypair: Keypair,
+  operatorKeypair: Keypair,
   escrowAddress: string,
   qualityScore: number
 ): Promise<{ txHash: string; refundPercent: number; merchantAmount: number; refundAmount: number }> {
@@ -82,13 +88,13 @@ export async function releaseEscrow(
   const escrowPda = new PublicKey(escrowAddress);
   const refundPercent = calculateRefundPercent(qualityScore);
 
-  const program = await getProgram(connection, facilitatorKeypair, programId);
+  const program = await getProgram(connection, operatorKeypair, programId);
   const rating = qualityScore >= 80 ? 5 : qualityScore >= 60 ? 3 : 1;
 
   const txHash = await (program.methods as any)
     .rateAndRelease(rating)
     .accounts({ escrow: escrowPda })
-    .signers([facilitatorKeypair])
+    .signers([operatorKeypair])
     .rpc();
 
   return { txHash, refundPercent, merchantAmount: 0, refundAmount: 0 };

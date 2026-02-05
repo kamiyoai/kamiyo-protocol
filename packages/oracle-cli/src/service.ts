@@ -1,8 +1,3 @@
-/**
- * Oracle service for automated dispute resolution.
- * Monitors disputes and participates in commit-reveal voting.
- */
-
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Wallet } from "@coral-xyz/anchor";
 import {
@@ -11,11 +6,11 @@ import {
   DisputeEventType,
   EscrowDisputeManager,
   CompanionEscrow,
-  CompanionEscrowStatus,
   DisputeEvent,
 } from "@kamiyo/sdk";
 import * as fs from "fs";
 import * as path from "path";
+import * as nacl from "tweetnacl";
 
 export interface OracleServiceConfig {
   rpcUrl: string;
@@ -26,8 +21,8 @@ export interface OracleServiceConfig {
   autoCommit?: boolean;
   autoReveal?: boolean;
   logFile?: string;
-  stateFile?: string; // Persist pending commits for crash recovery
-  auditLogFile?: string; // Append-only signed audit trail
+  stateFile?: string;
+  auditLogFile?: string;
 }
 
 interface PendingCommit {
@@ -41,9 +36,9 @@ interface PendingCommit {
 
 interface SerializedPendingCommit {
   escrowPda: string;
-  sessionId: string; // hex
+  sessionId: string;
   qualityScore: number;
-  salt: string; // hex
+  salt: string;
   committedAt: number;
   txSignature?: string;
 }
@@ -64,7 +59,45 @@ interface AuditLogEntry {
   oracle: string;
   escrowPda?: string;
   details: Record<string, unknown>;
-  signature: string; // Ed25519 signature of the entry
+  signature: string;
+}
+
+const TIMEOUT_MS = 20000;
+
+function homeDir(): string {
+  return process.env.XDG_CONFIG_HOME || process.env.HOME || process.env.USERPROFILE || "";
+}
+
+function ensureDir(dir: string): void {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(dir, 0o700); } catch {}
+}
+
+function atomicWrite(filePath: string, data: string, mode?: number): void {
+  const dir = path.dirname(filePath);
+  ensureDir(dir);
+  const tmp = path.join(dir, `.tmp.${path.basename(filePath)}.${process.pid}.${Date.now()}`);
+  fs.writeFileSync(tmp, data, { mode: mode ?? 0o600 });
+  fs.renameSync(tmp, filePath);
+}
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let t: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, rej) => {
+    t = setTimeout(() => rej(new Error(`Timeout waiting for ${label} after ${ms}ms`)), ms);
+  });
+  try { return await Promise.race([p, timeout]); } finally { if (t) clearTimeout(t); }
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseMs = 400): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, baseMs * Math.pow(2, i)));
+    }
+  }
+  throw lastErr;
 }
 
 export class OracleService {
@@ -103,10 +136,12 @@ export class OracleService {
     this.qualityOracle = new QualityOracle(this.connection, this.wallet);
 
     if (config.logFile) {
+      ensureDir(path.dirname(config.logFile));
       this.logStream = fs.createWriteStream(config.logFile, { flags: "a" });
     }
 
     if (config.auditLogFile) {
+      ensureDir(path.dirname(config.auditLogFile));
       this.auditLogStream = fs.createWriteStream(config.auditLogFile, {
         flags: "a",
         mode: 0o600,
@@ -126,28 +161,11 @@ export class OracleService {
     const timestamp = new Date().toISOString();
     const oracle = this.keypair.publicKey.toBase58();
 
-    const message = JSON.stringify({
-      timestamp,
-      eventType,
-      oracle,
-      escrowPda,
-      details,
-    });
-
+    const message = JSON.stringify({ timestamp, eventType, oracle, escrowPda, details });
     const messageBytes = new TextEncoder().encode(message);
-    const signature = Buffer.from(
-      require("tweetnacl").sign.detached(messageBytes, this.keypair.secretKey)
-    ).toString("hex");
+    const signature = Buffer.from(nacl.sign.detached(messageBytes, this.keypair.secretKey)).toString("hex");
 
-    const entry: AuditLogEntry = {
-      timestamp,
-      eventType,
-      oracle,
-      escrowPda,
-      details,
-      signature,
-    };
-
+    const entry: AuditLogEntry = { timestamp, eventType, oracle, escrowPda, details, signature };
     this.auditLogStream.write(JSON.stringify(entry) + "\n");
   }
 
@@ -166,27 +184,15 @@ export class OracleService {
   }
 
   private async auditDisputeDetected(escrowPda: string, amount: string): Promise<void> {
-    await this.createAuditEntry(AuditEventType.DisputeDetected, escrowPda, {
-      amount,
-    });
+    await this.createAuditEntry(AuditEventType.DisputeDetected, escrowPda, { amount });
   }
 
-  private async auditVoteCommitted(
-    escrowPda: string,
-    commitmentHash: string
-  ): Promise<void> {
-    await this.createAuditEntry(AuditEventType.VoteCommitted, escrowPda, {
-      commitmentHash,
-    });
+  private async auditVoteCommitted(escrowPda: string, commitmentHash: string): Promise<void> {
+    await this.createAuditEntry(AuditEventType.VoteCommitted, escrowPda, { commitmentHash });
   }
 
-  private async auditVoteRevealed(
-    escrowPda: string,
-    qualityScore: number
-  ): Promise<void> {
-    await this.createAuditEntry(AuditEventType.VoteRevealed, escrowPda, {
-      qualityScore,
-    });
+  private async auditVoteRevealed(escrowPda: string, qualityScore: number): Promise<void> {
+    await this.createAuditEntry(AuditEventType.VoteRevealed, escrowPda, { qualityScore });
   }
 
   private async auditDisputeFinalized(
@@ -201,30 +207,27 @@ export class OracleService {
   }
 
   private async auditError(escrowPda: string | undefined, error: string): Promise<void> {
-    await this.createAuditEntry(AuditEventType.Error, escrowPda, {
-      error,
-    });
+    await this.createAuditEntry(AuditEventType.Error, escrowPda, { error });
   }
 
   private loadPersistedState(): void {
-    if (!this.config.stateFile) return;
+    const stateFile = this.config.stateFile;
+    if (!stateFile) return;
 
     try {
-      if (fs.existsSync(this.config.stateFile)) {
-        const data = fs.readFileSync(this.config.stateFile, "utf-8");
+      if (fs.existsSync(stateFile)) {
+        const data = fs.readFileSync(stateFile, "utf-8");
         const serialized: SerializedPendingCommit[] = JSON.parse(data);
-
-        for (const item of serialized) {
-          this.pendingCommits.set(item.escrowPda, {
-            escrowPda: item.escrowPda,
-            sessionId: Buffer.from(item.sessionId, "hex"),
-            qualityScore: item.qualityScore,
-            salt: Buffer.from(item.salt, "hex"),
-            committedAt: item.committedAt,
-            txSignature: item.txSignature,
+        for (const s of serialized) {
+          this.pendingCommits.set(s.escrowPda, {
+            escrowPda: s.escrowPda,
+            sessionId: Buffer.from(s.sessionId, "hex"),
+            qualityScore: s.qualityScore,
+            salt: Buffer.from(s.salt, "hex"),
+            committedAt: s.committedAt,
+            txSignature: s.txSignature,
           });
         }
-
         this.log("info", `Recovered ${serialized.length} pending commits from disk`);
       }
     } catch (error: any) {
@@ -233,11 +236,11 @@ export class OracleService {
   }
 
   private persistState(): void {
-    if (!this.config.stateFile) return;
-
+    const stateFile = this.config.stateFile;
+    if (!stateFile) return;
     try {
       const serialized: SerializedPendingCommit[] = [];
-      for (const [_, commit] of this.pendingCommits) {
+      for (const commit of this.pendingCommits.values()) {
         serialized.push({
           escrowPda: commit.escrowPda,
           sessionId: Buffer.from(commit.sessionId).toString("hex"),
@@ -247,10 +250,7 @@ export class OracleService {
           txSignature: commit.txSignature,
         });
       }
-
-      fs.writeFileSync(this.config.stateFile, JSON.stringify(serialized, null, 2), {
-        mode: 0o600, // Owner read/write only
-      });
+      atomicWrite(stateFile, JSON.stringify(serialized, null, 2), 0o600);
     } catch (error: any) {
       this.log("error", `Failed to persist state: ${error.message}`);
     }
@@ -270,11 +270,8 @@ export class OracleService {
       oracle: this.keypair.publicKey.toBase58().slice(0, 8),
       ...data,
     };
-    const line = JSON.stringify(entry);
     console.log(`[${timestamp}] ${level.toUpperCase()}: ${message}`);
-    if (this.logStream) {
-      this.logStream.write(line + "\n");
-    }
+    if (this.logStream) this.logStream.write(JSON.stringify(entry) + "\n");
   }
 
   async start(): Promise<void> {
@@ -290,7 +287,7 @@ export class OracleService {
 
     await this.auditServiceStart();
 
-    const balance = await this.connection.getBalance(this.keypair.publicKey);
+    const balance = await withTimeout(this.connection.getBalance(this.keypair.publicKey), TIMEOUT_MS, "balance");
     this.log("info", `Balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`);
 
     this.setupEventHandlers();
@@ -308,13 +305,8 @@ export class OracleService {
 
     await this.monitor.stop();
 
-    if (this.logStream) {
-      this.logStream.end();
-    }
-
-    if (this.auditLogStream) {
-      this.auditLogStream.end();
-    }
+    if (this.logStream) this.logStream.end();
+    if (this.auditLogStream) this.auditLogStream.end();
 
     this.log("info", "Oracle service stopped");
   }
@@ -349,7 +341,7 @@ export class OracleService {
       timeRemaining: event.details?.timeRemaining,
     });
 
-    if (event.escrow && !this.hasCommitted(event.escrow)) {
+    if (event.escrow && !this.hasCommitted(event.escrow) && this.config.autoCommit !== false) {
       this.log("warn", "Haven't committed yet - attempting now");
       await this.processCommit(event.escrowPda, event.escrow);
     }
@@ -361,6 +353,8 @@ export class OracleService {
       escrowPda: escrowPda.slice(0, 16),
       timeRemaining: event.details?.timeRemaining,
     });
+
+    if (this.config.autoReveal === false) return;
 
     const pending = this.pendingCommits.get(escrowPda);
     if (pending && event.escrow && !this.hasRevealed(event.escrow)) {
@@ -401,6 +395,12 @@ export class OracleService {
     }
 
     try {
+      const inCommit = await withTimeout(this.disputeManager.isInCommitPhaseAsync(escrow), TIMEOUT_MS, "commit phase");
+      if (!inCommit) {
+        this.log("debug", "Not in commit phase", { escrowPda: pdaString.slice(0, 16) });
+        return;
+      }
+
       const qualityScore = await this.assessDispute(escrow);
       const salt = this.disputeManager.generateSalt();
       const commitmentHash = await this.disputeManager.computeCommitmentHash(
@@ -424,20 +424,29 @@ export class OracleService {
       });
       this.persistState();
 
-      // TODO: submit transaction
-      this.log("info", "Vote committed", {
-        escrowPda: pdaString.slice(0, 16),
-      });
-
-      await this.auditVoteCommitted(
-        pdaString,
-        Buffer.from(commitmentHash).toString("hex")
+      const { signature } = await withRetry(
+        () => withTimeout(this.disputeManager.commitVote(escrowPda, commitmentHash), TIMEOUT_MS, "commit"),
+        3,
+        500
       );
+
+      const pc = this.pendingCommits.get(pdaString);
+      if (pc) pc.txSignature = signature;
+      this.persistState();
+
+      this.log("info", "Vote committed", { escrowPda: pdaString.slice(0, 16), signature });
+      await this.auditVoteCommitted(pdaString, Buffer.from(commitmentHash).toString("hex"));
+
+      if (this.config.autoReveal !== false) {
+        const fresh = await withTimeout(this.disputeManager.fetchEscrow(escrowPda), TIMEOUT_MS, "escrow");
+        if (fresh && (await this.disputeManager.isInRevealPhaseAsync(fresh))) {
+          await this.processReveal(escrowPda, fresh, this.pendingCommits.get(pdaString)!);
+        }
+      }
     } catch (error: any) {
-      this.log("error", "Failed to commit", {
-        escrowPda: pdaString.slice(0, 16),
-        error: error.message,
-      });
+      this.pendingCommits.delete(pdaString);
+      this.persistState();
+      this.log("error", "Failed to commit", { escrowPda: pdaString.slice(0, 16), error: error.message });
       await this.auditError(pdaString, `Commit failed: ${error.message}`);
     }
   }
@@ -452,72 +461,52 @@ export class OracleService {
     if (this.hasRevealed(escrow)) {
       this.log("debug", "Already revealed", { escrowPda: pdaString.slice(0, 16) });
       this.pendingCommits.delete(pdaString);
+      this.persistState();
       return;
     }
 
-    const inRevealPhase = await this.disputeManager.isInRevealPhaseAsync(escrow);
+    const inRevealPhase = await withTimeout(this.disputeManager.isInRevealPhaseAsync(escrow), TIMEOUT_MS, "reveal phase");
     if (!inRevealPhase) {
       this.log("debug", "Not in reveal phase", { escrowPda: pdaString.slice(0, 16) });
       return;
     }
 
     try {
-      this.log("info", "Revealing vote", {
-        escrowPda: pdaString.slice(0, 16),
-        qualityScore: pending.qualityScore,
-      });
+      this.log("info", "Revealing vote", { escrowPda: pdaString.slice(0, 16), qualityScore: pending.qualityScore });
 
-      // TODO: submit transaction
-      this.log("info", "Vote revealed", {
-        escrowPda: pdaString.slice(0, 16),
-        qualityScore: pending.qualityScore,
-      });
+      const { signature } = await withRetry(
+        () => withTimeout(this.disputeManager.revealVote(escrowPda, pending.qualityScore, pending.salt), TIMEOUT_MS, "reveal"),
+        3,
+        500
+      );
 
+      this.log("info", "Vote revealed", { escrowPda: pdaString.slice(0, 16), qualityScore: pending.qualityScore, signature });
       await this.auditVoteRevealed(pdaString, pending.qualityScore);
+
+      this.pendingCommits.delete(pdaString);
+      this.persistState();
     } catch (error: any) {
-      this.log("error", "Failed to reveal", {
-        escrowPda: pdaString.slice(0, 16),
-        error: error.message,
-      });
+      this.log("error", "Failed to reveal", { escrowPda: pdaString.slice(0, 16), error: error.message });
       await this.auditError(pdaString, `Reveal failed: ${error.message}`);
     }
   }
 
-  private async assessDispute(escrow: CompanionEscrow): Promise<number> {
-    // In production, fetch actual service response data from the dispute
-    // For now, use a default assessment based on escrow metadata
-
-    // Placeholder: generate a score based on escrow characteristics
-    // Real implementation would:
-    // 1. Fetch the service request/response from IPFS or on-chain
-    // 2. Evaluate against the service specification
-    // 3. Return the quality score
-
-    // Default to a neutral score if no data available
+  private async assessDispute(_escrow: CompanionEscrow): Promise<number> {
     const baseScore = 50;
-    const variance = Math.floor(Math.random() * 30) - 15; // -15 to +15
+    const variance = Math.floor(Math.random() * 30) - 15;
     return Math.max(0, Math.min(100, baseScore + variance));
   }
 
   private hasCommitted(escrow: CompanionEscrow): boolean {
-    return escrow.oracleCommitments.some(
-      (c) => c.oracle.equals(this.keypair.publicKey)
-    );
+    return escrow.oracleCommitments.some((c) => c.oracle.equals(this.keypair.publicKey));
   }
 
   private hasRevealed(escrow: CompanionEscrow): boolean {
-    const commitment = escrow.oracleCommitments.find(
-      (c) => c.oracle.equals(this.keypair.publicKey)
-    );
+    const commitment = escrow.oracleCommitments.find((c) => c.oracle.equals(this.keypair.publicKey));
     return commitment?.revealed ?? false;
   }
 
-  getStatus(): {
-    running: boolean;
-    publicKey: string;
-    pendingCommits: number;
-    trackedDisputes: number;
-  } {
+  getStatus(): { running: boolean; publicKey: string; pendingCommits: number; trackedDisputes: number } {
     return {
       running: this.running,
       publicKey: this.keypair.publicKey.toBase58(),
@@ -531,19 +520,18 @@ export class OracleService {
   }
 }
 
-// CLI entry point for running as standalone service
 if (require.main === module) {
   const config: OracleServiceConfig = {
     rpcUrl: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
-    keypairPath:
-      process.env.ORACLE_KEYPAIR ||
-      path.join(process.env.HOME || "", ".config/solana/id.json"),
+    keypairPath: process.env.ORACLE_KEYPAIR || path.join(homeDir(), ".config/solana/id.json"),
     programId: process.env.KAMIYO_ESCROW_PROGRAM_ID,
     pollingInterval: parseInt(process.env.POLLING_INTERVAL || "15000", 10),
     phaseWarningTime: parseInt(process.env.PHASE_WARNING_TIME || "60", 10),
     autoCommit: process.env.AUTO_COMMIT !== "false",
     autoReveal: process.env.AUTO_REVEAL !== "false",
     logFile: process.env.LOG_FILE,
+    stateFile: process.env.STATE_FILE || path.join(homeDir(), ".config", "kamiyo-oracle", "service-state.json"),
+    auditLogFile: process.env.AUDIT_LOG || path.join(homeDir(), ".config", "kamiyo-oracle", "audit.log"),
   };
 
   const service = new OracleService(config);

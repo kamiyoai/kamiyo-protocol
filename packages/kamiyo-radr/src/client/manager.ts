@@ -21,25 +21,25 @@ interface ManagerConfig {
   maxAge?: number;
   autoCleanup?: boolean;
   cleanupInterval?: number;
+  referralId?: string;
 }
 
 export class RadrClientManager {
   private static instance: RadrClientManager | null = null;
 
   private clients: Map<string, CachedClients> = new Map();
-  private config: Required<ManagerConfig>;
+  private config: { maxAge: number; autoCleanup: boolean; cleanupInterval: number; referralId?: string };
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   private constructor(config?: ManagerConfig) {
     this.config = {
-      maxAge: config?.maxAge ?? 5 * 60 * 1000, // 5 minutes
+      maxAge: config?.maxAge ?? 5 * 60 * 1000,
       autoCleanup: config?.autoCleanup ?? true,
-      cleanupInterval: config?.cleanupInterval ?? 60 * 1000, // 1 minute
+      cleanupInterval: config?.cleanupInterval ?? 60 * 1000,
+      referralId: config?.referralId,
     };
 
-    if (this.config.autoCleanup) {
-      this.startCleanupTimer();
-    }
+    if (this.config.autoCleanup) this.startCleanupTimer();
   }
 
   static getInstance(config?: ManagerConfig): RadrClientManager {
@@ -65,7 +65,10 @@ export class RadrClientManager {
       return cached.shadowWire;
     }
 
-    const client = await createShadowWireClient(connection, { debug });
+    const client = await createShadowWireClient(connection, {
+      debug,
+      referralId: this.config.referralId,
+    });
 
     if (!cached) {
       cached = {
@@ -151,6 +154,12 @@ export class RadrClientManager {
 
     for (const [key, cached] of this.clients.entries()) {
       if (now - cached.lastUsed > this.config.maxAge) {
+        try {
+          (cached.shadowWire as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.close?.();
+          (cached.shadowWire as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.destroy?.();
+          (cached.escrowHandler as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.close?.();
+          (cached.escrowHandler as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.destroy?.();
+        } catch {}
         this.clients.delete(key);
         cleaned++;
       }
@@ -161,6 +170,14 @@ export class RadrClientManager {
 
   cleanup(): void {
     this.stopCleanupTimer();
+    for (const cached of this.clients.values()) {
+      try {
+        (cached.shadowWire as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.close?.();
+        (cached.shadowWire as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.destroy?.();
+        (cached.escrowHandler as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.close?.();
+        (cached.escrowHandler as unknown as { close?: () => void; destroy?: () => void; disconnect?: () => void })?.destroy?.();
+      } catch {}
+    }
     this.clients.clear();
   }
 
@@ -179,8 +196,8 @@ export class RadrClientManager {
       this.cleanupStale();
     }, this.config.cleanupInterval);
 
-    if (this.cleanupTimer.unref) {
-      this.cleanupTimer.unref();
+    if ((this.cleanupTimer as unknown as { unref?: () => void }).unref) {
+      (this.cleanupTimer as unknown as { unref?: () => void }).unref?.();
     }
   }
 

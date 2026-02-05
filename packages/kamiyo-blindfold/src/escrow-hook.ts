@@ -41,7 +41,7 @@ export interface BlindfoldPaymentResult {
   limit: number;
 }
 
-// Routes KAMIYO escrow releases to Blindfold for card payment
+// Payment rail for Blindfold card issuance triggered by escrow release
 export class EscrowToBlindoldHook {
   private connection: Connection;
   private blindfold: BlindfoldClient;
@@ -51,7 +51,6 @@ export class EscrowToBlindoldHook {
     this.blindfold = new BlindfoldClient(blindfoldConfig);
   }
 
-  // Returns null if escrow doesn't have Blindfold metadata
   async onEscrowRelease(
     params: EscrowReleaseParams,
     payer: Keypair,
@@ -59,9 +58,7 @@ export class EscrowToBlindoldHook {
   ): Promise<BlindfoldPaymentResult | null> {
     const { metadata, amount, tokenMint } = params;
 
-    if (!metadata?.blindfoldCard || !metadata.recipientEmail) {
-      return null;
-    }
+    if (!metadata?.blindfoldCard || !metadata.recipientEmail) return null;
 
     let tier: CardTier = 'basic';
     if (reputationProof) {
@@ -71,10 +68,17 @@ export class EscrowToBlindoldHook {
     }
 
     const limit = this.blindfold.getLimitForTier(tier);
-    const amountSol = amount.toNumber() / LAMPORTS_PER_SOL;
+
+    // limit checks are tier-based; higher reputation unlocks higher limits
+    const lamports = amount.toNumber();
+    if (!Number.isSafeInteger(lamports)) {
+      throw new Error('Amount too large for transfer');
+    }
+    const amountSol = lamports / LAMPORTS_PER_SOL;
 
     if (amountSol > limit) {
-      throw new Error(`Amount $${amountSol.toFixed(2)} exceeds tier limit $${limit}`);
+      const currency = this.getCurrencyFromMint(tokenMint);
+      throw new Error(`Amount ${amountSol.toFixed(4)} ${currency} exceeds tier limit ${limit}`);
     }
 
     const currency = this.getCurrencyFromMint(tokenMint);
@@ -122,17 +126,20 @@ export class EscrowToBlindoldHook {
     tokenMint: PublicKey
   ): Promise<string> {
     if (tokenMint.equals(NATIVE_SOL_MINT)) {
+      const lamports = amount.toNumber();
+      if (!Number.isSafeInteger(lamports)) {
+        throw new Error('Amount too large for transfer');
+        }
       const tx = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: payer.publicKey,
           toPubkey: holdingWallet,
-          lamports: amount.toNumber(),
+          lamports,
         })
       );
       return sendAndConfirmTransaction(this.connection, tx, [payer]);
     }
 
-    // SPL tokens not yet supported by Blindfold ZK payments
     throw new Error('Only SOL transfers supported');
   }
 
@@ -146,13 +153,8 @@ export class EscrowToBlindoldHook {
     while (Date.now() - startTime < timeoutMs) {
       const status = await this.blindfold.getPaymentStatus(paymentId);
 
-      if (status.status === 'confirmed' && status.giftCardCreated) {
-        return true;
-      }
-
-      if (status.status === 'failed' || status.status === 'expired') {
-        return false;
-      }
+      if (status.status === 'confirmed' && status.giftCardCreated) return true;
+      if (status.status === 'failed' || status.status === 'expired') return false;
 
       await sleep(pollIntervalMs);
     }
@@ -192,3 +194,5 @@ export function getThresholdForTier(tier: CardTier): number {
   const config = CARD_TIERS.find((t) => t.tier === tier);
   return config?.reputationThreshold ?? 0;
 }
+
+export { EscrowToBlindoldHook as EscrowToBlindfoldHook };

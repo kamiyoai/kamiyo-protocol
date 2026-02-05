@@ -3,6 +3,13 @@ import { Wallet } from '@coral-xyz/anchor';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
 import { getNetworkConfig, getKeypair, createConnection, parseAddress } from '../utils';
 
+function extractEscrowId(text: string, fallback?: string): string | null {
+  const match = text.match(/tx_[a-z0-9_\-]+/i) || text.match(/escrow_[a-z0-9_\-]+/i);
+  const id = match?.[0] || fallback;
+  if (!id) return null;
+  return /^[a-z0-9_:\-]{3,128}$/i.test(id) ? id : null;
+}
+
 export const releaseEscrowAction: Action = {
   name: 'RELEASE_KAMIYO_ESCROW',
   description: 'Release escrowed funds to provider after successful delivery.',
@@ -39,8 +46,7 @@ export const releaseEscrowAction: Action = {
     const keypair = getKeypair(runtime);
     const text = message.content.text || '';
 
-    const escrowMatch = text.match(/tx_[a-z0-9_]+/i) || text.match(/escrow_[a-z0-9_]+/i);
-    const transactionId = escrowMatch?.[0] || (message.content.transactionId as string);
+    const transactionId = extractEscrowId(text, message.content.transactionId as string);
 
     if (!transactionId) {
       callback?.({ text: 'Specify escrow/transaction ID (e.g., tx_abc123)' });
@@ -68,7 +74,10 @@ export const releaseEscrowAction: Action = {
         programId: new PublicKey(programId),
       });
 
-      const signature = await client.releaseFunds(transactionId, new PublicKey(provider));
+      const signature = await client.releaseFunds(
+        transactionId,
+        new PublicKey(provider)
+      );
 
       callback?.({
         text: `Released ${transactionId}. Provider ${provider.slice(0, 8)}... paid.`,

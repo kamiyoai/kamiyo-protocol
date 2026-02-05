@@ -36,7 +36,6 @@ export const publishDisputeAction: Action = {
   ): Promise<{ ual: string; success: boolean }> => {
     const ctx = await getBridgeContext(runtime);
 
-    // Extract parameters from options (required for disputes)
     const escrowId = options?.escrowId as string;
     const clientId = options?.clientId as string;
     const providerId = options?.providerId as string;
@@ -49,11 +48,20 @@ export const publishDisputeAction: Action = {
     const evidenceHash = options?.evidenceHash as string | undefined;
     const transactionHash = options?.transactionHash as string | undefined;
 
-    if (!escrowId || !clientId || !providerId || amount === undefined || !outcome || qualityScore === undefined || refundPercentage === undefined) {
-      const errorMsg = 'Missing required parameters for dispute outcome';
-      if (callback) {
-        await callback({ text: errorMsg });
-      }
+    const numbersValid = (n: unknown) => typeof n === 'number' && Number.isFinite(n);
+    const pctValid = (n: unknown) => numbersValid(n) && (n as number) >= 0 && (n as number) <= 100;
+
+    if (
+      !escrowId ||
+      !clientId ||
+      !providerId ||
+      !numbersValid(amount) ||
+      !outcome ||
+      !pctValid(qualityScore) ||
+      !pctValid(refundPercentage)
+    ) {
+      const errorMsg = 'Missing or invalid parameters for dispute outcome';
+      if (callback) await callback({ text: errorMsg });
       return { ual: '', success: false };
     }
 
@@ -72,12 +80,7 @@ export const publishDisputeAction: Action = {
         transactionHash,
       });
 
-      const responseText = `Published dispute outcome to DKG.
-Escrow: ${escrowId}
-Outcome: ${outcome}
-Quality Score: ${qualityScore}
-Refund: ${refundPercentage}%
-UAL: ${result.ual}`;
+      const responseText = `Published dispute outcome to DKG.\nEscrow: ${escrowId}\nOutcome: ${outcome}\nQuality Score: ${qualityScore}\nRefund: ${refundPercentage}%\nUAL: ${result.ual}`;
 
       if (callback) {
         await callback({
@@ -95,9 +98,7 @@ UAL: ${result.ual}`;
       return { ual: result.ual, success: true };
     } catch (err) {
       const errorMsg = `Failed to publish dispute outcome: ${err instanceof Error ? err.message : err}`;
-      if (callback) {
-        await callback({ text: errorMsg });
-      }
+      if (callback) await callback({ text: errorMsg });
       return { ual: '', success: false };
     }
   },

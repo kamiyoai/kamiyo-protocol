@@ -33,7 +33,7 @@ export class OracleVoteProver {
       BigInt(input.score),
       input.blinding,
       input.escrowId,
-      input.oraclePk
+      input.oraclePk,
     ]);
   }
 
@@ -42,9 +42,7 @@ export class OracleVoteProver {
   }
 
   async generateProof(input: OracleVoteInput): Promise<OracleVoteProof> {
-    if (input.score < 0 || input.score > 100) {
-      throw new Error('Score must be in range [0, 100]');
-    }
+    if (input.score < 0 || input.score > 100) throw new Error('Score must be in range [0, 100]');
 
     const commitment = this.computeCommitment(input);
 
@@ -60,11 +58,12 @@ expected_commitment = "${fieldToHex(commitment)}"
     fs.writeFileSync(proverPath, proverToml);
 
     try {
-      execSync('nargo compile', { cwd: this.circuitPath, stdio: 'pipe' });
-      execSync('nargo execute', { cwd: this.circuitPath, stdio: 'pipe' });
-      execSync('sunspot prove', { cwd: this.circuitPath, stdio: 'pipe' });
+      execSync('nargo compile', { cwd: this.circuitPath, stdio: 'pipe', timeout: 60_000 });
+      execSync('nargo execute', { cwd: this.circuitPath, stdio: 'pipe', timeout: 60_000 });
+      execSync('sunspot prove', { cwd: this.circuitPath, stdio: 'pipe', timeout: 120_000 });
 
       const proofPath = path.join(this.artifactsPath, 'proof');
+      if (!fs.existsSync(proofPath)) throw new Error('Proof artifact not found');
       const proofBytes = fs.readFileSync(proofPath);
 
       return {
@@ -72,9 +71,12 @@ expected_commitment = "${fieldToHex(commitment)}"
         publicInputs: {
           escrowId: input.escrowId,
           oraclePk: input.oraclePk,
-          commitment
-        }
+          commitment,
+        },
       };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Proof generation failed: ${msg}`);
     } finally {
       if (fs.existsSync(proverPath)) {
         fs.unlinkSync(proverPath);
@@ -84,7 +86,7 @@ expected_commitment = "${fieldToHex(commitment)}"
 
   async verifyLocal(): Promise<boolean> {
     try {
-      execSync('sunspot verify', { cwd: this.circuitPath, stdio: 'pipe' });
+      execSync('sunspot verify', { cwd: this.circuitPath, stdio: 'pipe', timeout: 60_000 });
       return true;
     } catch {
       return false;
@@ -99,11 +101,21 @@ expected_commitment = "${fieldToHex(commitment)}"
     return new Uint8Array(fs.readFileSync(verifierPath));
   }
 
+  private bigIntTo32BytesBE(value: bigint): Uint8Array {
+    const buf = Buffer.alloc(32);
+    let v = value;
+    for (let i = 31; i >= 0; i--) {
+      buf[i] = Number(v & 0xffn);
+      v >>= 8n;
+    }
+    return new Uint8Array(buf);
+  }
+
   formatForSolana(proof: OracleVoteProof): Uint8Array {
-    const publicInputs = Buffer.alloc(96);
-    publicInputs.writeBigUInt64BE(proof.publicInputs.escrowId, 0);
-    publicInputs.writeBigUInt64BE(proof.publicInputs.oraclePk, 32);
-    publicInputs.writeBigUInt64BE(proof.publicInputs.commitment, 64);
+    const escrow = this.bigIntTo32BytesBE(proof.publicInputs.escrowId);
+    const oracle = this.bigIntTo32BytesBE(proof.publicInputs.oraclePk);
+    const commit = this.bigIntTo32BytesBE(proof.publicInputs.commitment);
+    const publicInputs = new Uint8Array([...escrow, ...oracle, ...commit]);
     return new Uint8Array([...proof.proof, ...publicInputs]);
   }
 }

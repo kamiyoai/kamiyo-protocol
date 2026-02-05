@@ -28,6 +28,8 @@ export interface EscrowHandlerConfig { connection: Connection; wallet: Keypair; 
 export interface EscrowStatusResult { exists: boolean; state?: EscrowState; balance?: number; qualityScore?: number; refundPercentage?: number }
 
 const ESCROW_STATE_MAP: Record<number, EscrowState> = { [EscrowStatus.Active]: 'active', [EscrowStatus.Disputed]: 'disputed', [EscrowStatus.Resolved]: 'resolved', [EscrowStatus.Released]: 'released', [EscrowStatus.Refunded]: 'refunded' };
+const ESCROW_STATE_OFFSET = 121; // protocol byte offset for state
+
 function parseEscrowState(statusByte: number): EscrowState { return ESCROW_STATE_MAP[statusByte] ?? 'unknown'; }
 
 export class EscrowHandler {
@@ -35,7 +37,11 @@ export class EscrowHandler {
   private readonly wallet: Keypair;
   private readonly programId: PublicKey;
 
-  constructor(config: EscrowHandlerConfig) { this.connection = config.connection; this.wallet = config.wallet; this.programId = config.programId; }
+  constructor(config: EscrowHandlerConfig) {
+    this.connection = config.connection;
+    this.wallet = config.wallet;
+    this.programId = config.programId;
+  }
 
   deriveEscrowPDA(user: PublicKey, sessionId: Uint8Array): [PublicKey, number] {
     if (sessionId.length !== LIMITS.SESSION_ID_LENGTH) throw EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`);
@@ -49,7 +55,12 @@ export class EscrowHandler {
   private buildCreateEscrowInstruction(params: EscrowParams, escrowPda: PublicKey): TransactionInstruction {
     const [tokenTreasuryPda] = this.deriveTokenTreasuryPDA();
     const amountLamports = BigInt(Math.round(params.amount * LAMPORTS_PER_SOL));
-    const data = Buffer.concat([DISCRIMINATORS.CREATE_ESCROW, Buffer.from(params.sessionId), new BN(amountLamports.toString()).toArrayLike(Buffer, 'le', 8)]);
+    const data = Buffer.concat([
+      DISCRIMINATORS.CREATE_ESCROW,
+      Buffer.from(params.sessionId),
+      new BN(amountLamports.toString()).toArrayLike(Buffer, 'le', 8),
+    ]);
+
     return new TransactionInstruction({
       keys: [
         { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
@@ -93,7 +104,7 @@ export class EscrowHandler {
   async create(params: EscrowParams): Promise<EscrowResult> {
     if (params.sessionId.length !== LIMITS.SESSION_ID_LENGTH)
       return { success: false, error: EigenAIError.invalidInput('sessionId', `Must be ${LIMITS.SESSION_ID_LENGTH} bytes`) };
-    if (typeof params.amount !== 'number' || isNaN(params.amount) || params.amount <= 0)
+    if (typeof params.amount !== 'number' || !Number.isFinite(params.amount) || params.amount <= 0)
       return { success: false, error: EigenAIError.invalidInput('amount', 'Must be positive') };
     if (params.amount < LIMITS.MIN_ESCROW_SOL || params.amount > LIMITS.MAX_ESCROW_SOL)
       return { success: false, error: EigenAIError.invalidInput('amount', `Must be ${LIMITS.MIN_ESCROW_SOL}-${LIMITS.MAX_ESCROW_SOL} SOL`) };
@@ -112,32 +123,21 @@ export class EscrowHandler {
 
     try {
       const instruction = this.buildCreateEscrowInstruction(params, escrowPda);
-      const transaction = new Transaction().add(instruction);
+      const tx = new Transaction().add(instruction);
       const signature = await sendAndConfirmTransaction(
         this.connection,
-        transaction,
+        tx,
         [this.wallet],
         { commitment: 'confirmed' }
       );
 
-      return {
-        success: true,
-        signature,
-        escrowPda,
-        sessionId: params.sessionId,
-      };
+      return { success: true, signature, escrowPda, sessionId: params.sessionId };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       if (message.includes('insufficient funds') || message.includes('0x1')) {
-        return {
-          success: false,
-          error: EigenAIError.insufficientFunds(params.amount, 0),
-        };
+        return { success: false, error: EigenAIError.insufficientFunds(params.amount, 0) };
       }
-      return {
-        success: false,
-        error: EigenAIError.escrowFailed(message, error instanceof Error ? error : undefined),
-      };
+      return { success: false, error: EigenAIError.escrowFailed(message, error instanceof Error ? error : undefined) };
     }
   }
 
@@ -152,36 +152,23 @@ export class EscrowHandler {
     const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, params.sessionId);
     const status = await this.getStatus(params.sessionId);
     if (!status.exists) {
-      return {
-        success: false,
-        escrowPda,
-        error: EigenAIError.escrowFailed('Escrow does not exist'),
-      };
+      return { success: false, escrowPda, error: EigenAIError.escrowFailed('Escrow does not exist') };
     }
     if (status.state !== 'active') {
-      return {
-        success: false,
-        escrowPda,
-        error: EigenAIError.escrowFailed(`Cannot release escrow in state: ${status.state}`),
-      };
+      return { success: false, escrowPda, error: EigenAIError.escrowFailed(`Cannot release escrow in state: ${status.state}`) };
     }
 
     try {
       const instruction = this.buildRateAndReleaseInstruction(params, escrowPda);
-      const transaction = new Transaction().add(instruction);
+      const tx = new Transaction().add(instruction);
       const signature = await sendAndConfirmTransaction(
         this.connection,
-        transaction,
+        tx,
         [this.wallet],
         { commitment: 'confirmed' }
       );
 
-      return {
-        success: true,
-        signature,
-        escrowPda,
-        sessionId: params.sessionId,
-      };
+      return { success: true, signature, escrowPda, sessionId: params.sessionId };
     } catch (error) {
       return {
         success: false,
@@ -210,21 +197,15 @@ export class EscrowHandler {
 
     try {
       const instruction = this.buildMarkDisputedInstruction(escrowPda);
-      const transaction = new Transaction().add(instruction);
-
+      const tx = new Transaction().add(instruction);
       const signature = await sendAndConfirmTransaction(
         this.connection,
-        transaction,
+        tx,
         [this.wallet],
         { commitment: 'confirmed' }
       );
 
-      return {
-        success: true,
-        signature,
-        escrowPda,
-        sessionId,
-      };
+      return { success: true, signature, escrowPda, sessionId };
     } catch (error) {
       return {
         success: false,
@@ -242,9 +223,16 @@ export class EscrowHandler {
       const [escrowPda] = this.deriveEscrowPDA(this.wallet.publicKey, sessionId);
       const info = await this.connection.getAccountInfo(escrowPda);
       if (!info) return { exists: false };
-      const state = info.data.length > 121 ? parseEscrowState(info.data[121]) : 'unknown' as EscrowState;
+
+      let state: EscrowState = 'unknown';
+      if (info.data.length > ESCROW_STATE_OFFSET) {
+        state = parseEscrowState(info.data[ESCROW_STATE_OFFSET]);
+      }
+
       return { exists: true, state, balance: info.lamports / LAMPORTS_PER_SOL };
-    } catch { return { exists: false }; }
+    } catch {
+      return { exists: false };
+    }
   }
 
   async getBalance(): Promise<number> { return (await this.connection.getBalance(this.wallet.publicKey)) / LAMPORTS_PER_SOL; }

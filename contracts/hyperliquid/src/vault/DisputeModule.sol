@@ -20,7 +20,7 @@ contract DisputeModule is ReentrancyGuard {
     error AlreadyDisputed();
     error DisputeWindowClosed();
     error InsufficientFee();
-    error DisputeNotResolved();
+    error AlreadyResolved();
     error TransferFailed();
 
     constructor(address _vault) {
@@ -58,7 +58,6 @@ contract DisputeModule is ReentrancyGuard {
         vault._setDispute(disputeId, dispute);
         vault._addTotalFees(msg.value);
 
-        // Forward fee to vault
         (bool success, ) = address(vault).call{value: msg.value}("");
         if (!success) revert TransferFailed();
 
@@ -71,7 +70,7 @@ contract DisputeModule is ReentrancyGuard {
         VaultStorage.DisputeInfo memory dispute = vault.getDispute(disputeId);
         VaultStorage.CopyPosition memory pos = vault.getPosition(dispute.positionId);
 
-        if (dispute.resolved) revert DisputeNotResolved();
+        if (dispute.resolved) revert AlreadyResolved();
 
         dispute.resolved = true;
         dispute.userWon = userWins;

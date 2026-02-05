@@ -24,11 +24,9 @@ import {
 } from '../db/queries';
 import { DisputeOpenRequest } from '../types';
 
-function round6(n: number): number {
-  return Math.round(n * 1e6) / 1e6;
-}
+function round6(n: number): number { return Math.round(n * 1e6) / 1e6; }
 
-export function createDisputeRouter(connection: Connection, facilitatorKeypair: Keypair): Router {
+export function createDisputeRouter(connection: Connection, operatorKeypair: Keypair): Router {
   const router = Router();
 
   router.post('/open', async (req: Request, res: Response) => {
@@ -39,6 +37,8 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
         res.status(400).json({ success: false, error: 'Missing escrowAddress or reason' });
         return;
       }
+
+      try { new PublicKey(escrowAddress); } catch { res.status(400).json({ success: false, error: 'Invalid escrow address' }); return; }
 
       if (typeof reason !== 'string' || reason.length > 1000) {
         res.status(400).json({ success: false, error: 'Reason too long (max 1000 chars)' });
@@ -72,9 +72,9 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
       const programId = new PublicKey(config.ESCROW_PROGRAM_ID);
 
       try {
-        await markDisputedOnChain(connection, facilitatorKeypair, new PublicKey(escrowAddress), programId);
+        await markDisputedOnChain(connection, operatorKeypair, new PublicKey(escrowAddress), programId);
       } catch (err: any) {
-        res.status(500).json({ success: false, error: `On-chain dispute failed: ${err.message}` });
+        res.status(500).json({ success: false, error: 'On-chain dispute failed' });
         return;
       }
 
@@ -100,7 +100,7 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
         revealPhaseEndsAt: revealPhaseEndsAt.getTime(),
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || 'Failed to open dispute' });
+      res.status(500).json({ success: false, error: 'Failed to open dispute' });
     }
   });
 
@@ -144,7 +144,7 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
         revealPhaseEndsAt: new Date(dispute.revealPhaseEndsAt).getTime(),
       });
     } catch (err: any) {
-      res.status(500).json({ error: err.message || 'Failed to fetch dispute' });
+      res.status(500).json({ error: 'Failed to fetch dispute' });
     }
   });
 
@@ -202,7 +202,7 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
         outliers = consensus.outliers;
         validCount = consensus.validCount;
       } catch (err: any) {
-        res.status(400).json({ success: false, error: err.message || 'Invalid oracle votes' });
+        res.status(400).json({ success: false, error: 'Invalid oracle votes' });
         return;
       }
 
@@ -212,7 +212,7 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
       try {
         programId = new PublicKey(config.ESCROW_PROGRAM_ID);
         treasuryWallet = new PublicKey(config.TREASURY_WALLET);
-      } catch (e: any) {
+      } catch {
         res.status(500).json({ success: false, error: 'Invalid program or treasury configuration' });
         return;
       }
@@ -221,14 +221,14 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
       try {
         finalizeTx = await finalizeDisputeOnChain(
           connection,
-          facilitatorKeypair,
+          operatorKeypair,
           new PublicKey(dispute.escrowAddress),
           new PublicKey(escrow.payerWallet),
           treasuryWallet,
           programId
         );
-      } catch (err: any) {
-        res.status(500).json({ success: false, error: `On-chain finalization failed: ${err.message}` });
+      } catch {
+        res.status(500).json({ success: false, error: 'On-chain finalization failed' });
         return;
       }
 
@@ -257,7 +257,7 @@ export function createDisputeRouter(connection: Connection, facilitatorKeypair: 
         validVotes: validCount,
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message || 'Failed to finalize dispute' });
+      res.status(500).json({ success: false, error: 'Failed to finalize dispute' });
     }
   });
 
