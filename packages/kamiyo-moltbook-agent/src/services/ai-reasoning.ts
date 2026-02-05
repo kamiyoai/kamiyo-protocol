@@ -148,7 +148,7 @@ export class AIReasoningService {
   private model: string;
   private personality: PersonalityConfig;
 
-  constructor(model = 'claude-sonnet-4-5-20250929') {
+  constructor(model = 'claude-opus-4-6') {
     this.client = new Anthropic();
     this.model = model;
     this.personality = KAMIYO_PERSONALITY;
