@@ -352,7 +352,7 @@ router.get('/:id/fund/blindfold', (req: Request, res: Response) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(stateId, teamId, stateToken, wallet || null, expiresAt);
 
-  const blindfoldBaseUrl = process.env.BLINDFOLD_FUND_URL || 'https://app.blindfold.finance/partner/funding';
+  const blindfoldBaseUrl = process.env.BLINDFOLD_FUND_URL || 'https://www.blindfoldfinance.com/partner/funding';
   const callbackUrl = `${process.env.API_URL || 'https://api.kamiyo.ai'}/api/fund/callback`;
 
   const fundingUrl = new URL(blindfoldBaseUrl);
