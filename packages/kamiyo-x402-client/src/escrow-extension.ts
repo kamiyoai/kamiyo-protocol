@@ -1,9 +1,4 @@
-import {
-  Connection,
-  Keypair,
-  PublicKey,
-  LAMPORTS_PER_SOL,
-} from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { EscrowHandler, EscrowResult } from './escrow';
 import { PayAIFacilitator, PaymentRequirement, PayAINetwork } from './payai';
 import { X402Error } from './errors';
@@ -101,9 +96,7 @@ export function parseEscrowRequirement(
   };
 }
 
-export function hasEscrowProof(
-  extensions?: Record<string, unknown>
-): boolean {
+export function hasEscrowProof(extensions?: Record<string, unknown>): boolean {
   const payload = parseEscrowPayload(extensions);
   return payload !== null;
 }
@@ -120,34 +113,32 @@ export class EscrowX402Client {
     facilitator: PayAIFacilitator
   ) {
     this.wallet = wallet;
-    this.escrowHandler = new EscrowHandler({
-      connection,
-      wallet,
-      programId,
-    });
+    this.escrowHandler = new EscrowHandler({ connection, wallet, programId });
     this.facilitator = facilitator;
   }
 
   async request(
     url: string,
-    options?: RequestInit & {
-      provider?: PublicKey;
-      maxRetries?: number;
-    }
+    options?: RequestInit & { provider?: PublicKey; maxRetries?: number }
   ): Promise<Response> {
     const maxRetries = options?.maxRetries ?? 3;
 
     let response = await fetch(url, options);
 
-    if (response.status !== 402) {
-      return response;
+    if (response.status !== 402) return response;
+
+    let responseBody: PaymentRequired402;
+    try {
+      responseBody = (await response.json()) as PaymentRequired402;
+    } catch (e) {
+      throw new X402Error('INVALID_PAYMENT_REQUIREMENT', '402 response body is not valid JSON');
     }
 
-    const responseBody = await response.json() as PaymentRequired402;
     const escrowInfo = parseEscrowExtension(responseBody);
+    if (!escrowInfo?.required) return response;
 
-    if (!escrowInfo?.required) {
-      return response;
+    if (escrowInfo.programId !== this.programId.toBase58()) {
+      throw new X402Error('INVALID_PAYMENT_REQUIREMENT', 'Escrow programId mismatch');
     }
 
     const requirements = responseBody.accepts;
@@ -155,14 +146,18 @@ export class EscrowX402Client {
       throw new X402Error('INVALID_PAYMENT_REQUIREMENT', 'No payment requirements in 402 response');
     }
 
-    const solanaReq = requirements.find(r =>
-      r.network.startsWith('solana:')
-    );
+    const solanaReq = requirements.find((r) => r.network.startsWith('solana:'));
     if (!solanaReq) {
       throw new X402Error('INVALID_PAYMENT_REQUIREMENT', 'Escrow requires Solana network');
     }
 
-    const provider = options?.provider || new PublicKey(solanaReq.payTo);
+    let provider: PublicKey;
+    try {
+      provider = options?.provider || new PublicKey(solanaReq.payTo);
+    } catch {
+      throw new X402Error('INVALID_PAYMENT_REQUIREMENT', 'Invalid provider public key in requirement');
+    }
+
     const amountMicro = parseInt(solanaReq.amount, 10);
     const amountLamports = Math.ceil(amountMicro * 1000);
     const transactionId = generateTransactionId();
@@ -185,22 +180,24 @@ export class EscrowX402Client {
     });
 
     for (let retry = 0; retry < maxRetries; retry++) {
-      const bodyWithEscrow = {
-        ...(options?.body ? JSON.parse(options.body as string) : {}),
-        extensions: escrowPayload,
-      };
+      const mergedBody: Record<string, unknown> = (() => {
+        const source = options?.body;
+        if (typeof source === 'string') {
+          try { return { ...(JSON.parse(source) as Record<string, unknown>) }; } catch { return {}; }
+        }
+        if (source && typeof source === 'object') return { ...(source as unknown as Record<string, unknown>) };
+        return {};
+      })();
+
+      const bodyWithEscrow = { ...mergedBody, extensions: escrowPayload };
+
       response = await fetch(url, {
         ...options,
-        headers: {
-          ...options?.headers,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...options?.headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyWithEscrow),
       });
 
-      if (response.ok) {
-        return response;
-      }
+      if (response.ok) return response;
 
       if (response.status !== 402) {
         const disputeResult = await this.escrowHandler.disputeWithRecovery(transactionId);
@@ -249,27 +246,21 @@ export async function verifyEscrow(
   escrowPda: PublicKey,
   minBalance?: number
 ): Promise<EscrowVerifyResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ESCROW_VERIFY_TIMEOUT_MS);
-
+  const timeout = ESCROW_VERIFY_TIMEOUT_MS;
   try {
-    const info = await connection.getAccountInfo(escrowPda);
+    const info = await Promise.race([
+      connection.getAccountInfo(escrowPda, { commitment: 'confirmed' }),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout)),
+    ]);
 
-    if (!info) {
-      return { valid: false, error: 'Escrow account not found' };
-    }
-
-    if (!info.owner.equals(programId)) {
-      return { valid: false, error: 'Invalid escrow owner' };
-    }
+    if (!info) return { valid: false, error: 'Escrow account not found' };
+    if (!info.owner.equals(programId)) return { valid: false, error: 'Invalid escrow owner' };
 
     const balance = info.lamports / LAMPORTS_PER_SOL;
-
     if (minBalance !== undefined && balance < minBalance) {
       return { valid: false, error: `Insufficient balance: ${balance} < ${minBalance}` };
     }
 
-    // Status byte at offset 96: 8 (discriminator) + 32 (agent) + 32 (provider) + 8 (amount) + 8 (timelock) + 8 (created)
     let status: EscrowStatus = 'active';
     if (info.data.length >= 97) {
       const statusByte = info.data[96];
@@ -282,19 +273,9 @@ export async function verifyEscrow(
       }
     }
 
-    return {
-      valid: true,
-      escrowPda,
-      balance,
-      status,
-    };
+    return { valid: true, escrowPda, balance, status };
   } catch (e) {
-    return {
-      valid: false,
-      error: e instanceof Error ? e.message : 'Verification failed',
-    };
-  } finally {
-    clearTimeout(timeout);
+    return { valid: false, error: e instanceof Error ? e.message : 'Verification failed' };
   }
 }
 
@@ -335,32 +316,32 @@ export function escrowMiddleware(opts: EscrowMiddlewareOptions) {
     }
 
     let escrowPda: PublicKey;
+    let agentPk: PublicKey;
     try {
       escrowPda = new PublicKey(escrowPayload.escrowPda);
+      agentPk = new PublicKey(escrowPayload.agentPk);
     } catch {
-      res.status(400).json({ error: 'Invalid escrow PDA' });
+      res.status(400).json({ error: 'Invalid escrow PDA or agent key' });
       return;
     }
 
-    const verification = await verifyEscrow(
-      opts.connection,
-      opts.programId,
-      escrowPda
-    );
+    const expectedPda = PublicKey.findProgramAddressSync(
+      [Buffer.from('escrow'), agentPk.toBuffer(), Buffer.from(escrowPayload.transactionId)],
+      opts.programId
+    )[0];
+    if (!expectedPda.equals(escrowPda)) {
+      res.status(402).json({ error: 'Escrow reference mismatch' });
+      return;
+    }
 
+    const verification = await verifyEscrow(opts.connection, opts.programId, escrowPda);
     if (!verification.valid) {
-      res.status(402).json({
-        error: 'Escrow verification failed',
-        reason: verification.error,
-      });
+      res.status(402).json({ error: 'Escrow verification failed', reason: verification.error });
       return;
     }
 
     if (verification.status !== 'active') {
-      res.status(402).json({
-        error: 'Escrow not active',
-        status: verification.status,
-      });
+      res.status(402).json({ error: 'Escrow not active', status: verification.status });
       return;
     }
 
@@ -421,32 +402,15 @@ export function buildEscrow402Response(
   priceUsd: number,
   description: string,
   programId: PublicKey,
-  options?: {
-    networks?: PayAINetwork[];
-    timelockSeconds?: number;
-    qualityThreshold?: number;
-  }
-): {
-  body: PaymentRequired402;
-  headers: Record<string, string>;
-} {
+  options?: { networks?: PayAINetwork[]; timelockSeconds?: number; qualityThreshold?: number }
+): { body: PaymentRequired402; headers: Record<string, string> } {
   const escrowExt = escrowExtensionInfo(programId.toBase58(), {
     timelockSeconds: options?.timelockSeconds,
     qualityThreshold: options?.qualityThreshold,
   });
 
-  const body = facilitator.response402(
-    resource,
-    priceUsd,
-    description,
-    options?.networks,
-    escrowExt
-  );
-
-  return {
-    body: body as unknown as PaymentRequired402,
-    headers: facilitator.headers402(),
-  };
+  const body = facilitator.response402(resource, priceUsd, description, options?.networks, escrowExt);
+  return { body: body as unknown as PaymentRequired402, headers: facilitator.headers402() };
 }
 
 export function calculateRefund(
@@ -454,24 +418,16 @@ export function calculateRefund(
   amount: number,
   threshold: number = DEFAULT_QUALITY_THRESHOLD
 ): { agentRefund: number; providerPayment: number } {
-  if (qualityScore >= threshold) {
-    return { agentRefund: 0, providerPayment: amount };
-  }
-
-  if (qualityScore < 50) {
-    return { agentRefund: amount, providerPayment: 0 };
-  }
-
+  if (qualityScore >= threshold) return { agentRefund: 0, providerPayment: amount };
+  if (qualityScore < 50) return { agentRefund: amount, providerPayment: 0 };
   if (qualityScore < 70) {
     const refund = Math.floor(amount * 0.75);
     return { agentRefund: refund, providerPayment: amount - refund };
   }
 
-  // Linear scale from 70 to threshold
   const range = threshold - 70;
   const position = qualityScore - 70;
-  const refundPercent = 1 - (position / range);
+  const refundPercent = 1 - position / range;
   const refund = Math.floor(amount * refundPercent * 0.75);
-
   return { agentRefund: refund, providerPayment: amount - refund };
 }

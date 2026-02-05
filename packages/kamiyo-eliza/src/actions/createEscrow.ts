@@ -67,7 +67,8 @@ export const createEscrowAction: Action = {
       });
 
       const transactionId = generateId('tx');
-      const timeLockHours = (message.content.timeLockHours as number) || 24;
+      const hours = Number(message.content.timeLockHours ?? 24);
+      const timeLockHours = Number.isFinite(hours) ? Math.min(Math.max(hours, 1), 720) : 24;
       const timeLockSeconds = timeLockHours * 3600;
 
       const signature = await client.createAgreement({

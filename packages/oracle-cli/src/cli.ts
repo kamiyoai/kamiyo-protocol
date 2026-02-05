@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-/**
- * KAMIYO Oracle CLI - Command line interface for oracle operators
- */
-
 import { Command } from "commander";
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Wallet } from "@coral-xyz/anchor";
@@ -15,12 +11,10 @@ import {
 } from "@kamiyo/sdk";
 import * as fs from "fs";
 import * as path from "path";
-import * as crypto from "crypto";
 import chalk from "chalk";
 import ora from "ora";
 import "dotenv/config";
 
-// Commit secrets storage
 interface CommitSecret {
   escrowPda: string;
   sessionId: string;
@@ -34,40 +28,69 @@ interface SecretsStore {
   secrets: CommitSecret[];
 }
 
-function getSecretsPath(): string {
-  const home = process.env.HOME || "";
-  const configDir = path.join(home, ".config", "kamiyo-oracle");
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
-  }
-  return path.join(configDir, "commit-secrets.json");
+interface OracleConfig {
+  rpcUrl: string;
+  keypairPath: string;
+  programId?: string;
+}
+
+const TIMEOUT_MS = 20000;
+
+function homeDir(): string {
+  return process.env.XDG_CONFIG_HOME || process.env.HOME || process.env.USERPROFILE || "";
+}
+
+function configDir(): string {
+  const dir = path.join(homeDir(), ".config", "kamiyo-oracle");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {}
+  return dir;
+}
+
+function secretsPath(): string {
+  return path.join(configDir(), "commit-secrets.json");
+}
+
+function atomicWrite(filePath: string, data: string, mode?: number): void {
+  const dir = path.dirname(filePath);
+  const tmp = path.join(dir, `.tmp.${path.basename(filePath)}.${process.pid}.${Date.now()}`);
+  fs.writeFileSync(tmp, data, { mode: mode ?? 0o600 });
+  fs.renameSync(tmp, filePath);
 }
 
 function loadSecrets(): SecretsStore {
-  const secretsPath = getSecretsPath();
-  if (!fs.existsSync(secretsPath)) {
+  const file = secretsPath();
+  if (!fs.existsSync(file)) return { version: 1, secrets: [] };
+  try {
+    const raw = fs.readFileSync(file, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.secrets)) {
+      throw new Error("invalid secrets file");
+    }
+    return parsed as SecretsStore;
+  } catch (err) {
+    const backup = `${file}.broken-${Date.now()}`;
+    try { fs.renameSync(file, backup); } catch {}
     return { version: 1, secrets: [] };
   }
-  const data = fs.readFileSync(secretsPath, "utf-8");
-  return JSON.parse(data);
 }
 
 function saveSecrets(store: SecretsStore): void {
-  const secretsPath = getSecretsPath();
-  fs.writeFileSync(secretsPath, JSON.stringify(store, null, 2), { mode: 0o600 });
+  const file = secretsPath();
+  atomicWrite(file, JSON.stringify(store, null, 2), 0o600);
 }
 
 function addSecret(secret: CommitSecret): void {
   const store = loadSecrets();
-  // Remove any existing secret for this escrow
   store.secrets = store.secrets.filter((s) => s.escrowPda !== secret.escrowPda);
   store.secrets.push(secret);
   saveSecrets(store);
 }
 
 function getSecret(escrowPda: string): CommitSecret | undefined {
-  const store = loadSecrets();
-  return store.secrets.find((s) => s.escrowPda === escrowPda);
+  return loadSecrets().secrets.find((s) => s.escrowPda === escrowPda);
 }
 
 function removeSecret(escrowPda: string): void {
@@ -76,26 +99,22 @@ function removeSecret(escrowPda: string): void {
   saveSecrets(store);
 }
 
-const program = new Command();
-
-// Configuration
-interface OracleConfig {
-  rpcUrl: string;
-  keypairPath: string;
-  programId?: string;
-}
-
 function loadConfig(): OracleConfig {
   return {
     rpcUrl: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
-    keypairPath: process.env.ORACLE_KEYPAIR || path.join(process.env.HOME || "", ".config/solana/id.json"),
+    keypairPath: process.env.ORACLE_KEYPAIR || path.join(homeDir(), ".config/solana/id.json"),
     programId: process.env.KAMIYO_ESCROW_PROGRAM_ID,
   };
 }
 
 function loadKeypair(keypairPath: string): Keypair {
-  const secretKey = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
-  return Keypair.fromSecretKey(Uint8Array.from(secretKey));
+  try {
+    const raw = fs.readFileSync(keypairPath, "utf-8");
+    const secretKey = JSON.parse(raw);
+    return Keypair.fromSecretKey(Uint8Array.from(secretKey));
+  } catch (e: any) {
+    throw new Error(`Failed to load keypair at ${keypairPath}: ${e.message}`);
+  }
 }
 
 function formatSol(lamports: number): string {
@@ -103,17 +122,42 @@ function formatSol(lamports: number): string {
 }
 
 function formatTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  const s = Math.max(0, seconds);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let t: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, rej) => {
+    t = setTimeout(() => rej(new Error(`Timeout waiting for ${label} after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseMs = 400): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, baseMs * Math.pow(2, i)));
+    }
+  }
+  throw lastErr;
+}
+
+const program = new Command();
 
 program
   .name("kamiyo-oracle")
   .description("KAMIYO Oracle CLI - Dispute resolution oracle operator tools")
-  .version("0.1.0");
+  .version("0.1.1");
 
-// Status command
 program
   .command("status")
   .description("Show oracle status and pending disputes")
@@ -129,7 +173,7 @@ program
     try {
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
-      const balance = await connection.getBalance(keypair.publicKey);
+      const balance = await withTimeout(connection.getBalance(keypair.publicKey), TIMEOUT_MS, "balance");
 
       spinner.stop();
 
@@ -140,11 +184,10 @@ program
       console.log(`RPC: ${rpcUrl}`);
       console.log();
 
-      // Load pending disputes
       const monitor = new DisputeMonitor(connection, {
         programId: config.programId ? new PublicKey(config.programId) : undefined,
       });
-      await monitor.refresh();
+      await withTimeout(monitor.refresh(), TIMEOUT_MS, "disputes");
 
       const actionable = monitor.getActionableDisputes(keypair.publicKey);
       const tracked = monitor.getTrackedEscrows();
@@ -176,7 +219,6 @@ program
     }
   });
 
-// List disputes command
 program
   .command("disputes")
   .description("List all pending disputes")
@@ -193,7 +235,7 @@ program
       const monitor = new DisputeMonitor(connection, {
         programId: config.programId ? new PublicKey(config.programId) : undefined,
       });
-      await monitor.refresh();
+      await withTimeout(monitor.refresh(), TIMEOUT_MS, "disputes");
 
       const tracked = monitor.getTrackedEscrows();
       spinner.stop();
@@ -247,7 +289,6 @@ program
     }
   });
 
-// Watch command - monitor for new disputes
 program
   .command("watch")
   .description("Watch for new disputes and phase changes")
@@ -311,7 +352,6 @@ program
 
       await monitor.start();
 
-      // Keep running until interrupted
       process.on("SIGINT", async () => {
         console.log("\nStopping monitor...");
         await monitor.stop();
@@ -323,7 +363,6 @@ program
     }
   });
 
-// Assess command - assess quality of a response
 program
   .command("assess")
   .description("Assess quality of a service response")
@@ -334,15 +373,15 @@ program
   .action(async (options) => {
     try {
       const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-      const keypair = Keypair.generate(); // Dummy for assessment
-      const oracle = new QualityOracle(connection, { publicKey: keypair.publicKey } as any);
+      const keypair = Keypair.generate();
+      const wallet = new Wallet(keypair);
+      const oracle = new QualityOracle(connection, wallet);
 
       const data = JSON.parse(options.data);
       const schema = options.schema ? JSON.parse(options.schema) : {};
       const expected = options.expected ? JSON.parse(options.expected) : undefined;
       const responseTime = parseInt(options.time, 10);
 
-      // Build schema fields
       const schemaFields: Record<string, { type: any; required: boolean }> = {};
       for (const [key, value] of Object.entries(schema)) {
         schemaFields[key] = {
@@ -353,10 +392,7 @@ program
 
       const spec = {
         schema: Object.fromEntries(
-          Object.entries(schemaFields).map(([k, v]) => [
-            k,
-            { type: v.type, required: v.required },
-          ])
+          Object.entries(schemaFields).map(([k, v]) => [k, { type: v.type, required: v.required }])
         ),
         requiredFields: Object.entries(schemaFields)
           .filter(([, v]) => v.required)
@@ -365,7 +401,7 @@ program
           .filter(([, v]) => !v.required)
           .map(([k]) => k),
         expectedValues: expected,
-      };
+      } as any;
 
       const report = oracle.assessQuality(
         { data, responseTimeMs: responseTime },
@@ -390,7 +426,6 @@ program
     }
   });
 
-// Commit command - commit a quality score for a dispute
 program
   .command("commit")
   .description("Commit a quality score for a disputed escrow")
@@ -419,17 +454,24 @@ program
       const escrowPda = new PublicKey(options.escrow);
       const qualityScore = parseInt(options.score, 10);
 
-      // Validate score
       disputeManager.validateQualityScore(qualityScore);
 
-      // Fetch escrow to get session ID
       spinner.text = "Fetching escrow data...";
-      const escrow = await disputeManager.fetchEscrow(escrowPda);
-      if (!escrow) {
-        throw new Error("Escrow not found");
+      const escrow = await withTimeout(disputeManager.fetchEscrow(escrowPda), TIMEOUT_MS, "escrow");
+      if (!escrow) throw new Error("Escrow not found");
+
+      const alreadyCommitted = escrow.oracleCommitments.some((c) => c.oracle.equals(keypair.publicKey));
+      if (alreadyCommitted) {
+        spinner.fail("Already committed a vote for this escrow");
+        process.exit(1);
       }
 
-      // Generate salt and compute commitment hash
+      const inCommitPhase = await withTimeout(disputeManager.isInCommitPhaseAsync(escrow), TIMEOUT_MS, "commit phase");
+      if (!inCommitPhase) {
+        spinner.fail("Not in commit phase");
+        process.exit(1);
+      }
+
       const salt = disputeManager.generateSalt();
       const commitmentHash = await disputeManager.computeCommitmentHash(
         escrow.sessionId,
@@ -454,12 +496,14 @@ program
         return;
       }
 
-      // Submit transaction
       spinner.start("Submitting commit transaction...");
-      const result = await disputeManager.commitVote(escrowPda, commitmentHash);
+      const result = await withRetry(
+        () => withTimeout(disputeManager.commitVote(escrowPda, commitmentHash), TIMEOUT_MS, "commit"),
+        3,
+        500
+      );
       spinner.stop();
 
-      // Store secret for later reveal
       addSecret({
         escrowPda: escrowPda.toBase58(),
         sessionId: Buffer.from(escrow.sessionId).toString("hex"),
@@ -479,7 +523,6 @@ program
     }
   });
 
-// Reveal command - reveal a previously committed vote
 program
   .command("reveal")
   .description("Reveal a previously committed vote")
@@ -527,7 +570,6 @@ program
         return;
       }
 
-      // Submit reveal transaction
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
       const wallet = new Wallet(keypair);
@@ -538,13 +580,25 @@ program
       );
 
       const escrowPda = new PublicKey(escrowPdaStr);
+      const escrow = await withTimeout(disputeManager.fetchEscrow(escrowPda), TIMEOUT_MS, "escrow");
+      if (!escrow) throw new Error("Escrow not found");
+
+      const inRevealPhase = await withTimeout(disputeManager.isInRevealPhaseAsync(escrow), TIMEOUT_MS, "reveal phase");
+      if (!inRevealPhase) {
+        console.log(chalk.yellow("Not in reveal phase"));
+        process.exit(1);
+      }
+
       const salt = Uint8Array.from(Buffer.from(secret.salt, "hex"));
 
       spinner.start("Submitting reveal transaction...");
-      const result = await disputeManager.revealVote(escrowPda, secret.qualityScore, salt);
+      const result = await withRetry(
+        () => withTimeout(disputeManager.revealVote(escrowPda, secret.qualityScore, salt), TIMEOUT_MS, "reveal"),
+        3,
+        500
+      );
       spinner.stop();
 
-      // Remove secret after successful reveal
       removeSecret(escrowPdaStr);
 
       console.log(chalk.green("✓ Vote revealed successfully"));
@@ -558,7 +612,6 @@ program
     }
   });
 
-// Finalize command - finalize a dispute after reveal phase
 program
   .command("finalize")
   .description("Finalize a dispute after reveal phase ends")
@@ -584,11 +637,8 @@ program
       );
 
       const escrowPda = new PublicKey(options.escrow);
-      const escrow = await disputeManager.fetchEscrow(escrowPda);
-
-      if (!escrow) {
-        throw new Error("Escrow not found");
-      }
+      const escrow = await withTimeout(disputeManager.fetchEscrow(escrowPda), TIMEOUT_MS, "escrow");
+      if (!escrow) throw new Error("Escrow not found");
 
       spinner.stop();
 
@@ -626,7 +676,11 @@ program
       }
 
       spinner.start("Submitting finalize transaction...");
-      const result = await disputeManager.finalizeDispute(escrowPda);
+      const result = await withRetry(
+        () => withTimeout(disputeManager.finalizeDispute(escrowPda), TIMEOUT_MS, "finalize"),
+        3,
+        700
+      );
       spinner.stop();
 
       console.log(chalk.green("✓ Dispute finalized successfully"));
@@ -637,7 +691,6 @@ program
     }
   });
 
-// List pending commits
 program
   .command("pending")
   .description("List pending commitments awaiting reveal")
@@ -660,7 +713,6 @@ program
     }
   });
 
-// Clear a pending commit (if no longer needed)
 program
   .command("clear")
   .description("Clear a pending commitment")
@@ -683,7 +735,6 @@ program
     console.log(chalk.green(`✓ Commitment for ${options.escrow.slice(0, 20)}... cleared`));
   });
 
-// Register as oracle
 program
   .command("register")
   .description("Register as an oracle operator (requires stake)")
@@ -701,21 +752,19 @@ program
     try {
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
-      const balance = await connection.getBalance(keypair.publicKey);
+      const balance = await withTimeout(connection.getBalance(keypair.publicKey), TIMEOUT_MS, "balance");
 
       const stakeAmount = parseFloat(options.stake);
       const stakeLamports = Math.floor(stakeAmount * LAMPORTS_PER_SOL);
 
       spinner.stop();
 
-      // Validate minimum stake
       const minStake = 0.5;
       if (stakeAmount < minStake) {
         console.log(chalk.red(`Minimum stake is ${minStake} SOL`));
         process.exit(1);
       }
 
-      // Check balance
       if (balance < stakeLamports + 10000) {
         console.log(chalk.red(`Insufficient balance. Need ${stakeAmount} SOL + fees`));
         console.log(chalk.gray(`Current balance: ${formatSol(balance)}`));
@@ -735,16 +784,15 @@ program
         return;
       }
 
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
-      console.log(chalk.gray("To register, use the kamiyo SDK directly:"));
-      console.log(chalk.gray(`  await kamiyoClient.registerOracle(${stakeAmount * 1e9})`));
+      console.log(chalk.yellow("Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("Use the kamiyo SDK directly:"));
+      console.log(chalk.gray(`  await kamiyoClient.registerOracle(${stakeLamports})`));
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
       process.exit(1);
     }
   });
 
-// Request stake withdrawal
 program
   .command("unstake")
   .description("Request oracle stake withdrawal (7-day cooldown)")
@@ -761,6 +809,8 @@ program
     try {
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
+
+      void connection; // placeholder to avoid unused var if integration is added later
 
       spinner.stop();
 
@@ -780,8 +830,8 @@ program
         return;
       }
 
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
-      console.log(chalk.gray("To unstake, use the kamiyo SDK directly:"));
+      console.log(chalk.yellow("Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("Use the kamiyo SDK directly:"));
       console.log(chalk.gray("  await kamiyoClient.requestOracleWithdrawal()"));
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
@@ -789,7 +839,6 @@ program
     }
   });
 
-// Claim withdrawn stake
 program
   .command("claim")
   .description("Claim stake after cooldown period")
@@ -807,6 +856,8 @@ program
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
 
+      void connection;
+
       spinner.stop();
 
       console.log(chalk.bold("\nClaim Stake + Rewards"));
@@ -823,8 +874,8 @@ program
         return;
       }
 
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
-      console.log(chalk.gray("To claim, use the kamiyo SDK directly:"));
+      console.log(chalk.yellow("Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("Use the kamiyo SDK directly:"));
       console.log(chalk.gray("  await kamiyoClient.completeOracleWithdrawal()"));
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
@@ -832,7 +883,6 @@ program
     }
   });
 
-// Add stake
 program
   .command("stake")
   .description("Add more stake to increase oracle weight")
@@ -850,7 +900,7 @@ program
     try {
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
-      const balance = await connection.getBalance(keypair.publicKey);
+      const balance = await withTimeout(connection.getBalance(keypair.publicKey), TIMEOUT_MS, "balance");
 
       const stakeAmount = parseFloat(options.amount);
       const stakeLamports = Math.floor(stakeAmount * LAMPORTS_PER_SOL);
@@ -877,8 +927,8 @@ program
         return;
       }
 
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
-      console.log(chalk.gray("To add stake, use the kamiyo SDK directly:"));
+      console.log(chalk.yellow("Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("Use the kamiyo SDK directly:"));
       console.log(chalk.gray(`  await kamiyoClient.increaseOracleStake(${stakeLamports})`));
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
@@ -886,7 +936,6 @@ program
     }
   });
 
-// Claim rewards (without withdrawing stake)
 program
   .command("rewards")
   .description("Claim accumulated oracle rewards")
@@ -904,6 +953,8 @@ program
       const connection = new Connection(rpcUrl, "confirmed");
       const keypair = loadKeypair(keypairPath);
 
+      void connection;
+
       spinner.stop();
 
       console.log(chalk.bold("\nOracle Rewards"));
@@ -920,8 +971,8 @@ program
         return;
       }
 
-      console.log(chalk.yellow("Note: Transaction submission requires Anchor program integration."));
-      console.log(chalk.gray("To claim rewards, use the kamiyo SDK directly:"));
+      console.log(chalk.yellow("Transaction submission requires Anchor program integration."));
+      console.log(chalk.gray("Use the kamiyo SDK directly:"));
       console.log(chalk.gray("  await kamiyoClient.claimOracleRewards()"));
     } catch (e: any) {
       spinner.fail(`Error: ${e.message}`);
@@ -929,7 +980,6 @@ program
     }
   });
 
-// Config command
 program
   .command("config")
   .description("Show current configuration")
@@ -947,7 +997,6 @@ program
     console.log(chalk.gray("  KAMIYO_ESCROW_PROGRAM_ID - Program ID to monitor"));
   });
 
-// Service command - run automated oracle
 program
   .command("service")
   .description("Run automated oracle service")
@@ -958,12 +1007,13 @@ program
   .option("--no-auto-commit", "Disable automatic commit")
   .option("--no-auto-reveal", "Disable automatic reveal")
   .option("-l, --log <file>", "Log file path")
+  .option("--state-file <file>", "State file for crash recovery")
+  .option("--audit-log <file>", "Append-only signed audit log file")
   .action(async (options) => {
     const config = loadConfig();
     const rpcUrl = options.rpc || config.rpcUrl;
     const keypairPath = options.keypair || config.keypairPath;
 
-    // Dynamic import to avoid loading service on every CLI command
     const { OracleService } = await import("./service");
 
     const serviceConfig = {
@@ -975,6 +1025,8 @@ program
       autoCommit: options.autoCommit !== false,
       autoReveal: options.autoReveal !== false,
       logFile: options.log,
+      stateFile: options.stateFile || path.join(configDir(), "service-state.json"),
+      auditLogFile: options.auditLog || path.join(configDir(), "audit.log"),
     };
 
     const service = new OracleService(serviceConfig);
@@ -992,9 +1044,9 @@ program
     console.log(`Auto-reveal: ${serviceConfig.autoReveal ? chalk.green("enabled") : chalk.yellow("disabled")}`);
     console.log(`Polling: ${serviceConfig.pollingInterval}ms`);
     console.log(`Warning: ${serviceConfig.phaseWarningTime}s before phase end`);
-    if (serviceConfig.logFile) {
-      console.log(`Log: ${serviceConfig.logFile}`);
-    }
+    if (serviceConfig.logFile) console.log(`Log: ${serviceConfig.logFile}`);
+    if (serviceConfig.stateFile) console.log(`State: ${serviceConfig.stateFile}`);
+    if (serviceConfig.auditLogFile) console.log(`Audit: ${serviceConfig.auditLogFile}`);
     console.log();
     console.log("Press Ctrl+C to stop\n");
 

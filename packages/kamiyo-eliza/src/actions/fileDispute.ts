@@ -3,6 +3,13 @@ import { Wallet } from '@coral-xyz/anchor';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
 import { getNetworkConfig, getKeypair, createConnection, parseQuality, getRefundPercent } from '../utils';
 
+function extractEscrowId(text: string, fallback?: string): string | null {
+  const match = text.match(/tx_[a-z0-9_\-]+/i) || text.match(/escrow_[a-z0-9_\-]+/i);
+  const id = match?.[0] || fallback;
+  if (!id) return null;
+  return /^[a-z0-9_:\-]{3,128}$/i.test(id) ? id : null;
+}
+
 export const fileDisputeAction: Action = {
   name: 'FILE_KAMIYO_DISPUTE',
   description: 'File dispute for quality issues. Triggers oracle arbitration.',
@@ -39,8 +46,7 @@ export const fileDisputeAction: Action = {
     const keypair = getKeypair(runtime);
     const text = message.content.text || '';
 
-    const escrowMatch = text.match(/tx_[a-z0-9_]+/i) || text.match(/escrow_[a-z0-9_]+/i);
-    const transactionId = escrowMatch?.[0] || (message.content.transactionId as string);
+    const transactionId = extractEscrowId(text, message.content.transactionId as string);
 
     if (!transactionId) {
       callback?.({ text: 'Specify escrow/transaction ID (e.g., tx_abc123)' });

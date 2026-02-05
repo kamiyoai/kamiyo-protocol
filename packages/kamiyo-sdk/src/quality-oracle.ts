@@ -1,9 +1,3 @@
-/**
- * Quality Oracle - Automated service quality assessment for dispute resolution
- *
- * Provides automated quality assessment that oracles can use to vote on disputes.
- */
-
 import { PublicKey, Connection } from "@solana/web3.js";
 import BN from "bn.js";
 import {
@@ -12,78 +6,45 @@ import {
   QualityReport,
   SchemaField,
   DEFAULT_QUALITY_WEIGHTS,
-  calculateOverallScore,
   generateQualityReport,
   validateSchema,
   checkCompleteness,
   verifyFactualAccuracy,
   createAssessment,
-  serializeAssessment,
 } from "./quality";
 import { EscrowDisputeManager } from "./escrow-dispute";
 import {
   CompanionEscrow,
   CompanionEscrowStatus,
-  COMPANION_ESCROW_COMMIT_PHASE_DURATION,
 } from "./types";
 
-/**
- * Service request specification
- */
 export interface ServiceSpec {
-  /** Expected output schema */
   schema: Record<string, SchemaField>;
-  /** Required fields in response */
   requiredFields: string[];
-  /** Optional fields */
   optionalFields?: string[];
-  /** Known facts to verify against */
   expectedValues?: Record<string, unknown>;
-  /** Numeric tolerance for fact checking */
   tolerance?: Record<string, number>;
-  /** Maximum acceptable response time (ms) */
   maxResponseTime?: number;
-  /** Maximum acceptable data age (seconds) */
   maxDataAge?: number;
 }
 
-/**
- * Service response with metadata
- */
 export interface ServiceResponse {
-  /** Response data */
   data: unknown;
-  /** Response time in milliseconds */
   responseTimeMs: number;
-  /** Data timestamp (for freshness) */
   dataTimestamp?: number;
-  /** Service provider address */
   provider?: PublicKey;
-  /** Request timestamp */
   requestedAt?: number;
 }
 
-/**
- * Oracle vote with commitment
- */
 export interface OracleVote {
-  /** Escrow being disputed */
   escrowPda: PublicKey;
-  /** Quality score (0-100) */
   qualityScore: number;
-  /** Salt for commitment */
   salt: Uint8Array;
-  /** Commitment hash */
   commitmentHash: Uint8Array;
-  /** Full quality assessment */
   assessment: QualityAssessment;
-  /** Quality report */
   report: QualityReport;
 }
 
-/**
- * Pending dispute for oracle processing
- */
 export interface PendingDispute {
   escrowPda: PublicKey;
   escrow: CompanionEscrow;
@@ -95,18 +56,15 @@ export interface PendingDispute {
   hasVoted: boolean;
 }
 
-/**
- * Quality Oracle - Automated quality assessment service
- */
 export class QualityOracle {
   private disputeManager: EscrowDisputeManager;
   private weights: QualityWeights;
   private threshold: number;
-  private oracleKeypair?: PublicKey;
+  private oraclePubkey?: PublicKey;
 
   constructor(
     connection: Connection,
-    wallet: any,
+    wallet: { publicKey?: PublicKey } | undefined | null,
     options: {
       weights?: QualityWeights;
       threshold?: number;
@@ -115,43 +73,38 @@ export class QualityOracle {
   ) {
     this.disputeManager = new EscrowDisputeManager(
       connection,
-      wallet,
+      wallet as any,
       options.programId
     );
     this.weights = options.weights ?? DEFAULT_QUALITY_WEIGHTS;
-    this.threshold = options.threshold ?? 70;
-    this.oracleKeypair = wallet.publicKey;
+    const t = options.threshold ?? 70;
+    if (t < 0 || t > 100) throw new Error("threshold must be 0-100");
+    this.threshold = t;
+    this.oraclePubkey = wallet?.publicKey;
   }
 
-  /**
-   * Assess service response quality
-   */
   assessQuality(
     response: ServiceResponse,
     spec: ServiceSpec
   ): QualityReport {
-    // Validate schema
     const schemaResult = validateSchema(response.data, spec.schema);
 
-    // Check completeness
     const completenessResult = checkCompleteness(
       response.data,
       spec.requiredFields,
       spec.optionalFields
     );
 
-    // Verify factual accuracy
     let factualScore = 100;
     if (spec.expectedValues && typeof response.data === "object" && response.data !== null) {
-      const factualResult = verifyFactualAccuracy(
+      const factual = verifyFactualAccuracy(
         response.data as Record<string, unknown>,
         spec.expectedValues,
         spec.tolerance
       );
-      factualScore = factualResult.score;
+      factualScore = factual.score;
     }
 
-    // Create assessment
     const assessment = createAssessment({
       factualAccuracy: factualScore,
       schemaCompliance: schemaResult.score,
@@ -164,23 +117,19 @@ export class QualityOracle {
     return generateQualityReport(assessment, this.threshold, this.weights);
   }
 
-  /**
-   * Generate oracle vote for a dispute
-   */
   async generateVote(
     escrowPda: PublicKey,
     sessionId: Uint8Array,
     response: ServiceResponse,
     spec: ServiceSpec
   ): Promise<OracleVote> {
-    // Assess quality
-    const report = this.assessQuality(response, spec);
+    if (!this.oraclePubkey) throw new Error("Missing oracle public key");
 
-    // Generate salt and commitment
+    const report = this.assessQuality(response, spec);
     const salt = this.disputeManager.generateSalt();
     const commitmentHash = await this.disputeManager.computeCommitmentHash(
       sessionId,
-      this.oracleKeypair!,
+      this.oraclePubkey,
       report.overallScore,
       salt
     );
@@ -195,9 +144,6 @@ export class QualityOracle {
     };
   }
 
-  /**
-   * Check if oracle should vote on a dispute
-   */
   shouldVote(escrow: CompanionEscrow): { should: boolean; reason: string } {
     if (escrow.status !== CompanionEscrowStatus.Disputed) {
       return { should: false, reason: "Escrow is not disputed" };
@@ -207,16 +153,13 @@ export class QualityOracle {
       return { should: false, reason: "Not in commit phase" };
     }
 
-    if (this.oracleKeypair && this.disputeManager.hasCommitted(escrow, this.oracleKeypair)) {
+    if (this.oraclePubkey && this.disputeManager.hasCommitted(escrow, this.oraclePubkey)) {
       return { should: false, reason: "Already committed" };
     }
 
     return { should: true, reason: "Ready to vote" };
   }
 
-  /**
-   * Check if oracle should reveal vote
-   */
   shouldReveal(escrow: CompanionEscrow): { should: boolean; reason: string } {
     if (escrow.status !== CompanionEscrowStatus.Disputed) {
       return { should: false, reason: "Escrow is not disputed" };
@@ -226,24 +169,21 @@ export class QualityOracle {
       return { should: false, reason: "Not in reveal phase" };
     }
 
-    if (!this.oracleKeypair) {
-      return { should: false, reason: "No oracle keypair" };
+    if (!this.oraclePubkey) {
+      return { should: false, reason: "No oracle key" };
     }
 
-    if (!this.disputeManager.hasCommitted(escrow, this.oracleKeypair)) {
+    if (!this.disputeManager.hasCommitted(escrow, this.oraclePubkey)) {
       return { should: false, reason: "No commitment found" };
     }
 
-    if (this.disputeManager.hasRevealed(escrow, this.oracleKeypair)) {
+    if (this.disputeManager.hasRevealed(escrow, this.oraclePubkey)) {
       return { should: false, reason: "Already revealed" };
     }
 
     return { should: true, reason: "Ready to reveal" };
   }
 
-  /**
-   * Get pending disputes that need voting
-   */
   filterPendingDisputes(
     escrows: Array<{ pda: PublicKey; escrow: CompanionEscrow }>
   ): PendingDispute[] {
@@ -253,8 +193,8 @@ export class QualityOracle {
       if (escrow.status !== CompanionEscrowStatus.Disputed) continue;
       if (!escrow.commitPhaseEndsAt) continue;
 
-      const hasVoted = this.oracleKeypair
-        ? this.disputeManager.hasCommitted(escrow, this.oracleKeypair)
+      const hasVoted = this.oraclePubkey
+        ? this.disputeManager.hasCommitted(escrow, this.oraclePubkey)
         : false;
 
       pending.push({
@@ -269,13 +209,9 @@ export class QualityOracle {
       });
     }
 
-    // Sort by commit phase ending soonest
     return pending.sort((a, b) => a.commitPhaseEndsAt - b.commitPhaseEndsAt);
   }
 
-  /**
-   * Calculate consensus from current submissions
-   */
   previewConsensus(escrow: CompanionEscrow): {
     hasConsensus: boolean;
     medianScore: number | null;
@@ -283,7 +219,7 @@ export class QualityOracle {
     requiredSubmissions: number;
   } {
     const submissionCount = escrow.oracleSubmissions.length;
-    const requiredSubmissions = 3; // MIN_CONSENSUS_ORACLES
+    const requiredSubmissions = 3;
 
     if (submissionCount < requiredSubmissions) {
       return {
@@ -312,9 +248,6 @@ export class QualityOracle {
     }
   }
 
-  /**
-   * Estimate outcome based on quality assessment
-   */
   estimateOutcome(report: QualityReport, amount: BN): {
     qualityScore: number;
     refundPercentage: number;
@@ -331,13 +264,9 @@ export class QualityOracle {
     );
 
     let verdict: "user_wins" | "provider_wins" | "partial";
-    if (refundPercentage === 100) {
-      verdict = "user_wins";
-    } else if (refundPercentage === 0) {
-      verdict = "provider_wins";
-    } else {
-      verdict = "partial";
-    }
+    if (refundPercentage === 100) verdict = "user_wins";
+    else if (refundPercentage === 0) verdict = "provider_wins";
+    else verdict = "partial";
 
     return {
       qualityScore: report.overallScore,
@@ -348,33 +277,19 @@ export class QualityOracle {
     };
   }
 
-  /**
-   * Get dispute manager for direct access
-   */
   getDisputeManager(): EscrowDisputeManager {
     return this.disputeManager;
   }
 
-  /**
-   * Update quality weights
-   */
   setWeights(weights: QualityWeights): void {
     this.weights = weights;
   }
 
-  /**
-   * Update quality threshold
-   */
   setThreshold(threshold: number): void {
-    if (threshold < 0 || threshold > 100) {
-      throw new Error("Threshold must be between 0 and 100");
-    }
+    if (threshold < 0 || threshold > 100) throw new Error("Threshold must be 0-100");
     this.threshold = threshold;
   }
 
-  /**
-   * Get current configuration
-   */
   getConfig(): { weights: QualityWeights; threshold: number } {
     return {
       weights: { ...this.weights },
@@ -383,30 +298,27 @@ export class QualityOracle {
   }
 }
 
-/**
- * Create a service spec from a simple schema definition
- */
 export function createServiceSpec(params: {
   fields: Record<string, { type: SchemaField["type"]; required: boolean }>;
   expectedValues?: Record<string, unknown>;
   maxResponseTime?: number;
   maxDataAge?: number;
-}): ServiceSpec {
+}): {
+  schema: Record<string, SchemaField>;
+  requiredFields: string[];
+  optionalFields?: string[];
+  expectedValues?: Record<string, unknown>;
+  maxResponseTime?: number;
+  maxDataAge?: number;
+} {
   const schema: Record<string, SchemaField> = {};
   const requiredFields: string[] = [];
   const optionalFields: string[] = [];
 
   for (const [name, field] of Object.entries(params.fields)) {
-    schema[name] = {
-      type: field.type,
-      required: field.required,
-    };
-
-    if (field.required) {
-      requiredFields.push(name);
-    } else {
-      optionalFields.push(name);
-    }
+    schema[name] = { type: field.type, required: field.required };
+    if (field.required) requiredFields.push(name);
+    else optionalFields.push(name);
   }
 
   return {
