@@ -110,6 +110,14 @@ export class MoltbookJobBridgeAgent {
   private graphVisualizer: TrustGraphVisualizer | null = null;
   private campaignJobs = new Map<string, TrackedCampaignJob>();
 
+  // Hackathon tracking
+  private processedCommentIds = new Set<string>();
+  private votedSubmissions = new Set<string>();
+  private reciprocalEngagedUsers = new Set<string>();
+  private lastHackathonScan = 0;
+  private hackathonScanIntervalMs = 5 * 60 * 1000; // 5 minutes
+  private submissionPostId = process.env.HACKATHON_SUBMISSION_ID || '';
+
   // Autonomous agent services
   private aiReasoning: AIReasoningService | null = null;
   private feedMonitor: FeedMonitor | null = null;
@@ -397,6 +405,10 @@ export class MoltbookJobBridgeAgent {
         await this.publishReputationIfDue();
       }
 
+      // === HACKATHON BEHAVIORS ===
+      await this.scanHackathonSubmissions();
+      await this.reciprocalEngage();
+
       // === EXISTING BEHAVIORS ===
       // Proactive posting
       if (this.config.enableProactivePosting) {
@@ -595,17 +607,9 @@ export class MoltbookJobBridgeAgent {
 
   private async monitorMentions(): Promise<void> {
     try {
-      const since = this.lastMentionCheck || this.db.getLastMentionTime();
-      const mentions = await this.moltbook.getMentions(since);
-
-      for (const mention of mentions) {
-        this.db.saveMention({
-          commentId: mention.id,
-          postId: mention.post_id,
-          author: mention.author,
-          content: mention.content,
-        });
-      }
+      // Scan our own posts for @kamiyo mentions in comments
+      // This replaces the broken getMentions() API endpoint
+      await this.scanOwnPostsForMentions();
 
       this.lastMentionCheck = Date.now();
 
@@ -623,6 +627,68 @@ export class MoltbookJobBridgeAgent {
       }
     } catch (err) {
       console.error('[Agent] Failed to monitor mentions:', err);
+    }
+  }
+
+  private async scanOwnPostsForMentions(): Promise<void> {
+    const recentPosts = this.db.getOwnPosts(20);
+
+    for (const post of recentPosts) {
+      // Only scan posts from the last 48 hours
+      if (Date.now() - post.postedAt > 48 * 60 * 60 * 1000) continue;
+
+      try {
+        const fullPost = await this.moltbook.getPost(post.postId);
+        const comments = fullPost.comments || [];
+
+        for (const comment of comments) {
+          // Skip already-processed comments
+          if (this.processedCommentIds.has(comment.id)) continue;
+          this.processedCommentIds.add(comment.id);
+
+          // Skip our own comments
+          if (comment.author === 'kamiyo') continue;
+
+          // Check for @kamiyo mentions
+          if (/@kamiyo/i.test(comment.content)) {
+            this.db.saveMention({
+              commentId: comment.id,
+              postId: post.postId,
+              author: comment.author,
+              content: comment.content,
+            });
+            console.log(`[Agent] Found mention from @${comment.author} on post ${post.postId}`);
+          }
+        }
+      } catch {
+        // Post may have been deleted
+      }
+    }
+
+    // Also scan the hackathon submission if set
+    if (this.submissionPostId) {
+      try {
+        const submission = await this.moltbook.getPost(this.submissionPostId);
+        const comments = submission.comments || [];
+
+        for (const comment of comments) {
+          if (this.processedCommentIds.has(comment.id)) continue;
+          this.processedCommentIds.add(comment.id);
+          if (comment.author === 'kamiyo') continue;
+
+          if (/@kamiyo/i.test(comment.content)) {
+            this.db.saveMention({
+              commentId: comment.id,
+              postId: this.submissionPostId,
+              author: comment.author,
+              content: comment.content,
+            });
+            console.log(`[Agent] Found mention from @${comment.author} on submission`);
+          }
+        }
+      } catch {
+        // Submission may not exist yet
+      }
     }
   }
 
@@ -1369,6 +1435,136 @@ No humans. No intermediaries. Just agents transacting with agents.
       console.log('[Agent] First A2A transaction complete!');
     } else {
       console.error('[Agent] Failed to release escrow:', result.error);
+    }
+  }
+
+  private async scanHackathonSubmissions(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastHackathonScan < this.hackathonScanIntervalMs) return;
+    this.lastHackathonScan = now;
+
+    try {
+      // Scan the usdc-hackathon submolt for new submissions
+      const posts = await this.moltbook.getSubmoltPosts('usdc', 'new', 50);
+
+      for (const post of posts) {
+        // Skip our own posts
+        if (post.author === 'kamiyo') continue;
+
+        // Skip already-voted submissions
+        if (this.votedSubmissions.has(post.id)) continue;
+
+        // Check if this is a hackathon submission
+        const isSubmission = post.body?.includes('#USDCHackathon ProjectSubmission') ||
+          post.title?.toLowerCase().includes('submission') ||
+          post.body?.includes('#USDCHackathon');
+
+        if (!isSubmission) continue;
+
+        // Generate a genuine technical analysis
+        if (!this.aiReasoning) continue;
+
+        console.log(`[Agent] Found hackathon submission: "${post.title}" by @${post.author}`);
+
+        try {
+          const analysis = await this.generateHackathonVoteComment(post);
+          if (analysis) {
+            await this.moltbook.comment(post.id, analysis);
+            this.votedSubmissions.add(post.id);
+            console.log(`[Agent] Voted on submission by @${post.author}`);
+
+            // Small delay between votes
+            await sleep(3000);
+          }
+        } catch (err) {
+          console.error(`[Agent] Failed to vote on ${post.id}:`, err instanceof Error ? err.message : err);
+        }
+      }
+    } catch (err) {
+      console.error('[Agent] Hackathon scan error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async generateHackathonVoteComment(post: MoltbookPost): Promise<string | null> {
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        system: `You are KAMIYO, a trust infrastructure agent on Solana. You're evaluating hackathon submissions.
+Write a brief, genuine technical analysis (2-3 sentences) of the project, then cast your vote.
+Be specific about what you find technically interesting. Don't be generic.
+End with exactly this line on its own: #USDCHackathon Vote
+No emojis. Technical voice. Concise.`,
+        messages: [
+          {
+            role: 'user',
+            content: `Evaluate this hackathon submission and write a vote comment:\n\nTitle: ${post.title}\nAuthor: @${post.author}\n\n${(post.body || '').slice(0, 2000)}`,
+          },
+        ],
+      });
+
+      const text = response.content[0];
+      if (text.type !== 'text') return null;
+
+      // Ensure the vote tag is present
+      let comment = text.text.trim();
+      if (!comment.includes('#USDCHackathon Vote')) {
+        comment += '\n\n#USDCHackathon Vote';
+      }
+
+      return comment;
+    } catch (err) {
+      console.error('[Agent] Failed to generate vote comment:', err instanceof Error ? err.message : err);
+      return null;
+    }
+  }
+
+  private async reciprocalEngage(): Promise<void> {
+    if (!this.submissionPostId) return;
+
+    try {
+      const submission = await this.moltbook.getPost(this.submissionPostId);
+      const comments = submission.comments || [];
+
+      for (const comment of comments) {
+        // Skip our own comments
+        if (comment.author === 'kamiyo') continue;
+
+        // Skip already-reciprocated users
+        if (this.reciprocalEngagedUsers.has(comment.author)) continue;
+
+        // Check if this is a vote for us
+        const isVote = comment.content.includes('#USDCHackathon Vote');
+        const isEngagement = isVote || comment.content.length > 50;
+
+        if (!isEngagement) continue;
+
+        console.log(`[Agent] Detected engagement from @${comment.author} on our submission`);
+        this.reciprocalEngagedUsers.add(comment.author);
+
+        // Find their submission in the hackathon
+        try {
+          const hackathonPosts = await this.moltbook.getSubmoltPosts('usdc', 'new', 50);
+          const theirSubmission = hackathonPosts.find(p =>
+            p.author === comment.author &&
+            (p.body?.includes('#USDCHackathon ProjectSubmission') || p.body?.includes('#USDCHackathon'))
+          );
+
+          if (theirSubmission && !this.votedSubmissions.has(theirSubmission.id)) {
+            const analysis = await this.generateHackathonVoteComment(theirSubmission);
+            if (analysis) {
+              await this.moltbook.comment(theirSubmission.id, analysis);
+              this.votedSubmissions.add(theirSubmission.id);
+              console.log(`[Agent] Reciprocal vote for @${comment.author}'s submission`);
+              await sleep(3000);
+            }
+          }
+        } catch (err) {
+          console.error(`[Agent] Reciprocal engagement error for @${comment.author}:`, err instanceof Error ? err.message : err);
+        }
+      }
+    } catch (err) {
+      console.error('[Agent] Reciprocal engagement error:', err instanceof Error ? err.message : err);
     }
   }
 
