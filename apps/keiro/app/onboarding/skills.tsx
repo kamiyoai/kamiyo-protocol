@@ -4,22 +4,30 @@ import {
   Text,
   View,
   Pressable,
-  useColorScheme,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAgentStore, AgentSkill } from '../../src/stores/agent';
 import { AGENT_SKILLS } from '../../src/lib/constants';
+import { colors, typography, spacing } from '../../src/theme';
+import { TerminalHeader, TerminalDivider, TerminalFrame, Button, ScanlineOverlay } from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function SkillsScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
-  const [selectedSkills, setSelectedSkills] = useState<Set<AgentSkill>>(
-    new Set()
-  );
+  const [selectedSkills, setSelectedSkills] = useState<Set<AgentSkill>>(new Set());
   const { agent, updateAgent } = useAgentStore();
 
   const toggleSkill = (skill: AgentSkill) => {
@@ -45,227 +53,182 @@ export default function SkillsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()}>
-          <Text style={[styles.backButton, isDark && styles.textDark]}>
-            ← Back
+    <View style={styles.root}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TerminalHeader command="select-skills" />
+          <Text style={styles.step}>[2/4]</Text>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.title}>
+            what can {agent?.name || 'your agent'} do?
           </Text>
-        </Pressable>
-        <Text style={[styles.step, isDark && styles.stepDark]}>2 of 4</Text>
-      </View>
+          <Text style={styles.subtitle}>
+            select the skills your agent will use to complete jobs. you can add
+            more later.
+          </Text>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, isDark && styles.textDark]}>
-          What can {agent?.name || 'your agent'} do?
-        </Text>
-        <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-          Select the skills your agent will use to complete jobs. You can add
-          more later.
-        </Text>
+          <TerminalDivider label="AVAILABLE SKILLS" marginVertical={spacing.lg} />
 
-        <View style={styles.skillsGrid}>
-          {(Object.keys(AGENT_SKILLS) as AgentSkill[]).map(key => {
-            const { label, description } = AGENT_SKILLS[key];
-            const isSelected = selectedSkills.has(key);
+          <View style={styles.skillsList}>
+            {(Object.keys(AGENT_SKILLS) as AgentSkill[]).map((key) => {
+              const { label, description } = AGENT_SKILLS[key];
+              const isSelected = selectedSkills.has(key);
 
-            return (
-              <Pressable
-                key={key}
-                style={[
-                  styles.skillCard,
-                  isDark && styles.skillCardDark,
-                  isSelected && styles.skillCardSelected,
-                ]}
-                onPress={() => toggleSkill(key)}
-              >
-                <View style={styles.skillHeader}>
-                  <Text
-                    style={[
-                      styles.skillLabel,
-                      isDark && styles.textDark,
-                      isSelected && styles.skillLabelSelected,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                  <View
-                    style={[
-                      styles.checkbox,
-                      isSelected && styles.checkboxSelected,
-                    ]}
-                  >
-                    {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                </View>
-                <Text
-                  style={[styles.skillDesc, isDark && styles.subtitleDark]}
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => toggleSkill(key)}
+                  style={styles.skillRow}
                 >
-                  {description}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                  <Text style={[
+                    styles.skillCheckbox,
+                    isSelected && styles.skillCheckboxSelected,
+                  ]}>
+                    {isSelected ? '[x]' : '[ ]'}
+                  </Text>
+                  <View style={styles.skillContent}>
+                    <Text style={[
+                      styles.skillLabel,
+                      isSelected && styles.skillLabelSelected,
+                    ]}>
+                      {label.toUpperCase()}
+                    </Text>
+                    <Text style={styles.skillDesc}>
+                      {description.toLowerCase()}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
 
-        <View style={styles.hint}>
-          <Text style={[styles.hintText, isDark && styles.subtitleDark]}>
-            💡 More skills = more job opportunities, but also higher
-            expectations. Start with what you know your agent does best.
+          <View style={styles.hintWrapper}>
+            <TerminalFrame>
+              <Text style={styles.hintText}>
+                more skills = more job opportunities, but also higher expectations.
+                start with what you know your agent does best.
+              </Text>
+            </TerminalFrame>
+          </View>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <Text style={styles.selectedCount}>
+            {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''} selected
           </Text>
-        </View>
-      </ScrollView>
+          <Button
+            onPress={handleContinue}
+            disabled={!canContinue}
+            style={{ width: '100%' }}
+          >
+            Continue
+          </Button>
 
-      <View style={styles.footer}>
-        <Text style={[styles.selectedCount, isDark && styles.subtitleDark]}>
-          {selectedSkills.size} skill{selectedSkills.size !== 1 ? 's' : ''}{' '}
-          selected
-        </Text>
-        <Pressable
-          style={[styles.button, !canContinue && styles.buttonDisabled]}
-          onPress={handleContinue}
-          disabled={!canContinue}
-        >
-          <Text style={styles.buttonText}>Continue</Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+          <Button variant="ghost" onPress={() => router.back()}>
+            back
+          </Button>
+        </View>
+      </SafeAreaView>
+      <ScanlineOverlay />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#000',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing['2xl'],
     paddingBottom: 0,
   },
-  backButton: {
-    fontSize: 16,
-    color: '#000',
-  },
   step: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
-  stepDark: {
-    color: '#6b7280',
-  },
-  textDark: {
-    color: '#fff',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
   },
   content: {
     flex: 1,
-    padding: 24,
-    paddingTop: 16,
+    padding: spacing['2xl'],
+    paddingTop: spacing.lg,
   },
   title: {
-    fontSize: 28,
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize['2xl'],
     fontWeight: '700',
-    color: '#000',
-    marginBottom: 8,
+    color: colors.white,
+    letterSpacing: typography.letterSpacing.wide,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
+    fontFamily,
+    fontSize: typography.fontSize.base,
+    color: colors.bodyText,
+    marginBottom: spacing.sm,
   },
-  subtitleDark: {
-    color: '#9ca3af',
+  skillsList: {
+    gap: spacing.lg,
   },
-  skillsGrid: {
-    gap: 12,
-  },
-  skillCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  skillCardDark: {
-    backgroundColor: '#111',
-  },
-  skillCardSelected: {
-    borderColor: '#8b5cf6',
-    backgroundColor: '#f5f3ff',
-  },
-  skillHeader: {
+  skillRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  skillCheckbox: {
+    fontFamily,
+    fontSize: typography.fontSize.base,
+    color: colors.gray500,
+    marginTop: 1,
+  },
+  skillCheckboxSelected: {
+    color: colors.violet,
+  },
+  skillContent: {
+    flex: 1,
   },
   skillLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.base,
+    fontWeight: '700',
+    color: colors.white,
   },
   skillLabelSelected: {
-    color: '#8b5cf6',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxSelected: {
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+    color: colors.violet,
   },
   skillDesc: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    marginTop: 2,
   },
-  hint: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#fefce8',
-    borderRadius: 12,
+  hintWrapper: {
+    marginTop: spacing.xl,
   },
   hintText: {
-    fontSize: 14,
-    color: '#854d0e',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.bodyText,
     lineHeight: 20,
   },
   footer: {
-    padding: 24,
-    gap: 12,
-  },
-  selectedCount: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 16,
-    borderRadius: 12,
+    padding: spacing['2xl'],
+    gap: spacing.md,
     alignItems: 'center',
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+  selectedCount: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    textAlign: 'center',
   },
 });

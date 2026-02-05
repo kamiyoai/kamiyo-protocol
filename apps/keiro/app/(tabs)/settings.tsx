@@ -3,22 +3,38 @@ import {
   StyleSheet,
   Text,
   View,
-  Pressable,
-  useColorScheme,
   ScrollView,
   Switch,
   Alert,
+  Pressable,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore, getShortAddress } from '../../src/stores/wallet';
 import { useAppStore } from '../../src/stores/app';
-import { AGENT_PERSONALITIES, AGENT_SKILLS, APP_VERSION } from '../../src/lib/constants';
+import { AGENT_PERSONALITIES, APP_VERSION } from '../../src/lib/constants';
+import { colors, typography, spacing } from '../../src/theme';
+import {
+  TerminalButton,
+  TerminalBadge,
+  TerminalHeader,
+  TerminalDivider,
+  DotLeaderRow,
+} from '../../src/components/ui';
+
+const fontFamily = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_400Regular',
+});
+
+const fontFamilyBold = Platform.select({
+  web: "'Atkinson Hyperlegible Mono', monospace",
+  default: 'AtkinsonHyperlegibleMono_700Bold',
+});
 
 export default function SettingsScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const router = useRouter();
 
   const { agent, toggleActive, clearAgent } = useAgentStore();
@@ -76,228 +92,158 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, isDark && styles.containerDark]}
-      edges={['top']}
-    >
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.title, isDark && styles.textDark]}>Settings</Text>
+        <TerminalHeader command="config" />
 
-        <Text style={[styles.sectionLabel, isDark && styles.subtitleDark]}>
-          AGENT
-        </Text>
-        <View style={[styles.card, isDark && styles.cardDark]}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={[styles.settingLabel, isDark && styles.textDark]}>
-                Agent Status
-              </Text>
-              <Text style={[styles.settingDesc, isDark && styles.subtitleDark]}>
-                {agent?.isActive
-                  ? 'Agent is accepting jobs'
-                  : 'Agent is paused'}
-              </Text>
+        <TerminalDivider label="AGENT" />
+
+        <View style={styles.dataSection}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLeft}>
+              <Text style={styles.switchLabel}>status</Text>
+              <TerminalBadge variant="status" active={agent?.isActive || false}>
+                {agent?.isActive ? 'ACTIVE' : 'INACTIVE'}
+              </TerminalBadge>
             </View>
             <Switch
               value={agent?.isActive || false}
               onValueChange={handleToggleActive}
-              trackColor={{ false: '#e5e7eb', true: '#c4b5fd' }}
-              thumbColor={agent?.isActive ? '#8b5cf6' : '#fff'}
+              trackColor={{ false: colors.gray700, true: 'rgba(153, 68, 255, 0.3)' }}
+              thumbColor={agent?.isActive ? colors.violet : colors.gray500}
               disabled={togglingActive}
             />
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-              Name
-            </Text>
-            <Text style={[styles.infoValue, isDark && styles.textDark]}>
-              {agent?.name || 'Not set'}
-            </Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-              Personality
-            </Text>
-            <Text style={[styles.infoValue, isDark && styles.textDark]}>
-              {agent?.personality
-                ? AGENT_PERSONALITIES[agent.personality]?.label
-                : 'Not set'}
-            </Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-              Skills
-            </Text>
-            <Text style={[styles.infoValue, isDark && styles.textDark]}>
-              {agent?.skills?.length || 0} active
-            </Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-              Created
-            </Text>
-            <Text style={[styles.infoValue, isDark && styles.textDark]}>
-              {agent?.createdAt
+          <DotLeaderRow
+            label="name"
+            value={agent?.name || 'not set'}
+          />
+          <DotLeaderRow
+            label="personality"
+            value={
+              agent?.personality
+                ? AGENT_PERSONALITIES[agent.personality]?.label?.toLowerCase()
+                : 'not set'
+            }
+          />
+          <DotLeaderRow
+            label="skills"
+            value={`${agent?.skills?.length || 0} active`}
+          />
+          <DotLeaderRow
+            label="created"
+            value={
+              agent?.createdAt
                 ? new Date(agent.createdAt).toLocaleDateString()
-                : 'Unknown'}
-            </Text>
-          </View>
+                : 'unknown'
+            }
+          />
         </View>
 
-        <Text style={[styles.sectionLabel, isDark && styles.subtitleDark]}>
-          WALLET
-        </Text>
-        <View style={[styles.card, isDark && styles.cardDark]}>
+        <TerminalDivider label="WALLET" />
+
+        <View style={styles.dataSection}>
           {connected ? (
             <>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-                  Status
-                </Text>
-                <View style={styles.connectedBadge}>
-                  <View style={styles.connectedDot} />
-                  <Text style={styles.connectedText}>Connected</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-                  Address
-                </Text>
-                <Text style={[styles.addressText, isDark && styles.textDark]}>
-                  {getShortAddress(publicKey)}
-                </Text>
-              </View>
-
-              <Pressable
-                style={styles.dangerButton}
+              <DotLeaderRow
+                label="status"
+                value="CONNECTED"
+                valueColor={colors.violet}
+              />
+              <DotLeaderRow
+                label="address"
+                value={getShortAddress(publicKey)}
+              />
+              <TerminalButton
+                variant="danger"
                 onPress={handleDisconnectWallet}
+                style={styles.actionBtn}
               >
-                <Text style={styles.dangerButtonText}>Disconnect Wallet</Text>
-              </Pressable>
+                DISCONNECT WALLET
+              </TerminalButton>
             </>
           ) : (
-            <View style={styles.notConnected}>
-              <Text style={[styles.notConnectedText, isDark && styles.subtitleDark]}>
-                No wallet connected
+            <>
+              <Text style={styles.dimText}>no wallet connected</Text>
+              <Text style={styles.dimSubtext}>
+                connect a wallet from the earnings tab to receive payments
               </Text>
-              <Text style={[styles.notConnectedHint, isDark && styles.subtitleDark]}>
-                Connect a wallet from the Earnings tab to receive payments
-              </Text>
-            </View>
+            </>
           )}
         </View>
 
-        <Text style={[styles.sectionLabel, isDark && styles.subtitleDark]}>
-          PREFERENCES
-        </Text>
-        <View style={[styles.card, isDark && styles.cardDark]}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={[styles.settingLabel, isDark && styles.textDark]}>
-                Push Notifications
-              </Text>
-              <Text style={[styles.settingDesc, isDark && styles.subtitleDark]}>
-                Get notified about new jobs and earnings
-              </Text>
+        <TerminalDivider label="PREFERENCES" />
+
+        <View style={styles.dataSection}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLeft}>
+              <Text style={styles.switchLabel}>push notifications</Text>
+              <TerminalBadge variant={notificationsEnabled ? 'cyan' : 'dim'}>
+                {notificationsEnabled ? 'ON' : 'OFF'}
+              </TerminalBadge>
             </View>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#e5e7eb', true: '#c4b5fd' }}
-              thumbColor={notificationsEnabled ? '#8b5cf6' : '#fff'}
+              trackColor={{ false: colors.gray700, true: 'rgba(153, 68, 255, 0.3)' }}
+              thumbColor={notificationsEnabled ? colors.violet : colors.gray500}
             />
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={[styles.settingLabel, isDark && styles.textDark]}>
-                Auto-Accept Jobs
-              </Text>
-              <Text style={[styles.settingDesc, isDark && styles.subtitleDark]}>
-                Automatically accept matching jobs (coming soon)
-              </Text>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLeft}>
+              <Text style={styles.switchLabel}>auto-accept jobs</Text>
+              <TerminalBadge variant={autoAcceptJobs ? 'cyan' : 'dim'}>
+                {autoAcceptJobs ? 'ON' : 'OFF'}
+              </TerminalBadge>
             </View>
             <Switch
               value={autoAcceptJobs}
               onValueChange={setAutoAcceptJobs}
-              trackColor={{ false: '#e5e7eb', true: '#c4b5fd' }}
-              thumbColor={autoAcceptJobs ? '#8b5cf6' : '#fff'}
+              trackColor={{ false: colors.gray700, true: 'rgba(153, 68, 255, 0.3)' }}
+              thumbColor={autoAcceptJobs ? colors.violet : colors.gray500}
               disabled
             />
           </View>
+          <Text style={styles.dimSubtext}>coming soon</Text>
         </View>
 
-        <Text style={[styles.sectionLabel, isDark && styles.subtitleDark]}>
-          DATA
-        </Text>
-        <View style={[styles.card, isDark && styles.cardDark]}>
-          <Pressable style={styles.dangerButton} onPress={handleResetAgent}>
-            <Text style={styles.dangerButtonText}>Reset Agent & Data</Text>
-          </Pressable>
-          <Text style={[styles.dangerHint, isDark && styles.subtitleDark]}>
-            This will delete all local data and restart onboarding. Your on-chain
-            reputation is permanent.
+        <TerminalDivider label="DATA" />
+
+        <View style={styles.dataSection}>
+          <TerminalButton variant="danger" onPress={handleResetAgent}>
+            RESET AGENT & DATA
+          </TerminalButton>
+          <Text style={styles.dangerHint}>
+            this will delete all local data and restart onboarding.{'\n'}
+            your on-chain reputation is permanent.
           </Text>
         </View>
 
-        <Text style={[styles.sectionLabel, isDark && styles.subtitleDark]}>
-          ABOUT
-        </Text>
-        <View style={[styles.card, isDark && styles.cardDark]}>
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-              Version
-            </Text>
-            <Text style={[styles.infoValue, isDark && styles.textDark]}>
-              {APP_VERSION}
-            </Text>
+        <TerminalDivider label="ABOUT" />
+
+        <View style={styles.dataSection}>
+          <DotLeaderRow label="version" value={APP_VERSION} />
+          <DotLeaderRow label="network" value="devnet" />
+
+          <View style={styles.linksSection}>
+            <Pressable style={styles.linkRow}>
+              <Text style={styles.linkText}>{'>'} terms of service</Text>
+            </Pressable>
+            <Pressable style={styles.linkRow}>
+              <Text style={styles.linkText}>{'>'} privacy policy</Text>
+            </Pressable>
+            <Pressable style={styles.linkRow}>
+              <Text style={styles.linkText}>{'>'} view on github</Text>
+            </Pressable>
           </View>
-
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, isDark && styles.subtitleDark]}>
-              Network
-            </Text>
-            <Text style={[styles.infoValue, isDark && styles.textDark]}>
-              Devnet
-            </Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <Pressable style={styles.linkRow}>
-            <Text style={[styles.linkText, isDark && styles.textDark]}>
-              Terms of Service
-            </Text>
-          </Pressable>
-
-          <Pressable style={styles.linkRow}>
-            <Text style={[styles.linkText, isDark && styles.textDark]}>
-              Privacy Policy
-            </Text>
-          </Pressable>
-
-          <Pressable style={styles.linkRow}>
-            <Text style={[styles.linkText, isDark && styles.textDark]}>
-              View on GitHub
-            </Text>
-          </Pressable>
         </View>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, isDark && styles.subtitleDark]}>
-            KEIRO by KAMIYO Protocol
-          </Text>
-          <Text style={[styles.footerSubtext, isDark && styles.subtitleDark]}>
-            AI agents with permanent careers on OriginTrail DKG
+          <Text style={styles.footerText}>KAMIYO PROTOCOL</Text>
+          <Text style={styles.footerSubtext}>
+            ai agents with permanent careers on origintrail dkg
           </Text>
         </View>
       </ScrollView>
@@ -308,160 +254,80 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  containerDark: {
-    backgroundColor: '#000',
+    backgroundColor: colors.bg.primary,
   },
   scrollView: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: spacing.xl,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 24,
+  dataSection: {
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
-  textDark: {
-    color: '#fff',
-  },
-  subtitleDark: {
-    color: '#9ca3af',
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  card: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  cardDark: {
-    backgroundColor: '#111',
-  },
-  settingRow: {
+  switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.md,
   },
-  settingLeft: {
+  switchLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     flex: 1,
-    marginRight: 16,
   },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#000',
+  switchLabel: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray400,
   },
-  settingDesc: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginTop: 2,
+  dimText: {
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 12,
+  dimSubtext: {
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
+    marginTop: spacing.xs,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#000',
-  },
-  connectedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
-  },
-  connectedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22c55e',
-  },
-  connectedText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#15803d',
-  },
-  addressText: {
-    fontSize: 14,
-    fontFamily: 'monospace',
-    color: '#000',
-  },
-  notConnected: {
-    alignItems: 'center',
-    padding: 16,
-  },
-  notConnectedText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  notConnectedHint: {
-    fontSize: 13,
-    color: '#9ca3af',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  dangerButton: {
-    backgroundColor: '#fee2e2',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  dangerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#dc2626',
+  actionBtn: {
+    marginTop: spacing.md,
   },
   dangerHint: {
-    fontSize: 12,
-    color: '#9ca3af',
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: spacing.md,
+    lineHeight: 16,
+  },
+  linksSection: {
+    marginTop: spacing.lg,
   },
   linkRow: {
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
   },
   linkText: {
-    fontSize: 14,
-    color: '#000',
+    fontFamily,
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
   },
   footer: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: spacing['3xl'],
   },
   footerText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontFamily: fontFamilyBold,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    letterSpacing: typography.letterSpacing.wide,
   },
   footerSubtext: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 4,
+    fontFamily,
+    fontSize: typography.fontSize.xs,
+    color: colors.gray600,
+    marginTop: spacing.xs,
   },
 });

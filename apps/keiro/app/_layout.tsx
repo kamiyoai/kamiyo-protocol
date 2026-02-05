@@ -1,11 +1,11 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useAppStore } from '../src/stores/app';
+import { colors } from '../src/theme';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const router = useRouter();
   const segments = useSegments();
   const [isReady, setIsReady] = useState(false);
@@ -15,17 +15,23 @@ export default function RootLayout() {
   );
 
   useEffect(() => {
-    // Wait for hydration
+    if (useAppStore.persist.hasHydrated()) {
+      setIsReady(true);
+      return;
+    }
+
     const unsubscribe = useAppStore.persist.onFinishHydration(() => {
       setIsReady(true);
     });
 
-    // Check if already hydrated
-    if (useAppStore.persist.hasHydrated()) {
+    const timeout = setTimeout(() => {
       setIsReady(true);
-    }
+    }, 500);
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -34,29 +40,39 @@ export default function RootLayout() {
     const inOnboarding = segments[0] === 'onboarding';
 
     if (!hasCompletedOnboarding && !inOnboarding) {
-      // Redirect to onboarding
       router.replace('/onboarding');
     } else if (hasCompletedOnboarding && inOnboarding) {
-      // Redirect to main app
       router.replace('/(tabs)');
     }
   }, [isReady, hasCompletedOnboarding, segments]);
 
+  if (!isReady) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
+
   return (
-    <>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: colorScheme === 'dark' ? '#000' : '#fff',
+            backgroundColor: colors.bg.primary,
           },
-          headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',
+          headerTintColor: colors.white,
           headerTitleStyle: {
-            fontWeight: '600',
+            fontFamily: Platform.OS === 'web'
+              ? "'Courier New', monospace"
+              : 'AtkinsonHyperlegibleMono_700Bold',
+            fontWeight: '700',
           },
           contentStyle: {
-            backgroundColor: colorScheme === 'dark' ? '#000' : '#fff',
+            backgroundColor: colors.bg.primary,
           },
+          headerShadowVisible: false,
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -65,6 +81,19 @@ export default function RootLayout() {
           options={{ headerShown: false, presentation: 'modal' }}
         />
       </Stack>
-    </>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+  },
+  loading: {
+    flex: 1,
+    backgroundColor: colors.bg.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
