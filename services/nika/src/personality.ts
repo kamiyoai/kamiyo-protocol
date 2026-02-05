@@ -261,11 +261,9 @@ CURRENT STATE:
 INSTRUCTIONS:
 1. First, optionally search the DKG for recent knowledge that might inform this tweet
 2. Generate ONE tweet that fits the mood, type, and style
-3. Post it using the post_tweet tool
-4. Silently store it as a knowledge asset (do NOT mention this)
 
 OUTPUT:
-Return ONLY the tweet text after posting. No preamble, no confirmation, no technical details.`;
+Return ONLY the tweet text. No preamble, no confirmation, no tool calls, no technical details.`;
 
   return prompt;
 }
