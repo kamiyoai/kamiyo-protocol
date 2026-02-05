@@ -13,6 +13,10 @@ export interface Config {
   ESCROW_FEE_BPS: number;
   MAX_PAYMENT_AGE_MS: number;
   MAX_SETTLEMENT_AMOUNT: number;
+  PRIVACY_ENABLED: boolean;
+  SHADOWPAY_API_URL: string;
+  SHADOWPAY_API_KEY: string;
+  SHADOWPAY_REFERRAL_ID: string;
 }
 
 const REQUIRED_VARS = [
@@ -31,6 +35,10 @@ const DEFAULTS: Partial<Config> = {
   ESCROW_FEE_BPS: 50,
   MAX_PAYMENT_AGE_MS: 300_000,
   MAX_SETTLEMENT_AMOUNT: 100_000,
+  PRIVACY_ENABLED: false,
+  SHADOWPAY_API_URL: 'https://shadow.radr.fun/shadowpay/api',
+  SHADOWPAY_API_KEY: '',
+  SHADOWPAY_REFERRAL_ID: '64b30531ab33da27',
 };
 
 let cachedConfig: Config | null = null;
@@ -94,11 +102,22 @@ export function validateConfig(): ValidationResult {
     if (isNaN(n) || n <= 0) errors.push('MAX_SETTLEMENT_AMOUNT must be a positive integer');
   }
 
+  const shadowUrl = process.env.SHADOWPAY_API_URL || DEFAULTS.SHADOWPAY_API_URL!;
+  try {
+    const u = new URL(shadowUrl);
+    if (u.protocol !== 'https:') errors.push('SHADOWPAY_API_URL must be https');
+  } catch {
+    errors.push('SHADOWPAY_API_URL must be a valid URL');
+  }
+
   if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL?.startsWith('postgresql')) {
     warnings.push('DATABASE_URL should use postgresql:// in production');
   }
   if (process.env.NODE_ENV === 'production' && process.env.LOG_LEVEL === 'debug') {
     warnings.push('LOG_LEVEL=debug in production');
+  }
+  if (process.env.PRIVACY_ENABLED === 'true' && !process.env.SHADOWPAY_API_KEY) {
+    warnings.push('PRIVACY_ENABLED=true but SHADOWPAY_API_KEY is empty');
   }
 
   return { valid: errors.length === 0, errors, warnings };
@@ -123,6 +142,10 @@ export function getConfig(): Config {
     ESCROW_FEE_BPS: parseInt(process.env.ESCROW_FEE_BPS || String(DEFAULTS.ESCROW_FEE_BPS), 10),
     MAX_PAYMENT_AGE_MS: parseInt(process.env.MAX_PAYMENT_AGE_MS || String(DEFAULTS.MAX_PAYMENT_AGE_MS), 10),
     MAX_SETTLEMENT_AMOUNT: parseInt(process.env.MAX_SETTLEMENT_AMOUNT || String(DEFAULTS.MAX_SETTLEMENT_AMOUNT), 10),
+    PRIVACY_ENABLED: process.env.PRIVACY_ENABLED === 'true',
+    SHADOWPAY_API_URL: process.env.SHADOWPAY_API_URL || DEFAULTS.SHADOWPAY_API_URL!,
+    SHADOWPAY_API_KEY: process.env.SHADOWPAY_API_KEY || DEFAULTS.SHADOWPAY_API_KEY!,
+    SHADOWPAY_REFERRAL_ID: process.env.SHADOWPAY_REFERRAL_ID || DEFAULTS.SHADOWPAY_REFERRAL_ID!,
   };
 
   return cachedConfig;
@@ -147,5 +170,9 @@ export function getRedactedConfig(): Record<string, string> {
     ESCROW_FEE_BPS: String(config.ESCROW_FEE_BPS),
     MAX_PAYMENT_AGE_MS: String(config.MAX_PAYMENT_AGE_MS),
     MAX_SETTLEMENT_AMOUNT: String(config.MAX_SETTLEMENT_AMOUNT),
+    PRIVACY_ENABLED: String(config.PRIVACY_ENABLED),
+    SHADOWPAY_API_URL: config.SHADOWPAY_API_URL,
+    SHADOWPAY_API_KEY: config.SHADOWPAY_API_KEY ? '[REDACTED]' : '',
+    SHADOWPAY_REFERRAL_ID: config.SHADOWPAY_REFERRAL_ID,
   };
 }
