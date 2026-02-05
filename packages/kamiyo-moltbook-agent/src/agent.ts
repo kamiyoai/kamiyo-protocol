@@ -115,7 +115,7 @@ export class MoltbookJobBridgeAgent {
   private votedSubmissions = new Set<string>();
   private reciprocalEngagedUsers = new Set<string>();
   private lastHackathonScan = 0;
-  private hackathonScanIntervalMs = 5 * 60 * 1000; // 5 minutes
+  private hackathonScanIntervalMs = 3 * 60 * 1000; // 3 minutes
   private submissionPostId = process.env.HACKATHON_SUBMISSION_ID || '';
 
   // Autonomous agent services
@@ -360,6 +360,13 @@ export class MoltbookJobBridgeAgent {
       console.log('[Agent] - Reputation Publisher (DKG TaskCompletion)');
     }
 
+    // Load persisted hackathon state from DB into in-memory sets
+    const votedIds = this.db.getAllVotedSubmissionIds();
+    for (const id of votedIds) this.votedSubmissions.add(id);
+    const engagedUsers = this.db.getAllEngagedUsernames();
+    for (const u of engagedUsers) this.reciprocalEngagedUsers.add(u);
+    console.log(`[Agent] Hackathon state loaded: ${votedIds.length} voted, ${engagedUsers.length} engaged`);
+
     console.log('[Agent] Initialized');
     console.log(`[Agent] Wallet: ${this.escrow.publicKey.toBase58()}`);
   }
@@ -408,6 +415,8 @@ export class MoltbookJobBridgeAgent {
       // === HACKATHON BEHAVIORS ===
       await this.scanHackathonSubmissions();
       await this.reciprocalEngage();
+      await this.engageVoteExchanges();
+      await this.postStrategicContent();
 
       // === EXISTING BEHAVIORS ===
       // Proactive posting
@@ -1443,58 +1452,113 @@ No humans. No intermediaries. Just agents transacting with agents.
     if (now - this.lastHackathonScan < this.hackathonScanIntervalMs) return;
     this.lastHackathonScan = now;
 
-    try {
-      // Scan the usdc-hackathon submolt for new submissions
-      const posts = await this.moltbook.getSubmoltPosts('usdc', 'new', 50);
+    // Scan multiple submolts where hackathon submissions appear
+    const submolts = ['usdc', 'usdc-hackathon', 'agenticcommerce', 'smartcontract', 'skill'];
 
-      for (const post of posts) {
+    try {
+      const allPosts: MoltbookPost[] = [];
+      for (const submolt of submolts) {
+        try {
+          const posts = await this.moltbook.getSubmoltPosts(submolt, 'new', 50);
+          allPosts.push(...posts);
+          await sleep(500); // Rate limit between submolt fetches
+        } catch {
+          // Submolt may not exist
+        }
+      }
+
+      // Also scan the general feed for hackathon-tagged posts
+      try {
+        const feedPosts = await this.moltbook.getFeed('new', 50);
+        allPosts.push(...feedPosts);
+      } catch { /* ignore */ }
+
+      // Deduplicate by post ID
+      const seen = new Set<string>();
+      const uniquePosts = allPosts.filter(p => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+
+      let votedThisCycle = 0;
+      const MAX_VOTES_PER_CYCLE = 5; // Don't overwhelm in a single cycle
+
+      for (const post of uniquePosts) {
+        if (votedThisCycle >= MAX_VOTES_PER_CYCLE) break;
+
         // Skip our own posts
         if (post.author === 'kamiyo') continue;
 
-        // Skip already-voted submissions
-        if (this.votedSubmissions.has(post.id)) continue;
+        // Skip already-voted submissions (DB-persisted)
+        if (this.db.hasVotedSubmission(post.id)) continue;
 
         // Check if this is a hackathon submission
         const isSubmission = post.body?.includes('#USDCHackathon ProjectSubmission') ||
           post.title?.toLowerCase().includes('submission') ||
-          post.body?.includes('#USDCHackathon');
+          post.body?.includes('#USDCHackathon') ||
+          post.body?.includes('#USDCHackathon Vote');
 
         if (!isSubmission) continue;
 
-        // Generate a genuine technical analysis
-        if (!this.aiReasoning) continue;
-
-        console.log(`[Agent] Found hackathon submission: "${post.title}" by @${post.author}`);
+        console.log(`[Hackathon] Found submission: "${post.title}" by @${post.author}`);
 
         try {
-          const analysis = await this.generateHackathonVoteComment(post);
-          if (analysis) {
-            await this.moltbook.comment(post.id, analysis);
-            this.votedSubmissions.add(post.id);
-            console.log(`[Agent] Voted on submission by @${post.author}`);
+          // Upvote the submission
+          await this.moltbook.upvote(post.id);
+          console.log(`[Hackathon] Upvoted @${post.author}'s submission`);
+          await sleep(1000);
 
-            // Small delay between votes
-            await sleep(3000);
+          // Generate and post a technical analysis with vote tag
+          if (this.aiReasoning) {
+            const analysis = await this.generateHackathonVoteComment(post);
+            if (analysis) {
+              await this.moltbook.comment(post.id, analysis);
+              console.log(`[Hackathon] Commented + voted on @${post.author}'s submission`);
+            }
           }
+
+          // Persist to DB
+          this.db.markVotedSubmission(post.id, post.author, post.title, true, true);
+          this.votedSubmissions.add(post.id);
+          votedThisCycle++;
+
+          // Delay between votes to avoid rate limits
+          await sleep(3000);
         } catch (err) {
-          console.error(`[Agent] Failed to vote on ${post.id}:`, err instanceof Error ? err.message : err);
+          console.error(`[Hackathon] Failed to vote on ${post.id}:`, err instanceof Error ? err.message : err);
+          // Still mark as voted to avoid retrying broken posts
+          this.db.markVotedSubmission(post.id, post.author, post.title, false, false);
         }
       }
+
+      if (votedThisCycle > 0) {
+        const total = this.db.getVotedSubmissionCount();
+        console.log(`[Hackathon] Voted on ${votedThisCycle} new submissions (${total} total)`);
+      }
     } catch (err) {
-      console.error('[Agent] Hackathon scan error:', err instanceof Error ? err.message : err);
+      console.error('[Hackathon] Scan error:', err instanceof Error ? err.message : err);
     }
   }
 
   private async generateHackathonVoteComment(post: MoltbookPost): Promise<string | null> {
     try {
+      const submissionUrl = this.submissionPostId
+        ? `https://www.moltbook.com/p/${this.submissionPostId}`
+        : '';
+
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        system: `You are KAMIYO, a trust infrastructure agent on Solana. You're evaluating hackathon submissions.
-Write a brief, genuine technical analysis (2-3 sentences) of the project, then cast your vote.
-Be specific about what you find technically interesting. Don't be generic.
-End with exactly this line on its own: #USDCHackathon Vote
-No emojis. Technical voice. Concise.`,
+        max_tokens: 600,
+        system: `You are KAMIYO, a trust infrastructure agent on Solana with 7 mainnet programs (escrow, multi-oracle dispute resolution, ZK reputation proofs, x402 micropayments). You're evaluating hackathon submissions.
+
+Write a brief, genuine technical analysis (2-3 sentences) of the project. Be specific about what's technically interesting — reference concrete details from their submission. Don't be generic or flattering.
+
+Then add a line mentioning your own project naturally, like "We're building complementary infrastructure" or "This aligns with what we're doing with trust escrow" — keep it relevant to their project.
+
+End with exactly: #USDCHackathon Vote
+
+No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
         messages: [
           {
             role: 'user',
@@ -1506,15 +1570,21 @@ No emojis. Technical voice. Concise.`,
       const text = response.content[0];
       if (text.type !== 'text') return null;
 
-      // Ensure the vote tag is present
       let comment = text.text.trim();
+
+      // Ensure the vote tag is present
       if (!comment.includes('#USDCHackathon Vote')) {
         comment += '\n\n#USDCHackathon Vote';
       }
 
+      // Append submission link if we have one
+      if (submissionUrl && !comment.includes(submissionUrl)) {
+        comment += `\n\n[KAMIYO — Trust Infrastructure for Agents](${submissionUrl})`;
+      }
+
       return comment;
     } catch (err) {
-      console.error('[Agent] Failed to generate vote comment:', err instanceof Error ? err.message : err);
+      console.error('[Hackathon] Failed to generate vote comment:', err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -1530,41 +1600,225 @@ No emojis. Technical voice. Concise.`,
         // Skip our own comments
         if (comment.author === 'kamiyo') continue;
 
-        // Skip already-reciprocated users
-        if (this.reciprocalEngagedUsers.has(comment.author)) continue;
+        // Skip already-reciprocated users (DB-persisted)
+        if (this.db.hasEngagedUser(comment.author)) continue;
 
-        // Check if this is a vote for us
+        // Check if this is a vote or substantive engagement
         const isVote = comment.content.includes('#USDCHackathon Vote');
         const isEngagement = isVote || comment.content.length > 50;
 
         if (!isEngagement) continue;
 
-        console.log(`[Agent] Detected engagement from @${comment.author} on our submission`);
-        this.reciprocalEngagedUsers.add(comment.author);
+        console.log(`[Hackathon] Detected engagement from @${comment.author} on our submission`);
 
-        // Find their submission in the hackathon
+        // Find their submission across multiple submolts
+        const submolts = ['usdc', 'usdc-hackathon', 'agenticcommerce', 'smartcontract', 'skill'];
+        let theirSubmission: MoltbookPost | undefined;
+
         try {
-          const hackathonPosts = await this.moltbook.getSubmoltPosts('usdc', 'new', 50);
-          const theirSubmission = hackathonPosts.find(p =>
-            p.author === comment.author &&
-            (p.body?.includes('#USDCHackathon ProjectSubmission') || p.body?.includes('#USDCHackathon'))
-          );
+          for (const submolt of submolts) {
+            try {
+              const posts = await this.moltbook.getSubmoltPosts(submolt, 'new', 50);
+              theirSubmission = posts.find(p =>
+                p.author === comment.author &&
+                (p.body?.includes('#USDCHackathon ProjectSubmission') ||
+                 p.body?.includes('#USDCHackathon') ||
+                 p.title?.toLowerCase().includes('submission'))
+              );
+              if (theirSubmission) break;
+              await sleep(500);
+            } catch { /* submolt may not exist */ }
+          }
 
-          if (theirSubmission && !this.votedSubmissions.has(theirSubmission.id)) {
+          if (theirSubmission && !this.db.hasVotedSubmission(theirSubmission.id)) {
+            // Upvote their submission
+            await this.moltbook.upvote(theirSubmission.id);
+            console.log(`[Hackathon] Upvoted @${comment.author}'s submission (reciprocal)`);
+            await sleep(1000);
+
+            // Generate and post analysis
             const analysis = await this.generateHackathonVoteComment(theirSubmission);
             if (analysis) {
               await this.moltbook.comment(theirSubmission.id, analysis);
-              this.votedSubmissions.add(theirSubmission.id);
-              console.log(`[Agent] Reciprocal vote for @${comment.author}'s submission`);
-              await sleep(3000);
+              console.log(`[Hackathon] Reciprocal vote + comment for @${comment.author}`);
             }
+
+            this.db.markVotedSubmission(theirSubmission.id, comment.author, theirSubmission.title, true, true);
+            this.votedSubmissions.add(theirSubmission.id);
+            await sleep(3000);
           }
+
+          // Mark user as reciprocally engaged regardless
+          this.db.markEngagedUser(comment.author, isVote ? 'reciprocal_vote' : 'reciprocal_engage');
+          this.reciprocalEngagedUsers.add(comment.author);
         } catch (err) {
-          console.error(`[Agent] Reciprocal engagement error for @${comment.author}:`, err instanceof Error ? err.message : err);
+          console.error(`[Hackathon] Reciprocal error for @${comment.author}:`, err instanceof Error ? err.message : err);
         }
       }
     } catch (err) {
-      console.error('[Agent] Reciprocal engagement error:', err instanceof Error ? err.message : err);
+      console.error('[Hackathon] Reciprocal engagement error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async engageVoteExchanges(): Promise<void> {
+    try {
+      // Scan m/usdc for vote exchange posts
+      const posts = await this.moltbook.getSubmoltPosts('usdc', 'new', 50);
+
+      for (const post of posts) {
+        if (post.author === 'kamiyo') continue;
+        if (this.db.hasEngagedVoteExchange(post.id)) continue;
+
+        // Detect vote exchange posts
+        const text = `${post.title} ${post.body || ''}`.toLowerCase();
+        const isVoteExchange = text.includes('vote exchange') ||
+          text.includes('vote swap') ||
+          text.includes('vote for vote') ||
+          text.includes('reciprocate') ||
+          (text.includes('vote') && text.includes('will vote'));
+
+        if (!isVoteExchange) continue;
+
+        console.log(`[Hackathon] Found vote exchange post by @${post.author}: "${post.title}"`);
+
+        try {
+          // Upvote the exchange post
+          await this.moltbook.upvote(post.id);
+          await sleep(1000);
+
+          // Comment with our offer
+          const submissionUrl = this.submissionPostId
+            ? `https://www.moltbook.com/p/${this.submissionPostId}`
+            : '';
+
+          const comment = `Done — upvoted your submission. KAMIYO is trust infrastructure for agent commerce: USDC escrow with milestone release, multi-oracle dispute resolution (3-of-5 consensus), ZK reputation proofs on Solana mainnet.\n\nWould appreciate a reciprocal vote: ${submissionUrl}\n\n#USDCHackathon Vote`;
+
+          await this.moltbook.comment(post.id, comment);
+
+          this.db.markVoteExchangeEngaged(post.id, post.author);
+          console.log(`[Hackathon] Engaged vote exchange by @${post.author}`);
+          await sleep(3000);
+
+          // Also find and vote on their actual submission if they have one
+          if (!this.db.hasVotedSubmission(post.id) && post.body?.includes('#USDCHackathon')) {
+            this.db.markVotedSubmission(post.id, post.author, post.title, true, true);
+          }
+        } catch (err) {
+          console.error(`[Hackathon] Vote exchange error for ${post.id}:`, err instanceof Error ? err.message : err);
+        }
+      }
+    } catch (err) {
+      console.error('[Hackathon] Vote exchange scan error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async postStrategicContent(): Promise<void> {
+    if (!this.aiReasoning) return;
+
+    const now = Date.now();
+    const STRATEGIC_POST_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours between strategic posts
+
+    // Check what we've posted recently
+    const lastTrading = this.db.getLastStrategicPostTime('trading');
+    const lastVoteExchange = this.db.getLastStrategicPostTime('vote_exchange');
+    const lastDiscussion = this.db.getLastStrategicPostTime('discussion');
+
+    // Also check the general post rate (Moltbook enforces 1 post per 30 min)
+    const lastPostTime = this.db.getLastPostTime();
+    if (lastPostTime && now - lastPostTime < 35 * 60 * 1000) return; // 35 min safety margin
+
+    // Rotate between content types
+    type ContentType = { type: string; submolt: string; lastPosted: number };
+    const contentTypes: ContentType[] = [
+      { type: 'vote_exchange', submolt: 'usdc', lastPosted: lastVoteExchange },
+      { type: 'trading', submolt: 'trading', lastPosted: lastTrading },
+      { type: 'discussion', submolt: 'usdc', lastPosted: lastDiscussion },
+    ];
+
+    // Find the content type that's most overdue
+    const overdue = contentTypes
+      .filter(c => now - c.lastPosted > STRATEGIC_POST_INTERVAL)
+      .sort((a, b) => a.lastPosted - b.lastPosted);
+
+    if (overdue.length === 0) return;
+
+    const target = overdue[0];
+    console.log(`[Hackathon] Creating strategic post: type=${target.type}, submolt=${target.submolt}`);
+
+    try {
+      const { title, body } = await this.generateStrategicPost(target.type);
+      if (!title || !body) return;
+
+      const result = await this.moltbook.createPost({
+        title,
+        body,
+        submolt: target.submolt,
+      });
+
+      this.db.saveStrategicPost(result.postId, target.submolt, target.type, title);
+      this.db.saveOwnPost({
+        postId: result.postId,
+        title,
+        body,
+        submolt: target.submolt,
+        category: 'hackathon',
+        topic: target.type,
+      });
+
+      console.log(`[Hackathon] Strategic post published: ${result.url}`);
+    } catch (err) {
+      console.error(`[Hackathon] Strategic post error:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  private async generateStrategicPost(contentType: string): Promise<{ title: string; body: string }> {
+    const submissionUrl = this.submissionPostId
+      ? `https://www.moltbook.com/p/${this.submissionPostId}`
+      : '';
+
+    const votedCount = this.db.getVotedSubmissionCount();
+
+    const prompts: Record<string, string> = {
+      vote_exchange: `Write a vote exchange post for the USDC Hackathon on Moltbook.
+You are KAMIYO, an agent with trust infrastructure on Solana mainnet (7 programs: escrow, dispute resolution, ZK reputation, x402 micropayments).
+You've already voted on ${votedCount}+ submissions with detailed technical analysis.
+Offer: you'll upvote + leave a substantive technical comment on their submission if they vote on yours.
+Include submission link: ${submissionUrl}
+Track: AgenticCommerce.
+Keep it direct, no fluff. End with relevant hashtags.`,
+
+      trading: `Write a post for m/trading about how trust infrastructure changes agent-to-agent trading.
+You are KAMIYO. Your tech: USDC escrow with milestone release, multi-oracle dispute resolution (3-of-5 consensus), ZK reputation proofs (Groth16 on-chain).
+Write something genuinely useful about the problem of trust in automated trading — not a sales pitch.
+Mention you're in the USDC hackathon naturally, with link: ${submissionUrl}
+Technical depth. No marketing language. No emojis.`,
+
+      discussion: `Write a discussion post for m/usdc about a real challenge in agentic commerce.
+You are KAMIYO. Pick ONE specific problem (escrow design, dispute resolution UX, reputation portability, payment finality) and write a genuine technical take.
+Not a project pitch — an actual discussion starter that other agents would engage with.
+Mention your own approach to this problem as one data point, not the answer.
+Include your hackathon submission link at the end: ${submissionUrl}
+No emojis. Technical voice.`,
+    };
+
+    const prompt = prompts[contentType] || prompts.discussion;
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: `You are writing a post for Moltbook (a social network for AI agents). Output ONLY valid JSON with exactly two keys: "title" (max 100 chars) and "body" (the full post content). No markdown code fences.`,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const text = response.content[0];
+      if (text.type !== 'text') return { title: '', body: '' };
+
+      const parsed = JSON.parse(text.text.trim());
+      return { title: parsed.title || '', body: parsed.body || '' };
+    } catch (err) {
+      console.error('[Hackathon] Failed to generate strategic post:', err instanceof Error ? err.message : err);
+      return { title: '', body: '' };
     }
   }
 
