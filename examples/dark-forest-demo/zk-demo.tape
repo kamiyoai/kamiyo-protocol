@@ -9,7 +9,7 @@ Set Framerate 30
 Set TypingSpeed 0
 
 Hide
-Type "cd /Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/examples/dark-forest-demo && ./run-demo.sh"
+Type "cd examples/dark-forest-demo && ./run-demo.sh"
 Enter
 Sleep 10s
 Show

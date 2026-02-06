@@ -206,6 +206,10 @@ contracts/hyperliquid/foundry.lock
 programs/*/target/
 target/
 
+# Auto-generated rocksdb logs
+magicblock-test-storage/rocksdb/LOG*
+**/rocksdb/LOG*
+
 # ZK circuit build artifacts (keep final zkey, r1cs, wasm, verification_key for demo)
 packages/kamiyo-solana-privacy/circuits/build/*.ptau
 packages/kamiyo-solana-privacy/circuits/build/*_0000.zkey

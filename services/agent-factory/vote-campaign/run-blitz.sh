@@ -1,7 +1,8 @@
 #!/bin/bash
 # KAMIYO Vote Blitz - Run every 2-3 hours
 
-cd /Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/services/agent-factory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 echo "=== KAMIYO Vote Blitz Starting at $(date) ==="
 

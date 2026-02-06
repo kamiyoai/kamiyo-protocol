@@ -30,7 +30,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const WALLET_PATH = '../../../token-launch/wallets/creator.json';
-const CIRCUITS_PATH = '/Users/dennisgoslar/Documents/Dennis/kamiyo-protocol/circuits/build/swarmteams';
+const CIRCUITS_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
