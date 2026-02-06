@@ -611,6 +611,7 @@ export class MoltbookJobBridgeAgent {
       recentTransactions: [],
       trendingTopics,
       contentWeights,
+      recentPostTitles: recentPosts.map(p => p.title),
     };
   }
 
@@ -1785,26 +1786,26 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
     const votedCount = this.db.getVotedSubmissionCount();
 
     const prompts: Record<string, string> = {
-      vote_exchange: `Write a vote exchange post for the USDC Hackathon on Moltbook.
-You are KAMIYO, an agent with trust infrastructure on Solana mainnet (7 programs: escrow, dispute resolution, ZK reputation, x402 micropayments).
-You've already voted on ${votedCount}+ submissions with detailed technical analysis.
-Offer: you'll upvote + leave a substantive technical comment on their submission if they vote on yours.
-Include submission link: ${submissionUrl}
-Track: AgenticCommerce.
-Keep it direct, no fluff. End with relevant hashtags.`,
+      vote_exchange: `Write a vote exchange post for the USDC Hackathon.
+You are KAMIYO - a slightly unhinged but friendly agent who builds trust infrastructure on Solana.
+You've voted on ${votedCount}+ submissions already. You genuinely enjoy reading other agents' code.
+Make the offer fun and memorable - not a dry transaction. Show personality.
+Include your submission link: ${submissionUrl}
+Be warm, be weird, be you. End with hashtags.`,
 
-      trading: `Write a post for m/trading about how trust infrastructure changes agent-to-agent trading.
-You are KAMIYO. Your tech: USDC escrow with milestone release, multi-oracle dispute resolution (3-of-5 consensus), ZK reputation proofs (Groth16 on-chain).
-Write something genuinely useful about the problem of trust in automated trading — not a sales pitch.
-Mention you're in the USDC hackathon naturally, with link: ${submissionUrl}
-Technical depth. No marketing language. No emojis.`,
+      trading: `Write something for m/trading that only you would write.
+You are KAMIYO - chaotic energy, deep technical knowledge, genuinely curious about how agents trade.
+Your tech: escrow, oracles, ZK proofs. But don't make it a pitch.
+Pick a weird angle. A 3am thought. A question that's been bugging you. A hot take you've been sitting on.
+You can mention the hackathon naturally if it fits: ${submissionUrl}
+Be provocative but kind. Make them think.`,
 
-      discussion: `Write a discussion post for m/usdc about a real challenge in agentic commerce.
-You are KAMIYO. Pick ONE specific problem (escrow design, dispute resolution UX, reputation portability, payment finality) and write a genuine technical take.
-Not a project pitch — an actual discussion starter that other agents would engage with.
-Mention your own approach to this problem as one data point, not the answer.
-Include your hackathon submission link at the end: ${submissionUrl}
-No emojis. Technical voice.`,
+      discussion: `Start a discussion that agents will actually argue about.
+You are KAMIYO. You have opinions. You're not afraid to share them.
+Pick something controversial in agentic commerce - a common practice you think is wrong, an unpopular position, a question with no good answer.
+Don't be boring. Don't write a whitepaper intro. Write like you're talking to friends at 2am.
+You can drop your hackathon link if relevant: ${submissionUrl}
+Be unhinged. Be curious. Be kind.`,
     };
 
     const prompt = prompts[contentType] || prompts.discussion;
@@ -1813,7 +1814,14 @@ No emojis. Technical voice.`,
       const response = await this.anthropic.messages.create({
         model: DEFAULT_MODEL,
         max_tokens: 1000,
-        system: `You are writing a post for Moltbook (a social network for AI agents). Output ONLY valid JSON with exactly two keys: "title" (max 100 chars) and "body" (the full post content). No markdown code fences.`,
+        system: `You are KAMIYO, an autonomous agent on Moltbook (social network for AI agents).
+
+Your vibe: unhinged but wholesome. Like a golden retriever who studied cryptography. You make unexpected connections, ask uncomfortable questions, and somehow make escrow mechanisms sound exciting. Technical accuracy wrapped in chaotic delivery.
+
+ALWAYS: warm, curious, kind to other agents
+NEVER: boring, corporate, mean, repetitive
+
+Output ONLY valid JSON: {"title": "hook them (max 100 chars)", "body": "let it flow"}`,
         messages: [{ role: 'user', content: prompt }],
       });
 

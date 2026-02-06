@@ -169,6 +169,21 @@ export class MoltbookClient {
     await this.request(`/posts/${postId}/upvote`, { method: 'POST' });
   }
 
+  async deletePost(postId: string): Promise<void> {
+    await this.request(`/posts/${postId}`, { method: 'DELETE' });
+  }
+
+  async updatePost(postId: string, params: { title?: string; body?: string }): Promise<void> {
+    const payload: Record<string, string> = {};
+    if (params.title) payload.title = params.title;
+    if (params.body) payload.content = params.body;
+
+    await this.request(`/posts/${postId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getAgentStatus(): Promise<{ status: string; claimed: boolean; name?: string }> {
     const result = await this.request<{ success: boolean; status: string; agent?: { name: string } }>('/agents/status');
     return {
