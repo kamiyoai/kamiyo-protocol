@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {ERC8004IdentityMirror} from "../src/ERC8004IdentityMirror.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 /**
  * @title DeployMirror
@@ -26,17 +25,7 @@ contract DeployMirror is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy Mirror
-        ERC8004IdentityMirror mirrorImpl = new ERC8004IdentityMirror();
-        bytes memory mirrorInit = abi.encodeWithSelector(
-            ERC8004IdentityMirror.initialize.selector,
-            deployer,
-            address(0) // ZK verifier - set later
-        );
-        ERC1967Proxy mirrorProxy = new ERC1967Proxy(
-            address(mirrorImpl),
-            mirrorInit
-        );
-        ERC8004IdentityMirror mirror = ERC8004IdentityMirror(address(mirrorProxy));
+        ERC8004IdentityMirror mirror = new ERC8004IdentityMirror(deployer);
 
         vm.stopBroadcast();
 
@@ -61,17 +50,7 @@ contract DeployMirrorTestnet is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ERC8004IdentityMirror mirrorImpl = new ERC8004IdentityMirror();
-        bytes memory mirrorInit = abi.encodeWithSelector(
-            ERC8004IdentityMirror.initialize.selector,
-            deployer,
-            address(0)
-        );
-        ERC1967Proxy mirrorProxy = new ERC1967Proxy(
-            address(mirrorImpl),
-            mirrorInit
-        );
-        ERC8004IdentityMirror mirror = ERC8004IdentityMirror(address(mirrorProxy));
+        ERC8004IdentityMirror mirror = new ERC8004IdentityMirror(deployer);
 
         vm.stopBroadcast();
 
