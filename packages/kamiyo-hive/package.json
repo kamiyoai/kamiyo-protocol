@@ -30,6 +30,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsc --watch",
     "lint": "eslint src --ext .ts",
     "test": "tsx tests/registry.test.ts && tsx tests/discovery.test.ts && tsx tests/escrow.test.ts && tsx tests/oracle.test.ts"
