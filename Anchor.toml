@@ -13,6 +13,7 @@ kamiyo_escrow = "EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT"
 kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 kamiyo_fast_voting = "AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA"
+meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
 
 [programs.localnet]
 kamiyo = "6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7"
@@ -22,6 +23,7 @@ kamiyo_escrow = "EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT"
 kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 kamiyo_fast_voting = "AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA"
+meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
 
 [programs.mainnet]
 kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
@@ -31,6 +33,7 @@ kamiyo_escrow = "FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u"
 kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 kamiyo_fast_voting = "AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA"
+meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
 
 [registry]
 url = "https://api.apr.dev"

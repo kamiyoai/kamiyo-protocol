@@ -1,0 +1,27 @@
+{
+  "name": "@kamiyo/meishi-compliance",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Meishi compliance engine service. Evaluates agent passports across regulatory dimensions, schedules audits, and publishes scores on-chain.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "author": "KAMIYO",
+  "license": "MIT",
+  "dependencies": {
+    "@kamiyo/meishi": "workspace:*",
+    "@kamiyo/sdk": "workspace:*",
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  }
+}

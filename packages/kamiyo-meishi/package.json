@@ -1,0 +1,64 @@
+{
+  "name": "@kamiyo/meishi",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agent Compliance Passports - verifiable credentials for AI agents in e-commerce",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./zk": {
+      "types": "./dist/zk/index.d.ts",
+      "import": "./dist/zk/index.js"
+    },
+    "./dkg": {
+      "types": "./dist/dkg/index.d.ts",
+      "import": "./dist/dkg/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "tsx tests/**/*.test.ts"
+  },
+  "author": "KAMIYO",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-meishi"
+  },
+  "dependencies": {
+    "@kamiyo/sdk": "workspace:*",
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.98.0",
+    "bn.js": "^5.2.1",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^20.19.24",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*"
+  ],
+  "keywords": [
+    "ai-agent",
+    "compliance",
+    "passport",
+    "meishi",
+    "kamiyo",
+    "solana",
+    "eu-ai-act",
+    "agent-commerce"
+  ]
+}
