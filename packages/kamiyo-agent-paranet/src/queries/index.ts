@@ -1,4 +1,9 @@
 // SPARQL query templates for agent discovery and credit scores
+//
+// DKG stores JSON-LD with @context "https://schema.org/" but the RDF
+// triples use the http://schema.org/ namespace. JSON-LD @id values
+// become direct IRIs (not schema:@id properties), and enum-like values
+// like "ActiveActionStatus" are stored as string literals.
 
 import type { TaskType } from '../types';
 import { escapeSparql, clamp, LIMITS } from '../shared';
@@ -32,18 +37,18 @@ export function queryTasksByProvider(providerGlobalId: string, pagination?: Pagi
   const safe = escape(providerGlobalId);
   const { sql } = applyPagination(pagination);
   return `
-    PREFIX schema: <https://schema.org/>
-    PREFIX kamiyo: <https://kamiyo.ai/paranet/v1#>
+    PREFIX schema: <http://schema.org/>
     SELECT ?task ?taskType ?quality ?responseTime ?dispute ?startTime ?endTime ?client ?amount ?currency
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id "urn:erc8004:${safe}" ;
-            schema:participant/schema:@id ?client ;
+            schema:agent <urn:erc8004:${safe}> ;
+            schema:participant ?client ;
             schema:startTime ?startTime ;
             schema:endTime ?endTime ;
-            schema:result/schema:ratingValue ?quality ;
+            schema:result ?resultNode ;
             schema:object ?payment .
+      ?resultNode schema:ratingValue ?quality .
       ?payment schema:value ?amount ;
                schema:currency ?currency .
       ?task schema:additionalProperty ?typeProp, ?timeProp, ?disputeProp .
@@ -60,17 +65,18 @@ export function queryTasksByClient(clientGlobalId: string, pagination?: Paginati
   const safe = escape(clientGlobalId);
   const { sql } = applyPagination(pagination);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?task ?taskType ?quality ?responseTime ?dispute ?startTime ?endTime ?provider ?amount ?currency
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:participant/schema:@id "urn:erc8004:${safe}" ;
-            schema:agent/schema:@id ?provider ;
+            schema:participant <urn:erc8004:${safe}> ;
+            schema:agent ?provider ;
             schema:startTime ?startTime ;
             schema:endTime ?endTime ;
-            schema:result/schema:ratingValue ?quality ;
+            schema:result ?resultNode ;
             schema:object ?payment .
+      ?resultNode schema:ratingValue ?quality .
       ?payment schema:value ?amount ;
                schema:currency ?currency .
       ?task schema:additionalProperty ?typeProp, ?timeProp, ?disputeProp .
@@ -86,7 +92,7 @@ export function queryTasksByClient(clientGlobalId: string, pagination?: Paginati
 export function queryTaskSummaryByProvider(providerGlobalId: string): string {
   const safe = escape(providerGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT
       (COUNT(?task) as ?taskCount)
       (AVG(?quality) as ?avgQuality)
@@ -96,10 +102,11 @@ export function queryTaskSummaryByProvider(providerGlobalId: string): string {
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id "urn:erc8004:${safe}" ;
+            schema:agent <urn:erc8004:${safe}> ;
             schema:startTime ?startTime ;
             schema:endTime ?endTime ;
-            schema:result/schema:ratingValue ?quality .
+            schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?quality .
       ?task schema:additionalProperty ?timeProp .
       ?timeProp schema:name "responseTimeMs" ; schema:value ?responseTime .
     }
@@ -111,15 +118,16 @@ export function queryTasksByType(providerGlobalId: string, taskType: TaskType, p
   const safeType = escape(taskType);
   const { sql } = applyPagination(pagination);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?task ?quality ?responseTime ?dispute ?endTime ?client
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id "urn:erc8004:${safe}" ;
-            schema:participant/schema:@id ?client ;
+            schema:agent <urn:erc8004:${safe}> ;
+            schema:participant ?client ;
             schema:endTime ?endTime ;
-            schema:result/schema:ratingValue ?quality .
+            schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?quality .
       ?task schema:additionalProperty ?typeProp, ?timeProp, ?disputeProp .
       ?typeProp schema:name "taskType" ; schema:value "${safeType}" .
       ?timeProp schema:name "responseTimeMs" ; schema:value ?responseTime .
@@ -133,7 +141,7 @@ export function queryTasksByType(providerGlobalId: string, taskType: TaskType, p
 export function queryTaskBreakdownByType(providerGlobalId: string): string {
   const safe = escape(providerGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT
       ?taskType
       (COUNT(?task) as ?count)
@@ -143,9 +151,11 @@ export function queryTaskBreakdownByType(providerGlobalId: string): string {
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id "urn:erc8004:${safe}" ;
-            schema:result/schema:ratingValue ?quality ;
-            schema:object/schema:value ?amount .
+            schema:agent <urn:erc8004:${safe}> ;
+            schema:result ?resultNode ;
+            schema:object ?payment .
+      ?resultNode schema:ratingValue ?quality .
+      ?payment schema:value ?amount .
       ?task schema:additionalProperty ?typeProp, ?timeProp .
       ?typeProp schema:name "taskType" ; schema:value ?taskType .
       ?timeProp schema:name "responseTimeMs" ; schema:value ?responseTime .
@@ -160,12 +170,12 @@ export function queryTaskBreakdownByType(providerGlobalId: string): string {
 export function queryDisputesByProvider(providerGlobalId: string): string {
   const safe = escape(providerGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?dispute ?outcome (COUNT(?task) as ?count)
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id "urn:erc8004:${safe}" .
+            schema:agent <urn:erc8004:${safe}> .
       ?task schema:additionalProperty ?disputeProp .
       ?disputeProp schema:name "disputeOutcome" ; schema:value ?outcome .
       FILTER(?outcome != "none")
@@ -179,13 +189,14 @@ export function queryDisputesByProvider(providerGlobalId: string): string {
 export function queryCapabilitiesByAgent(agentGlobalId: string): string {
   const safe = escape(agentGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?capability ?attestationType (AVG(?confidence) as ?avgConfidence) (COUNT(?attestation) as ?attestorCount)
     WHERE {
       ?attestation a schema:EndorseAction ;
                    schema:name "CapabilityAttestation" ;
-                   schema:object/schema:@id "urn:erc8004:${safe}" ;
-                   schema:result/schema:ratingValue ?confidence .
+                   schema:object <urn:erc8004:${safe}> ;
+                   schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?confidence .
       ?attestation schema:additionalProperty ?capProp, ?typeProp .
       ?capProp schema:name "capability" ; schema:value ?capability .
       ?typeProp schema:name "attestationType" ; schema:value ?attestationType .
@@ -208,13 +219,14 @@ export function queryAgentsByCapability(capability: string, params: CapabilitySe
   const minConfidence = clamp(params.minConfidence ?? 70, 0, 100);
   const { sql } = applyPagination(params);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?agent (AVG(?confidence) as ?avgConfidence) (COUNT(?attestation) as ?attestorCount)
     WHERE {
       ?attestation a schema:EndorseAction ;
                    schema:name "CapabilityAttestation" ;
-                   schema:object/schema:@id ?agent ;
-                   schema:result/schema:ratingValue ?confidence .
+                   schema:object ?agent ;
+                   schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?confidence .
       ?attestation schema:additionalProperty ?capProp .
       ?capProp schema:name "capability" ; schema:value "${safe}" .
       FILTER(?confidence >= ${minConfidence})
@@ -231,16 +243,17 @@ export function queryAgentsByCapability(capability: string, params: CapabilitySe
 export function queryIncomingTrust(trusteeGlobalId: string, minLevel = 50): string {
   const safe = escape(trusteeGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?trustor ?trustLevel ?trustType ?capability ?stakeAmount ?since
     WHERE {
       ?trust a schema:EndorseAction ;
              schema:name "TrustRelationship" ;
-             schema:object/schema:@id "urn:erc8004:${safe}" ;
-             schema:agent/schema:@id ?trustor ;
-             schema:actionStatus schema:ActiveActionStatus ;
+             schema:object <urn:erc8004:${safe}> ;
+             schema:agent ?trustor ;
+             schema:actionStatus "ActiveActionStatus" ;
              schema:startTime ?since ;
-             schema:result/schema:ratingValue ?trustLevel .
+             schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?trustLevel .
       ?trust schema:additionalProperty ?typeProp .
       ?typeProp schema:name "trustType" ; schema:value ?trustType .
       OPTIONAL {
@@ -260,16 +273,17 @@ export function queryIncomingTrust(trusteeGlobalId: string, minLevel = 50): stri
 export function queryOutgoingTrust(trustorGlobalId: string): string {
   const safe = escape(trustorGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?trustee ?trustLevel ?trustType ?capability ?since
     WHERE {
       ?trust a schema:EndorseAction ;
              schema:name "TrustRelationship" ;
-             schema:agent/schema:@id "urn:erc8004:${safe}" ;
-             schema:object/schema:@id ?trustee ;
-             schema:actionStatus schema:ActiveActionStatus ;
+             schema:agent <urn:erc8004:${safe}> ;
+             schema:object ?trustee ;
+             schema:actionStatus "ActiveActionStatus" ;
              schema:startTime ?since ;
-             schema:result/schema:ratingValue ?trustLevel .
+             schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?trustLevel .
       ?trust schema:additionalProperty ?typeProp .
       ?typeProp schema:name "trustType" ; schema:value ?trustType .
       OPTIONAL {
@@ -285,16 +299,17 @@ export function queryDirectTrust(trustorGlobalId: string, trusteeGlobalId: strin
   const safeTrustor = escape(trustorGlobalId);
   const safeTrustee = escape(trusteeGlobalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?trustLevel ?trustType ?capability ?stakeAmount ?since
     WHERE {
       ?trust a schema:EndorseAction ;
              schema:name "TrustRelationship" ;
-             schema:agent/schema:@id "urn:erc8004:${safeTrustor}" ;
-             schema:object/schema:@id "urn:erc8004:${safeTrustee}" ;
-             schema:actionStatus schema:ActiveActionStatus ;
+             schema:agent <urn:erc8004:${safeTrustor}> ;
+             schema:object <urn:erc8004:${safeTrustee}> ;
+             schema:actionStatus "ActiveActionStatus" ;
              schema:startTime ?since ;
-             schema:result/schema:ratingValue ?trustLevel .
+             schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?trustLevel .
       ?trust schema:additionalProperty ?typeProp .
       ?typeProp schema:name "trustType" ; schema:value ?trustType .
       OPTIONAL {
@@ -326,7 +341,7 @@ export function queryProvidersByTaskType(
   const minTasks = clamp(params.minTasks ?? 5, 0, 10000);
   const { sql } = applyPagination(params);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT
       ?provider
       (COUNT(?task) as ?taskCount)
@@ -335,8 +350,9 @@ export function queryProvidersByTaskType(
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id ?provider ;
-            schema:result/schema:ratingValue ?quality .
+            schema:agent ?provider ;
+            schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?quality .
       ?task schema:additionalProperty ?typeProp, ?timeProp .
       ?typeProp schema:name "taskType" ; schema:value "${safeType}" .
       ?timeProp schema:name "responseTimeMs" ; schema:value ?responseTime .
@@ -353,7 +369,7 @@ export function queryTopProviders(params: ProviderSearchParams = {}): string {
   const minTasks = clamp(params.minTasks ?? 10, 0, 10000);
   const { sql } = applyPagination(params);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT
       ?provider
       (COUNT(?task) as ?taskCount)
@@ -362,8 +378,9 @@ export function queryTopProviders(params: ProviderSearchParams = {}): string {
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id ?provider ;
-            schema:result/schema:ratingValue ?quality .
+            schema:agent ?provider ;
+            schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?quality .
       ?task schema:additionalProperty ?timeProp .
       ?timeProp schema:name "responseTimeMs" ; schema:value ?responseTime .
     }
@@ -383,23 +400,25 @@ export function queryProvidersTrustedBy(trustorGlobalId: string, params: TrustSe
   const minLevel = clamp(params.minLevel ?? 70, 0, 100);
   const { sql } = applyPagination(params);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?provider ?trustLevel ?taskCount ?avgQuality
     WHERE {
       ?trust a schema:EndorseAction ;
              schema:name "TrustRelationship" ;
-             schema:agent/schema:@id "urn:erc8004:${safe}" ;
-             schema:object/schema:@id ?provider ;
-             schema:actionStatus schema:ActiveActionStatus ;
-             schema:result/schema:ratingValue ?trustLevel .
+             schema:agent <urn:erc8004:${safe}> ;
+             schema:object ?provider ;
+             schema:actionStatus "ActiveActionStatus" ;
+             schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?trustLevel .
       FILTER(?trustLevel >= ${minLevel})
       OPTIONAL {
         SELECT ?provider (COUNT(?task) as ?taskCount) (AVG(?quality) as ?avgQuality)
         WHERE {
           ?task a schema:Action ;
                 schema:name "TaskCompletion" ;
-                schema:agent/schema:@id ?provider ;
-                schema:result/schema:ratingValue ?quality .
+                schema:agent ?provider ;
+                schema:result ?rn .
+          ?rn schema:ratingValue ?quality .
         }
         GROUP BY ?provider
       }
@@ -414,7 +433,7 @@ export function queryProvidersTrustedBy(trustorGlobalId: string, params: TrustSe
 export function queryCreditScoreData(globalId: string): string {
   const safe = escape(globalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT
       (COUNT(?task) as ?taskCount)
       (AVG(?quality) as ?avgQuality)
@@ -426,10 +445,11 @@ export function queryCreditScoreData(globalId: string): string {
     WHERE {
       ?task a schema:Action ;
             schema:name "TaskCompletion" ;
-            schema:agent/schema:@id "urn:erc8004:${safe}" ;
+            schema:agent <urn:erc8004:${safe}> ;
             schema:startTime ?startTime ;
             schema:endTime ?endTime ;
-            schema:result/schema:ratingValue ?quality .
+            schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?quality .
       ?task schema:additionalProperty ?timeProp, ?disputeProp .
       ?timeProp schema:name "responseTimeMs" ; schema:value ?responseTime .
       ?disputeProp schema:name "disputeOutcome" ; schema:value ?dispute .
@@ -440,14 +460,15 @@ export function queryCreditScoreData(globalId: string): string {
 export function queryTrustScore(globalId: string): string {
   const safe = escape(globalId);
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT (AVG(?trustLevel) as ?avgTrust) (COUNT(?trust) as ?trustorCount)
     WHERE {
       ?trust a schema:EndorseAction ;
              schema:name "TrustRelationship" ;
-             schema:object/schema:@id "urn:erc8004:${safe}" ;
-             schema:actionStatus schema:ActiveActionStatus ;
-             schema:result/schema:ratingValue ?trustLevel .
+             schema:object <urn:erc8004:${safe}> ;
+             schema:actionStatus "ActiveActionStatus" ;
+             schema:result ?resultNode .
+      ?resultNode schema:ratingValue ?trustLevel .
     }
   `;
 }

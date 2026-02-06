@@ -82,6 +82,19 @@ async function getDKGClient(): Promise<AgentParanetClient | null> {
   }
 }
 
+// Extract a numeric value from DKG SPARQL results.
+// DKG returns typed literals like '"95"^^http://www.w3.org/2001/XMLSchema#integer'
+// or plain strings like '"95"'. This extracts the leading number.
+function parseNum(val: unknown): number {
+  if (typeof val === 'number') return val;
+  const s = String(val || '');
+  const match = s.match(/^"?(-?[\d.]+)/);
+  return match ? parseFloat(match[1]) : 0;
+}
+
+// DKG query options — data lives in the publicKnowledgeAssets repository
+const DKG_QUERY_OPTS = { repository: 'publicKnowledgeAssets' };
+
 // Fetch nodes and edges from DKG
 async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEdge[] }> {
   const client = await getDKGClient();
@@ -94,7 +107,7 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
 
     // Query all providers with reputation data
     const providerQuery = sparqlQueries.queryTopProviders({ limit: 100, minQuality: 0, minTasks: 0 });
-    const providerResult = await dkg.graph.query(providerQuery, 'SELECT');
+    const providerResult = await dkg.graph.query(providerQuery, 'SELECT', DKG_QUERY_OPTS);
 
     const nodes: TrustNode[] = [];
     const nodeIds = new Set<string>();
@@ -106,8 +119,8 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
         if (!id || nodeIds.has(id)) continue;
         nodeIds.add(id);
 
-        const avgQuality = Number(row.avgQuality) || 0;
-        const taskCount = Number(row.taskCount) || 0;
+        const avgQuality = parseNum(row.avgQuality);
+        const taskCount = parseNum(row.taskCount);
         const tierName = scoreToTierName(avgQuality);
 
         nodes.push({
@@ -115,7 +128,7 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
           label: id.slice(0, 16) + '...',
           tier: mapTier(tierName),
           reputation: Math.round(avgQuality),
-          txCount: taskCount,
+          txCount: Math.round(taskCount),
         });
       }
     }
@@ -127,13 +140,13 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
     for (const node of nodes.slice(0, 20)) {
       try {
         const trustQuery = sparqlQueries.queryOutgoingTrust(node.id);
-        const trustResult = await dkg.graph.query(trustQuery, 'SELECT');
+        const trustResult = await dkg.graph.query(trustQuery, 'SELECT', DKG_QUERY_OPTS);
 
         if (trustResult.data && Array.isArray(trustResult.data)) {
           for (const item of trustResult.data) {
             const row = item as Record<string, unknown>;
             const target = String(row.trustee || '').replace('urn:erc8004:', '');
-            const weight = Number(row.trustLevel) || 50;
+            const weight = parseNum(row.trustLevel);
 
             if (!target || !nodeIds.has(target)) continue;
 
@@ -144,7 +157,7 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
             edges.push({
               source: node.id,
               target,
-              weight: Math.round(weight),
+              weight: Math.round(weight) || 50,
             });
           }
         }
