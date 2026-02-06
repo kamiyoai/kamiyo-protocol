@@ -115,7 +115,7 @@ export class MoltbookJobBridgeAgent {
   private votedSubmissions = new Set<string>();
   private reciprocalEngagedUsers = new Set<string>();
   private lastHackathonScan = 0;
-  private hackathonScanIntervalMs = 15 * 60 * 1000; // 15 minutes
+  private hackathonScanIntervalMs = 30 * 60 * 1000; // 30 minutes
   private submissionPostId = process.env.HACKATHON_SUBMISSION_ID || '';
 
   // Autonomous agent services
@@ -133,7 +133,7 @@ export class MoltbookJobBridgeAgent {
   private lastFeedPoll = 0;
   private lastGoalUpdate = 0;
   private lastReputationPublish = 0;
-  private feedPollIntervalMs = 5 * 60 * 1000; // 5 minutes
+  private feedPollIntervalMs = 15 * 60 * 1000; // 15 minutes
   private reputationPublishIntervalMs = 30 * 60 * 1000; // 30 minutes
 
   constructor(config: AgentConfig, hive?: KamiyoHive) {
