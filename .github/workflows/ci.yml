@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  SOLANA_VERSION: 1.18.26
+  SOLANA_VERSION: 2.1.0
   ANCHOR_VERSION: 0.31.1
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
 
       - name: Install Solana
         run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)" -- v${{ env.SOLANA_VERSION }}
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Install Anchor
@@ -39,13 +39,10 @@ jobs:
           avm use ${{ env.ANCHOR_VERSION }}
 
       - run: pnpm install
-      - name: Generate compatible lockfile
+      - name: Build with Anchor
         run: |
           rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
-          rustup install 1.75.0 --no-self-update
-          cargo +1.75.0 generate-lockfile
-      - name: Build with Anchor
-        run: anchor build
+          anchor build
       - run: anchor test
       - name: Validate VK
         run: ./scripts/validate-vk.sh
