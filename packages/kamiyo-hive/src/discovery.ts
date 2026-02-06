@@ -159,6 +159,17 @@ export class AgentDiscovery {
       filtered = filtered.filter(a => a.status === query.status);
     }
 
+    if (query.meishiRequired) {
+      filtered = filtered.filter(a => !!a.meishiPassport);
+    }
+
+    if (query.minComplianceScore !== undefined) {
+      filtered = filtered.filter(
+        a => a.meishiComplianceScore !== undefined &&
+             a.meishiComplianceScore >= query.minComplianceScore!
+      );
+    }
+
     filtered.sort((a, b) => b.reputation - a.reputation);
 
     return filtered;

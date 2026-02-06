@@ -22,7 +22,8 @@
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.1",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "@kamiyo/meishi": "workspace:*"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",

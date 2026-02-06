@@ -345,7 +345,7 @@ importers:
         version: file:packages/kamiyo-monad(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       '@kamiyo/sdk':
         specifier: file:../../packages/kamiyo-sdk
-        version: link:../../packages/kamiyo-sdk
+        version: file:packages/kamiyo-sdk(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -388,7 +388,7 @@ importers:
         version: file:packages/kamiyo-eliza(@elizaos/core@0.25.9(@types/debug@4.1.12)(@types/node@20.19.28)(bufferutil@4.1.0)(lightningcss@1.31.1)(react@19.1.0)(terser@5.46.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@kamiyo/sdk':
         specifier: file:../../packages/kamiyo-sdk
-        version: link:../../packages/kamiyo-sdk
+        version: file:packages/kamiyo-sdk(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -457,7 +457,7 @@ importers:
         version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@kamiyo/sdk':
         specifier: file:../../packages/kamiyo-sdk
-        version: link:../../packages/kamiyo-sdk
+        version: file:packages/kamiyo-sdk(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -1375,6 +1375,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/meishi':
+        specifier: workspace:*
+        version: link:../kamiyo-meishi
       '@solana/spl-governance':
         specifier: ^0.3.28
         version: 0.3.28(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -4054,6 +4057,9 @@ packages:
     peerDependenciesMeta:
       '@solana/web3.js':
         optional: true
+
+  '@kamiyo/sdk@file:packages/kamiyo-sdk':
+    resolution: {directory: packages/kamiyo-sdk, type: directory}
 
   '@keystonehq/alias-sampling@0.1.2':
     resolution: {integrity: sha512-5ukLB3bcgltgaFfQfYKYwHDUbwHicekYo53fSEa7xhVkAEqsA74kxdIwoBIURmGUtXe3EVIRm4SYlgcrt2Ri0w==}
@@ -17440,6 +17446,23 @@ snapshots:
       ethers: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     optionalDependencies:
       '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+
+  '@kamiyo/sdk@file:packages/kamiyo-sdk(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@coral-xyz/anchor': 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/meishi': link:packages/kamiyo-meishi
+      '@solana/spl-governance': 0.3.28(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@solana/spl-token': 0.4.14(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      tweetnacl: 1.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
 
   '@keystonehq/alias-sampling@0.1.2': {}
 
