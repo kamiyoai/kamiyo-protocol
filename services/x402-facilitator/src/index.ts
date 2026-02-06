@@ -18,6 +18,7 @@ import { createDisputeRouter } from './routes/dispute';
 import { createReputationRouter } from './routes/reputation';
 import { createPrivacyRouter } from './routes/privacy';
 import { createDiscoveryRouter } from './routes/discovery';
+import { createSupportedRouter } from './routes/supported';
 
 async function main() {
   const validation = validateConfig();
@@ -74,6 +75,7 @@ async function main() {
   });
 
   app.use('/.well-known/x402', createDiscoveryRouter());
+  app.use('/supported', createSupportedRouter(facilitatorKeypair));
   app.use('/supported-networks', createNetworksRouter());
   app.use('/fees', createFeesRouter());
 

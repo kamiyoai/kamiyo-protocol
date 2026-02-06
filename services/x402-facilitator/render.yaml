@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: kamiyo-x402-facilitator
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3500
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: FACILITATOR_PRIVATE_KEY
+        sync: false
+      - key: TREASURY_WALLET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SETTLEMENT_FEE_BPS
+        value: "10"
+      - key: ESCROW_FEE_BPS
+        value: "50"
+      - key: BASE_RPC_URL
+        sync: false
+      - key: BASE_FACILITATOR_KEY
+        sync: false
+      - key: BASE_TREASURY_ADDRESS
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
