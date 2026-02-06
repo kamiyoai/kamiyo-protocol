@@ -20,7 +20,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SOLANA_VERSION: '1.18.22'
+  SOLANA_VERSION: '2.1.0'
   ANCHOR_VERSION: '0.31.1'
 
 jobs:
