@@ -41,6 +41,7 @@
     "format:check": "prettier --check 'packages/**/*.ts' 'services/**/*.ts'",
     "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings",
     "format:rust": "cargo fmt --all",
+    "seed:dkg": "tsx scripts/seed-dkg-trust-graph.ts",
     "audit": "pnpm audit && cargo audit"
   },
   "pnpm": {

@@ -213,7 +213,7 @@ export interface DKGClient {
     update(ual: string, content: { public?: object; private?: object }): Promise<{ UAL: string }>;
   };
   graph: {
-    query(sparql: string, type: 'SELECT' | 'CONSTRUCT'): Promise<{ data: unknown[] }>;
+    query(sparql: string, type: 'SELECT' | 'CONSTRUCT', options?: { repository?: string; paranetUAL?: string }): Promise<{ data: unknown[] }>;
   };
 }
 
