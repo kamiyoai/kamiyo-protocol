@@ -40,9 +40,7 @@ jobs:
 
       - run: pnpm install
       - name: Build with Anchor
-        run: |
-          rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
-          anchor build
+        run: anchor build
       - run: anchor test
       - name: Validate VK
         run: ./scripts/validate-vk.sh

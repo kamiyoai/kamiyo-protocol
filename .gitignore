@@ -205,7 +205,6 @@ contracts/hyperliquid/foundry.lock
 .anchor/
 programs/*/target/
 target/
-Cargo.lock
 
 # ZK circuit build artifacts (keep final zkey, r1cs, wasm, verification_key for demo)
 packages/kamiyo-solana-privacy/circuits/build/*.ptau
@@ -230,6 +229,10 @@ test-ledger/
 services/kamiyo-companion/DEMO_GUIDE.md
 **/PRODUCTION_ASSESSMENT.md
 **/NEXT_LEVEL_PLAN.md
+
+# Private partnership data and skills
+.claude/skills/
+docs/partnerships/
 
 # Data files
 data/
