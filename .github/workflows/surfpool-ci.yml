@@ -37,8 +37,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
       - name: Install Dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Run Surfpool Tests
         uses: ./.github/actions/surfpool-test
@@ -60,8 +65,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
       - name: Install Dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Run Mainnet Fork Tests
         uses: ./.github/actions/surfpool-test
@@ -84,14 +94,19 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
       - name: Install Dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Build Packages
-        run: npm run build:sdk
+        run: pnpm run build:sdk
 
       - name: Run Preflight Validation
-        run: npm run test:preflight
+        run: pnpm run test:preflight
         env:
           SURFPOOL_URL: http://localhost:8899
 
