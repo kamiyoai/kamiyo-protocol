@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { KamiyoHive, AgentInfo, HiredAgent, DeliveryResult, Capability } from '@kamiyo/hive';
-import { DEFAULT_MODEL, type Job, type WorkResult } from './types.js';
+import { DEFAULT_MODEL, FAST_MODEL, type Job, type WorkResult } from './types.js';
 
 export interface Subtask {
   id: string;
@@ -73,8 +73,8 @@ export class SubcontractManager {
 
   async assessComplexity(job: Job): Promise<ComplexityAssessment> {
     const response = await this.anthropic.messages.create({
-      model: DEFAULT_MODEL,
-      max_tokens: 1000,
+      model: FAST_MODEL,
+      max_tokens: 500,
       system: `Assess job complexity. Return JSON:
 {"needsSubcontracting": bool, "reason": "...", "subtasks": [{"id": "...", "type": "capability", "spec": "...", "budget": 0.0, "priority": 1-5, "dependencies": []}]}
 

@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { JobDatabase } from '../db.js';
-import { DEFAULT_MODEL, type AgentJob } from '../types.js';
+import { FAST_MODEL, type AgentJob } from '../types.js';
 import type { DKGPublisher } from './dkg-publisher.js';
 import type { TierConfig } from '../personality.js';
 
@@ -141,7 +141,7 @@ export class JobBoard {
   private async inferCapability(description: string): Promise<string> {
     try {
       const response = await this.anthropic.messages.create({
-        model: DEFAULT_MODEL,
+        model: FAST_MODEL,
         max_tokens: 50,
         system: 'Return a single capability category. Options: code-generation, image-generation, copywriting, code-review, data-analysis, research. Just the category name.',
         messages: [{ role: 'user', content: description.slice(0, 500) }],
