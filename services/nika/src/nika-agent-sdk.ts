@@ -68,7 +68,7 @@ CONFIDENCE: [0.0-1.0 based on data quality]
 
 Be precise, cite specifics when possible. No speculation.`,
     tools: ['WebSearch', 'Read'],
-    model: 'sonnet',
+    model: 'haiku',
   },
 
   philosopher: {
@@ -114,7 +114,7 @@ CONFIDENCE: [0.0-1.0 based on argument strength]
 
 Be bold, but intellectually honest. Provoke thought, not anger.`,
     tools: [],
-    model: 'sonnet',
+    model: 'haiku',
   },
 
   synthesizer: {
@@ -319,7 +319,7 @@ export class NikaAgentSDK {
       // Build options for the query
       const queryOptions: Options = {
         systemPrompt: SYSTEM_PROMPT,
-        model: this.config.model === 'opus' ? 'claude-opus-4-20250514' : 'claude-sonnet-4-5-20250929',
+        model: this.config.model === 'haiku' ? 'claude-haiku-4-5-20251001' : 'claude-opus-4-6-20250219',
         allowedTools: ['Task', 'WebSearch', ...X_MCP_TOOL_NAMES],
         mcpServers: {
           'x-tools': this.xMcpServer,
@@ -474,7 +474,7 @@ Return ONLY the reply text after posting.`;
 
       const queryOptions: Options = {
         systemPrompt: SYSTEM_PROMPT,
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-haiku-4-5-20251001',
         allowedTools: [...X_MCP_TOOL_NAMES],
         mcpServers: {
           'x-tools': this.xMcpServer,
@@ -598,7 +598,7 @@ Return ONLY the quote text after posting.`;
     try {
       const queryOptions: Options = {
         systemPrompt: SYSTEM_PROMPT,
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-haiku-4-5-20251001',
         allowedTools: ['Task', ...X_MCP_TOOL_NAMES],
         mcpServers: {
           'x-tools': this.xMcpServer,
@@ -812,6 +812,6 @@ export function createNikaAgentSDK(config: Config): NikaAgentSDK {
       accessToken: config.TWITTER_ACCESS_TOKEN,
       accessSecret: config.TWITTER_ACCESS_SECRET,
     },
-    model: 'sonnet',
+    model: 'opus',
   });
 }

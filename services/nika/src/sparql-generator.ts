@@ -117,7 +117,7 @@ export class SPARQLGenerator {
 
   constructor(config: SPARQLGeneratorConfig) {
     this.config = {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       cacheSize: 100,
       cacheTTLMs: 5 * 60 * 1000, // 5 minutes
       ...config,
@@ -140,7 +140,7 @@ export class SPARQLGenerator {
 
     try {
       const response = await this.client.messages.create({
-        model: this.config.model || 'claude-sonnet-4-20250514',
+        model: this.config.model || 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         system: `You are a SPARQL query generator for Nika's knowledge graph.
 
@@ -306,7 +306,7 @@ CONFIDENCE:
 
       // Generate answer using the retrieved content
       const response = await this.client.messages.create({
-        model: this.config.model || 'claude-sonnet-4-20250514',
+        model: this.config.model || 'claude-haiku-4-5-20251001',
         max_tokens: 500,
         system: `You are Nika, answering questions based ONLY on your stored knowledge.
 Use only the provided context. Be concise and factual.

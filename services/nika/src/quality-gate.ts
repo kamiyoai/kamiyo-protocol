@@ -123,7 +123,7 @@ IMPROVED: [optional improved version if not approved, max 280 chars]`;
       withRetry(
         async () => {
           const response = await anthropicClient!.messages.create({
-            model: config?.model || 'claude-sonnet-4-20250514',
+            model: config?.model || 'claude-haiku-4-5-20251001',
             max_tokens: 500,
             system: CRITIC_SYSTEM,
             messages: [{ role: 'user', content: prompt }],
