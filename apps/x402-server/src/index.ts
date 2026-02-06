@@ -98,7 +98,7 @@ app.get('/', (_req, res) => {
 const PORT = parseInt(process.env.PORT || '3402', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const MERCHANT_ADDRESS = process.env.MERCHANT_ADDRESS || '';
-const FACILITATOR_URL = process.env.PAYAI_FACILITATOR_URL || 'https://facilitator.payai.network';
+const FACILITATOR_URL = process.env.PAYAI_FACILITATOR_URL || 'https://x402.kamiyo.ai';
 const DKG_ENDPOINT = process.env.DKG_ENDPOINT || 'https://dkg.kamiyo.ai';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
 const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
@@ -494,6 +494,22 @@ async function fetchSignals(): Promise<Record<string, unknown>[]> {
     },
   ];
 }
+
+app.get('/supported', (_req, res) => {
+  const kinds = SUPPORTED_NETWORKS.map((network) => ({
+    x402Version: 2,
+    scheme: 'exact',
+    network: NETWORK_CONFIGS[network].chainId,
+  }));
+
+  res.json({
+    kinds,
+    extensions: [],
+    signers: {
+      'eip155:*': MERCHANT_ADDRESS ? [MERCHANT_ADDRESS] : [],
+    },
+  });
+});
 
 app.get('/health', (_req, res) => {
   res.json({
