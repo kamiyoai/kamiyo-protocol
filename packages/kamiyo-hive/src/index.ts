@@ -133,6 +133,10 @@ export class KamiyoHive {
       return null;
     }
 
+    if (options.requireMeishi && !targetAgent.meishiPassport) {
+      return null;
+    }
+
     let x402TransactionId: string | undefined;
     let priceInfo: PriceResult | undefined;
     let effectiveBudget = options.budget;

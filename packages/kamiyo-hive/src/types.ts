@@ -37,6 +37,10 @@ export interface AgentInfo {
   metadata?: Record<string, unknown>;
   reputationTier?: string;
   tierDiscount?: number;
+  /** Meishi compliance passport address (base58), if registered. */
+  meishiPassport?: string;
+  /** Meishi compliance score (-1000 to 1000), if available. */
+  meishiComplianceScore?: number;
 }
 
 export interface DiscoveryQuery {
@@ -48,6 +52,10 @@ export interface DiscoveryQuery {
   status?: AgentStatus;
   limit?: number;
   offset?: number;
+  /** Only return agents with valid Meishi compliance passports. */
+  meishiRequired?: boolean;
+  /** Minimum Meishi compliance score (-1000 to 1000). */
+  minComplianceScore?: number;
 }
 
 export interface DiscoveryResult {
@@ -66,6 +74,8 @@ export interface HireOptions {
   preferredAgents?: string[];
   excludeAgents?: string[];
   paymentProtocol?: 'x402' | 'direct';
+  /** Require the hired agent to have a valid Meishi passport. */
+  requireMeishi?: boolean;
 }
 
 export interface HiredAgent {

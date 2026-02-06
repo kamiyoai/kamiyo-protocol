@@ -27,3 +27,6 @@ export * from "./staking";
 export * from "./unified";
 export * from "./rpc";
 export * from "./circuit-breaker";
+
+// Meishi compliance passports
+export * from "./meishi";

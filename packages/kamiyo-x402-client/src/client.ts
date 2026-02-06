@@ -63,6 +63,8 @@ export interface X402RequestOptions {
   transactionId?: string;
   sla?: SlaParams;
   timeoutMs?: number;
+  /** Meishi compliance headers to attach to payment requests. */
+  meishiHeaders?: Record<string, string>;
 }
 
 export interface X402Response<T = unknown> {
@@ -249,6 +251,7 @@ export class X402KamiyoClient {
               'X-Payment': this.createPaymentHeader(paymentResult.signature || ''),
               'X-Kamiyo-Escrow': paymentResult.escrowPda?.toBase58() || '',
               'X-Kamiyo-Transaction-Id': transactionId,
+              ...(options.meishiHeaders || {}),
             },
           }, timeoutMs);
         }

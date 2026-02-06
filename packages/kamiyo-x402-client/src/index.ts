@@ -274,6 +274,14 @@ export type {
   PayAIReputationConfig,
 } from './payai-reputation';
 
+// Meishi compliance header helpers
+export {
+  MEISHI_HEADER_KEYS,
+  buildMeishiHeaders,
+  parseMeishiHeaders,
+} from './meishi-headers';
+export type { MeishiHeaderData } from './meishi-headers';
+
 // Observability
 export {
   PaymentInstrumentation,
