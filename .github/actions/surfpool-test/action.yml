@@ -68,12 +68,7 @@ runs:
 
     - name: Install Surfpool
       shell: bash
-      run: |
-        if [ "${{ inputs.surfpool-version }}" = "latest" ]; then
-          cargo install surfpool --locked 2>/dev/null || cargo install surfpool
-        else
-          cargo install surfpool --version ${{ inputs.surfpool-version }} --locked 2>/dev/null || cargo install surfpool --version ${{ inputs.surfpool-version }}
-        fi
+      run: curl -sL https://run.surfpool.run/ | bash
 
     - name: Install Anchor
       shell: bash

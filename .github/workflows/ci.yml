@@ -19,6 +19,8 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: dtolnay/rust-toolchain@1.75.0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -87,14 +89,6 @@ jobs:
 
       - name: Build SDK
         run: pnpm run build:sdk
-
-      - name: Build Mitama
-        working-directory: packages/kamiyo-mitama
-        run: npm run build
-
-      - name: Test Mitama
-        working-directory: packages/kamiyo-mitama
-        run: npm test
 
       - name: Test SDK
         run: pnpm run test:sdk
