@@ -19,8 +19,6 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@1.75.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -44,6 +42,8 @@ jobs:
       - name: Build with Anchor
         run: |
           rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
+          cargo generate-lockfile
+          sed -i 's/^version = 4$/version = 3/' Cargo.lock
           anchor build
       - run: anchor test
       - name: Validate VK
