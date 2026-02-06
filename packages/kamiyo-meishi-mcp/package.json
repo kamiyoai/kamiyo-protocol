@@ -1,0 +1,41 @@
+{
+  "name": "@kamiyo/meishi-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server for Meishi Agent Compliance Passports. Tools for creating, verifying, and managing agent compliance credentials.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
+  },
+  "bin": {
+    "meishi-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "author": "KAMIYO",
+  "license": "MIT",
+  "dependencies": {
+    "@kamiyo/meishi": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  }
+}
