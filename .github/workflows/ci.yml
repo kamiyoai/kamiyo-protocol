@@ -39,12 +39,13 @@ jobs:
           avm use ${{ env.ANCHOR_VERSION }}
 
       - run: pnpm install
-      - name: Build with Anchor
+      - name: Generate compatible lockfile
         run: |
           rm -f Cargo.lock programs/*/Cargo.lock crates/*/Cargo.lock
-          cargo generate-lockfile
-          sed -i 's/^version = 4$/version = 3/' Cargo.lock
-          anchor build
+          rustup install 1.75.0 --no-self-update
+          cargo +1.75.0 generate-lockfile
+      - name: Build with Anchor
+        run: anchor build
       - run: anchor test
       - name: Validate VK
         run: ./scripts/validate-vk.sh
