@@ -1,5 +1,5 @@
-import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
-import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import BN from 'bn.js';
 import type {
   MeishiConfig,
   MeishiPassport,
