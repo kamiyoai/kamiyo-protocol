@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { DEFAULT_MODEL, type MoltbookPost, type JobEvaluation } from './types.js';
+import { FAST_MODEL, type MoltbookPost, type JobEvaluation } from './types.js';
 
 const RELEVANT_KEYWORDS = [
   'escrow',
@@ -67,7 +67,7 @@ export async function evaluateJob(
 
   try {
     const response = await anthropic.messages.create({
-      model: DEFAULT_MODEL,
+      model: FAST_MODEL,
       max_tokens: 300,
       system: EVALUATION_SYSTEM,
       messages: [

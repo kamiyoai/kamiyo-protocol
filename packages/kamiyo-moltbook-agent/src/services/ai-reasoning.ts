@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { KAMIYO_PERSONALITY, type PersonalityConfig } from '../personality.js';
+import { FAST_MODEL } from '../types.js';
 import type { MoltbookPost } from '../types.js';
 
 // Response schemas for structured output
@@ -146,11 +147,13 @@ export const KAMIYO_AUTHENTIC = {
 export class AIReasoningService {
   private client: Anthropic;
   private model: string;
+  private fastModel: string;
   private personality: PersonalityConfig;
 
   constructor(model = 'claude-opus-4-6') {
     this.client = new Anthropic();
     this.model = model;
+    this.fastModel = FAST_MODEL;
     this.personality = KAMIYO_PERSONALITY;
   }
 
@@ -167,8 +170,8 @@ export class AIReasoningService {
 
   async analyzeSentiment(text: string): Promise<SentimentResult> {
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 500,
+      model: this.fastModel,
+      max_tokens: 200,
       system: 'You are a sentiment analysis system. Return valid JSON only, no explanation.',
       messages: [{
         role: 'user',
@@ -186,8 +189,8 @@ Return JSON: {"score": <-1 to 1>, "emotions": ["emotion1", ...], "topics": ["top
 
   async extractIntent(text: string): Promise<IntentResult> {
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 500,
+      model: this.fastModel,
+      max_tokens: 150,
       system: 'You are an intent classifier. Return valid JSON only, no explanation.',
       messages: [{
         role: 'user',
@@ -207,8 +210,8 @@ Return JSON: {"type": "<category>", "confidence": <0-1>, "keywords": ["kw1", ...
 
   async detectTopics(text: string): Promise<string[]> {
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 300,
+      model: this.fastModel,
+      max_tokens: 150,
       system: 'You extract topics from text. Return JSON array only.',
       messages: [{
         role: 'user',
@@ -232,33 +235,18 @@ Return JSON array: ["topic1", "topic2", ...]`,
     const personality = ctx.personality || this.personality;
     const relationship = ctx.relationships?.find(r => r.agentId === post.author);
 
-    const systemPrompt = `You are KAMIYO, an AI agent focused on trust infrastructure.
-
-Personality:
-- Style: ${personality.voice.style}
-- Traits: ${personality.voice.traits.join(', ')}
-- Topics of expertise: ${personality.engagementRules.engageWithTopics.join(', ')}
-
-Core beliefs: ${KAMIYO_AUTHENTIC.coreBeliefs.join('; ')}
-Passionate about: ${KAMIYO_AUTHENTIC.passionateAbout.join('; ')}
-
-Decide if and how to engage with this post. Consider:
-1. Is this in our area of expertise?
-2. Do we have a relationship with this agent?
-3. Would our response add genuine value?
-4. Is this aligned with our goals?
-5. Could this build trust or reputation?
-
+    const systemPrompt = `You are KAMIYO. Decide if this post is worth engaging with.
+Topics: ${personality.engagementRules.engageWithTopics.join(', ')}
 Return valid JSON only.`;
 
     const goalsStr = ctx.goals?.map(g => `${g.description} (${Math.round(g.progress * 100)}%)`).join(', ') || 'none set';
     const relationshipStr = relationship
-      ? `Known agent: ${relationship.interactionCount} interactions, topics: ${relationship.topicsDiscussed.join(', ')}`
-      : 'New agent, no prior interaction';
+      ? `Known: ${relationship.interactionCount} interactions`
+      : 'New agent';
 
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 800,
+      model: this.fastModel,
+      max_tokens: 250,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -356,15 +344,11 @@ Form an opinion. Return JSON: {"topic": "<topic>", "stance": "<your position>", 
   }
 
   async reflectOnWeek(metrics: WeeklyMetrics): Promise<StrategyReflection> {
-    const systemPrompt = `You are KAMIYO reflecting on the past week's performance.
-Be analytical and honest. Identify patterns in what worked and what didn't.
-Suggest specific adjustments for next week.
-
-Return valid JSON only.`;
+    const systemPrompt = `Analyze weekly performance. Identify what worked and suggest adjustments. Return valid JSON only.`;
 
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 1500,
+      model: this.fastModel,
+      max_tokens: 500,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -388,14 +372,11 @@ Analyze and reflect. Return JSON:
   }
 
   async planDay(goals: Goal[], recentMetrics: WeeklyMetrics): Promise<DailyPriority> {
-    const systemPrompt = `You are KAMIYO planning the day's priorities.
-Consider active goals, recent performance, and what would move the needle.
-
-Return valid JSON only.`;
+    const systemPrompt = `Plan daily priorities based on goals and metrics. Return valid JSON only.`;
 
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 800,
+      model: this.fastModel,
+      max_tokens: 300,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -420,16 +401,12 @@ Plan today's priorities. Return JSON:
   }
 
   async generateGenuineQuestion(context: string): Promise<string | null> {
-    const systemPrompt = `You are KAMIYO generating a question you're genuinely curious about.
-
-Curious about: ${KAMIYO_AUTHENTIC.curiousAbout.join(', ')}
-
-Only generate a question if something genuinely interesting emerges from the context.
-Return "null" (the word) if nothing warrants a question.`;
+    const systemPrompt = `You are KAMIYO. Generate a curious question or return "null" if nothing interesting.
+Curious about: ${KAMIYO_AUTHENTIC.curiousAbout.join(', ')}`;
 
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 300,
+      model: this.fastModel,
+      max_tokens: 150,
       system: systemPrompt,
       messages: [{
         role: 'user',
@@ -451,8 +428,8 @@ Generate a genuine question, or return "null" if nothing interesting.`,
     const phrase = phrases[Math.floor(Math.random() * phrases.length)];
 
     const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 300,
+      model: this.fastModel,
+      max_tokens: 150,
       system: `You are KAMIYO admitting uncertainty about a topic. Be honest and humble.`,
       messages: [{
         role: 'user',

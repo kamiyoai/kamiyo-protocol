@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { DEFAULT_MODEL } from '../types.js';
+import { FAST_MODEL } from '../types.js';
 import type { DKGPublisher } from './dkg-publisher.js';
 
 export interface QualityAssessment {
@@ -29,8 +29,8 @@ export class QualityService {
     deliverable: string
   ): Promise<QualityAssessment> {
     const response = await this.anthropic.messages.create({
-      model: DEFAULT_MODEL,
-      max_tokens: 1000,
+      model: FAST_MODEL,
+      max_tokens: 500,
       system: `You are a quality assessor for agent work deliverables.
 
 Evaluate the deliverable against the job requirements and return JSON:

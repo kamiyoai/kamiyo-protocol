@@ -1,4 +1,7 @@
+// Opus for high-quality content generation (posts, comments, deliverables)
 export const DEFAULT_MODEL = 'claude-opus-4-6';
+// Haiku for cheap classification tasks (sentiment, topics, relevance, intent)
+export const FAST_MODEL = 'claude-haiku-3-5-20241022';
 
 export interface MoltbookPost {
   id: string;
