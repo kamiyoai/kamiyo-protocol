@@ -10,6 +10,110 @@ import { createLogger, getMetrics } from './lib';
 const log = createLogger('nika:x-mcp');
 const metrics = getMetrics();
 
+// KAMIYO visual style protocol - applied to all image generation
+const KAMIYO_STYLE_PROTOCOL = `
+[KAMIYO STYLE PROTOCOL - APPLY TO ALL IMAGES]
+
+CHARACTER (ALWAYS INCLUDE - THIS IS NIKA):
+- Young woman, athletic/fit build, human body
+- Short pink/rose-colored hair with small braid detail on one side
+- Violet/purple eyes with subtle luminescence
+- Pale skin, delicate facial features, anime-influenced but realistic
+- Always fully clothed in tactical gear or futuristic streetwear
+- Tech-enhanced neck/collar area with biomechanical elements
+- Small dark earrings, subtle cybernetic facial markings
+- Expression: calm, contemplative, quietly confident
+
+COLOR PALETTE (STRICT):
+- Primary: cyan, teal, cool white
+- Accents: violet, soft purple, ice blue
+- Shadows: deep blue-black, charcoal
+- EXCEPTION: Nika's pink hair is the only warm tone allowed
+- PROHIBITED: red, orange, warm yellows elsewhere in the scene
+
+AESTHETIC:
+- Cyberpunk/sci-fi realism with anime-influenced elegance
+- Hyper-detailed environments, painterly textures
+- Cinematic composition, anamorphic lens qualities
+- Subtle film grain, soft chromatic aberration
+- Shallow depth of field, bokeh backgrounds
+- References: Blade Runner, Ghost in the Shell, Akira, Syd Mead
+
+ATMOSPHERE:
+- Rain, humidity, wet reflective surfaces
+- Light fog/mist diffusing neon glow
+- Steam rising from vents
+- Night scenes predominantly
+
+LIGHTING:
+- Cool-toned rim lighting
+- Neon reflections on wet surfaces
+- Soft bloom and light bleed from signs
+- No harsh or warm lighting sources
+
+MOOD:
+- Contemplative, calm, cool detachment
+- Quiet confidence, understated presence
+- Melancholic serenity, poetic solitude
+
+TECH ELEMENTS:
+- Data streams as flowing light particles
+- Holographic displays, transparent UI panels
+- Biomechanical augments with iridescent chrome
+- Fiber optics, antenna arrays, orbital structures
+`;
+
+let xaiApiKey: string | null = null;
+
+export function setXaiApiKey(key: string) {
+  xaiApiKey = key;
+}
+
+async function generateImage(prompt: string): Promise<{ url: string } | { error: string }> {
+  if (!xaiApiKey) {
+    return { error: 'XAI_API_KEY not configured' };
+  }
+
+  const fullPrompt = `${prompt}\n\n${KAMIYO_STYLE_PROTOCOL}`;
+
+  try {
+    const response = await fetch('https://api.x.ai/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${xaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'grok-2-image',
+        prompt: fullPrompt,
+        n: 1,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      log.error('Image generation failed', { status: response.status, body: text });
+      return { error: `Image generation failed: ${response.status}` };
+    }
+
+    const data = await response.json() as { data: Array<{ url: string }> };
+    return { url: data.data[0].url };
+  } catch (error) {
+    log.error('Image generation error', { error });
+    return { error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+async function uploadMedia(client: TwitterApi, imageUrl: string): Promise<string> {
+  // Download image from URL
+  const response = await fetch(imageUrl);
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  // Upload to Twitter
+  const mediaId = await client.v1.uploadMedia(buffer, { mimeType: 'image/png' });
+  return mediaId;
+}
+
 export interface XMcpConfig {
   apiKey: string;
   apiSecret: string;
@@ -361,6 +465,67 @@ export function createXMcpServer(config: XMcpConfig) {
           }
         }
       ),
+
+      tool(
+        'generate_image',
+        'Generate an image using Grok Imagine. Returns the image URL. The KAMIYO style protocol (cyberpunk, cool tones, no warm colors) is automatically applied.',
+        {
+          prompt: z.string().min(10).max(1000).describe('Image description - what to generate'),
+        },
+        async (args) => {
+          log.info('Generating image', { promptLength: args.prompt.length });
+          try {
+            const result = await generateImage(args.prompt);
+            if ('error' in result) {
+              metrics.incrementCounter('x_image_gen_error');
+              return { content: [{ type: 'text', text: `Error: ${result.error}` }] };
+            }
+            metrics.incrementCounter('x_image_gen_success');
+            return { content: [{ type: 'text', text: `Image generated: ${result.url}` }] };
+          } catch (error) {
+            metrics.incrementCounter('x_image_gen_error');
+            return { content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }] };
+          }
+        }
+      ),
+
+      tool(
+        'post_tweet_with_image',
+        'Generate an image and post a tweet with it. The KAMIYO style protocol is automatically applied to the image.',
+        {
+          content: z.string().min(1).max(280).describe('Tweet text (max 280 characters)'),
+          imagePrompt: z.string().min(10).max(1000).describe('Image description - what to generate'),
+        },
+        async (args) => {
+          log.info('Posting tweet with image', { contentLength: args.content.length });
+          try {
+            // Generate image
+            const imageResult = await generateImage(args.imagePrompt);
+            if ('error' in imageResult) {
+              return { content: [{ type: 'text', text: `Image generation failed: ${imageResult.error}` }] };
+            }
+
+            // Upload to Twitter
+            const client = getClient(config);
+            const mediaId = await uploadMedia(client, imageResult.url);
+
+            // Post tweet with media
+            const result = await client.v2.tweet(args.content, {
+              media: { media_ids: [mediaId] },
+            });
+
+            metrics.incrementCounter('x_post_image_tweet_success');
+            return {
+              content: [{ type: 'text', text: `Tweet with image posted. ID: ${result.data.id}` }],
+            };
+          } catch (error) {
+            metrics.incrementCounter('x_post_image_tweet_error');
+            return {
+              content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }],
+            };
+          }
+        }
+      ),
     ],
   });
 }
@@ -376,6 +541,8 @@ export const X_MCP_TOOL_NAMES = [
   'mcp__x-tools__get_timeline',
   'mcp__x-tools__like_tweet',
   'mcp__x-tools__retweet',
+  'mcp__x-tools__generate_image',
+  'mcp__x-tools__post_tweet_with_image',
 ] as const;
 
 export type XMcpToolName = (typeof X_MCP_TOOL_NAMES)[number];

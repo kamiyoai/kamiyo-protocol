@@ -39,6 +39,7 @@ import {
   shouldPostRelaunchAnnouncement,
   hasAnnouncementBeenPosted,
 } from './relaunch-announcement';
+import { setXaiApiKey } from './x-mcp-server';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -128,6 +129,12 @@ async function main(): Promise<void> {
   const config = getConfig();
   setLogLevel(config.LOG_LEVEL);
   log.info('Configuration validated', getRedactedConfig());
+
+  // Initialize xAI API key for image generation
+  if (config.XAI_API_KEY) {
+    setXaiApiKey(config.XAI_API_KEY);
+    log.info('xAI image generation enabled');
+  }
 
   // Initialize alerting
   if (config.ALERT_WEBHOOK_URL) {

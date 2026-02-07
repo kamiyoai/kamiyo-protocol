@@ -42,6 +42,9 @@ export interface Config {
   // Alerting
   ALERT_WEBHOOK_URL: string;
   ALERT_WEBHOOK_TYPE: 'slack' | 'discord' | 'generic';
+
+  // xAI (Grok) for image generation
+  XAI_API_KEY: string;
 }
 
 const REQUIRED_VARS = [
@@ -71,6 +74,7 @@ const DEFAULTS: Partial<Config> = {
   LOG_LEVEL: 'info',
   ALERT_WEBHOOK_URL: '',
   ALERT_WEBHOOK_TYPE: 'generic',
+  XAI_API_KEY: '',
 };
 
 let cachedConfig: Config | null = null;
@@ -240,9 +244,11 @@ export function getConfig(): Config {
     ALERT_WEBHOOK_TYPE:
       (process.env.ALERT_WEBHOOK_TYPE as Config['ALERT_WEBHOOK_TYPE']) ||
       DEFAULTS.ALERT_WEBHOOK_TYPE!,
+
+    XAI_API_KEY: process.env.XAI_API_KEY || DEFAULTS.XAI_API_KEY!,
   };
 
-  return cachedConfig;
+  return cachedConfig!;
 }
 
 export function clearConfigCache(): void {
