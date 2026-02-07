@@ -1,4 +1,9 @@
-// ZK-gated channel routes
+/**
+ * ZK-gated channel routes.
+ *
+ * Note: This file currently uses in-memory mock data. It is meant to exercise the
+ * join/token flow and WebSocket integration, not to be a production data store.
+ */
 
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
@@ -8,7 +13,10 @@ import { getChannelServer } from '../../channels/ws-server';
 
 const router: IRouter = Router();
 
-// Channel tier requirements (0-4 mapping to reputation thresholds)
+/**
+ * Channel tier requirements (0-4 mapping to reputation thresholds).
+ * Keep this aligned with the tiering used by the ZK reputation system.
+ */
 type ChannelTier = 0 | 1 | 2 | 3 | 4;
 
 interface Channel {
@@ -29,7 +37,10 @@ interface ChannelMessage {
   timestamp: number;
 }
 
-// Mock channel data
+/**
+ * Mock channel data.
+ * Replace with persistent storage once the channel registry is finalized.
+ */
 const CHANNELS: Map<string, Channel> = new Map([
   ['general', {
     id: 'general',
@@ -78,7 +89,10 @@ const CHANNELS: Map<string, Channel> = new Map([
   }],
 ]);
 
-// Mock message history
+/**
+ * Mock message history.
+ * This is only used by the REST read endpoint; real-time messages come via WS.
+ */
 const MOCK_MESSAGES: ChannelMessage[] = [
   { id: 'msg-001', channelId: 'general', sender: 'anon-a1b2', content: 'gm everyone', timestamp: Date.now() - 3600000 },
   { id: 'msg-002', channelId: 'general', sender: 'anon-c3d4', content: 'market looking bullish today', timestamp: Date.now() - 3000000 },
@@ -88,13 +102,16 @@ const MOCK_MESSAGES: ChannelMessage[] = [
   { id: 'msg-006', channelId: 'alpha', sender: 'anon-k1l2', content: 'new listing incoming...', timestamp: Date.now() - 600000 },
 ];
 
-// Tier name mapping (aligned with trust graph tiers)
+/**
+ * Tier name mapping (aligned with trust graph tiers).
+ * These are display labels only; authorization is based on the numeric tier.
+ */
 const TIER_NAMES: Record<ChannelTier, string> = {
-  0: 'Ghost',      // unverified
-  1: 'Scout',      // emerging reputation
-  2: 'Architect',  // established trust
-  3: 'Sentinel',   // high trust
-  4: 'Oracle',     // highest trust
+  0: 'Ghost', // unverified
+  1: 'Scout', // emerging reputation
+  2: 'Architect', // established trust
+  3: 'Sentinel', // high trust
+  4: 'Oracle', // highest trust
 };
 
 interface JoinChannelBody {
@@ -142,7 +159,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     return;
   }
 
-  // Validate proof bytes (basic check - in production would verify ZK proof)
+  // Basic sanity check. Production should verify the ZK proof.
   if (body.proof.proofBytes.length < 32) {
     res.status(400).json({
       error: { code: 'INVALID_PROOF', message: 'Proof bytes too short' },
@@ -151,10 +168,8 @@ router.post('/:id/join', async (req: Request, res: Response) => {
   }
 
   try {
-    // Generate access token
     const accessToken = randomBytes(32).toString('hex');
 
-    // Register token with WebSocket server
     const channelServer = getChannelServer();
     channelServer.registerToken(
       accessToken,
@@ -163,7 +178,6 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       body.proof.tier
     );
 
-    // Generate WebSocket URL
     const wsHost = process.env.WS_HOST || 'ws.kamiyo.ai';
     const wsUrl = `wss://${wsHost}/ws/channels?token=${accessToken}`;
 
@@ -182,7 +196,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
         name: channel.name,
         memberCount: channel.memberCount + channelServer.getStats().connections,
       },
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hour access
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24h access
     });
   } catch (err) {
     logger.error('Channel join failed', { error: String(err), channelId });
