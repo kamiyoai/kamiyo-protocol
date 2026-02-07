@@ -16,7 +16,8 @@ export interface MeishiMiddlewareConfig {
   productCategory?: number;
   /** If true, requests without Meishi headers are rejected. Default: true. */
   requireMeishi?: boolean;
-  /** If true, warnings don't block the request. Default: true. */
+  // TODO(middleware): implement warning-as-error mode when allowWarnings=false
+  /** If true, warnings don't block the request. Default: true. Currently unused. */
   allowWarnings?: boolean;
 }
 

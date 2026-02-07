@@ -1,7 +1,9 @@
+import {
+  ComplianceClass,
+} from './types.js';
 import type {
   ComplianceDimension,
   ComplianceReport,
-  ComplianceClass,
   Jurisdiction,
   MeishiPassport,
 } from './types.js';
@@ -72,11 +74,11 @@ export function fromOnChainScore(onChainScore: number): number {
  * Determine EU AI Act compliance class from score.
  */
 export function classifyCompliance(score: number): ComplianceClass {
-  if (score >= 80) return 1; // Minimal risk
-  if (score >= 60) return 2; // Limited risk
-  if (score >= 30) return 3; // High risk
-  if (score >= 0) return 0;  // Unclassified
-  return 4;                   // Unacceptable
+  if (score >= 80) return ComplianceClass.Minimal;
+  if (score >= 60) return ComplianceClass.Limited;
+  if (score >= 30) return ComplianceClass.High;
+  if (score >= 0) return ComplianceClass.Unclassified;
+  return ComplianceClass.Unacceptable;
 }
 
 /**
