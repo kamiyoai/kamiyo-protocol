@@ -13,19 +13,28 @@ const router: IRouter = Router();
 
 // Trust graph tiers (visual representation)
 type Tier = 'oracle' | 'sentinel' | 'architect' | 'scout' | 'ghost';
+type TrustType = 'general' | 'task-specific' | 'staked';
 
 interface TrustNode {
   id: string;
+  ual?: string;                // DKG Universal Asset Locator
   label: string;
   tier: Tier;
   reputation: number;
   txCount: number;
+  firstSeen?: string;          // ISO date
+  lastActive?: string;         // ISO date
+  verified?: boolean;          // On-chain proof exists
 }
 
 interface TrustEdge {
-  source: string;
-  target: string;
-  weight: number;
+  source: string;              // Trustor (who is trusting)
+  target: string;              // Trustee (who is being trusted)
+  weight: number;              // 0-100 trust level
+  trustType?: TrustType;       // Type of trust relationship
+  capability?: string;         // Scoped capability for task-specific trust
+  stakeAmount?: number;        // Backing stake (for staked trust)
+  since?: string;              // ISO date when established
 }
 
 interface TrustGraphStats {
@@ -95,6 +104,14 @@ function parseNum(val: unknown): number {
 // DKG query options — data lives in the publicKnowledgeAssets repository
 const DKG_QUERY_OPTS = { repository: 'publicKnowledgeAssets' };
 
+// Parse ISO date from DKG result
+function parseDate(val: unknown): string | undefined {
+  if (!val) return undefined;
+  const s = String(val).replace(/^"/, '').replace(/".*$/, '');
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 // Fetch nodes and edges from DKG
 async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEdge[] }> {
   const client = await getDKGClient();
@@ -104,6 +121,7 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
 
   try {
     const dkg = client.rawDKG;
+    const blockchain = getBlockchainId();
 
     // Query all providers with reputation data
     const providerQuery = sparqlQueries.queryTopProviders({ limit: 100, minQuality: 0, minTasks: 0 });
@@ -115,7 +133,8 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
     if (providerResult.data && Array.isArray(providerResult.data)) {
       for (const item of providerResult.data) {
         const row = item as Record<string, unknown>;
-        const id = String(row.provider || '').replace('urn:erc8004:', '');
+        const rawId = String(row.provider || '');
+        const id = rawId.replace('urn:erc8004:', '');
         if (!id || nodeIds.has(id)) continue;
         nodeIds.add(id);
 
@@ -123,17 +142,26 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
         const taskCount = parseNum(row.taskCount);
         const tierName = scoreToTierName(avgQuality);
 
+        // Construct UAL from blockchain and agent ID
+        // Format: did:dkg:{blockchain}/{contract}/{tokenId} or simplified urn
+        const ual = `urn:dkg:${blockchain.replace(':', '/')}:agent:${id}`;
+
         nodes.push({
           id,
+          ual,
           label: id.slice(0, 16) + '...',
           tier: mapTier(tierName),
           reputation: Math.round(avgQuality),
           txCount: Math.round(taskCount),
+          // These will be populated from task summary if available
+          firstSeen: parseDate(row.firstTask),
+          lastActive: parseDate(row.lastTask),
+          verified: taskCount > 0, // Has on-chain task completions
         });
       }
     }
 
-    // Query trust relationships for edges
+    // Query trust relationships for edges with full semantic data
     const edges: TrustEdge[] = [];
     const edgeSet = new Set<string>();
 
@@ -154,10 +182,26 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
             if (edgeSet.has(edgeKey)) continue;
             edgeSet.add(edgeKey);
 
+            // Extract trust type and capability from DKG result
+            const rawTrustType = String(row.trustType || 'general').toLowerCase();
+            let trustType: TrustType = 'general';
+            if (rawTrustType.includes('task') || rawTrustType.includes('specific')) {
+              trustType = 'task-specific';
+            } else if (rawTrustType.includes('stake')) {
+              trustType = 'staked';
+            }
+
+            const capability = row.capability ? String(row.capability) : undefined;
+            const stakeAmount = row.stakeAmount ? parseNum(row.stakeAmount) : undefined;
+
             edges.push({
               source: node.id,
               target,
               weight: Math.round(weight) || 50,
+              trustType,
+              capability,
+              stakeAmount,
+              since: parseDate(row.since),
             });
           }
         }
@@ -178,40 +222,42 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
   }
 }
 
-// Mock trust graph data (fallback)
+// Mock trust graph data (fallback) with full semantic properties
 const MOCK_NODES: TrustNode[] = [
-  { id: 'agent-001', label: 'Oracle Agent', tier: 'oracle', reputation: 95, txCount: 1247 },
-  { id: 'agent-002', label: 'Data Fetcher', tier: 'sentinel', reputation: 82, txCount: 856 },
-  { id: 'agent-003', label: 'Price Bot', tier: 'sentinel', reputation: 78, txCount: 423 },
-  { id: 'agent-004', label: 'Arbitrage Scanner', tier: 'architect', reputation: 65, txCount: 312 },
-  { id: 'agent-005', label: 'Liquidity Monitor', tier: 'architect', reputation: 58, txCount: 234 },
-  { id: 'agent-006', label: 'Swap Executor', tier: 'scout', reputation: 42, txCount: 156 },
-  { id: 'agent-007', label: 'Alert Bot', tier: 'scout', reputation: 35, txCount: 89 },
-  { id: 'agent-008', label: 'Analytics Agent', tier: 'oracle', reputation: 92, txCount: 2103 },
-  { id: 'agent-009', label: 'Risk Assessor', tier: 'sentinel', reputation: 76, txCount: 567 },
-  { id: 'agent-010', label: 'Report Generator', tier: 'architect', reputation: 54, txCount: 178 },
-  { id: 'agent-011', label: 'New Agent', tier: 'ghost', reputation: 12, txCount: 5 },
-  { id: 'agent-012', label: 'Test Agent', tier: 'ghost', reputation: 8, txCount: 2 },
+  { id: 'agent-001', ual: 'urn:dkg:base/8453:agent:agent-001', label: 'Oracle Agent', tier: 'oracle', reputation: 95, txCount: 1247, firstSeen: '2025-06-15T00:00:00Z', lastActive: '2026-02-07T12:00:00Z', verified: true },
+  { id: 'agent-002', ual: 'urn:dkg:base/8453:agent:agent-002', label: 'Data Fetcher', tier: 'sentinel', reputation: 82, txCount: 856, firstSeen: '2025-08-01T00:00:00Z', lastActive: '2026-02-07T10:00:00Z', verified: true },
+  { id: 'agent-003', ual: 'urn:dkg:base/8453:agent:agent-003', label: 'Price Bot', tier: 'sentinel', reputation: 78, txCount: 423, firstSeen: '2025-09-10T00:00:00Z', lastActive: '2026-02-06T18:00:00Z', verified: true },
+  { id: 'agent-004', ual: 'urn:dkg:base/8453:agent:agent-004', label: 'Arbitrage Scanner', tier: 'architect', reputation: 65, txCount: 312, firstSeen: '2025-10-20T00:00:00Z', lastActive: '2026-02-07T08:00:00Z', verified: true },
+  { id: 'agent-005', ual: 'urn:dkg:base/8453:agent:agent-005', label: 'Liquidity Monitor', tier: 'architect', reputation: 58, txCount: 234, firstSeen: '2025-11-05T00:00:00Z', lastActive: '2026-02-05T22:00:00Z', verified: true },
+  { id: 'agent-006', ual: 'urn:dkg:base/8453:agent:agent-006', label: 'Swap Executor', tier: 'scout', reputation: 42, txCount: 156, firstSeen: '2025-12-01T00:00:00Z', lastActive: '2026-02-07T14:00:00Z', verified: true },
+  { id: 'agent-007', ual: 'urn:dkg:base/8453:agent:agent-007', label: 'Alert Bot', tier: 'scout', reputation: 35, txCount: 89, firstSeen: '2026-01-10T00:00:00Z', lastActive: '2026-02-06T20:00:00Z', verified: true },
+  { id: 'agent-008', ual: 'urn:dkg:base/8453:agent:agent-008', label: 'Analytics Agent', tier: 'oracle', reputation: 92, txCount: 2103, firstSeen: '2025-05-01T00:00:00Z', lastActive: '2026-02-07T16:00:00Z', verified: true },
+  { id: 'agent-009', ual: 'urn:dkg:base/8453:agent:agent-009', label: 'Risk Assessor', tier: 'sentinel', reputation: 76, txCount: 567, firstSeen: '2025-07-15T00:00:00Z', lastActive: '2026-02-07T11:00:00Z', verified: true },
+  { id: 'agent-010', ual: 'urn:dkg:base/8453:agent:agent-010', label: 'Report Generator', tier: 'architect', reputation: 54, txCount: 178, firstSeen: '2025-11-20T00:00:00Z', lastActive: '2026-02-04T09:00:00Z', verified: true },
+  { id: 'agent-011', ual: 'urn:dkg:base/8453:agent:agent-011', label: 'New Agent', tier: 'ghost', reputation: 12, txCount: 5, firstSeen: '2026-02-01T00:00:00Z', lastActive: '2026-02-06T15:00:00Z', verified: false },
+  { id: 'agent-012', ual: 'urn:dkg:base/8453:agent:agent-012', label: 'Test Agent', tier: 'ghost', reputation: 8, txCount: 2, firstSeen: '2026-02-05T00:00:00Z', verified: false },
 ];
 
+// Mock edges with trust semantics - each edge is a TrustRelationship assertion
+// source TRUSTS target (directed endorsement)
 const MOCK_EDGES: TrustEdge[] = [
-  { source: 'agent-001', target: 'agent-002', weight: 85 },
-  { source: 'agent-001', target: 'agent-008', weight: 92 },
-  { source: 'agent-002', target: 'agent-003', weight: 72 },
-  { source: 'agent-002', target: 'agent-004', weight: 58 },
-  { source: 'agent-003', target: 'agent-006', weight: 45 },
-  { source: 'agent-004', target: 'agent-005', weight: 63 },
-  { source: 'agent-005', target: 'agent-006', weight: 38 },
-  { source: 'agent-006', target: 'agent-007', weight: 32 },
-  { source: 'agent-008', target: 'agent-009', weight: 78 },
-  { source: 'agent-008', target: 'agent-002', weight: 81 },
-  { source: 'agent-009', target: 'agent-010', weight: 55 },
-  { source: 'agent-009', target: 'agent-004', weight: 48 },
-  { source: 'agent-010', target: 'agent-007', weight: 28 },
-  { source: 'agent-001', target: 'agent-009', weight: 70 },
-  { source: 'agent-003', target: 'agent-005', weight: 52 },
-  { source: 'agent-011', target: 'agent-006', weight: 15 },
-  { source: 'agent-012', target: 'agent-011', weight: 10 },
+  { source: 'agent-001', target: 'agent-002', weight: 85, trustType: 'staked', stakeAmount: 5000, since: '2025-09-01T00:00:00Z' },
+  { source: 'agent-001', target: 'agent-008', weight: 92, trustType: 'general', since: '2025-07-01T00:00:00Z' },
+  { source: 'agent-002', target: 'agent-003', weight: 72, trustType: 'task-specific', capability: 'price-feed', since: '2025-10-15T00:00:00Z' },
+  { source: 'agent-002', target: 'agent-004', weight: 58, trustType: 'general', since: '2025-11-01T00:00:00Z' },
+  { source: 'agent-003', target: 'agent-006', weight: 45, trustType: 'task-specific', capability: 'swap-execution', since: '2026-01-05T00:00:00Z' },
+  { source: 'agent-004', target: 'agent-005', weight: 63, trustType: 'general', since: '2025-11-20T00:00:00Z' },
+  { source: 'agent-005', target: 'agent-006', weight: 38, trustType: 'general', since: '2025-12-10T00:00:00Z' },
+  { source: 'agent-006', target: 'agent-007', weight: 32, trustType: 'general', since: '2026-01-20T00:00:00Z' },
+  { source: 'agent-008', target: 'agent-009', weight: 78, trustType: 'staked', stakeAmount: 3000, since: '2025-08-15T00:00:00Z' },
+  { source: 'agent-008', target: 'agent-002', weight: 81, trustType: 'general', since: '2025-09-10T00:00:00Z' },
+  { source: 'agent-009', target: 'agent-010', weight: 55, trustType: 'task-specific', capability: 'reporting', since: '2025-12-01T00:00:00Z' },
+  { source: 'agent-009', target: 'agent-004', weight: 48, trustType: 'general', since: '2025-11-10T00:00:00Z' },
+  { source: 'agent-010', target: 'agent-007', weight: 28, trustType: 'general', since: '2026-01-25T00:00:00Z' },
+  { source: 'agent-001', target: 'agent-009', weight: 70, trustType: 'staked', stakeAmount: 2000, since: '2025-08-01T00:00:00Z' },
+  { source: 'agent-003', target: 'agent-005', weight: 52, trustType: 'general', since: '2025-11-25T00:00:00Z' },
+  { source: 'agent-011', target: 'agent-006', weight: 15, trustType: 'general', since: '2026-02-02T00:00:00Z' },
+  { source: 'agent-012', target: 'agent-011', weight: 10, trustType: 'general', since: '2026-02-06T00:00:00Z' },
 ];
 
 function computeStats(nodes: TrustNode[], edges: TrustEdge[]): TrustGraphStats {
@@ -539,12 +585,22 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
   }
 });
 
-// Extended agent details for detail panel
+// Extended agent details for detail panel with trust semantics
 interface AgentDetails extends TrustNode {
   incomingTrust: number;
   outgoingTrust: number;
   peerCount: number;
-  topPeers: Array<{ id: string; label: string; tier: Tier; direction: 'incoming' | 'outgoing'; weight: number }>;
+  topPeers: Array<{
+    id: string;
+    label: string;
+    tier: Tier;
+    direction: 'incoming' | 'outgoing';
+    weight: number;
+    trustType?: TrustType;
+    capability?: string;
+    stakeAmount?: number;
+    since?: string;
+  }>;
 }
 
 // GET /api/trust-graph/agent/:id/details - Full agent details with trust connections
@@ -574,7 +630,7 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
       ? Math.round(outgoing.reduce((sum, e) => sum + e.weight, 0) / outgoing.length)
       : 0;
 
-    // Build peer list
+    // Build peer list with full trust semantics
     const peers: AgentDetails['topPeers'] = [];
 
     for (const edge of incoming) {
@@ -584,8 +640,12 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
           id: peer.id,
           label: peer.label,
           tier: peer.tier,
-          direction: 'incoming',
+          direction: 'incoming',  // They trust me
           weight: edge.weight,
+          trustType: edge.trustType,
+          capability: edge.capability,
+          stakeAmount: edge.stakeAmount,
+          since: edge.since,
         });
       }
     }
@@ -597,8 +657,12 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
           id: peer.id,
           label: peer.label,
           tier: peer.tier,
-          direction: 'outgoing',
+          direction: 'outgoing',  // I trust them
           weight: edge.weight,
+          trustType: edge.trustType,
+          capability: edge.capability,
+          stakeAmount: edge.stakeAmount,
+          since: edge.since,
         });
       }
     }
