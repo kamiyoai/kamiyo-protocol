@@ -1,7 +1,6 @@
 import { PublicKey, Keypair, Connection } from '@solana/web3.js';
 import BN from 'bn.js';
 
-
 export enum ComplianceClass {
   Unclassified = 0,
   Minimal = 1,
@@ -32,7 +31,6 @@ export enum AuditType {
   Triggered = 2,
   Dispute = 3,
 }
-
 
 export interface MeishiPassport {
   agentIdentity: PublicKey;
@@ -103,7 +101,6 @@ export interface LiabilityAllocation {
   bump: number;
 }
 
-
 export interface MeishiConfig {
   connection: Connection;
   keypair: Keypair;
@@ -156,7 +153,6 @@ export interface RecordTransactionParams {
   disputeLost: boolean;
 }
 
-
 export interface MeishiPresentation {
   passportAddress: string;
   mandateVersion: number;
@@ -186,7 +182,6 @@ export interface ExchangeResult {
   error?: string;
 }
 
-
 export interface ComplianceDimension {
   name: string;
   weight: number;
@@ -205,7 +200,6 @@ export interface ComplianceReport {
   recommendations: string[];
   timestamp: number;
 }
-
 
 export interface KamonParams {
   symmetry: number;
