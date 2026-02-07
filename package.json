@@ -24,9 +24,9 @@
   ],
   "scripts": {
     "build": "anchor build && npm run build:sdk",
-    "build:api": "pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/x402-client run build && pnpm --filter @kamiyo/hive run build && pnpm --filter @kamiyo/agent-paranet run build && pnpm --filter @kamiyo/agent-core run build && pnpm --filter @kamiyo/daydreams run build && pnpm --filter @kamiyo/swarm-agents run build && pnpm --filter @kamiyo/blindfold run build && pnpm --filter @kamiyo/settlement run build && pnpm --filter @kamiyo/agents run build && pnpm --filter kamiyo-companion run build",
+    "build:api": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/x402-client run build && pnpm --filter @kamiyo/hive run build && pnpm --filter @kamiyo/agent-paranet run build && pnpm --filter @kamiyo/agent-core run build && pnpm --filter @kamiyo/daydreams run build && pnpm --filter @kamiyo/swarm-agents run build && pnpm --filter @kamiyo/blindfold run build && pnpm --filter @kamiyo/settlement run build && pnpm --filter @kamiyo/agents run build && pnpm --filter kamiyo-companion run build",
     "build:program": "anchor build",
-    "build:sdk": "pnpm --filter @kamiyo/sdk run build",
+    "build:sdk": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build",
     "build:surfpool": "pnpm --filter @kamiyo/surfpool run build",
     "build:oracle": "pnpm --filter @kamiyo/hive run build && pnpm --filter @kamiyo/hyperliquid run build && cd services/oracle && npm install && npm run build",
     "build:nika": "pnpm --filter @kamiyo/agent-paranet run build && pnpm --filter @kamiyo/settlement run build && pnpm --filter @kamiyo/agents run build && cd services/nika && npm run build",

@@ -12,6 +12,9 @@ pnpm install --ignore-scripts
 echo "=== Rebuilding native modules ==="
 pnpm rebuild better-sqlite3
 
+echo "=== Building @kamiyo/meishi ==="
+pnpm --filter @kamiyo/meishi build
+
 echo "=== Building @kamiyo/sdk ==="
 pnpm --filter @kamiyo/sdk build
 

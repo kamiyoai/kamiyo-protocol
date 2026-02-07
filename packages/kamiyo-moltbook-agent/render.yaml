@@ -4,7 +4,7 @@ services:
     runtime: node
     region: frankfurt
     plan: starter
-    buildCommand: corepack enable && corepack prepare pnpm@10 --activate && pnpm install && pnpm --filter @kamiyo/sdk build && pnpm --filter @kamiyo/x402-client build && pnpm --filter @kamiyo/dkg-quality-oracle build && pnpm --filter @kamiyo/hive build && pnpm --filter @kamiyo/paykit build && pnpm --filter @kamiyo/moltbook-agent build
+    buildCommand: corepack enable && corepack prepare pnpm@10 --activate && pnpm install && pnpm --filter @kamiyo/meishi build && pnpm --filter @kamiyo/sdk build && pnpm --filter @kamiyo/x402-client build && pnpm --filter @kamiyo/dkg-quality-oracle build && pnpm --filter @kamiyo/hive build && pnpm --filter @kamiyo/paykit build && pnpm --filter @kamiyo/moltbook-agent build
     startCommand: node packages/kamiyo-moltbook-agent/dist/cli.js
     envVars:
       - key: NODE_ENV
