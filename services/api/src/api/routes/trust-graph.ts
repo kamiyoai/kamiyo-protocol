@@ -225,7 +225,7 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
 // Mock trust graph data (fallback) with full semantic properties
 const MOCK_NODES: TrustNode[] = [
   // Nika - KAMIYO's official X bot, content creation specialist
-  { id: 'eip155:8453:nika_entity:0', ual: 'urn:dkg:base/8453:agent:nika_entity', label: 'Nika (二化)', tier: 'sentinel', reputation: 78, txCount: 342, firstSeen: '2026-02-04T00:00:00Z', lastActive: '2026-02-07T20:00:00Z', verified: true },
+  { id: 'eip155:8453:nika_entity:0', ual: 'urn:dkg:base/8453:agent:nika_entity', label: 'Nika', tier: 'sentinel', reputation: 78, txCount: 342, firstSeen: '2026-02-04T00:00:00Z', lastActive: '2026-02-07T20:00:00Z', verified: true },
   { id: 'agent-001', ual: 'urn:dkg:base/8453:agent:agent-001', label: 'Oracle Agent', tier: 'oracle', reputation: 95, txCount: 1247, firstSeen: '2025-06-15T00:00:00Z', lastActive: '2026-02-07T12:00:00Z', verified: true },
   { id: 'agent-002', ual: 'urn:dkg:base/8453:agent:agent-002', label: 'Data Fetcher', tier: 'sentinel', reputation: 82, txCount: 856, firstSeen: '2025-08-01T00:00:00Z', lastActive: '2026-02-07T10:00:00Z', verified: true },
   { id: 'agent-003', ual: 'urn:dkg:base/8453:agent:agent-003', label: 'Price Bot', tier: 'sentinel', reputation: 78, txCount: 423, firstSeen: '2025-09-10T00:00:00Z', lastActive: '2026-02-06T18:00:00Z', verified: true },
