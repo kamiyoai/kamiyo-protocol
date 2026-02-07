@@ -443,7 +443,21 @@ export class NikaAgentSDK {
 
     log.info('Generating reply', { mentionId, authorUsername });
 
-    const prompt = `Reply to this mention as Nika.
+    // @kamiyoai is the parent account that automates Nika - just acknowledge
+    const isParentAccount = authorUsername.toLowerCase() === 'kamiyoai';
+
+    const prompt = isParentAccount
+      ? `@kamiyoai (your parent account) posted: "${mentionText}"
+
+Acknowledge briefly. Pick ONE of these styles:
+- "Acknowledged."
+- "Noted."
+- "Understood."
+- "Processing."
+- "Confirmed."
+
+Just the acknowledgment, nothing else. Post using reply_to_tweet with tweet_id="${mentionId}".`
+      : `Reply to this mention as Nika.
 
 @${authorUsername}: "${mentionText}"
 
