@@ -79,9 +79,27 @@ TECH ELEMENTS:
 `;
 
 let xaiApiKey: string | null = null;
+let lastImagePostTimestamp: number | null = null;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export function setXaiApiKey(key: string) {
   xaiApiKey = key;
+}
+
+function canPostImage(): { allowed: boolean; hoursRemaining?: number } {
+  if (!lastImagePostTimestamp) {
+    return { allowed: true };
+  }
+  const elapsed = Date.now() - lastImagePostTimestamp;
+  if (elapsed >= ONE_DAY_MS) {
+    return { allowed: true };
+  }
+  const hoursRemaining = Math.ceil((ONE_DAY_MS - elapsed) / (60 * 60 * 1000));
+  return { allowed: false, hoursRemaining };
+}
+
+function recordImagePost() {
+  lastImagePostTimestamp = Date.now();
 }
 
 async function generateImage(prompt: string): Promise<{ url: string } | { error: string }> {
@@ -515,13 +533,26 @@ export function createXMcpServer(config: XMcpConfig) {
 
       tool(
         'post_tweet_with_image',
-        'Generate an image and post a tweet with it. The KAMIYO style protocol is automatically applied to the image.',
+        'Generate an image and post a tweet with it. Limited to once per day. The KAMIYO style protocol is automatically applied to the image.',
         {
           content: z.string().min(1).max(280).describe('Tweet text (max 280 characters)'),
           imagePrompt: z.string().min(10).max(1000).describe('Image description - what to generate'),
         },
         async (args) => {
           log.info('Posting tweet with image', { contentLength: args.content.length });
+
+          // Check daily rate limit
+          const rateCheck = canPostImage();
+          if (!rateCheck.allowed) {
+            log.info('Image post rate limited', { hoursRemaining: rateCheck.hoursRemaining });
+            return {
+              content: [{
+                type: 'text',
+                text: `Image posts are limited to once per day. Try again in ${rateCheck.hoursRemaining} hours.`,
+              }],
+            };
+          }
+
           try {
             // Generate image
             const imageResult = await generateImage(args.imagePrompt);
@@ -537,6 +568,9 @@ export function createXMcpServer(config: XMcpConfig) {
             const result = await client.v2.tweet(args.content, {
               media: { media_ids: [mediaId] },
             });
+
+            // Record successful image post
+            recordImagePost();
 
             metrics.incrementCounter('x_post_image_tweet_success');
             return {
