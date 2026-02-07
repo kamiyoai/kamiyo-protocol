@@ -443,28 +443,19 @@ export class NikaAgentSDK {
 
     log.info('Generating reply', { mentionId, authorUsername });
 
-    const prompt = `A user mentioned Nika on Twitter.
+    const prompt = `Reply to this mention as Nika.
 
-MENTION:
-From: @${authorUsername}
-Tweet ID: ${mentionId}
-Content: "${mentionText}"
+@${authorUsername}: "${mentionText}"
 
-TASK:
-1. Understand what the user is asking or saying
-2. Craft a thoughtful reply fitting Nika's voice
-3. Post the reply using the reply_to_tweet tool
+Reply directly. No preamble, no reasoning, no explanation of what you're doing. Just the reply text.
 
-GUIDELINES:
-- Be genuine, not performative
-- Match the energy of the interaction
-- Technical accuracy matters
+Rules:
 - Under 280 characters
 - No emojis
+- Match the energy
 - You are Nika (二化)
 
-OUTPUT:
-Return ONLY the reply text after posting.`;
+After composing your reply, post it using the reply_to_tweet tool with tweet_id="${mentionId}".`;
 
     let replyContent = '';
 
