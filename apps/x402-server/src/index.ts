@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
+import { initFacilitator, createFacilitatorRouter } from './facilitator.js';
 
 config();
 
@@ -102,6 +103,20 @@ const FACILITATOR_URL = process.env.PAYAI_FACILITATOR_URL || 'https://x402.kamiy
 const DKG_ENDPOINT = process.env.DKG_ENDPOINT || 'https://dkg.kamiyo.ai';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
 const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
+const FACILITATOR_MODE = process.env.FACILITATOR_MODE === 'true';
+
+// Initialize facilitator if configured
+initFacilitator({
+  solanaRpcUrl: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
+  solanaPrivateKey: process.env.FACILITATOR_PRIVATE_KEY || null,
+  treasuryWallet: process.env.TREASURY_WALLET || null,
+  baseRpcUrl: process.env.BASE_RPC_URL || null,
+  basePrivateKey: process.env.BASE_FACILITATOR_KEY || null,
+  baseTreasuryAddress: process.env.BASE_TREASURY_ADDRESS || null,
+  settlementFeeBps: parseInt(process.env.SETTLEMENT_FEE_BPS || '10', 10),
+  maxPaymentAgeMs: parseInt(process.env.MAX_PAYMENT_AGE_MS || '300000', 10),
+  maxSettlementAmount: parseFloat(process.env.MAX_SETTLEMENT_AMOUNT || '10000'),
+});
 
 const BASE_PRICES = {
   agentQuery: parseFloat(process.env.PRICE_AGENT_QUERY || '0.001'),
@@ -510,6 +525,9 @@ app.get('/supported', (_req, res) => {
     },
   });
 });
+
+// Mount facilitator endpoints (/verify, /settle, /facilitator-info)
+app.use('/', createFacilitatorRouter());
 
 app.get('/health', (_req, res) => {
   res.json({
