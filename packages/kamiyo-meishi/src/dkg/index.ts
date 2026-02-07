@@ -44,7 +44,6 @@ export interface MeishiDKGPublisherConfig {
 
 /**
  * Publishes Meishi audit trail records to OriginTrail DKG.
- * Each record becomes an immutable, queryable knowledge asset.
  */
 export class MeishiDKGPublisher {
   private dkg: DKGClient;

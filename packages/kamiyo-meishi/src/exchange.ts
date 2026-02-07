@@ -11,9 +11,7 @@ import type {
 } from './types.js';
 
 /**
- * Meishi Exchange Protocol — the handshake between agent and counterparty.
- *
- * Before any transaction, both parties present and verify Meishi credentials.
+ * Meishi credential presentation and verification for HTTP exchanges.
  */
 export class MeishiExchange {
   private passports: PassportManager;
@@ -119,6 +117,8 @@ export class MeishiExchange {
     const errors: string[] = [];
     const warnings: string[] = [];
 
+    // TODO(auth): verify presentation.signature against passport principal/issuer pubkey.
+    // Currently signature is not validated — any caller can present any passport address.
     const passportAddress = new PublicKey(presentation.passportAddress);
     const passport = await this.client.fetchPassport(passportAddress);
 

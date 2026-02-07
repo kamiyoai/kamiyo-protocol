@@ -63,10 +63,14 @@ export class MandateManager {
   }
 
   static buildGeoRestrictions(jurisdictions: number[]): number {
+    // Accepts jurisdiction enum values (1=EU, 2=US, 3=UK, 4=APAC).
+    // Maps to bits: EU→bit0, US→bit1, UK→bit2, APAC→bit3.
+    // Global (0) is not a restriction and is ignored.
     let bitmap = 0;
     for (const j of jurisdictions) {
-      if (j >= 0 && j < 8) {
-        bitmap |= 1 << j;
+      const bitIndex = j - 1;
+      if (bitIndex >= 0 && bitIndex < 8) {
+        bitmap |= 1 << bitIndex;
       }
     }
     return bitmap;

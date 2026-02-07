@@ -39,6 +39,7 @@ export function meishiPlugin(
         details: ctx.result.errors,
         warnings: ctx.result.warnings,
       });
+      return;
     }
   });
 

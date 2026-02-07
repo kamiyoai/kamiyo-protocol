@@ -3,7 +3,6 @@ import type { ComplianceRule } from './index.js';
 
 /**
  * Consumer protection rules — applicable across all jurisdictions.
- * Ensures agents operate within delegated authority and maintain clean records.
  */
 
 /** Authorization verification — consumer must have delegated authority. */
