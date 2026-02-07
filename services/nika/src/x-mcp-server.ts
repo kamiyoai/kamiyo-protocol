@@ -6,9 +6,24 @@ import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { TwitterApi } from 'twitter-api-v2';
 import { z } from 'zod/v4';
 import { createLogger, getMetrics } from './lib';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const log = createLogger('nika:x-mcp');
 const metrics = getMetrics();
+
+// Load Nika reference image for consistent character generation
+let nikaReferenceBase64: string | null = null;
+try {
+  const refPath = path.join(__dirname, '..', 'assets', 'nika-reference.png');
+  if (fs.existsSync(refPath)) {
+    const imageBuffer = fs.readFileSync(refPath);
+    nikaReferenceBase64 = imageBuffer.toString('base64');
+    log.info('Nika reference image loaded');
+  }
+} catch (err) {
+  log.warn('Could not load Nika reference image', { error: err });
+}
 
 // KAMIYO visual style protocol - applied to all image generation
 const KAMIYO_STYLE_PROTOCOL = `
@@ -77,17 +92,26 @@ async function generateImage(prompt: string): Promise<{ url: string } | { error:
   const fullPrompt = `${prompt}\n\n${KAMIYO_STYLE_PROTOCOL}`;
 
   try {
+    // Build request body with reference image if available
+    const requestBody: Record<string, unknown> = {
+      model: 'grok-2-image',
+      prompt: fullPrompt,
+      n: 1,
+    };
+
+    // Include Nika reference image for character consistency
+    if (nikaReferenceBase64) {
+      requestBody.image_url = `data:image/png;base64,${nikaReferenceBase64}`;
+      log.debug('Including Nika reference image in generation request');
+    }
+
     const response = await fetch('https://api.x.ai/v1/images/generations', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${xaiApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'grok-2-image',
-        prompt: fullPrompt,
-        n: 1,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
