@@ -87,7 +87,7 @@ export class NikaAgent {
     this.agent = createKamiyoAgent({
       name: 'nika',
       apiKey: config.anthropicApiKey,
-      model: 'claude-opus-4-6-20250219',
+      model: 'claude-opus-4-5-20251101',
       systemPrompt: SYSTEM_PROMPT,
       tools: [...this.xTools],
       maxTurns: 25,

@@ -319,7 +319,7 @@ export class NikaAgentSDK {
       // Build options for the query
       const queryOptions: Options = {
         systemPrompt: SYSTEM_PROMPT,
-        model: this.config.model === 'haiku' ? 'claude-haiku-4-5-20251001' : 'claude-opus-4-6-20250219',
+        model: this.config.model === 'haiku' ? 'claude-haiku-4-5-20251001' : 'claude-opus-4-5-20251101',
         allowedTools: ['Task', 'WebSearch', ...X_MCP_TOOL_NAMES],
         mcpServers: {
           'x-tools': this.xMcpServer,
