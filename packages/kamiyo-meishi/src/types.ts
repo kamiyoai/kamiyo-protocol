@@ -1,4 +1,4 @@
-import { PublicKey, Keypair, Connection } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 
 export enum ComplianceClass {

@@ -2,9 +2,13 @@ use anchor_lang::prelude::*;
 
 declare_id!("6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK");
 
-// Constants
+/*
+Constants
 
-// TODO(#governance): enforce minimum KAMIYO token stake via CPI to staking program
+Note: Some protocol-level constraints (e.g. minimum stake) are intentionally not enforced here yet.
+They will be enforced via CPI once the staking program interface is finalized.
+*/
+// TODO(governance): enforce minimum KAMIYO token stake via CPI to staking program
 // pub const MIN_PASSPORT_STAKE: u64 = 50_000_000;
 
 /// Maximum compliance score (maps to 1000 on-chain)
@@ -31,7 +35,9 @@ pub const MAX_SPENDING_LIMIT: u64 = 10_000_000_000_000;
 // TODO(#audit-ring): enforce ring buffer wrap at MAX_AUDIT_NONCE in record_audit
 pub const MAX_AUDIT_NONCE: u32 = 10000;
 
-// Helpers
+/*
+Helpers
+*/
 
 fn compute_kamon_hash(agent_identity: &Pubkey, issuer: &Pubkey, created_at: i64) -> [u8; 32] {
     let mut data = [0u8; 72]; // 32 + 32 + 8
@@ -41,28 +47,22 @@ fn compute_kamon_hash(agent_identity: &Pubkey, issuer: &Pubkey, created_at: i64)
     anchor_lang::solana_program::hash::hash(&data).to_bytes()
 }
 
-fn validate_liability_bps(
-    consumer: u16,
-    developer: u16,
-    merchant: u16,
-    platform: u16,
-) -> bool {
+fn validate_liability_bps(consumer: u16, developer: u16, merchant: u16, platform: u16) -> bool {
     let total = consumer as u32 + developer as u32 + merchant as u32 + platform as u32;
     total == BPS_DENOMINATOR as u32
 }
 
-// Program
+/*
+Program
+*/
 
 #[program]
 pub mod meishi {
     use super::*;
 
     /// Create a new Meishi passport for an agent.
-    /// Requires the caller to own an active Kamiyo AgentIdentity.
-    pub fn create_meishi(
-        ctx: Context<CreateMeishi>,
-        jurisdiction: u8,
-    ) -> Result<()> {
+    /// The caller must own an active Kamiyo AgentIdentity.
+    pub fn create_meishi(ctx: Context<CreateMeishi>, jurisdiction: u8) -> Result<()> {
         require!(jurisdiction <= 4, MeishiError::InvalidJurisdiction);
 
         let clock = Clock::get()?;
@@ -72,7 +72,7 @@ pub mod meishi {
 
         passport.agent_identity = agent_identity;
         passport.issuer = issuer;
-        passport.principal = issuer; // initially, owner is the principal
+        passport.principal = issuer; // initial principal is the issuer
         passport.kamon_hash = compute_kamon_hash(&agent_identity, &issuer, clock.unix_timestamp);
         passport.compliance_class = ComplianceClass::Unclassified;
         passport.compliance_score = DEFAULT_COMPLIANCE_SCORE;
@@ -141,11 +141,15 @@ pub mod meishi {
         let mandate = &mut ctx.accounts.mandate;
         let passport = &mut ctx.accounts.passport;
 
-        let version = passport.mandate_version.checked_add(1).ok_or(MeishiError::ArithmeticOverflow)?;
+        let version = passport
+            .mandate_version
+            .checked_add(1)
+            .ok_or(MeishiError::ArithmeticOverflow)?;
 
         mandate.meishi = passport.key();
         mandate.version = version;
-        mandate.principal_signature = [0u8; 64]; // set off-chain after signing
+        // Set off-chain after the principal signs the mandate payload.
+        mandate.principal_signature = [0u8; 64];
         mandate.spending_limit_usd = spending_limit_usd;
         mandate.daily_limit_usd = daily_limit_usd;
         mandate.monthly_limit_usd = monthly_limit_usd;
@@ -159,7 +163,7 @@ pub mod meishi {
         mandate.revoked_at = 0;
         mandate.bump = ctx.bumps.mandate;
 
-        // Update passport with latest mandate reference
+        // Update passport with a hash of the current mandate parameters.
         let mandate_data = [
             spending_limit_usd.to_le_bytes().as_ref(),
             daily_limit_usd.to_le_bytes().as_ref(),
@@ -295,7 +299,7 @@ pub mod meishi {
         passport.compliance_score = new_score;
         passport.updated_at = clock.unix_timestamp;
 
-        // Auto-suspend on critical score drop
+        // Auto-suspend on a critical score drop.
         if new_score < -500 && !passport.suspended {
             passport.suspended = true;
             passport.suspension_reason = SuspensionReason::ComplianceFailure;
@@ -320,10 +324,7 @@ pub mod meishi {
     }
 
     /// Suspend a Meishi passport. Oracle consensus or protocol multisig can suspend.
-    pub fn suspend_meishi(
-        ctx: Context<SuspendMeishi>,
-        reason: u8,
-    ) -> Result<()> {
+    pub fn suspend_meishi(ctx: Context<SuspendMeishi>, reason: u8) -> Result<()> {
         let clock = Clock::get()?;
         let passport = &mut ctx.accounts.passport;
 
@@ -364,7 +365,7 @@ pub mod meishi {
         Ok(())
     }
 
-    /// Set pre-agreed liability allocation between agent and counterparty.
+    /// Set a pre-agreed liability allocation between the agent and a counterparty.
     /// Both parties must sign.
     pub fn set_liability_allocation(
         ctx: Context<SetLiabilityAllocation>,
@@ -419,7 +420,7 @@ pub mod meishi {
     }
 
     /// Record a completed transaction against this passport.
-    /// Called by escrow program via CPI or by authorized service.
+    /// Called by the escrow program via CPI or by an authorized service.
     pub fn record_transaction(
         ctx: Context<RecordTransaction>,
         volume_usd: u64,
@@ -495,8 +496,8 @@ pub struct CreateMeishi<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: TODO(#cpi-verify) — add CPI to kamiyo program to verify agent is active.
-    /// Currently validated only by PDA seed derivation.
+    /// CHECK: TODO(cpi-verify) add CPI to the Kamiyo program to verify the agent is active.
+    /// For now we only rely on PDA seed derivation.
     pub agent_identity: AccountInfo<'info>,
 
     #[account(
@@ -654,7 +655,7 @@ pub struct TransferPrincipal<'info> {
     )]
     pub passport: Account<'info, MeishiPassport>,
 
-    /// CHECK: New principal address. No validation needed — any pubkey is valid.
+    /// CHECK: New principal address. Any pubkey is valid.
     pub new_principal: AccountInfo<'info>,
 }
 
