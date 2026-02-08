@@ -103,7 +103,35 @@ app.get('/', (_req, res) => {
 const PORT = parseInt(process.env.PORT || '3402', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const MERCHANT_ADDRESS = process.env.MERCHANT_ADDRESS || '';
-const FACILITATOR_URL = process.env.PAYAI_FACILITATOR_URL || 'https://x402.kamiyo.ai';
+
+function normalizeFacilitatorUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function parseFacilitatorUrls(): string[] {
+  const configured = [
+    process.env.FACILITATOR_URL,
+    process.env.PAYAI_FACILITATOR_URL,
+    ...(process.env.FACILITATOR_URLS || '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean),
+  ].filter((u): u is string => typeof u === 'string' && u.length > 0);
+
+  const urls = (configured.length > 0 ? configured : ['https://x402.kamiyo.ai'])
+    .map(normalizeFacilitatorUrl)
+    .filter((u): u is string => !!u);
+
+  return Array.from(new Set(urls));
+}
+
+const FACILITATOR_URLS = parseFacilitatorUrls();
+const FACILITATOR_URL = FACILITATOR_URLS[0] || 'https://x402.kamiyo.ai';
 const DKG_ENDPOINT = process.env.DKG_ENDPOINT || 'https://dkg.kamiyo.ai';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
 const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
@@ -329,82 +357,102 @@ function create402Response(
 }
 
 async function verifyPayment(paymentHeader: string, requirement: Record<string, unknown>): Promise<{ valid: boolean; payer?: string; error?: string }> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+  let lastError = 'Payment verification failed';
 
-    const res = await fetch(`${FACILITATOR_URL}/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        x402Version: 2,
-        paymentHeader,
-        paymentRequirements: requirement,
-      }),
-      signal: controller.signal,
-    });
+  for (const facilitatorUrl of FACILITATOR_URLS) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    clearTimeout(timeout);
+      const res = await fetch(`${facilitatorUrl}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          x402Version: 2,
+          paymentHeader,
+          paymentRequirements: requirement,
+        }),
+        signal: controller.signal,
+      });
 
-    const data = (await res.json()) as {
-      isValid?: boolean;
-      payer?: string;
-      invalidReason?: string;
-      invalidMessage?: string;
-      errorReason?: string;
-      errorMessage?: string;
-      error?: string;
-    };
-    return {
-      valid: !!data.isValid,
-      payer: data.payer,
-      error: data.invalidReason || data.invalidMessage || data.errorReason || data.errorMessage || data.error,
-    };
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return { valid: false, error: 'Facilitator timeout' };
+      clearTimeout(timeout);
+
+      const data = (await res.json()) as {
+        isValid?: boolean;
+        payer?: string;
+        invalidReason?: string;
+        invalidMessage?: string;
+        errorReason?: string;
+        errorMessage?: string;
+        error?: string;
+      };
+      if (data.isValid) {
+        return {
+          valid: true,
+          payer: data.payer,
+        };
+      }
+
+      lastError = data.invalidReason || data.invalidMessage || data.errorReason || data.errorMessage || data.error || lastError;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        lastError = 'Facilitator timeout';
+        continue;
+      }
+      lastError = err instanceof Error ? err.message : 'Unknown error';
     }
-    return { valid: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
+
+  return { valid: false, error: lastError };
 }
 
 async function settlePayment(paymentHeader: string, requirement: Record<string, unknown>): Promise<{ success: boolean; tx?: string; error?: string }> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+  let lastError = 'Settlement failed';
 
-    const res = await fetch(`${FACILITATOR_URL}/settle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        x402Version: 2,
-        paymentHeader,
-        paymentRequirements: requirement,
-      }),
-      signal: controller.signal,
-    });
+  for (const facilitatorUrl of FACILITATOR_URLS) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    clearTimeout(timeout);
+      const res = await fetch(`${facilitatorUrl}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          x402Version: 2,
+          paymentHeader,
+          paymentRequirements: requirement,
+        }),
+        signal: controller.signal,
+      });
 
-    const data = (await res.json()) as {
-      success?: boolean;
-      transaction?: string;
-      txHash?: string;
-      error?: string;
-      errorReason?: string;
-      errorMessage?: string;
-    };
-    return {
-      success: !!data.success,
-      tx: data.transaction || data.txHash,
-      error: data.error || data.errorReason || data.errorMessage,
-    };
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return { success: false, error: 'Settlement timeout' };
+      clearTimeout(timeout);
+
+      const data = (await res.json()) as {
+        success?: boolean;
+        transaction?: string;
+        txHash?: string;
+        error?: string;
+        errorReason?: string;
+        errorMessage?: string;
+      };
+      if (data.success) {
+        return {
+          success: true,
+          tx: data.transaction || data.txHash,
+        };
+      }
+
+      lastError = data.error || data.errorReason || data.errorMessage || lastError;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        lastError = 'Settlement timeout';
+        continue;
+      }
+      lastError = err instanceof Error ? err.message : 'Unknown error';
     }
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
+
+  return { success: false, error: lastError };
 }
 
 function extractReputationThreshold(paymentHeader: string): number | null {
@@ -630,6 +678,7 @@ app.get('/health', (_req, res) => {
     ok: true,
     version: '2.0.0',
     facilitator: FACILITATOR_URL,
+    facilitators: FACILITATOR_URLS,
     merchant: MERCHANT_ADDRESS,
     networks: getAdvertisedChainIds(),
     features: {
@@ -649,6 +698,7 @@ app.get('/.well-known/x402', (_req, res) => {
     name: 'KAMIYO Protocol',
     description: 'Trustless infrastructure for autonomous AI agents',
     facilitator: FACILITATOR_URL,
+    facilitators: FACILITATOR_URLS,
     merchant: MERCHANT_ADDRESS,
     resources: [
       {
@@ -866,6 +916,7 @@ app.listen(PORT, HOST, () => {
   console.log(`KAMIYO x402 server running at http://${HOST}:${PORT}`);
   console.log(`Merchant: ${MERCHANT_ADDRESS}`);
   console.log(`Facilitator: ${FACILITATOR_URL}`);
+  console.log(`Facilitator failover order: ${FACILITATOR_URLS.join(', ')}`);
   console.log(`Networks: ${getAdvertisedChainIds().join(', ')}`);
   console.log('');
   console.log('Features:');

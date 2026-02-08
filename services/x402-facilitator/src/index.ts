@@ -65,9 +65,8 @@ async function main() {
   app.use(helmet());
   app.use(cors());
   app.use(express.json({ limit: '16kb' }));
-  app.use(rateLimit);
 
-  app.get('/health', (_req, res) => {
+  app.get('/health', rateLimit, (_req, res) => {
     res.json({
       status: 'ok',
       version: '1.0.0',
@@ -77,17 +76,17 @@ async function main() {
     });
   });
 
-  app.use('/.well-known/x402', createDiscoveryRouter());
-  app.use('/supported', createSupportedRouter(facilitatorKeypair));
-  app.use('/supported-networks', createNetworksRouter());
-  app.use('/fees', createFeesRouter());
+  app.use('/.well-known/x402', rateLimit, createDiscoveryRouter());
+  app.use('/supported', rateLimit, createSupportedRouter(facilitatorKeypair));
+  app.use('/supported-networks', rateLimit, createNetworksRouter());
+  app.use('/fees', rateLimit, createFeesRouter());
+  app.use('/reputation', rateLimit, createReputationRouter());
 
-  app.use('/verify', optionalApiKeyAuth, createVerifyRouter(connection));
-  app.use('/settle', apiKeyAuth, createSettleRouter(connection, facilitatorKeypair));
-  app.use('/escrow', apiKeyAuth, createEscrowRouter(connection, facilitatorKeypair));
-  app.use('/dispute', apiKeyAuth, createDisputeRouter(connection, facilitatorKeypair));
-  app.use('/reputation', createReputationRouter());
-  app.use('/privacy', apiKeyAuth, createPrivacyRouter(connection, facilitatorKeypair));
+  app.use('/verify', optionalApiKeyAuth, rateLimit, createVerifyRouter(connection));
+  app.use('/settle', apiKeyAuth, rateLimit, createSettleRouter(connection, facilitatorKeypair));
+  app.use('/escrow', apiKeyAuth, rateLimit, createEscrowRouter(connection, facilitatorKeypair));
+  app.use('/dispute', apiKeyAuth, rateLimit, createDisputeRouter(connection, facilitatorKeypair));
+  app.use('/privacy', apiKeyAuth, rateLimit, createPrivacyRouter(connection, facilitatorKeypair));
 
   app.use(errorHandler);
 
