@@ -23,6 +23,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsc --watch",
     "lint": "eslint src --ext .ts",
     "test": "ts-mocha -p ../../tests/tsconfig.json ../../tests/meishi-validation.test.ts ../../tests/meishi-dkg-alignment.test.ts"
