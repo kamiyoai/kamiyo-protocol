@@ -1,0 +1,18 @@
+{
+  "name": "@kamiyo/companion-ws",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WebSocket service for streaming agent events to the companion app.",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "node -e \"console.log('companion-ws: no build step')\"",
+    "start": "node src/index.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  }
+}
+

@@ -12,11 +12,65 @@ import {
   fileDispute,
   getApiReputation,
 } from './solana';
+import {
+  meishiClient,
+  parsePubkey,
+  pk,
+  serializePassport,
+  serializeMandate,
+  serializeAudit,
+} from '../meishi/public';
 import { mcpToolCallsTotal } from '../metrics.js';
 
 export type McpAuthInfo = AuthInfo;
 
 const TOOL_DEFINITIONS = [
+  {
+    name: 'meishi_verify_agent',
+    description: 'Verify whether an agent has a valid Meishi passport (on-chain)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        agentIdentity: { type: 'string', description: 'Agent identity pubkey' },
+      },
+      required: ['agentIdentity'],
+    },
+  },
+  {
+    name: 'meishi_get_passport',
+    description: 'Fetch a Meishi passport and latest mandate by passport address (on-chain)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        passportAddress: { type: 'string', description: 'Meishi passport PDA' },
+      },
+      required: ['passportAddress'],
+    },
+  },
+  {
+    name: 'meishi_get_mandate',
+    description: 'Fetch a Meishi mandate by passport address and version (on-chain)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        passportAddress: { type: 'string', description: 'Meishi passport PDA' },
+        version: { type: 'number', description: 'Mandate version (u32)' },
+      },
+      required: ['passportAddress', 'version'],
+    },
+  },
+  {
+    name: 'meishi_get_audit',
+    description: 'Fetch a Meishi audit entry by passport address and nonce (on-chain)',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        passportAddress: { type: 'string', description: 'Meishi passport PDA' },
+        nonce: { type: 'number', description: 'Audit nonce (u32)' },
+      },
+      required: ['passportAddress', 'nonce'],
+    },
+  },
   {
     name: 'create_escrow',
     description: 'Create payment escrow with quality guarantee',
@@ -337,6 +391,13 @@ async function x402CheckPricing(args: { url: string }): Promise<{ success: boole
 }
 
 async function handleTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const parseNonNegativeNumber = (value: unknown): number | null => {
+    if (typeof value !== 'number') return null;
+    if (!Number.isFinite(value) || value < 0) return null;
+    if (!Number.isInteger(value)) return null;
+    return value;
+  };
+
   // Off-chain tools
   if (name === 'assess_data_quality') {
     return assessDataQuality(args as { apiResponse: Record<string, unknown>; expectedCriteria: string[] });
@@ -352,6 +413,63 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
 
   if (name === 'x402_fetch') {
     return { success: false, error: 'x402 payment requires wallet integration - use local MCP server' };
+  }
+
+  // Meishi (read-only on-chain)
+  if (name === 'meishi_verify_agent') {
+    const agentIdentity = parsePubkey(args.agentIdentity as string);
+    if (!agentIdentity) return { success: false, error: 'invalid_agent_identity' };
+
+    const [passportAddress] = meishiClient.getPassportPDA(agentIdentity);
+    const result = await meishiClient.verifyPassport(agentIdentity);
+    return {
+      success: true,
+      agentIdentity: pk(agentIdentity),
+      passportAddress: pk(passportAddress),
+      ...result,
+    };
+  }
+
+  if (name === 'meishi_get_passport') {
+    const passportAddress = parsePubkey(args.passportAddress as string);
+    if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
+
+    const passport = await meishiClient.fetchPassport(passportAddress);
+    if (!passport) return { success: false, error: 'passport_not_found' };
+
+    const latestMandate = await meishiClient.getLatestMandate(passportAddress);
+    return {
+      success: true,
+      passportAddress: pk(passportAddress),
+      passport: serializePassport(passport),
+      latestMandate: serializeMandate(latestMandate),
+    };
+  }
+
+  if (name === 'meishi_get_mandate') {
+    const passportAddress = parsePubkey(args.passportAddress as string);
+    if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
+
+    const version = parseNonNegativeNumber(args.version);
+    if (version === null) return { success: false, error: 'invalid_version' };
+
+    const mandate = await meishiClient.getMandate(passportAddress, version);
+    if (!mandate) return { success: false, error: 'mandate_not_found' };
+
+    return { success: true, mandate: serializeMandate(mandate) };
+  }
+
+  if (name === 'meishi_get_audit') {
+    const passportAddress = parsePubkey(args.passportAddress as string);
+    if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
+
+    const nonce = parseNonNegativeNumber(args.nonce);
+    if (nonce === null) return { success: false, error: 'invalid_nonce' };
+
+    const audit = await meishiClient.getAudit(passportAddress, nonce);
+    if (!audit) return { success: false, error: 'audit_not_found' };
+
+    return { success: true, audit: serializeAudit(audit) };
   }
 
   // Solana tools
