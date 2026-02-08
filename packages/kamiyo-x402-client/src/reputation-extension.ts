@@ -656,12 +656,18 @@ export class DynamicCreditTracker {
       if (remaining <= 0) {
         throw new Error(`Lock timeout on commitment ${key}`);
       }
-      await Promise.race([
-        existing.promise,
-        new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error(`Lock timeout on commitment ${key}`)), remaining)
-        ),
-      ]);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<void>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Lock timeout on commitment ${key}`)), remaining);
+      });
+
+      try {
+        await Promise.race([existing.promise, timeout]);
+      } finally {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      }
     }
 
     let resolve: () => void;
