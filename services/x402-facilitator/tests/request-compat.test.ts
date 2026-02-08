@@ -18,6 +18,29 @@ describe('request compatibility adapters', () => {
     expect(parsed.value.maxAmount).toBe(10);
   });
 
+  it('parses x402 v2 verify input (paymentHeader + paymentRequirements)', () => {
+    const parsed = parseVerifyInput({
+      paymentHeader: 'exact:eip155:8453:Zm9v',
+      paymentRequirements: {
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '1500000',
+        payTo: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
+        asset: 'USDC',
+        resource: '/resource',
+      },
+    });
+
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    expect(parsed.value.mode).toBe('x402');
+    expect(parsed.value.paymentHeader).toBe('exact:eip155:8453:Zm9v');
+    expect(parsed.value.requirementNetwork).toBe('eip155:8453');
+    expect(parsed.value.requirementAmountRaw).toBe('1500000');
+    expect(parsed.value.resource).toBe('/resource');
+  });
+
   it('parses x402 verify input and derives payment header from payload object', () => {
     const parsed = parseVerifyInput({
       paymentPayload: {
@@ -50,6 +73,28 @@ describe('request compatibility adapters', () => {
     expect(parsed.value.mode).toBe('x402');
     expect(parsed.value.paymentHeader.startsWith('exact:eip155:8453:')).toBe(true);
     expect(parsed.value.requirementAmountRaw).toBe('1500000');
+  });
+
+  it('parses x402 v2 settle input (paymentHeader + paymentRequirements) and extracts payTo', () => {
+    const parsed = parseSettleInput({
+      paymentHeader: 'exact:eip155:8453:Zm9v',
+      paymentRequirements: {
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '1000000',
+        payTo: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
+        asset: 'USDC',
+        resource: '/settlements/demo',
+      },
+    });
+
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    expect(parsed.value.mode).toBe('x402');
+    expect(parsed.value.merchantWallet).toBe('0x8ba1f109551bD432803012645Ac136ddd64DBA72');
+    expect(parsed.value.requirementAmountRaw).toBe('1000000');
+    expect(parsed.value.requirementResource).toBe('/settlements/demo');
   });
 
   it('parses x402 settle input and extracts payTo', () => {

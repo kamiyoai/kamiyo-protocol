@@ -193,6 +193,27 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
   if (!root) return { ok: false, error: 'Missing request body' };
 
   const legacyHeader = asString(root.paymentHeader);
+  const legacyRequirements = asRecord(root.paymentRequirements);
+  if (legacyHeader && legacyRequirements) {
+    const network = asString(legacyRequirements.network);
+    if (!network) return { ok: false, error: 'Missing paymentRequirements.network' };
+
+    const requirementAmountRaw =
+      asString(legacyRequirements.amount) || asString(legacyRequirements.maxAmountRequired);
+    if (!requirementAmountRaw) return { ok: false, error: 'Missing paymentRequirements.amount' };
+
+    return {
+      ok: true,
+      value: {
+        mode: 'x402',
+        paymentHeader: legacyHeader,
+        resource: asString(legacyRequirements.resource) || asString(root.resource),
+        requirementAmountRaw,
+        requirementNetwork: network,
+      },
+    };
+  }
+
   if (legacyHeader) {
     return {
       ok: true,
@@ -261,8 +282,33 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
     };
   }
 
-  const paymentPayload = asRecord(root.paymentPayload);
   const paymentRequirements = asRecord(root.paymentRequirements);
+  if (legacyHeader && paymentRequirements) {
+    const network = asString(paymentRequirements.network);
+    if (!network) return { ok: false, error: 'Missing paymentRequirements.network' };
+
+    const requirementAmountRaw =
+      asString(paymentRequirements.amount) || asString(paymentRequirements.maxAmountRequired);
+    if (!requirementAmountRaw) return { ok: false, error: 'Missing paymentRequirements.amount' };
+
+    const merchantWallet = asString(paymentRequirements.payTo);
+    if (!merchantWallet) return { ok: false, error: 'Missing paymentRequirements.payTo' };
+
+    return {
+      ok: true,
+      value: {
+        mode: 'x402',
+        paymentHeader: legacyHeader,
+        merchantWallet,
+        asset: asString(paymentRequirements.asset) || asString(root.asset) || 'USDC',
+        requirementAmountRaw,
+        requirementNetwork: network,
+        requirementResource: asString(paymentRequirements.resource),
+      },
+    };
+  }
+
+  const paymentPayload = asRecord(root.paymentPayload);
   if (!paymentPayload || !paymentRequirements) {
     return { ok: false, error: 'Missing paymentPayload or paymentRequirements' };
   }
