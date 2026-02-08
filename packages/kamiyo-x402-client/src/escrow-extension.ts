@@ -246,11 +246,16 @@ export async function verifyEscrow(
   escrowPda: PublicKey,
   minBalance?: number
 ): Promise<EscrowVerifyResult> {
-  const timeout = ESCROW_VERIFY_TIMEOUT_MS;
+  const timeoutMs = ESCROW_VERIFY_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Timeout')), timeoutMs);
+    });
+
     const info = await Promise.race([
       connection.getAccountInfo(escrowPda, { commitment: 'confirmed' }),
-      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout)),
+      timeoutPromise,
     ]);
 
     if (!info) return { valid: false, error: 'Escrow account not found' };
@@ -276,6 +281,8 @@ export async function verifyEscrow(
     return { valid: true, escrowPda, balance, status };
   } catch (e) {
     return { valid: false, error: e instanceof Error ? e.message : 'Verification failed' };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

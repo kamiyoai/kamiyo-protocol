@@ -114,7 +114,7 @@ export async function routePrivateTransfer(
 
   if (breakerOpen()) {
     return { success: false, relayerFee, error: 'ShadowPay unavailable' };
-    }
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
