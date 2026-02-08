@@ -45,6 +45,161 @@ describe('PayAIFacilitator', () => {
       });
       expect(f).toBeDefined();
     });
+
+    it('accepts ordered facilitator URL fallback list', () => {
+      const f = new PayAIFacilitator({
+        merchantAddress: merchant,
+        facilitatorUrls: ['https://kamiyo.ai/', 'https://facilitator.payai.network/'],
+      });
+      expect(f.getFacilitatorUrls()).toEqual([
+        'https://kamiyo.ai',
+        'https://facilitator.payai.network',
+      ]);
+    });
+  });
+
+  describe('facilitator failover', () => {
+    const header = 'dummy-payment-header';
+    const requirement: PaymentRequirement = {
+      scheme: 'exact',
+      network: 'eip155:8453',
+      amount: '10000',
+      resource: '/api/test',
+      description: 'Test payment',
+      payTo: merchant,
+      asset: 'USDC',
+      maxTimeoutSeconds: 60,
+    };
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('falls back to the next facilitator when the primary is unavailable', async () => {
+      const f = new PayAIFacilitator({
+        merchantAddress: merchant,
+        facilitatorUrls: ['https://primary.example', 'https://fallback.example'],
+        retryAttempts: 1,
+      });
+
+      const fetchSpy = jest.spyOn(globalThis as any, 'fetch');
+      const fetchMock = fetchSpy as unknown as jest.Mock;
+      fetchMock
+        .mockRejectedValueOnce(new Error('primary down'))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ isValid: true, payer: merchant }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }) as unknown as Response
+        );
+
+      const result = await f.verify(header, requirement);
+
+      expect(result.valid).toBe(true);
+      expect(result.facilitator).toBe('https://fallback.example');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(String(fetchSpy.mock.calls[0][0])).toContain('https://primary.example/verify');
+      expect(String(fetchSpy.mock.calls[1][0])).toContain('https://fallback.example/verify');
+    });
+
+    it('does not fail over on non-retryable 4xx facilitator errors', async () => {
+      const f = new PayAIFacilitator({
+        merchantAddress: merchant,
+        facilitatorUrls: ['https://primary.example', 'https://fallback.example'],
+        retryAttempts: 1,
+      });
+
+      const fetchSpy = jest.spyOn(globalThis as any, 'fetch');
+      const fetchMock = fetchSpy as unknown as jest.Mock;
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'bad request' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }) as unknown as Response
+      );
+
+      await expect(f.verify(header, requirement)).rejects.toMatchObject({
+        code: 'FACILITATOR_ERROR',
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('response parsing', () => {
+    const header = 'dummy-payment-header';
+    const requirement: PaymentRequirement = {
+      scheme: 'exact',
+      network: 'eip155:8453',
+      amount: '10000',
+      resource: '/api/test',
+      description: 'Test payment',
+      payTo: merchant,
+      asset: 'USDC',
+      maxTimeoutSeconds: 60,
+    };
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('uses structured verify error fields when invalidReason is missing', async () => {
+      const f = new PayAIFacilitator({
+        merchantAddress: merchant,
+        facilitatorUrl: 'https://primary.example',
+        retryAttempts: 1,
+      });
+
+      const fetchSpy = jest.spyOn(globalThis as any, 'fetch');
+      const fetchMock = fetchSpy as unknown as jest.Mock;
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ isValid: false, invalidMessage: 'bad signature' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }) as unknown as Response
+      );
+
+      const result = await f.verify(header, requirement);
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBe('bad signature');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(String(fetchSpy.mock.calls[0][0])).toContain('/verify');
+    });
+
+    it('maps settle txHash and structured settle error fields', async () => {
+      const f = new PayAIFacilitator({
+        merchantAddress: merchant,
+        facilitatorUrl: 'https://primary.example',
+        retryAttempts: 1,
+      });
+
+      const fetchSpy = jest.spyOn(globalThis as any, 'fetch');
+      const fetchMock = fetchSpy as unknown as jest.Mock;
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ success: true, txHash: '0xtxhash' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }) as unknown as Response
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ success: false, errorReason: 'insufficient_funds' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }) as unknown as Response
+        );
+
+      const ok = await f.settle(header, requirement);
+      const failed = await f.settle(header, requirement);
+
+      expect(ok.success).toBe(true);
+      expect(ok.tx).toBe('0xtxhash');
+      expect(failed.success).toBe(false);
+      expect(failed.error).toBe('insufficient_funds');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(String(fetchSpy.mock.calls[0][0])).toContain('/settle');
+      expect(String(fetchSpy.mock.calls[1][0])).toContain('/settle');
+    });
   });
 
   describe('static utilities', () => {

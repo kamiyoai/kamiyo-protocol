@@ -49,6 +49,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       asset,
       requirementAmountRaw,
       requirementNetwork,
+      requirementResource,
     } = parsedInput.value;
 
     const normalizedAsset = asset || 'USDC';
@@ -113,6 +114,22 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       return;
     }
 
+    if (
+      requirementResource &&
+      payment.resource &&
+      requirementResource !== payment.resource
+    ) {
+      sendSettleFailure(
+        res,
+        400,
+        'resource_mismatch',
+        'Resource mismatch with payment requirements',
+        network,
+        payment.payer
+      );
+      return;
+    }
+
     const amount = mode === 'x402' ? signedAmount : (legacyAmount as number);
 
     if (amount > config.MAX_SETTLEMENT_AMOUNT) {
@@ -149,7 +166,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       payment.nonce,
       'settle',
       network,
-      payment.resource || '',
+      payment.resource || requirementResource || '',
       amount
     );
     if (!nonceReserved) {
