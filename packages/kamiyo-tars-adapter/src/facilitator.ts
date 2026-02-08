@@ -31,6 +31,29 @@ import {
 import { TarsBridge, createTarsBridge } from './bridge';
 import { deriveAgentPda, deriveJobPda, deriveFeedbackPda } from './job-linker';
 
+const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const SOLANA_DEVNET_CAIP2 = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+
+function canonicalizeNetwork(network: string): string | null {
+  const normalized = network.trim().toLowerCase();
+  if (
+    normalized === 'solana' ||
+    normalized === 'solana:mainnet' ||
+    normalized === 'solana:mainnet-beta' ||
+    normalized === SOLANA_MAINNET_CAIP2
+  ) {
+    return SOLANA_MAINNET_CAIP2;
+  }
+  if (
+    normalized === 'solana-devnet' ||
+    normalized === 'solana:devnet' ||
+    normalized === SOLANA_DEVNET_CAIP2
+  ) {
+    return SOLANA_DEVNET_CAIP2;
+  }
+  return null;
+}
+
 export interface UnifiedFacilitatorConfig {
   connection: Connection;
   payer: Keypair;
@@ -66,12 +89,12 @@ export class UnifiedFacilitator {
   async prepare(request: PrepareRequest): Promise<PrepareResponse> {
     const { paymentRequirements, walletAddress, enableTrustless } = request;
 
-    const network = paymentRequirements.network;
-    if (network !== 'solana' && network !== 'solana-devnet') {
-      throw new Error(`Unsupported network: ${network}`);
+    const network = canonicalizeNetwork(paymentRequirements.network);
+    if (!network) {
+      throw new Error(`Unsupported network: ${paymentRequirements.network}`);
     }
 
-    const isDevnet = network === 'solana-devnet';
+    const isDevnet = network === SOLANA_DEVNET_CAIP2;
     const usdcMint = isDevnet ? USDC_DEVNET : USDC_MAINNET;
 
     let clientWallet: PublicKey;
@@ -143,6 +166,7 @@ export class UnifiedFacilitator {
 
     const enrichedRequirements = {
       ...paymentRequirements,
+      network,
       extra: {
         ...paymentRequirements.extra,
         feePayer: this.payer.publicKey.toBase58(),
@@ -303,18 +327,18 @@ export class UnifiedFacilitator {
     return {
       kinds: [
         {
-          x402Version: 1,
+          x402Version: 2,
           scheme: 'exact',
-          network: 'solana',
+          network: SOLANA_MAINNET_CAIP2,
           extra: {
             feePayer: this.payer.publicKey.toBase58(),
             tarsEnabled: true,
           },
         },
         {
-          x402Version: 1,
+          x402Version: 2,
           scheme: 'exact',
-          network: 'solana-devnet',
+          network: SOLANA_DEVNET_CAIP2,
           extra: {
             feePayer: this.payer.publicKey.toBase58(),
             tarsEnabled: true,
