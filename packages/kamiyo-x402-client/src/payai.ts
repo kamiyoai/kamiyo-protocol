@@ -253,6 +253,7 @@ export const NETWORKS: Record<PayAINetwork, NetworkConfig> = {
 export interface PayAIConfig {
   merchantAddress: string;
   facilitatorUrl?: string;
+  facilitatorUrls?: string[];
   timeoutMs?: number;
   defaultNetwork?: PayAINetwork;
   retryAttempts?: number;
@@ -293,6 +294,7 @@ export interface VerifyResult {
   network?: string; // CAIP-2
   amount?: string;
   chainId?: string; // same as network in v2
+  facilitator?: string;
 }
 
 export interface SettleResult {
@@ -303,6 +305,7 @@ export interface SettleResult {
   amount?: string;
   error?: string;
   chainId?: string; // same as network in v2
+  facilitator?: string;
 }
 
 export interface PayAI402Response {
@@ -383,6 +386,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function normalizeFacilitatorUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    throw new PayAIError(`Invalid facilitator URL: ${url}`, 'INVALID_CONFIG');
+  }
+}
+
 export class PayAIFacilitator {
   static readonly URL = 'https://facilitator.payai.network';
   static readonly ECHO_URL = 'https://x402.payai.network';
@@ -391,6 +403,7 @@ export class PayAIFacilitator {
 
   private readonly merchant: string;
   private readonly url: string;
+  private readonly facilitatorUrls: string[];
   private readonly timeout: number;
   private readonly network: PayAINetwork;
   private readonly retries: number;
@@ -403,7 +416,24 @@ export class PayAIFacilitator {
       throw new PayAIError('merchantAddress required', 'INVALID_CONFIG');
     }
     this.merchant = config.merchantAddress;
-    this.url = config.facilitatorUrl || PayAIFacilitator.URL;
+
+    const configuredUrls = [
+      ...(config.facilitatorUrl ? [config.facilitatorUrl] : []),
+      ...(config.facilitatorUrls || []),
+    ];
+    const normalizedUrls = Array.from(
+      new Set(
+        (configuredUrls.length > 0 ? configuredUrls : [PayAIFacilitator.URL]).map(
+          normalizeFacilitatorUrl
+        )
+      )
+    );
+    if (normalizedUrls.length === 0) {
+      throw new PayAIError('At least one facilitator URL is required', 'INVALID_CONFIG');
+    }
+
+    this.url = normalizedUrls[0];
+    this.facilitatorUrls = normalizedUrls;
     this.timeout = config.timeoutMs || DEFAULT_TIMEOUT_MS;
     this.network = config.defaultNetwork || 'base';
     this.retries = config.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS;
@@ -541,12 +571,12 @@ export class PayAIFacilitator {
     }
 
     const result = await this.retry(async () => {
-      const res = await this.fetch('/verify', {
+      const { response, facilitator } = await this.fetchWithFailover('/verify', {
         x402Version: 2,
         paymentHeader: header,
         paymentRequirements: req,
       });
-      const data = await res.json();
+      const data = await response.json();
       return {
         valid: !!data.isValid,
         payer: data.payer || '',
@@ -554,6 +584,7 @@ export class PayAIFacilitator {
         network: req.network,
         amount: req.amount,
         chainId: req.network,
+        facilitator,
       };
     });
 
@@ -586,12 +617,12 @@ export class PayAIFacilitator {
 
   async settle(header: string, req: PaymentRequirement): Promise<SettleResult> {
     const result = await this.retry(async () => {
-      const res = await this.fetch('/settle', {
+      const { response, facilitator } = await this.fetchWithFailover('/settle', {
         x402Version: 2,
         paymentHeader: header,
         paymentRequirements: req,
       });
-      const data = await res.json();
+      const data = await response.json();
       return {
         success: !!data.success,
         payer: data.payer || '',
@@ -600,6 +631,7 @@ export class PayAIFacilitator {
         amount: req.amount,
         error: data.error,
         chainId: req.network,
+        facilitator,
       };
     });
     this.hooks.onSettled?.(result);
@@ -642,8 +674,8 @@ export class PayAIFacilitator {
 
   async list(): Promise<ListResponse> {
     try {
-      const res = await this.fetch('/list', undefined, 'GET');
-      return await res.json();
+      const { response } = await this.fetchWithFailover('/list', undefined, 'GET');
+      return await response.json();
     } catch {
       return {
         networks: PayAIFacilitator.NETWORKS,
@@ -656,10 +688,10 @@ export class PayAIFacilitator {
   async health(): Promise<HealthResponse> {
     const start = Date.now();
     try {
-      const res = await this.fetch('/health', undefined, 'GET');
-      const data = await res.json().catch(() => ({}));
+      const { response } = await this.fetchWithFailover('/health', undefined, 'GET');
+      const data = await response.json().catch(() => ({}));
       return {
-        ok: res.ok,
+        ok: response.ok,
         latency: Date.now() - start,
         networks: data.networks || PayAIFacilitator.NETWORKS,
         version: data.version,
@@ -677,15 +709,56 @@ export class PayAIFacilitator {
     return this.cache.size;
   }
 
-  private async fetch(
+  getFacilitatorUrls(): string[] {
+    return [...this.facilitatorUrls];
+  }
+
+  private shouldFailover(err: Error): boolean {
+    if (!(err instanceof PayAIError)) return false;
+    if (err.code === 'NETWORK_ERROR' || err.code === 'TIMEOUT' || err.code === 'RATE_LIMITED') {
+      return true;
+    }
+    if (err.code === 'FACILITATOR_ERROR') {
+      const status = Number(err.details?.status);
+      if (!Number.isFinite(status)) return true;
+      return status >= 500 || status === 404;
+    }
+    return false;
+  }
+
+  private async fetchWithFailover(
     path: string,
     body?: unknown,
     method: 'POST' | 'GET' = 'POST'
+  ): Promise<{ response: Response; facilitator: string }> {
+    let lastErr: Error | undefined;
+
+    for (const facilitator of this.facilitatorUrls) {
+      try {
+        const response = await this.fetch(path, body, method, facilitator);
+        return { response, facilitator };
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        lastErr = err;
+        if (!this.shouldFailover(err)) {
+          throw err;
+        }
+      }
+    }
+
+    throw lastErr || new PayAIError('No facilitator available', 'NETWORK_ERROR');
+  }
+
+  private async fetch(
+    path: string,
+    body?: unknown,
+    method: 'POST' | 'GET' = 'POST',
+    facilitatorUrl: string = this.url
   ): Promise<Response> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), this.timeout);
     try {
-      const res = await fetch(`${this.url}${path}`, {
+      const res = await fetch(`${facilitatorUrl}${path}`, {
         method,
         headers: body
           ? {

@@ -99,6 +99,26 @@ export function createPrivacyRouter(_facilitatorConnection: unknown, facilitator
 
       try { new PublicKey(merchantWallet); } catch { res.status(400).json({ success: false, error: 'Invalid wallet address' }); return; }
 
+      const salt = crypto.createHash('sha256').update(paymentHeader).digest(); // deterministic for idempotency
+      const shadowProof = generateShadowProof(payment.payer, merchantWallet, amount, salt);
+      const existing = await getSettlementByNullifierFull(shadowProof.nullifier);
+      if (existing) {
+        const storedRelayerFee = calculateRelayerFee(Number(existing.amount), SHADOWPAY_RELAYER_FEE_BPS);
+        const feeAmount = Number(existing.fee_amount || 0);
+        const net = Math.round((Number(existing.amount) - feeAmount - storedRelayerFee) * 1e6) / 1e6;
+        res.json({
+          success: true,
+          shadowCommitment: existing.shadow_commitment || shadowProof.commitment,
+          shadowNullifier: shadowProof.nullifier,
+          relayerFee: storedRelayerFee,
+          amount: Number(existing.amount),
+          fee: feeAmount,
+          net,
+          privacyTier: (existing as any).privacy_tier || undefined,
+        });
+        return;
+      }
+
       const nonceReserved = await reservePaymentNonce(
         payment.payer,
         payment.nonce,
@@ -165,27 +185,6 @@ export function createPrivacyRouter(_facilitatorConnection: unknown, facilitator
         'pending',
         SOLANA_MAINNET_CAIP2
       );
-
-      const salt = crypto.createHash('sha256').update(paymentHeader).digest(); // salt from signed header for idempotency
-      const shadowProof = generateShadowProof(payment.payer, merchantWallet, amount, salt);
-
-      const existing = await getSettlementByNullifierFull(shadowProof.nullifier);
-      if (existing) {
-        const storedRelayerFee = calculateRelayerFee(Number(existing.amount), SHADOWPAY_RELAYER_FEE_BPS);
-        const feeAmount = Number(existing.fee_amount || 0);
-        const net = Math.round((Number(existing.amount) - feeAmount - storedRelayerFee) * 1e6) / 1e6;
-        res.json({
-          success: true,
-          shadowCommitment: existing.shadow_commitment || shadowProof.commitment,
-          shadowNullifier: shadowProof.nullifier,
-          relayerFee: storedRelayerFee,
-          amount: Number(existing.amount),
-          fee: feeAmount,
-          net,
-          privacyTier: (existing as any).privacy_tier || tierConfig.tier,
-        });
-        return;
-      }
 
       try {
         const privateResult = await routePrivateTransfer(facilitatorKeypair, merchantWallet, amount);

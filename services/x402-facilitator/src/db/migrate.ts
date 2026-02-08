@@ -199,6 +199,19 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_payment_nonce_network ON payment_nonce_guard(network);
     `,
   },
+  {
+    name: '008_rate_limit_windows',
+    sql: `
+      CREATE TABLE IF NOT EXISTS api_rate_limit_windows (
+        rate_key TEXT NOT NULL,
+        window_start TIMESTAMPTZ NOT NULL,
+        count INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (rate_key, window_start)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_rate_limit_window_start ON api_rate_limit_windows(window_start);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
