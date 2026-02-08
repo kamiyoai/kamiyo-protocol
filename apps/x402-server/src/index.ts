@@ -148,7 +148,6 @@ initFacilitator({
   settlementFeeBps: parseInt(process.env.SETTLEMENT_FEE_BPS || '10', 10),
   maxPaymentAgeMs: parseInt(process.env.MAX_PAYMENT_AGE_MS || '300000', 10),
   maxSettlementAmount: parseFloat(process.env.MAX_SETTLEMENT_AMOUNT || '10000'),
-  merchantAddress: MERCHANT_ADDRESS || null,
 });
 
 const BASE_PRICES = {
@@ -313,6 +312,7 @@ function create402Response(
     accepts,
     error: 'Payment Required',
     facilitator: FACILITATOR_URL,
+    facilitators: FACILITATOR_URLS,
     resource: {
       url: resource,
       description,
@@ -356,7 +356,10 @@ function create402Response(
   return response;
 }
 
-async function verifyPayment(paymentHeader: string, requirement: Record<string, unknown>): Promise<{ valid: boolean; payer?: string; error?: string }> {
+async function verifyPayment(
+  paymentHeader: string,
+  requirement: Record<string, unknown>
+): Promise<{ valid: boolean; payer?: string; error?: string; facilitator?: string }> {
   let lastError = 'Payment verification failed';
 
   for (const facilitatorUrl of FACILITATOR_URLS) {
@@ -390,6 +393,7 @@ async function verifyPayment(paymentHeader: string, requirement: Record<string, 
         return {
           valid: true,
           payer: data.payer,
+          facilitator: facilitatorUrl,
         };
       }
 
@@ -406,53 +410,53 @@ async function verifyPayment(paymentHeader: string, requirement: Record<string, 
   return { valid: false, error: lastError };
 }
 
-async function settlePayment(paymentHeader: string, requirement: Record<string, unknown>): Promise<{ success: boolean; tx?: string; error?: string }> {
-  let lastError = 'Settlement failed';
+async function settlePayment(
+  paymentHeader: string,
+  requirement: Record<string, unknown>,
+  facilitatorUrl: string
+): Promise<{ success: boolean; tx?: string; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
 
-  for (const facilitatorUrl of FACILITATOR_URLS) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15_000);
+    const res = await fetch(`${facilitatorUrl}/settle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        x402Version: 2,
+        paymentHeader,
+        paymentRequirements: requirement,
+      }),
+      signal: controller.signal,
+    });
 
-      const res = await fetch(`${facilitatorUrl}/settle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          x402Version: 2,
-          paymentHeader,
-          paymentRequirements: requirement,
-        }),
-        signal: controller.signal,
-      });
+    clearTimeout(timeout);
 
-      clearTimeout(timeout);
-
-      const data = (await res.json()) as {
-        success?: boolean;
-        transaction?: string;
-        txHash?: string;
-        error?: string;
-        errorReason?: string;
-        errorMessage?: string;
+    const data = (await res.json()) as {
+      success?: boolean;
+      transaction?: string;
+      txHash?: string;
+      error?: string;
+      errorReason?: string;
+      errorMessage?: string;
+    };
+    if (data.success) {
+      return {
+        success: true,
+        tx: data.transaction || data.txHash,
       };
-      if (data.success) {
-        return {
-          success: true,
-          tx: data.transaction || data.txHash,
-        };
-      }
-
-      lastError = data.error || data.errorReason || data.errorMessage || lastError;
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        lastError = 'Settlement timeout';
-        continue;
-      }
-      lastError = err instanceof Error ? err.message : 'Unknown error';
     }
-  }
 
-  return { success: false, error: lastError };
+    return {
+      success: false,
+      error: data.error || data.errorReason || data.errorMessage || 'Settlement failed',
+    };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { success: false, error: 'Settlement timeout' };
+    }
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
 }
 
 function extractReputationThreshold(paymentHeader: string): number | null {
@@ -527,7 +531,8 @@ function x402Middleware(basePrice: number, description: string) {
 
       const verifyResult = await verifyPayment(paymentHeader, requirement);
       if (verifyResult.valid) {
-        const settleResult = await settlePayment(paymentHeader, requirement);
+        const settledFacilitator = verifyResult.facilitator || FACILITATOR_URL;
+        const settleResult = await settlePayment(paymentHeader, requirement, settledFacilitator);
         if (settleResult.success) {
           const paymentRef = `${settleResult.tx || Date.now()}-${resource}`;
 
@@ -559,7 +564,7 @@ function x402Middleware(basePrice: number, description: string) {
         return res.status(502).json({
           error: 'Settlement failed after verification',
           details: settleResult.error || 'unknown error',
-          facilitator: FACILITATOR_URL,
+          facilitator: settledFacilitator,
           advice: 'Do not retry automatically with alternate facilitators for this same payment header.',
         });
       }
