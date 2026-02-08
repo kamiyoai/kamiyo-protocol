@@ -15,7 +15,7 @@ const MIGRATIONS = [
         asset TEXT NOT NULL DEFAULT 'USDC',
         tx_hash TEXT,
         status TEXT NOT NULL DEFAULT 'pending',
-        network TEXT NOT NULL DEFAULT 'solana:mainnet',
+        network TEXT NOT NULL DEFAULT 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
@@ -167,6 +167,36 @@ const MIGRATIONS = [
       );
 
       CREATE INDEX IF NOT EXISTS idx_discovery_merchant ON discovery_resources(merchant_wallet);
+    `,
+  },
+  {
+    name: '006_network_canonicalization',
+    sql: `
+      UPDATE settlements
+      SET network = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'
+      WHERE network IN ('solana:mainnet', 'solana:mainnet-beta');
+
+      ALTER TABLE settlements
+      ALTER COLUMN network SET DEFAULT 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+    `,
+  },
+  {
+    name: '007_payment_nonce_guard',
+    sql: `
+      CREATE TABLE IF NOT EXISTS payment_nonce_guard (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        payer_wallet TEXT NOT NULL,
+        nonce TEXT NOT NULL,
+        usage TEXT NOT NULL,
+        network TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        amount NUMERIC(20, 6) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (payer_wallet, nonce)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_payment_nonce_usage ON payment_nonce_guard(usage);
+      CREATE INDEX IF NOT EXISTS idx_payment_nonce_network ON payment_nonce_guard(network);
     `,
   },
 ];

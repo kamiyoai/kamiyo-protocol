@@ -6,7 +6,7 @@ import { Connection, Keypair } from '@solana/web3.js';
 import { validateConfig, getConfig, getRedactedConfig } from './config';
 import { runMigrations } from './db/migrate';
 import { closePool } from './db/pool';
-import { apiKeyAuth } from './middleware/auth';
+import { apiKeyAuth, optionalApiKeyAuth } from './middleware/auth';
 import { rateLimit } from './middleware/rate-limit';
 import { errorHandler } from './middleware/error-handler';
 import { createVerifyRouter } from './routes/verify';
@@ -19,6 +19,8 @@ import { createReputationRouter } from './routes/reputation';
 import { createPrivacyRouter } from './routes/privacy';
 import { createDiscoveryRouter } from './routes/discovery';
 import { createSupportedRouter } from './routes/supported';
+import { isBaseEnabled } from './services/base-settlement';
+import { getSupportedNetworkIds, SOLANA_MAINNET_CAIP2 } from './protocol/networks';
 
 async function main() {
   const validation = validateConfig();
@@ -70,7 +72,8 @@ async function main() {
       status: 'ok',
       version: '1.0.0',
       facilitator: facilitatorKeypair.publicKey.toBase58(),
-      network: 'solana:mainnet',
+      network: SOLANA_MAINNET_CAIP2,
+      networks: getSupportedNetworkIds(isBaseEnabled()),
     });
   });
 
@@ -79,7 +82,7 @@ async function main() {
   app.use('/supported-networks', createNetworksRouter());
   app.use('/fees', createFeesRouter());
 
-  app.use('/verify', apiKeyAuth, createVerifyRouter(connection));
+  app.use('/verify', optionalApiKeyAuth, createVerifyRouter(connection));
   app.use('/settle', apiKeyAuth, createSettleRouter(connection, facilitatorKeypair));
   app.use('/escrow', apiKeyAuth, createEscrowRouter(connection, facilitatorKeypair));
   app.use('/dispute', apiKeyAuth, createDisputeRouter(connection, facilitatorKeypair));

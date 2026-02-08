@@ -48,11 +48,17 @@ export function fromBaseUnitsEvm(units: bigint): number {
   return parseFloat(formatUnits(units, USDC_DECIMALS));
 }
 
+export async function getBaseUsdcBalanceForAddress(address: string): Promise<number> {
+  if (!isAddress(address)) throw new Error('Invalid Base address');
+  const provider = getBaseProvider();
+  const usdc = new Contract(BASE_USDC, ERC20_ABI, provider);
+  const balance: bigint = await withTimeout(usdc.balanceOf(address), BALANCE_TIMEOUT_MS, 'USDC balanceOf');
+  return fromBaseUnitsEvm(balance);
+}
+
 export async function getBaseUsdcBalance(): Promise<number> {
   const wallet = getBaseWallet();
-  const usdc = new Contract(BASE_USDC, ERC20_ABI, wallet);
-  const balance: bigint = await withTimeout(usdc.balanceOf(wallet.address), BALANCE_TIMEOUT_MS, 'USDC balanceOf');
-  return fromBaseUnitsEvm(balance);
+  return getBaseUsdcBalanceForAddress(wallet.address);
 }
 
 export async function settlePaymentBase(

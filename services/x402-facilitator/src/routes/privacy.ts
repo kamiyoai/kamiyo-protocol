@@ -26,8 +26,10 @@ import {
   getMonthlyVolume,
   updateSettlementShadowProof,
   getSettlementByNullifierFull,
+  reservePaymentNonce,
 } from '../db/queries';
 import { PrivateSettleRequest, PrivateSettleResponse } from '../types';
+import { isSolanaMainnet, SOLANA_MAINNET_CAIP2 } from '../protocol/networks';
 
 export function createPrivacyRouter(_facilitatorConnection: unknown, facilitatorKeypair: Keypair): Router {
   const router = Router();
@@ -57,7 +59,7 @@ export function createPrivacyRouter(_facilitatorConnection: unknown, facilitator
       }
 
       const scheme = parsePaymentScheme(paymentHeader);
-      if (!scheme || scheme.network !== 'solana:mainnet') {
+      if (!scheme || !isSolanaMainnet(scheme.network)) {
         res.status(400).json({ success: false, error: 'Unsupported network' });
         return;
       }
@@ -96,6 +98,19 @@ export function createPrivacyRouter(_facilitatorConnection: unknown, facilitator
       }
 
       try { new PublicKey(merchantWallet); } catch { res.status(400).json({ success: false, error: 'Invalid wallet address' }); return; }
+
+      const nonceReserved = await reservePaymentNonce(
+        payment.payer,
+        payment.nonce,
+        'privacy',
+        SOLANA_MAINNET_CAIP2,
+        payment.resource || '',
+        amount
+      );
+      if (!nonceReserved) {
+        res.status(409).json({ success: false, error: 'Payment nonce already used' });
+        return;
+      }
 
       const [stats, disputeStats, avgQuality, monthlyVol] = await Promise.all([
         getSettlementStats(merchantWallet),
@@ -148,7 +163,7 @@ export function createPrivacyRouter(_facilitatorConnection: unknown, facilitator
         'USDC',
         '',
         'pending',
-        'solana:mainnet'
+        SOLANA_MAINNET_CAIP2
       );
 
       const salt = crypto.createHash('sha256').update(paymentHeader).digest(); // salt from signed header for idempotency

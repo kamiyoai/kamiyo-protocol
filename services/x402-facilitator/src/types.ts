@@ -2,15 +2,22 @@ export interface VerifyRequest {
   paymentHeader: string;
   resource: string;
   maxAmount?: number;
+  paymentPayload?: Record<string, unknown>;
+  paymentRequirements?: Record<string, unknown>;
+  x402Version?: number;
 }
 
 export interface VerifyResponse {
   valid: boolean;
+  isValid?: boolean;
+  invalidReason?: string;
+  invalidMessage?: string;
   payer: string;
   amount: string;
   resource: string;
   balance: number;
   sufficient: boolean;
+  extensions?: Record<string, unknown>;
   error?: string;
 }
 
@@ -19,15 +26,23 @@ export interface SettleRequest {
   merchantWallet: string;
   amount: number;
   asset: string;
+  paymentPayload?: Record<string, unknown>;
+  paymentRequirements?: Record<string, unknown>;
+  x402Version?: number;
 }
 
 export interface SettleResponse {
   success: boolean;
+  transaction?: string;
+  errorReason?: string;
+  errorMessage?: string;
+  payer?: string;
   txHash: string;
   amount: number;
   fee: number;
   net: number;
   network: string;
+  extensions?: Record<string, unknown>;
   feeDiscount?: { discountPct: number; effectiveFeeBps: number; reason: string };
   error?: string;
 }

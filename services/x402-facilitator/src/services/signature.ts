@@ -1,4 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
+import { isAddress, verifyMessage } from 'ethers';
 import * as nacl from 'tweetnacl';
 import { DecodedPayment } from '../types';
 
@@ -16,7 +17,6 @@ export function decodePaymentHeader(header: string): DecodedPayment | null {
 
 export function verifyPaymentAuth(payment: DecodedPayment): boolean {
   try {
-    const publicKey = new PublicKey(payment.payer);
     const authSig = Buffer.from(payment.authSignature, 'base64');
     const { authSignature: _, ...rest } = payment;
     const canonical = JSON.stringify({
@@ -28,6 +28,14 @@ export function verifyPaymentAuth(payment: DecodedPayment): boolean {
       timestamp: rest.timestamp,
     });
     const message = new TextEncoder().encode(canonical);
+
+    if (isAddress(payment.payer)) {
+      const signatureHex = `0x${authSig.toString('hex')}`;
+      const recovered = verifyMessage(message, signatureHex);
+      return recovered.toLowerCase() === payment.payer.toLowerCase();
+    }
+
+    const publicKey = new PublicKey(payment.payer);
     return nacl.sign.detached.verify(message, authSig, publicKey.toBytes());
   } catch {
     return false;
