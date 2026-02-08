@@ -15,13 +15,17 @@ let cachedWallet: Wallet | null = null;
 const BALANCE_TIMEOUT_MS = 30_000;
 const CONFIRM_TIMEOUT_MS = 90_000;
 
-function withTimeout<T>(p: Promise<T>, ms: number, label?: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(label ? `${label} timed out` : 'Timed out')), ms)
-    )
-  ]);
+async function withTimeout<T>(p: Promise<T>, ms: number, label?: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label ? `${label} timed out` : 'Timed out')), ms);
+  });
+
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function getBaseProvider(): JsonRpcProvider {

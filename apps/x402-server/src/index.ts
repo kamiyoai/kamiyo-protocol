@@ -47,12 +47,13 @@ function rateLimit(req: Request, res: Response, next: NextFunction) {
 
 app.use(rateLimit);
 
-setInterval(() => {
+const rateLimitCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of rateLimitStore) {
     if (now > entry.resetAt) rateLimitStore.delete(ip);
   }
 }, 60_000);
+rateLimitCleanupTimer.unref?.();
 
 app.use('/public', express.static(path.join(__dirname, '../public')));
 
@@ -268,12 +269,13 @@ const settlementStore = new Map<string, SettlementRecord>();
 const MAX_SETTLEMENT_RECORDS = 10_000;
 const SETTLEMENT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-setInterval(() => {
+const settlementCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [ref, record] of settlementStore) {
     if (now - record.timestamp > SETTLEMENT_TTL) settlementStore.delete(ref);
   }
 }, 60_000);
+settlementCleanupTimer.unref?.();
 const AGENT_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
 function isValidAgentId(id: unknown): id is string {
@@ -367,37 +369,39 @@ async function verifyPayment(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
 
-      const res = await fetch(`${facilitatorUrl}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          x402Version: 2,
-          paymentHeader,
-          paymentRequirements: requirement,
-        }),
-        signal: controller.signal,
-      });
+      try {
+        const res = await fetch(`${facilitatorUrl}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            x402Version: 2,
+            paymentHeader,
+            paymentRequirements: requirement,
+          }),
+          signal: controller.signal,
+        });
 
-      clearTimeout(timeout);
-
-      const data = (await res.json()) as {
-        isValid?: boolean;
-        payer?: string;
-        invalidReason?: string;
-        invalidMessage?: string;
-        errorReason?: string;
-        errorMessage?: string;
-        error?: string;
-      };
-      if (data.isValid) {
-        return {
-          valid: true,
-          payer: data.payer,
-          facilitator: facilitatorUrl,
+        const data = (await res.json()) as {
+          isValid?: boolean;
+          payer?: string;
+          invalidReason?: string;
+          invalidMessage?: string;
+          errorReason?: string;
+          errorMessage?: string;
+          error?: string;
         };
-      }
+        if (data.isValid) {
+          return {
+            valid: true,
+            payer: data.payer,
+            facilitator: facilitatorUrl,
+          };
+        }
 
-      lastError = data.invalidReason || data.invalidMessage || data.errorReason || data.errorMessage || data.error || lastError;
+        lastError = data.invalidReason || data.invalidMessage || data.errorReason || data.errorMessage || data.error || lastError;
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         lastError = 'Facilitator timeout';
@@ -419,38 +423,40 @@ async function settlePayment(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const res = await fetch(`${facilitatorUrl}/settle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        x402Version: 2,
-        paymentHeader,
-        paymentRequirements: requirement,
-      }),
-      signal: controller.signal,
-    });
+    try {
+      const res = await fetch(`${facilitatorUrl}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          x402Version: 2,
+          paymentHeader,
+          paymentRequirements: requirement,
+        }),
+        signal: controller.signal,
+      });
 
-    clearTimeout(timeout);
-
-    const data = (await res.json()) as {
-      success?: boolean;
-      transaction?: string;
-      txHash?: string;
-      error?: string;
-      errorReason?: string;
-      errorMessage?: string;
-    };
-    if (data.success) {
-      return {
-        success: true,
-        tx: data.transaction || data.txHash,
+      const data = (await res.json()) as {
+        success?: boolean;
+        transaction?: string;
+        txHash?: string;
+        error?: string;
+        errorReason?: string;
+        errorMessage?: string;
       };
-    }
+      if (data.success) {
+        return {
+          success: true,
+          tx: data.transaction || data.txHash,
+        };
+      }
 
-    return {
-      success: false,
-      error: data.error || data.errorReason || data.errorMessage || 'Settlement failed',
-    };
+        return {
+          success: false,
+          error: data.error || data.errorReason || data.errorMessage || 'Settlement failed',
+        };
+    } finally {
+      clearTimeout(timeout);
+    }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       return { success: false, error: 'Settlement timeout' };

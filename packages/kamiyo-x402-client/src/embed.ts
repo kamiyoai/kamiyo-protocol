@@ -546,11 +546,19 @@ export class KamiyoPayEmbed {
       });
 
       const confirmPromise = connection.confirmTransaction(signature, 'confirmed');
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Transaction confirmation timeout')), this.config.confirmationTimeout);
+        timer = setTimeout(
+          () => reject(new Error('Transaction confirmation timeout')),
+          this.config.confirmationTimeout
+        );
       });
 
-      await Promise.race([confirmPromise, timeoutPromise]);
+      try {
+        await Promise.race([confirmPromise, timeoutPromise]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
 
       this.signature = signature;
       const escrowIdMatch = message?.match(/ID: ([\w_]+)/);
