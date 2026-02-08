@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { MeishiClient } from './client.js';
 import { PassportManager } from './passport.js';
 import { MandateManager } from './mandate.js';
+import { sha256HexCanonicalJson } from './dkg/integrity.js';
 import type {
   MeishiPresentation,
   MeishiHeaders,
@@ -299,6 +300,7 @@ export class MeishiExchange {
       requireAssertionHash?: boolean;
       allowedAssertionUalPrefixes?: string[];
       allowLegacyComplianceProof?: boolean;
+      resolveAssertion?: (ual: string) => Promise<unknown>;
       nonceReplayGuard?: (params: {
         passportAddress: string;
         nonce: string;
@@ -471,6 +473,28 @@ export class MeishiExchange {
     }
     if (presentation.privateAssertionUal && !isValidAssertionUal(presentation.privateAssertionUal)) {
       errors.push('Invalid private assertion UAL');
+    }
+
+    if (presentation.assertionUal && presentation.assertionHash) {
+      if (options.resolveAssertion) {
+        try {
+          const resolved = await options.resolveAssertion(presentation.assertionUal);
+          const content = resolved && typeof resolved === 'object' && 'content' in (resolved as any)
+            ? (resolved as any).content
+            : resolved;
+          const publicAssertion = content && typeof content === 'object' && 'public' in (content as any)
+            ? (content as any).public
+            : content;
+          const computed = sha256HexCanonicalJson(publicAssertion).toLowerCase();
+          if (computed !== presentation.assertionHash.toLowerCase()) {
+            errors.push('Compliance assertion hash mismatch');
+          }
+        } catch {
+          errors.push('Failed to resolve compliance assertion');
+        }
+      } else {
+        warnings.push('Compliance assertion reference not verified (no resolver configured)');
+      }
     }
 
     // Check jurisdiction

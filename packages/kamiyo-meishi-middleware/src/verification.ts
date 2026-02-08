@@ -34,6 +34,8 @@ export interface MeishiMiddlewareConfig {
   requireAssertionHash?: boolean;
   /** Allowed assertion UAL prefixes. Default: ['did:dkg:'] */
   allowedAssertionUalPrefixes?: string[];
+  /** Optional resolver used to validate assertion UAL/hash references. */
+  resolveAssertion?: (ual: string) => Promise<unknown>;
   /** Allow deprecated compliance-proof-only headers. Default: false. */
   allowLegacyComplianceProof?: boolean;
 }
@@ -93,6 +95,7 @@ export function createVerifier(config: MeishiMiddlewareConfig) {
         requireAssertionHash: config.requireAssertionHash,
         allowedAssertionUalPrefixes: config.allowedAssertionUalPrefixes,
         allowLegacyComplianceProof: config.allowLegacyComplianceProof,
+        resolveAssertion: config.resolveAssertion,
         nonceReplayGuard: config.nonceReplayGuard,
       });
 

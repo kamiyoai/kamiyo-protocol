@@ -13,6 +13,7 @@ import { CircuitBreaker } from './circuit-breaker.js';
 
 export interface AuditResult {
   passportAddress: string;
+  agentIdentity: string;
   report: ComplianceReport;
   onChainScore: number;
   previousScore: number;
@@ -58,6 +59,7 @@ export class ComplianceEngine {
 
       return {
         passportAddress: passportAddress.toBase58(),
+        agentIdentity: passport.agentIdentity.toBase58(),
         report,
         onChainScore,
         previousScore,

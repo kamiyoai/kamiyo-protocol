@@ -6,6 +6,13 @@ import {
   buildLiabilityResolutionAsset,
   buildLiabilityResolutionPayload,
 } from './schemas.js';
+import {
+  canonicalizeJson,
+  sha256Hex,
+  sha256Bytes,
+  sha256HexCanonicalJson,
+  sha256BytesCanonicalJson,
+} from './integrity.js';
 import type {
   TransactionDecisionDoc,
   ComplianceAuditDoc,
@@ -28,6 +35,13 @@ export {
   buildLiabilityResolutionPayload,
 } from './schemas.js';
 export {
+  canonicalizeJson,
+  sha256Hex,
+  sha256Bytes,
+  sha256HexCanonicalJson,
+  sha256BytesCanonicalJson,
+} from './integrity.js';
+export {
   queryAgentTransactions,
   queryCompliantAgents,
   queryLatestAudit,
@@ -48,6 +62,12 @@ export interface DKGClient {
 export interface MeishiDKGPublisherConfig {
   dkg: DKGClient;
   defaultEpochs?: number;
+}
+
+export interface PublishedAssetIntegrity {
+  ual: string;
+  publicHashHex: string;
+  publicHashBytes: number[];
 }
 
 /**
@@ -78,6 +98,17 @@ export class MeishiDKGPublisher {
     const payload = buildComplianceAuditPayload(params);
     const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 10));
     return this.dkg.publish(payload, { epochs });
+  }
+
+  async publishComplianceAuditWithIntegrity(
+    params: ComplianceAuditDoc
+  ): Promise<PublishedAssetIntegrity> {
+    const payload = buildComplianceAuditPayload(params);
+    const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 10));
+    const publicHashHex = sha256HexCanonicalJson(payload.public);
+    const publicHashBytes = sha256BytesCanonicalJson(payload.public);
+    const ual = await this.dkg.publish(payload, { epochs });
+    return { ual, publicHashHex, publicHashBytes };
   }
 
   /**
