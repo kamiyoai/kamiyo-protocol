@@ -42,6 +42,7 @@
     "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings",
     "format:rust": "cargo fmt --all",
     "build:meishi-compliance": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/meishi-compliance run build",
+    "test:meishi:integration": "./scripts/run-meishi-integration.sh",
     "seed:dkg": "tsx scripts/seed-dkg-trust-graph.ts",
     "audit": "pnpm audit && cargo audit"
   },

@@ -2,7 +2,6 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { PublicKey } from '@solana/web3.js';
 import {
   MeishiClient,
-  MeishiExchange,
   PassportManager,
   MandateManager,
   LiabilityManager,
@@ -104,7 +103,6 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
 
 export interface ToolContext {
   client: MeishiClient;
-  exchange: MeishiExchange;
   passports: PassportManager;
   mandates: MandateManager;
   liability: LiabilityManager;
@@ -114,7 +112,6 @@ export function createToolContext(config: MeishiConfig): ToolContext {
   const client = new MeishiClient(config);
   return {
     client,
-    exchange: new MeishiExchange(client),
     passports: new PassportManager(client),
     mandates: new MandateManager(client),
     liability: new LiabilityManager(client),
@@ -164,31 +161,60 @@ async function verifyMeishi(
   if (!isValidPubkey(address)) return { success: false, error: 'passportAddress must be a valid base58 public key' };
 
   try {
-    const presentation = {
-      passportAddress: address,
-      mandateVersion: 0,
-      signature: '',
-    };
+    const passportPk = new PublicKey(address);
+    const passport = await ctx.client.fetchPassport(passportPk);
+    if (!passport) {
+      return { success: false, error: 'Passport not found' };
+    }
 
-    const result = await ctx.exchange.verify(presentation, {
-      minComplianceScore: args.minComplianceScore as number | undefined,
-      requiredJurisdiction: args.requiredJurisdiction as number | undefined,
-    });
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const now = Math.floor(Date.now() / 1000);
+    const minComplianceScore =
+      typeof args.minComplianceScore === 'number' ? args.minComplianceScore : undefined;
+    const requiredJurisdiction =
+      typeof args.requiredJurisdiction === 'number' ? args.requiredJurisdiction : undefined;
+
+    if (passport.suspended) {
+      errors.push(`Passport suspended: reason ${passport.suspensionReason}`);
+    }
+    if (passport.mandateExpires.toNumber() <= now) {
+      errors.push('Mandate expired');
+    }
+    if (passport.mandateHash.every((b) => b === 0)) {
+      errors.push('No mandate configured');
+    }
+    if (
+      minComplianceScore !== undefined &&
+      passport.complianceScore < minComplianceScore
+    ) {
+      errors.push(
+        `Compliance score ${passport.complianceScore} below threshold ${minComplianceScore}`
+      );
+    }
+    if (
+      requiredJurisdiction !== undefined &&
+      passport.jurisdiction !== requiredJurisdiction
+    ) {
+      warnings.push(
+        `Jurisdiction mismatch: passport=${passport.jurisdiction}, required=${requiredJurisdiction}`
+      );
+    }
 
     return {
       success: true,
-      valid: result.valid,
-      errors: result.errors,
-      warnings: result.warnings,
-      passport: result.passport ? {
-        complianceScore: result.passport.complianceScore,
-        complianceClass: result.passport.complianceClass,
-        jurisdiction: result.passport.jurisdiction,
-        suspended: result.passport.suspended,
-        totalTransactions: result.passport.totalTransactions.toString(),
-        disputesFiled: result.passport.disputesFiled,
-        disputesLost: result.passport.disputesLost,
-      } : null,
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      passport: {
+        complianceScore: passport.complianceScore,
+        complianceClass: passport.complianceClass,
+        jurisdiction: passport.jurisdiction,
+        suspended: passport.suspended,
+        totalTransactions: passport.totalTransactions.toString(),
+        disputesFiled: passport.disputesFiled,
+        disputesLost: passport.disputesLost,
+      },
     };
   } catch (err: any) {
     return { success: false, error: err.message };

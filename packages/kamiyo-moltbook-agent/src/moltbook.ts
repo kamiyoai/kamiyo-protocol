@@ -241,7 +241,7 @@ export class MoltbookClient {
 
     return {
       postId: result.id,
-      url: result.url || `https://www.moltbook.com/p/${result.id}`,
+      url: result.url || `https://www.moltbook.com/post/${result.id}`,
     };
   }
 

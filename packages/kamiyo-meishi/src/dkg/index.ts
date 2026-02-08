@@ -1,23 +1,31 @@
 import {
   buildTransactionDecisionAsset,
+  buildTransactionDecisionPayload,
   buildComplianceAuditAsset,
+  buildComplianceAuditPayload,
   buildLiabilityResolutionAsset,
+  buildLiabilityResolutionPayload,
 } from './schemas.js';
 import type {
   TransactionDecisionDoc,
   ComplianceAuditDoc,
   LiabilityResolutionDoc,
+  DKGAssetPayload,
 } from './schemas.js';
 
 export type {
   TransactionDecisionDoc,
   ComplianceAuditDoc,
   LiabilityResolutionDoc,
+  DKGAssetPayload,
 };
 export {
   buildTransactionDecisionAsset,
+  buildTransactionDecisionPayload,
   buildComplianceAuditAsset,
+  buildComplianceAuditPayload,
   buildLiabilityResolutionAsset,
+  buildLiabilityResolutionPayload,
 } from './schemas.js';
 export {
   queryAgentTransactions,
@@ -34,7 +42,7 @@ const DEFAULT_EPOCHS = 5;
 export interface DKGClient {
   query(sparql: string): Promise<unknown[]>;
   get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }>;
-  publish(content: object, options?: { epochs?: number }): Promise<string>;
+  publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string>;
 }
 
 export interface MeishiDKGPublisherConfig {
@@ -59,26 +67,26 @@ export class MeishiDKGPublisher {
    * Returns the UAL (Universal Asset Locator) of the published record.
    */
   async publishTransactionDecision(params: TransactionDecisionDoc): Promise<string> {
-    const asset = buildTransactionDecisionAsset(params);
-    return this.dkg.publish({ public: asset }, { epochs: this.defaultEpochs });
+    const payload = buildTransactionDecisionPayload(params);
+    return this.dkg.publish(payload, { epochs: this.defaultEpochs });
   }
 
   /**
    * Publish a compliance audit result.
    */
   async publishComplianceAudit(params: ComplianceAuditDoc): Promise<string> {
-    const asset = buildComplianceAuditAsset(params);
+    const payload = buildComplianceAuditPayload(params);
     const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 10));
-    return this.dkg.publish({ public: asset }, { epochs });
+    return this.dkg.publish(payload, { epochs });
   }
 
   /**
    * Publish a liability resolution record.
    */
   async publishLiabilityResolution(params: LiabilityResolutionDoc): Promise<string> {
-    const asset = buildLiabilityResolutionAsset(params);
+    const payload = buildLiabilityResolutionPayload(params);
     const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 20));
-    return this.dkg.publish({ public: asset }, { epochs });
+    return this.dkg.publish(payload, { epochs });
   }
 
   /**

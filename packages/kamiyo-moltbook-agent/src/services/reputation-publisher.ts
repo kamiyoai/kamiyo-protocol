@@ -90,7 +90,7 @@ export class ReputationPublisher {
         { '@type': 'PropertyValue', name: 'disputeOutcome', value: 'none' },
         ...(tags.length ? [{ '@type': 'PropertyValue', name: 'tags', value: tags.join(',') }] : []),
       ],
-      instrument: { '@id': `https://moltbook.com/p/${post.postId}` },
+      instrument: { '@id': `https://moltbook.com/post/${post.postId}` },
     };
   }
 

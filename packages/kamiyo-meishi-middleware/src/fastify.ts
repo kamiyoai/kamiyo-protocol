@@ -30,7 +30,10 @@ export function meishiPlugin(
       headers[key] = Array.isArray(val) ? val[0] : val;
     }
 
-    const ctx = await verifier.verify(headers);
+    const ctx = await verifier.verify(headers, {
+      method: request.method,
+      path: request.raw?.url || request.url || '/',
+    });
     request.meishi = ctx;
 
     if (!ctx.verified && ctx.result) {

@@ -156,16 +156,34 @@ export interface RecordTransactionParams {
 export interface MeishiPresentation {
   passportAddress: string;
   mandateVersion: number;
+  /** @deprecated Prefer assertionUal/assertionHash references. */
   complianceProof?: string;
+  assertionUal?: string;
+  assertionHash?: string;
+  privateAssertionUal?: string;
   signature: string;
+  signatureTimestamp?: number;
+  signatureNonce?: string;
+  signatureMethod?: string;
+  signaturePath?: string;
+  signatureBodyHash?: string;
   liabilityRef?: string;
 }
 
 export interface MeishiHeaders {
   'x-meishi-passport': string;
   'x-meishi-mandate-version': string;
+  /** @deprecated Prefer assertion-reference headers below. */
   'x-meishi-compliance-proof'?: string;
+  'x-meishi-assertion-ual'?: string;
+  'x-meishi-assertion-hash'?: string;
+  'x-meishi-private-assertion-ual'?: string;
   'x-meishi-signature': string;
+  'x-meishi-signature-ts'?: string;
+  'x-meishi-signature-nonce'?: string;
+  'x-meishi-signature-method'?: string;
+  'x-meishi-signature-path'?: string;
+  'x-meishi-signature-body-sha256'?: string;
   'x-meishi-liability-ref'?: string;
 }
 

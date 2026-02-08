@@ -200,7 +200,7 @@ export class DKGPublisher {
     if (params.moltbookPostId) {
       (attestation as Record<string, unknown>).mainEntityOfPage = {
         '@type': 'WebPage',
-        '@id': `https://moltbook.com/p/${params.moltbookPostId}`,
+        '@id': `https://moltbook.com/post/${params.moltbookPostId}`,
       };
     }
 

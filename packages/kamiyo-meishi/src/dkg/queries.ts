@@ -33,8 +33,10 @@ export function queryAgentTransactions(agentId: string, opts?: {
     WHERE {
       ?doc a schema:DigitalDocument ;
            schema:name "TransactionDecision" ;
-           schema:about/schema:identifier "${safeId}" ;
            schema:dateCreated ?date .
+      ?doc schema:about ?agent .
+      OPTIONAL { ?agent schema:identifier ?agentIdentifier . }
+      FILTER(STR(?agent) = "${safeId}" || (BOUND(?agentIdentifier) && ?agentIdentifier = "${safeId}"))
       ?doc schema:additionalProperty ?amountProp, ?merchantProp, ?categoryProp, ?txProp .
       ?amountProp schema:name "amountUsd" ; schema:value ?amount .
       ?merchantProp schema:name "merchant" ; schema:value ?merchant .
@@ -65,9 +67,11 @@ export function queryCompliantAgents(minScore: number, opts?: {
     WHERE {
       ?audit a schema:Review ;
              schema:name "ComplianceAudit" ;
-             schema:itemReviewed/schema:identifier ?agent ;
              schema:reviewRating/schema:ratingValue ?score ;
              schema:datePublished ?date .
+      ?audit schema:itemReviewed ?agentRef .
+      OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
+      BIND(COALESCE(?agentIdentifier, STR(?agentRef)) AS ?agent)
       ?audit schema:additionalProperty ?classProp .
       ?classProp schema:name "classification" ; schema:value ?classification .${jurisdictionFilter}
       FILTER(?score >= ${Math.floor(minScore)})
@@ -89,10 +93,14 @@ export function queryLatestAudit(agentId: string): string {
     WHERE {
       ?audit a schema:Review ;
              schema:name "ComplianceAudit" ;
-             schema:itemReviewed/schema:identifier "${safeId}" ;
              schema:reviewRating/schema:ratingValue ?score ;
-             schema:author/schema:identifier ?auditor ;
              schema:datePublished ?date .
+      ?audit schema:itemReviewed ?agentRef ;
+             schema:author ?auditorRef .
+      OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
+      OPTIONAL { ?auditorRef schema:identifier ?auditorIdentifier . }
+      FILTER(STR(?agentRef) = "${safeId}" || (BOUND(?agentIdentifier) && ?agentIdentifier = "${safeId}"))
+      BIND(COALESCE(?auditorIdentifier, STR(?auditorRef)) AS ?auditor)
       ?audit schema:additionalProperty ?classProp, ?typeProp .
       ?classProp schema:name "classification" ; schema:value ?classification .
       ?typeProp schema:name "auditType" ; schema:value ?auditType .
@@ -170,8 +178,10 @@ export function queryAgentVolume(agentId: string, sinceDays: number = 30): strin
     WHERE {
       ?doc a schema:DigitalDocument ;
            schema:name "TransactionDecision" ;
-           schema:about/schema:identifier "${safeId}" ;
            schema:dateCreated ?date .
+      ?doc schema:about ?agent .
+      OPTIONAL { ?agent schema:identifier ?agentIdentifier . }
+      FILTER(STR(?agent) = "${safeId}" || (BOUND(?agentIdentifier) && ?agentIdentifier = "${safeId}"))
       ?doc schema:additionalProperty ?amountProp .
       ?amountProp schema:name "amountUsd" ; schema:value ?amount .
       FILTER(?date > "${cutoff}"^^xsd:dateTime)

@@ -20,6 +20,11 @@ export interface AuditResult {
   suspended: boolean;
 }
 
+export interface AuditBatchResult {
+  results: AuditResult[];
+  failures: number;
+}
+
 export class ComplianceEngine {
   private client: MeishiClient;
   private passports: PassportManager;
@@ -65,19 +70,29 @@ export class ComplianceEngine {
   /**
    * Run audits on a batch of passports.
    */
-  async auditBatch(addresses: PublicKey[]): Promise<AuditResult[]> {
+  async auditBatch(addresses: PublicKey[], concurrency = 4): Promise<AuditBatchResult> {
     const results: AuditResult[] = [];
+    let failures = 0;
+    const queue = [...addresses];
+    const workerCount = Math.max(1, Math.min(concurrency, addresses.length));
 
-    for (const address of addresses) {
-      try {
-        const result = await this.auditPassport(address);
-        results.push(result);
-      } catch (err) {
-        console.error(`[engine] Audit failed for ${address.toBase58()}:`, err);
+    const worker = async (): Promise<void> => {
+      while (queue.length > 0) {
+        const address = queue.shift();
+        if (!address) break;
+        try {
+          const result = await this.auditPassport(address);
+          results.push(result);
+        } catch (err) {
+          failures++;
+          console.error(`[engine] Audit failed for ${address.toBase58()}:`, err);
+        }
       }
-    }
+    };
 
-    return results;
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+    return { results, failures };
   }
 
   /**
@@ -87,14 +102,15 @@ export class ComplianceEngine {
     if (passport.complianceScore < scoreThreshold) return true;
 
     // Mandate expired
-    const now = Math.floor(Date.now() / 1000);
-    if (passport.mandateExpires.toNumber() <= now) return true;
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const mandateExpires = BigInt(passport.mandateExpires.toString(10));
+    if (mandateExpires <= now) return true;
 
     // High dispute rate
-    const txCount = passport.totalTransactions.toNumber();
-    if (txCount > 0) {
-      const disputeRate = passport.disputesFiled / txCount;
-      if (disputeRate > 0.15) return true;
+    const txCount = BigInt(passport.totalTransactions.toString(10));
+    if (txCount > 0n) {
+      const disputes = BigInt(passport.disputesFiled);
+      if (disputes * 100n > txCount * 15n) return true;
     }
 
     return false;

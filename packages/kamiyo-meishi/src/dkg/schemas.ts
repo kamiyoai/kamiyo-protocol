@@ -1,15 +1,23 @@
 /**
- * Schema.org JSON-LD document builders for Meishi knowledge assets.
- * Published to OriginTrail DKG as immutable audit trail records.
+ * OriginTrail-compatible JSON-LD document builders for Meishi knowledge assets.
+ * These builders produce schema.org + GS1 Digital Link aligned assertions that can
+ * be published as DKG public/private assertions.
  */
 
-const MEISHI_CONTEXT = 'https://kamiyo.io/meishi/v1';
+import {
+  buildAgentDigitalLink,
+  buildAgentGIAI,
+  buildMeishiDigitalLink,
+  gs1Context,
+} from './gs1.js';
+
+const MEISHI_CONTEXT = 'https://kamiyo.io/context/meishi/v1';
 const SCHEMA_CONTEXT = 'https://schema.org/';
-const MAX_ID_LENGTH = 200;
+const MAX_ID_LENGTH = 220;
 
 function createId(type: string, suffix: string): string {
   const safeType = type.replace(/[^a-zA-Z0-9_-]/g, '');
-  const safeSuffix = suffix.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 100);
+  const safeSuffix = suffix.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120);
   const id = `urn:kamiyo:meishi:${safeType}:${safeSuffix}`;
   if (id.length > MAX_ID_LENGTH) {
     throw new Error('Schema ID too long');
@@ -19,6 +27,20 @@ function createId(type: string, suffix: string): string {
 
 function isoNow(): string {
   return new Date().toISOString();
+}
+
+function property(name: string, value: unknown, description?: string): Record<string, unknown> {
+  return {
+    '@type': 'PropertyValue',
+    name,
+    value,
+    ...(description ? { description } : {}),
+  };
+}
+
+export interface DKGAssetPayload {
+  public: Record<string, unknown>;
+  private?: Record<string, unknown>;
 }
 
 export interface TransactionDecisionDoc {
@@ -36,36 +58,84 @@ export interface TransactionDecisionDoc {
   categoryCheckPassed: boolean;
   transactionId: string;
   escrowAddress?: string;
+  evidenceUal?: string;
+  privateReasoning?: string;
+  privateInputsHash?: string;
 }
 
-export function buildTransactionDecisionAsset(params: TransactionDecisionDoc): object {
+export function buildTransactionDecisionAsset(params: TransactionDecisionDoc): Record<string, unknown> {
+  const timestamp = Date.now();
+  const agentGiai = buildAgentGIAI(params.meishiPda);
+  const decisionId = buildMeishiDigitalLink({
+    agentGIAI: agentGiai,
+    assetType: 'tx-decision',
+    timestamp,
+    qualifier: params.transactionId,
+  });
+
   return {
-    '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+    '@context': [SCHEMA_CONTEXT, gs1Context(), MEISHI_CONTEXT],
     '@type': 'DigitalDocument',
-    '@id': createId('tx-decision', `${params.meishiPda}-${Date.now()}`),
+    '@id': decisionId,
+    identifier: createId('tx-decision', params.transactionId || `${params.meishiPda}-${timestamp}`),
     name: 'TransactionDecision',
     about: {
       '@type': 'SoftwareApplication',
       '@id': params.agentId,
+      identifier: params.agentId,
+      sameAs: buildAgentDigitalLink(params.meishiPda),
     },
     additionalProperty: [
-      { '@type': 'PropertyValue', name: 'meishi', value: params.meishiPda },
-      { '@type': 'PropertyValue', name: 'mandateVersion', value: params.mandateVersion },
-      { '@type': 'PropertyValue', name: 'action', value: params.action },
-      { '@type': 'PropertyValue', name: 'merchant', value: params.merchantId },
-      { '@type': 'PropertyValue', name: 'productCategory', value: params.productCategory },
-      { '@type': 'PropertyValue', name: 'amountUsd', value: params.amountUsd },
-      { '@type': 'PropertyValue', name: 'reasoningHash', value: params.reasoningHash },
-      { '@type': 'PropertyValue', name: 'humanApproved', value: params.humanApproved },
-      { '@type': 'PropertyValue', name: 'mandateCheck', value: params.mandateCheckPassed ? 'passed' : 'failed' },
-      { '@type': 'PropertyValue', name: 'spendingCheck', value: params.spendingCheckPassed ? 'passed' : 'failed' },
-      { '@type': 'PropertyValue', name: 'categoryCheck', value: params.categoryCheckPassed ? 'passed' : 'failed' },
-      { '@type': 'PropertyValue', name: 'transactionId', value: params.transactionId },
+      property('meishi', params.meishiPda),
+      property('agentGIAI', agentGiai),
+      property('mandateVersion', params.mandateVersion),
+      property('action', params.action),
+      property('merchant', params.merchantId),
+      property('productCategory', params.productCategory),
+      property('amountUsd', params.amountUsd),
+      property('reasoningHash', params.reasoningHash),
+      property('humanApproved', params.humanApproved),
+      property('mandateCheck', params.mandateCheckPassed ? 'passed' : 'failed'),
+      property('spendingCheck', params.spendingCheckPassed ? 'passed' : 'failed'),
+      property('categoryCheck', params.categoryCheckPassed ? 'passed' : 'failed'),
+      property('transactionId', params.transactionId),
       ...(params.escrowAddress
-        ? [{ '@type': 'PropertyValue', name: 'escrowAddress', value: params.escrowAddress }]
+        ? [property('escrowAddress', params.escrowAddress)]
         : []),
+      ...(params.evidenceUal ? [property('evidenceUal', params.evidenceUal)] : []),
     ],
+    ...(params.evidenceUal
+      ? {
+          isBasedOn: {
+            '@type': 'DigitalDocument',
+            '@id': params.evidenceUal,
+          },
+        }
+      : {}),
     dateCreated: isoNow(),
+  };
+}
+
+export function buildTransactionDecisionPayload(params: TransactionDecisionDoc): DKGAssetPayload {
+  const publicAssertion = buildTransactionDecisionAsset(params);
+  const privateAssertion = params.privateReasoning || params.privateInputsHash
+    ? {
+        '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+        '@type': 'DigitalDocument',
+        '@id': `${String(publicAssertion['@id'])}#private`,
+        name: 'TransactionDecisionPrivateDetails',
+        about: { '@id': String(publicAssertion['@id']) },
+        additionalProperty: [
+          ...(params.privateInputsHash ? [property('privateInputsHash', params.privateInputsHash)] : []),
+        ],
+        ...(params.privateReasoning ? { text: params.privateReasoning } : {}),
+        dateCreated: isoNow(),
+      }
+    : undefined;
+
+  return {
+    public: publicAssertion,
+    ...(privateAssertion ? { private: privateAssertion } : {}),
   };
 }
 
@@ -83,21 +153,36 @@ export interface ComplianceAuditDoc {
   classification: string;
   jurisdiction: string;
   recommendations: string[];
+  evidenceUal?: string;
+  privateFindingsUal?: string;
 }
 
-export function buildComplianceAuditAsset(params: ComplianceAuditDoc): object {
+export function buildComplianceAuditAsset(params: ComplianceAuditDoc): Record<string, unknown> {
+  const timestamp = Date.now();
+  const agentGiai = buildAgentGIAI(params.meishiPda);
+  const auditId = buildMeishiDigitalLink({
+    agentGIAI: agentGiai,
+    assetType: 'audit',
+    timestamp,
+    qualifier: `${params.auditType}-${timestamp}`,
+  });
+
   return {
-    '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+    '@context': [SCHEMA_CONTEXT, gs1Context(), MEISHI_CONTEXT],
     '@type': 'Review',
-    '@id': createId('audit', `${params.meishiPda}-${Date.now()}`),
+    '@id': auditId,
+    identifier: createId('audit', `${params.meishiPda}-${timestamp}`),
     name: 'ComplianceAudit',
     itemReviewed: {
       '@type': 'SoftwareApplication',
       '@id': params.agentId,
+      identifier: params.agentId,
+      sameAs: buildAgentDigitalLink(params.meishiPda),
     },
     author: {
       '@type': 'Organization',
       '@id': params.auditorId,
+      identifier: params.auditorId,
     },
     reviewRating: {
       '@type': 'Rating',
@@ -108,18 +193,47 @@ export function buildComplianceAuditAsset(params: ComplianceAuditDoc): object {
     },
     reviewBody: params.recommendations.join('; '),
     additionalProperty: [
-      { '@type': 'PropertyValue', name: 'meishi', value: params.meishiPda },
-      { '@type': 'PropertyValue', name: 'auditType', value: params.auditType },
-      { '@type': 'PropertyValue', name: 'jurisdiction', value: params.jurisdiction },
-      { '@type': 'PropertyValue', name: 'classification', value: params.classification },
-      ...params.dimensions.map((d) => ({
-        '@type': 'PropertyValue',
-        name: `dim:${d.name}`,
-        value: d.score,
-        description: d.findings.join(', '),
-      })),
+      property('meishi', params.meishiPda),
+      property('agentGIAI', agentGiai),
+      property('auditType', params.auditType),
+      property('jurisdiction', params.jurisdiction),
+      property('classification', params.classification),
+      ...(params.privateFindingsUal
+        ? [property('privateFindingsUal', params.privateFindingsUal)]
+        : []),
+      ...params.dimensions.map((dimension) =>
+        property(`dim:${dimension.name}`, dimension.score, dimension.findings.join(', '))
+      ),
     ],
+    ...(params.evidenceUal
+      ? {
+          isBasedOn: {
+            '@type': 'DigitalDocument',
+            '@id': params.evidenceUal,
+          },
+        }
+      : {}),
     datePublished: isoNow(),
+  };
+}
+
+export function buildComplianceAuditPayload(params: ComplianceAuditDoc): DKGAssetPayload {
+  const publicAssertion = buildComplianceAuditAsset(params);
+  const privateAssertion = params.privateFindingsUal
+    ? {
+        '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+        '@type': 'DigitalDocument',
+        '@id': `${String(publicAssertion['@id'])}#private`,
+        name: 'ComplianceAuditPrivateDetails',
+        about: { '@id': String(publicAssertion['@id']) },
+        isBasedOn: { '@id': params.privateFindingsUal },
+        dateCreated: isoNow(),
+      }
+    : undefined;
+
+  return {
+    public: publicAssertion,
+    ...(privateAssertion ? { private: privateAssertion } : {}),
   };
 }
 
@@ -134,31 +248,72 @@ export interface LiabilityResolutionDoc {
   resolution: 'oracle_consensus' | 'mutual_agreement' | 'timeout';
   refundAmountUsd: number;
   reasoningUal?: string;
+  privateRationale?: string;
 }
 
-export function buildLiabilityResolutionAsset(params: LiabilityResolutionDoc): object {
+export function buildLiabilityResolutionAsset(params: LiabilityResolutionDoc): Record<string, unknown> {
+  const timestamp = Date.now();
+  const agentGiai = buildAgentGIAI(params.meishiPda);
+  const resolutionId = buildMeishiDigitalLink({
+    agentGIAI: agentGiai,
+    assetType: 'liability',
+    timestamp,
+    qualifier: params.disputeId,
+  });
+
   return {
-    '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+    '@context': [SCHEMA_CONTEXT, gs1Context(), MEISHI_CONTEXT],
     '@type': 'DigitalDocument',
-    '@id': createId('liability', `${params.disputeId}-${Date.now()}`),
+    '@id': resolutionId,
+    identifier: createId('liability', `${params.disputeId}-${timestamp}`),
     name: 'LiabilityResolution',
     about: {
       '@type': 'DigitalDocument',
       '@id': params.transactionUal,
+      identifier: params.transactionUal,
     },
     additionalProperty: [
-      { '@type': 'PropertyValue', name: 'meishi', value: params.meishiPda },
-      { '@type': 'PropertyValue', name: 'disputeId', value: params.disputeId },
-      { '@type': 'PropertyValue', name: 'consumerAllocation', value: params.consumerPct },
-      { '@type': 'PropertyValue', name: 'developerAllocation', value: params.developerPct },
-      { '@type': 'PropertyValue', name: 'merchantAllocation', value: params.merchantPct },
-      { '@type': 'PropertyValue', name: 'platformAllocation', value: params.platformPct },
-      { '@type': 'PropertyValue', name: 'resolution', value: params.resolution },
-      { '@type': 'PropertyValue', name: 'refundAmountUsd', value: params.refundAmountUsd },
+      property('meishi', params.meishiPda),
+      property('agentGIAI', agentGiai),
+      property('disputeId', params.disputeId),
+      property('consumerAllocation', params.consumerPct),
+      property('developerAllocation', params.developerPct),
+      property('merchantAllocation', params.merchantPct),
+      property('platformAllocation', params.platformPct),
+      property('resolution', params.resolution),
+      property('refundAmountUsd', params.refundAmountUsd),
       ...(params.reasoningUal
-        ? [{ '@type': 'PropertyValue', name: 'reasoningUal', value: params.reasoningUal }]
+        ? [property('reasoningUal', params.reasoningUal)]
         : []),
     ],
+    ...(params.reasoningUal
+      ? {
+          isBasedOn: {
+            '@type': 'DigitalDocument',
+            '@id': params.reasoningUal,
+          },
+        }
+      : {}),
     dateCreated: isoNow(),
+  };
+}
+
+export function buildLiabilityResolutionPayload(params: LiabilityResolutionDoc): DKGAssetPayload {
+  const publicAssertion = buildLiabilityResolutionAsset(params);
+  const privateAssertion = params.privateRationale
+    ? {
+        '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+        '@type': 'DigitalDocument',
+        '@id': `${String(publicAssertion['@id'])}#private`,
+        name: 'LiabilityResolutionPrivateDetails',
+        about: { '@id': String(publicAssertion['@id']) },
+        text: params.privateRationale,
+        dateCreated: isoNow(),
+      }
+    : undefined;
+
+  return {
+    public: publicAssertion,
+    ...(privateAssertion ? { private: privateAssertion } : {}),
   };
 }

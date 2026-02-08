@@ -38,6 +38,9 @@ jobs:
           avm install ${{ env.ANCHOR_VERSION }}
           avm use ${{ env.ANCHOR_VERSION }}
 
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
       - run: pnpm install
       - name: Generate keypair
         run: solana-keygen new --no-bip39-passphrase
@@ -46,6 +49,8 @@ jobs:
       - run: anchor test
       - name: Validate VK
         run: ./scripts/validate-vk.sh
+      - name: Cargo Audit
+        run: cargo audit
 
   evm:
     name: EVM
@@ -88,5 +93,22 @@ jobs:
       - name: Build SDK
         run: pnpm run build:sdk
 
+      - name: Build Meishi Stack
+        run: |
+          pnpm --filter @kamiyo/meishi build
+          pnpm --filter @kamiyo/meishi-middleware build
+          pnpm --filter @kamiyo/meishi-mcp build
+          pnpm --filter @kamiyo/x402-client build
+          pnpm --filter @kamiyo/meishi-compliance build
+
       - name: Test SDK
         run: pnpm run test:sdk
+
+      - name: Test Meishi Header Validation
+        run: npx ts-mocha -p ./tests/tsconfig.json -t 120000 tests/meishi-validation.test.ts
+
+      - name: Test Meishi DKG Alignment
+        run: npx ts-mocha -p ./tests/tsconfig.json -t 120000 tests/meishi-dkg-alignment.test.ts
+
+      - name: PNPM Audit (Critical)
+        run: pnpm audit --prod --audit-level=critical

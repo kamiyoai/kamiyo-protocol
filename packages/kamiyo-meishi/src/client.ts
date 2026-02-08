@@ -10,8 +10,10 @@ import type {
 
 const DEFAULT_PROGRAM_ID = '6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK';
 
-// TODO(anchor): validate 8-byte account discriminators before deserializing.
-// Currently only owner is checked. Add discriminator validation once IDL is generated.
+const MEISHI_PASSPORT_DISCRIMINATOR = Buffer.from([229, 255, 37, 103, 199, 138, 246, 154]);
+const MEISHI_MANDATE_DISCRIMINATOR = Buffer.from([97, 214, 195, 72, 220, 194, 76, 88]);
+const MEISHI_AUDIT_DISCRIMINATOR = Buffer.from([182, 24, 190, 120, 217, 244, 228, 62]);
+const LIABILITY_ALLOCATION_DISCRIMINATOR = Buffer.from([214, 175, 179, 74, 163, 46, 30, 237]);
 
 export class MeishiClient {
   readonly connection: Connection;
@@ -66,6 +68,7 @@ export class MeishiClient {
   async fetchPassport(address: PublicKey): Promise<MeishiPassport | null> {
     const info = await this.connection.getAccountInfo(address);
     if (!info || !info.owner.equals(this.programId)) return null;
+    if (!this.hasDiscriminator(info.data, MEISHI_PASSPORT_DISCRIMINATOR)) return null;
     return this.deserializePassport(info.data);
   }
 
@@ -73,6 +76,7 @@ export class MeishiClient {
     const [pda] = this.getMandatePDA(passportAddress, version);
     const info = await this.connection.getAccountInfo(pda);
     if (!info || !info.owner.equals(this.programId)) return null;
+    if (!this.hasDiscriminator(info.data, MEISHI_MANDATE_DISCRIMINATOR)) return null;
     return this.deserializeMandate(info.data);
   }
 
@@ -86,6 +90,7 @@ export class MeishiClient {
     const [pda] = this.getAuditPDA(passportAddress, nonce);
     const info = await this.connection.getAccountInfo(pda);
     if (!info || !info.owner.equals(this.programId)) return null;
+    if (!this.hasDiscriminator(info.data, MEISHI_AUDIT_DISCRIMINATOR)) return null;
     return this.deserializeAudit(info.data);
   }
 
@@ -96,6 +101,7 @@ export class MeishiClient {
     const [pda] = this.getLiabilityPDA(passportAddress, counterparty);
     const info = await this.connection.getAccountInfo(pda);
     if (!info || !info.owner.equals(this.programId)) return null;
+    if (!this.hasDiscriminator(info.data, LIABILITY_ALLOCATION_DISCRIMINATOR)) return null;
     return this.deserializeLiability(info.data);
   }
 
@@ -111,7 +117,7 @@ export class MeishiClient {
   }> {
     const passport = await this.getPassport(agentIdentity);
     const errors: string[] = [];
-    const now = Math.floor(Date.now() / 1000);
+    const now = BigInt(Math.floor(Date.now() / 1000));
 
     if (!passport) {
       return {
@@ -129,9 +135,8 @@ export class MeishiClient {
       errors.push(`Suspended: reason ${passport.suspensionReason}`);
     }
 
-    const mandateValid =
-      passport.mandateExpires.toNumber() > now &&
-      !passport.mandateHash.every((b) => b === 0);
+    const mandateExpires = this.bnToBigInt(passport.mandateExpires);
+    const mandateValid = mandateExpires > now && !passport.mandateHash.every((b) => b === 0);
 
     if (!mandateValid) {
       errors.push('No valid mandate');
@@ -182,9 +187,9 @@ export class MeishiClient {
 
     const errors: string[] = [];
     const amountMicroUsd = BigInt(Math.floor(transactionAmountUsd * 1_000_000));
-    const spendingLimit = mandate.spendingLimitUsd.toNumber();
+    const spendingLimit = this.bnToBigInt(mandate.spendingLimitUsd);
 
-    const withinLimits = amountMicroUsd <= BigInt(spendingLimit);
+    const withinLimits = amountMicroUsd <= spendingLimit;
     if (!withinLimits) {
       errors.push(`Amount $${transactionAmountUsd} exceeds per-tx limit`);
     }
@@ -201,7 +206,7 @@ export class MeishiClient {
     }
 
     const requiresHumanApproval =
-      amountMicroUsd > BigInt(mandate.requiresHumanApprovalAbove.toNumber());
+      amountMicroUsd > this.bnToBigInt(mandate.requiresHumanApprovalAbove);
 
     return {
       withinLimits,
@@ -379,5 +384,13 @@ export class MeishiClient {
     } catch {
       return null;
     }
+  }
+
+  private hasDiscriminator(data: Buffer, expected: Buffer): boolean {
+    return data.length >= 8 && data.subarray(0, 8).equals(expected);
+  }
+
+  private bnToBigInt(value: BN): bigint {
+    return BigInt(value.toString(10));
   }
 }

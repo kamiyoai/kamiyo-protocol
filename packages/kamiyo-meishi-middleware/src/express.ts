@@ -41,7 +41,10 @@ export function meishiMiddleware(config: MeishiMiddlewareConfig) {
         headers[key] = Array.isArray(val) ? val[0] : val;
       }
 
-      const ctx = await verifier.verify(headers);
+      const ctx = await verifier.verify(headers, {
+        method: req.method,
+        path: req.originalUrl || req.url || '/',
+      });
       req.meishi = ctx;
 
       if (!ctx.verified && ctx.result) {

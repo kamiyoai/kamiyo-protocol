@@ -90,7 +90,7 @@ async function submit() {
       const data = JSON.parse(text);
       console.log('\nSubmission successful!');
       console.log('Post ID:', data.id || data.postId);
-      console.log('URL:', data.url || `https://www.moltbook.com/p/${data.id || data.postId}`);
+      console.log('URL:', data.url || `https://www.moltbook.com/post/${data.id || data.postId}`);
     } catch {
       console.log('Posted but could not parse response');
     }

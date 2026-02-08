@@ -16,9 +16,26 @@ export interface MeishiMiddlewareConfig {
   productCategory?: number;
   /** If true, requests without Meishi headers are rejected. Default: true. */
   requireMeishi?: boolean;
-  // TODO(middleware): implement warning-as-error mode when allowWarnings=false
-  /** If true, warnings don't block the request. Default: true. Currently unused. */
+  /** If true, warnings don't block the request. Default: true. */
   allowWarnings?: boolean;
+  /** Maximum allowed signature age in seconds. Default: 300. */
+  maxSignatureAgeSec?: number;
+  /** Allowed future clock skew in seconds. Default: 60. */
+  allowedClockSkewSec?: number;
+  /** Optional nonce replay guard callback. Return false when nonce is already used. */
+  nonceReplayGuard?: (params: {
+    passportAddress: string;
+    nonce: string;
+    timestamp: number;
+  }) => Promise<boolean> | boolean;
+  /** Require a DKG assertion UAL in Meishi headers. Default: false. */
+  requireAssertionReference?: boolean;
+  /** Require a SHA-256 assertion hash when assertion UALs are used. Default: false. */
+  requireAssertionHash?: boolean;
+  /** Allowed assertion UAL prefixes. Default: ['did:dkg:'] */
+  allowedAssertionUalPrefixes?: string[];
+  /** Allow deprecated compliance-proof-only headers. Default: false. */
+  allowLegacyComplianceProof?: boolean;
 }
 
 export interface MeishiVerificationContext {
@@ -38,9 +55,17 @@ export function createVerifier(config: MeishiMiddlewareConfig) {
   });
   const exchange = new MeishiExchange(client);
   const requireMeishi = config.requireMeishi ?? true;
+  const allowWarnings = config.allowWarnings ?? true;
 
   return {
-    async verify(headers: Record<string, string | undefined>): Promise<MeishiVerificationContext> {
+    async verify(
+      headers: Record<string, string | undefined>,
+      requestContext?: {
+        method?: string;
+        path?: string;
+        body?: Buffer | string;
+      }
+    ): Promise<MeishiVerificationContext> {
       const presentation = MeishiExchange.fromHeaders(headers);
 
       if (!presentation) {
@@ -59,12 +84,33 @@ export function createVerifier(config: MeishiMiddlewareConfig) {
         requiredJurisdiction: config.requiredJurisdiction,
         maxTransactionUsd: config.maxTransactionUsd,
         productCategory: config.productCategory,
+        maxSignatureAgeSec: config.maxSignatureAgeSec,
+        allowedClockSkewSec: config.allowedClockSkewSec,
+        expectedMethod: requestContext?.method,
+        expectedPath: requestContext?.path,
+        expectedBody: requestContext?.body,
+        requireAssertionReference: config.requireAssertionReference,
+        requireAssertionHash: config.requireAssertionHash,
+        allowedAssertionUalPrefixes: config.allowedAssertionUalPrefixes,
+        allowLegacyComplianceProof: config.allowLegacyComplianceProof,
+        nonceReplayGuard: config.nonceReplayGuard,
       });
+
+      const normalizedResult = (!allowWarnings && result.warnings.length > 0)
+        ? {
+            ...result,
+            valid: false,
+            errors: [
+              ...result.errors,
+              ...result.warnings.map((w) => `Warning promoted to error: ${w}`),
+            ],
+          }
+        : result;
 
       return {
         presentation,
-        result,
-        verified: result.valid,
+        result: normalizedResult,
+        verified: normalizedResult.valid,
       };
     },
   };
