@@ -84,6 +84,17 @@ describe('signing', () => {
       // Nonce format: counter(4) + random(24) + timestamp(variable) = 28+ hex chars
       expect(payment.nonce).toMatch(/^[0-9a-f]{28,}$/);
     });
+
+    it('preserves string amount for x402 base-unit compatibility', () => {
+      const payment = createSignedPayment(
+        wallet,
+        'tx-signature-123',
+        'https://api.example.com/resource',
+        '0.001234'
+      );
+
+      expect(payment.amount).toBe('0.001234');
+    });
   });
 
   describe('serializeForSigning', () => {

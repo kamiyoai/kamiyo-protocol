@@ -20,11 +20,25 @@ export const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 interface RawQuoteResponse {
   inputMint: string;
   outputMint: string;
-  inAmount: string;
-  outAmount: string;
+  inAmount?: string;
+  outAmount?: string;
+  inputAmount?: string;
+  outputAmount?: string;
   priceImpactPct: string;
   routePlan: unknown[];
   [key: string]: unknown;
+}
+
+function getRawInAmount(raw: RawQuoteResponse): string | null {
+  if (typeof raw.inAmount === 'string') return raw.inAmount;
+  if (typeof raw.inputAmount === 'string') return raw.inputAmount;
+  return null;
+}
+
+function getRawOutAmount(raw: RawQuoteResponse): string | null {
+  if (typeof raw.outAmount === 'string') return raw.outAmount;
+  if (typeof raw.outputAmount === 'string') return raw.outputAmount;
+  return null;
 }
 
 function isValidRawQuote(data: unknown): data is RawQuoteResponse {
@@ -33,17 +47,23 @@ function isValidRawQuote(data: unknown): data is RawQuoteResponse {
   return (
     typeof q.inputMint === 'string' &&
     typeof q.outputMint === 'string' &&
-    typeof q.inAmount === 'string' &&
-    typeof q.outAmount === 'string'
+    (typeof q.inAmount === 'string' || typeof q.inputAmount === 'string') &&
+    (typeof q.outAmount === 'string' || typeof q.outputAmount === 'string')
   );
 }
 
 function rawToSwapQuote(raw: RawQuoteResponse): SwapQuote {
+  const inAmount = getRawInAmount(raw);
+  const outAmount = getRawOutAmount(raw);
+  if (!inAmount || !outAmount) {
+    throw new Error('Invalid raw quote amounts');
+  }
+
   return {
     inputMint: raw.inputMint,
     outputMint: raw.outputMint,
-    inputAmount: raw.inAmount,
-    outputAmount: raw.outAmount,
+    inputAmount: inAmount,
+    outputAmount: outAmount,
     priceImpactPct: raw.priceImpactPct || '0',
   };
 }
@@ -90,7 +110,7 @@ export class JupiterSwap {
       if (API_KEY) headers['x-api-key'] = API_KEY;
       const res = await fetch(url, { signal: controller.signal, headers });
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
+        const text = typeof res.text === 'function' ? await res.text().catch(() => '') : '';
         console.error(`Jupiter quote failed: ${res.status} ${res.statusText}`, text);
         return null;
       }
@@ -137,7 +157,7 @@ export class JupiterSwap {
       clearTimeout(timeout);
 
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
+        const text = typeof res.text === 'function' ? await res.text().catch(() => '') : '';
         console.error(`Jupiter swap failed: ${res.status} ${res.statusText}`, text);
         return { success: false, inputAmount: amount, outputAmount: 0, error: 'swap request failed' };
       }
@@ -154,7 +174,13 @@ export class JupiterSwap {
       const sig = await this.connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
       await this.connection.confirmTransaction(sig, 'confirmed');
 
-      return { success: true, signature: sig, inputAmount: parseInt(rawQuote.inAmount), outputAmount: parseInt(rawQuote.outAmount) };
+      const inAmount = getRawInAmount(rawQuote);
+      const outAmount = getRawOutAmount(rawQuote);
+      if (!inAmount || !outAmount) {
+        return { success: false, inputAmount: amount, outputAmount: 0, error: 'invalid quote amounts' };
+      }
+
+      return { success: true, signature: sig, inputAmount: parseInt(inAmount), outputAmount: parseInt(outAmount) };
     } catch (err) {
       clearTimeout(timeout);
       return { success: false, inputAmount: amount, outputAmount: 0, error: err instanceof Error ? err.message : 'swap failed' };
