@@ -84,6 +84,18 @@ let solanaKeypair: Keypair | null = null;
 let baseProvider: JsonRpcProvider | null = null;
 let baseWallet: Wallet | null = null;
 
+export interface FacilitatorSupportedKind {
+  x402Version: 2;
+  scheme: 'exact';
+  network: string;
+  extra?: Record<string, unknown>;
+}
+
+export interface FacilitatorProfile {
+  kinds: FacilitatorSupportedKind[];
+  signers: Record<string, string[]>;
+}
+
 export function initFacilitator(cfg: FacilitatorConfig): void {
   config = cfg;
 
@@ -118,6 +130,24 @@ export function initFacilitator(cfg: FacilitatorConfig): void {
       console.warn('[facilitator] Failed to init Base wallet');
     }
   }
+}
+
+export function getFacilitatorProfile(): FacilitatorProfile {
+  const kinds: FacilitatorSupportedKind[] = getSupportedNetworks().map((network) => ({
+    x402Version: 2,
+    scheme: 'exact',
+    network,
+  }));
+
+  const signers: Record<string, string[]> = {};
+  if (solanaKeypair) {
+    signers['solana:*'] = [solanaKeypair.publicKey.toBase58()];
+  }
+  if (baseWallet) {
+    signers['eip155:*'] = [baseWallet.address];
+  }
+
+  return { kinds, signers };
 }
 
 function decodePaymentHeader(header: string): DecodedPayment | null {
