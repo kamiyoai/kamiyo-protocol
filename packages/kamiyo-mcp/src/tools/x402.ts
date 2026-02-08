@@ -1,15 +1,15 @@
-/**
- * x402 HTTP Payment tools with real wallet signing.
- * Uses @kamiyo/x402-client for payment header creation.
- */
-
-import { Keypair, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Keypair, Connection } from '@solana/web3.js';
 import {
-  createPaymentSigner,
   createSignedPayment,
   createPaymentHeader,
   generateTransactionId,
-  PaymentSigner,
+  evaluateFacilitatorPolicy,
+  normalizeFacilitatorPolicy,
+  selectPreferredRequirement,
+  getRequirementAmountRaw,
+  parseUsdcAmountUsd,
+  withPaymentHeaders,
+  type FacilitatorPolicy,
 } from '@kamiyo/x402-client';
 
 interface FetchResponse {
@@ -19,7 +19,6 @@ interface FetchResponse {
   text: () => Promise<string>;
 }
 
-// Use native fetch or fallback to https module
 const httpFetch: (url: string, options?: RequestInit) => Promise<FetchResponse> =
   globalThis.fetch ?? (async (url: string, options?: RequestInit): Promise<FetchResponse> => {
     const https = await import('https');
@@ -61,7 +60,8 @@ const httpFetch: (url: string, options?: RequestInit) => Promise<FetchResponse> 
 export interface PaymentRequirement {
   scheme: 'exact';
   network: string; // CAIP-2
-  amount: string;
+  amount?: string;
+  maxAmountRequired?: string;
   resource: string;
   description: string;
   payTo: string;
@@ -82,17 +82,13 @@ export interface X402Config {
   connection: Connection;
   maxPriceUsd: number;
   preferredNetwork: string;
+  facilitatorPolicy?: FacilitatorPolicy;
 }
 
 const USDC_DECIMALS = 6;
-const SOL_PRICE_USD = 150; // Approximate, should fetch from oracle in production
 
 function fromMicro(micro: string | number): number {
   return (typeof micro === 'string' ? parseInt(micro, 10) : micro) / 10 ** USDC_DECIMALS;
-}
-
-function usdToLamports(usd: number): number {
-  return Math.ceil((usd / SOL_PRICE_USD) * LAMPORTS_PER_SOL);
 }
 
 function summarize(data: unknown): string {
@@ -119,7 +115,7 @@ function summarize(data: unknown): string {
 
 export async function x402CheckPricing(
   params: { url: string },
-  _config?: X402Config
+  config?: X402Config
 ): Promise<{
   success: boolean;
   free?: boolean;
@@ -145,6 +141,11 @@ export async function x402CheckPricing(
     }
 
     const x402Response = (await response.json()) as X402Response;
+    const policy = normalizeFacilitatorPolicy(config?.facilitatorPolicy);
+    const policyDecision = evaluateFacilitatorPolicy(x402Response.facilitator, policy);
+    if (!policyDecision.allowed) {
+      return { success: false, error: policyDecision.reason || 'Facilitator blocked by policy' };
+    }
 
     if (!x402Response.accepts || x402Response.accepts.length === 0) {
       return { success: false, error: 'No payment options available' };
@@ -152,7 +153,7 @@ export async function x402CheckPricing(
 
     const options = x402Response.accepts.map((req) => ({
       network: req.network,
-      priceUsd: fromMicro(req.amount),
+      priceUsd: parseUsdcAmountUsd(getRequirementAmountRaw(req) || '') ?? fromMicro(req.amount ?? 0),
       asset: req.asset,
       description: req.description,
     }));
@@ -180,9 +181,9 @@ export async function x402Fetch(
   error?: string;
 }> {
   const { url, method = 'GET', body, headers = {} } = params;
+  const facilitatorPolicy = normalizeFacilitatorPolicy(config.facilitatorPolicy);
 
   try {
-    // Initial request to check if payment required
     const initialResponse = await httpFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', ...headers },
@@ -197,19 +198,26 @@ export async function x402Fetch(
       return { success: false, error: `Endpoint returned ${initialResponse.status}` };
     }
 
-    // Parse 402 response
     const x402Response = (await initialResponse.json()) as X402Response;
+    const policyDecision = evaluateFacilitatorPolicy(x402Response.facilitator, facilitatorPolicy);
+    if (!policyDecision.allowed) {
+      return { success: false, error: policyDecision.reason || 'Facilitator blocked by policy' };
+    }
 
     if (!x402Response.accepts || x402Response.accepts.length === 0) {
       return { success: false, error: 'No payment options available' };
     }
 
-    // Select payment option
-    const requirement =
-      x402Response.accepts.find((r) => r.network === config.preferredNetwork) ||
-      x402Response.accepts[0];
+    const requirement = selectPreferredRequirement(x402Response.accepts, config.preferredNetwork);
+    const amountRaw = getRequirementAmountRaw(requirement);
+    if (!amountRaw) {
+      return { success: false, error: 'Payment requirement missing amount' };
+    }
 
-    const amountUsd = fromMicro(requirement.amount);
+    const amountUsd = parseUsdcAmountUsd(amountRaw);
+    if (amountUsd == null || amountUsd <= 0) {
+      return { success: false, error: 'Invalid payment amount in requirement' };
+    }
 
     if (amountUsd > config.maxPriceUsd) {
       return {
@@ -218,47 +226,27 @@ export async function x402Fetch(
       };
     }
 
-    // Check balance
-    const balance = await config.connection.getBalance(config.wallet.publicKey);
-    const amountLamports = usdToLamports(amountUsd);
-
-    if (balance < amountLamports + 5000) {
-      return {
-        success: false,
-        error: `Insufficient balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
-      };
-    }
-
-    // Create signed payment
     const transactionId = generateTransactionId();
-    const signer = createPaymentSigner(config.wallet);
-
-    // For now, create a signed payment header without on-chain transaction
-    // The payment proof includes wallet signature proving intent to pay
     const signedPayment = createSignedPayment(
       config.wallet,
-      transactionId, // Use transaction ID as placeholder until on-chain
+      transactionId,
       url,
-      amountLamports
+      amountRaw
     );
 
     const paymentHeader = createPaymentHeader(signedPayment, config.wallet, requirement.network);
 
-    // Retry with payment proof
     const paidResponse = await httpFetch(url, {
       method,
-      headers: {
+      headers: withPaymentHeaders(paymentHeader, {
         'Content-Type': 'application/json',
-        'X-PAYMENT': paymentHeader,
-        'X-PAYMENT-SIGNATURE': paymentHeader, // Backward compat
         ...headers,
-      },
+      }),
       body: body || undefined,
     });
 
     if (!paidResponse.ok) {
       if (paidResponse.status === 402) {
-        // Payment was rejected - need to verify what the facilitator expects
         const errorBody = await paidResponse.json().catch(() => ({}));
         return {
           success: false,
@@ -287,15 +275,13 @@ export async function x402Fetch(
   }
 }
 
-/**
- * Create x402 config from environment/keypair
- */
 export function createX402Config(
   wallet: Keypair,
   connection: Connection,
   options?: {
     maxPriceUsd?: number;
     preferredNetwork?: string;
+    facilitatorPolicy?: FacilitatorPolicy;
   }
 ): X402Config {
   return {
@@ -303,16 +289,15 @@ export function createX402Config(
     connection,
     maxPriceUsd: options?.maxPriceUsd ?? 1.0,
     preferredNetwork: options?.preferredNetwork ?? 'solana:mainnet',
+    facilitatorPolicy: options?.facilitatorPolicy,
   };
 }
 
-/**
- * Legacy config adapter for backward compatibility
- */
 export interface LegacyX402Config {
   walletAddress: string;
   maxPriceUsd: number;
   preferredNetwork: string;
+  facilitatorPolicy?: FacilitatorPolicy;
 }
 
 export function createX402ConfigFromLegacy(
@@ -325,5 +310,6 @@ export function createX402ConfigFromLegacy(
     connection,
     maxPriceUsd: legacy.maxPriceUsd,
     preferredNetwork: legacy.preferredNetwork,
+    facilitatorPolicy: legacy.facilitatorPolicy,
   };
 }

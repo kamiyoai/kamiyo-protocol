@@ -31,7 +31,7 @@
       },
       "KAMIYO_MAX_PRICE": {
         "type": "number",
-        "description": "Maximum SOL per API request",
+        "description": "Maximum USDC amount per API request",
         "default": 0.01
       },
       "KAMIYO_AUTO_DISPUTE": {

@@ -303,7 +303,7 @@ export const updateReputationAction: Action = {
       const sourceEnum = ReputationSource[source as keyof typeof ReputationSource] || ReputationSource.Direct;
 
       const delta = calculateReputationDelta(outcomeEnum);
-      const record = tracker.updateReputation(
+      const record = await tracker.updateReputation(
         keypair.publicKey.toBase58(),
         outcomeEnum,
         sourceEnum

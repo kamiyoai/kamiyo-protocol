@@ -5,13 +5,16 @@ import {
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
 import {
-  PaymentSigner,
-  createPaymentSigner,
   generateTransactionId,
   createSignedPayment,
   createPaymentHeader,
-  getSolPrice,
-  usdToLamports,
+  evaluateFacilitatorPolicy,
+  normalizeFacilitatorPolicy,
+  selectPreferredRequirement,
+  getRequirementAmountRaw,
+  parseUsdcAmountUsd,
+  withPaymentHeaders,
+  type FacilitatorPolicy,
 } from '@kamiyo/x402-client';
 
 import type {
@@ -35,7 +38,6 @@ const DEFAULT_MAX_PRICE_USD = 1.0;
 const DEFAULT_AUTO_DISPUTE_THRESHOLD = 30;
 const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
 const MAX_JOB_ID_LENGTH = 64;
-const MIN_BALANCE_BUFFER_SOL = 0.005;
 
 export class Paykit {
   private keypair: Keypair;
@@ -43,10 +45,9 @@ export class Paykit {
   private programId: PublicKey;
   private maxPriceUsd: number;
   private preferredNetwork: string;
+  private facilitatorPolicy: FacilitatorPolicy;
   private autoDisputeThreshold: number;
   private defaultTimeLockSeconds: number;
-
-  private paymentSigner: PaymentSigner;
 
   private activeJobs: Map<string, JobContext> = new Map();
 
@@ -56,10 +57,9 @@ export class Paykit {
     this.programId = new PublicKey(config.programId || DEFAULT_PROGRAM_ID);
     this.maxPriceUsd = config.maxPriceUsd ?? DEFAULT_MAX_PRICE_USD;
     this.preferredNetwork = config.preferredNetwork ?? 'solana:mainnet';
+    this.facilitatorPolicy = normalizeFacilitatorPolicy(config.facilitatorPolicy);
     this.autoDisputeThreshold = config.autoDisputeThreshold ?? DEFAULT_AUTO_DISPUTE_THRESHOLD;
     this.defaultTimeLockSeconds = config.defaultTimeLockSeconds ?? DEFAULT_TIME_LOCK_SECONDS;
-
-    this.paymentSigner = createPaymentSigner(this.keypair);
   }
 
   get publicKey(): PublicKey {
@@ -99,7 +99,6 @@ export class Paykit {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-      // Initial request
       const response = await fetch(url, {
         method: options.method || 'GET',
         headers: {
@@ -122,9 +121,11 @@ export class Paykit {
       }
 
       const x402Response = await response.json() as {
+        facilitator?: string;
         accepts?: Array<{
           network: string;
-          amount: string;
+          amount?: string;
+          maxAmountRequired?: string;
           asset: string;
           payTo: string;
           description?: string;
@@ -135,11 +136,31 @@ export class Paykit {
         return { success: false, paid: false, error: 'No payment options' };
       }
 
-      const requirement =
-        x402Response.accepts.find(r => r.network === this.preferredNetwork) ||
-        x402Response.accepts[0];
+      const policyDecision = evaluateFacilitatorPolicy(
+        x402Response.facilitator,
+        this.facilitatorPolicy
+      );
+      if (!policyDecision.allowed) {
+        return {
+          success: false,
+          paid: false,
+          error: policyDecision.reason || 'Facilitator blocked by policy',
+        };
+      }
 
-      const amountUsd = parseInt(requirement.amount, 10) / 1_000_000;
+      const requirement = selectPreferredRequirement(
+        x402Response.accepts,
+        this.preferredNetwork
+      );
+      const amountRaw = getRequirementAmountRaw(requirement);
+      if (!amountRaw) {
+        return { success: false, paid: false, error: 'Payment requirement missing amount' };
+      }
+
+      const amountUsd = parseUsdcAmountUsd(amountRaw);
+      if (amountUsd == null || amountUsd <= 0) {
+        return { success: false, paid: false, error: 'Invalid payment amount in requirement' };
+      }
 
       if (amountUsd > maxPrice) {
         return {
@@ -149,35 +170,13 @@ export class Paykit {
         };
       }
 
-      const balance = await this.getBalance();
-      const conversion = await usdToLamports(amountUsd);
-
-      if (!conversion) {
-        return {
-          success: false,
-          paid: false,
-          error: 'Failed to get SOL price',
-        };
-      }
-
-      const requiredSol = conversion.lamports / LAMPORTS_PER_SOL;
-
-      if (balance.sol < requiredSol + MIN_BALANCE_BUFFER_SOL) {
-        return {
-          success: false,
-          paid: false,
-          error: `Insufficient balance: ${balance.sol.toFixed(4)} SOL`,
-        };
-      }
-
       const transactionId = generateTransactionId();
-      const amountLamports = conversion.lamports;
 
       const signedPayment = createSignedPayment(
         this.keypair,
         transactionId,
         url,
-        amountLamports
+        amountRaw
       );
 
       const paymentHeader = createPaymentHeader(
@@ -188,11 +187,10 @@ export class Paykit {
 
       const paidResponse = await fetch(url, {
         method: options.method || 'GET',
-        headers: {
+        headers: withPaymentHeaders(paymentHeader, {
           'Content-Type': 'application/json',
-          'X-PAYMENT': paymentHeader,
           ...options.headers,
-        },
+        }),
         body: options.body ? JSON.stringify(options.body) : undefined,
       });
 
@@ -426,10 +424,11 @@ export function createPaykitFromEnv(): Paykit {
     connection,
     programId: process.env.KAMIYO_PROGRAM_ID,
     maxPriceUsd: process.env.MAX_PRICE_USD ? parseFloat(process.env.MAX_PRICE_USD) : undefined,
+    preferredNetwork: process.env.X402_PREFERRED_NETWORK,
+    facilitatorPolicy: process.env.X402_FACILITATOR_POLICY as FacilitatorPolicy | undefined,
   });
 }
 
-// Backward compat aliases
 export { Paykit as AgentWallet };
 export { createPaykit as createAgentWallet };
 export { createPaykitFromEnv as createAgentWalletFromEnv };

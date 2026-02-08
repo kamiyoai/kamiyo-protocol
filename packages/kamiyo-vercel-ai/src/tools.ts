@@ -1,37 +1,41 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { Keypair, Connection, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Keypair, Connection } from '@solana/web3.js';
 import {
-  createPaymentSigner,
   createSignedPayment,
   createPaymentHeader,
   generateTransactionId,
+  evaluateFacilitatorPolicy,
+  normalizeFacilitatorPolicy,
+  selectPreferredRequirement,
+  getRequirementAmountRaw,
+  parseUsdcAmountUsd,
+  withPaymentHeaders,
+  type FacilitatorPolicy,
 } from '@kamiyo/x402-client';
 
 const USDC_DECIMALS = 6;
-const SOL_PRICE_USD = 150; // Approximate, should fetch from oracle in production
 
 export interface X402ToolsConfig {
   wallet: Keypair;
   connection: Connection;
   maxPriceUsd?: number;
   preferredNetwork?: string;
+  facilitatorPolicy?: FacilitatorPolicy;
 }
 
-/**
- * Legacy config for backward compatibility.
- * Note: Without a Keypair, payments will be unsigned (may be rejected by facilitators).
- */
 export interface LegacyX402ToolsConfig {
   walletAddress: string;
   maxPriceUsd?: number;
   preferredNetwork?: string;
+  facilitatorPolicy?: FacilitatorPolicy;
 }
 
 export interface PaymentRequirement {
   scheme: 'exact';
   network: string; // CAIP-2
-  amount: string;
+  amount?: string;
+  maxAmountRequired?: string;
   resource: string;
   description: string;
   payTo: string;
@@ -67,10 +71,6 @@ function fromMicro(v: string | number): number {
   return (typeof v === 'string' ? parseInt(v, 10) : v) / 10 ** USDC_DECIMALS;
 }
 
-function usdToLamports(usd: number): number {
-  return Math.ceil((usd / SOL_PRICE_USD) * LAMPORTS_PER_SOL);
-}
-
 function summarize(data: unknown): string {
   if (Array.isArray(data)) return `${data.length} items`;
   if (typeof data === 'object' && data !== null) {
@@ -80,7 +80,7 @@ function summarize(data: unknown): string {
   return 'data';
 }
 
-async function checkPricing(url: string): Promise<X402PricingResult> {
+async function checkPricing(url: string, facilitatorPolicy: FacilitatorPolicy): Promise<X402PricingResult> {
   try {
     const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
     if (res.status !== 402) {
@@ -88,12 +88,18 @@ async function checkPricing(url: string): Promise<X402PricingResult> {
     }
     const body = (await res.json()) as X402Response;
     if (!body.accepts?.length) return { success: false, error: 'No payment options' };
+
+    const policyDecision = evaluateFacilitatorPolicy(body.facilitator, facilitatorPolicy);
+    if (!policyDecision.allowed) {
+      return { success: false, error: policyDecision.reason };
+    }
+
     return {
       success: true,
       free: false,
       options: body.accepts.map((r) => ({
         network: r.network,
-        priceUsd: fromMicro(r.amount),
+        priceUsd: parseUsdcAmountUsd(getRequirementAmountRaw(r) || '') ?? fromMicro(r.amount ?? 0),
         asset: r.asset,
         description: r.description,
       })),
@@ -108,6 +114,7 @@ async function x402Fetch(
   config: X402ToolsConfig
 ): Promise<X402FetchResult> {
   const { url, method = 'GET', body, headers = {} } = params;
+  const facilitatorPolicy = normalizeFacilitatorPolicy(config.facilitatorPolicy);
 
   try {
     const res = await fetch(url, {
@@ -125,42 +132,43 @@ async function x402Fetch(
     const x402 = (await res.json()) as X402Response;
     if (!x402.accepts?.length) return { success: false, error: 'No payment options' };
 
+    const policyDecision = evaluateFacilitatorPolicy(x402.facilitator, facilitatorPolicy);
+    if (!policyDecision.allowed) {
+      return {
+        success: false,
+        error: policyDecision.reason || 'Facilitator blocked by policy',
+      };
+    }
+
     const pref = config.preferredNetwork || 'solana:mainnet';
-    const req = x402.accepts.find((r) => r.network.includes(pref)) || x402.accepts[0];
-    const amt = fromMicro(req.amount);
+    const req = selectPreferredRequirement(x402.accepts, pref);
+    const amountRaw = getRequirementAmountRaw(req);
+    if (!amountRaw) return { success: false, error: 'Payment requirement missing amount' };
+
+    const amt = parseUsdcAmountUsd(amountRaw);
+    if (amt == null || amt <= 0) {
+      return { success: false, error: 'Invalid payment amount in requirement' };
+    }
+
     const max = config.maxPriceUsd ?? 0.1;
 
     if (amt > max) return { success: false, error: `$${amt.toFixed(4)} > max $${max.toFixed(2)}` };
 
-    // Check balance
-    const balance = await config.connection.getBalance(config.wallet.publicKey);
-    const amountLamports = usdToLamports(amt);
-
-    if (balance < amountLamports + 5000) {
-      return {
-        success: false,
-        error: `Insufficient balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
-      };
-    }
-
-    // Create signed payment header
     const transactionId = generateTransactionId();
     const signedPayment = createSignedPayment(
       config.wallet,
       transactionId,
       url,
-      amountLamports
+      amountRaw
     );
     const paymentHeader = createPaymentHeader(signedPayment, config.wallet, req.network);
 
     const paid = await fetch(url, {
       method,
-      headers: {
+      headers: withPaymentHeaders(paymentHeader, {
         'Content-Type': 'application/json',
-        'X-PAYMENT': paymentHeader,
-        'PAYMENT-SIGNATURE': paymentHeader, // Backward compat
         ...headers,
-      },
+      }),
       body: body || undefined,
     });
 
@@ -182,13 +190,15 @@ async function x402Fetch(
 }
 
 export function createX402Tools(config: X402ToolsConfig) {
+  const facilitatorPolicy = normalizeFacilitatorPolicy(config.facilitatorPolicy);
+
   return {
     x402_check_pricing: tool({
       description: 'Check x402 API pricing without paying',
       parameters: z.object({
         url: z.string().url().describe('API endpoint URL'),
       }),
-      execute: ({ url }) => checkPricing(url),
+      execute: ({ url }) => checkPricing(url, facilitatorPolicy),
     }),
 
     x402_fetch: tool({
@@ -204,18 +214,20 @@ export function createX402Tools(config: X402ToolsConfig) {
   };
 }
 
-/**
- * Create config from keypair and connection
- */
 export function createX402ToolsConfig(
   wallet: Keypair,
   connection: Connection,
-  options?: { maxPriceUsd?: number; preferredNetwork?: string }
+  options?: {
+    maxPriceUsd?: number;
+    preferredNetwork?: string;
+    facilitatorPolicy?: FacilitatorPolicy;
+  }
 ): X402ToolsConfig {
   return {
     wallet,
     connection,
     maxPriceUsd: options?.maxPriceUsd ?? 0.1,
     preferredNetwork: options?.preferredNetwork ?? 'solana:mainnet',
+    facilitatorPolicy: options?.facilitatorPolicy,
   };
 }

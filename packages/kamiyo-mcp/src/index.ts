@@ -369,6 +369,7 @@ class KamiyoMCPServer {
         {
           maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
           preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
+          facilitatorPolicy: process.env.X402_FACILITATOR_POLICY as tools.X402Config['facilitatorPolicy'],
         }
       );
     }
