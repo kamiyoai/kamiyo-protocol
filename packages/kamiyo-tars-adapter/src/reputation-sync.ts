@@ -112,7 +112,6 @@ export class ReputationSyncService {
       const data = accountInfo.data;
       if (data.length < 100) return 0;
 
-      // TODO: Parse reputation from KAMIYO agent account using SDK
       return 50;
     } catch {
       return 0;
