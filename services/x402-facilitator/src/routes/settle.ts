@@ -8,7 +8,7 @@ import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
 import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger, getSettlementStats, getWalletDisputeStats, getWalletAverageQuality, getMonthlyVolume, reservePaymentNonce } from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
-import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2 } from '../protocol/networks';
+import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
 import { matchesUsdcAmount, parseSettleInput } from '../protocol/request-compat';
 
 function sendSettleFailure(
@@ -97,6 +97,11 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       return;
     }
 
+    if (!isValidPayerForNetwork(payment.payer, network)) {
+      sendSettleFailure(res, 400, 'invalid_payer_wallet', 'Invalid payer wallet for network', network, payment.payer);
+      return;
+    }
+
     const signedAmount = parseFloat(payment.amount);
     if (!Number.isFinite(signedAmount) || signedAmount <= 0) {
       sendSettleFailure(res, 400, 'invalid_amount', 'Invalid amount', network, payment.payer);
@@ -120,19 +125,6 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       return;
     }
 
-    const nonceReserved = await reservePaymentNonce(
-      payment.payer,
-      payment.nonce,
-      'settle',
-      network,
-      payment.resource || '',
-      amount
-    );
-    if (!nonceReserved) {
-      sendSettleFailure(res, 409, 'replayed_payment', 'Payment nonce already used', network, payment.payer);
-      return;
-    }
-
     if ((req as any).merchantWallet !== merchantWallet) {
       sendSettleFailure(res, 403, 'merchant_mismatch', 'Merchant wallet does not match API key', network, payment.payer);
       return;
@@ -150,6 +142,19 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Solana wallet address', network, payment.payer);
         return;
       }
+    }
+
+    const nonceReserved = await reservePaymentNonce(
+      payment.payer,
+      payment.nonce,
+      'settle',
+      network,
+      payment.resource || '',
+      amount
+    );
+    if (!nonceReserved) {
+      sendSettleFailure(res, 409, 'replayed_payment', 'Payment nonce already used', network, payment.payer);
+      return;
     }
 
     const settlement = await insertSettlement(

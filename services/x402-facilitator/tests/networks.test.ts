@@ -6,6 +6,7 @@ import {
   canonicalizeNetwork,
   getSupportedNetworkIds,
   isBaseMainnet,
+  isValidPayerForNetwork,
   isSolanaMainnet,
   isSupportedNetwork,
 } from '../src/protocol/networks';
@@ -44,5 +45,16 @@ describe('x402 network normalization', () => {
     expect(isSupportedNetwork('solana:mainnet', false)).toBe(true);
     expect(isSupportedNetwork(BASE_MAINNET_CAIP2, false)).toBe(false);
     expect(isSupportedNetwork(BASE_MAINNET_CAIP2, true)).toBe(true);
+  });
+
+  it('validates payer format per canonical network', () => {
+    const solanaPayer = '11111111111111111111111111111111';
+    const basePayer = '0x1111111111111111111111111111111111111111';
+
+    expect(isValidPayerForNetwork(solanaPayer, 'solana:mainnet')).toBe(true);
+    expect(isValidPayerForNetwork(basePayer, BASE_MAINNET_CAIP2)).toBe(true);
+    expect(isValidPayerForNetwork(solanaPayer, BASE_MAINNET_CAIP2)).toBe(false);
+    expect(isValidPayerForNetwork(basePayer, SOLANA_MAINNET_CAIP2)).toBe(false);
+    expect(isValidPayerForNetwork(basePayer, 'eip155:1')).toBe(false);
   });
 });

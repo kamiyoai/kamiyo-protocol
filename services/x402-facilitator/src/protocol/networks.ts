@@ -1,3 +1,6 @@
+import { PublicKey } from '@solana/web3.js';
+import { isAddress } from 'ethers';
+
 export const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 export const SOLANA_DEVNET_CAIP2 = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
 export const BASE_MAINNET_CAIP2 = 'eip155:8453';
@@ -44,4 +47,20 @@ export function isSupportedNetwork(network: string, baseEnabled: boolean): boole
   if (canonical === SOLANA_MAINNET_CAIP2) return true;
   if (canonical === BASE_MAINNET_CAIP2) return baseEnabled;
   return false;
+}
+
+export function isValidPayerForNetwork(payer: string, network: string): boolean {
+  const canonical = canonicalizeNetwork(network);
+  if (!canonical) return false;
+
+  if (canonical === BASE_MAINNET_CAIP2) {
+    return isAddress(payer);
+  }
+
+  try {
+    new PublicKey(payer);
+    return true;
+  } catch {
+    return false;
+  }
 }

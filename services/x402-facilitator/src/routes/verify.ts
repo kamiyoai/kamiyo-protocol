@@ -5,8 +5,7 @@ import { getUsdcBalance } from '../services/settlement';
 import { getBaseUsdcBalanceForAddress, isBaseEnabled } from '../services/base-settlement';
 import { getConfig } from '../config';
 import { VerifyResponse } from '../types';
-import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2 } from '../protocol/networks';
-import { isAddress } from 'ethers';
+import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
 import { matchesUsdcAmount, parseVerifyInput } from '../protocol/request-compat';
 
 function sendVerifyFailure(
@@ -72,6 +71,11 @@ export function createVerifyRouter(connection: Connection): Router {
       return;
     }
 
+    if (!isValidPayerForNetwork(payment.payer, network)) {
+      sendVerifyFailure(res, 400, 'invalid_payer_wallet', 'Invalid payer wallet for network', payment.payer);
+      return;
+    }
+
     const amount = parseFloat(payment.amount);
     if (Number.isNaN(amount) || amount <= 0) {
       sendVerifyFailure(res, 400, 'invalid_amount', 'Invalid amount', payment.payer);
@@ -101,26 +105,14 @@ export function createVerifyRouter(connection: Connection): Router {
     let balance = 0;
     if (network === BASE_MAINNET_CAIP2) {
       try {
-        if (isAddress(payment.payer)) {
-          balance = await getBaseUsdcBalanceForAddress(payment.payer);
-        } else {
-          const payerKey = new PublicKey(payment.payer);
-          balance = await getUsdcBalance(connection, payerKey);
-        }
+        balance = await getBaseUsdcBalanceForAddress(payment.payer);
       } catch {
         sendVerifyFailure(res, 502, 'balance_lookup_failed', 'Balance lookup failed', payment.payer);
         return;
       }
     } else {
-      let payerKey: PublicKey;
       try {
-        payerKey = new PublicKey(payment.payer);
-      } catch {
-        sendVerifyFailure(res, 400, 'invalid_payer_wallet', 'Invalid payer wallet', payment.payer);
-        return;
-      }
-
-      try {
+        const payerKey = new PublicKey(payment.payer);
         balance = await getUsdcBalance(connection, payerKey);
       } catch {
         sendVerifyFailure(res, 502, 'balance_lookup_failed', 'Balance lookup failed', payment.payer);
