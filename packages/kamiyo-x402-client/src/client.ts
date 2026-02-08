@@ -656,13 +656,16 @@ export class X402KamiyoClient {
   }
 
   private startSignatureCleanup(): void {
-    this.cleanupTimer = setInterval(() => {
+    const timer = setInterval(() => {
       if (this.destroyed) return;
       const cutoff = Date.now() - SIGNATURE_TTL_MS;
       for (const [sig, time] of this.usedSignatures) {
         if (time < cutoff) this.usedSignatures.delete(sig);
       }
     }, CLEANUP_INTERVAL_MS);
+    // Housekeeping should not keep Node processes (tests/CLIs) alive.
+    (timer as unknown as { unref?: () => void }).unref?.();
+    this.cleanupTimer = timer;
   }
 }
 
