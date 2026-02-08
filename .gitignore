@@ -178,6 +178,10 @@ dist
 # Finder (MacOS) folder config
 .DS_Store
 
+# Agent/tool scratchpads
+.forge/
+.claude/
+
 # TEE files
 .tee
 /tee-cloud-cli/

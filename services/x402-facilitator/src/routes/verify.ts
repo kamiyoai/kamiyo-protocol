@@ -6,7 +6,7 @@ import { getBaseUsdcBalanceForAddress, isBaseEnabled } from '../services/base-se
 import { getConfig } from '../config';
 import { VerifyResponse } from '../types';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
-import { matchesUsdcAmount, parseVerifyInput } from '../protocol/request-compat';
+import { parseSignedUsdcAmount, parseVerifyInput } from '../protocol/request-compat';
 
 function sendVerifyFailure(
   res: Response,
@@ -76,13 +76,14 @@ export function createVerifyRouter(connection: Connection): Router {
       return;
     }
 
-    const amount = parseFloat(payment.amount);
-    if (Number.isNaN(amount) || amount <= 0) {
+    const amountRaw = Number(payment.amount);
+    if (!Number.isFinite(amountRaw) || amountRaw <= 0) {
       sendVerifyFailure(res, 400, 'invalid_amount', 'Invalid amount', payment.payer);
       return;
     }
 
-    if (!matchesUsdcAmount(amount, requirementAmountRaw)) {
+    const amount = parseSignedUsdcAmount(payment.amount, requirementAmountRaw);
+    if (amount == null) {
       sendVerifyFailure(res, 400, 'amount_mismatch', 'Amount mismatch with payment requirements', payment.payer);
       return;
     }
@@ -125,7 +126,7 @@ export function createVerifyRouter(connection: Connection): Router {
       valid: sufficient,
       isValid: sufficient,
       payer: payment.payer,
-      amount: payment.amount,
+      amount: amount.toString(),
       resource: payment.resource || resource || '',
       balance,
       sufficient,

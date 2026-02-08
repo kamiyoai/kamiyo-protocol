@@ -30,6 +30,7 @@ import {
 } from '../db/queries';
 import { PrivateSettleRequest, PrivateSettleResponse } from '../types';
 import { isSolanaMainnet, SOLANA_MAINNET_CAIP2 } from '../protocol/networks';
+import { parseSignedUsdcAmount } from '../protocol/request-compat';
 
 export function createPrivacyRouter(_facilitatorConnection: unknown, facilitatorKeypair: Keypair): Router {
   const router = Router();
@@ -87,7 +88,14 @@ export function createPrivacyRouter(_facilitatorConnection: unknown, facilitator
         return;
       }
 
-      if (toBaseUnits(parseFloat(payment.amount)) !== toBaseUnits(amount)) {
+      const signedAmountRaw = Number(payment.amount);
+      if (!Number.isFinite(signedAmountRaw) || signedAmountRaw <= 0) {
+        res.status(400).json({ success: false, error: 'Invalid signed amount' });
+        return;
+      }
+
+      const signedAmount = parseSignedUsdcAmount(payment.amount, String(Math.round(amount * 1_000_000)));
+      if (signedAmount == null || toBaseUnits(signedAmount) !== toBaseUnits(amount)) {
         res.status(400).json({ success: false, error: 'Amount mismatch with signed payload' });
         return;
       }

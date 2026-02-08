@@ -7,6 +7,7 @@ import { getConfig } from '../config';
 import { insertEscrowRecord, getEscrowByAddress, updateEscrowRelease, insertFeeLedger, reservePaymentNonce } from '../db/queries';
 import { EscrowCreateRequest, EscrowReleaseRequest } from '../types';
 import { canonicalizeNetwork, isSolanaMainnet } from '../protocol/networks';
+import { parseSignedUsdcAmount } from '../protocol/request-compat';
 
 function round6(n: number): number { return Math.round(n * 1e6) / 1e6; }
 
@@ -70,13 +71,14 @@ export function createEscrowRouter(connection: Connection, operatorKeypair: Keyp
       return;
     }
 
-    const signedAmount = Number.parseFloat(payment.amount);
-    if (!Number.isFinite(signedAmount)) {
+    const signedAmountRaw = Number(payment.amount);
+    if (!Number.isFinite(signedAmountRaw) || signedAmountRaw <= 0) {
       res.status(400).json({ success: false, error: 'Invalid signed amount' });
       return;
     }
 
-    if (toBaseUnits(signedAmount) !== toBaseUnits(bodyAmount)) {
+    const signedAmount = parseSignedUsdcAmount(payment.amount, String(Math.round(bodyAmount * 1_000_000)));
+    if (signedAmount == null || toBaseUnits(signedAmount) !== toBaseUnits(bodyAmount)) {
       res.status(400).json({ success: false, error: 'Amount mismatch with signed payload' });
       return;
     }

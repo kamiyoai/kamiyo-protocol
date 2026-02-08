@@ -19,7 +19,7 @@ import {
 } from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
-import { matchesUsdcAmount, parseSettleInput } from '../protocol/request-compat';
+import { parseSignedUsdcAmount, parseSettleInput } from '../protocol/request-compat';
 
 function sendSettleFailure(
   res: Response,
@@ -115,14 +115,26 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       return;
     }
 
-    const signedAmount = parseFloat(payment.amount);
-    if (!Number.isFinite(signedAmount) || signedAmount <= 0) {
+    const signedAmountRaw = Number(payment.amount);
+    if (!Number.isFinite(signedAmountRaw) || signedAmountRaw <= 0) {
       sendSettleFailure(res, 400, 'invalid_amount', 'Invalid amount', network, payment.payer);
       return;
     }
 
-    if (!matchesUsdcAmount(signedAmount, requirementAmountRaw)) {
-      sendSettleFailure(res, 400, 'amount_mismatch', 'Amount mismatch with payment requirements', network, payment.payer);
+    const expectedAmountRaw =
+      mode === 'x402'
+        ? requirementAmountRaw
+        : String(Math.round((legacyAmount as number) * 1_000_000));
+    const signedAmount = parseSignedUsdcAmount(payment.amount, expectedAmountRaw);
+    if (signedAmount == null) {
+      sendSettleFailure(
+        res,
+        400,
+        'amount_mismatch',
+        mode === 'x402' ? 'Amount mismatch with payment requirements' : 'Amount mismatch with signed payload',
+        network,
+        payment.payer
+      );
       return;
     }
 
