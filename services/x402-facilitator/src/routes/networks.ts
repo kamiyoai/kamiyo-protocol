@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { isBaseEnabled, getBaseFacilitatorAddress, BASE_USDC, BASE_USDC_DECIMALS } from '../services/base-settlement';
+import { SOLANA_MAINNET_CAIP2, BASE_MAINNET_CAIP2 } from '../protocol/networks';
 
 interface NetworkInfo {
   name: string;
@@ -10,7 +11,7 @@ interface NetworkInfo {
 
 const SOLANA_NETWORK: NetworkInfo = {
   name: 'solana',
-  chainId: 'solana:mainnet',
+  chainId: SOLANA_MAINNET_CAIP2,
   assets: [
     { symbol: 'USDC', address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6 }
   ]
@@ -25,7 +26,7 @@ export function createNetworksRouter(): Router {
     if (isBaseEnabled()) {
       networks.push({
         name: 'base',
-        chainId: 'eip155:8453',
+        chainId: BASE_MAINNET_CAIP2,
         assets: [{ symbol: 'USDC', address: BASE_USDC, decimals: BASE_USDC_DECIMALS }],
         facilitator: getBaseFacilitatorAddress()
       });

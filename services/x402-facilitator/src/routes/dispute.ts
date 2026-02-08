@@ -242,7 +242,7 @@ export function createDisputeRouter(connection: Connection, operatorKeypair: Key
       await updateDisputeResolved(dispute.id, consensusMedian, refundPct, resolution, finalizeTx);
       await updateEscrowRelease(dispute.escrowAddress, consensusMedian, finalizeTx, 'released');
 
-      const disputeFeeBps = 100;
+      const disputeFeeBps = config.DISPUTE_FEE_BPS;
       const disputeFee = Math.ceil(((escrow.amount * disputeFeeBps) / 10_000) * 1e6) / 1e6;
       await insertFeeLedger(null, escrow.id, 'dispute', disputeFee, finalizeTx);
 

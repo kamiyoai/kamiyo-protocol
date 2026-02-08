@@ -37,6 +37,24 @@ export async function updateSettlementConfirmed(id: string, txHash: string, feeA
   ]);
 }
 
+export async function reservePaymentNonce(
+  payerWallet: string,
+  nonce: string,
+  usage: 'settle' | 'escrow' | 'privacy',
+  network: string,
+  resource: string,
+  amount: number
+): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `INSERT INTO payment_nonce_guard (payer_wallet, nonce, usage, network, resource, amount)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (payer_wallet, nonce) DO NOTHING
+     RETURNING id`,
+    [payerWallet, nonce, usage, network, resource, amount]
+  );
+  return rows.length > 0;
+}
+
 export async function insertEscrowRecord(
   escrowAddress: string,
   payerWallet: string,

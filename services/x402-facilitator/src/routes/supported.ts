@@ -1,11 +1,13 @@
 import { Router, Request } from 'express';
 import { Keypair } from '@solana/web3.js';
 import { isBaseEnabled, getBaseFacilitatorAddress } from '../services/base-settlement';
+import { SOLANA_MAINNET_CAIP2, BASE_MAINNET_CAIP2 } from '../protocol/networks';
 
 interface SupportedKind {
   x402Version: number;
   scheme: string;
   network: string;
+  extra?: Record<string, unknown>;
 }
 
 interface SupportedResponse {
@@ -19,7 +21,12 @@ export function createSupportedRouter(facilitatorKeypair: Keypair): Router {
 
   router.get('/', (_req: Request, res) => {
     const kinds: SupportedKind[] = [
-      { x402Version: 2, scheme: 'exact', network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' }
+      {
+        x402Version: 2,
+        scheme: 'exact',
+        network: SOLANA_MAINNET_CAIP2,
+        extra: { feePayer: facilitatorKeypair.publicKey.toBase58() },
+      },
     ];
 
     const signers: Record<string, string[]> = {
@@ -27,7 +34,7 @@ export function createSupportedRouter(facilitatorKeypair: Keypair): Router {
     };
 
     if (isBaseEnabled()) {
-      kinds.push({ x402Version: 2, scheme: 'exact', network: 'eip155:8453' });
+      kinds.push({ x402Version: 2, scheme: 'exact', network: BASE_MAINNET_CAIP2 });
       const baseAddr = getBaseFacilitatorAddress();
       if (baseAddr) {
         signers['eip155:*'] = [baseAddr];
@@ -36,7 +43,7 @@ export function createSupportedRouter(facilitatorKeypair: Keypair): Router {
 
     const response: SupportedResponse = {
       kinds,
-      extensions: [],
+      extensions: ['discovery'],
       signers
     };
 

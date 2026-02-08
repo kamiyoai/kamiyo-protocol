@@ -4,8 +4,9 @@ import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentSch
 import { createEscrow, releaseEscrow, calculateRefundPercent } from '../services/escrow';
 import { calculateFee, toBaseUnits } from '../services/settlement';
 import { getConfig } from '../config';
-import { insertEscrowRecord, getEscrowByAddress, updateEscrowRelease, insertFeeLedger } from '../db/queries';
+import { insertEscrowRecord, getEscrowByAddress, updateEscrowRelease, insertFeeLedger, reservePaymentNonce } from '../db/queries';
 import { EscrowCreateRequest, EscrowReleaseRequest } from '../types';
+import { canonicalizeNetwork, isSolanaMainnet } from '../protocol/networks';
 
 function round6(n: number): number { return Math.round(n * 1e6) / 1e6; }
 
@@ -39,10 +40,11 @@ export function createEscrowRouter(connection: Connection, operatorKeypair: Keyp
     }
 
     const scheme = parsePaymentScheme(paymentHeader);
-    if (!scheme || scheme.network !== 'solana:mainnet') {
+    if (!scheme || !isSolanaMainnet(scheme.network)) {
       res.status(400).json({ success: false, error: 'Unsupported network' });
       return;
     }
+    const canonicalNetwork = canonicalizeNetwork(scheme.network) || scheme.network;
 
     const payment = decodePaymentHeader(paymentHeader);
     if (!payment) {
@@ -76,6 +78,19 @@ export function createEscrowRouter(connection: Connection, operatorKeypair: Keyp
 
     if (toBaseUnits(signedAmount) !== toBaseUnits(bodyAmount)) {
       res.status(400).json({ success: false, error: 'Amount mismatch with signed payload' });
+      return;
+    }
+
+    const nonceReserved = await reservePaymentNonce(
+      payment.payer,
+      payment.nonce,
+      'escrow',
+      canonicalNetwork,
+      payment.resource || '',
+      bodyAmount
+    );
+    if (!nonceReserved) {
+      res.status(409).json({ success: false, error: 'Payment nonce already used' });
       return;
     }
 

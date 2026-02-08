@@ -6,89 +6,148 @@ import { isAddress } from 'ethers';
 import { settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
 import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
-import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger, getSettlementStats, getWalletDisputeStats, getWalletAverageQuality, getMonthlyVolume } from '../db/queries';
+import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger, getSettlementStats, getWalletDisputeStats, getWalletAverageQuality, getMonthlyVolume, reservePaymentNonce } from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
-import { SettleRequest } from '../types';
+import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2 } from '../protocol/networks';
+import { matchesUsdcAmount, parseSettleInput } from '../protocol/request-compat';
 
-function getSupportedNetworks(): string[] {
-  const networks = ['solana:mainnet'];
-  if (isBaseEnabled()) networks.push('eip155:8453');
-  return networks;
+function sendSettleFailure(
+  res: Response,
+  status: number,
+  reason: string,
+  message: string,
+  network: string,
+  payer?: string
+): void {
+  res.status(status).json({
+    success: false,
+    errorReason: reason,
+    errorMessage: message,
+    error: message,
+    payer,
+    transaction: '',
+    txHash: '',
+    network,
+  });
 }
 
 export function createSettleRouter(connection: Connection, facilitatorKeypair: Keypair): Router {
   const router = Router();
 
   router.post('/', async (req: Request, res: Response) => {
-    const { paymentHeader, merchantWallet, amount, asset } = req.body as SettleRequest;
-
-    if (!paymentHeader || !merchantWallet || amount == null) {
-      res.status(400).json({ success: false, error: 'Missing required fields' });
+    const parsedInput = parseSettleInput(req.body);
+    if (!parsedInput.ok) {
+      sendSettleFailure(res, 400, 'invalid_request', parsedInput.error, 'unknown:unknown');
       return;
     }
+
+    const {
+      mode,
+      paymentHeader,
+      merchantWallet,
+      amount: legacyAmount,
+      asset,
+      requirementAmountRaw,
+      requirementNetwork,
+    } = parsedInput.value;
 
     const normalizedAsset = asset || 'USDC';
     if (normalizedAsset !== 'USDC') {
-      res.status(400).json({ success: false, error: 'Only USDC supported' });
-      return;
-    }
-
-    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-      res.status(400).json({ success: false, error: 'Invalid amount' });
+      sendSettleFailure(res, 400, 'unsupported_asset', 'Only USDC supported', 'unknown:unknown');
       return;
     }
 
     const scheme = parsePaymentScheme(paymentHeader);
-    if (!scheme || !getSupportedNetworks().includes(scheme.network)) {
-      res.status(400).json({ success: false, error: 'Unsupported network' });
+    const network = scheme ? canonicalizeNetwork(scheme.network) : null;
+    if (!scheme || !network || !isSupportedNetwork(network, isBaseEnabled())) {
+      sendSettleFailure(res, 400, 'unsupported_network', 'Unsupported network', network || 'unknown:unknown');
       return;
     }
 
-    const isBase = scheme.network === 'eip155:8453';
+    if (requirementNetwork) {
+      const requiredNetwork = canonicalizeNetwork(requirementNetwork);
+      if (!requiredNetwork || requiredNetwork !== network) {
+        sendSettleFailure(res, 400, 'network_mismatch', 'paymentRequirements.network does not match payment payload network', network);
+        return;
+      }
+    }
+
+    if (mode === 'legacy' && (legacyAmount == null || !Number.isFinite(legacyAmount) || legacyAmount <= 0)) {
+      sendSettleFailure(res, 400, 'invalid_amount', 'Invalid amount', network);
+      return;
+    }
+
+    const isBase = network === BASE_MAINNET_CAIP2;
 
     const payment = decodePaymentHeader(paymentHeader);
     if (!payment) {
-      res.status(400).json({ success: false, error: 'Malformed payment header' });
+      sendSettleFailure(res, 400, 'invalid_payment_payload', 'Malformed payment header', network);
       return;
     }
 
     const config = getConfig();
 
     if (!isPaymentFresh(payment, config.MAX_PAYMENT_AGE_MS)) {
-      res.status(400).json({ success: false, error: 'Payment expired' });
+      sendSettleFailure(res, 400, 'payment_expired', 'Payment expired', network, payment.payer);
       return;
     }
 
     if (!verifyPaymentAuth(payment)) {
-      res.status(400).json({ success: false, error: 'Invalid signature' });
+      sendSettleFailure(res, 400, 'invalid_signature', 'Invalid signature', network, payment.payer);
       return;
     }
+
+    const signedAmount = parseFloat(payment.amount);
+    if (!Number.isFinite(signedAmount) || signedAmount <= 0) {
+      sendSettleFailure(res, 400, 'invalid_amount', 'Invalid amount', network, payment.payer);
+      return;
+    }
+
+    if (!matchesUsdcAmount(signedAmount, requirementAmountRaw)) {
+      sendSettleFailure(res, 400, 'amount_mismatch', 'Amount mismatch with payment requirements', network, payment.payer);
+      return;
+    }
+
+    const amount = mode === 'x402' ? signedAmount : (legacyAmount as number);
 
     if (amount > config.MAX_SETTLEMENT_AMOUNT) {
-      res.status(400).json({ success: false, error: 'Amount exceeds limit' });
+      sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds limit', network, payment.payer);
       return;
     }
 
-    if (toBaseUnits(parseFloat(payment.amount)) !== toBaseUnits(amount)) {
-      res.status(400).json({ success: false, error: 'Amount mismatch with signed payload' });
+    if (mode === 'legacy' && toBaseUnits(signedAmount) !== toBaseUnits(amount)) {
+      sendSettleFailure(res, 400, 'amount_mismatch', 'Amount mismatch with signed payload', network, payment.payer);
+      return;
+    }
+
+    const nonceReserved = await reservePaymentNonce(
+      payment.payer,
+      payment.nonce,
+      'settle',
+      network,
+      payment.resource || '',
+      amount
+    );
+    if (!nonceReserved) {
+      sendSettleFailure(res, 409, 'replayed_payment', 'Payment nonce already used', network, payment.payer);
       return;
     }
 
     if ((req as any).merchantWallet !== merchantWallet) {
-      res.status(403).json({ success: false, error: 'Merchant wallet does not match API key' });
+      sendSettleFailure(res, 403, 'merchant_mismatch', 'Merchant wallet does not match API key', network, payment.payer);
       return;
     }
 
     if (isBase) {
       if (!isAddress(merchantWallet)) {
-        res.status(400).json({ success: false, error: 'Invalid Base wallet address' });
+        sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Base wallet address', network, payment.payer);
         return;
       }
     } else {
       try {
         new PublicKey(merchantWallet);
       } catch {
-        res.status(400).json({ success: false, error: 'Invalid Solana wallet address' });
+        sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Solana wallet address', network, payment.payer);
         return;
       }
     }
@@ -101,7 +160,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       'USDC',
       '',
       'pending',
-      scheme.network
+      network
     );
 
     try {
@@ -140,16 +199,18 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
 
       res.json({
         success: true,
+        transaction: onchain.txHash,
+        payer: payment.payer,
         txHash: onchain.txHash,
         amount,
         fee: onchain.fee,
         net: onchain.net,
-        network: scheme.network,
+        network,
         feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined
       });
     } catch (err: any) {
       await updateSettlementStatus(settlement.id, 'failed');
-      res.status(500).json({ success: false, error: `Settlement failed: ${err.message}` });
+      sendSettleFailure(res, 500, 'settlement_failed', `Settlement failed: ${err.message}`, network, payment.payer);
     }
   });
 

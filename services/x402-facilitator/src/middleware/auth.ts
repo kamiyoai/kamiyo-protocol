@@ -30,3 +30,27 @@ export async function apiKeyAuth(req: Request, res: Response, next: NextFunction
   (req as any).rateLimit = row.rate_limit;
   next();
 }
+
+export async function optionalApiKeyAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  const key = req.headers['x-api-key'] as string;
+  if (!key) {
+    (req as any).authenticated = false;
+    next();
+    return;
+  }
+
+  const keyHash = hashApiKey(key);
+  const row = await queryOne('SELECT * FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL', [keyHash]);
+
+  if (!row) {
+    (req as any).authenticated = false;
+    next();
+    return;
+  }
+
+  (req as any).authenticated = true;
+  (req as any).merchantWallet = row.merchant_wallet;
+  (req as any).apiKeyId = row.id;
+  (req as any).rateLimit = row.rate_limit;
+  next();
+}

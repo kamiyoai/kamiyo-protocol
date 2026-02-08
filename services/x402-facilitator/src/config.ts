@@ -11,6 +11,7 @@ export interface Config {
   LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error';
   SETTLEMENT_FEE_BPS: number;
   ESCROW_FEE_BPS: number;
+  DISPUTE_FEE_BPS: number;
   MAX_PAYMENT_AGE_MS: number;
   MAX_SETTLEMENT_AMOUNT: number;
   PRIVACY_ENABLED: boolean;
@@ -36,6 +37,7 @@ const DEFAULTS: Partial<Config> = {
   LOG_LEVEL: 'info',
   SETTLEMENT_FEE_BPS: 10,
   ESCROW_FEE_BPS: 50,
+  DISPUTE_FEE_BPS: 100,
   MAX_PAYMENT_AGE_MS: 300_000,
   MAX_SETTLEMENT_AMOUNT: 100_000,
   PRIVACY_ENABLED: false,
@@ -94,6 +96,12 @@ export function validateConfig(): ValidationResult {
   if (escrowBps) {
     const n = parseInt(escrowBps, 10);
     if (isNaN(n) || n < 0 || n > 1000) errors.push('ESCROW_FEE_BPS must be 0-1000');
+  }
+
+  const disputeBps = process.env.DISPUTE_FEE_BPS;
+  if (disputeBps) {
+    const n = parseInt(disputeBps, 10);
+    if (isNaN(n) || n < 0 || n > 1000) errors.push('DISPUTE_FEE_BPS must be 0-1000');
   }
 
   const ageMs = process.env.MAX_PAYMENT_AGE_MS;
@@ -166,6 +174,7 @@ export function getConfig(): Config {
     LOG_LEVEL: (process.env.LOG_LEVEL as Config['LOG_LEVEL']) || DEFAULTS.LOG_LEVEL!,
     SETTLEMENT_FEE_BPS: parseInt(process.env.SETTLEMENT_FEE_BPS || String(DEFAULTS.SETTLEMENT_FEE_BPS), 10),
     ESCROW_FEE_BPS: parseInt(process.env.ESCROW_FEE_BPS || String(DEFAULTS.ESCROW_FEE_BPS), 10),
+    DISPUTE_FEE_BPS: parseInt(process.env.DISPUTE_FEE_BPS || String(DEFAULTS.DISPUTE_FEE_BPS), 10),
     MAX_PAYMENT_AGE_MS: parseInt(process.env.MAX_PAYMENT_AGE_MS || String(DEFAULTS.MAX_PAYMENT_AGE_MS), 10),
     MAX_SETTLEMENT_AMOUNT: parseInt(process.env.MAX_SETTLEMENT_AMOUNT || String(DEFAULTS.MAX_SETTLEMENT_AMOUNT), 10),
     PRIVACY_ENABLED: process.env.PRIVACY_ENABLED === 'true',
@@ -197,6 +206,7 @@ export function getRedactedConfig(): Record<string, string> {
     LOG_LEVEL: config.LOG_LEVEL,
     SETTLEMENT_FEE_BPS: String(config.SETTLEMENT_FEE_BPS),
     ESCROW_FEE_BPS: String(config.ESCROW_FEE_BPS),
+    DISPUTE_FEE_BPS: String(config.DISPUTE_FEE_BPS),
     MAX_PAYMENT_AGE_MS: String(config.MAX_PAYMENT_AGE_MS),
     MAX_SETTLEMENT_AMOUNT: String(config.MAX_SETTLEMENT_AMOUNT),
     PRIVACY_ENABLED: String(config.PRIVACY_ENABLED),
