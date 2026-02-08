@@ -555,6 +555,13 @@ function x402Middleware(basePrice: number, description: string) {
           };
           return next();
         }
+
+        return res.status(502).json({
+          error: 'Settlement failed after verification',
+          details: settleResult.error || 'unknown error',
+          facilitator: FACILITATOR_URL,
+          advice: 'Do not retry automatically with alternate facilitators for this same payment header.',
+        });
       }
     }
 

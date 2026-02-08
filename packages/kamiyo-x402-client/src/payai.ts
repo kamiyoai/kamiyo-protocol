@@ -580,7 +580,12 @@ export class PayAIFacilitator {
       return {
         valid: !!data.isValid,
         payer: data.payer || '',
-        reason: data.invalidReason,
+        reason:
+          data.invalidReason ||
+          data.invalidMessage ||
+          data.errorReason ||
+          data.errorMessage ||
+          data.error,
         network: req.network,
         amount: req.amount,
         chainId: req.network,
@@ -626,10 +631,10 @@ export class PayAIFacilitator {
       return {
         success: !!data.success,
         payer: data.payer || '',
-        tx: data.transaction,
+        tx: data.transaction || data.txHash,
         network: req.network,
         amount: req.amount,
-        error: data.error,
+        error: data.error || data.errorReason || data.errorMessage,
         chainId: req.network,
         facilitator,
       };
