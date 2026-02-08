@@ -9,6 +9,7 @@ export interface ComplianceServiceConfig {
   seedPassportAddresses: string[];
   auditConcurrency: number;
   enableDkgPublishing: boolean;
+  enableOnchainAudits: boolean;
   dkgApiUrl?: string;
   dkgApiKey?: string;
   dkgDefaultEpochs: number;
@@ -74,6 +75,7 @@ export function loadConfig(): ComplianceServiceConfig {
     seedPassportAddresses,
     auditConcurrency: parseInt(process.env.AUDIT_CONCURRENCY ?? '', 10) || 4,
     enableDkgPublishing: process.env.ENABLE_DKG_PUBLISHING === 'true',
+    enableOnchainAudits: process.env.ENABLE_ONCHAIN_AUDITS === 'true',
     dkgApiUrl: process.env.DKG_API_URL?.trim() || undefined,
     dkgApiKey: process.env.DKG_API_KEY?.trim() || undefined,
     dkgDefaultEpochs: parseInt(process.env.DKG_DEFAULT_EPOCHS ?? '', 10) || 12,

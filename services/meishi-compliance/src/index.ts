@@ -3,7 +3,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
 
-import { MeishiClient } from '@kamiyo/meishi';
+import { AuditType, MeishiClient, MeishiWriter } from '@kamiyo/meishi';
 import { MeishiDKGPublisher, type ComplianceAuditDoc } from '@kamiyo/meishi/dkg';
 import { loadConfig } from './config.js';
 import { CircuitBreaker } from './circuit-breaker.js';
@@ -133,6 +133,20 @@ async function main() {
     console.log('[meishi-compliance] DKG publishing enabled');
   }
 
+  if (config.enableOnchainAudits && !config.enableDkgPublishing) {
+    throw new Error('ENABLE_ONCHAIN_AUDITS=true requires ENABLE_DKG_PUBLISHING=true');
+  }
+
+  let onchainWriter: MeishiWriter | null = null;
+  if (config.enableOnchainAudits) {
+    onchainWriter = new MeishiWriter({
+      connection,
+      keypair,
+      programId: meishiProgramId.toBase58(),
+    });
+    console.log('[meishi-compliance] On-chain audit anchoring enabled');
+  }
+
   // Scheduler
   const scheduler = new ComplianceScheduler({
     monitorIntervalMs: config.monitorIntervalMs,
@@ -157,6 +171,10 @@ async function main() {
   let dkgPublishFailures = 0;
   let lastPublishedAuditUal: string | null = null;
   let lastPublishedAuditHashHex: string | null = null;
+  let onchainAuditCount = 0;
+  let onchainAuditFailures = 0;
+  let lastOnchainAuditSignature: string | null = null;
+  let lastOnchainAuditAt = 0;
   let monitorLagMs = 0;
   let deepAuditLagMs = 0;
   let nextExpectedMonitorAt = 0;
@@ -262,11 +280,34 @@ async function main() {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const { ual, publicHashHex } = await dkgPublisher.publishComplianceAuditWithIntegrity(doc);
+        const { ual, publicHashHex, publicHashBytes } =
+          await dkgPublisher.publishComplianceAuditWithIntegrity(doc);
         dkgPublishCount++;
         lastPublishedAuditUal = ual;
         lastPublishedAuditHashHex = publicHashHex;
         console.log(`[meishi-compliance] Published audit to DKG: ${ual}`);
+
+        if (onchainWriter) {
+          try {
+            const auditType = tickType === 'triggered' ? AuditType.Triggered : AuditType.Periodic;
+            const anchored = await onchainWriter.recordAudit({
+              passportAddress: new PublicKey(result.passportAddress),
+              auditType,
+              complianceScoreAfter: result.onChainScore,
+              findingsHash: publicHashBytes,
+              findingsUal: ual,
+              passed: result.onChainScore >= 0,
+            });
+            onchainAuditCount++;
+            lastOnchainAuditSignature = anchored.signature;
+            lastOnchainAuditAt = Date.now();
+            console.log(`[meishi-compliance] Anchored audit on-chain: ${anchored.signature}`);
+          } catch (err) {
+            onchainAuditFailures++;
+            console.error('[meishi-compliance] Failed to anchor audit on-chain:', err);
+          }
+        }
+
         return;
       } catch (err) {
         const isFinalAttempt = attempt === maxAttempts;
@@ -432,6 +473,12 @@ async function main() {
     if (config.enableDkgPublishing && dkgPublishFailures > 0) {
       readinessFailures.push('dkg_publish_failures_present');
     }
+    if (config.enableOnchainAudits && onchainAuditFailures > 0) {
+      readinessFailures.push('onchain_audit_failures_present');
+    }
+    if (config.enableOnchainAudits && lastAuditedPassportCount > 0 && onchainAuditCount === 0) {
+      readinessFailures.push('no_onchain_audits_written');
+    }
     return readinessFailures;
   };
 
@@ -466,6 +513,11 @@ async function main() {
           dkgPublishFailures,
           lastPublishedAuditUal,
           lastPublishedAuditHashHex,
+          onchainAuditsEnabled: config.enableOnchainAudits,
+          onchainAuditCount,
+          onchainAuditFailures,
+          lastOnchainAuditSignature,
+          lastOnchainAuditAt,
           monitorLagMs,
           deepAuditLagMs,
           schedulerRestartCount,

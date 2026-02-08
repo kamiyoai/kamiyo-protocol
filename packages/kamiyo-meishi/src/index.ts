@@ -9,6 +9,9 @@ export { LiabilityManager } from './liability.js';
 // Exchange protocol
 export { MeishiExchange } from './exchange.js';
 
+// On-chain write client (Anchor)
+export { MeishiWriter } from './writer.js';
+
 // Compliance scoring
 export {
   calculateComplianceScore,
