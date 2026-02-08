@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, mock, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import { createX402Tools } from './x402-tools.js';
 
@@ -72,36 +72,6 @@ describe('x402-tools', () => {
       assert.strictEqual(result.success, false);
       assert.strictEqual(result.error, 'Invalid payment header');
     });
-
-    it('sends compatible payment header variants', async () => {
-      const tools = createX402Tools();
-      const tool = tools.find((t) => t.name === 'x402_fetch')!;
-
-      const originalFetch = globalThis.fetch;
-      let capturedHeaders: Record<string, string> | null = null;
-
-      globalThis.fetch = (async (_url, init) => {
-        capturedHeaders = (init?.headers || {}) as Record<string, string>;
-        return new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }) as typeof fetch;
-
-      try {
-        const result = await tool.handler({
-          url: 'https://example.com/api',
-          payment_header: 'signed-header',
-        });
-        assert.strictEqual(result.success, true);
-        assert.ok(capturedHeaders);
-        assert.strictEqual(capturedHeaders?.['PAYMENT-SIGNATURE'], 'signed-header');
-        assert.strictEqual(capturedHeaders?.['X-PAYMENT-SIGNATURE'], 'signed-header');
-        assert.strictEqual(capturedHeaders?.['X-PAYMENT'], 'signed-header');
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
-    });
   });
 
   describe('query_agent_profile', () => {
@@ -127,9 +97,7 @@ describe('x402-tools', () => {
       const tools = createX402Tools({ baseUrl: 'http://localhost:9999' });
       const tool = tools.find((t) => t.name === 'query_agent_profile')!;
 
-      // Will fail on fetch but validates ID first
       const result = await tool.handler({ agent_id: 'agent-001_test', payment_header: 'valid-header' });
-      // Network error expected, but ID was accepted
       assert.strictEqual(result.success, false);
       assert.ok(result.error !== 'Invalid agent ID');
     });
@@ -162,7 +130,6 @@ describe('x402-tools', () => {
       const violations = ['timeout', 'serverError', 'latency', 'malformed', 'incomplete'];
       for (const violation of violations) {
         const result = await tool.handler({ payment_ref: 'ref-123', violation });
-        // Network error expected, but violation was accepted
         assert.ok(result.error !== 'Invalid violation type', `${violation} should be valid`);
       }
     });

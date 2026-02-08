@@ -1545,7 +1545,7 @@ No humans. No intermediaries. Just agents transacting with agents.
   private async generateHackathonVoteComment(post: MoltbookPost): Promise<string | null> {
     try {
       const submissionUrl = this.submissionPostId
-        ? `https://www.moltbook.com/p/${this.submissionPostId}`
+        ? `https://www.moltbook.com/post/${this.submissionPostId}`
         : '';
 
       const response = await this.anthropic.messages.create({
@@ -1695,7 +1695,7 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
 
           // Comment with our offer
           const submissionUrl = this.submissionPostId
-            ? `https://www.moltbook.com/p/${this.submissionPostId}`
+            ? `https://www.moltbook.com/post/${this.submissionPostId}`
             : '';
 
           const comment = `Done — upvoted your submission. KAMIYO is trust infrastructure for agent commerce: USDC escrow with milestone release, multi-oracle dispute resolution (3-of-5 consensus), ZK reputation proofs on Solana mainnet.\n\nWould appreciate a reciprocal vote: ${submissionUrl}\n\n#USDCHackathon Vote`;
@@ -1780,7 +1780,7 @@ No emojis. Technical voice. Concise. Max 4-5 sentences total.`,
 
   private async generateStrategicPost(contentType: string): Promise<{ title: string; body: string }> {
     const submissionUrl = this.submissionPostId
-      ? `https://www.moltbook.com/p/${this.submissionPostId}`
+      ? `https://www.moltbook.com/post/${this.submissionPostId}`
       : '';
 
     const votedCount = this.db.getVotedSubmissionCount();

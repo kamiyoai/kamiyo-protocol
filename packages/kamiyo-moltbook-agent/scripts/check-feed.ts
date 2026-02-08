@@ -17,7 +17,7 @@ async function checkFeed() {
   for (const post of data.posts || []) {
     console.log(`[${post.id}] ${post.title}`);
     console.log(`  Author: ${post.author} | Submolt: ${post.submolt}`);
-    console.log(`  URL: https://www.moltbook.com/p/${post.id}`);
+    console.log(`  URL: https://www.moltbook.com/post/${post.id}`);
     console.log('');
   }
 }

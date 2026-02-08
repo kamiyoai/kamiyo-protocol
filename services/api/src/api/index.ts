@@ -24,6 +24,7 @@ import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
 import paranetRoutes from './routes/paranet';
+import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 
@@ -219,6 +220,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Agent Paranet - decentralized credit scores (public read, auth for write)
   app.use('/api/paranet', paranetRoutes);
+
+  // BabyAGI bridge routes (public by default; set BABYAGI_BRIDGE_API_KEY to require auth)
+  app.use('/babyagi/v1', babyagiRoutes);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

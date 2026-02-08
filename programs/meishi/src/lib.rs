@@ -35,6 +35,17 @@ pub const MAX_SPENDING_LIMIT: u64 = 10_000_000_000_000;
 // TODO(#audit-ring): enforce ring buffer wrap at MAX_AUDIT_NONCE in record_audit
 pub const MAX_AUDIT_NONCE: u32 = 10000;
 
+/// Supported Kamiyo program IDs (devnet/mainnet and localnet).
+pub const KAMIYO_PROGRAM_ID_PRIMARY: Pubkey = pubkey!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+pub const KAMIYO_PROGRAM_ID_LOCAL: Pubkey = pubkey!("6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7");
+/// Account discriminator for Kamiyo AgentIdentity ("account:AgentIdentity").
+pub const AGENT_IDENTITY_DISCRIMINATOR: [u8; 8] = [11, 149, 31, 27, 186, 76, 241, 72];
+/// Account discriminator for Kamiyo OracleRegistry ("account:OracleRegistry").
+pub const ORACLE_REGISTRY_DISCRIMINATOR: [u8; 8] = [94, 153, 19, 250, 94, 0, 12, 172];
+pub const MAX_ORACLES_IN_REGISTRY: usize = 50;
+pub const ORACLE_CONFIG_SERIALIZED_LEN: usize = 77;
+pub const ORACLE_STATUS_ACTIVE: u8 = 0;
+
 /*
 Helpers
 */
@@ -52,6 +63,282 @@ fn validate_liability_bps(consumer: u16, developer: u16, merchant: u16, platform
     total == BPS_DENOMINATOR as u32
 }
 
+fn is_supported_kamiyo_program(program_id: &Pubkey) -> bool {
+    *program_id == KAMIYO_PROGRAM_ID_PRIMARY || *program_id == KAMIYO_PROGRAM_ID_LOCAL
+}
+
+fn parse_agent_identity_owner_and_active(data: &[u8]) -> Option<(Pubkey, bool)> {
+    // Layout (after 8-byte discriminator):
+    // owner: Pubkey (32), name: String (4 + bytes), agent_type: u8, reputation: u64,
+    // stake_amount: u64, is_active: bool, ...
+    if data.len() < 8 + 32 + 4 + 1 + 8 + 8 + 1 {
+        return None;
+    }
+    if data[..8] != AGENT_IDENTITY_DISCRIMINATOR {
+        return None;
+    }
+
+    let mut offset = 8usize;
+    let owner = Pubkey::new_from_array(data[offset..offset + 32].try_into().ok()?);
+    offset += 32;
+
+    let name_len = u32::from_le_bytes(data[offset..offset + 4].try_into().ok()?) as usize;
+    offset += 4;
+
+    if offset + name_len + 1 + 8 + 8 + 1 > data.len() {
+        return None;
+    }
+
+    offset += name_len; // name bytes
+    offset += 1; // agent_type
+    offset += 8; // reputation
+    offset += 8; // stake_amount
+    let is_active = data[offset] != 0;
+
+    Some((owner, is_active))
+}
+
+fn validate_agent_identity_account(agent_identity: &AccountInfo, owner: &Pubkey) -> Result<()> {
+    require!(
+        is_supported_kamiyo_program(agent_identity.owner),
+        MeishiError::AgentIdentityInvalid
+    );
+
+    let expected_primary =
+        Pubkey::find_program_address(&[b"agent", owner.as_ref()], &KAMIYO_PROGRAM_ID_PRIMARY).0;
+    let expected_local =
+        Pubkey::find_program_address(&[b"agent", owner.as_ref()], &KAMIYO_PROGRAM_ID_LOCAL).0;
+    require!(
+        agent_identity.key() == expected_primary || agent_identity.key() == expected_local,
+        MeishiError::AgentIdentityInvalid
+    );
+
+    let data = agent_identity.try_borrow_data()?;
+    let (identity_owner, is_active) =
+        parse_agent_identity_owner_and_active(&data).ok_or(MeishiError::AgentIdentityInvalid)?;
+
+    require!(identity_owner == *owner, MeishiError::AgentIdentityInvalid);
+    require!(is_active, MeishiError::AgentIdentityInvalid);
+    Ok(())
+}
+
+fn is_passport_authority(passport: &MeishiPassport, signer: &Pubkey) -> bool {
+    passport.issuer == *signer || passport.principal == *signer
+}
+
+fn validate_oracle_registry_account(oracle_registry: &AccountInfo) -> Result<()> {
+    require!(
+        is_supported_kamiyo_program(oracle_registry.owner),
+        MeishiError::OracleRegistryInvalid
+    );
+
+    let expected_primary =
+        Pubkey::find_program_address(&[b"oracle_registry"], &KAMIYO_PROGRAM_ID_PRIMARY).0;
+    let expected_local =
+        Pubkey::find_program_address(&[b"oracle_registry"], &KAMIYO_PROGRAM_ID_LOCAL).0;
+    require!(
+        oracle_registry.key() == expected_primary || oracle_registry.key() == expected_local,
+        MeishiError::OracleRegistryInvalid
+    );
+
+    Ok(())
+}
+
+fn parse_kamiyo_oracle_registry(data: &[u8]) -> Option<(u8, Vec<Pubkey>)> {
+    // Layout:
+    // discriminator: [u8; 8]
+    // admin: Pubkey
+    // oracles: Vec<OracleConfig>
+    // min_consensus: u8
+    // max_score_deviation: u8
+    // created_at: i64
+    // updated_at: i64
+    // bump: u8
+    // public_registration: bool
+    // total_stake: u64
+    if data.len() < 8 + 32 + 4 + 1 + 1 + 8 + 8 + 1 + 1 + 8 {
+        return None;
+    }
+    if data[..8] != ORACLE_REGISTRY_DISCRIMINATOR {
+        return None;
+    }
+
+    let mut offset = 8usize;
+    offset += 32; // admin
+
+    let oracle_count = u32::from_le_bytes(data.get(offset..offset + 4)?.try_into().ok()?) as usize;
+    offset += 4;
+    if oracle_count > MAX_ORACLES_IN_REGISTRY {
+        return None;
+    }
+
+    let mut active_oracles = Vec::with_capacity(oracle_count);
+    for _ in 0..oracle_count {
+        if offset + ORACLE_CONFIG_SERIALIZED_LEN > data.len() {
+            return None;
+        }
+
+        let oracle_pubkey = Pubkey::new_from_array(data[offset..offset + 32].try_into().ok()?);
+        // status field is the last byte of OracleConfig.
+        let status_offset = offset + (ORACLE_CONFIG_SERIALIZED_LEN - 1);
+        let status = *data.get(status_offset)?;
+        if status == ORACLE_STATUS_ACTIVE {
+            active_oracles.push(oracle_pubkey);
+        }
+
+        offset += ORACLE_CONFIG_SERIALIZED_LEN;
+    }
+
+    let min_consensus = *data.get(offset)?;
+    offset += 1;
+
+    // Ensure remaining fixed fields are present.
+    if offset + 1 + 8 + 8 + 1 + 1 + 8 > data.len() {
+        return None;
+    }
+
+    Some((min_consensus.max(1), active_oracles))
+}
+
+fn verify_oracle_quorum(
+    oracle_registry: &AccountInfo,
+    primary_oracle: &Pubkey,
+    cosigners: &[AccountInfo],
+) -> Result<()> {
+    validate_oracle_registry_account(oracle_registry)?;
+    let data = oracle_registry.try_borrow_data()?;
+    let (min_consensus, active_oracles) =
+        parse_kamiyo_oracle_registry(&data).ok_or(MeishiError::OracleRegistryInvalid)?;
+
+    require!(
+        active_oracles.iter().any(|oracle| oracle == primary_oracle),
+        MeishiError::OracleNotRegistered
+    );
+
+    let mut participant_keys = Vec::<Pubkey>::with_capacity(cosigners.len() + 1);
+    participant_keys.push(*primary_oracle);
+
+    for signer in cosigners {
+        require!(signer.is_signer, MeishiError::OracleSignerMissing);
+        let signer_key = signer.key();
+        require!(
+            active_oracles.iter().any(|oracle| *oracle == signer_key),
+            MeishiError::OracleNotRegistered
+        );
+        if !participant_keys.iter().any(|existing| *existing == signer_key) {
+            participant_keys.push(signer_key);
+        }
+    }
+
+    require!(
+        participant_keys.len() >= min_consensus as usize,
+        MeishiError::OracleConsensusInsufficient
+    );
+
+    Ok(())
+}
+
+fn compute_mandate_message_hash(
+    passport: &Pubkey,
+    version: u32,
+    spending_limit_usd: u64,
+    daily_limit_usd: u64,
+    monthly_limit_usd: u64,
+    category_whitelist: &[u8; 32],
+    merchant_whitelist_hash: &[u8; 32],
+    requires_human_approval_above: u64,
+    geo_restrictions: u8,
+    valid_from: i64,
+    valid_until: i64,
+) -> [u8; 32] {
+    let mandate_data = [
+        b"meishi-mandate-v1".as_ref(),
+        passport.as_ref(),
+        version.to_le_bytes().as_ref(),
+        spending_limit_usd.to_le_bytes().as_ref(),
+        daily_limit_usd.to_le_bytes().as_ref(),
+        monthly_limit_usd.to_le_bytes().as_ref(),
+        category_whitelist.as_ref(),
+        merchant_whitelist_hash.as_ref(),
+        requires_human_approval_above.to_le_bytes().as_ref(),
+        &[geo_restrictions],
+        valid_from.to_le_bytes().as_ref(),
+        valid_until.to_le_bytes().as_ref(),
+    ]
+    .concat();
+    anchor_lang::solana_program::hash::hash(&mandate_data).to_bytes()
+}
+
+fn read_u16(data: &[u8], offset: usize) -> Option<u16> {
+    Some(u16::from_le_bytes(data.get(offset..offset + 2)?.try_into().ok()?))
+}
+
+fn verify_ed25519_mandate_signature(
+    instructions: &AccountInfo,
+    principal: &Pubkey,
+    message_hash: &[u8; 32],
+    principal_signature: &[u8; 64],
+) -> Result<()> {
+    use anchor_lang::solana_program::ed25519_program;
+    use anchor_lang::solana_program::sysvar::instructions::{
+        load_current_index_checked, load_instruction_at_checked,
+    };
+
+    let current_index = load_current_index_checked(instructions)?;
+    require!(current_index > 0, MeishiError::MandateSignatureMissing);
+
+    let sig_ix = load_instruction_at_checked((current_index - 1) as usize, instructions)
+        .map_err(|_| error!(MeishiError::MandateSignatureMissing))?;
+    require!(
+        sig_ix.program_id == ed25519_program::id(),
+        MeishiError::MandateSignatureMissing
+    );
+
+    let data = sig_ix.data;
+    require!(data.len() >= 16, MeishiError::InvalidMandateSignature);
+    require!(data[0] == 1u8, MeishiError::InvalidMandateSignature);
+
+    // Offsets struct starts after num_signatures + padding.
+    let o = 2usize;
+    let signature_offset = read_u16(&data, o).ok_or(MeishiError::InvalidMandateSignature)? as usize;
+    let signature_ix_index = read_u16(&data, o + 2).ok_or(MeishiError::InvalidMandateSignature)?;
+    let public_key_offset =
+        read_u16(&data, o + 4).ok_or(MeishiError::InvalidMandateSignature)? as usize;
+    let public_key_ix_index = read_u16(&data, o + 6).ok_or(MeishiError::InvalidMandateSignature)?;
+    let message_offset = read_u16(&data, o + 8).ok_or(MeishiError::InvalidMandateSignature)? as usize;
+    let message_size = read_u16(&data, o + 10).ok_or(MeishiError::InvalidMandateSignature)? as usize;
+    let message_ix_index = read_u16(&data, o + 12).ok_or(MeishiError::InvalidMandateSignature)?;
+
+    // 0xFFFF means "this instruction".
+    require!(
+        signature_ix_index == u16::MAX
+            && public_key_ix_index == u16::MAX
+            && message_ix_index == u16::MAX,
+        MeishiError::InvalidMandateSignature
+    );
+    require!(message_size == 32, MeishiError::InvalidMandateSignature);
+    require!(
+        signature_offset + 64 <= data.len()
+            && public_key_offset + 32 <= data.len()
+            && message_offset + message_size <= data.len(),
+        MeishiError::InvalidMandateSignature
+    );
+    require!(
+        data[public_key_offset..public_key_offset + 32] == principal.to_bytes(),
+        MeishiError::InvalidMandateSignature
+    );
+    require!(
+        data[signature_offset..signature_offset + 64] == principal_signature.as_slice()[..],
+        MeishiError::InvalidMandateSignature
+    );
+    require!(
+        data[message_offset..message_offset + message_size] == message_hash.as_slice()[..],
+        MeishiError::InvalidMandateSignature
+    );
+
+    Ok(())
+}
+
 /*
 Program
 */
@@ -64,6 +351,7 @@ pub mod meishi {
     /// The caller must own an active Kamiyo AgentIdentity.
     pub fn create_meishi(ctx: Context<CreateMeishi>, jurisdiction: u8) -> Result<()> {
         require!(jurisdiction <= 4, MeishiError::InvalidJurisdiction);
+        validate_agent_identity_account(&ctx.accounts.agent_identity, &ctx.accounts.owner.key())?;
 
         let clock = Clock::get()?;
         let passport = &mut ctx.accounts.passport;
@@ -116,6 +404,7 @@ pub mod meishi {
         geo_restrictions: u8,
         valid_from: i64,
         valid_until: i64,
+        principal_signature: [u8; 64],
     ) -> Result<()> {
         let clock = Clock::get()?;
         let duration = valid_until - valid_from;
@@ -145,11 +434,29 @@ pub mod meishi {
             .mandate_version
             .checked_add(1)
             .ok_or(MeishiError::ArithmeticOverflow)?;
+        let message_hash = compute_mandate_message_hash(
+            &passport.key(),
+            version,
+            spending_limit_usd,
+            daily_limit_usd,
+            monthly_limit_usd,
+            &category_whitelist,
+            &merchant_whitelist_hash,
+            requires_human_approval_above,
+            geo_restrictions,
+            valid_from,
+            valid_until,
+        );
+        verify_ed25519_mandate_signature(
+            &ctx.accounts.instructions,
+            &ctx.accounts.principal.key(),
+            &message_hash,
+            &principal_signature,
+        )?;
 
         mandate.meishi = passport.key();
         mandate.version = version;
-        // Set off-chain after the principal signs the mandate payload.
-        mandate.principal_signature = [0u8; 64];
+        mandate.principal_signature = principal_signature;
         mandate.spending_limit_usd = spending_limit_usd;
         mandate.daily_limit_usd = daily_limit_usd;
         mandate.monthly_limit_usd = monthly_limit_usd;
@@ -164,15 +471,7 @@ pub mod meishi {
         mandate.bump = ctx.bumps.mandate;
 
         // Update passport with a hash of the current mandate parameters.
-        let mandate_data = [
-            spending_limit_usd.to_le_bytes().as_ref(),
-            daily_limit_usd.to_le_bytes().as_ref(),
-            monthly_limit_usd.to_le_bytes().as_ref(),
-            &category_whitelist,
-            &merchant_whitelist_hash,
-        ]
-        .concat();
-        passport.mandate_hash = anchor_lang::solana_program::hash::hash(&mandate_data).to_bytes();
+        passport.mandate_hash = message_hash;
         passport.mandate_expires = valid_until;
         passport.mandate_version = version;
         passport.updated_at = clock.unix_timestamp;
@@ -239,6 +538,16 @@ pub mod meishi {
         let clock = Clock::get()?;
         let passport = &mut ctx.accounts.passport;
 
+        let oracle_key = ctx.accounts.oracle.key();
+        if !is_passport_authority(passport, &oracle_key) {
+            let oracle_registry = ctx
+                .accounts
+                .oracle_registry
+                .as_ref()
+                .ok_or(MeishiError::OracleRegistryMissing)?;
+            verify_oracle_quorum(oracle_registry, &oracle_key, ctx.remaining_accounts)?;
+        }
+
         require!(audit_type <= 3, MeishiError::InvalidAuditType);
         require!(
             compliance_score_after >= MIN_COMPLIANCE_SCORE
@@ -289,6 +598,16 @@ pub mod meishi {
     ) -> Result<()> {
         let clock = Clock::get()?;
         let passport = &mut ctx.accounts.passport;
+
+        let oracle_key = ctx.accounts.oracle.key();
+        if !is_passport_authority(passport, &oracle_key) {
+            let oracle_registry = ctx
+                .accounts
+                .oracle_registry
+                .as_ref()
+                .ok_or(MeishiError::OracleRegistryMissing)?;
+            verify_oracle_quorum(oracle_registry, &oracle_key, ctx.remaining_accounts)?;
+        }
 
         require!(
             new_score >= MIN_COMPLIANCE_SCORE && new_score <= MAX_COMPLIANCE_SCORE,
@@ -496,8 +815,10 @@ pub struct CreateMeishi<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: TODO(cpi-verify) add CPI to the Kamiyo program to verify the agent is active.
-    /// For now we only rely on PDA seed derivation.
+    /// CHECK: validated in `validate_agent_identity_account`:
+    /// - owner is Kamiyo program
+    /// - PDA derivation from owner key
+    /// - account discriminator + active state
     pub agent_identity: AccountInfo<'info>,
 
     #[account(
@@ -538,6 +859,10 @@ pub struct UpdateMandate<'info> {
     )]
     pub mandate: Account<'info, MeishiMandate>,
 
+    /// CHECK: instruction sysvar account used to verify preceding ed25519 signature instruction.
+    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
+    pub instructions: AccountInfo<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -576,6 +901,9 @@ pub struct RecordAudit<'info> {
     )]
     pub audit: Account<'info, MeishiAudit>,
 
+    /// CHECK: Optional Kamiyo OracleRegistry PDA, required for non-passport-authority oracle writes.
+    pub oracle_registry: Option<AccountInfo<'info>>,
+
     pub system_program: Program<'info, System>,
 }
 
@@ -585,13 +913,19 @@ pub struct UpdateComplianceScore<'info> {
 
     #[account(mut)]
     pub passport: Account<'info, MeishiPassport>,
+
+    /// CHECK: Optional Kamiyo OracleRegistry PDA, required for non-passport-authority oracle writes.
+    pub oracle_registry: Option<AccountInfo<'info>>,
 }
 
 #[derive(Accounts)]
 pub struct SuspendMeishi<'info> {
     pub authority: Signer<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = passport.issuer == authority.key() || passport.principal == authority.key() @ MeishiError::Unauthorized
+    )]
     pub passport: Account<'info, MeishiPassport>,
 }
 
@@ -601,7 +935,8 @@ pub struct UnsuspendMeishi<'info> {
 
     #[account(
         mut,
-        constraint = passport.suspended @ MeishiError::NotSuspended
+        constraint = passport.suspended @ MeishiError::NotSuspended,
+        constraint = passport.issuer == authority.key() || passport.principal == authority.key() @ MeishiError::Unauthorized
     )]
     pub passport: Account<'info, MeishiPassport>,
 }
@@ -640,7 +975,8 @@ pub struct RecordTransaction<'info> {
 
     #[account(
         mut,
-        constraint = !passport.suspended @ MeishiError::PassportSuspended
+        constraint = !passport.suspended @ MeishiError::PassportSuspended,
+        constraint = passport.issuer == authority.key() || passport.principal == authority.key() @ MeishiError::Unauthorized
     )]
     pub passport: Account<'info, MeishiPassport>,
 }
@@ -1030,4 +1366,25 @@ pub enum MeishiError {
 
     #[msg("dispute_lost requires disputed to be true")]
     InvalidDisputeState,
+
+    #[msg("Missing required ed25519 mandate signature verification instruction")]
+    MandateSignatureMissing,
+
+    #[msg("Mandate signature payload is invalid")]
+    InvalidMandateSignature,
+
+    #[msg("Oracle registry account is missing")]
+    OracleRegistryMissing,
+
+    #[msg("Oracle registry account is invalid")]
+    OracleRegistryInvalid,
+
+    #[msg("Oracle signer is not registered")]
+    OracleNotRegistered,
+
+    #[msg("Oracle cosigner account must be a signer")]
+    OracleSignerMissing,
+
+    #[msg("Oracle consensus quorum not met")]
+    OracleConsensusInsufficient,
 }

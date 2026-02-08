@@ -36,12 +36,22 @@ function getVerificationKey(): string {
   return sha256('meishi_zk_verifier_v1');
 }
 
+function ensurePlaceholderEnabled(): void {
+  const allowInsecure = process.env.KAMIYO_ALLOW_INSECURE_ZK_PLACEHOLDER === 'true';
+  if (!allowInsecure) {
+    throw new Error(
+      'Insecure ZK placeholder is disabled. Set KAMIYO_ALLOW_INSECURE_ZK_PLACEHOLDER=true only for non-production testing.'
+    );
+  }
+}
+
 // TODO(zk): replace with Noir circuit compilation + proof generation
 /**
  * Prove compliance score meets threshold without revealing actual score.
  * Stub: SHA-256 commitments as structural placeholder.
  */
 export function proveComplianceThreshold(input: ComplianceProofInput): MeishiZKProof {
+  ensurePlaceholderEnabled();
   if (input.complianceScore < input.threshold) {
     throw new Error('Score does not meet threshold — cannot generate valid proof');
   }
@@ -76,6 +86,7 @@ export function verifyComplianceThreshold(
   zkProof: MeishiZKProof,
   expectedThreshold: number
 ): boolean {
+  ensurePlaceholderEnabled();
   if (zkProof.verificationKey !== getVerificationKey()) return false;
   if (zkProof.publicInputs.length !== 2) return false;
   if (!/^[a-f0-9]{64}$/.test(zkProof.publicInputs[0])) return false;
@@ -87,6 +98,7 @@ export function verifyComplianceThreshold(
  * Prove cumulative spending is within mandate limits.
  */
 export function proveSpendingWithinLimits(input: SpendingProofInput): MeishiZKProof {
+  ensurePlaceholderEnabled();
   const newTotal = input.currentCumulative + input.transactionAmount;
   if (newTotal > input.dailyLimit || newTotal > input.monthlyLimit) {
     throw new Error('Spending exceeds limits — cannot generate valid proof');
@@ -117,6 +129,7 @@ export function proveSpendingWithinLimits(input: SpendingProofInput): MeishiZKPr
 
 /** Verify a spending-within-limits proof. */
 export function verifySpendingWithinLimits(zkProof: MeishiZKProof): boolean {
+  ensurePlaceholderEnabled();
   if (zkProof.verificationKey !== getVerificationKey()) return false;
   if (zkProof.publicInputs.length !== 2) return false;
   if (!/^[a-f0-9]{64}$/.test(zkProof.publicInputs[1])) return false;
@@ -127,6 +140,7 @@ export function verifySpendingWithinLimits(zkProof: MeishiZKProof): boolean {
  * Prove a mandate is currently valid.
  */
 export function proveMandateValidity(input: MandateProofInput): MeishiZKProof {
+  ensurePlaceholderEnabled();
   const now = Math.floor(Date.now() / 1000);
   if (input.revoked || input.validFrom > now || input.validUntil <= now) {
     throw new Error('Mandate not valid — cannot generate proof');
@@ -157,6 +171,7 @@ export function proveMandateValidity(input: MandateProofInput): MeishiZKProof {
 
 /** Verify a mandate validity proof. */
 export function verifyMandateValidity(zkProof: MeishiZKProof): boolean {
+  ensurePlaceholderEnabled();
   if (zkProof.verificationKey !== getVerificationKey()) return false;
   if (zkProof.publicInputs.length !== 1) return false;
   if (!/^[a-f0-9]{64}$/.test(zkProof.publicInputs[0])) return false;
@@ -165,6 +180,7 @@ export function verifyMandateValidity(zkProof: MeishiZKProof): boolean {
 
 /** Export proof as bytes for Solana on-chain verification. */
 export function exportProofForSolana(zkProof: MeishiZKProof): Buffer {
+  ensurePlaceholderEnabled();
   const proofBytes = Buffer.from(zkProof.proof, 'hex');
   const commitmentBytes = Buffer.from(zkProof.publicInputs[0], 'hex');
   const vkBytes = Buffer.from(zkProof.verificationKey, 'hex');

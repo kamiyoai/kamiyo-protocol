@@ -6,7 +6,17 @@ import { isAddress } from 'ethers';
 import { settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
 import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
-import { insertSettlement, updateSettlementConfirmed, updateSettlementStatus, insertFeeLedger, getSettlementStats, getWalletDisputeStats, getWalletAverageQuality, getMonthlyVolume, reservePaymentNonce } from '../db/queries';
+import {
+  insertSettlement,
+  updateSettlementConfirmed,
+  updateSettlementStatus,
+  insertFeeLedger,
+  getSettlementStats,
+  getWalletDisputeStats,
+  getWalletAverageQuality,
+  getMonthlyVolume,
+  reservePaymentNonce,
+} from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
 import { matchesUsdcAmount, parseSettleInput } from '../protocol/request-compat';
@@ -33,6 +43,8 @@ function sendSettleFailure(
 
 export function createSettleRouter(connection: Connection, facilitatorKeypair: Keypair): Router {
   const router = Router();
+  const getErrorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : 'unknown error';
 
   router.post('/', async (req: Request, res: Response) => {
     const parsedInput = parseSettleInput(req.body);
@@ -230,9 +242,16 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         network,
         feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined
       });
-    } catch (err: any) {
+    } catch (err) {
       await updateSettlementStatus(settlement.id, 'failed');
-      sendSettleFailure(res, 500, 'settlement_failed', `Settlement failed: ${err.message}`, network, payment.payer);
+      sendSettleFailure(
+        res,
+        500,
+        'settlement_failed',
+        `Settlement failed: ${getErrorMessage(err)}`,
+        network,
+        payment.payer
+      );
     }
   });
 
