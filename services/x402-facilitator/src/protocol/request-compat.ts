@@ -225,13 +225,18 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
     return { ok: false, error: 'Missing or invalid paymentPayload.payload' };
   }
 
+  const requirementAmountRaw = extractRequirementAmountRaw(paymentRequirements, paymentPayload);
+  if (!requirementAmountRaw) {
+    return { ok: false, error: 'Missing paymentRequirements.amount' };
+  }
+
   return {
     ok: true,
     value: {
       mode: 'x402',
       paymentHeader,
       resource: extractResource(paymentRequirements, paymentPayload),
-      requirementAmountRaw: extractRequirementAmountRaw(paymentRequirements, paymentPayload),
+      requirementAmountRaw,
       requirementNetwork: network,
     },
   };
@@ -281,6 +286,11 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
     return { ok: false, error: 'Missing paymentRequirements.payTo' };
   }
 
+  const requirementAmountRaw = extractRequirementAmountRaw(paymentRequirements, paymentPayload);
+  if (!requirementAmountRaw) {
+    return { ok: false, error: 'Missing paymentRequirements.amount' };
+  }
+
   return {
     ok: true,
     value: {
@@ -288,7 +298,7 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
       paymentHeader,
       merchantWallet,
       asset: extractAsset(paymentRequirements, paymentPayload, asString(root.asset)),
-      requirementAmountRaw: extractRequirementAmountRaw(paymentRequirements, paymentPayload),
+      requirementAmountRaw,
       requirementNetwork: network,
       requirementResource: extractResource(paymentRequirements, paymentPayload),
     },
