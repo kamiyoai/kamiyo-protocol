@@ -1,5 +1,8 @@
 type UnknownRecord = Record<string, unknown>;
 
+const USDC_DECIMALS = 6;
+const USDC_MICRO = 10 ** USDC_DECIMALS;
+
 export interface ParsedVerifyInput {
   mode: 'legacy' | 'x402';
   paymentHeader: string;
@@ -128,6 +131,63 @@ function extractAsset(
   );
 }
 
+function parseUsdcMicroAmount(amountRaw: string): number | null {
+  const trimmed = amountRaw.trim();
+  if (!trimmed) return null;
+
+  if (/^\d+$/.test(trimmed)) {
+    const units = Number(trimmed);
+    if (!Number.isSafeInteger(units) || units <= 0) return null;
+    return units;
+  }
+
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) return null;
+
+  const units = Math.round(n * USDC_MICRO);
+  if (!Number.isSafeInteger(units) || units <= 0) return null;
+  return units;
+}
+
+export function parseSignedUsdcAmount(
+  signedAmountRaw: string,
+  expectedAmountRaw?: string
+): number | null {
+  const expectedMicro =
+    typeof expectedAmountRaw === 'string' && expectedAmountRaw.trim().length > 0
+      ? parseUsdcMicroAmount(expectedAmountRaw)
+      : null;
+
+  const trimmed = signedAmountRaw.trim();
+  if (!trimmed) return null;
+
+  const candidates: number[] = [];
+
+  const asDecimal = Number(trimmed);
+  if (Number.isFinite(asDecimal) && asDecimal > 0) {
+    const micro = Math.round(asDecimal * USDC_MICRO);
+    if (Number.isSafeInteger(micro) && micro > 0) candidates.push(micro);
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    const micro = Number(trimmed);
+    if (Number.isSafeInteger(micro) && micro > 0) candidates.push(micro);
+  }
+
+  const unique = Array.from(new Set(candidates));
+  if (!unique.length) return null;
+
+  if (expectedMicro == null) {
+    return Math.min(...unique) / USDC_MICRO;
+  }
+
+  if (unique.includes(expectedMicro)) {
+    return expectedMicro / USDC_MICRO;
+  }
+
+  return null;
+}
+
 export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerifyInput } | { ok: false; error: string } {
   const root = asRecord(body);
   if (!root) return { ok: false, error: 'Missing request body' };
@@ -238,13 +298,10 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
 export function matchesUsdcAmount(signedAmount: number, requirementAmountRaw?: string): boolean {
   if (!requirementAmountRaw) return true;
 
-  const parsed = Number(requirementAmountRaw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return false;
+  const requirementMicro = parseUsdcMicroAmount(requirementAmountRaw);
+  if (requirementMicro == null) return false;
 
-  const candidates = [parsed];
-  if (/^\d+$/.test(requirementAmountRaw)) {
-    candidates.push(parsed / 1_000_000);
-  }
-
-  return candidates.some((candidate) => Math.abs(candidate - signedAmount) <= 1e-6);
+  if (!Number.isFinite(signedAmount) || signedAmount <= 0) return false;
+  const signedMicro = Math.round(signedAmount * USDC_MICRO);
+  return signedMicro === requirementMicro;
 }

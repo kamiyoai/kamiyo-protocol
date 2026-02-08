@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress, createTransferInstruction, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { Wallet, JsonRpcProvider, Contract, parseUnits, formatUnits, isAddress } from 'ethers';
+import { Wallet, JsonRpcProvider, Contract, parseUnits, formatUnits, isAddress, verifyMessage } from 'ethers';
 import * as nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
@@ -114,7 +114,9 @@ export function initFacilitator(cfg: FacilitatorConfig): void {
       }
       if (secret.length === 64) {
         solanaKeypair = Keypair.fromSecretKey(secret);
-        console.log('[facilitator] Solana wallet:', solanaKeypair.publicKey.toBase58());
+        if (process.env.NODE_ENV !== 'test') {
+          console.log('[facilitator] Solana wallet:', solanaKeypair.publicKey.toBase58());
+        }
       }
     } catch {
       console.warn('[facilitator] Failed to parse Solana private key');
@@ -125,7 +127,9 @@ export function initFacilitator(cfg: FacilitatorConfig): void {
     try {
       baseProvider = new JsonRpcProvider(cfg.baseRpcUrl, { chainId: 8453, name: 'base' });
       baseWallet = new Wallet(cfg.basePrivateKey, baseProvider);
-      console.log('[facilitator] Base wallet:', baseWallet.address);
+      if (process.env.NODE_ENV !== 'test') {
+        console.log('[facilitator] Base wallet:', baseWallet.address);
+      }
     } catch {
       console.warn('[facilitator] Failed to init Base wallet');
     }
@@ -150,6 +154,14 @@ export function getFacilitatorProfile(): FacilitatorProfile {
   return { kinds, signers };
 }
 
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as UnknownRecord)
+    : null;
+}
+
 function decodePaymentHeader(header: string): DecodedPayment | null {
   if (!header || typeof header !== 'string' || header.length > MAX_HEADER_LENGTH) {
     return null;
@@ -160,13 +172,42 @@ function decodePaymentHeader(header: string): DecodedPayment | null {
   if (!payload || payload.length > MAX_HEADER_LENGTH) return null;
   try {
     const decoded = Buffer.from(payload, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (typeof parsed.payer !== 'string' || parsed.payer.length > 128) return null;
-    if (typeof parsed.amount !== 'string' || parsed.amount.length > 32) return null;
-    if (typeof parsed.nonce !== 'string' || parsed.nonce.length > 64) return null;
-    if (typeof parsed.authSignature !== 'string' || parsed.authSignature.length > 256) return null;
-    return parsed;
+    const parsed = asRecord(JSON.parse(decoded));
+    if (!parsed) return null;
+
+    const signature =
+      typeof parsed.signature === 'string' && parsed.signature.trim().length > 0 && parsed.signature.length <= 512
+        ? parsed.signature.trim()
+        : null;
+    const payer =
+      typeof parsed.payer === 'string' && parsed.payer.trim().length > 0 && parsed.payer.length <= 128
+        ? parsed.payer.trim()
+        : null;
+    const nonce =
+      typeof parsed.nonce === 'string' && parsed.nonce.trim().length > 0 && parsed.nonce.length <= 64
+        ? parsed.nonce.trim()
+        : null;
+    const resource =
+      typeof parsed.resource === 'string' && parsed.resource.trim().length > 0 && parsed.resource.length <= 2048
+        ? parsed.resource.trim()
+        : null;
+    const amount =
+      typeof parsed.amount === 'string' && parsed.amount.trim().length > 0 && parsed.amount.length <= 64
+        ? parsed.amount.trim()
+        : null;
+    const authSignature =
+      typeof parsed.authSignature === 'string' &&
+      parsed.authSignature.trim().length > 0 &&
+      parsed.authSignature.length <= 512
+        ? parsed.authSignature.trim()
+        : null;
+    const timestamp = typeof parsed.timestamp === 'number' && Number.isFinite(parsed.timestamp) ? parsed.timestamp : null;
+
+    if (!signature || !payer || timestamp == null || !nonce || !resource || !amount || !authSignature) {
+      return null;
+    }
+
+    return { signature, payer, timestamp, nonce, resource, amount, authSignature };
   } catch {
     return null;
   }
@@ -194,9 +235,7 @@ function tryMarkNonceUsed(nonce: string): boolean {
 
 function verifyPaymentAuth(payment: DecodedPayment): boolean {
   try {
-    const publicKey = new PublicKey(payment.payer);
     const authSig = Buffer.from(payment.authSignature, 'base64');
-    if (authSig.length !== 64) return false;
     const { authSignature: _, ...rest } = payment;
     const canonical = JSON.stringify({
       amount: rest.amount,
@@ -207,6 +246,16 @@ function verifyPaymentAuth(payment: DecodedPayment): boolean {
       timestamp: rest.timestamp,
     });
     const message = new TextEncoder().encode(canonical);
+
+    if (isAddress(payment.payer)) {
+      if (authSig.length !== 64 && authSig.length !== 65) return false;
+      const signatureHex = `0x${authSig.toString('hex')}`;
+      const recovered = verifyMessage(message, signatureHex);
+      return recovered.toLowerCase() === payment.payer.toLowerCase();
+    }
+
+    if (authSig.length !== 64) return false;
+    const publicKey = new PublicKey(payment.payer);
     return nacl.sign.detached.verify(message, authSig, publicKey.toBytes());
   } catch {
     return false;
@@ -225,6 +274,58 @@ function toBaseUnits(amount: number): bigint {
 
 function fromBaseUnits(units: bigint): number {
   return Number(units) / 10 ** USDC_DECIMALS;
+}
+
+function parseUsdcMicroAmount(amountRaw: string): number | null {
+  const trimmed = amountRaw.trim();
+  if (!trimmed) return null;
+
+  if (/^\d+$/.test(trimmed)) {
+    const units = Number(trimmed);
+    if (!Number.isSafeInteger(units) || units <= 0) return null;
+    return units;
+  }
+
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const units = Math.round(n * 10 ** USDC_DECIMALS);
+  if (!Number.isSafeInteger(units) || units <= 0) return null;
+  return units;
+}
+
+function parseSignedUsdcAmount(
+  signedAmountRaw: string,
+  expectedAmountRaw?: string
+): { micro: number; usdc: number } | null {
+  const expectedMicro =
+    typeof expectedAmountRaw === 'string' && expectedAmountRaw.trim().length > 0
+      ? parseUsdcMicroAmount(expectedAmountRaw)
+      : null;
+
+  const trimmed = signedAmountRaw.trim();
+  if (!trimmed) return null;
+
+  const candidates: number[] = [];
+
+  const asDecimal = Number(trimmed);
+  if (Number.isFinite(asDecimal) && asDecimal > 0) {
+    const micro = Math.round(asDecimal * 10 ** USDC_DECIMALS);
+    if (Number.isSafeInteger(micro) && micro > 0) candidates.push(micro);
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    const micro = Number(trimmed);
+    if (Number.isSafeInteger(micro) && micro > 0) candidates.push(micro);
+  }
+
+  const unique = Array.from(new Set(candidates));
+  if (!unique.length) return null;
+
+  const micro =
+    expectedMicro == null ? Math.min(...unique) : unique.includes(expectedMicro) ? expectedMicro : null;
+  if (micro == null) return null;
+
+  return { micro, usdc: micro / 10 ** USDC_DECIMALS };
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -266,18 +367,20 @@ async function settleSolana(
   amount: number,
   feeBps: number
 ): Promise<{ txHash: string; fee: number; net: number }> {
-  if (!solanaConnection || !solanaKeypair || !config.treasuryWallet) {
+  if (!solanaConnection || !solanaKeypair) {
     throw new Error('Solana settlement not configured');
   }
 
-  const treasuryWallet = new PublicKey(config.treasuryWallet);
   const facilitatorAta = await getAssociatedTokenAddress(SOLANA_USDC_MINT, solanaKeypair.publicKey);
   const merchantAta = await getAssociatedTokenAddress(SOLANA_USDC_MINT, merchantWallet);
-  const treasuryAta = await getAssociatedTokenAddress(SOLANA_USDC_MINT, treasuryWallet);
 
   const totalUnits = toBaseUnits(amount);
-  const feeUnits = (totalUnits * BigInt(feeBps)) / 10_000n;
+  const treasuryWallet = config.treasuryWallet ? new PublicKey(config.treasuryWallet) : null;
+  const feeUnits = treasuryWallet ? (totalUnits * BigInt(feeBps)) / 10_000n : 0n;
   const netUnits = totalUnits - feeUnits;
+  const treasuryAta = treasuryWallet
+    ? await getAssociatedTokenAddress(SOLANA_USDC_MINT, treasuryWallet)
+    : null;
 
   const facilitatorAccount = await getAccount(solanaConnection, facilitatorAta);
   if (facilitatorAccount.amount < totalUnits) {
@@ -296,7 +399,7 @@ async function settleSolana(
     )
   );
 
-  if (feeUnits > 0n) {
+  if (feeUnits > 0n && treasuryAta) {
     tx.add(
       createTransferInstruction(
         facilitatorAta,
@@ -375,7 +478,7 @@ async function settleBase(
 
 function getSupportedNetworks(): string[] {
   const networks: string[] = [];
-  if (solanaConnection && solanaKeypair && config.treasuryWallet) {
+  if (solanaConnection && solanaKeypair) {
     networks.push('solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp');
   }
   if (baseWallet) {
@@ -427,13 +530,23 @@ export function createFacilitatorRouter(): Router {
         return res.status(400).json({ isValid: false, invalidReason: 'Invalid signature' });
       }
 
-      // payment.amount is in micro-USDC (base units)
-      const amountMicro = parseInt(payment.amount, 10);
-      if (!Number.isFinite(amountMicro) || amountMicro <= 0) {
-        return res.status(400).json({ isValid: false, invalidReason: 'Invalid amount' });
+      if (!paymentRequirements?.amount || typeof paymentRequirements.amount !== 'string') {
+        return res.status(400).json({ isValid: false, invalidReason: 'Missing paymentRequirements.amount' });
+      }
+      if (paymentRequirements.asset && paymentRequirements.asset !== 'USDC') {
+        return res.status(400).json({ isValid: false, invalidReason: 'Unsupported asset' });
+      }
+      if (paymentRequirements.network && paymentRequirements.network !== scheme.network) {
+        return res.status(400).json({ isValid: false, invalidReason: 'Network mismatch' });
       }
 
-      const amount = amountMicro / 1_000_000;
+      const parsedAmount = parseSignedUsdcAmount(payment.amount, paymentRequirements.amount);
+      if (!parsedAmount) {
+        return res.status(400).json({ isValid: false, invalidReason: 'Amount mismatch with payment requirements' });
+      }
+
+      const amountMicro = parsedAmount.micro;
+      const amount = parsedAmount.usdc;
       if (amount > config.maxSettlementAmount) {
         return res.status(400).json({ isValid: false, invalidReason: 'Amount exceeds facilitator limit' });
       }
@@ -515,13 +628,22 @@ export function createFacilitatorRouter(): Router {
         return res.status(400).json({ success: false, error: 'Invalid signature' });
       }
 
-      // payment.amount is in micro-USDC (base units)
-      const amountMicro = parseInt(payment.amount, 10);
-      if (!Number.isFinite(amountMicro) || amountMicro <= 0) {
-        return res.status(400).json({ success: false, error: 'Invalid amount' });
+      if (!paymentRequirements?.amount || typeof paymentRequirements.amount !== 'string') {
+        return res.status(400).json({ success: false, error: 'Missing paymentRequirements.amount' });
+      }
+      if (paymentRequirements.asset && paymentRequirements.asset !== 'USDC') {
+        return res.status(400).json({ success: false, error: 'Unsupported asset' });
+      }
+      if (paymentRequirements.network && paymentRequirements.network !== scheme.network) {
+        return res.status(400).json({ success: false, error: 'Network mismatch' });
       }
 
-      const amount = amountMicro / 1_000_000;
+      const parsedAmount = parseSignedUsdcAmount(payment.amount, paymentRequirements.amount);
+      if (!parsedAmount) {
+        return res.status(400).json({ success: false, error: 'Amount mismatch with payment requirements' });
+      }
+
+      const amount = parsedAmount.usdc;
       if (amount > config.maxSettlementAmount) {
         return res.status(400).json({ success: false, error: 'Amount exceeds limit' });
       }

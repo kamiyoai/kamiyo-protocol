@@ -133,7 +133,7 @@ function parseFacilitatorUrls(): string[] {
 
 const FACILITATOR_URLS = parseFacilitatorUrls();
 const FACILITATOR_URL = FACILITATOR_URLS[0] || 'https://x402.kamiyo.ai';
-const DKG_ENDPOINT = process.env.DKG_ENDPOINT || 'https://dkg.kamiyo.ai';
+const DKG_ENDPOINT = process.env.DKG_ENDPOINT || '';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
 const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
 const FACILITATOR_MODE = process.env.FACILITATOR_MODE === 'true';
@@ -450,10 +450,10 @@ async function settlePayment(
         };
       }
 
-        return {
-          success: false,
-          error: data.error || data.errorReason || data.errorMessage || 'Settlement failed',
-        };
+      return {
+        success: false,
+        error: data.error || data.errorReason || data.errorMessage || 'Settlement failed',
+      };
     } finally {
       clearTimeout(timeout);
     }
@@ -587,7 +587,7 @@ function x402Middleware(basePrice: number, description: string) {
 }
 
 async function fetchAgentData(agentId: string): Promise<Record<string, unknown> | null> {
-  if (DKG_ENDPOINT && DKG_ENDPOINT !== 'https://dkg.kamiyo.ai') {
+  if (DKG_ENDPOINT) {
     try {
       const res = await fetch(`${DKG_ENDPOINT}/agents/${agentId}`, {
         headers: { 'Content-Type': 'application/json' },
@@ -623,17 +623,30 @@ async function fetchAgentData(agentId: string): Promise<Record<string, unknown> 
 }
 
 async function fetchReputationData(agentId: string): Promise<Record<string, unknown> | null> {
-  const score = 75 + Math.floor(Math.random() * 20);
+  const hash = (() => {
+    let h = 2166136261;
+    for (let i = 0; i < agentId.length; i++) {
+      h ^= agentId.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  })();
+
+  const score = 70 + (hash % 26);
   const tier = getTierForThreshold(score);
+  const txCount = 1000 + (hash % 5000);
+  const successRate = 0.92 + ((hash % 70) / 1000);
+  const averageResponseTime = 150 + (hash % 100);
+  const disputeRate = 0.01 + ((hash % 20) / 1000);
 
   return {
     agentId,
     score,
     tier: tier.name,
-    totalTransactions: 1000 + Math.floor(Math.random() * 5000),
-    successRate: 0.92 + Math.random() * 0.07,
-    averageResponseTime: 150 + Math.floor(Math.random() * 100),
-    disputeRate: 0.01 + Math.random() * 0.02,
+    totalTransactions: txCount,
+    successRate,
+    averageResponseTime,
+    disputeRate,
     verification: {
       type: 'zk_proof',
       commitment: `0x${Buffer.from(agentId).toString('hex').padEnd(64, '0')}`,
@@ -641,9 +654,9 @@ async function fetchReputationData(agentId: string): Promise<Record<string, unkn
     },
     history: {
       last30Days: {
-        transactions: 100 + Math.floor(Math.random() * 200),
-        volume: 1000 + Math.floor(Math.random() * 5000),
-        disputes: Math.floor(Math.random() * 3),
+        transactions: 100 + (hash % 200),
+        volume: 1000 + (hash % 5000),
+        disputes: hash % 3,
       },
     },
   };
@@ -700,7 +713,7 @@ app.get('/health', (_req, res) => {
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
       settlement: SETTLEMENT_ENABLED && profile.kinds.length > 0,
-      dkg: DKG_ENDPOINT !== 'https://dkg.kamiyo.ai',
+      dkg: Boolean(DKG_ENDPOINT),
       facilitatorMode: FACILITATOR_MODE,
     },
   });
@@ -938,7 +951,7 @@ app.listen(PORT, HOST, () => {
   console.log('Features:');
   console.log(`  Reputation Pricing: ${ENABLE_REPUTATION_PRICING ? 'enabled' : 'disabled'}`);
   console.log(`  Settlement: ${SETTLEMENT_ENABLED ? 'enabled' : 'disabled'}`);
-  console.log(`  DKG: ${DKG_ENDPOINT !== 'https://dkg.kamiyo.ai' ? 'connected' : 'mock data'}`);
+  console.log(`  DKG: ${DKG_ENDPOINT ? 'enabled' : 'disabled'}`);
   console.log('');
   console.log('Endpoints:');
   console.log(`  GET /health - Health check (free)`);
