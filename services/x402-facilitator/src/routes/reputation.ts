@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PublicKey } from '@solana/web3.js';
+import { isAddress } from 'ethers';
 import { buildReputationRecord, VOLUME_TIERS } from '../services/reputation';
 import {
   getSettlementStats,
@@ -11,12 +12,19 @@ import {
 export function createReputationRouter(): Router {
   const router = Router();
 
+  function isSupportedWallet(wallet: string): boolean {
+    try {
+      new PublicKey(wallet);
+      return true;
+    } catch {
+      return isAddress(wallet);
+    }
+  }
+
   router.get('/:wallet', async (req: Request, res: Response) => {
     const { wallet } = req.params;
 
-    try {
-      new PublicKey(wallet);
-    } catch {
+    if (!isSupportedWallet(wallet)) {
       res.status(400).json({ error: 'Invalid wallet address' });
       return;
     }

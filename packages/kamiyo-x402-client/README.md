@@ -96,6 +96,22 @@ if (disputeResult.success) {
 }
 ```
 
+### Facilitator Preference and Fallback
+
+Agents can prefer Kamiyo services while keeping x402 interoperability by configuring an ordered fallback list.
+
+```typescript
+import { createPayAIFacilitator } from '@kamiyo/x402-client';
+
+const facilitator = createPayAIFacilitator('0xYourMerchantWallet', {
+  facilitatorUrl: 'https://x402.kamiyo.ai', // primary
+  facilitatorUrls: [
+    'https://facilitator.payai.network', // first fallback
+    'https://another-x402-facilitator.example', // optional additional fallback
+  ],
+});
+```
+
 ## Configuration
 
 | Option | Type | Default | Description |
