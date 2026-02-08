@@ -1,4 +1,5 @@
 import type { Keypair, Connection } from '@solana/web3.js';
+import type { FacilitatorPolicy } from '@kamiyo/x402-client';
 
 export interface PaykitConfig {
   /** Solana keypair for signing transactions */
@@ -11,6 +12,8 @@ export interface PaykitConfig {
   maxPriceUsd?: number;
   /** Preferred network for payments */
   preferredNetwork?: string;
+  /** Facilitator routing policy */
+  facilitatorPolicy?: FacilitatorPolicy;
   /** Auto-dispute threshold (0-100). Below this quality score, auto-dispute. */
   autoDisputeThreshold?: number;
   /** Time lock for escrows in seconds */
