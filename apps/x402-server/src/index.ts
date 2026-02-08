@@ -4,7 +4,11 @@ import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
-import { initFacilitator, createFacilitatorRouter } from './facilitator.js';
+import {
+  initFacilitator,
+  createFacilitatorRouter,
+  getFacilitatorProfile,
+} from './facilitator.js';
 
 config();
 
@@ -116,6 +120,7 @@ initFacilitator({
   settlementFeeBps: parseInt(process.env.SETTLEMENT_FEE_BPS || '10', 10),
   maxPaymentAgeMs: parseInt(process.env.MAX_PAYMENT_AGE_MS || '300000', 10),
   maxSettlementAmount: parseFloat(process.env.MAX_SETTLEMENT_AMOUNT || '10000'),
+  merchantAddress: MERCHANT_ADDRESS || null,
 });
 
 const BASE_PRICES = {
@@ -162,6 +167,46 @@ const NETWORK_CONFIGS: Record<string, { chainId: string; usdc: string }> = {
 };
 
 const SUPPORTED_NETWORKS = ['base', 'polygon', 'arbitrum', 'optimism', 'avalanche', 'solana'];
+const DEFAULT_CHAIN_IDS = SUPPORTED_NETWORKS.map((network) => NETWORK_CONFIGS[network].chainId);
+const NETWORK_CONFIGS_BY_CHAIN_ID = Object.values(NETWORK_CONFIGS).reduce(
+  (acc, cfg) => {
+    acc[cfg.chainId] = cfg;
+    return acc;
+  },
+  {} as Record<string, { chainId: string; usdc: string }>
+);
+
+function getAdvertisedChainIds(): string[] {
+  const profile = getFacilitatorProfile();
+  if (profile.kinds.length > 0) {
+    return profile.kinds.map((kind) => kind.network);
+  }
+  return DEFAULT_CHAIN_IDS;
+}
+
+function getAdvertisedKinds(): Array<Record<string, unknown>> {
+  const profile = getFacilitatorProfile();
+  if (profile.kinds.length > 0) {
+    return profile.kinds.map((kind) => ({ ...kind }));
+  }
+
+  return DEFAULT_CHAIN_IDS.map((network) => ({
+    x402Version: 2,
+    scheme: 'exact',
+    network,
+  }));
+}
+
+function getAdvertisedSigners(): Record<string, string[]> {
+  const profile = getFacilitatorProfile();
+  if (Object.keys(profile.signers).length > 0) {
+    return profile.signers;
+  }
+
+  return {
+    'eip155:*': MERCHANT_ADDRESS ? [MERCHANT_ADDRESS] : [],
+  };
+}
 
 function toMicro(usdc: number): string {
   return String(Math.floor(usdc * 1_000_000));
@@ -209,17 +254,22 @@ function create402Response(
 ) {
   const { price, tier } = calculatePrice(basePrice, agentThreshold);
 
-  const accepts = SUPPORTED_NETWORKS.map((network) => ({
-    scheme: 'exact',
-    network: NETWORK_CONFIGS[network].chainId,
-    amount: toMicro(price),
-    asset: 'USDC',
-    payTo: MERCHANT_ADDRESS,
-    resource,
-    description,
-    maxTimeoutSeconds: 60,
-    extra: {},
-  }));
+  const accepts = getAdvertisedChainIds().flatMap((network) => {
+      const cfg = NETWORK_CONFIGS_BY_CHAIN_ID[network];
+      if (!cfg) return [];
+
+      return [{
+        scheme: 'exact',
+        network,
+        amount: toMicro(price),
+        asset: 'USDC',
+        payTo: MERCHANT_ADDRESS,
+        resource,
+        description,
+        maxTimeoutSeconds: 60,
+        extra: {},
+      }];
+    });
 
   const response: Record<string, unknown> = {
     x402Version: 2,
@@ -362,10 +412,10 @@ function x402Middleware(basePrice: number, description: string) {
     const reputationThreshold = extractReputationThreshold(paymentHeader);
     const { price } = calculatePrice(basePrice, reputationThreshold);
 
-    for (const network of SUPPORTED_NETWORKS) {
+    for (const network of getAdvertisedChainIds()) {
       const requirement = {
         scheme: 'exact',
-        network: NETWORK_CONFIGS[network].chainId,
+        network,
         amount: toMicro(price),
         asset: 'USDC',
         payTo: MERCHANT_ADDRESS,
@@ -511,18 +561,10 @@ async function fetchSignals(): Promise<Record<string, unknown>[]> {
 }
 
 app.get('/supported', (_req, res) => {
-  const kinds = SUPPORTED_NETWORKS.map((network) => ({
-    x402Version: 2,
-    scheme: 'exact',
-    network: NETWORK_CONFIGS[network].chainId,
-  }));
-
   res.json({
-    kinds,
-    extensions: [],
-    signers: {
-      'eip155:*': MERCHANT_ADDRESS ? [MERCHANT_ADDRESS] : [],
-    },
+    kinds: getAdvertisedKinds(),
+    extensions: ['discovery'],
+    signers: getAdvertisedSigners(),
   });
 });
 
@@ -530,21 +572,26 @@ app.get('/supported', (_req, res) => {
 app.use('/', createFacilitatorRouter());
 
 app.get('/health', (_req, res) => {
+  const profile = getFacilitatorProfile();
+
   res.json({
     ok: true,
     version: '2.0.0',
     facilitator: FACILITATOR_URL,
     merchant: MERCHANT_ADDRESS,
-    networks: SUPPORTED_NETWORKS,
+    networks: getAdvertisedChainIds(),
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
-      settlement: SETTLEMENT_ENABLED,
+      settlement: profile.kinds.length > 0,
       dkg: DKG_ENDPOINT !== 'https://dkg.kamiyo.ai',
+      facilitatorMode: FACILITATOR_MODE,
     },
   });
 });
 
 app.get('/.well-known/x402', (_req, res) => {
+  const profile = getFacilitatorProfile();
+
   res.json({
     version: '2.0',
     name: 'KAMIYO Protocol',
@@ -574,10 +621,10 @@ app.get('/.well-known/x402', (_req, res) => {
         description: 'Get trading signals from top agents',
       },
     ],
-    networks: SUPPORTED_NETWORKS.map((n) => NETWORK_CONFIGS[n].chainId),
+    networks: getAdvertisedChainIds(),
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
-      settlement: SETTLEMENT_ENABLED,
+      settlement: profile.kinds.length > 0,
       tiers: ENABLE_REPUTATION_PRICING ? REPUTATION_TIERS : undefined,
     },
   });
@@ -767,7 +814,7 @@ app.listen(PORT, HOST, () => {
   console.log(`KAMIYO x402 server running at http://${HOST}:${PORT}`);
   console.log(`Merchant: ${MERCHANT_ADDRESS}`);
   console.log(`Facilitator: ${FACILITATOR_URL}`);
-  console.log(`Networks: ${SUPPORTED_NETWORKS.join(', ')}`);
+  console.log(`Networks: ${getAdvertisedChainIds().join(', ')}`);
   console.log('');
   console.log('Features:');
   console.log(`  Reputation Pricing: ${ENABLE_REPUTATION_PRICING ? 'enabled' : 'disabled'}`);
