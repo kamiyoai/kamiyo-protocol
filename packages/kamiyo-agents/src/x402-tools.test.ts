@@ -1,4 +1,4 @@
-import { describe, it, mock, beforeEach } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { createX402Tools } from './x402-tools.js';
 
@@ -71,6 +71,36 @@ describe('x402-tools', () => {
       const result = await tool.handler({ url: 'https://example.com/api', payment_header: bigHeader });
       assert.strictEqual(result.success, false);
       assert.strictEqual(result.error, 'Invalid payment header');
+    });
+
+    it('sends compatible payment header variants', async () => {
+      const tools = createX402Tools();
+      const tool = tools.find((t) => t.name === 'x402_fetch')!;
+
+      const originalFetch = globalThis.fetch;
+      let capturedHeaders: Record<string, string> | null = null;
+
+      globalThis.fetch = (async (_url, init) => {
+        capturedHeaders = (init?.headers || {}) as Record<string, string>;
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }) as typeof fetch;
+
+      try {
+        const result = await tool.handler({
+          url: 'https://example.com/api',
+          payment_header: 'signed-header',
+        });
+        assert.strictEqual(result.success, true);
+        assert.ok(capturedHeaders);
+        assert.strictEqual(capturedHeaders?.['PAYMENT-SIGNATURE'], 'signed-header');
+        assert.strictEqual(capturedHeaders?.['X-PAYMENT-SIGNATURE'], 'signed-header');
+        assert.strictEqual(capturedHeaders?.['X-PAYMENT'], 'signed-header');
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 

@@ -94,7 +94,7 @@ app.get('/', (_req, res) => {
     <li><strong>/api/reputation/:id</strong> - Get reputation score ($0.0005 USDC)</li>
     <li><strong>/api/signals</strong> - Trading signals ($0.01 USDC)</li>
   </ul>
-  <p>Networks: Base, Polygon, Arbitrum, Optimism, Avalanche, Solana</p>
+  <p>Networks: ${getAdvertisedNetworkNames().join(', ') || 'Not configured'}</p>
   <p><a href="/.well-known/x402" style="color: #0cf;">Discovery Document</a> | <a href="/health" style="color: #0cf;">Health Check</a></p>
 </body>
 </html>`);
@@ -157,23 +157,30 @@ function calculatePrice(basePrice: number, threshold: number | null): { price: n
   return { price: basePrice - discount, discount, tier };
 }
 
-const NETWORK_CONFIGS: Record<string, { chainId: string; usdc: string }> = {
-  base: { chainId: 'eip155:8453', usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
-  polygon: { chainId: 'eip155:137', usdc: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359' },
-  arbitrum: { chainId: 'eip155:42161', usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831' },
-  optimism: { chainId: 'eip155:10', usdc: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85' },
-  avalanche: { chainId: 'eip155:43114', usdc: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E' },
-  solana: { chainId: 'solana:mainnet', usdc: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
+const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const BASE_MAINNET_CAIP2 = 'eip155:8453';
+const MAX_PAYMENT_HEADER_LENGTH = 8192;
+
+const NETWORK_CONFIGS: Record<string, { chainId: string; usdc: string; displayName: string }> = {
+  base: {
+    chainId: BASE_MAINNET_CAIP2,
+    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    displayName: 'Base',
+  },
+  solana: {
+    chainId: SOLANA_MAINNET_CAIP2,
+    usdc: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    displayName: 'Solana',
+  },
 };
 
-const SUPPORTED_NETWORKS = ['base', 'polygon', 'arbitrum', 'optimism', 'avalanche', 'solana'];
-const DEFAULT_CHAIN_IDS = SUPPORTED_NETWORKS.map((network) => NETWORK_CONFIGS[network].chainId);
+const DEFAULT_CHAIN_IDS = Object.values(NETWORK_CONFIGS).map((network) => network.chainId);
 const NETWORK_CONFIGS_BY_CHAIN_ID = Object.values(NETWORK_CONFIGS).reduce(
   (acc, cfg) => {
     acc[cfg.chainId] = cfg;
     return acc;
   },
-  {} as Record<string, { chainId: string; usdc: string }>
+  {} as Record<string, { chainId: string; usdc: string; displayName: string }>
 );
 
 function getAdvertisedChainIds(): string[] {
@@ -195,6 +202,13 @@ function getAdvertisedKinds(): Array<Record<string, unknown>> {
     scheme: 'exact',
     network,
   }));
+}
+
+function getAdvertisedNetworkNames(): string[] {
+  return getAdvertisedChainIds().map((chainId) => {
+    const cfg = NETWORK_CONFIGS_BY_CHAIN_ID[chainId];
+    return cfg ? cfg.displayName : chainId;
+  });
 }
 
 function getAdvertisedSigners(): Record<string, string[]> {
@@ -254,22 +268,17 @@ function create402Response(
 ) {
   const { price, tier } = calculatePrice(basePrice, agentThreshold);
 
-  const accepts = getAdvertisedChainIds().flatMap((network) => {
-      const cfg = NETWORK_CONFIGS_BY_CHAIN_ID[network];
-      if (!cfg) return [];
-
-      return [{
-        scheme: 'exact',
-        network,
-        amount: toMicro(price),
-        asset: 'USDC',
-        payTo: MERCHANT_ADDRESS,
-        resource,
-        description,
-        maxTimeoutSeconds: 60,
-        extra: {},
-      }];
-    });
+  const accepts = getAdvertisedChainIds().map((network) => ({
+    scheme: 'exact',
+    network,
+    amount: toMicro(price),
+    asset: 'USDC',
+    payTo: MERCHANT_ADDRESS,
+    resource,
+    description,
+    maxTimeoutSeconds: 60,
+    extra: {},
+  }));
 
   const response: Record<string, unknown> = {
     x402Version: 2,
@@ -337,11 +346,19 @@ async function verifyPayment(paymentHeader: string, requirement: Record<string, 
 
     clearTimeout(timeout);
 
-    const data = (await res.json()) as { isValid?: boolean; payer?: string; invalidReason?: string };
+    const data = (await res.json()) as {
+      isValid?: boolean;
+      payer?: string;
+      invalidReason?: string;
+      invalidMessage?: string;
+      errorReason?: string;
+      errorMessage?: string;
+      error?: string;
+    };
     return {
       valid: !!data.isValid,
       payer: data.payer,
-      error: data.invalidReason,
+      error: data.invalidReason || data.invalidMessage || data.errorReason || data.errorMessage || data.error,
     };
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
@@ -369,11 +386,18 @@ async function settlePayment(paymentHeader: string, requirement: Record<string, 
 
     clearTimeout(timeout);
 
-    const data = (await res.json()) as { success?: boolean; transaction?: string; error?: string };
+    const data = (await res.json()) as {
+      success?: boolean;
+      transaction?: string;
+      txHash?: string;
+      error?: string;
+      errorReason?: string;
+      errorMessage?: string;
+    };
     return {
       success: !!data.success,
-      tx: data.transaction,
-      error: data.error,
+      tx: data.transaction || data.txHash,
+      error: data.error || data.errorReason || data.errorMessage,
     };
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
@@ -392,10 +416,38 @@ function extractReputationThreshold(paymentHeader: string): number | null {
   }
 }
 
+function getPaymentHeader(req: Request): string | null {
+  const candidates = [
+    req.headers['payment-signature'],
+    req.headers['x-payment-signature'],
+    req.headers['x-payment'],
+  ];
+
+  for (const value of candidates) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const trimmed = item.trim();
+        if (trimmed.length > 0 && trimmed.length <= MAX_PAYMENT_HEADER_LENGTH) {
+          return trimmed;
+        }
+      }
+      continue;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0 && trimmed.length <= MAX_PAYMENT_HEADER_LENGTH) {
+        return trimmed;
+      }
+    }
+  }
+
+  return null;
+}
+
 function x402Middleware(basePrice: number, description: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const resource = req.path;
-    const paymentHeader = req.headers['x-payment'] as string;
+    const paymentHeader = getPaymentHeader(req);
     const requestStart = Date.now();
 
     if (!paymentHeader) {
@@ -582,7 +634,7 @@ app.get('/health', (_req, res) => {
     networks: getAdvertisedChainIds(),
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
-      settlement: profile.kinds.length > 0,
+      settlement: SETTLEMENT_ENABLED && profile.kinds.length > 0,
       dkg: DKG_ENDPOINT !== 'https://dkg.kamiyo.ai',
       facilitatorMode: FACILITATOR_MODE,
     },
@@ -624,7 +676,7 @@ app.get('/.well-known/x402', (_req, res) => {
     networks: getAdvertisedChainIds(),
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
-      settlement: profile.kinds.length > 0,
+      settlement: SETTLEMENT_ENABLED && profile.kinds.length > 0,
       tiers: ENABLE_REPUTATION_PRICING ? REPUTATION_TIERS : undefined,
     },
   });
