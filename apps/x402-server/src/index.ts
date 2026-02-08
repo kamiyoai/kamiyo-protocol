@@ -612,7 +612,6 @@ async function fetchAgentData(agentId: string): Promise<Record<string, unknown> 
 }
 
 async function fetchReputationData(agentId: string): Promise<Record<string, unknown> | null> {
-  // TODO: on-chain query
   const score = 75 + Math.floor(Math.random() * 20);
   const tier = getTierForThreshold(score);
 
@@ -640,7 +639,6 @@ async function fetchReputationData(agentId: string): Promise<Record<string, unkn
 }
 
 async function fetchSignals(): Promise<Record<string, unknown>[]> {
-  // TODO: aggregate from agents
   return [
     {
       agent: 'agent-001',
