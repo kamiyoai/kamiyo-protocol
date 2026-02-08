@@ -156,6 +156,7 @@ async function main() {
   let dkgPublishCount = 0;
   let dkgPublishFailures = 0;
   let lastPublishedAuditUal: string | null = null;
+  let lastPublishedAuditHashHex: string | null = null;
   let monitorLagMs = 0;
   let deepAuditLagMs = 0;
   let nextExpectedMonitorAt = 0;
@@ -176,7 +177,7 @@ async function main() {
     result: AuditResult,
     auditType: ComplianceAuditDoc['auditType']
   ): ComplianceAuditDoc => ({
-    agentId: result.passportAddress,
+    agentId: result.agentIdentity,
     meishiPda: result.passportAddress,
     auditorId: keypair.publicKey.toBase58(),
     auditType,
@@ -261,9 +262,10 @@ async function main() {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const ual = await dkgPublisher.publishComplianceAudit(doc);
+        const { ual, publicHashHex } = await dkgPublisher.publishComplianceAuditWithIntegrity(doc);
         dkgPublishCount++;
         lastPublishedAuditUal = ual;
+        lastPublishedAuditHashHex = publicHashHex;
         console.log(`[meishi-compliance] Published audit to DKG: ${ual}`);
         return;
       } catch (err) {
@@ -463,6 +465,7 @@ async function main() {
           dkgPublishCount,
           dkgPublishFailures,
           lastPublishedAuditUal,
+          lastPublishedAuditHashHex,
           monitorLagMs,
           deepAuditLagMs,
           schedulerRestartCount,
