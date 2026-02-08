@@ -67,6 +67,22 @@ export type {
   X402PaymentComponents,
 } from './signing';
 
+// HTTP payment helpers
+export {
+  selectPreferredRequirement,
+  getRequirementAmountRaw,
+  parseUsdcAmountUsd,
+  normalizeFacilitatorPolicy,
+  evaluateFacilitatorPolicy,
+  isKamiyoFacilitator,
+  withPaymentHeaders,
+} from './http-payment';
+export type {
+  FacilitatorPolicy,
+  RequirementLike,
+  FacilitatorPolicyDecision,
+} from './http-payment';
+
 // Protocol constants
 export {
   SOLANA_NETWORK_ID,

@@ -1,7 +1,6 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
 import * as nacl from 'tweetnacl';
 
-// nonce format compatible with pfn-crypto-utils (internal)
 let nonceCounter = 0;
 
 export interface SignedPayment {
@@ -38,10 +37,22 @@ export function createSignedPayment(
   wallet: Keypair,
   transactionSignature: string,
   resource: string,
-  amountLamports: number
+  amount: number | string
 ): SignedPayment {
   const timestamp = Date.now();
   const nonce = generateNonce();
+  const normalizedAmount =
+    typeof amount === 'number'
+      ? Number.isFinite(amount) && amount > 0
+        ? amount.toString()
+        : null
+      : typeof amount === 'string' && amount.trim().length > 0
+        ? amount.trim()
+        : null;
+
+  if (!normalizedAmount) {
+    throw new Error('Invalid payment amount');
+  }
 
   return {
     signature: transactionSignature,
@@ -49,7 +60,7 @@ export function createSignedPayment(
     timestamp,
     nonce,
     resource,
-    amount: amountLamports.toString(),
+    amount: normalizedAmount,
   };
 }
 
@@ -70,29 +81,17 @@ export function createPaymentHeader(
   wallet: Keypair,
   network: string = 'solana:mainnet'
 ): string {
-  // Create message to sign
   const message = serializeForSigning(payment);
-
-  // Sign the message
   const authSignature = signPaymentMessage(wallet, message);
   const authSignatureBase64 = Buffer.from(authSignature).toString('base64');
-
-  // Create payload with auth signature
   const payload = {
     ...payment,
     authSignature: authSignatureBase64,
   };
-
-  // Encode as base64
   const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString('base64');
-
-  // Return in x402 header format: scheme:network:payload
   return `solana:${network}:${payloadBase64}`;
 }
 
-/**
- * Parse x402 payment header
- */
 export function parsePaymentHeader(header: string): X402PaymentComponents | null {
   const parts = header.split(':');
   if (parts.length < 3) return null;
@@ -104,9 +103,6 @@ export function parsePaymentHeader(header: string): X402PaymentComponents | null
   return { scheme, network, payload };
 }
 
-/**
- * Decode and verify payment header
- */
 export function decodePaymentHeader(
   header: string
 ): (SignedPayment & { authSignature: string }) | null {
@@ -121,9 +117,6 @@ export function decodePaymentHeader(
   }
 }
 
-/**
- * Verify the auth signature in a payment header
- */
 export function verifyPaymentHeader(header: string): boolean {
   const payment = decodePaymentHeader(header);
   if (!payment) return false;
@@ -131,8 +124,6 @@ export function verifyPaymentHeader(header: string): boolean {
   try {
     const publicKey = new PublicKey(payment.payer);
     const authSignature = Buffer.from(payment.authSignature, 'base64');
-
-    // Reconstruct message
     const { authSignature: _, ...paymentWithoutAuth } = payment;
     const message = serializeForSigning(paymentWithoutAuth);
 
@@ -142,18 +133,12 @@ export function verifyPaymentHeader(header: string): boolean {
   }
 }
 
-/**
- * Check if payment is within valid time window
- */
 export function isPaymentFresh(payment: SignedPayment, maxAgeMs: number = 300_000): boolean {
   const now = Date.now();
   const age = now - payment.timestamp;
   return age >= 0 && age <= maxAgeMs;
 }
 
-/**
- * Create Kamiyo-specific escrow proof header
- */
 export function createEscrowProofHeader(
   escrowPda: PublicKey,
   transactionId: string,
@@ -175,48 +160,33 @@ export function createEscrowProofHeader(
   return `kamiyo:escrow:${Buffer.from(JSON.stringify(payload)).toString('base64')}`;
 }
 
-/**
- * Payment signing helper class
- */
 export class PaymentSigner {
   constructor(private readonly wallet: Keypair) {}
 
-  /**
-   * Sign a payment and create x402 header
-   */
   signPayment(
     transactionSignature: string,
     resource: string,
-    amountLamports: number,
+    amount: number | string,
     network: string = 'solana:mainnet'
   ): string {
     const payment = createSignedPayment(
       this.wallet,
       transactionSignature,
       resource,
-      amountLamports
+      amount
     );
     return createPaymentHeader(payment, this.wallet, network);
   }
 
-  /**
-   * Create escrow proof header
-   */
   signEscrowProof(escrowPda: PublicKey, transactionId: string): string {
     return createEscrowProofHeader(escrowPda, transactionId, this.wallet);
   }
 
-  /**
-   * Get public key
-   */
   getPublicKey(): PublicKey {
     return this.wallet.publicKey;
   }
 }
 
-/**
- * Create payment signer
- */
 export function createPaymentSigner(wallet: Keypair): PaymentSigner {
   return new PaymentSigner(wallet);
 }
