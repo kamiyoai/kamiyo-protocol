@@ -8,6 +8,37 @@ import {
 import { TarsBridge, createTarsBridge } from './bridge';
 import { deriveAgentPda, deriveJobPda } from './job-linker';
 
+const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const SOLANA_DEVNET_CAIP2 = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
+
+function canonicalizeNetwork(network: string): string | null {
+  const normalized = network.trim().toLowerCase();
+  if (
+    normalized === 'solana' ||
+    normalized === 'solana:mainnet' ||
+    normalized === 'solana:mainnet-beta' ||
+    normalized === SOLANA_MAINNET_CAIP2
+  ) {
+    return SOLANA_MAINNET_CAIP2;
+  }
+  if (
+    normalized === 'solana-devnet' ||
+    normalized === 'solana:devnet' ||
+    normalized === SOLANA_DEVNET_CAIP2
+  ) {
+    return SOLANA_DEVNET_CAIP2;
+  }
+  return null;
+}
+
+function getPaymentHeader(req: MiddlewareRequest): string | undefined {
+  return (
+    req.header('PAYMENT-SIGNATURE') ||
+    req.header('X-PAYMENT-SIGNATURE') ||
+    req.header('X-PAYMENT')
+  );
+}
+
 export type MiddlewareRequest = {
   method: string;
   path: string;
@@ -125,6 +156,11 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
     facilitatorUrl = 'https://x402.org/facilitator',
   } = config;
 
+  const canonicalNetwork = canonicalizeNetwork(network);
+  if (!canonicalNetwork) {
+    throw new Error(`Unsupported network: ${network}`);
+  }
+
   let facilitator: FacilitatorClient | null = null;
   let feePayer: string | undefined;
 
@@ -132,7 +168,9 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
     if (!facilitator) {
       facilitator = await createFacilitatorClient(facilitatorUrl);
       const supported = await facilitator.supported();
-      const networkSupport = supported.kinds.find(k => k.network === network && k.scheme === 'exact');
+      const networkSupport = supported.kinds.find(
+        (k) => canonicalizeNetwork(k.network) === canonicalNetwork && k.scheme === 'exact'
+      );
       feePayer = networkSupport?.extra?.feePayer;
     }
   };
@@ -148,13 +186,13 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
     const resourceUrl = `${req.protocol}://${req.headers.host}${req.path}`;
 
     const paymentRequirements: UnifiedPaymentAccepts = {
-      x402Version: 1,
+      x402Version: 2,
       scheme: 'exact',
-      network,
+      network: canonicalNetwork,
       maxAmountRequired,
       resource: resourceUrl,
       payTo,
-      asset: network.includes('solana')
+      asset: canonicalNetwork.startsWith('solana:')
         ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
         : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
       extra: {
@@ -165,7 +203,7 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
       },
     };
 
-    const payment = req.header('X-PAYMENT');
+    const payment = getPaymentHeader(req);
     const userAgent = req.header('User-Agent') || '';
     const acceptHeader = req.header('Accept') || '';
     const isWebBrowser = acceptHeader.includes('text/html') && userAgent.includes('Mozilla');
@@ -177,8 +215,8 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
       }
 
       res.status(402).json({
-        x402Version: 1,
-        error: 'X-PAYMENT header is required',
+        x402Version: 2,
+        error: 'Payment header is required',
         accepts: [paymentRequirements],
       });
       return;
@@ -187,10 +225,10 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
     let decodedPayment: PaymentPayload;
     try {
       decodedPayment = decodePaymentHeader(payment);
-      decodedPayment.x402Version = 1;
+      decodedPayment.x402Version = 2;
     } catch {
       res.status(402).json({
-        x402Version: 1,
+        x402Version: 2,
         error: 'Invalid or malformed payment header',
         accepts: [paymentRequirements],
       });
@@ -202,7 +240,7 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
 
       if (!verifyResult.isValid) {
         res.status(402).json({
-          x402Version: 1,
+          x402Version: 2,
           error: verifyResult.invalidReason,
           accepts: [paymentRequirements],
           payer: verifyResult.payer,
@@ -211,7 +249,7 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
       }
     } catch (error) {
       res.status(402).json({
-        x402Version: 1,
+        x402Version: 2,
         error: error instanceof Error ? error.message : 'Verification failed',
         accepts: [paymentRequirements],
       });
@@ -250,7 +288,7 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
 
       if (!settleResult.success) {
         res.status(402).json({
-          x402Version: 1,
+          x402Version: 2,
           error: settleResult.errorReason,
           accepts: [paymentRequirements],
         });
@@ -259,7 +297,7 @@ export function kamiyoTarsMiddleware(config: UnifiedMiddlewareConfig) {
     } catch (error) {
       if (!res.headersSent) {
         res.status(402).json({
-          x402Version: 1,
+          x402Version: 2,
           error: error instanceof Error ? error.message : 'Settlement failed',
           accepts: [paymentRequirements],
         });
