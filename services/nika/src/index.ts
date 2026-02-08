@@ -252,7 +252,13 @@ async function main(): Promise<void> {
     },
     checkIntervalMs: 5 * 60 * 1000, // 5 minutes
     maxRepliesPerCycle: 2, // Max 2 replies per cycle
+    maxMentionRetries: config.MENTION_MAX_RETRIES,
     replyDelayMs: 5 * 60 * 1000, // 5 minutes between replies
+    stateFilePath: config.NIKA_MENTION_STATE_FILE || undefined,
+    processedMentionTtlMs: config.MENTION_PROCESSED_TTL_MS,
+    conversationCooldownMs: config.MENTION_CONVERSATION_COOLDOWN_MS,
+    sharedStateRedisUrl: config.SHARED_STATE_REDIS_URL || undefined,
+    sharedStatePrefix: config.SHARED_STATE_PREFIX,
     onMention: async (mentionId, mentionText, authorUsername) => {
       if (!agent) return;
       if (shutdownManager.isShutdown()) {

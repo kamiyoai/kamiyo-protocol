@@ -139,16 +139,20 @@ export class DailyScheduler extends EventEmitter {
 
       const result = await withRetry(
         () => getTimelineTool.handler({
-          username: this.config.twitterHandle,
-          max_results: 10,
+          limit: 20,
         }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       );
 
-      if (!result.success || !Array.isArray(result.data)) {
+      if (!result.success || !result.data || typeof result.data !== 'object') {
         log.warn('Timeline fetch failed', { error: result.error });
         return;
       }
+
+      const timelineData = result.data as {
+        tweets?: Array<{ id?: string; createdAt?: string }>;
+      };
+      const tweets = timelineData.tweets || [];
 
       const todayStart = new Date(now);
       todayStart.setUTCHours(0, 0, 0, 0);
@@ -156,11 +160,11 @@ export class DailyScheduler extends EventEmitter {
       const [morningStart, morningEnd] = this.config.morningWindow;
       const [eveningStart, eveningEnd] = this.config.eveningWindow;
 
-      for (const tweet of result.data) {
-        const t = tweet as { created_at?: string; id?: string };
-        if (!t.created_at) continue;
+      for (const tweet of tweets) {
+        const t = tweet as { createdAt?: string; id?: string };
+        if (!t.createdAt) continue;
 
-        const tweetTime = new Date(t.created_at);
+        const tweetTime = new Date(t.createdAt);
         if (tweetTime < todayStart) continue; // Not today
 
         const hour = tweetTime.getUTCHours();
@@ -169,14 +173,14 @@ export class DailyScheduler extends EventEmitter {
         if (hour >= morningStart && hour < morningEnd) {
           this.schedule.slots[0].posted = true;
           this.schedule.slots[0].tweetId = t.id;
-          log.info('Morning slot already posted', { tweetId: t.id, time: t.created_at });
+          log.info('Morning slot already posted', { tweetId: t.id, time: t.createdAt });
         }
 
         // Check if this tweet falls in the evening window
         if (hour >= eveningStart && hour < eveningEnd) {
           this.schedule.slots[1].posted = true;
           this.schedule.slots[1].tweetId = t.id;
-          log.info('Evening slot already posted', { tweetId: t.id, time: t.created_at });
+          log.info('Evening slot already posted', { tweetId: t.id, time: t.createdAt });
         }
       }
 
