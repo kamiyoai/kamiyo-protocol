@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepack": "npm run build",
+    "prepare": "npm run build",
     "test": "jest",
     "lint": "eslint src/**/*.ts"
   },
