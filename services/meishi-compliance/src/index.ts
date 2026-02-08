@@ -417,7 +417,11 @@ async function main() {
     if (lastSuccessfulMonitorTime === 0) readinessFailures.push('no_successful_monitor_tick');
     if (consecutiveMonitorFailures > 0) readinessFailures.push('monitor_failures_present');
     if (consecutiveAuditFailures > 0) readinessFailures.push('audit_failures_present');
-    if (lastAuditedPassportCount === 0) readinessFailures.push('no_passports_discovered');
+    // A zero-passport system is valid early in production. Only fail readiness if the operator
+    // explicitly configured seed passports but we still haven't audited anything.
+    if (configuredPassports.length > 0 && lastAuditedPassportCount === 0) {
+      readinessFailures.push('no_passports_discovered');
+    }
     if (lastSuccessfulRpcProbeAt === 0) readinessFailures.push('no_successful_rpc_probe');
     if (consecutiveRpcFailures > 0) readinessFailures.push('rpc_probe_failures_present');
     if (lastRpcLatencyMs > config.rpcMaxLatencyMs) readinessFailures.push('rpc_latency_exceeded');
