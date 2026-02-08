@@ -19,6 +19,14 @@ function sanitizeError(error: unknown): string {
   return 'Unknown error';
 }
 
+function paymentHeaders(paymentHeader: string): Record<string, string> {
+  return {
+    'PAYMENT-SIGNATURE': paymentHeader,
+    'X-PAYMENT-SIGNATURE': paymentHeader,
+    'X-PAYMENT': paymentHeader,
+  };
+}
+
 export interface X402ToolsConfig {
   /** Base URL for KAMIYO x402 API (default: https://x402.kamiyo.ai) */
   baseUrl?: string;
@@ -99,23 +107,20 @@ async function fetchWithPayment<T>(
   }
 ): Promise<{ success: boolean; data?: T; latencyMs?: number; error?: string }> {
   const start = Date.now();
+  const controller = new AbortController();
+  const timeout = options?.timeout || 30000;
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const controller = new AbortController();
-    const timeout = options?.timeout || 30000;
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
     const res = await fetch(url, {
       method: options?.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'X-Payment': paymentHeader,
+        ...paymentHeaders(paymentHeader),
       },
       body: options?.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
     const latencyMs = Date.now() - start;
 
     if (!res.ok) {
@@ -133,6 +138,8 @@ async function fetchWithPayment<T>(
       error: error instanceof Error && error.name === 'AbortError' ? 'Timeout' : sanitizeError(error),
       latencyMs: Date.now() - start,
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
