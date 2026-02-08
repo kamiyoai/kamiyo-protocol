@@ -23,10 +23,41 @@ import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
+import meishiRoutes from './routes/meishi';
 import paranetRoutes from './routes/paranet';
 import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
+
+async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getHealth' }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return { ok: false, latencyMs: Date.now() - startedAt, error: `http_${res.status}` };
+    }
+
+    const data = (await res.json()) as { result?: unknown };
+    if (data.result === 'ok') {
+      return { ok: true, latencyMs: Date.now() - startedAt };
+    }
+
+    return { ok: false, latencyMs: Date.now() - startedAt, error: 'unhealthy' };
+  } catch (err) {
+    clearTimeout(timeout);
+    return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' };
+  }
+}
 
 // Rate limiter for auth endpoints (IP-based)
 const authRateLimiter = rateLimit({
@@ -58,6 +89,22 @@ const apiKeyRateLimiter = rateLimit({
   },
   keyGenerator: (req) => req.ip || 'unknown',
   skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
+});
+
+// Rate limiter for public read endpoints that can trigger expensive RPC/graph operations.
+const publicReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120, // 120 req/min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many requests. Please slow down.',
+    },
+  },
+  keyGenerator: (req) => req.ip || 'unknown',
+  skip: (req) => req.method === 'OPTIONS',
 });
 
 // Blindfold callback rate limiter (IP-based)
@@ -160,6 +207,33 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
     res.json({ status: 'ok', service: 'kamiyo-companion' });
   });
 
+  // Readiness check (no auth)
+  app.get('/ready', async (_req, res) => {
+    const solanaUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+    const solana = await checkSolanaRpc(solanaUrl);
+    if (!solana.ok) {
+      res.status(503).json({ status: 'not_ready', dependencies: { solana } });
+      return;
+    }
+    res.json({ status: 'ready', dependencies: { solana } });
+  });
+
+  // Version/provenance endpoint (no auth)
+  app.get('/version', (_req, res) => {
+    res.json({
+      service: 'kamiyo-companion',
+      node: process.version,
+      git: {
+        commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_SHA || null,
+        branch: process.env.RENDER_GIT_BRANCH || null,
+      },
+      meishi: {
+        programId: process.env.MEISHI_PROGRAM_ID || null,
+        rpcUrl: process.env.SOLANA_RPC_URL || null,
+      },
+    });
+  });
+
   // Prometheus metrics
   app.get('/metrics', async (_req, res) => {
     try {
@@ -216,7 +290,10 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/channels', channelsRoutes);
 
   // Trust graph visualization (public)
-  app.use('/api/trust-graph', trustGraphRoutes);
+  app.use('/api/trust-graph', publicReadLimiter, trustGraphRoutes);
+
+  // Meishi passports (public reads; on-chain source of truth)
+  app.use('/api/meishi', publicReadLimiter, meishiRoutes);
 
   // Agent Paranet - decentralized credit scores (public read, auth for write)
   app.use('/api/paranet', paranetRoutes);

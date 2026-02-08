@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: kamiyo-companion-ws
+    runtime: node
+    rootDir: services/companion-ws
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Optional: set to enable a demo stream. Keep false in production.
+      - key: MOCK_EVENTS
+        value: "false"
+      # Optional: required to allow POST /ingest.
+      - key: INGEST_API_KEY
+        sync: false
