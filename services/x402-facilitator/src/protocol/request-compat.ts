@@ -17,6 +17,7 @@ export interface ParsedSettleInput {
   asset: string;
   requirementAmountRaw?: string;
   requirementNetwork?: string;
+  requirementResource?: string;
 }
 
 function asRecord(value: unknown): UnknownRecord | null {
@@ -229,6 +230,7 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
       asset: extractAsset(paymentRequirements, paymentPayload, asString(root.asset)),
       requirementAmountRaw: extractRequirementAmountRaw(paymentRequirements, paymentPayload),
       requirementNetwork: network,
+      requirementResource: extractResource(paymentRequirements, paymentPayload),
     },
   };
 }

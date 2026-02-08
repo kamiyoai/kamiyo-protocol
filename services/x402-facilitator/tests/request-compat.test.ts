@@ -73,6 +73,7 @@ describe('request compatibility adapters', () => {
         amount: '1000000',
         payTo: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
         asset: 'USDC',
+        resource: '/settlements/demo',
       },
     });
 
@@ -82,6 +83,7 @@ describe('request compatibility adapters', () => {
     expect(parsed.value.mode).toBe('x402');
     expect(parsed.value.merchantWallet).toBe('0x8ba1f109551bD432803012645Ac136ddd64DBA72');
     expect(parsed.value.requirementAmountRaw).toBe('1000000');
+    expect(parsed.value.requirementResource).toBe('/settlements/demo');
   });
 
   it('matches requirement amounts in decimal and base units', () => {
