@@ -192,6 +192,22 @@ export class X402Program {
       .rpc();
   }
 
+  async releaseFunds(transactionId: string, api: PublicKey): Promise<string> {
+    const [escrowPDA] = this.pda.deriveEscrowPDA(transactionId);
+
+    const preIx = _attachTelemetry();
+    return this.program.methods
+      .releaseFunds()
+      .accounts({
+        escrow: escrowPDA,
+        agent: this.wallet.publicKey,
+        api,
+        systemProgram: SystemProgram.programId,
+      })
+      .preInstructions(preIx ? [preIx] : [])
+      .rpc();
+  }
+
   async initReputation(entity?: PublicKey): Promise<{ signature: string; reputationPDA: PublicKey }> {
     const entityPubkey = entity || this.wallet.publicKey;
     const [reputationPDA] = this.pda.deriveReputationPDA(entityPubkey);
@@ -278,7 +294,7 @@ export function getAgentPublicKey(): string | null {
 
 // Tool implementations
 export async function createEscrow(
-  params: { api: string; amount: number; timeLock?: number },
+  params: { api: string; amount: number; timeLock?: number; transactionId?: string },
   prog: X402Program
 ): Promise<{ success: boolean; escrowAddress?: string; transactionId?: string; signature?: string; error?: string }> {
   try {
@@ -290,7 +306,9 @@ export async function createEscrow(
     if (amountLamports > 1_000_000_000_000) return { success: false, error: 'Amount too large (max 1000 SOL)' };
 
     const apiPublicKey = new PublicKey(params.api);
-    const transactionId = generateTransactionId();
+    const transactionId = (params.transactionId && params.transactionId.trim().length > 0)
+      ? params.transactionId.trim()
+      : generateTransactionId();
     const timeLock = params.timeLock || 3600;
 
     if (timeLock < 3600 || timeLock > 2_592_000) {
@@ -430,6 +448,44 @@ export async function fileDispute(
     if (msg.includes('InsufficientDisputeFunds')) msg = 'Insufficient funds for dispute';
     if (msg.includes('Unauthorized')) msg = 'Unauthorized';
     return { success: false, error: msg };
+  }
+}
+
+export async function releaseEscrow(
+  params: { transactionId: string; apiProvider: string },
+  prog: X402Program
+): Promise<{ success: boolean; signature?: string; status?: string; message?: string; error?: string }> {
+  try {
+    if (!params.transactionId) return { success: false, error: 'transactionId required' };
+    if (!params.apiProvider) return { success: false, error: 'apiProvider required' };
+
+    const apiPublicKey = new PublicKey(params.apiProvider);
+
+    const exists = await prog.escrowExists(params.transactionId);
+    if (!exists) return { success: false, error: 'Escrow not found' };
+
+    const [escrowPDA] = prog.pda.deriveEscrowPDA(params.transactionId);
+    const escrow = await prog.getEscrowAccount(escrowPDA);
+    const status = parseEscrowStatus(escrow.status);
+
+    if (status !== 'Active') {
+      return { success: false, error: `Cannot release ${status} escrow` };
+    }
+
+    if (escrow.api.toBase58() !== apiPublicKey.toBase58()) {
+      return { success: false, error: 'API provider does not match escrow' };
+    }
+
+    const signature = await prog.releaseFunds(params.transactionId, apiPublicKey);
+
+    return {
+      success: true,
+      signature,
+      status: 'released',
+      message: 'Escrow released',
+    };
+  } catch (error: unknown) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to release escrow' };
   }
 }
 
