@@ -45,6 +45,14 @@ export interface Config {
 
   // xAI (Grok) for image generation
   XAI_API_KEY: string;
+
+  // Mention monitor behavior
+  MENTION_MAX_RETRIES: number;
+  MENTION_CONVERSATION_COOLDOWN_MS: number;
+  MENTION_PROCESSED_TTL_MS: number;
+  NIKA_MENTION_STATE_FILE: string;
+  SHARED_STATE_REDIS_URL: string;
+  SHARED_STATE_PREFIX: string;
 }
 
 const REQUIRED_VARS = [
@@ -75,6 +83,12 @@ const DEFAULTS: Partial<Config> = {
   ALERT_WEBHOOK_URL: '',
   ALERT_WEBHOOK_TYPE: 'generic',
   XAI_API_KEY: '',
+  MENTION_MAX_RETRIES: 3,
+  MENTION_CONVERSATION_COOLDOWN_MS: 24 * 60 * 60 * 1000,
+  MENTION_PROCESSED_TTL_MS: 14 * 24 * 60 * 60 * 1000,
+  NIKA_MENTION_STATE_FILE: '',
+  SHARED_STATE_REDIS_URL: '',
+  SHARED_STATE_PREFIX: 'nika:mentions',
 };
 
 let cachedConfig: Config | null = null;
@@ -89,6 +103,15 @@ function isValidUrl(str: string): boolean {
   try {
     const url = new URL(str);
     return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function isValidRedisUrl(str: string): boolean {
+  try {
+    const url = new URL(str);
+    return url.protocol === 'redis:' || url.protocol === 'rediss:';
   } catch {
     return false;
   }
@@ -169,6 +192,35 @@ export function validateConfig(): ValidationResult {
     errors.push('PORT must be a valid port number');
   }
 
+  if (process.env.MENTION_MAX_RETRIES) {
+    const retries = parseInt(process.env.MENTION_MAX_RETRIES, 10);
+    if (isNaN(retries) || retries < 1 || retries > 20) {
+      errors.push('MENTION_MAX_RETRIES must be an integer between 1 and 20');
+    }
+  }
+
+  if (process.env.MENTION_CONVERSATION_COOLDOWN_MS) {
+    const cooldownMs = parseInt(process.env.MENTION_CONVERSATION_COOLDOWN_MS, 10);
+    if (isNaN(cooldownMs) || cooldownMs < 60000) {
+      errors.push('MENTION_CONVERSATION_COOLDOWN_MS must be at least 60000');
+    }
+  }
+
+  if (process.env.MENTION_PROCESSED_TTL_MS) {
+    const ttlMs = parseInt(process.env.MENTION_PROCESSED_TTL_MS, 10);
+    if (isNaN(ttlMs) || ttlMs < 60000) {
+      errors.push('MENTION_PROCESSED_TTL_MS must be at least 60000');
+    }
+  }
+
+  if (process.env.SHARED_STATE_REDIS_URL && !isValidRedisUrl(process.env.SHARED_STATE_REDIS_URL)) {
+    errors.push('SHARED_STATE_REDIS_URL must be a valid redis:// or rediss:// URL');
+  }
+
+  if (process.env.SHARED_STATE_PREFIX !== undefined && process.env.SHARED_STATE_PREFIX.trim().length === 0) {
+    errors.push('SHARED_STATE_PREFIX must not be empty when set');
+  }
+
   if (!process.env.NIKA_PARANET_UAL && !process.env.KAMIYO_PARANET_UAL) {
     warnings.push('NIKA_PARANET_UAL not set - DKG storage will not use a paranet');
   }
@@ -246,6 +298,22 @@ export function getConfig(): Config {
       DEFAULTS.ALERT_WEBHOOK_TYPE!,
 
     XAI_API_KEY: process.env.XAI_API_KEY || DEFAULTS.XAI_API_KEY!,
+
+    MENTION_MAX_RETRIES: parseInt(
+      process.env.MENTION_MAX_RETRIES || String(DEFAULTS.MENTION_MAX_RETRIES),
+      10
+    ),
+    MENTION_CONVERSATION_COOLDOWN_MS: parseInt(
+      process.env.MENTION_CONVERSATION_COOLDOWN_MS || String(DEFAULTS.MENTION_CONVERSATION_COOLDOWN_MS),
+      10
+    ),
+    MENTION_PROCESSED_TTL_MS: parseInt(
+      process.env.MENTION_PROCESSED_TTL_MS || String(DEFAULTS.MENTION_PROCESSED_TTL_MS),
+      10
+    ),
+    NIKA_MENTION_STATE_FILE: process.env.NIKA_MENTION_STATE_FILE || DEFAULTS.NIKA_MENTION_STATE_FILE!,
+    SHARED_STATE_REDIS_URL: process.env.SHARED_STATE_REDIS_URL || DEFAULTS.SHARED_STATE_REDIS_URL!,
+    SHARED_STATE_PREFIX: process.env.SHARED_STATE_PREFIX || DEFAULTS.SHARED_STATE_PREFIX!,
   };
 
   return cachedConfig!;
@@ -276,5 +344,11 @@ export function getRedactedConfig(): Record<string, string> {
     LOG_LEVEL: config.LOG_LEVEL,
     ALERT_WEBHOOK_URL: config.ALERT_WEBHOOK_URL ? '[CONFIGURED]' : '(not set)',
     ALERT_WEBHOOK_TYPE: config.ALERT_WEBHOOK_TYPE,
+    MENTION_MAX_RETRIES: String(config.MENTION_MAX_RETRIES),
+    MENTION_CONVERSATION_COOLDOWN_MS: String(config.MENTION_CONVERSATION_COOLDOWN_MS),
+    MENTION_PROCESSED_TTL_MS: String(config.MENTION_PROCESSED_TTL_MS),
+    NIKA_MENTION_STATE_FILE: config.NIKA_MENTION_STATE_FILE || '(default)',
+    SHARED_STATE_REDIS_URL: config.SHARED_STATE_REDIS_URL ? '[CONFIGURED]' : '(not set)',
+    SHARED_STATE_PREFIX: config.SHARED_STATE_PREFIX,
   };
 }

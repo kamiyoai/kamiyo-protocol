@@ -47,6 +47,12 @@ services:
       - key: LOG_LEVEL
         value: info
 
+      # Shared state (for cross-instance mention dedup)
+      - key: SHARED_STATE_REDIS_URL
+        sync: false
+      - key: SHARED_STATE_PREFIX
+        value: nika:mentions
+
       # Alerting (optional)
       - key: ALERT_WEBHOOK_URL
         sync: false
