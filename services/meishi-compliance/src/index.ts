@@ -36,6 +36,22 @@ const CLASSIFICATION_LABEL: Record<number, string> = {
   4: 'unacceptable',
 };
 
+function safeHost(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
+
+function defaultEvmRpcUrl(blockchain: string): string | null {
+  if (blockchain === 'gnosis:100') return 'https://rpc.gnosischain.com/';
+  if (blockchain === 'otp:2043') return 'https://astrosat-parachain-rpc.origin-trail.network';
+  if (blockchain === 'base:8453') return 'https://mainnet.base.org';
+  return null;
+}
+
 async function discoverPassportAddresses(
   connection: Connection,
   meishiProgramId: PublicKey,
@@ -62,6 +78,12 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
       .catch((err) => reject(err))
       .finally(() => clearTimeout(timeout));
   });
+}
+
+function isDkgWalletBalances(value: unknown): value is { blockchainToken: string; trac: string } {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.blockchainToken === 'string' && typeof v.trac === 'string';
 }
 
 async function main() {
@@ -118,6 +140,7 @@ async function main() {
   });
 
   let dkgPublisher: MeishiDKGPublisher | null = null;
+  let dkgClientForHealth: unknown | null = null;
   let dkgPublisherInitError: string | null = null;
   if (config.enableDkgPublishing) {
     try {
@@ -138,6 +161,7 @@ async function main() {
         throw new Error('ENABLE_DKG_PUBLISHING=true requires DKG_ENDPOINT (preferred) or DKG_API_URL');
       }
 
+      dkgClientForHealth = dkgClient;
       dkgPublisher = new MeishiDKGPublisher({
         dkg: dkgClient,
         defaultEpochs: config.dkgDefaultEpochs,
@@ -210,6 +234,14 @@ async function main() {
   if (dkgPublisherInitError) {
     lastDkgInitErrorAt = Date.now();
   }
+
+  let lastDkgWalletProbeAt = 0;
+  let lastSuccessfulDkgWalletProbeAt = 0;
+  let lastDkgWalletProbeLatencyMs = 0;
+  let lastDkgWalletProbeError: string | null = null;
+  let dkgWalletAddress: string | null = null;
+  let dkgWalletBalances: { blockchainToken: string; trac: string } | null = null;
+  let dkgWalletProbeInterval: ReturnType<typeof setInterval> | null = null;
 
   const buildComplianceAuditDoc = (
     result: AuditResult,
@@ -287,6 +319,34 @@ async function main() {
       consecutiveRpcFailures++;
       lastRpcProbeAt = Date.now();
       lastRpcError = err instanceof Error ? err.message : String(err);
+    }
+  };
+
+  const probeDkgWallet = async (): Promise<void> => {
+    const c = dkgClientForHealth as any;
+    if (!config.enableDkgPublishing) return;
+    if (!c || typeof c.getWalletAddress !== 'function') return;
+
+    const startedAt = Date.now();
+    lastDkgWalletProbeAt = startedAt;
+    try {
+      const addr = await c.getWalletAddress();
+      dkgWalletAddress = typeof addr === 'string' && addr.length > 0 ? addr : null;
+
+      if (typeof c.getWalletBalances === 'function') {
+        const balances = await withTimeout(c.getWalletBalances(), 4000);
+        dkgWalletBalances = isDkgWalletBalances(balances) ? balances : null;
+      } else {
+        dkgWalletBalances = null;
+      }
+
+      lastDkgWalletProbeLatencyMs = Date.now() - startedAt;
+      lastSuccessfulDkgWalletProbeAt = Date.now();
+      lastDkgWalletProbeError = null;
+    } catch (err) {
+      lastDkgWalletProbeLatencyMs = Date.now() - startedAt;
+      lastDkgWalletProbeError = err instanceof Error ? err.message : String(err);
+      dkgWalletBalances = null;
     }
   };
 
@@ -468,9 +528,13 @@ async function main() {
   nextExpectedMonitorAt = Date.now() + config.monitorIntervalMs;
   nextExpectedDeepAuditAt = Date.now() + config.deepAuditIntervalMs;
   void probeRpcHealth();
+  void probeDkgWallet();
   rpcProbeInterval = setInterval(() => {
     void probeRpcHealth();
   }, config.rpcProbeIntervalMs);
+  dkgWalletProbeInterval = setInterval(() => {
+    void probeDkgWallet();
+  }, 60000);
 
   const computeReadinessFailures = (): string[] => {
     const readinessFailures: string[] = [];
@@ -505,8 +569,13 @@ async function main() {
 
   // Health endpoint
   const server = createServer((req, res) => {
-    if (req.url === '/health') {
+    const url = req.url ? new URL(req.url, 'http://localhost') : null;
+    if (url?.pathname === '/health') {
       const readinessFailures = computeReadinessFailures();
+
+      const dkgBlockchain = config.dkgBlockchain ?? 'base:8453';
+      const resolvedRpcHost = safeHost(config.dkgRpcUrl) ?? safeHost(defaultEvmRpcUrl(dkgBlockchain) ?? undefined);
+      const dkgEndpointHost = safeHost(config.dkgEndpoint) ?? null;
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
@@ -537,6 +606,20 @@ async function main() {
           dkgPublishFailures,
           lastPublishedAuditUal,
           lastPublishedAuditHashHex,
+          dkg: config.enableDkgPublishing
+            ? {
+                endpointHost: dkgEndpointHost,
+                blockchain: dkgBlockchain,
+                rpcHost: resolvedRpcHost,
+                paranetUal: config.dkgParanetUal ?? null,
+                walletAddress: dkgWalletAddress,
+                walletBalances: dkgWalletBalances,
+                lastWalletProbeAt: lastDkgWalletProbeAt,
+                lastWalletProbeOkAt: lastSuccessfulDkgWalletProbeAt,
+                lastWalletProbeLatencyMs: lastDkgWalletProbeLatencyMs,
+                lastWalletProbeError: lastDkgWalletProbeError,
+              }
+            : null,
           onchainAuditsEnabled: config.enableOnchainAudits,
           onchainAuditCount,
           onchainAuditFailures,
@@ -561,7 +644,7 @@ async function main() {
       return;
     }
 
-    if (req.url === '/ready') {
+    if (url?.pathname === '/ready') {
       const readinessFailures = computeReadinessFailures();
 
       const ready = readinessFailures.length === 0;
@@ -585,6 +668,10 @@ async function main() {
     if (rpcProbeInterval) {
       clearInterval(rpcProbeInterval);
       rpcProbeInterval = null;
+    }
+    if (dkgWalletProbeInterval) {
+      clearInterval(dkgWalletProbeInterval);
+      dkgWalletProbeInterval = null;
     }
     if (schedulerRestartTimer) {
       clearTimeout(schedulerRestartTimer);
