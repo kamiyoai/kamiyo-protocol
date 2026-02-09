@@ -25,6 +25,12 @@ function createId(type: string, suffix: string): string {
   return id;
 }
 
+function solanaUrn(pubkey: string): string {
+  const safe = pubkey.trim().replace(/[^a-zA-Z0-9]/g, '');
+  if (!safe) throw new Error('Invalid Solana public key');
+  return `urn:kamiyo:solana:${safe}`;
+}
+
 function isoNow(): string {
   return new Date().toISOString();
 }
@@ -81,7 +87,7 @@ export function buildTransactionDecisionAsset(params: TransactionDecisionDoc): R
     name: 'TransactionDecision',
     about: {
       '@type': 'SoftwareApplication',
-      '@id': params.agentId,
+      '@id': solanaUrn(params.agentId),
       identifier: params.agentId,
       sameAs: buildAgentDigitalLink(params.meishiPda),
     },
@@ -175,13 +181,13 @@ export function buildComplianceAuditAsset(params: ComplianceAuditDoc): Record<st
     name: 'ComplianceAudit',
     itemReviewed: {
       '@type': 'SoftwareApplication',
-      '@id': params.agentId,
+      '@id': solanaUrn(params.agentId),
       identifier: params.agentId,
       sameAs: buildAgentDigitalLink(params.meishiPda),
     },
     author: {
       '@type': 'Organization',
-      '@id': params.auditorId,
+      '@id': solanaUrn(params.auditorId),
       identifier: params.auditorId,
     },
     reviewRating: {
