@@ -145,7 +145,7 @@ export class ConnectionPool {
     const tried = new Set<string>();
 
     for (let i = 0; i < maxRetries; i++) {
-      let healthy = this.conns.filter(c => c.healthy && !tried.has(c.endpoint));
+      const healthy = this.conns.filter(c => c.healthy && !tried.has(c.endpoint));
       if (healthy.length === 0) tried.clear();
 
       const p = healthy[0] || this.conns[i % this.conns.length];

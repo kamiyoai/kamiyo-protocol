@@ -63,10 +63,17 @@ fi
 
 # 5. Check RPC endpoint
 echo "5. Checking mainnet RPC..."
-HELIUS_KEY="${HELIUS_API_KEY:-c4a9b21c-8650-451d-9572-8c8a3543a0be}"
-RPC_URL="https://mainnet.helius-rpc.com/?api-key=$HELIUS_KEY"
+RPC_URL="${SOLANA_RPC_URL:-}"
+if [ -z "$RPC_URL" ]; then
+    if [ -n "${HELIUS_API_KEY:-}" ]; then
+        RPC_URL="https://mainnet.helius-rpc.com/?api-key=$HELIUS_API_KEY"
+    else
+        RPC_URL="https://api.mainnet-beta.solana.com"
+        echo -e "   $WARN SOLANA_RPC_URL/HELIUS_API_KEY not set; using public mainnet RPC"
+    fi
+fi
 if curl -s -X POST "$RPC_URL" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' | grep -q "ok"; then
-    echo -e "   $PASS Helius mainnet RPC is healthy"
+    echo -e "   $PASS Mainnet RPC is healthy"
 else
     echo -e "   $WARN RPC health check failed (may still work)"
 fi

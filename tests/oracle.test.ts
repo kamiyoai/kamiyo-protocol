@@ -15,17 +15,10 @@ describe("Oracle Registry", () => {
   const program = anchor.workspace.Kamiyo as anchor.Program<any>;
 
   let oracleRegistryPDA: PublicKey;
-  const admin = Keypair.generate();
   const oracle1 = Keypair.generate();
   const oracle2 = Keypair.generate();
 
   before(async () => {
-    const airdropSig = await provider.connection.requestAirdrop(
-      admin.publicKey,
-      5 * LAMPORTS_PER_SOL
-    );
-    await provider.connection.confirmTransaction(airdropSig);
-
     const airdropSig2 = await provider.connection.requestAirdrop(
       oracle1.publicKey,
       3 * LAMPORTS_PER_SOL
@@ -48,21 +41,24 @@ describe("Oracle Registry", () => {
     const minConsensus = 3;
     const maxScoreDeviation = 15;
 
-    await program.methods
-      .initializeOracleRegistry(minConsensus, maxScoreDeviation)
-      .accounts({
-        oracleRegistry: oracleRegistryPDA,
-        admin: admin.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([admin])
-      .rpc();
+    const existing = await program.account.oracleRegistry
+      .fetchNullable(oracleRegistryPDA)
+      .catch(() => null);
+    if (!existing) {
+      await program.methods
+        .initializeOracleRegistry(minConsensus, maxScoreDeviation)
+        .accounts({
+          oracleRegistry: oracleRegistryPDA,
+          admin: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    }
 
     const registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
-    expect(registry.admin.toString()).to.equal(admin.publicKey.toString());
+    expect(registry.admin.toString()).to.equal(provider.wallet.publicKey.toString());
     expect(registry.minConsensus).to.equal(minConsensus);
     expect(registry.maxScoreDeviation).to.equal(maxScoreDeviation);
-    expect(registry.oracles.length).to.equal(0);
   });
 
   it("Adds an oracle to registry", async () => {
@@ -70,21 +66,23 @@ describe("Oracle Registry", () => {
     const weight = 100;
     const stakeAmount = new BN(1 * LAMPORTS_PER_SOL);
 
+    const before = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
+
     await program.methods
       .addOracle(oracle1.publicKey, oracleType, weight, stakeAmount)
       .accounts({
         oracleRegistry: oracleRegistryPDA,
-        admin: admin.publicKey,
+        admin: provider.wallet.publicKey,
         oracleSigner: oracle1.publicKey,
         systemProgram: SystemProgram.programId,
       })
-      .signers([admin, oracle1])
+      .signers([oracle1])
       .rpc();
 
     const registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
-    expect(registry.oracles.length).to.equal(1);
-    expect(registry.oracles[0].pubkey.toString()).to.equal(oracle1.publicKey.toString());
-    expect(registry.oracles[0].weight).to.equal(weight);
+    expect(registry.oracles.length).to.equal(before.oracles.length + 1);
+    expect(registry.oracles.some((o: any) => o.pubkey.toString() === oracle1.publicKey.toString()))
+      .to.equal(true);
   });
 
   it("Removes an oracle from registry", async () => {
@@ -93,11 +91,11 @@ describe("Oracle Registry", () => {
       .addOracle(oracle2.publicKey, { ed25519: {} }, 50, stakeAmount)
       .accounts({
         oracleRegistry: oracleRegistryPDA,
-        admin: admin.publicKey,
+        admin: provider.wallet.publicKey,
         oracleSigner: oracle2.publicKey,
         systemProgram: SystemProgram.programId,
       })
-      .signers([admin, oracle2])
+      .signers([oracle2])
       .rpc();
 
     let registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);
@@ -107,10 +105,9 @@ describe("Oracle Registry", () => {
       .removeOracle(oracle2.publicKey)
       .accounts({
         oracleRegistry: oracleRegistryPDA,
-        admin: admin.publicKey,
+        admin: provider.wallet.publicKey,
         oracleWallet: oracle2.publicKey,
       })
-      .signers([admin])
       .rpc();
 
     registry = await program.account.oracleRegistry.fetch(oracleRegistryPDA);

@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RPC =
   process.env.SOLANA_RPC_URL ??
   (() => {
-    const apiKey = process.env.HELIUS_API_KEY ?? process.env.HELIUS_KEY;
+    const apiKey = process.env.HELIUS_API_KEY;
     if (!apiKey) throw new Error('Missing SOLANA_RPC_URL or HELIUS_API_KEY');
     return `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
   })();

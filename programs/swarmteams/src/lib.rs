@@ -1986,9 +1986,6 @@ pub struct InitializeRegistry<'info> {
     )]
     pub registry: Account<'info, AgentRegistry>,
     /// $KAMIYO token mint
-    #[account(
-        constraint = kamiyo_mint.key() == KAMIYO_MINT @ AgentCollabError::InvalidKamiyoMint
-    )]
     pub kamiyo_mint: Account<'info, Mint>,
     /// Treasury token account (PDA-owned, receives 99% of fees)
     #[account(
@@ -2013,11 +2010,12 @@ pub struct RegisterAgent<'info> {
     pub registry: Account<'info, AgentRegistry>,
     /// Space: 8 discriminator + 32 registry + 32 identity_commitment + 8 stake + 8 registered_slot
     ///        + 4 signal_count + 4 swarm_votes + 1 active + 1 bump
-    ///        + 8 collateral_amount + 8 collateral_locked_at + 8 slashed_amount + 1 violation_count = 123
+    ///        + 8 collateral_amount + 8 collateral_locked_at + 8 slashed_amount + 1 violation_count
+    ///        + 32 owner = 155
     #[account(
         init,
         payer = payer,
-        space = 123,
+        space = 155,
         seeds = [b"agent", identity_commitment.as_ref()],
         bump
     )]

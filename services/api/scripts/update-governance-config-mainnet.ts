@@ -21,10 +21,10 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 
-const HELIUS_RPC =
+const RPC_URL =
   process.env.SOLANA_RPC_URL ??
   (() => {
-    const apiKey = process.env.HELIUS_API_KEY ?? process.env.HELIUS_KEY;
+    const apiKey = process.env.HELIUS_API_KEY;
     if (!apiKey) throw new Error('Missing SOLANA_RPC_URL or HELIUS_API_KEY');
     return `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
   })();
@@ -58,7 +58,7 @@ async function main() {
   console.log('Program:', GOVERNANCE_PROGRAM_ID.toBase58());
 
   // Connect
-  const connection = new Connection(HELIUS_RPC, 'confirmed');
+  const connection = new Connection(RPC_URL, 'confirmed');
 
   // Check balance
   const balance = await connection.getBalance(keypair.publicKey);

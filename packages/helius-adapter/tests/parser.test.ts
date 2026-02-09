@@ -79,44 +79,57 @@ describe('Parser', () => {
 
     it('should parse valid escrow state', () => {
       const now = Math.floor(Date.now() / 1000);
-      const transactionId = 'tx-123';
-      const txIdBytes = Buffer.from(transactionId, 'utf8');
-
-      const buffer = Buffer.alloc(8 + 32 + 32 + 8 + 1 + 8 + 8 + 4 + txIdBytes.length + 1 + 2 + 2);
+      const buffer = Buffer.alloc(154);
       let offset = 0;
 
-      // Discriminator (8 bytes) - parser currently ignores the value.
-      INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(buffer, offset);
+      // Discriminator (8 bytes) - parser ignores the value.
+      INSTRUCTION_DISCRIMINATORS.CREATE_ESCROW.copy(buffer, offset);
       offset += 8;
 
-      const agent = PublicKey.unique();
-      agent.toBuffer().copy(buffer, offset);
+      const user = PublicKey.unique();
+      user.toBuffer().copy(buffer, offset);
       offset += 32;
 
-      const api = PublicKey.unique();
-      api.toBuffer().copy(buffer, offset);
+      const treasury = PublicKey.unique();
+      treasury.toBuffer().copy(buffer, offset);
+      offset += 32;
+
+      const sessionId = Buffer.alloc(32, 7);
+      sessionId.copy(buffer, offset);
       offset += 32;
 
       buffer.writeBigUInt64LE(1_000_000_000n, offset);
       offset += 8;
 
-      buffer.writeUInt8(0, offset); // active
-      offset += 1;
-
       buffer.writeBigInt64LE(BigInt(now - 3600), offset);
       offset += 8;
 
-      buffer.writeBigInt64LE(BigInt(now + 3600), offset);
-      offset += 8;
-
-      buffer.writeUInt32LE(txIdBytes.length, offset);
-      offset += 4;
-
-      txIdBytes.copy(buffer, offset);
-      offset += txIdBytes.length;
-
       buffer.writeUInt8(7, offset); // bump
       offset += 1;
+
+      buffer.writeUInt8(0, offset); // active
+      offset += 1;
+
+      buffer.writeUInt8(1, offset); // rating Some
+      offset += 1;
+      buffer.writeUInt8(4, offset);
+      offset += 1;
+
+      buffer.writeUInt8(1, offset); // disputedAt Some
+      offset += 1;
+      buffer.writeBigInt64LE(BigInt(now - 1800), offset);
+      offset += 8;
+
+      buffer.writeUInt8(1, offset); // commitPhaseEndsAt Some
+      offset += 1;
+      buffer.writeBigInt64LE(BigInt(now + 300), offset);
+      offset += 8;
+
+      buffer.writeUInt32LE(0, offset); // oracle_commitments len
+      offset += 4;
+
+      buffer.writeUInt32LE(0, offset); // oracle_submissions len
+      offset += 4;
 
       buffer.writeUInt8(1, offset); // qualityScore Some
       offset += 1;
@@ -131,14 +144,16 @@ describe('Parser', () => {
       const state = parseEscrowState(buffer, pda);
 
       expect(state.pda.equals(pda)).toBe(true);
-      expect(state.agent.equals(agent)).toBe(true);
-      expect(state.api.equals(api)).toBe(true);
+      expect(state.user.equals(user)).toBe(true);
+      expect(state.treasury.equals(treasury)).toBe(true);
+      expect(state.sessionId.toString('hex')).toBe(sessionId.toString('hex'));
       expect(state.amount).toBe(1_000_000_000n);
       expect(state.status).toBe('active');
+      expect(state.rating).toBe(4);
+      expect(state.disputedAt).toBe(now - 1800);
+      expect(state.commitPhaseEndsAt).toBe(now + 300);
       expect(state.qualityScore).toBe(85);
       expect(state.refundPercentage).toBe(25);
-      expect(state.transactionId).toBe(transactionId);
-      expect(state.id).toBe(transactionId);
     });
   });
 
@@ -147,14 +162,16 @@ describe('Parser', () => {
       const txs: ParsedTransaction[] = [
         {
           signature: 'sig1',
-          type: 'initialize_escrow',
+          type: 'create_escrow',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: 'api1',
+          user: 'user1',
+          treasury: 'treasury1',
           amount: 1000n,
-          transactionId: 'tx-1',
+          sessionId: 'session-1',
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: 1000,
           slot: 100,
@@ -165,12 +182,14 @@ describe('Parser', () => {
           signature: 'sig2',
           type: 'mark_disputed',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: null,
+          user: 'user1',
+          treasury: null,
           amount: null,
-          transactionId: null,
+          sessionId: null,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: 1001,
           slot: 101,
@@ -179,14 +198,16 @@ describe('Parser', () => {
         },
         {
           signature: 'sig3',
-          type: 'initialize_escrow',
+          type: 'create_escrow',
           escrowPda: 'escrow2',
-          agent: 'agent2',
-          api: 'api2',
+          user: 'user2',
+          treasury: 'treasury2',
           amount: 2000n,
-          transactionId: 'tx-2',
+          sessionId: 'session-2',
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: 1002,
           slot: 102,
@@ -208,12 +229,14 @@ describe('Parser', () => {
           signature: 'sig2',
           type: 'mark_disputed',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: null,
+          user: 'user1',
+          treasury: null,
           amount: null,
-          transactionId: null,
+          sessionId: null,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: 2000,
           slot: 200,
@@ -222,14 +245,16 @@ describe('Parser', () => {
         },
         {
           signature: 'sig1',
-          type: 'initialize_escrow',
+          type: 'create_escrow',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: 'api1',
+          user: 'user1',
+          treasury: 'treasury1',
           amount: 1000n,
-          transactionId: 'tx-1',
+          sessionId: 'session-1',
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: 1000,
           slot: 100,
@@ -252,14 +277,16 @@ describe('Parser', () => {
       const txs: ParsedTransaction[] = [
         {
           signature: 'sig1',
-          type: 'initialize_escrow',
+          type: 'create_escrow',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: 'api1',
+          user: 'user1',
+          treasury: 'treasury1',
           amount: 1_000_000_000n,
-          transactionId: 'tx-1',
+          sessionId: 'session-1',
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: now - 3600,
           slot: 100,
@@ -270,12 +297,14 @@ describe('Parser', () => {
           signature: 'sig2',
           type: 'mark_disputed',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: null,
+          user: 'user1',
+          treasury: null,
           amount: null,
-          transactionId: null,
+          sessionId: null,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           timestamp: now - 1800,
           slot: 101,
@@ -284,14 +313,16 @@ describe('Parser', () => {
         },
         {
           signature: 'sig3',
-          type: 'resolve_dispute',
+          type: 'finalize_dispute',
           escrowPda: 'escrow1',
-          agent: 'agent1',
-          api: 'api1',
+          user: 'user1',
+          treasury: 'treasury1',
           amount: null,
-          transactionId: null,
+          sessionId: null,
+          rating: null,
           qualityScore: 75,
           refundPercentage: 25,
+          paymentAmount: 750_000_000n,
           refundAmount: 250_000_000n,
           timestamp: now - 900,
           slot: 102,
@@ -306,6 +337,7 @@ describe('Parser', () => {
       expect(lifecycle.disputed).toBe(now - 1800);
       expect(lifecycle.resolved).toBe(now - 900);
       expect(lifecycle.released).toBeNull();
+      expect(lifecycle.refunded).toBeNull();
       expect(lifecycle.wasDisputed).toBe(true);
       expect(lifecycle.finalQualityScore).toBe(75);
       expect(lifecycle.refundPercentage).toBe(25);
@@ -314,9 +346,9 @@ describe('Parser', () => {
   });
 
   describe('detectTypeFromLogs', () => {
-    it('should detect initialize escrow', () => {
-      const logs = ['Program log: Instruction: InitializeEscrow'];
-      expect(detectTypeFromLogs(logs)).toBe('initialize_escrow');
+    it('should detect create escrow', () => {
+      const logs = ['Program log: Instruction: CreateEscrow'];
+      expect(detectTypeFromLogs(logs)).toBe('create_escrow');
     });
 
     it('should detect dispute marked', () => {
@@ -325,8 +357,8 @@ describe('Parser', () => {
     });
 
     it('should detect dispute resolved', () => {
-      const logs = ['Program log: Quality Score: 85', 'Some other log'];
-      expect(detectTypeFromLogs(logs)).toBe('resolve_dispute');
+      const logs = ['Program log: Instruction: FinalizeDispute'];
+      expect(detectTypeFromLogs(logs)).toBe('finalize_dispute');
     });
 
     it('should return unknown for unrecognized logs', () => {
@@ -359,4 +391,3 @@ describe('Parser', () => {
     });
   });
 });
-
