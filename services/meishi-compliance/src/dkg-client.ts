@@ -171,23 +171,6 @@ export class OriginTrailDKGClient implements DKGClient {
     if (!balances || typeof balances !== 'object') return null;
     return balances;
   }
-
-  async getWalletAddress(): Promise<string | null> {
-    if (!this.dkg.blockchain?.getWalletAddress) return null;
-    try {
-      const address = await this.dkg.blockchain.getWalletAddress();
-      return typeof address === 'string' && address.length > 0 ? address : null;
-    } catch {
-      return null;
-    }
-  }
-
-  async getWalletBalances(): Promise<{ blockchainToken: string; trac: string } | null> {
-    if (!this.dkg.blockchain?.getWalletBalances) return null;
-    const balances = await this.dkg.blockchain.getWalletBalances();
-    if (!balances || typeof balances !== 'object') return null;
-    return balances;
-  }
 }
 
 export async function createOriginTrailDKGClient(config: OriginTrailDKGClientConfig): Promise<OriginTrailDKGClient> {
