@@ -16,11 +16,11 @@ export function verifyWebhookSignature(payload: string | Buffer, signature: stri
   }
 }
 
-export function parseWebhookPayload(payload: HeliusWebhookPayload[]): KamiyoEvent[] {
+export function parseWebhookPayload(payload: HeliusWebhookPayload[], programId: string = KAMIYO_PROGRAM_ID): KamiyoEvent[] {
   const events: KamiyoEvent[] = [];
 
   for (const tx of payload) {
-    for (const ix of tx.instructions.filter((i) => i.programId === KAMIYO_PROGRAM_ID)) {
+    for (const ix of tx.instructions.filter((i) => i.programId === programId)) {
       const ev = parseIx(ix, tx);
       if (ev) events.push(ev);
     }
@@ -144,7 +144,7 @@ function getHeader(headers: Record<string, string | undefined>, name: string): s
   return undefined;
 }
 
-export function createWebhookHandler(opts: WebhookHandlerOptions) {
+export function createWebhookHandler(opts: WebhookHandlerOptions, cfg?: { programId?: string }) {
   return async (req: Req, res: Res) => {
     try {
       let payload: HeliusWebhookPayload[];
@@ -152,7 +152,7 @@ export function createWebhookHandler(opts: WebhookHandlerOptions) {
       else if (typeof req.body === 'string') payload = JSON.parse(req.body);
       else payload = [req.body as HeliusWebhookPayload];
 
-      const events = parseWebhookPayload(payload);
+      const events = parseWebhookPayload(payload, cfg?.programId);
 
       for (const ev of events) {
         try {
@@ -174,8 +174,8 @@ export function createWebhookHandler(opts: WebhookHandlerOptions) {
   };
 }
 
-export function createVerifiedWebhookHandler(secret: string, opts: WebhookHandlerOptions) {
-  const handler = createWebhookHandler(opts);
+export function createVerifiedWebhookHandler(secret: string, opts: WebhookHandlerOptions, cfg?: { programId?: string }) {
+  const handler = createWebhookHandler(opts, cfg);
 
   return async (req: Req, res: Res) => {
     const sig = getHeader(req.headers, DEFAULTS.WEBHOOK_SIGNATURE_HEADER);
@@ -244,4 +244,3 @@ export function getEventStats(events: KamiyoEvent[]): {
     averageQualityScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
   };
 }
-
