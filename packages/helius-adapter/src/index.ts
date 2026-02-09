@@ -21,11 +21,12 @@
  * await client.init();
  *
  * // Get escrow state
- * const { pda } = client.deriveEscrowPDA('tx-123');
+ * const user = new PublicKey('...');
+ * const { pda } = client.deriveEscrowPDA(user, 'session-123');
  * const state = await client.getEscrowState(pda);
  *
  * // Get priority fee
- * const fee = await client.getOperationFee('INITIALIZE_ESCROW', pda, 'standard');
+ * const fee = await client.getOperationFee('CREATE_ESCROW', pda, 'standard');
  *
  * // Subscribe to escrow changes
  * const subscription = await client.subscribeToEscrow(pda, {
@@ -87,6 +88,7 @@ export {
 export {
     ValidationError,
     validateApiKey,
+    validateSessionId,
     validateTransactionId,
     validateSignature,
     validateSignatures,

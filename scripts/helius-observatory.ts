@@ -59,8 +59,8 @@ function appendLine(p: string, line: string): void {
   fs.appendFileSync(p, `${line}\n`);
 }
 
-function eventId(ev: { signature: string; type: string; escrowPda: string; transactionId: string | null }): string {
-  return `${ev.signature}:${ev.type}:${ev.escrowPda}:${ev.transactionId ?? ''}`;
+function eventId(ev: { signature: string; type: string; escrowPda: string; sessionId: string | null }): string {
+  return `${ev.signature}:${ev.type}:${ev.escrowPda}:${ev.sessionId ?? ''}`;
 }
 
 const PORT = Number.parseInt(process.env.PORT ?? '8787', 10);

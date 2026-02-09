@@ -26,36 +26,41 @@ function migrate(db: Db): void {
       ts INTEGER NOT NULL,
       type TEXT NOT NULL,
       escrow_pda TEXT NOT NULL,
-      transaction_id TEXT,
-      agent TEXT,
-      api TEXT,
+      session_id TEXT,
+      user TEXT,
+      treasury TEXT,
       amount TEXT,
+      rating INTEGER,
       quality_score INTEGER,
       refund_percentage INTEGER,
+      payment_amount TEXT,
       refund_amount TEXT,
       raw_json TEXT NOT NULL,
       received_at INTEGER NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS events_escrow_pda ON events(escrow_pda);
-    CREATE INDEX IF NOT EXISTS events_transaction_id ON events(transaction_id);
+    CREATE INDEX IF NOT EXISTS events_session_id ON events(session_id);
     CREATE INDEX IF NOT EXISTS events_signature ON events(signature);
     CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
     CREATE INDEX IF NOT EXISTS events_type ON events(type);
 
     CREATE TABLE IF NOT EXISTS escrows (
       escrow_pda TEXT PRIMARY KEY,
-      transaction_id TEXT,
-      agent TEXT,
-      api TEXT,
+      session_id TEXT,
+      user TEXT,
+      treasury TEXT,
       amount TEXT,
       status TEXT NOT NULL,
       created_at INTEGER,
       disputed_at INTEGER,
       resolved_at INTEGER,
       released_at INTEGER,
+      refunded_at INTEGER,
+      rating INTEGER,
       quality_score INTEGER,
       refund_percentage INTEGER,
+      payment_amount TEXT,
       refund_amount TEXT,
       last_signature TEXT,
       last_slot INTEGER,
@@ -63,9 +68,8 @@ function migrate(db: Db): void {
       updated_at INTEGER NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS escrows_transaction_id ON escrows(transaction_id);
+    CREATE INDEX IF NOT EXISTS escrows_session_id ON escrows(session_id);
     CREATE INDEX IF NOT EXISTS escrows_status ON escrows(status);
     CREATE INDEX IF NOT EXISTS escrows_updated_at ON escrows(updated_at);
   `);
 }
-

@@ -9,12 +9,14 @@ describe('store', () => {
     const created = {
       type: 'escrow_created' as const,
       escrowPda: 'EscrowPDA',
-      transactionId: 'tx-1',
-      agent: 'Agent',
-      api: 'Api',
+      sessionId: 'session-1',
+      user: 'User',
+      treasury: 'Treasury',
       amount: 1_000_000_000n,
+      rating: null,
       qualityScore: null,
       refundPercentage: null,
+      paymentAmount: null,
       refundAmount: null,
       signature: 'sig1',
       timestamp: 1000,
@@ -33,12 +35,14 @@ describe('store', () => {
     const disputed = {
       type: 'dispute_initiated' as const,
       escrowPda: 'EscrowPDA',
-      transactionId: null,
-      agent: 'Agent',
-      api: null,
+      sessionId: null,
+      user: 'User',
+      treasury: null,
       amount: null,
+      rating: null,
       qualityScore: null,
       refundPercentage: null,
+      paymentAmount: null,
       refundAmount: null,
       signature: 'sig2',
       timestamp: 1200,
@@ -52,12 +56,14 @@ describe('store', () => {
     const resolved = {
       type: 'dispute_resolved' as const,
       escrowPda: 'EscrowPDA',
-      transactionId: null,
-      agent: 'Agent',
-      api: 'Api',
+      sessionId: null,
+      user: 'User',
+      treasury: 'Treasury',
       amount: null,
+      rating: null,
       qualityScore: 80,
       refundPercentage: 20,
+      paymentAmount: 800_000_000n,
       refundAmount: 200_000_000n,
       signature: 'sig3',
       timestamp: 1300,
@@ -71,7 +77,7 @@ describe('store', () => {
     expect(escrow?.status).toBe('resolved');
     expect(escrow?.qualityScore).toBe(80);
     expect(escrow?.refundPercentage).toBe(20);
+    expect(escrow?.paymentAmount).toBe('800000000');
     expect(escrow?.refundAmount).toBe('200000000');
   });
 });
-

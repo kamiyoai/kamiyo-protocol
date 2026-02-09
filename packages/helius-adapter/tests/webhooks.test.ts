@@ -90,16 +90,13 @@ describe('Webhooks', () => {
       expect(events.length).toBe(0);
     });
 
-    it('should parse initializeEscrow (escrow_created)', () => {
-      const transactionId = 'tx-123';
-      const txIdBytes = Buffer.from(transactionId, 'utf8');
-      const data = Buffer.alloc(8 + 8 + 8 + 4 + txIdBytes.length);
+    it('should parse createEscrow (escrow_created)', () => {
+      const sessionId = Buffer.alloc(32, 1);
+      const data = Buffer.alloc(8 + 32 + 8);
 
-      INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(data, 0);
-      data.writeBigUInt64LE(1_000_000_000n, 8); // amount
-      data.writeBigInt64LE(60n, 16); // timeLock
-      data.writeUInt32LE(txIdBytes.length, 24);
-      txIdBytes.copy(data, 28);
+      INSTRUCTION_DISCRIMINATORS.CREATE_ESCROW.copy(data, 0);
+      sessionId.copy(data, 8);
+      data.writeBigUInt64LE(1_000_000_000n, 40); // amount
 
       const payload: HeliusWebhookPayload[] = [
         {
@@ -108,11 +105,20 @@ describe('Webhooks', () => {
           description: 'Initialize escrow',
           events: {},
           fee: 5000,
-          feePayer: 'Agent123',
+          feePayer: 'User123',
           instructions: [
             {
               programId: KAMIYO_PROGRAM_ID,
-              accounts: ['EscrowPDA', 'Agent123', 'Api456'],
+              accounts: [
+                'User123',
+                'Treasury456',
+                'EscrowPDA',
+                'Mint111',
+                'UserToken111',
+                'TokenTreasury111',
+                '11111111111111111111111111111111',
+                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+              ],
               data: data.toString('base64'),
               innerInstructions: [],
             },
@@ -133,10 +139,10 @@ describe('Webhooks', () => {
       expect(events.length).toBe(1);
       expect(events[0].type).toBe('escrow_created');
       expect(events[0].escrowPda).toBe('EscrowPDA');
-      expect(events[0].agent).toBe('Agent123');
-      expect(events[0].api).toBe('Api456');
+      expect(events[0].user).toBe('User123');
+      expect(events[0].treasury).toBe('Treasury456');
       expect(events[0].amount).toBe(1_000_000_000n);
-      expect(events[0].transactionId).toBe(transactionId);
+      expect(events[0].sessionId).toBe(sessionId.toString('hex'));
     });
   });
 
@@ -150,8 +156,8 @@ describe('Webhooks', () => {
         onDisputeInitiated,
       });
 
-      const initData = Buffer.alloc(8 + 8 + 8 + 4);
-      INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(initData, 0);
+      const initData = Buffer.alloc(8 + 32 + 8);
+      INSTRUCTION_DISCRIMINATORS.CREATE_ESCROW.copy(initData, 0);
 
       const disputeData = Buffer.alloc(8);
       INSTRUCTION_DISCRIMINATORS.MARK_DISPUTED.copy(disputeData, 0);
@@ -168,13 +174,22 @@ describe('Webhooks', () => {
             instructions: [
               {
                 programId: KAMIYO_PROGRAM_ID,
-                accounts: ['EscrowPDA', 'Agent123', 'Api456'],
+                accounts: [
+                  'User123',
+                  'Treasury456',
+                  'EscrowPDA',
+                  'Mint111',
+                  'UserToken111',
+                  'TokenTreasury111',
+                  '11111111111111111111111111111111',
+                  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+                ],
                 data: initData.toString('base64'),
                 innerInstructions: [],
               },
               {
                 programId: KAMIYO_PROGRAM_ID,
-                accounts: ['EscrowPDA', 'ReputationPDA', 'Agent123'],
+                accounts: ['User123', 'EscrowPDA'],
                 data: disputeData.toString('base64'),
                 innerInstructions: [],
               },
@@ -214,7 +229,7 @@ describe('Webhooks', () => {
       });
 
       const initData = Buffer.alloc(8);
-      INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(initData, 0);
+      INSTRUCTION_DISCRIMINATORS.CREATE_ESCROW.copy(initData, 0);
 
       const mockReq = {
         body: [
@@ -228,7 +243,7 @@ describe('Webhooks', () => {
             instructions: [
               {
                 programId: KAMIYO_PROGRAM_ID,
-                accounts: ['EscrowPDA', 'Agent123', 'Api456'],
+                accounts: ['User123', 'Treasury456', 'EscrowPDA'],
                 data: initData.toString('base64'),
                 innerInstructions: [],
               },
@@ -266,7 +281,7 @@ describe('Webhooks', () => {
       const handler = createVerifiedWebhookHandler(secret, { onEscrowCreated });
 
       const initData = Buffer.alloc(8);
-      INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(initData, 0);
+      INSTRUCTION_DISCRIMINATORS.CREATE_ESCROW.copy(initData, 0);
 
       const body = [
         {
@@ -279,7 +294,7 @@ describe('Webhooks', () => {
           instructions: [
             {
               programId: KAMIYO_PROGRAM_ID,
-              accounts: ['EscrowPDA', 'Agent123', 'Api456'],
+              accounts: ['User123', 'Treasury456', 'EscrowPDA'],
               data: initData.toString('base64'),
               innerInstructions: [],
             },
@@ -340,12 +355,14 @@ describe('Webhooks', () => {
       {
         type: 'escrow_created',
         escrowPda: 'pda1',
-        transactionId: 'tx-1',
-        agent: 'agent1',
-        api: 'api1',
+        sessionId: 'session-1',
+        user: 'user1',
+        treasury: 'treasury1',
         amount: 1000n,
+        rating: null,
         qualityScore: null,
         refundPercentage: null,
+        paymentAmount: null,
         refundAmount: null,
         signature: 'sig1',
         timestamp: 1000,
@@ -354,12 +371,14 @@ describe('Webhooks', () => {
       {
         type: 'funds_released',
         escrowPda: 'pda1',
-        transactionId: null,
-        agent: 'agent1',
-        api: 'api1',
+        sessionId: null,
+        user: 'user1',
+        treasury: 'treasury1',
         amount: 1000n,
+        rating: 5,
         qualityScore: null,
         refundPercentage: null,
+        paymentAmount: 1000n,
         refundAmount: null,
         signature: 'sig2',
         timestamp: 1001,
@@ -368,12 +387,14 @@ describe('Webhooks', () => {
       {
         type: 'dispute_initiated',
         escrowPda: 'pda1',
-        transactionId: null,
-        agent: 'agent1',
-        api: null,
+        sessionId: null,
+        user: 'user1',
+        treasury: null,
         amount: null,
+        rating: null,
         qualityScore: null,
         refundPercentage: null,
+        paymentAmount: null,
         refundAmount: null,
         signature: 'sig3',
         timestamp: 1002,
@@ -399,12 +420,14 @@ describe('Webhooks', () => {
         {
           type: 'escrow_created',
           escrowPda: 'pda1',
-          transactionId: 'tx-1',
-          agent: null,
-          api: null,
+          sessionId: 'session-1',
+          user: null,
+          treasury: null,
           amount: null,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           signature: 'sig1',
           timestamp: 1000,
@@ -413,12 +436,14 @@ describe('Webhooks', () => {
         {
           type: 'funds_released',
           escrowPda: 'pda1',
-          transactionId: null,
-          agent: null,
-          api: null,
+          sessionId: null,
+          user: null,
+          treasury: null,
           amount: 1000n,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: 1000n,
           refundAmount: null,
           signature: 'sig2',
           timestamp: 1001,
@@ -427,12 +452,14 @@ describe('Webhooks', () => {
         {
           type: 'escrow_created',
           escrowPda: 'pda2',
-          transactionId: 'tx-2',
-          agent: null,
-          api: null,
+          sessionId: 'session-2',
+          user: null,
+          treasury: null,
           amount: null,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           signature: 'sig3',
           timestamp: 1002,
@@ -454,12 +481,14 @@ describe('Webhooks', () => {
         {
           type: 'escrow_created',
           escrowPda: 'pda1',
-          transactionId: 'tx-1',
-          agent: null,
-          api: null,
+          sessionId: 'session-1',
+          user: null,
+          treasury: null,
           amount: 1_000_000_000n,
+          rating: null,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: null,
           refundAmount: null,
           signature: 'sig1',
           timestamp: 1000,
@@ -468,12 +497,14 @@ describe('Webhooks', () => {
         {
           type: 'funds_released',
           escrowPda: 'pda1',
-          transactionId: null,
-          agent: null,
-          api: null,
+          sessionId: null,
+          user: null,
+          treasury: null,
           amount: 1_000_000_000n,
+          rating: 5,
           qualityScore: null,
           refundPercentage: null,
+          paymentAmount: 1_000_000_000n,
           refundAmount: null,
           signature: 'sig2',
           timestamp: 1001,
@@ -482,12 +513,14 @@ describe('Webhooks', () => {
         {
           type: 'dispute_resolved',
           escrowPda: 'pda1',
-          transactionId: null,
-          agent: null,
-          api: null,
+          sessionId: null,
+          user: null,
+          treasury: null,
           amount: null,
+          rating: null,
           qualityScore: 80,
           refundPercentage: 20,
+          paymentAmount: 800_000_000n,
           refundAmount: 200_000_000n,
           signature: 'sig3',
           timestamp: 1002,
@@ -496,12 +529,14 @@ describe('Webhooks', () => {
         {
           type: 'dispute_resolved',
           escrowPda: 'pda2',
-          transactionId: null,
-          agent: null,
-          api: null,
+          sessionId: null,
+          user: null,
+          treasury: null,
           amount: null,
+          rating: null,
           qualityScore: 90,
           refundPercentage: 10,
+          paymentAmount: 900_000_000n,
           refundAmount: 100_000_000n,
           signature: 'sig4',
           timestamp: 1003,
@@ -521,4 +556,3 @@ describe('Webhooks', () => {
     });
   });
 });
-
