@@ -144,6 +144,54 @@ This client implements the [x402 specification](https://github.com/coinbase/x402
 - Compatible with x402 facilitators
 - Adds `X-Kamiyo-*` headers for escrow integration
 
+## Authorize-Once Sessions (Solana)
+
+KAMIYO supports an authorize-once session scheme so buyers don't need to sign every request.
+
+1. Buyer approves a USDC delegate allowance (one-time tx)
+2. Buyer signs a session challenge (one-time signature)
+3. Client uses `paymentHeader: session:<network>:<token>.<nonce>` on each request
+
+### Embeddable Widget
+
+Sellers can surface the flow directly on a webpage:
+
+```html
+<div id="x402-session"></div>
+<script type="module">
+  import { createKamiyoX402SessionWidget } from '@kamiyo/x402-client';
+
+  const widget = createKamiyoX402SessionWidget('#x402-session', {
+    facilitatorUrl: 'https://x402.kamiyo.ai',
+    merchantWallet: 'YOUR_SOLANA_WALLET',
+    defaultMaxTotalUsdc: '5',
+    defaultSessionDays: 7,
+    onAuthorized: ({ token, paymentHeader, expiresAt }) => {
+      console.log('session token:', token);
+      console.log('base header:', paymentHeader);
+      console.log('expires:', new Date(expiresAt).toISOString());
+    },
+  });
+```
+
+Or as a custom element:
+
+```html
+<kamiyo-x402-session
+  facilitator-url="https://x402.kamiyo.ai"
+  merchant-wallet="YOUR_SOLANA_WALLET"
+  default-max-total-usdc="5"
+  default-session-days="7"
+></kamiyo-x402-session>
+
+<script>
+  document
+    .querySelector('kamiyo-x402-session')
+    .addEventListener('kamiyo-x402-session-authorized', (e) => {
+      console.log('authorized:', e.detail);
+    });
+```
+
 ## Server Integration
 
 For servers accepting Kamiyo-protected payments, use `@kamiyo/middleware`:
