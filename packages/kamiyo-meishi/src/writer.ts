@@ -1,5 +1,6 @@
 import * as anchor from '@coral-xyz/anchor';
 import { Ed25519Program, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import BN from 'bn.js';
 import crypto from 'crypto';
 import nacl from 'tweetnacl';
 
@@ -19,18 +20,18 @@ function u32le(value: number): Buffer {
   return buf;
 }
 
-function bnU64(value: number): anchor.BN {
+function bnU64(value: number): BN {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error('u64 values must be non-negative safe integers');
   }
-  return new anchor.BN(value);
+  return new BN(value);
 }
 
-function bnI64(value: number): anchor.BN {
+function bnI64(value: number): BN {
   if (!Number.isSafeInteger(value)) {
     throw new Error('i64 values must be safe integers');
   }
-  return new anchor.BN(value);
+  return new BN(value);
 }
 
 function fixedBytes(name: string, value: number[], len: number): Buffer {
