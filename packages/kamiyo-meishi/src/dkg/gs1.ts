@@ -55,8 +55,9 @@ export function configureGS1(config: GS1Config): void {
   }
 }
 
-export function gs1Context(): string {
-  return GS1_VOCAB;
+export function gs1Context(): Record<string, string> {
+  // Inline the context to avoid runtime JSON-LD dereferencing (GS1 blocks crawlers/automations).
+  return { gs1: GS1_VOCAB };
 }
 
 // {companyPrefix}{assetRef}
