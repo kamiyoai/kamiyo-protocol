@@ -64,7 +64,7 @@ async function main() {
       version: '0.1.0',
       repository: 'https://github.com/kamiyo-ai/kamiyo-protocol',
       solanaPrograms: {
-        escrow: 'AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu',
+        escrow: 'FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u',
         staking: '9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N',
         mitama: 'DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km',
       },

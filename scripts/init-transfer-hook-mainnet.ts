@@ -27,7 +27,7 @@ const TRANSFER_HOOK_PROGRAM_ID = new PublicKey('4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqid
 const EXEMPT_ADDRESSES = {
   // Program vaults (derive PDAs later)
   STAKING_PROGRAM: new PublicKey('9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N'),
-  ESCROW_PROGRAM: new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu'),
+  ESCROW_PROGRAM: new PublicKey('FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u'),
   MITAMA_PROGRAM: new PublicKey('DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km'),
 
   // Known DEX pools (add more as needed)
