@@ -9,14 +9,14 @@ import {
   SubmitTaskRequestSchema,
   RateTaskRequestSchema,
   JobStatusSchema,
-  AgentSkillSchema,
   StartJobRequestSchema,
 } from '../types/index.js';
+import { AgentSkillSchema } from '../types/index.js';
+import { normalizeSkillTag } from '../services/skill-tags.js';
 
 export const jobsRouter = new Hono();
 
 const VALID_STATUSES = JobStatusSchema.options;
-const VALID_SKILLS = AgentSkillSchema.options;
 
 jobsRouter.get('/', (c) => {
   const status = c.req.query('status');
@@ -28,8 +28,9 @@ jobsRouter.get('/', (c) => {
     jobs = jobs.filter((j) => j.status === status);
   }
 
-  if (skill && (VALID_SKILLS as readonly string[]).includes(skill)) {
-    jobs = jobs.filter((j) => j.requiredSkills.includes(skill as any));
+  if (skill) {
+    const tag = normalizeSkillTag(skill);
+    if (tag) jobs = jobs.filter((j) => j.requiredSkills.includes(tag as any));
   }
 
   return c.json({ jobs });
@@ -80,7 +81,10 @@ jobsRouter.post(
   ),
   (c) => {
     const body = c.req.valid('json');
-    const job = jobService.create(body);
+    const job = jobService.create({
+      ...body,
+      requiredSkills: body.requiredSkills.map(normalizeSkillTag).filter(Boolean),
+    });
     return c.json({ job }, 201);
   }
 );

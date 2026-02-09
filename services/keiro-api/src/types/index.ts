@@ -7,14 +7,12 @@ export const AgentPersonalitySchema = z.enum([
   'balanced',
 ]);
 
-export const AgentSkillSchema = z.enum([
-  'research',
-  'writing',
-  'code_review',
-  'data_analysis',
-  'translation',
-  'general',
-]);
+export const AgentSkillSchema = z
+  .string()
+  .min(1)
+  .max(32)
+  // allow user-defined tags; server normalizes to lowercase and trims
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*[a-zA-Z0-9]$/, 'Invalid skill tag');
 
 export const AgentTierSchema = z.enum([
   'unverified',
@@ -112,7 +110,7 @@ export const CreateAgentRequestSchema = z.object({
     .max(24)
     .regex(/^[\w\s-]+$/, 'Name can only contain letters, numbers, spaces, and hyphens'),
   personality: AgentPersonalitySchema,
-  skills: z.array(AgentSkillSchema).min(1).max(6),
+  skills: z.array(AgentSkillSchema).min(1).max(24),
 });
 
 export const AcceptJobRequestSchema = z.object({
