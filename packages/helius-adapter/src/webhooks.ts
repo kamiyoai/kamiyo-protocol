@@ -3,10 +3,14 @@ import { HeliusWebhookPayload, KamiyoEvent, WebhookHandlerOptions } from './type
 import { KAMIYO_PROGRAM_ID, DEFAULTS, INSTRUCTION_DISCRIMINATORS } from './constants';
 
 export function verifyWebhookSignature(payload: string | Buffer, signature: string, secret: string): boolean {
-  const str = typeof payload === 'string' ? payload : payload.toString('utf-8');
-  const expected = createHmac('sha256', secret).update(str).digest('hex');
+  const expected = createHmac('sha256', secret).update(payload).digest();
+  const sig = signature.trim().replace(/^sha256=/i, '');
+
+  if (!/^[0-9a-f]{64}$/i.test(sig)) return false;
+
+  const provided = Buffer.from(sig, 'hex');
   try {
-    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    return timingSafeEqual(provided, expected);
   } catch { return false; }
 }
 
@@ -93,6 +97,21 @@ function decode(data: string): Buffer | null {
 type Req = { body: unknown; rawBody?: string | Buffer; headers: Record<string, string | undefined> };
 type Res = { status: (code: number) => { send: (msg: string) => void; json: (data: unknown) => void } };
 
+function getHeader(headers: Record<string, string | undefined>, name: string): string | undefined {
+  const direct = headers[name];
+  if (direct) return direct;
+
+  const lower = headers[name.toLowerCase()];
+  if (lower) return lower;
+
+  const wanted = name.toLowerCase();
+  for (const [k, v] of Object.entries(headers)) {
+    if (k.toLowerCase() === wanted) return v;
+  }
+
+  return undefined;
+}
+
 export function createWebhookHandler(opts: WebhookHandlerOptions) {
   return async (req: Req, res: Res) => {
     try {
@@ -129,10 +148,17 @@ export function createVerifiedWebhookHandler(secret: string, opts: WebhookHandle
   const handler = createWebhookHandler(opts);
 
   return async (req: Req, res: Res) => {
-    const sig = req.headers[DEFAULTS.WEBHOOK_SIGNATURE_HEADER] || req.headers['x-helius-signature'];
+    const sig = getHeader(req.headers, DEFAULTS.WEBHOOK_SIGNATURE_HEADER);
     if (!sig) return res.status(401).json({ success: false, error: 'Missing signature' });
 
-    const payload = req.rawBody || JSON.stringify(req.body);
+    const payload = req.rawBody ?? (typeof req.body === 'string' ? req.body : undefined);
+    if (!payload) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing rawBody. Provide the raw request body for webhook signature verification.',
+      });
+    }
+
     if (!verifyWebhookSignature(payload, sig, secret)) {
       return res.status(401).json({ success: false, error: 'Invalid signature' });
     }
