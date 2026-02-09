@@ -212,6 +212,45 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_rate_limit_window_start ON api_rate_limit_windows(window_start);
     `,
   },
+  {
+    name: '009_session_auth',
+    sql: `
+      CREATE TABLE IF NOT EXISTS session_challenges (
+        nonce TEXT PRIMARY KEY,
+        payer_wallet TEXT NOT NULL,
+        network TEXT NOT NULL,
+        merchant_wallet TEXT NOT NULL,
+        max_total_micro NUMERIC(30, 0) NOT NULL,
+        max_single_micro NUMERIC(30, 0),
+        session_expires_at TIMESTAMPTZ NOT NULL,
+        message TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_session_challenges_payer ON session_challenges(payer_wallet);
+      CREATE INDEX IF NOT EXISTS idx_session_challenges_expires ON session_challenges(expires_at);
+
+      CREATE TABLE IF NOT EXISTS payment_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token_hash TEXT NOT NULL UNIQUE,
+        payer_wallet TEXT NOT NULL,
+        network TEXT NOT NULL,
+        merchant_wallet TEXT NOT NULL,
+        max_total_micro NUMERIC(30, 0) NOT NULL,
+        max_single_micro NUMERIC(30, 0),
+        spent_micro NUMERIC(30, 0) NOT NULL DEFAULT 0,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_used_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_payment_sessions_payer ON payment_sessions(payer_wallet);
+      CREATE INDEX IF NOT EXISTS idx_payment_sessions_expires ON payment_sessions(expires_at);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
