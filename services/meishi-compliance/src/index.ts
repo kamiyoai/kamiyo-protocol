@@ -80,6 +80,12 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
   });
 }
 
+function isDkgWalletBalances(value: unknown): value is { blockchainToken: string; trac: string } {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.blockchainToken === 'string' && typeof v.trac === 'string';
+}
+
 async function main() {
   const config = loadConfig();
   console.log(`[meishi-compliance] Starting compliance engine (env=${config.nodeEnv})`);
@@ -331,21 +337,7 @@ async function main() {
 
       if (typeof c.getWalletBalances === 'function') {
         const balances = await withTimeout(c.getWalletBalances(), 4000);
-        if (
-          balances &&
-          typeof balances === 'object' &&
-          'blockchainToken' in balances &&
-          'trac' in balances &&
-          typeof (balances as any).blockchainToken === 'string' &&
-          typeof (balances as any).trac === 'string'
-        ) {
-          dkgWalletBalances = {
-            blockchainToken: (balances as any).blockchainToken,
-            trac: (balances as any).trac,
-          };
-        } else {
-          dkgWalletBalances = null;
-        }
+        dkgWalletBalances = isDkgWalletBalances(balances) ? balances : null;
       } else {
         dkgWalletBalances = null;
       }

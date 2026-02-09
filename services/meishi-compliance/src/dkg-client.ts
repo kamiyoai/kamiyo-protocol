@@ -102,8 +102,9 @@ type DkgJsClient = {
   asset: {
     create: (
       content: { public: Record<string, unknown>; private?: Record<string, unknown> },
-      opts?: { epochsNum?: number; paranetUAL?: string }
+      opts?: { epochsNum?: number }
     ) => Promise<{ UAL?: string }>;
+    submitToParanet?: (ual: string, paranetUal: string, opts?: Record<string, unknown>) => Promise<unknown>;
     get: (ual: string, opts?: Record<string, unknown>) => Promise<unknown>;
   };
 };
@@ -136,12 +137,39 @@ export class OriginTrailDKGClient implements DKGClient {
   async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
     const result = await this.dkg.asset.create(content, {
       ...(options?.epochs ? { epochsNum: options.epochs } : {}),
-      ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
     });
     if (!result?.UAL) {
       throw new Error('DKG publish response missing UAL');
     }
-    return result.UAL;
+
+    const ual = result.UAL;
+
+    if (this.paranetUal) {
+      const submitToParanet = this.dkg.asset.submitToParanet;
+      if (typeof submitToParanet !== 'function') {
+        throw new Error('DKG client does not support paranet submission (missing asset.submitToParanet)');
+      }
+      await submitToParanet(ual, this.paranetUal);
+    }
+
+    return ual;
+  }
+
+  async getWalletAddress(): Promise<string | null> {
+    if (!this.dkg.blockchain?.getWalletAddress) return null;
+    try {
+      const address = await this.dkg.blockchain.getWalletAddress();
+      return typeof address === 'string' && address.length > 0 ? address : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getWalletBalances(): Promise<{ blockchainToken: string; trac: string } | null> {
+    if (!this.dkg.blockchain?.getWalletBalances) return null;
+    const balances = await this.dkg.blockchain.getWalletBalances();
+    if (!balances || typeof balances !== 'object') return null;
+    return balances;
   }
 
   async getWalletAddress(): Promise<string | null> {
