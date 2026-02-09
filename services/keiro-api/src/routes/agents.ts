@@ -13,12 +13,12 @@ agentsRouter.post(
     'json',
     z.object({
       prompt: z.string().min(1).max(5000),
-      maxSkills: z.number().int().min(1).max(6).optional(),
+      maxSkills: z.number().int().min(1).max(24).optional(),
     })
   ),
   async (c) => {
     const { prompt, maxSkills } = c.req.valid('json');
-    const limit = Math.min(6, Math.max(1, maxSkills ?? 4));
+    const limit = Math.min(24, Math.max(1, maxSkills ?? 4));
     const result = await inferSkills(prompt, limit);
     return c.json(result);
   }
