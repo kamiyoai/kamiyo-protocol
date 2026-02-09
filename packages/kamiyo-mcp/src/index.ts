@@ -19,7 +19,7 @@ import { Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
 
-import { SolanaClient } from './solana/client.js';
+import { loadKeypair, SolanaClient } from './solana/client.js';
 import { X402Program } from './solana/anchor.js';
 import * as tools from './tools/index.js';
 
@@ -246,6 +246,212 @@ const TOOL_DEFINITIONS: Tool[] = [
       required: ['url'],
     },
   },
+  // Kamino Earn (KVault) tools
+  {
+    name: 'kamino_list_vaults',
+    description:
+      'List Kamino Earn (KVault) vaults for a given token mint (defaults to USDC).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tokenMint: {
+          type: 'string',
+          description: 'Token mint to filter by (defaults to USDC)',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results (default 200, max 200)',
+        },
+      },
+    },
+  },
+  {
+    name: 'kamino_vault_metrics',
+    description:
+      'Fetch Kamino Earn (KVault) metrics (APY, AUM, prices) for a specific vault address.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vault: {
+          type: 'string',
+          description: 'KVault address',
+        },
+      },
+      required: ['vault'],
+    },
+  },
+  {
+    name: 'kamino_suggest_vaults',
+    description:
+      'Suggest Kamino Earn (KVault) vaults ranked by APY window with an AUM filter. Defaults: USDC, apy30d, limit=5.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tokenMint: {
+          type: 'string',
+          description: 'Token mint to filter by (defaults to USDC)',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results (default 5, max 20)',
+        },
+        apyWindow: {
+          type: 'string',
+          enum: ['apy24h', 'apy7d', 'apy30d', 'apy90d', 'apy180d', 'apy365d', 'apy'],
+          description: 'Which APY window to rank by (default apy30d)',
+        },
+        minAumUsd: {
+          type: 'number',
+          description: 'Minimum AUM in USD (default from KAMINO_MIN_AUM_USD or 250000)',
+        },
+        includeMetadata: {
+          type: 'boolean',
+          description: 'Include mint metadata (name/symbol) when available (default true)',
+        },
+      },
+    },
+  },
+  {
+    name: 'kamino_positions',
+    description:
+      'Get Kamino Earn (KVault) positions for a wallet. If wallet is omitted, uses the configured agent wallet (if available).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        wallet: {
+          type: 'string',
+          description: 'Wallet public key (optional)',
+        },
+      },
+    },
+  },
+  {
+    name: 'kamino_deposit',
+    description:
+      'Build or send a Kamino Earn (KVault) deposit transaction. Default dryRun=true returns a base64 transaction without sending.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vault: {
+          type: 'string',
+          description: 'KVault address',
+        },
+        amount: {
+          type: 'string',
+          description: 'Token amount to deposit (e.g. "25.5")',
+        },
+        wallet: {
+          type: 'string',
+          description: 'Must match the configured agent wallet if provided',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'If true, returns txBase64 only (default true)',
+        },
+        confirm: {
+          type: 'boolean',
+          description: 'When sending, wait for confirmation (default true)',
+        },
+        commitment: {
+          type: 'string',
+          enum: ['processed', 'confirmed', 'finalized'],
+          description: 'Confirmation commitment (default confirmed)',
+        },
+        confirmTimeoutMs: {
+          type: 'number',
+          description: 'Confirmation timeout in ms (default 90000)',
+        },
+      },
+      required: ['vault', 'amount'],
+    },
+  },
+  {
+    name: 'kamino_withdraw',
+    description:
+      'Build or send a Kamino Earn (KVault) withdraw transaction. Default dryRun=true returns a base64 transaction without sending.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vault: {
+          type: 'string',
+          description: 'KVault address',
+        },
+        amount: {
+          type: 'string',
+          description: 'Token amount to withdraw (required unless withdrawAll=true)',
+        },
+        withdrawAll: {
+          type: 'boolean',
+          description: 'Withdraw max amount (default false)',
+        },
+        wallet: {
+          type: 'string',
+          description: 'Must match the configured agent wallet if provided',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'If true, returns txBase64 only (default true)',
+        },
+        confirm: {
+          type: 'boolean',
+          description: 'When sending, wait for confirmation (default true)',
+        },
+        commitment: {
+          type: 'string',
+          enum: ['processed', 'confirmed', 'finalized'],
+          description: 'Confirmation commitment (default confirmed)',
+        },
+        confirmTimeoutMs: {
+          type: 'number',
+          description: 'Confirmation timeout in ms (default 90000)',
+        },
+      },
+      required: ['vault'],
+    },
+  },
+  {
+    name: 'kamino_autosave_usdc',
+    description:
+      'AutoSave idle USDC into the best Kamino Earn (KVault) vault (saving/compounding, no trading). Default dryRun=true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        wallet: {
+          type: 'string',
+          description: 'Must match the configured agent wallet if provided',
+        },
+        bufferUsdc: {
+          type: ['string', 'number'],
+          description: 'USDC to keep idle (default 5)',
+        },
+        minDepositUsdc: {
+          type: ['string', 'number'],
+          description: 'Minimum idle USDC to trigger a deposit (default 20)',
+        },
+        maxDepositUsdc: {
+          type: ['string', 'number'],
+          description: 'Cap the deposit amount (optional)',
+        },
+        apyWindow: {
+          type: 'string',
+          enum: ['apy24h', 'apy7d', 'apy30d', 'apy90d', 'apy180d', 'apy365d', 'apy'],
+          description: 'Which APY window to rank by when selecting a vault (default apy30d)',
+        },
+        minAumUsd: {
+          type: 'number',
+          description: 'Minimum AUM in USD for vault selection (default from KAMINO_MIN_AUM_USD or 250000)',
+        },
+        vault: {
+          type: 'string',
+          description: 'Override: deposit into this vault address instead of selecting automatically',
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'If true, returns txBase64 only (default true)',
+        },
+      },
+    },
+  },
   // Market data tools
   {
     name: 'get_token_price',
@@ -301,9 +507,9 @@ const TOOL_DEFINITIONS: Tool[] = [
  */
 class KamiyoMCPServer {
   private server: Server;
-  private program: X402Program;
-  private solanaClient: SolanaClient;
-  private x402Config: tools.X402Config;
+  private program?: X402Program;
+  private solanaClient?: SolanaClient;
+  private x402Config?: tools.X402Config;
 
   constructor() {
     // Initialize MCP server
@@ -330,7 +536,6 @@ class KamiyoMCPServer {
     if (agentKeypairPath || agentPrivateKey) {
       try {
         if (agentKeypairPath) {
-          const { loadKeypair } = require('./solana/client.js');
           keypair = loadKeypair(agentKeypairPath);
         } else if (agentPrivateKey) {
           try {
@@ -351,13 +556,18 @@ class KamiyoMCPServer {
       }
     }
 
-    // Initialize Solana client if we have both program ID and keypair
-    if (programIdStr && keypair) {
-      const programId = new PublicKey(programIdStr);
+    if (keypair) {
       this.solanaClient = new SolanaClient(rpcUrl, keypair);
+    }
+
+    // Escrow program requires program ID + keypair.
+    if (programIdStr && keypair && this.solanaClient) {
+      const programId = new PublicKey(programIdStr);
       this.program = new X402Program(this.solanaClient.connection, keypair, programId);
     } else {
-      console.error('Warning: Solana not configured. Escrow tools will be disabled. Set KAMIYO_PROGRAM_ID and AGENT_PRIVATE_KEY to enable.');
+      console.error(
+        'Warning: Escrow tools disabled. Set KAMIYO_PROGRAM_ID (or MITAMA_PROGRAM_ID) and an agent key (AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH) to enable escrow.'
+      );
     }
 
     // Initialize x402 config with real wallet for signing
@@ -405,14 +615,26 @@ class KamiyoMCPServer {
 
         switch (name) {
           case 'create_escrow':
+            if (!this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
+              break;
+            }
             result = await tools.createEscrow(args as any, this.program);
             break;
 
           case 'check_escrow_status':
+            if (!this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
+              break;
+            }
             result = await tools.checkEscrowStatus(args as any, this.program);
             break;
 
           case 'verify_payment':
+            if (!this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
+              break;
+            }
             result = await tools.verifyPayment(args as any, this.program);
             break;
 
@@ -425,14 +647,26 @@ class KamiyoMCPServer {
             break;
 
           case 'file_dispute':
+            if (!this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
+              break;
+            }
             result = await tools.fileDispute(args as any, this.program);
             break;
 
           case 'get_api_reputation':
+            if (!this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
+              break;
+            }
             result = await tools.getApiReputation(args as any, this.program);
             break;
 
           case 'call_api_with_escrow':
+            if (!this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
+              break;
+            }
             result = await tools.callApiWithEscrow(args as any, this.program);
             break;
 
@@ -447,8 +681,54 @@ class KamiyoMCPServer {
             }
             break;
 
+          case 'x402_check_pricing':
+            // Backwards-compatible alias.
+            result = await tools.x402CheckPricing(args as any, this.x402Config);
+            break;
+
           case 'x402_fetch':
+            if (!this.x402Config) {
+              result = { success: false, error: 'Solana wallet not configured (set AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH)' };
+              break;
+            }
             result = await tools.x402Fetch(args as any, this.x402Config);
+            break;
+
+          // Kamino Earn (KVault) tools
+          case 'kamino_list_vaults':
+            result = await tools.kaminoListVaults(args as any);
+            break;
+
+          case 'kamino_vault_metrics':
+            result = await tools.kaminoVaultMetrics(args as any);
+            break;
+
+          case 'kamino_suggest_vaults':
+            result = await tools.kaminoSuggestVaults(args as any);
+            break;
+
+          case 'kamino_positions': {
+            const wallet =
+              (args as any)?.wallet ||
+              (this.solanaClient ? this.solanaClient.publicKey.toBase58() : undefined);
+            if (!wallet) {
+              result = { success: false, error: 'wallet is required (or configure an agent wallet)' };
+              break;
+            }
+            result = await tools.kaminoPositions({ wallet });
+            break;
+          }
+
+          case 'kamino_deposit':
+            result = await tools.kaminoDeposit(args as any, this.solanaClient);
+            break;
+
+          case 'kamino_withdraw':
+            result = await tools.kaminoWithdraw(args as any, this.solanaClient);
+            break;
+
+          case 'kamino_autosave_usdc':
+            result = await tools.kaminoAutosaveUsdc(args as any, this.solanaClient);
             break;
 
           // Market data tools
