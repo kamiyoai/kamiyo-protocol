@@ -46,7 +46,13 @@ jobs:
         run: solana-keygen new --no-bip39-passphrase
       - name: Build with Anchor
         run: anchor build
-      - run: anchor test
+      - name: Sync program IDs
+        run: anchor keys sync --provider.cluster localnet
+      - name: Sync localnet program IDs
+        run: node scripts/sync-anchor-localnet-program-ids.cjs
+      - name: Rebuild with synced program IDs
+        run: anchor build
+      - run: anchor test --skip-build
       - name: Validate VK
         run: ./scripts/validate-vk.sh
       - name: Cargo Audit

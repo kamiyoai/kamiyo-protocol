@@ -1,105 +1,159 @@
-import * as anchor from '@coral-xyz/anchor';
-import { Program, AnchorProvider } from '@coral-xyz/anchor';
-import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { expect } from 'chai';
-import BN from 'bn.js';
+import { expect } from "chai";
+import {
+  anchor,
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  BN,
+  createMint,
+  createAssociatedTokenAccount,
+  mintTo,
+  TOKEN_PROGRAM_ID,
+  getErrorCode,
+} from "./helpers";
 
-// Program ID from Anchor.toml
-const PROGRAM_ID = new PublicKey('DmdBbvjNRLNvCQcyeUmyTi5BpDkHdGfUxGzfidgvQe26');
-
-describe('swarmteams', () => {
+describe("swarmteams", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  // Load the program
-  const idl = require('../target/idl/swarmteams.json');
-  const program = new Program(idl, provider);
+  const program = anchor.workspace.Swarmteams as anchor.Program<any>;
 
-  // Test accounts
   let authority: Keypair;
   let registryPDA: PublicKey;
-  let registryBump: number;
+  let treasuryVaultPDA: PublicKey;
+  let stakeVaultPDA: PublicKey;
+  let kamiyoMint: PublicKey;
 
-  // Test commitment (32 bytes)
-  const testCommitment = Buffer.alloc(32);
-  testCommitment.fill(1);
+  const registryConfig = {
+    minStake: new BN(1_000_000),
+    minSignalConfidence: 50,
+    maxTotalStake: new BN(0),
+    maxStakePerAgent: new BN(0),
+    minSignalCollateral: new BN(0),
+  };
+
+  const testCommitment = Buffer.alloc(32, 1);
+
+  function deriveRegistryPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync([Buffer.from("registry")], program.programId);
+  }
+
+  function deriveTreasuryVaultPDA(registry: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("treasury"), registry.toBuffer()],
+      program.programId
+    );
+  }
+
+  function deriveStakeVaultPDA(registry: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("stake_vault"), registry.toBuffer()],
+      program.programId
+    );
+  }
+
+  function deriveAgentPDA(commitment: Buffer): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("agent"), commitment],
+      program.programId
+    );
+  }
+
+  function deriveIdentityLinkPDA(zkAgent: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("identity_link"), zkAgent.toBuffer()],
+      program.programId
+    );
+  }
+
+  async function mintKamiyo(toOwner: PublicKey, amount: number): Promise<PublicKey> {
+    const ata = await createAssociatedTokenAccount(
+      provider.connection,
+      authority,
+      kamiyoMint,
+      toOwner
+    );
+    await mintTo(provider.connection, authority, kamiyoMint, ata, authority, amount);
+    return ata;
+  }
 
   before(async () => {
     authority = Keypair.generate();
 
-    // Fund the authority account
     const airdropSig = await provider.connection.requestAirdrop(
       authority.publicKey,
       10 * LAMPORTS_PER_SOL
     );
     await provider.connection.confirmTransaction(airdropSig);
 
-    // Derive registry PDA
-    [registryPDA, registryBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from('registry')],
-      PROGRAM_ID
+    [registryPDA] = deriveRegistryPDA();
+    [treasuryVaultPDA] = deriveTreasuryVaultPDA(registryPDA);
+    [stakeVaultPDA] = deriveStakeVaultPDA(registryPDA);
+
+    kamiyoMint = await createMint(
+      provider.connection,
+      authority,
+      authority.publicKey,
+      null,
+      6
     );
-  });
 
-  describe('initialize_registry', () => {
-    it('should initialize the registry', async () => {
-      const config = {
-        minStake: new BN(1000000), // 0.001 SOL
-        minSignalConfidence: 50,
-      };
+    const existing = await (program.account as any).agentRegistry
+      .fetchNullable(registryPDA)
+      .catch(() => null);
 
+    if (!existing) {
       await program.methods
-        .initializeRegistry(config)
+        .initializeRegistry(registryConfig)
         .accounts({
           registry: registryPDA,
+          kamiyoMint,
+          treasuryVault: treasuryVaultPDA,
           authority: authority.publicKey,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([authority])
         .rpc();
+    }
+  });
 
-      // Fetch and verify registry state
+  describe("initialize_registry", () => {
+    it("has the expected registry config", async () => {
       const registry = await (program.account as any).agentRegistry.fetch(registryPDA);
 
       expect(registry.authority.toBase58()).to.equal(authority.publicKey.toBase58());
       expect(registry.agentCount).to.equal(0);
       expect(registry.signalCount).to.equal(0);
-      expect(registry.minStake.toNumber()).to.equal(1000000);
-      expect(registry.minSignalConfidence).to.equal(50);
+      expect(registry.minStake.toString()).to.equal(registryConfig.minStake.toString());
+      expect(registry.minSignalConfidence).to.equal(registryConfig.minSignalConfidence);
       expect(registry.paused).to.equal(false);
+      expect(registry.kamiyoMint.toBase58()).to.equal(kamiyoMint.toBase58());
     });
   });
 
-  describe('register_agent', () => {
-    let agentPDA: PublicKey;
-    let stakeVaultPDA: PublicKey;
+  describe("register_agent", () => {
     let payer: Keypair;
+    let payerTokenAccount: PublicKey;
+    let agentPDA: PublicKey;
 
     before(async () => {
       payer = Keypair.generate();
 
-      // Fund payer
       const airdropSig = await provider.connection.requestAirdrop(
         payer.publicKey,
         5 * LAMPORTS_PER_SOL
       );
       await provider.connection.confirmTransaction(airdropSig);
 
-      // Derive agent PDA
-      [agentPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('agent'), testCommitment],
-        PROGRAM_ID
-      );
-
-      // Derive stake vault PDA
-      [stakeVaultPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('stake_vault'), registryPDA.toBuffer()],
-        PROGRAM_ID
-      );
+      payerTokenAccount = await mintKamiyo(payer.publicKey, 10_000_000_000);
+      [agentPDA] = deriveAgentPDA(testCommitment);
     });
 
-    it('should register an agent with identity commitment', async () => {
-      const stakeAmount = new BN(1000000); // 0.001 SOL
+    it("registers an agent with identity commitment", async () => {
+      const stakeAmount = new BN(1_000_000);
+      const beforeRegistry = await (program.account as any).agentRegistry.fetch(registryPDA);
 
       await program.methods
         .registerAgent(Array.from(testCommitment), stakeAmount)
@@ -107,39 +161,33 @@ describe('swarmteams', () => {
           registry: registryPDA,
           agent: agentPDA,
           stakeVault: stakeVaultPDA,
+          kamiyoMint,
+          payerTokenAccount,
+          treasuryVault: treasuryVaultPDA,
           payer: payer.publicKey,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([payer])
         .rpc();
 
-      // Verify agent account
       const agent = await (program.account as any).agent.fetch(agentPDA);
-
       expect(agent.registry.toBase58()).to.equal(registryPDA.toBase58());
-      expect(Buffer.from(agent.identityCommitment).toString('hex')).to.equal(
-        testCommitment.toString('hex')
+      expect(Buffer.from(agent.identityCommitment).toString("hex")).to.equal(
+        testCommitment.toString("hex")
       );
-      expect(agent.stake.toNumber()).to.equal(1000000);
+      expect(agent.stake.toString()).to.equal(stakeAmount.toString());
       expect(agent.active).to.equal(true);
-      expect(agent.signalCount).to.equal(0);
-      expect(agent.swarmVotes).to.equal(0);
+      expect(agent.owner.toBase58()).to.equal(payer.publicKey.toBase58());
 
-      // Verify registry agent count increased
       const registry = await (program.account as any).agentRegistry.fetch(registryPDA);
-      expect(registry.agentCount).to.equal(1);
+      expect(registry.agentCount).to.equal(beforeRegistry.agentCount + 1);
     });
 
-    it('should reject registration with insufficient stake', async () => {
-      const newCommitment = Buffer.alloc(32);
-      newCommitment.fill(2);
-
-      const [newAgentPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('agent'), newCommitment],
-        PROGRAM_ID
-      );
-
-      const insufficientStake = new BN(100); // Below minimum
+    it("rejects registration with insufficient stake", async () => {
+      const newCommitment = Buffer.alloc(32, 2);
+      const [newAgentPDA] = deriveAgentPDA(newCommitment);
+      const insufficientStake = new BN(100);
 
       try {
         await program.methods
@@ -148,23 +196,25 @@ describe('swarmteams', () => {
             registry: registryPDA,
             agent: newAgentPDA,
             stakeVault: stakeVaultPDA,
+            kamiyoMint,
+            payerTokenAccount,
+            treasuryVault: treasuryVaultPDA,
             payer: payer.publicKey,
             systemProgram: SystemProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
           })
           .signers([payer])
           .rpc();
-
-        expect.fail('Should have thrown InsufficientStake error');
+        expect.fail("Should have thrown InsufficientStake");
       } catch (err: any) {
-        expect(err.error.errorCode.code).to.equal('InsufficientStake');
+        expect(getErrorCode(err)).to.equal("InsufficientStake");
       }
     });
   });
 
-  describe('update_agents_root', () => {
-    it('should update agents root (admin only)', async () => {
-      const newRoot = Buffer.alloc(32);
-      newRoot.fill(0xab);
+  describe("update_agents_root", () => {
+    it("updates agents root (admin only)", async () => {
+      const newRoot = Buffer.alloc(32, 0xab);
 
       await program.methods
         .updateAgentsRoot(Array.from(newRoot), 1)
@@ -176,15 +226,20 @@ describe('swarmteams', () => {
         .rpc();
 
       const registry = await (program.account as any).agentRegistry.fetch(registryPDA);
-      expect(Buffer.from(registry.agentsRoot).toString('hex')).to.equal(
-        newRoot.toString('hex')
+      expect(Buffer.from(registry.agentsRoot).toString("hex")).to.equal(
+        newRoot.toString("hex")
       );
     });
 
-    it('should reject root update from non-authority', async () => {
+    it("rejects root update from non-authority", async () => {
       const nonAuthority = Keypair.generate();
-      const newRoot = Buffer.alloc(32);
-      newRoot.fill(0xcd);
+      const airdropSig = await provider.connection.requestAirdrop(
+        nonAuthority.publicKey,
+        2 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig);
+
+      const newRoot = Buffer.alloc(32, 0xcd);
 
       try {
         await program.methods
@@ -195,16 +250,15 @@ describe('swarmteams', () => {
           })
           .signers([nonAuthority])
           .rpc();
-
-        expect.fail('Should have thrown Unauthorized error');
+        expect.fail("Should have thrown Unauthorized");
       } catch (err: any) {
-        expect(err.message).to.include('unknown signer');
+        expect(getErrorCode(err)).to.equal("Unauthorized");
       }
     });
   });
 
-  describe('pause_protocol', () => {
-    it('should pause the protocol', async () => {
+  describe("pause_protocol", () => {
+    it("pauses and unpauses the protocol", async () => {
       await program.methods
         .pauseProtocol()
         .accounts({
@@ -214,11 +268,9 @@ describe('swarmteams', () => {
         .signers([authority])
         .rpc();
 
-      const registry = await (program.account as any).agentRegistry.fetch(registryPDA);
+      let registry = await (program.account as any).agentRegistry.fetch(registryPDA);
       expect(registry.paused).to.equal(true);
-    });
 
-    it('should unpause the protocol', async () => {
       await program.methods
         .unpauseProtocol()
         .accounts({
@@ -228,64 +280,54 @@ describe('swarmteams', () => {
         .signers([authority])
         .rpc();
 
-      const registry = await (program.account as any).agentRegistry.fetch(registryPDA);
+      registry = await (program.account as any).agentRegistry.fetch(registryPDA);
       expect(registry.paused).to.equal(false);
     });
   });
 
-  describe('link_identity', () => {
+  describe("link_identity", () => {
+    let owner: Keypair;
+    let ownerTokenAccount: PublicKey;
     let zkAgentPDA: PublicKey;
     let identityLinkPDA: PublicKey;
     let kamiyoAgent: Keypair;
-    let owner: Keypair;
+
+    const linkCommitment = Buffer.alloc(32, 0xaa);
 
     before(async () => {
       owner = Keypair.generate();
       kamiyoAgent = Keypair.generate();
 
-      // Fund owner
       const airdropSig = await provider.connection.requestAirdrop(
         owner.publicKey,
         5 * LAMPORTS_PER_SOL
       );
       await provider.connection.confirmTransaction(airdropSig);
 
-      // Create a new ZK agent for linking tests
-      const linkCommitment = Buffer.alloc(32);
-      linkCommitment.fill(0xaa);
+      ownerTokenAccount = await mintKamiyo(owner.publicKey, 10_000_000_000);
 
-      [zkAgentPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('agent'), linkCommitment],
-        PROGRAM_ID
-      );
+      [zkAgentPDA] = deriveAgentPDA(linkCommitment);
 
-      // Derive stake vault PDA
-      const [stakeVaultPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('stake_vault'), registryPDA.toBuffer()],
-        PROGRAM_ID
-      );
-
-      // Register the ZK agent
       await program.methods
-        .registerAgent(Array.from(linkCommitment), new BN(1000000))
+        .registerAgent(Array.from(linkCommitment), new BN(1_000_000))
         .accounts({
           registry: registryPDA,
           agent: zkAgentPDA,
           stakeVault: stakeVaultPDA,
+          kamiyoMint,
+          payerTokenAccount: ownerTokenAccount,
+          treasuryVault: treasuryVaultPDA,
           payer: owner.publicKey,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([owner])
         .rpc();
 
-      // Derive identity link PDA
-      [identityLinkPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('identity_link'), zkAgentPDA.toBuffer()],
-        PROGRAM_ID
-      );
+      [identityLinkPDA] = deriveIdentityLinkPDA(zkAgentPDA);
     });
 
-    it('should link ZK identity to kamiyo agent (no stake)', async () => {
+    it("links ZK identity to kamiyo agent (no stake)", async () => {
       await program.methods
         .linkIdentity()
         .accountsPartial({
@@ -299,17 +341,16 @@ describe('swarmteams', () => {
         .signers([owner])
         .rpc();
 
-      // Verify link state
       const link = await (program.account as any).identityLink.fetch(identityLinkPDA);
       expect(link.zkAgent.toBase58()).to.equal(zkAgentPDA.toBase58());
       expect(link.kamiyoAgent.toBase58()).to.equal(kamiyoAgent.publicKey.toBase58());
       expect(link.owner.toBase58()).to.equal(owner.publicKey.toBase58());
-      expect(link.stakedAmount.toNumber()).to.equal(0);
-      expect(link.stakeMultiplier.toNumber()).to.equal(10000); // 1.0x default
+      expect(link.stakedAmount.toString()).to.equal("0");
+      expect(link.stakeMultiplier.toString()).to.equal("10000");
       expect(link.active).to.equal(true);
     });
 
-    it('should unlink identity', async () => {
+    it("unlinks identity", async () => {
       await program.methods
         .unlinkIdentity()
         .accounts({
@@ -323,8 +364,13 @@ describe('swarmteams', () => {
       expect(link.active).to.equal(false);
     });
 
-    it('should reject unlink from non-owner', async () => {
+    it("rejects unlink from non-owner", async () => {
       const nonOwner = Keypair.generate();
+      const airdropSig = await provider.connection.requestAirdrop(
+        nonOwner.publicKey,
+        2 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig);
 
       try {
         await program.methods
@@ -335,60 +381,50 @@ describe('swarmteams', () => {
           })
           .signers([nonOwner])
           .rpc();
-
-        expect.fail('Should have thrown UnauthorizedWithdrawal error');
+        expect.fail("Should have thrown UnauthorizedWithdrawal");
       } catch (err: any) {
-        expect(err.message).to.include('unknown signer');
+        expect(getErrorCode(err)).to.equal("UnauthorizedWithdrawal");
       }
     });
   });
 
-  describe('refresh_stake', () => {
+  describe("refresh_stake", () => {
+    let owner: Keypair;
+    let ownerTokenAccount: PublicKey;
     let zkAgentPDA: PublicKey;
     let identityLinkPDA: PublicKey;
-    let owner: Keypair;
+
+    const refreshCommitment = Buffer.alloc(32, 0xbb);
 
     before(async () => {
       owner = Keypair.generate();
-
-      // Fund owner
       const airdropSig = await provider.connection.requestAirdrop(
         owner.publicKey,
         5 * LAMPORTS_PER_SOL
       );
       await provider.connection.confirmTransaction(airdropSig);
 
-      // Create a new ZK agent
-      const refreshCommitment = Buffer.alloc(32);
-      refreshCommitment.fill(0xbb);
+      ownerTokenAccount = await mintKamiyo(owner.publicKey, 10_000_000_000);
 
-      [zkAgentPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('agent'), refreshCommitment],
-        PROGRAM_ID
-      );
-
-      const [stakeVaultPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('stake_vault'), registryPDA.toBuffer()],
-        PROGRAM_ID
-      );
+      [zkAgentPDA] = deriveAgentPDA(refreshCommitment);
 
       await program.methods
-        .registerAgent(Array.from(refreshCommitment), new BN(1000000))
+        .registerAgent(Array.from(refreshCommitment), new BN(1_000_000))
         .accounts({
           registry: registryPDA,
           agent: zkAgentPDA,
           stakeVault: stakeVaultPDA,
+          kamiyoMint,
+          payerTokenAccount: ownerTokenAccount,
+          treasuryVault: treasuryVaultPDA,
           payer: owner.publicKey,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([owner])
         .rpc();
 
-      // Create identity link
-      [identityLinkPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('identity_link'), zkAgentPDA.toBuffer()],
-        PROGRAM_ID
-      );
+      [identityLinkPDA] = deriveIdentityLinkPDA(zkAgentPDA);
 
       const kamiyoAgent = Keypair.generate();
       await program.methods
@@ -405,7 +441,7 @@ describe('swarmteams', () => {
         .rpc();
     });
 
-    it('should refresh stake on active link (no stake position)', async () => {
+    it("refreshes stake on active link (no stake position)", async () => {
       await program.methods
         .refreshStake()
         .accountsPartial({
@@ -417,12 +453,17 @@ describe('swarmteams', () => {
         .rpc();
 
       const link = await (program.account as any).identityLink.fetch(identityLinkPDA);
-      expect(link.stakedAmount.toNumber()).to.equal(0);
-      expect(link.stakeMultiplier.toNumber()).to.equal(10000);
+      expect(link.stakedAmount.toString()).to.equal("0");
+      expect(link.stakeMultiplier.toString()).to.equal("10000");
     });
 
-    it('should reject refresh_stake from non-owner', async () => {
+    it("rejects refresh_stake from non-owner", async () => {
       const nonOwner = Keypair.generate();
+      const airdropSig = await provider.connection.requestAirdrop(
+        nonOwner.publicKey,
+        2 * LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig);
 
       try {
         await program.methods
@@ -434,23 +475,10 @@ describe('swarmteams', () => {
           })
           .signers([nonOwner])
           .rpc();
-
-        expect.fail('Should have thrown error');
+        expect.fail("Should have thrown UnauthorizedWithdrawal");
       } catch (err: any) {
-        expect(err.message).to.include('unknown signer');
+        expect(getErrorCode(err)).to.equal("UnauthorizedWithdrawal");
       }
-    });
-  });
-
-  describe('stake-weighted voting', () => {
-    // Full stake-weighted voting tests require ZK proofs
-
-    it('should create swarm action with weighted fields initialized', async () => {
-      // weighted_votes_for starts at 10000 (1.0x proposer vote)
-    });
-
-    it('should use weighted votes for threshold calculation', async () => {
-      // approval_pct = (weighted_votes_for * 100) / weighted_total
     });
   });
 });

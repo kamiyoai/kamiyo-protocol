@@ -63,7 +63,7 @@ runs:
     - name: Install Solana CLI
       shell: bash
       run: |
-        sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+        sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)" -- v${SOLANA_VERSION}
         echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
     - name: Install Surfpool
@@ -73,14 +73,17 @@ runs:
     - name: Install Anchor
       shell: bash
       run: |
-        cargo install --git https://github.com/coral-xyz/anchor avm --locked
-        avm install latest
-        avm use latest
+        cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+        avm install ${ANCHOR_VERSION}
+        avm use ${ANCHOR_VERSION}
 
     - name: Build Programs
       shell: bash
       run: |
         cd ${{ inputs.program-path }}/..
+        anchor build
+        anchor keys sync --provider.cluster localnet
+        node scripts/sync-anchor-localnet-program-ids.cjs
         anchor build
 
     - name: Start Surfpool
@@ -89,10 +92,10 @@ runs:
         mkdir -p ./test-results
         if [ "${{ inputs.mainnet-fork }}" = "true" ] && [ -n "${{ inputs.rpc-url }}" ]; then
           echo "Starting Surfpool with mainnet fork..."
-          surfpool --fork ${{ inputs.rpc-url }} > ./test-results/surfpool.log 2>&1 &
+          surfpool start --ci --no-tui --rpc-url ${{ inputs.rpc-url }} > ./test-results/surfpool.log 2>&1 &
         else
           echo "Starting Surfpool in local mode..."
-          surfpool > ./test-results/surfpool.log 2>&1 &
+          surfpool start --ci --no-tui > ./test-results/surfpool.log 2>&1 &
         fi
         echo $! > ./test-results/surfpool.pid
 
