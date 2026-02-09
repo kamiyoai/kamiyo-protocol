@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 
 const DEFAULT_PROGRAM_ID = '6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK';
+const DEFAULT_KAMIYO_PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
 
 function u32le(value: number): Buffer {
   const buf = Buffer.alloc(4);
@@ -79,12 +80,14 @@ function computeMandateMessageHash(params: {
 
 export class MeishiWriter {
   readonly programId: PublicKey;
+  readonly kamiyoProgramId: PublicKey;
   private readonly keypair: anchor.web3.Keypair;
   private readonly provider: anchor.AnchorProvider;
   private readonly program: anchor.Program;
 
   constructor(config: MeishiConfig) {
     this.programId = new PublicKey(config.programId ?? DEFAULT_PROGRAM_ID);
+    this.kamiyoProgramId = new PublicKey(DEFAULT_KAMIYO_PROGRAM_ID);
     this.keypair = config.keypair;
     this.provider = new anchor.AnchorProvider(
       config.connection,
@@ -113,6 +116,13 @@ export class MeishiWriter {
     return PublicKey.findProgramAddressSync(
       [Buffer.from('audit'), passportAddress.toBuffer(), u32le(nonce)],
       this.programId
+    );
+  }
+
+  getOracleRegistryPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('oracle_registry')],
+      this.kamiyoProgramId
     );
   }
 
@@ -208,6 +218,7 @@ export class MeishiWriter {
     const passportState = await (this.program.account as any).meishiPassport.fetch(params.passportAddress);
     const nonce = Number(passportState.auditNonce);
     const [audit] = this.getAuditPDA(params.passportAddress, nonce);
+    const [oracleRegistry] = this.getOracleRegistryPDA();
 
     const findingsHash = Array.from(fixedBytes('findingsHash', params.findingsHash, 32));
 
@@ -223,6 +234,7 @@ export class MeishiWriter {
         oracle: this.provider.wallet.publicKey,
         passport: params.passportAddress,
         audit,
+        oracleRegistry,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
