@@ -14,7 +14,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Configuration
-const HELIUS_RPC = 'https://mainnet.helius-rpc.com/?api-key=c4a9b21c-8650-451d-9572-8c8a3543a0be';
+const HELIUS_RPC =
+  process.env.SOLANA_RPC_URL ??
+  (() => {
+    const apiKey = process.env.HELIUS_API_KEY ?? process.env.HELIUS_KEY;
+    if (!apiKey) throw new Error('Missing SOLANA_RPC_URL or HELIUS_API_KEY');
+    return `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
+  })();
 const TRANSFER_HOOK_PROGRAM_ID = new PublicKey('4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6');
 
 // Protocol addresses to exempt from burns

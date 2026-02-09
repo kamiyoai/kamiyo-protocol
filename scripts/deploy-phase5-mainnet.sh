@@ -11,7 +11,12 @@
 set -e
 
 # Configuration
-HELIUS_RPC="https://mainnet.helius-rpc.com/?api-key=c4a9b21c-8650-451d-9572-8c8a3543a0be"
+if [ -n "${SOLANA_RPC_URL:-}" ]; then
+  HELIUS_RPC="$SOLANA_RPC_URL"
+else
+  : "${HELIUS_API_KEY:?Missing HELIUS_API_KEY (or set SOLANA_RPC_URL)}"
+  HELIUS_RPC="https://mainnet.helius-rpc.com/?api-key=$HELIUS_API_KEY"
+fi
 KAMIYO_MINT="Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump"
 
 # Use DEV wallet from token launch (has 6+ SOL)

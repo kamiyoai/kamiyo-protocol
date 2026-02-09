@@ -14,7 +14,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Configuration
-const HELIUS_RPC = 'https://mainnet.helius-rpc.com/?api-key=c4a9b21c-8650-451d-9572-8c8a3543a0be';
+const HELIUS_RPC =
+  process.env.SOLANA_RPC_URL ??
+  (() => {
+    const apiKey = process.env.HELIUS_API_KEY ?? process.env.HELIUS_KEY;
+    if (!apiKey) throw new Error('Missing SOLANA_RPC_URL or HELIUS_API_KEY');
+    return `https://mainnet.helius-rpc.com/?api-key=${apiKey}`;
+  })();
 const GOVERNANCE_PROGRAM_ID = new PublicKey('8y8cKZ7cUapuJ4eNHYKzX9yWBbmwZtAUSMDR5ELRTtBi');
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 
