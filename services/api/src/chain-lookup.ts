@@ -1,13 +1,13 @@
 // On-chain lookup utilities
 
-import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
+import { PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 import { logger } from './logger';
+import { getSolanaConnection } from './solana';
 
-const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY;
 const KAMIYO_MINT = 'Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump';
 
-const connection = new Connection(RPC_URL, 'confirmed');
+const connection = getSolanaConnection();
 
 export interface TokenHolding {
   mint: string;

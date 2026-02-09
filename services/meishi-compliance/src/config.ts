@@ -51,6 +51,9 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 export function loadConfig(): ComplianceServiceConfig {
   const privateKey = process.env.SOLANA_PRIVATE_KEY?.trim();
+  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  const defaultRpcUrl =
+    nodeEnv === 'production' ? 'https://api.mainnet-beta.solana.com' : 'https://api.devnet.solana.com';
   const seedPassportAddresses = (process.env.MEISHI_PASSPORT_ADDRESSES ?? '')
     .split(',')
     .map((address) => address.trim())
@@ -65,10 +68,10 @@ export function loadConfig(): ComplianceServiceConfig {
       : 'hybrid';
 
   return {
-    solanaRpcUrl: process.env.SOLANA_RPC_URL ?? 'https://api.devnet.solana.com',
+    solanaRpcUrl: process.env.SOLANA_RPC_URL ?? defaultRpcUrl,
     privateKey: privateKey && privateKey.length > 0 ? privateKey : undefined,
     meishiProgramId: process.env.MEISHI_PROGRAM_ID,
-    nodeEnv: process.env.NODE_ENV ?? 'development',
+    nodeEnv,
     allowEphemeralSigner: process.env.ALLOW_EPHEMERAL_SIGNER === 'true',
     passportDiscoveryMode,
     maxDiscoveredPassports: parseInt(process.env.MAX_DISCOVERED_PASSPORTS ?? '', 10) || 200,

@@ -15,12 +15,12 @@ import {
   getCreditStats,
 } from '../../db';
 import { logger } from '../../logger';
+import { getSolanaConnection } from '../../solana';
 
 const router: IRouter = Router();
 
 const KAMIYO_MINT = process.env.KAMIYO_MINT || '';
 const TREASURY_WALLET = process.env.CREDITS_TREASURY_WALLET || '';
-const SOLANA_RPC = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TRANSFER_TOLERANCE = 0.99; // allow 1% slippage when matching sender
 
 let connection: Connection | null = null;
@@ -40,7 +40,7 @@ export function initCreditsRoutes(): void {
     logger.warn('CREDITS_TREASURY_WALLET not set - deposits disabled');
     return;
   }
-  connection = new Connection(SOLANA_RPC, 'confirmed');
+  connection = getSolanaConnection();
   logger.info('Credits initialized', { treasury: TREASURY_WALLET.slice(0, 8) });
 }
 

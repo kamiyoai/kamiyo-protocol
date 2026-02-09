@@ -1,13 +1,12 @@
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { getUserTier, updateUserTier, getOrCreateUser, getDailyMessageCount, incrementDailyMessageCount } from './db';
 import { tierCache, balanceCache } from './cache';
 import { rpcCalls } from './metrics';
 import { logger } from './logger';
+import { getSolanaConnection } from './solana';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
-const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-
-const connection = new Connection(RPC_URL, 'confirmed');
+const connection = getSolanaConnection();
 
 // Long-term balance cache for RPC failure fallback (1 hour)
 const lastKnownBalances = new Map<string, { balance: number; timestamp: number }>();
