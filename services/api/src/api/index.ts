@@ -24,6 +24,7 @@ import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
 import meishiRoutes from './routes/meishi';
+import meishiDkgRoutes from './routes/meishi-dkg';
 import paranetRoutes from './routes/paranet';
 import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
@@ -310,6 +311,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Meishi passports (public reads; on-chain source of truth)
   app.use('/api/meishi', publicReadLimiter, meishiRoutes);
+
+  // Meishi DKG views (public reads; OriginTrail-backed once publishing is enabled)
+  app.use('/api/meishi-dkg', publicReadLimiter, meishiDkgRoutes);
 
   // Agent Paranet - decentralized credit scores (public read, auth for write)
   app.use('/api/paranet', paranetRoutes);
