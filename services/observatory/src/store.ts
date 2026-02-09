@@ -214,6 +214,45 @@ export function getEscrow(db: Db, escrowPda: string): EscrowRow | null {
   };
 }
 
+export function listEscrows(
+  db: Db,
+  params: { status?: EscrowRow['status']; updatedSince?: number; limit?: number } = {}
+): EscrowRow[] {
+  const limit = Math.max(1, Math.min(params.limit ?? 100, 1000));
+  const updatedSince = params.updatedSince ?? 0;
+
+  let rows: any[];
+  if (params.status) {
+    rows = db
+      .prepare(`SELECT * FROM escrows WHERE status = ? AND updated_at >= ? ORDER BY updated_at DESC LIMIT ?`)
+      .all(params.status, updatedSince, limit) as any[];
+  } else {
+    rows = db
+      .prepare(`SELECT * FROM escrows WHERE updated_at >= ? ORDER BY updated_at DESC LIMIT ?`)
+      .all(updatedSince, limit) as any[];
+  }
+
+  return rows.map((row) => ({
+    escrowPda: row.escrow_pda,
+    transactionId: row.transaction_id,
+    agent: row.agent,
+    api: row.api,
+    amount: row.amount,
+    status: row.status,
+    createdAt: row.created_at,
+    disputedAt: row.disputed_at,
+    resolvedAt: row.resolved_at,
+    releasedAt: row.released_at,
+    qualityScore: row.quality_score,
+    refundPercentage: row.refund_percentage,
+    refundAmount: row.refund_amount,
+    lastSignature: row.last_signature,
+    lastSlot: row.last_slot,
+    lastTs: row.last_ts,
+    updatedAt: row.updated_at,
+  }));
+}
+
 export function listEscrowsByTransactionId(db: Db, transactionId: string): EscrowRow[] {
   const rows = db.prepare(`SELECT * FROM escrows WHERE transaction_id = ? ORDER BY updated_at DESC`).all(transactionId) as any[];
   return rows.map((row) => ({

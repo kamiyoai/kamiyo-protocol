@@ -9,6 +9,7 @@ import {
   getEscrow,
   getStats,
   insertEvents,
+  listEscrows,
   listEscrowsByTransactionId,
   listEvents,
   refreshEscrows,
@@ -42,6 +43,18 @@ export function createApp(config: ObservatoryConfig, db: Db): express.Express {
     const escrow = getEscrow(db, req.params.pda);
     if (!escrow) return res.status(404).json({ error: 'not found' });
     return res.status(200).json(escrow);
+  });
+
+  app.get('/escrows', (req, res) => {
+    const status = typeof req.query.status === 'string' ? (req.query.status as any) : undefined;
+    const updatedSince = typeof req.query.updatedSince === 'string' ? Number.parseInt(req.query.updatedSince, 10) : undefined;
+    const limit = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : undefined;
+    const escrows = listEscrows(db, {
+      status,
+      updatedSince: Number.isFinite(updatedSince) ? updatedSince : undefined,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    return res.status(200).json({ escrows });
   });
 
   app.get('/escrows/by-transaction/:transactionId', (req, res) => {
