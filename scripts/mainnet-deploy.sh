@@ -17,8 +17,14 @@ NC='\033[0m'
 # Configuration
 PROGRAM_ID="DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 WALLET_PATH="../token-launch/wallets/creator.json"
-HELIUS_KEY="${HELIUS_API_KEY:-}"
-RPC_URL="https://mainnet.helius-rpc.com/?api-key=$HELIUS_KEY"
+RPC_URL="${SOLANA_RPC_URL:-}"
+if [ -z "$RPC_URL" ]; then
+    if [ -z "${HELIUS_API_KEY:-}" ]; then
+        echo -e "${RED}ERROR: Missing SOLANA_RPC_URL or HELIUS_API_KEY${NC}"
+        exit 1
+    fi
+    RPC_URL="https://mainnet.helius-rpc.com/?api-key=$HELIUS_API_KEY"
+fi
 
 # Verify wallet exists
 if [ ! -f "$WALLET_PATH" ]; then

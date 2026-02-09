@@ -53,11 +53,13 @@
     ],
     "overrides": {
       "@types/express-serve-static-core": "^4.19.8",
-      "@solana/web3.js": "1.95.8"
+      "@solana/web3.js": "1.95.8",
+      "form-data": "2.5.4"
     }
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.8.5",
     "@solana/spl-governance": "^0.3.28",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "1.95.8",
@@ -76,7 +78,6 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@magicblock-labs/ephemeral-rollups-sdk": "^0.8.5",
     "circomlibjs": "^0.1.7",
     "ts-node": "^10.9.2"
   }

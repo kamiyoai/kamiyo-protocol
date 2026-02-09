@@ -59,13 +59,13 @@ function appendLine(p: string, line: string): void {
   fs.appendFileSync(p, `${line}\n`);
 }
 
-function eventId(ev: { signature: string; type: string; escrowPda: string; transactionId: string | null }): string {
-  return `${ev.signature}:${ev.type}:${ev.escrowPda}:${ev.transactionId ?? ''}`;
+function eventId(ev: { signature: string; type: string; escrowPda: string; sessionId: string | null }): string {
+  return `${ev.signature}:${ev.type}:${ev.escrowPda}:${ev.sessionId ?? ''}`;
 }
 
 const PORT = Number.parseInt(process.env.PORT ?? '8787', 10);
-const SECRET = process.env.HELIUS_WEBHOOK_SECRET ?? process.env.WEBHOOK_SECRET ?? '';
-const PROGRAM_ID = process.env.OBS_PROGRAM_ID;
+const SECRET = process.env.HELIUS_WEBHOOK_SECRET ?? '';
+const PROGRAM_ID = process.env.OBS_PROGRAM_ID ?? process.env.ESCROW_PROGRAM_ID;
 const STORE_DIR = process.env.OBS_STORE_DIR ?? path.join('data', 'observatory');
 const MAX_BODY_BYTES = Number.parseInt(process.env.MAX_BODY_BYTES ?? '5000000', 10);
 

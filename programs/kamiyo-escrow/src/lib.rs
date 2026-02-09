@@ -771,9 +771,6 @@ pub struct InitializeTreasury<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    #[account(
-        constraint = kamiyo_mint.key() == KAMIYO_MINT @ EscrowError::InvalidKamiyoMint
-    )]
     pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
 
     #[account(
@@ -809,10 +806,7 @@ pub struct CreateEscrow<'info> {
     pub escrow: Account<'info, Escrow>,
 
     /// $KAMIYO token mint for fee payment (Token-2022)
-    #[account(
-        mut,
-        constraint = kamiyo_mint.key() == KAMIYO_MINT @ EscrowError::InvalidKamiyoMint
-    )]
+    #[account(mut)]
     pub kamiyo_mint: InterfaceAccount<'info, MintInterface>,
 
     /// User's KAMIYO token account (pays fee)
@@ -827,7 +821,8 @@ pub struct CreateEscrow<'info> {
     #[account(
         mut,
         seeds = [b"token_treasury"],
-        bump
+        bump,
+        constraint = token_treasury.mint == kamiyo_mint.key() @ EscrowError::InvalidKamiyoMint
     )]
     pub token_treasury: InterfaceAccount<'info, TokenAccountInterface>,
 

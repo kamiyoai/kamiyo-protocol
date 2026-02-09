@@ -90,7 +90,7 @@ async function checkParanetAccess(
       } LIMIT 1
     `;
 
-    const queryPromise = dkg.graph.query(testQuery, 'SELECT');
+    const queryPromise = dkg.graph.query(testQuery, 'SELECT', { paranetUAL });
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Paranet query timeout')), timeout)
     );

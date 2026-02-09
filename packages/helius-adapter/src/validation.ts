@@ -16,9 +16,15 @@ export function validateApiKey(key: string): void {
 }
 
 export function validateTransactionId(txId: string): void {
-  if (!txId || typeof txId !== 'string') throw new ValidationError('Transaction ID required');
-  if (txId.length > LIMITS.MAX_TRANSACTION_ID_LENGTH) throw new ValidationError(`Transaction ID too long (max ${LIMITS.MAX_TRANSACTION_ID_LENGTH})`);
-  if (txId.length === 0) throw new ValidationError('Transaction ID empty');
+  validateSessionId(txId);
+}
+
+export function validateSessionId(sessionId: string): void {
+  if (!sessionId || typeof sessionId !== 'string') throw new ValidationError('Session ID required');
+  if (sessionId.length > LIMITS.MAX_TRANSACTION_ID_LENGTH) {
+    throw new ValidationError(`Session ID too long (max ${LIMITS.MAX_TRANSACTION_ID_LENGTH})`);
+  }
+  if (sessionId.length === 0) throw new ValidationError('Session ID empty');
 }
 
 export function validateSignature(sig: string): void {

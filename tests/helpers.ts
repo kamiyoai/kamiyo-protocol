@@ -32,28 +32,38 @@ export {
 };
 
 export function getErrorCode(err: any): string | null {
-  if (err instanceof AnchorError) {
-    return err.error?.errorCode?.code || null;
-  }
-  if (err?.error?.errorCode?.code) {
-    return err.error.errorCode.code;
-  }
-  if (err?.logs) {
-    for (const log of err.logs) {
+  if (!err) return null;
+
+  if (err instanceof AnchorError) return err.error?.errorCode?.code || null;
+  if (err?.error?.errorCode?.code) return err.error.errorCode.code;
+
+  const logs = (() => {
+    if (Array.isArray(err.logs)) return err.logs as string[];
+    if (typeof err.getLogs === "function") {
+      try {
+        const maybe = err.getLogs();
+        if (Array.isArray(maybe)) return maybe as string[];
+      } catch {}
+    }
+    if (Array.isArray(err.transactionLogs)) return err.transactionLogs as string[];
+    if (Array.isArray(err?.simulationResponse?.logs)) return err.simulationResponse.logs as string[];
+    return null;
+  })();
+
+  if (logs) {
+    for (const log of logs) {
       const match = log.match(/Error Code: (\w+)/);
       if (match) return match[1];
     }
   }
-  if (err?.message) {
+
+  if (typeof err.message === "string") {
     const match = err.message.match(/Error Code: (\w+)/);
     if (match) return match[1];
+    if (err.message.includes("ConstraintHasOne") || err.message.includes("has_one")) return "Unauthorized";
   }
-  if (err?.message?.includes('ConstraintHasOne') || err?.message?.includes('has_one')) {
-    return "Unauthorized";
-  }
-  if (err?.error?.errorMessage) {
-    return err.error.errorCode?.code || null;
-  }
+
+  if (err?.error?.errorMessage) return err.error.errorCode?.code || null;
   return null;
 }
 

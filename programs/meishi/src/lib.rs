@@ -63,8 +63,10 @@ fn validate_liability_bps(consumer: u16, developer: u16, merchant: u16, platform
     total == BPS_DENOMINATOR as u32
 }
 
-fn is_supported_kamiyo_program(program_id: &Pubkey) -> bool {
-    *program_id == KAMIYO_PROGRAM_ID_PRIMARY || *program_id == KAMIYO_PROGRAM_ID_LOCAL
+fn is_supported_kamiyo_program(_program_id: &Pubkey) -> bool {
+    // Meishi can be deployed against different Kamiyo program IDs across environments.
+    // We validate by PDA derivation + discriminator parsing instead of hardcoding a program ID allowlist.
+    true
 }
 
 fn parse_agent_identity_owner_and_active(data: &[u8]) -> Option<(Pubkey, bool)> {
@@ -104,14 +106,9 @@ fn validate_agent_identity_account(agent_identity: &AccountInfo, owner: &Pubkey)
         MeishiError::AgentIdentityInvalid
     );
 
-    let expected_primary =
-        Pubkey::find_program_address(&[b"agent", owner.as_ref()], &KAMIYO_PROGRAM_ID_PRIMARY).0;
-    let expected_local =
-        Pubkey::find_program_address(&[b"agent", owner.as_ref()], &KAMIYO_PROGRAM_ID_LOCAL).0;
-    require!(
-        agent_identity.key() == expected_primary || agent_identity.key() == expected_local,
-        MeishiError::AgentIdentityInvalid
-    );
+    let expected =
+        Pubkey::find_program_address(&[b"agent", owner.as_ref()], agent_identity.owner).0;
+    require!(agent_identity.key() == expected, MeishiError::AgentIdentityInvalid);
 
     let data = agent_identity.try_borrow_data()?;
     let (identity_owner, is_active) =
@@ -132,14 +129,9 @@ fn validate_oracle_registry_account(oracle_registry: &AccountInfo) -> Result<()>
         MeishiError::OracleRegistryInvalid
     );
 
-    let expected_primary =
-        Pubkey::find_program_address(&[b"oracle_registry"], &KAMIYO_PROGRAM_ID_PRIMARY).0;
-    let expected_local =
-        Pubkey::find_program_address(&[b"oracle_registry"], &KAMIYO_PROGRAM_ID_LOCAL).0;
-    require!(
-        oracle_registry.key() == expected_primary || oracle_registry.key() == expected_local,
-        MeishiError::OracleRegistryInvalid
-    );
+    let expected =
+        Pubkey::find_program_address(&[b"oracle_registry"], oracle_registry.owner).0;
+    require!(oracle_registry.key() == expected, MeishiError::OracleRegistryInvalid);
 
     Ok(())
 }

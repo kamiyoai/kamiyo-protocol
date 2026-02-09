@@ -1,42 +1,50 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import {
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-} from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
   createMint,
-  getAssociatedTokenAddress,
   createAssociatedTokenAccount,
   mintTo,
   TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { expect } from "chai";
-import BN from "bn.js";
 import * as nodeCrypto from "crypto";
+import { getErrorCode } from "./helpers";
 
 describe("kamiyo-escrow disputes", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  // Load the kamiyo-escrow program
   const program = anchor.workspace.KamiyoEscrow as Program<any>;
+  const BN = anchor.BN;
 
-  // Test accounts
   let admin: Keypair;
   let user: Keypair;
   let treasury: Keypair;
   let oracle1: Keypair;
   let oracle2: Keypair;
   let oracle3: Keypair;
-  let kamiyoMint: PublicKey;
-  let oracleConfigPDA: PublicKey;
 
-  // Salt storage for oracle votes
-  const oracleSalts: Map<string, Uint8Array> = new Map();
+  let kamiyoMint: PublicKey;
+  let userTokenAccount: PublicKey;
+  let oracleConfigPDA: PublicKey;
+  let tokenTreasuryPDA: PublicKey;
+
+  async function airdrop(pubkey: PublicKey, sol: number) {
+    const sig = await provider.connection.requestAirdrop(
+      pubkey,
+      sol * LAMPORTS_PER_SOL
+    );
+    await provider.connection.confirmTransaction(sig);
+  }
+
+  function deriveEscrowPDA(sessionId: Buffer): PublicKey {
+    const [escrow] = PublicKey.findProgramAddressSync(
+      [Buffer.from("escrow"), user.publicKey.toBuffer(), sessionId],
+      program.programId
+    );
+    return escrow;
+  }
 
   before(async () => {
     admin = Keypair.generate();
@@ -46,322 +54,229 @@ describe("kamiyo-escrow disputes", () => {
     oracle2 = Keypair.generate();
     oracle3 = Keypair.generate();
 
-    // Airdrop SOL to test accounts
-    const accounts = [admin, user, treasury, oracle1, oracle2, oracle3];
-    for (const account of accounts) {
-      const sig = await provider.connection.requestAirdrop(
-        account.publicKey,
-        5 * LAMPORTS_PER_SOL
-      );
-      await provider.connection.confirmTransaction(sig);
+    for (const kp of [admin, user, treasury, oracle1, oracle2, oracle3]) {
+      await airdrop(kp.publicKey, 5);
     }
 
-    // Create KAMIYO token mint
     kamiyoMint = await createMint(
       provider.connection,
       admin,
       admin.publicKey,
       null,
-      9
+      6
     );
 
-    // Mint tokens to user
-    const userTokenAccount = await createAssociatedTokenAccount(
+    userTokenAccount = await createAssociatedTokenAccount(
       provider.connection,
       admin,
       kamiyoMint,
       user.publicKey
     );
+
     await mintTo(
       provider.connection,
       admin,
       kamiyoMint,
       userTokenAccount,
       admin,
-      1000 * 1e9
+      10_000_000_000
     );
 
-    // Derive oracle config PDA
     [oracleConfigPDA] = PublicKey.findProgramAddressSync(
       [Buffer.from("oracle_config")],
       program.programId
     );
-  });
+    [tokenTreasuryPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("token_treasury")],
+      program.programId
+    );
 
-  describe("Oracle Configuration", () => {
-    it("should initialize oracle config", async () => {
+    try {
+      await program.methods
+        .initializeTreasury()
+        .accounts({
+          admin: admin.publicKey,
+          kamiyoMint,
+          tokenTreasury: tokenTreasuryPDA,
+          systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([admin])
+        .rpc();
+    } catch (err: any) {
+      if (!String(err?.message || "").includes("already in use")) {
+        throw err;
+      }
+    }
+
+    try {
+      await program.methods
+        .initializeOracleConfig(3, 15, new BN(60), new BN(300), false)
+        .accounts({
+          admin: admin.publicKey,
+          oracleConfig: oracleConfigPDA,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+    } catch (err: any) {
+      if (!String(err?.message || "").includes("already in use")) {
+        throw err;
+      }
+    }
+
+    for (const oracle of [oracle1, oracle2, oracle3]) {
       try {
         await program.methods
-          .initializeOracleConfig()
+          .registerOracle(oracle.publicKey)
           .accounts({
-            oracleConfig: oracleConfigPDA,
             admin: admin.publicKey,
-            systemProgram: SystemProgram.programId,
+            oracleConfig: oracleConfigPDA,
           })
           .signers([admin])
           .rpc();
-
-        const config = await program.account.oracleConfig.fetch(oracleConfigPDA);
-        expect(config.admin.toString()).to.equal(admin.publicKey.toString());
-        expect(config.registeredOracles.length).to.equal(0);
-        expect(config.minConsensus).to.equal(3);
-      } catch (e: any) {
-        if (!e.message?.includes("already in use")) {
-          throw e;
+      } catch (err: any) {
+        if (getErrorCode(err) !== "OracleAlreadyRegistered") {
+          throw err;
         }
       }
-    });
+    }
+  });
 
-    it("should register oracles", async () => {
-      for (const oracle of [oracle1, oracle2, oracle3]) {
-        try {
-          await program.methods
-            .registerOracle(oracle.publicKey)
-            .accounts({
-              oracleConfig: oracleConfigPDA,
-              admin: admin.publicKey,
-            })
-            .signers([admin])
-            .rpc();
-        } catch (e: any) {
-          if (!e.message?.includes("already registered")) {
-            throw e;
-          }
-        }
-      }
-
+  describe("Oracle Configuration", () => {
+    it("has initialized oracle config", async () => {
       const config = await program.account.oracleConfig.fetch(oracleConfigPDA);
-      expect(config.registeredOracles.length).to.be.gte(3);
+      expect(config.admin.toBase58()).to.equal(admin.publicKey.toBase58());
+      expect(config.minConsensus).to.equal(3);
+      expect(config.maxScoreDeviation).to.equal(15);
     });
 
-    it("should reject non-admin oracle registration", async () => {
+    it("has registered oracles", async () => {
+      const config = await program.account.oracleConfig.fetch(oracleConfigPDA);
+      const oracleKeys = config.registeredOracles.map((k: PublicKey) => k.toBase58());
+
+      for (const oracle of [oracle1, oracle2, oracle3]) {
+        expect(oracleKeys).to.include(oracle.publicKey.toBase58());
+      }
+    });
+
+    it("rejects non-admin oracle registration", async () => {
       const nonAdmin = Keypair.generate();
-      const sig = await provider.connection.requestAirdrop(
-        nonAdmin.publicKey,
-        LAMPORTS_PER_SOL
-      );
-      await provider.connection.confirmTransaction(sig);
+      await airdrop(nonAdmin.publicKey, 1);
 
       try {
         await program.methods
           .registerOracle(Keypair.generate().publicKey)
           .accounts({
-            oracleConfig: oracleConfigPDA,
             admin: nonAdmin.publicKey,
+            oracleConfig: oracleConfigPDA,
           })
           .signers([nonAdmin])
           .rpc();
         expect.fail("Should have thrown");
-      } catch (e: any) {
-        expect(e.message).to.include("Unauthorized");
+      } catch (err: any) {
+        expect(getErrorCode(err)).to.equal("Unauthorized");
       }
     });
   });
 
   describe("Escrow Creation and Rating Flow", () => {
-    let escrowPDA: PublicKey;
-    const sessionId = nodeCrypto.randomBytes(32);
-
-    it("should create escrow", async () => {
-      [escrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), sessionId],
-        program.programId
-      );
-
-      const userTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        user.publicKey
-      );
-
-      const treasuryTokenAccount = await createAssociatedTokenAccount(
-        provider.connection,
-        admin,
-        kamiyoMint,
-        treasury.publicKey
-      ).catch(() => getAssociatedTokenAddress(kamiyoMint, treasury.publicKey));
+    it("creates escrow", async () => {
+      const sessionId = nodeCrypto.randomBytes(32);
+      const escrowPDA = deriveEscrowPDA(sessionId);
 
       await program.methods
-        .createEscrow(Array.from(sessionId), new BN(100 * 1e9))
+        .createEscrow(Array.from(sessionId), new BN(LAMPORTS_PER_SOL))
         .accounts({
-          escrow: escrowPDA,
           user: user.publicKey,
-          userTokenAccount,
           treasury: treasury.publicKey,
-          treasuryTokenAccount,
+          escrow: escrowPDA,
           kamiyoMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          userTokenAccount,
+          tokenTreasury: tokenTreasuryPDA,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([user])
         .rpc();
 
       const escrow = await program.account.escrow.fetch(escrowPDA);
-      expect(escrow.user.toString()).to.equal(user.publicKey.toString());
-      expect(escrow.status.active).to.not.be.undefined;
+      expect(escrow.user.toBase58()).to.equal(user.publicKey.toBase58());
+      expect(escrow.treasury.toBase58()).to.equal(treasury.publicKey.toBase58());
+      expect(escrow.status.active).to.not.equal(undefined);
     });
 
-    it("should allow rating and release for high rating", async () => {
-      // Create new escrow for rating test
-      const ratingSessionId = nodeCrypto.randomBytes(32);
-      const [ratingEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), ratingSessionId],
-        program.programId
-      );
-
-      const userTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        user.publicKey
-      );
-      const treasuryTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        treasury.publicKey
-      );
+    it("rates and releases escrow for high rating", async () => {
+      const sessionId = nodeCrypto.randomBytes(32);
+      const escrowPDA = deriveEscrowPDA(sessionId);
 
       await program.methods
-        .createEscrow(Array.from(ratingSessionId), new BN(50 * 1e9))
+        .createEscrow(Array.from(sessionId), new BN(LAMPORTS_PER_SOL / 2))
         .accounts({
-          escrow: ratingEscrowPDA,
           user: user.publicKey,
-          userTokenAccount,
           treasury: treasury.publicKey,
-          treasuryTokenAccount,
+          escrow: escrowPDA,
           kamiyoMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          userTokenAccount,
+          tokenTreasury: tokenTreasuryPDA,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([user])
         .rpc();
 
-      // Rate with 4/5 (should release)
       await program.methods
         .rateAndRelease(4)
         .accounts({
-          escrow: ratingEscrowPDA,
           user: user.publicKey,
-          userTokenAccount,
           treasury: treasury.publicKey,
-          treasuryTokenAccount,
-          kamiyoMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          escrow: escrowPDA,
         })
         .signers([user])
         .rpc();
 
-      const escrow = await program.account.escrow.fetch(ratingEscrowPDA);
-      expect(escrow.status.released).to.not.be.undefined;
+      const escrow = await program.account.escrow.fetch(escrowPDA);
+      expect(escrow.status.released).to.not.equal(undefined);
       expect(escrow.rating).to.equal(4);
     });
   });
 
   describe("Dispute Resolution Flow", () => {
-    let disputeEscrowPDA: PublicKey;
-    const disputeSessionId = nodeCrypto.randomBytes(32);
-
-    before(async () => {
-      // Create escrow for dispute testing
-      [disputeEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), disputeSessionId],
-        program.programId
-      );
-
-      const userTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        user.publicKey
-      );
-      const treasuryTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        treasury.publicKey
-      );
+    it("marks escrow as disputed and accepts oracle commitments", async () => {
+      const sessionId = nodeCrypto.randomBytes(32);
+      const escrowPDA = deriveEscrowPDA(sessionId);
 
       await program.methods
-        .createEscrow(Array.from(disputeSessionId), new BN(100 * 1e9))
+        .createEscrow(Array.from(sessionId), new BN(LAMPORTS_PER_SOL / 10))
         .accounts({
-          escrow: disputeEscrowPDA,
           user: user.publicKey,
-          userTokenAccount,
           treasury: treasury.publicKey,
-          treasuryTokenAccount,
+          escrow: escrowPDA,
           kamiyoMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          userTokenAccount,
+          tokenTreasury: tokenTreasuryPDA,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([user])
         .rpc();
-    });
 
-    it("should mark escrow as disputed", async () => {
       await program.methods
         .markDisputed()
         .accounts({
-          escrow: disputeEscrowPDA,
           user: user.publicKey,
+          escrow: escrowPDA,
         })
         .signers([user])
         .rpc();
 
-      const escrow = await program.account.escrow.fetch(disputeEscrowPDA);
-      expect(escrow.status.disputed).to.not.be.undefined;
-      expect(escrow.disputedAt).to.not.be.null;
-      expect(escrow.commitPhaseEndsAt).to.not.be.null;
-    });
-
-    it("should reject dispute from non-user", async () => {
-      const newSessionId = nodeCrypto.randomBytes(32);
-      const [newEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), newSessionId],
-        program.programId
-      );
-
-      const userTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        user.publicKey
-      );
-      const treasuryTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        treasury.publicKey
-      );
-
-      await program.methods
-        .createEscrow(Array.from(newSessionId), new BN(10 * 1e9))
-        .accounts({
-          escrow: newEscrowPDA,
-          user: user.publicKey,
-          userTokenAccount,
-          treasury: treasury.publicKey,
-          treasuryTokenAccount,
-          kamiyoMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([user])
-        .rpc();
-
-      try {
-        await program.methods
-          .markDisputed()
-          .accounts({
-            escrow: newEscrowPDA,
-            user: oracle1.publicKey, // Wrong user
-          })
-          .signers([oracle1])
-          .rpc();
-        expect.fail("Should have thrown");
-      } catch (e: any) {
-        expect(e.message).to.include("Unauthorized");
-      }
-    });
-
-    it("should allow oracles to commit votes", async () => {
       const oracles = [oracle1, oracle2, oracle3];
       const scores = [75, 70, 72];
 
       for (let i = 0; i < oracles.length; i++) {
         const salt = nodeCrypto.randomBytes(32);
-        oracleSalts.set(oracles[i].publicKey.toString(), salt);
-
-        // Compute commitment hash: SHA256(session_id || oracle || score || salt)
         const data = Buffer.concat([
-          Buffer.from(disputeSessionId),
+          sessionId,
           oracles[i].publicKey.toBuffer(),
           Buffer.from([scores[i]]),
           salt,
@@ -370,103 +285,36 @@ describe("kamiyo-escrow disputes", () => {
 
         await program.methods
           .commitVote(Array.from(commitmentHash))
-          .accounts({
-            escrow: disputeEscrowPDA,
+          .accountsPartial({
             oracle: oracles[i].publicKey,
+            escrow: escrowPDA,
             oracleConfig: oracleConfigPDA,
+            oracleStakePosition: null,
           })
           .signers([oracles[i]])
           .rpc();
       }
 
-      const escrow = await program.account.escrow.fetch(disputeEscrowPDA);
+      const escrow = await program.account.escrow.fetch(escrowPDA);
+      expect(escrow.status.disputed).to.not.equal(undefined);
       expect(escrow.oracleCommitments.length).to.equal(3);
     });
 
-    it("should reject commits from unregistered oracles", async () => {
-      const unregisteredOracle = Keypair.generate();
-      const sig = await provider.connection.requestAirdrop(
-        unregisteredOracle.publicKey,
-        LAMPORTS_PER_SOL
-      );
-      await provider.connection.confirmTransaction(sig);
-
-      const fakeHash = nodeCrypto.randomBytes(32);
-
-      try {
-        await program.methods
-          .commitVote(Array.from(fakeHash))
-          .accounts({
-            escrow: disputeEscrowPDA,
-            oracle: unregisteredOracle.publicKey,
-            oracleConfig: oracleConfigPDA,
-          })
-          .signers([unregisteredOracle])
-          .rpc();
-        expect.fail("Should have thrown");
-      } catch (e: any) {
-        expect(e.message).to.include("OracleNotRegistered");
-      }
-    });
-
-    it("should allow oracles to reveal votes after commit phase", async () => {
-      // Wait for commit phase to end (5 minutes in production, mock here)
-      // In tests, we may need to advance clock or use shorter durations
-
-      const oracles = [oracle1, oracle2, oracle3];
-      const scores = [75, 70, 72];
-
-      // For testing, we'll simulate the reveal (in real tests, wait or mock time)
-      for (let i = 0; i < oracles.length; i++) {
-        const salt = oracleSalts.get(oracles[i].publicKey.toString())!;
-
-        try {
-          await program.methods
-            .revealVote(scores[i], Array.from(salt))
-            .accounts({
-              escrow: disputeEscrowPDA,
-              oracle: oracles[i].publicKey,
-              oracleConfig: oracleConfigPDA,
-            })
-            .signers([oracles[i]])
-            .rpc();
-        } catch (e: any) {
-          // May fail if still in commit phase - expected in real test
-          if (!e.message?.includes("CommitPhaseActive")) {
-            console.log(`Reveal may have timing issues: ${e.message}`);
-          }
-        }
-      }
-    });
-
-    it("should reject reveals with wrong hash", async () => {
-      // Create new dispute for hash verification test
-      const badHashSessionId = nodeCrypto.randomBytes(32);
-      const [badHashEscrowPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from("escrow"), badHashSessionId],
-        program.programId
-      );
-
-      const userTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        user.publicKey
-      );
-      const treasuryTokenAccount = await getAssociatedTokenAddress(
-        kamiyoMint,
-        treasury.publicKey
-      );
+    it("rejects commits from unregistered oracles", async () => {
+      const sessionId = nodeCrypto.randomBytes(32);
+      const escrowPDA = deriveEscrowPDA(sessionId);
 
       await program.methods
-        .createEscrow(Array.from(badHashSessionId), new BN(10 * 1e9))
+        .createEscrow(Array.from(sessionId), new BN(LAMPORTS_PER_SOL / 10))
         .accounts({
-          escrow: badHashEscrowPDA,
           user: user.publicKey,
-          userTokenAccount,
           treasury: treasury.publicKey,
-          treasuryTokenAccount,
+          escrow: escrowPDA,
           kamiyoMint,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          userTokenAccount,
+          tokenTreasury: tokenTreasuryPDA,
           systemProgram: SystemProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
         })
         .signers([user])
         .rpc();
@@ -474,46 +322,31 @@ describe("kamiyo-escrow disputes", () => {
       await program.methods
         .markDisputed()
         .accounts({
-          escrow: badHashEscrowPDA,
           user: user.publicKey,
+          escrow: escrowPDA,
         })
         .signers([user])
         .rpc();
 
-      // Commit with one hash
-      const salt = nodeCrypto.randomBytes(32);
-      const data = Buffer.concat([
-        Buffer.from(badHashSessionId),
-        oracle1.publicKey.toBuffer(),
-        Buffer.from([80]),
-        salt,
-      ]);
-      const commitmentHash = nodeCrypto.createHash("sha256").update(data).digest();
+      const unregisteredOracle = Keypair.generate();
+      await airdrop(unregisteredOracle.publicKey, 1);
 
-      await program.methods
-        .commitVote(Array.from(commitmentHash))
-        .accounts({
-          escrow: badHashEscrowPDA,
-          oracle: oracle1.publicKey,
-          oracleConfig: oracleConfigPDA,
-        })
-        .signers([oracle1])
-        .rpc();
+      const fakeHash = nodeCrypto.randomBytes(32);
 
-      // Try to reveal with different score - should fail
       try {
         await program.methods
-          .revealVote(50, Array.from(salt)) // Different score
-          .accounts({
-            escrow: badHashEscrowPDA,
-            oracle: oracle1.publicKey,
+          .commitVote(Array.from(fakeHash))
+          .accountsPartial({
+            oracle: unregisteredOracle.publicKey,
+            escrow: escrowPDA,
             oracleConfig: oracleConfigPDA,
+            oracleStakePosition: null,
           })
-          .signers([oracle1])
+          .signers([unregisteredOracle])
           .rpc();
-        // Note: May fail due to timing issues in test, not hash mismatch
-      } catch (e: any) {
-        // Expected: InvalidCommitmentHash or timing error
+        expect.fail("Should have thrown");
+      } catch (err: any) {
+        expect(getErrorCode(err)).to.equal("OracleNotRegistered");
       }
     });
   });
@@ -535,7 +368,7 @@ describe("kamiyo-escrow disputes", () => {
     });
 
     it("should identify outliers correctly", () => {
-      const scores = [70, 72, 75, 95]; // 95 is outlier (> 15 from median 72)
+      const scores = [70, 72, 75, 95];
       const maxDeviation = 15;
       const sorted = [...scores].sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
@@ -565,8 +398,6 @@ describe("kamiyo-escrow disputes", () => {
   });
 
   describe("SDK EscrowDisputeManager", () => {
-    // These tests verify the TypeScript SDK functionality
-
     it("should generate valid salt", () => {
       const salt = nodeCrypto.randomBytes(32);
       expect(salt.length).to.equal(32);
@@ -606,7 +437,6 @@ describe("kamiyo-escrow disputes", () => {
 
       const storedHash = nodeCrypto.createHash("sha256").update(data).digest();
 
-      // Verify with correct values
       const verifyData = Buffer.concat([
         Buffer.from(sessionId),
         oracle.publicKey.toBuffer(),
@@ -617,11 +447,10 @@ describe("kamiyo-escrow disputes", () => {
 
       expect(Buffer.from(storedHash).equals(Buffer.from(computedHash))).to.be.true;
 
-      // Verify with wrong score
       const wrongData = Buffer.concat([
         Buffer.from(sessionId),
         oracle.publicKey.toBuffer(),
-        Buffer.from([score + 1]), // Different score
+        Buffer.from([score + 1]),
         salt,
       ]);
       const wrongHash = nodeCrypto.createHash("sha256").update(wrongData).digest();

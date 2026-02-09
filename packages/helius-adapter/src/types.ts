@@ -23,28 +23,29 @@ export interface ConnectionPoolConfig {
 }
 
 // Escrow Types
-export type EscrowStatus = 'active' | 'released' | 'disputed' | 'resolved' | 'unknown';
+export type EscrowStatus = 'active' | 'disputed' | 'resolved' | 'released' | 'refunded' | 'unknown';
 
 export interface EscrowState {
-    id: string; // transactionId
     pda: PublicKey;
-    agent: PublicKey;
-    api: PublicKey;
+    user: PublicKey;
+    treasury: PublicKey;
+    sessionId: Buffer; // 32 bytes
     amount: bigint;
     status: EscrowStatus;
     createdAt: number;
-    expiresAt: number;
-    transactionId: string;
     bump: number;
+    rating: number | null;
+    disputedAt: number | null;
+    commitPhaseEndsAt: number | null;
     qualityScore: number | null;
     refundPercentage: number | null;
 }
 
 export interface EscrowParams {
-    transactionId: string;
-    api: PublicKey;
+    user: PublicKey;
+    treasury: PublicKey;
+    sessionId: Uint8Array; // 32 bytes
     amountLamports: bigint;
-    timeLockSeconds: number;
 }
 
 export interface CreateEscrowResult {
@@ -55,26 +56,28 @@ export interface CreateEscrowResult {
 
 // Transaction Types
 export type TransactionType =
-    | 'initialize_escrow'
+    | 'create_escrow'
+    | 'rate_and_release'
     | 'mark_disputed'
-    | 'resolve_dispute'
-    | 'resolve_dispute_switchboard'
-    | 'release_funds'
-    | 'init_reputation'
-    | 'update_reputation'
-    | 'check_rate_limit'
+    | 'commit_vote'
+    | 'reveal_vote'
+    | 'finalize_dispute'
+    | 'timeout_release'
+    | 'disputed_timeout_release'
     | 'unknown';
 
 export interface ParsedTransaction {
     signature: string;
     type: TransactionType;
     escrowPda: string | null;
-    agent: string | null;
-    api: string | null;
+    user: string | null;
+    treasury: string | null;
     amount: bigint | null;
-    transactionId: string | null;
-    qualityScore: number | null;
+    sessionId: string | null; // hex
+    rating: number | null;
+    qualityScore: number | null; // dispute resolution output (when available)
     refundPercentage: number | null;
+    paymentAmount: bigint | null;
     refundAmount: bigint | null;
     timestamp: number;
     slot: number;
@@ -85,7 +88,7 @@ export interface ParsedTransaction {
 export interface TransactionFilter {
     type?: TransactionType[];
     escrowPda?: string;
-    transactionId?: string;
+    sessionId?: string;
     minTimestamp?: number;
     maxTimestamp?: number;
     limit?: number;
@@ -186,14 +189,16 @@ export interface TokenTransfer {
 }
 
 export interface KamiyoEvent {
-    type: 'escrow_created' | 'dispute_initiated' | 'dispute_resolved' | 'funds_released';
+    type: 'escrow_created' | 'dispute_initiated' | 'dispute_resolved' | 'funds_released' | 'funds_refunded';
     escrowPda: string;
-    transactionId: string | null;
-    agent: string | null;
-    api: string | null;
-    amount: bigint | null;
+    sessionId: string | null; // hex
+    user: string | null;
+    treasury: string | null;
+    amount: bigint | null; // escrow amount or amount paid/refunded depending on event type
+    rating: number | null;
     qualityScore: number | null;
     refundPercentage: number | null;
+    paymentAmount: bigint | null;
     refundAmount: bigint | null;
     signature: string;
     timestamp: number;
@@ -205,6 +210,7 @@ export interface WebhookHandlerOptions {
     onDisputeInitiated?: (event: KamiyoEvent) => Promise<void>;
     onDisputeResolved?: (event: KamiyoEvent) => Promise<void>;
     onFundsReleased?: (event: KamiyoEvent) => Promise<void>;
+    onFundsRefunded?: (event: KamiyoEvent) => Promise<void>;
     onError?: (error: Error, payload: HeliusWebhookPayload) => void;
 }
 
