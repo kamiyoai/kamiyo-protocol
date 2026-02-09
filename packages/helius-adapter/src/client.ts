@@ -11,7 +11,7 @@ import { parseTransaction, parseEscrowState, groupByEscrow, calculateEscrowLifec
 import { KAMIYO_PROGRAM_ID, DEFAULTS, HELIUS_API_ENDPOINTS, PDA_SEEDS, COMPUTE_UNITS, LIMITS } from './constants';
 import {
   validateConfig, validateTransactionId, validateSignature, validateSignatures,
-  validatePublicKey, validatePublicKeys, validatePositiveInteger
+  validatePublicKey, validatePublicKeys, validatePositiveInteger, ValidationError
 } from './validation';
 import { Logger, nullLogger, createScopedLogger } from './logger';
 
@@ -46,7 +46,7 @@ export class KamiyoHeliusClient {
     this.pool = new ConnectionPool(this.config.apiKey, this.config.cluster, this.config.commitment, poolConfig);
     this.limiter = new RateLimiter({ maxTokens: this.config.rateLimitRps, refillRate: this.config.rateLimitRps });
     this.fees = new PriorityFeeCalculator(this.config.apiKey, this.config.cluster);
-    this.programId = new PublicKey(KAMIYO_PROGRAM_ID);
+    this.programId = new PublicKey(config.programId ?? KAMIYO_PROGRAM_ID);
   }
 
   async init(): Promise<void> {
@@ -57,6 +57,10 @@ export class KamiyoHeliusClient {
     this.log.info('Ready', { poolStats: this.pool.getStats() });
   }
 
+  get feeCalculator(): PriorityFeeCalculator {
+    return this.fees;
+  }
+
   getConnection(): Connection {
     this.checkReady();
     return this.pool.getConnection();
@@ -64,8 +68,12 @@ export class KamiyoHeliusClient {
 
   deriveEscrowPDA(txId: string): { pda: PublicKey; bump: number } {
     validateTransactionId(txId);
+    const seed = Buffer.from(txId, 'utf8');
+    if (seed.length > 32) {
+      throw new ValidationError(`Transaction ID exceeds 32 bytes and can't be used as a PDA seed (got ${seed.length})`);
+    }
     const [pda, bump] = PublicKey.findProgramAddressSync(
-      [Buffer.from(PDA_SEEDS.ESCROW), Buffer.from(txId)],
+      [Buffer.from(PDA_SEEDS.ESCROW), seed],
       this.programId
     );
     return { pda, bump };

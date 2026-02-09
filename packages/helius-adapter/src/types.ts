@@ -8,6 +8,7 @@ import { PublicKey, Commitment } from '@solana/web3.js';
 export interface HeliusConfig {
     apiKey: string;
     cluster?: 'mainnet-beta' | 'devnet';
+    programId?: string;
     commitment?: Commitment;
     maxRetries?: number;
     retryDelayMs?: number;

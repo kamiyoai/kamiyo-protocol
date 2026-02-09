@@ -7,6 +7,7 @@ import {
     verifyWebhookSignature,
     parseWebhookPayload,
     createWebhookHandler,
+    createVerifiedWebhookHandler,
     filterEventsByType,
     groupEventsByEscrow,
     getEventStats
@@ -50,6 +51,13 @@ describe('Webhooks', () => {
             const signature = createHmac('sha256', secret)
                 .update(payload.toString('utf-8'))
                 .digest('hex');
+
+            expect(verifyWebhookSignature(payload, signature, secret)).toBe(true);
+        });
+
+        it('should accept signatures with sha256= prefix', () => {
+            const payload = JSON.stringify({ test: 'data' });
+            const signature = `sha256=${createHmac('sha256', secret).update(payload).digest('hex')}`;
 
             expect(verifyWebhookSignature(payload, signature, secret)).toBe(true);
         });
@@ -231,6 +239,79 @@ describe('Webhooks', () => {
 
             expect(onError).toHaveBeenCalled();
             expect(mockRes.status).toHaveBeenCalledWith(200); // Still returns 200
+        });
+    });
+
+    describe('createVerifiedWebhookHandler', () => {
+        it('should verify signature using rawBody and then handle the webhook', async () => {
+            const secret = 'test-secret';
+            const onEscrowCreated = vi.fn();
+
+            const handler = createVerifiedWebhookHandler(secret, { onEscrowCreated });
+
+            const initData = Buffer.alloc(32);
+            INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(initData, 0);
+
+            const body = [{
+                webhookURL: 'https://example.com/webhook',
+                accountData: [],
+                description: 'Test',
+                events: {},
+                fee: 5000,
+                feePayer: 'Agent123',
+                instructions: [{
+                    programId: KAMIYO_PROGRAM_ID,
+                    accounts: ['EscrowPDA', 'Agent123', 'Provider456'],
+                    data: initData.toString('base64'),
+                    innerInstructions: []
+                }],
+                nativeTransfers: [],
+                signature: 'abc123',
+                slot: 12345,
+                source: 'test',
+                timestamp: Math.floor(Date.now() / 1000),
+                tokenTransfers: [],
+                type: 'UNKNOWN',
+                transactionError: null
+            }];
+
+            const rawBody = JSON.stringify(body);
+            const signature = createHmac('sha256', secret).update(rawBody).digest('hex');
+
+            const mockReq = {
+                body,
+                rawBody,
+                headers: { 'x-helius-signature': signature },
+            };
+
+            const mockRes = {
+                status: vi.fn().mockReturnThis(),
+                json: vi.fn(),
+            };
+
+            await handler(mockReq as any, mockRes as any);
+
+            expect(onEscrowCreated).toHaveBeenCalledOnce();
+            expect(mockRes.status).toHaveBeenCalledWith(200);
+        });
+
+        it('should return 400 when rawBody is missing and body is not a string', async () => {
+            const secret = 'test-secret';
+            const handler = createVerifiedWebhookHandler(secret, {});
+
+            const mockReq = {
+                body: { foo: 'bar' },
+                headers: { 'x-helius-signature': 'deadbeef' },
+            };
+
+            const mockRes = {
+                status: vi.fn().mockReturnThis(),
+                json: vi.fn(),
+            };
+
+            await handler(mockReq as any, mockRes as any);
+
+            expect(mockRes.status).toHaveBeenCalledWith(400);
         });
     });
 

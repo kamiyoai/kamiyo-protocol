@@ -65,11 +65,13 @@ export function validatePositiveInteger(val: number, name: string): void {
 
 export function validateConfig(cfg: {
   apiKey: string;
+  programId?: string;
   maxRetries?: number;
   retryDelayMs?: number;
   rateLimitRps?: number;
 }): void {
   validateApiKey(cfg.apiKey);
+  if (cfg.programId !== undefined) validatePublicKey(cfg.programId, 'programId');
   if (cfg.maxRetries !== undefined) validateNumber(cfg.maxRetries, 'maxRetries', LIMITS.MIN_RETRIES, LIMITS.MAX_RETRIES);
   if (cfg.retryDelayMs !== undefined) validateNumber(cfg.retryDelayMs, 'retryDelayMs', 100, 30000);
   if (cfg.rateLimitRps !== undefined) validateNumber(cfg.rateLimitRps, 'rateLimitRps', LIMITS.MIN_RATE_LIMIT, LIMITS.MAX_RATE_LIMIT);
