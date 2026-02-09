@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AgentSkill } from '../types/index.js';
+import { normalizeSkillTag } from './skill-tags.js';
 
 function tokenize(input: string): string[] {
   return input
@@ -9,7 +10,7 @@ function tokenize(input: string): string[] {
     .filter(Boolean);
 }
 
-const SKILL_KEYWORDS: Record<AgentSkill, string[]> = {
+const HEURISTIC_KEYWORDS: Record<string, string[]> = {
   research: [
     'research',
     'investigate',
@@ -90,9 +91,9 @@ export function inferSkillsHeuristic(prompt: string, maxSkills: number): AgentSk
   const tokens = tokenize(prompt);
   if (tokens.length === 0) return ['general'];
 
-  const scored = (Object.keys(SKILL_KEYWORDS) as AgentSkill[])
+  const scored = Object.keys(HEURISTIC_KEYWORDS)
     .map((skill) => {
-      const keywords = SKILL_KEYWORDS[skill];
+      const keywords = HEURISTIC_KEYWORDS[skill]!;
       let score = 0;
       for (const token of tokens) {
         if (keywords.includes(token)) score += 1;
@@ -117,9 +118,7 @@ export function inferSkillsHeuristic(prompt: string, maxSkills: number): AgentSk
 }
 
 const OpenAiSkillsResponseSchema = z.object({
-  skills: z.array(
-    z.enum(['research', 'writing', 'code_review', 'data_analysis', 'translation', 'general'])
-  ),
+  skills: z.array(z.string()).min(1),
 });
 
 async function inferSkillsWithOpenAi(prompt: string, maxSkills: number): Promise<AgentSkill[] | null> {
@@ -143,10 +142,11 @@ async function inferSkillsWithOpenAi(prompt: string, maxSkills: number): Promise
             {
               type: 'text',
               text:
-                'You map a user skill description to a small set of canonical skills. ' +
-                'Return only JSON of shape {"skills": string[]} with skills from: ' +
-                '["research","writing","code_review","data_analysis","translation","general"]. ' +
-                `Pick at most ${maxSkills} skills. If unclear, include "general".`,
+                'You extract short, reusable skill tags from a user capability description. ' +
+                'Return only JSON of shape {"skills": string[]}. ' +
+                'Each skill must be a short snake_case tag (lowercase a-z, 0-9, underscores), 1..32 chars. ' +
+                `Pick at most ${maxSkills} skills. If unclear, include "general". ` +
+                'Prefer stable capabilities over tasks. Examples: "smart_contract_audit", "technical_writing", "data_analysis".',
             },
           ],
         },
@@ -177,11 +177,13 @@ async function inferSkillsWithOpenAi(prompt: string, maxSkills: number): Promise
 
   const unique: AgentSkill[] = [];
   for (const s of validated.data.skills) {
-    if (!unique.includes(s)) unique.push(s);
+    const normalized = normalizeSkillTag(s);
+    if (!normalized) continue;
+    if (!unique.includes(normalized)) unique.push(normalized);
+    if (unique.length >= maxSkills) break;
   }
 
   if (unique.length === 0) return ['general'];
-  if (unique.length > maxSkills) return unique.slice(0, maxSkills);
   return unique;
 }
 
@@ -194,4 +196,3 @@ export async function inferSkills(prompt: string, maxSkills: number): Promise<{ 
 
   return { skills: inferSkillsHeuristic(capped, maxSkills), source: 'heuristic' };
 }
-

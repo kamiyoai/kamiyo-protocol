@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { agentService } from '../services/agents.js';
-import { CreateAgentRequestSchema } from '../types/index.js';
+import { AgentSkillSchema, CreateAgentRequestSchema } from '../types/index.js';
 import { z } from 'zod';
 import { inferSkills } from '../services/skill-inference.js';
 
@@ -77,7 +77,7 @@ agentsRouter.patch(
     z.object({
       name: z.string().min(2).max(24).optional(),
       personality: z.enum(['professional', 'creative', 'efficient', 'balanced']).optional(),
-      skills: z.array(z.enum(['research', 'writing', 'code_review', 'data_analysis', 'translation', 'general'])).optional(),
+      skills: z.array(AgentSkillSchema).min(1).max(24).optional(),
       isActive: z.boolean().optional(),
     })
   ),

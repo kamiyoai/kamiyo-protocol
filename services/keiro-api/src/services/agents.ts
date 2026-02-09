@@ -1,4 +1,5 @@
 import type { Agent, AgentSkill, AgentPersonality, AgentTier, CreateAgentRequest } from '../types/index.js';
+import { normalizeSkillTag } from './skill-tags.js';
 
 const agents = new Map<string, Agent>();
 const agentsByWallet = new Map<string, string>();
@@ -44,7 +45,11 @@ export const agentService = {
     }
 
     const id = newId('agent');
-    const skills = Array.from(new Set(request.skills));
+    const skills = Array.from(
+      new Set(
+        request.skills.map(normalizeSkillTag).filter(Boolean)
+      )
+    );
     const globalId = `solana:${request.walletAddress}`;
 
     const agent: Agent = {
