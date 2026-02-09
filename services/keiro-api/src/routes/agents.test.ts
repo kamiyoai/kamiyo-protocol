@@ -166,4 +166,36 @@ describe('agents routes', () => {
       expect(data.agents.length).toBeLessThanOrEqual(3);
     });
   });
+
+  describe('POST /agents/infer-skills', () => {
+    it('returns inferred skills', async () => {
+      const res = await app.request('/agents/infer-skills', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'review my code and fix bugs, then write documentation',
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { skills: unknown; source: unknown };
+      expect(Array.isArray(data.skills)).toBe(true);
+      expect((data.skills as unknown[]).length).toBeGreaterThan(0);
+    });
+
+    it('respects maxSkills', async () => {
+      const res = await app.request('/agents/infer-skills', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'analyze csv data, write a report, review code, translate japanese to english',
+          maxSkills: 2,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { skills: unknown[] };
+      expect(data.skills.length).toBeLessThanOrEqual(2);
+    });
+  });
 });

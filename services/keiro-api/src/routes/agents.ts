@@ -3,8 +3,26 @@ import { zValidator } from '@hono/zod-validator';
 import { agentService } from '../services/agents.js';
 import { CreateAgentRequestSchema } from '../types/index.js';
 import { z } from 'zod';
+import { inferSkills } from '../services/skill-inference.js';
 
 export const agentsRouter = new Hono();
+
+agentsRouter.post(
+  '/infer-skills',
+  zValidator(
+    'json',
+    z.object({
+      prompt: z.string().min(1).max(5000),
+      maxSkills: z.number().int().min(1).max(6).optional(),
+    })
+  ),
+  async (c) => {
+    const { prompt, maxSkills } = c.req.valid('json');
+    const limit = Math.min(6, Math.max(1, maxSkills ?? 4));
+    const result = await inferSkills(prompt, limit);
+    return c.json(result);
+  }
+);
 
 agentsRouter.get('/', (c) => {
   const agents = agentService.getAll();
