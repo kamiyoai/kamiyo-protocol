@@ -21,6 +21,7 @@ npm install @kamiyo/helius-adapter @solana/web3.js
 
 ```typescript
 import { KamiyoHeliusClient } from '@kamiyo/helius-adapter';
+import { PublicKey } from '@solana/web3.js';
 
 const client = new KamiyoHeliusClient({
     apiKey: process.env.HELIUS_API_KEY,
@@ -30,7 +31,8 @@ const client = new KamiyoHeliusClient({
 await client.init();
 
 // Derive escrow PDA
-const { pda } = client.deriveEscrowPDA('transaction-123');
+const user = new PublicKey('...');
+const { pda } = client.deriveEscrowPDA(user, 'session-123');
 
 // Get escrow state
 const state = await client.getEscrowState(pda);
@@ -38,7 +40,7 @@ console.log('Escrow status:', state?.status);
 console.log('Quality score:', state?.qualityScore);
 
 // Get priority fee for operation
-const fee = await client.getOperationFee('RESOLVE_DISPUTE', pda, 'urgent');
+const fee = await client.getOperationFee('FINALIZE_DISPUTE', pda, 'urgent');
 console.log('Priority fee:', fee.priorityFee, 'micro-lamports/CU');
 console.log('Total fee:', fee.totalFee, 'lamports');
 
@@ -83,7 +85,7 @@ interface HeliusConfig {
 
 ```typescript
 // Get fee for specific strategy
-const fee = await client.getOperationFee('RELEASE_FUNDS', escrowPda, 'critical');
+const fee = await client.getOperationFee('RATE_AND_RELEASE', escrowPda, 'critical');
 
 // Get all strategy fees
 const allFees = await client.feeCalculator.getAllStrategyFees([escrowPda]);
@@ -104,27 +106,35 @@ const handler = createVerifiedWebhookHandler(
     {
         onEscrowCreated: async (event) => {
             console.log('Escrow created:', event.escrowPda);
-            console.log('Agent:', event.agent);
+            console.log('User:', event.user);
+            console.log('Treasury:', event.treasury);
+            console.log('Session ID (sha256 hex):', event.sessionId);
             console.log('Amount:', event.amount);
         },
 
         onDisputeInitiated: async (event) => {
             console.log('Dispute initiated:', event.escrowPda);
             // Trigger oracle assessment
-            await initiateOracleReview(event.transactionId ?? event.escrowPda);
+            await initiateOracleReview(event.escrowPda);
         },
 
         onDisputeResolved: async (event) => {
             console.log('Quality score:', event.qualityScore);
             console.log('Refund percent:', event.refundPercentage);
             console.log('Refund amount:', event.refundAmount);
+            console.log('Payment amount:', event.paymentAmount);
             // Update agent reputation
-            await updateReputation(event.agent, event.qualityScore);
+            await updateReputation(event.user, event.qualityScore);
         },
 
         onFundsReleased: async (event) => {
             console.log('Funds released:', event.amount);
             // Notify parties
+            await notifyParties(event);
+        },
+
+        onFundsRefunded: async (event) => {
+            console.log('Funds refunded:', event.amount);
             await notifyParties(event);
         },
 
@@ -232,7 +242,7 @@ try {
 2. Create new webhook
 3. Set webhook URL to your endpoint
 4. Select "Enhanced Transactions" type
-5. Add KAMIYO program ID: `E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n`
+5. Add KAMIYO escrow program ID: `FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u`
 6. Copy webhook secret for signature verification
 
 ## API Reference
@@ -243,13 +253,12 @@ try {
 |--------|-------------|
 | `init()` | Initialize connection pool |
 | `getConnection()` | Get current active connection |
-| `deriveEscrowPDA(txId)` | Derive escrow PDA from transaction ID |
-| `deriveReputationPDA(entity)` | Derive reputation PDA |
+| `deriveEscrowPDA(user, sessionId)` | Derive escrow PDA from user + session ID |
 | `getEscrowState(pda)` | Fetch escrow account state |
 | `getEscrowStates(pdas)` | Batch fetch multiple escrows |
 | `getRecentTransactions(filter?)` | Get recent program transactions |
 | `getTransaction(signature)` | Get single transaction |
-| `getEscrowHistory(txId)` | Get escrow transaction history |
+| `getEscrowHistory(escrowPda)` | Get escrow transaction history |
 | `getPriorityFee(accounts)` | Get fee estimate |
 | `getOperationFee(op, pda, strategy)` | Calculate operation fee |
 | `subscribeToEscrow(pda, options)` | Subscribe to state changes |

@@ -7,6 +7,7 @@ export type ObservatoryConfig = {
   maxBodyBytes: number;
   heliusApiKey?: string;
   heliusCluster: 'mainnet-beta' | 'devnet';
+  solanaRpcUrl: string;
 };
 
 function envInt(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -32,6 +33,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ObservatoryCon
   const maxBodyBytes = envInt(env, 'MAX_BODY_BYTES', 5_000_000);
   const cluster = envCluster(env);
   const programId = env.OBS_PROGRAM_ID ?? env.ESCROW_PROGRAM_ID ?? undefined;
+  const defaultRpc = cluster === 'devnet'
+    ? 'https://api.devnet.solana.com'
+    : 'https://api.mainnet-beta.solana.com';
 
   return {
     port,
@@ -42,5 +46,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ObservatoryCon
     programId,
     heliusApiKey: env.HELIUS_API_KEY ?? undefined,
     heliusCluster: cluster,
+    solanaRpcUrl: (env.SOLANA_RPC_URL ?? '').trim() || defaultRpc,
   };
 }

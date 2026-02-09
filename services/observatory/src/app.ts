@@ -11,7 +11,7 @@ import {
   getStats,
   insertEvents,
   listEscrows,
-  listEscrowsByTransactionId,
+  listEscrowsBySessionId,
   listEvents,
   refreshEscrows,
 } from './store';
@@ -19,11 +19,32 @@ import {
 type ExpressReq = express.Request & { rawBody?: Buffer };
 type ExpressNext = express.NextFunction;
 
+type RpcTransaction = {
+  slot: number;
+  blockTime: number | null;
+  meta: {
+    err: unknown | null;
+    fee: number;
+    preBalances: number[];
+    postBalances: number[];
+  } | null;
+  transaction: {
+    message: {
+      accountKeys: Array<{ pubkey: string } | string>;
+      instructions: Array<{
+        programId: string | { pubkey: string };
+        accounts: Array<string | { pubkey: string }>;
+        data: string;
+      }>;
+    };
+  };
+};
+
 function asyncHandler(
-  fn: (req: express.Request, res: express.Response, next: ExpressNext) => Promise<void>
+  fn: (req: express.Request, res: express.Response, next: ExpressNext) => Promise<unknown>
 ): (req: express.Request, res: express.Response, next: ExpressNext) => void {
   return (req, res, next) => {
-    void fn(req, res, next).catch(next);
+    void Promise.resolve(fn(req, res, next)).catch(next);
   };
 }
 
@@ -37,6 +58,108 @@ function bearerToken(req: express.Request): string | undefined {
   if (!raw) return undefined;
   const m = raw.match(/^Bearer\s+(.+)$/i);
   return m ? m[1] : undefined;
+}
+
+function pickPubkey(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'pubkey' in value && typeof (value as any).pubkey === 'string') {
+    return (value as any).pubkey;
+  }
+  return '';
+}
+
+async function rpcCall<T>(
+  rpcUrl: string,
+  method: string,
+  params: unknown[],
+  opts?: { timeoutMs?: number }
+): Promise<T> {
+  const ctrl = new AbortController();
+  const timeoutMs = opts?.timeoutMs ?? 20_000;
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: method, method, params }),
+      signal: ctrl.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`RPC ${method} failed: ${res.status}`);
+    }
+
+    const json = (await res.json()) as { result?: T; error?: { message?: string } };
+    if (json.error) {
+      throw new Error(`RPC ${method} failed: ${json.error.message ?? 'unknown error'}`);
+    }
+
+    if (!('result' in json)) {
+      throw new Error(`RPC ${method} failed: missing result`);
+    }
+
+    return json.result as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function computeNativeTransfers(tx: RpcTransaction): Array<{ fromUserAccount: string; toUserAccount: string; amount: number }> {
+  const meta = tx.meta;
+  if (!meta) return [];
+
+  const pre = meta.preBalances ?? [];
+  const post = meta.postBalances ?? [];
+  const keys = tx.transaction.message.accountKeys.map(pickPubkey);
+
+  const transfers: Array<{ fromUserAccount: string; toUserAccount: string; amount: number }> = [];
+
+  for (let i = 0; i < keys.length; i++) {
+    const diff = (post[i] ?? 0) - (pre[i] ?? 0);
+    if (diff <= 0) continue;
+
+    for (let j = 0; j < keys.length; j++) {
+      if (i === j) continue;
+      const diffJ = (post[j] ?? 0) - (pre[j] ?? 0);
+      if (diffJ === -diff) {
+        const from = keys[j];
+        const to = keys[i];
+        if (from && to) transfers.push({ fromUserAccount: from, toUserAccount: to, amount: diff });
+        break;
+      }
+    }
+  }
+
+  return transfers;
+}
+
+function toHeliusLikePayload(signature: string, tx: RpcTransaction): any {
+  const feePayer = pickPubkey(tx.transaction.message.accountKeys[0]);
+  const instructions = tx.transaction.message.instructions.map((ix) => ({
+    programId: pickPubkey(ix.programId),
+    accounts: (ix.accounts ?? []).map(pickPubkey),
+    data: ix.data ?? '',
+    innerInstructions: [],
+  }));
+
+  return {
+    webhookURL: '',
+    accountData: [],
+    description: '',
+    events: {},
+    fee: tx.meta?.fee ?? 0,
+    feePayer,
+    instructions,
+    nativeTransfers: computeNativeTransfers(tx),
+    signature,
+    slot: tx.slot,
+    source: 'rpc',
+    timestamp: tx.blockTime ?? Math.floor(Date.now() / 1000),
+    tokenTransfers: [],
+    type: 'UNKNOWN',
+    transactionError: tx.meta?.err ? JSON.stringify(tx.meta.err) : null,
+  };
 }
 
 export function createApp(config: ObservatoryConfig, db: Db): express.Express {
@@ -87,16 +210,26 @@ export function createApp(config: ObservatoryConfig, db: Db): express.Express {
     return res.status(200).json({ escrows });
   });
 
+  app.get('/escrows/by-session/:sessionId', (req, res) => {
+    const escrows = listEscrowsBySessionId(db, req.params.sessionId);
+    return res.status(200).json({ escrows });
+  });
+
+  // Backwards compatible alias.
   app.get('/escrows/by-transaction/:transactionId', (req, res) => {
-    const escrows = listEscrowsByTransactionId(db, req.params.transactionId);
+    const escrows = listEscrowsBySessionId(db, req.params.transactionId);
     return res.status(200).json({ escrows });
   });
 
   app.get('/events', (req, res) => {
     const escrowPda = typeof req.query.escrowPda === 'string' ? req.query.escrowPda : undefined;
-    const transactionId = typeof req.query.transactionId === 'string' ? req.query.transactionId : undefined;
+    const sessionId = typeof req.query.sessionId === 'string'
+      ? req.query.sessionId
+      : typeof req.query.transactionId === 'string'
+        ? req.query.transactionId
+        : undefined;
     const limit = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : undefined;
-    const events = listEvents(db, { escrowPda, transactionId, limit });
+    const events = listEvents(db, { escrowPda, sessionId, limit });
     return res.status(200).json({ events });
   });
 
@@ -111,9 +244,6 @@ export function createApp(config: ObservatoryConfig, db: Db): express.Express {
     }
 
     const client = getHeliusClient();
-    if (!client) {
-      return res.status(400).json({ ok: false, error: 'missing helius api key' });
-    }
 
     const raw = (req.body as any)?.signatures;
     if (!Array.isArray(raw)) {
@@ -129,17 +259,31 @@ export function createApp(config: ObservatoryConfig, db: Db): express.Express {
       return res.status(400).json({ ok: false, error: 'too many signatures' });
     }
 
-    const txs = await client.fetchEnhancedTransactions(signatures);
+    const txs = client
+      ? await client.fetchEnhancedTransactions(signatures)
+      : (await Promise.all(
+          signatures.map(async (sig) => {
+            const tx = await rpcCall<RpcTransaction | null>(
+              config.solanaRpcUrl,
+              'getTransaction',
+              [sig, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]
+            );
+            return tx ? toHeliusLikePayload(sig, tx) : null;
+          })
+        )).filter(Boolean);
+
     const parsed = parseWebhookPayload(txs as any, config.programId) as KamiyoEvent[];
     const events: IngestedEvent[] = parsed.map((ev) => ({
       type: ev.type,
       escrowPda: ev.escrowPda,
-      transactionId: ev.transactionId,
-      agent: ev.agent,
-      api: ev.api,
+      sessionId: ev.sessionId,
+      user: ev.user,
+      treasury: ev.treasury,
       amount: ev.amount,
+      rating: ev.rating,
       qualityScore: ev.qualityScore,
       refundPercentage: ev.refundPercentage,
+      paymentAmount: ev.paymentAmount,
       refundAmount: ev.refundAmount,
       signature: ev.signature,
       timestamp: ev.timestamp,
@@ -156,6 +300,7 @@ export function createApp(config: ObservatoryConfig, db: Db): express.Express {
       parsed: events.length,
       inserted,
       escrowsUpdated: updated,
+      source: client ? 'helius' : 'rpc',
     });
   }));
 
@@ -178,12 +323,14 @@ export function createApp(config: ObservatoryConfig, db: Db): express.Express {
     const events: IngestedEvent[] = parsed.map((ev) => ({
       type: ev.type,
       escrowPda: ev.escrowPda,
-      transactionId: ev.transactionId,
-      agent: ev.agent,
-      api: ev.api,
+      sessionId: ev.sessionId,
+      user: ev.user,
+      treasury: ev.treasury,
       amount: ev.amount,
+      rating: ev.rating,
       qualityScore: ev.qualityScore,
       refundPercentage: ev.refundPercentage,
+      paymentAmount: ev.paymentAmount,
       refundAmount: ev.refundAmount,
       signature: ev.signature,
       timestamp: ev.timestamp,

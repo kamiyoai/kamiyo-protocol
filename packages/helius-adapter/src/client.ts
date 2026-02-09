@@ -1,4 +1,5 @@
 import { PublicKey, Connection } from '@solana/web3.js';
+import { createHash } from 'crypto';
 import {
   HeliusConfig, ConnectionPoolConfig, EscrowState, ParsedTransaction,
   TransactionFilter, PriorityFeeEstimate, FeeStrategy, Subscription,
@@ -10,7 +11,7 @@ import { PriorityFeeCalculator } from './priority-fees';
 import { parseTransaction, parseEscrowState, groupByEscrow, calculateEscrowLifecycle } from './parser';
 import { KAMIYO_PROGRAM_ID, DEFAULTS, HELIUS_API_ENDPOINTS, PDA_SEEDS, COMPUTE_UNITS, LIMITS } from './constants';
 import {
-  validateConfig, validateTransactionId, validateSignature, validateSignatures,
+  validateConfig, validateSessionId, validateSignature, validateSignatures,
   validatePublicKey, validatePublicKeys, validatePositiveInteger, ValidationError
 } from './validation';
 import { Logger, nullLogger, createScopedLogger } from './logger';
@@ -67,25 +68,25 @@ export class KamiyoHeliusClient {
     return this.pool.getConnection();
   }
 
-  deriveEscrowPDA(txId: string): { pda: PublicKey; bump: number } {
-    validateTransactionId(txId);
-    const seed = Buffer.from(txId, 'utf8');
-    if (seed.length > 32) {
-      throw new ValidationError(`Transaction ID exceeds 32 bytes and can't be used as a PDA seed (got ${seed.length})`);
+  deriveEscrowPDA(user: PublicKey, sessionId: string | Uint8Array): { pda: PublicKey; bump: number } {
+    const u = validatePublicKey(user, 'user');
+    const sessionBytes = typeof sessionId === 'string' ? this.sessionIdToBytes(sessionId) : sessionId;
+
+    if (sessionBytes.length !== 32) {
+      throw new ValidationError(`sessionId must be 32 bytes (got ${sessionBytes.length})`);
     }
+
     const [pda, bump] = PublicKey.findProgramAddressSync(
-      [Buffer.from(PDA_SEEDS.ESCROW), seed],
+      [Buffer.from(PDA_SEEDS.ESCROW), u.toBuffer(), Buffer.from(sessionBytes)],
       this.programId
     );
     return { pda, bump };
   }
 
-  deriveReputationPDA(entity: PublicKey): { pda: PublicKey; bump: number } {
-    const [pda, bump] = PublicKey.findProgramAddressSync(
-      [Buffer.from(PDA_SEEDS.REPUTATION), entity.toBuffer()],
-      this.programId
-    );
-    return { pda, bump };
+  private sessionIdToBytes(sessionId: string): Uint8Array {
+    validateSessionId(sessionId);
+    if (/^[0-9a-f]{64}$/i.test(sessionId)) return Buffer.from(sessionId, 'hex');
+    return createHash('sha256').update(sessionId).digest();
   }
 
   async getEscrowState(pda: PublicKey): Promise<EscrowState | null> {
@@ -174,12 +175,11 @@ export class KamiyoHeliusClient {
     });
   }
 
-  async getEscrowHistory(txId: string): Promise<{
+  async getEscrowHistory(escrowPda: PublicKey | string): Promise<{
     transactions: ParsedTransaction[];
     lifecycle: ReturnType<typeof calculateEscrowLifecycle>;
   }> {
-    validateTransactionId(txId);
-    const { pda } = this.deriveEscrowPDA(txId);
+    const pda = validatePublicKey(escrowPda, 'escrowPda');
     const all = await this.getRecentTransactions({ limit: 100 });
     const escrowTxs = all.filter((tx) => tx.escrowPda === pda.toBase58());
     return { transactions: escrowTxs, lifecycle: calculateEscrowLifecycle(escrowTxs) };
@@ -279,7 +279,7 @@ export class KamiyoHeliusClient {
 
     for (const [, list] of grouped) {
       const lc = calculateEscrowLifecycle(list);
-      if (lc.released || lc.resolved) resolved++;
+      if (lc.released || lc.refunded || lc.resolved) resolved++;
       else if (lc.disputed) disputed++;
       else active++;
       if (lc.totalAmount) volume += lc.totalAmount;
@@ -316,7 +316,7 @@ export class KamiyoHeliusClient {
     if (!f) return true;
     if (f.type && !f.type.includes(tx.type)) return false;
     if (f.escrowPda && tx.escrowPda !== f.escrowPda) return false;
-    if (f.transactionId && tx.transactionId !== f.transactionId) return false;
+    if (f.sessionId && tx.sessionId !== f.sessionId) return false;
     if (f.minTimestamp && tx.timestamp < f.minTimestamp) return false;
     if (f.maxTimestamp && tx.timestamp > f.maxTimestamp) return false;
     return true;

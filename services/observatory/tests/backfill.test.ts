@@ -7,26 +7,32 @@ import { INSTRUCTION_DISCRIMINATORS, KAMIYO_PROGRAM_ID } from '@kamiyo/helius-ad
 
 function mkPayload(): any[] {
   const signature = '1'.repeat(88);
-  const transactionId = 'tx-123';
-  const txIdBytes = Buffer.from(transactionId, 'utf8');
-  const data = Buffer.alloc(8 + 8 + 8 + 4 + txIdBytes.length);
+  const sessionId = Buffer.alloc(32, 1);
+  const data = Buffer.alloc(8 + 32 + 8);
 
-  INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW.copy(data, 0);
-  data.writeBigUInt64LE(1_000_000_000n, 8); // amount
-  data.writeBigInt64LE(60n, 16); // timeLock
-  data.writeUInt32LE(txIdBytes.length, 24);
-  txIdBytes.copy(data, 28);
+  INSTRUCTION_DISCRIMINATORS.CREATE_ESCROW.copy(data, 0);
+  sessionId.copy(data, 8);
+  data.writeBigUInt64LE(1_000_000_000n, 40); // amount
 
   return [
     {
       accountData: [],
       events: {},
       fee: 5000,
-      feePayer: 'Agent123',
+      feePayer: 'User123',
       instructions: [
         {
           programId: KAMIYO_PROGRAM_ID,
-          accounts: ['EscrowPDA', 'Agent123', 'Api456'],
+          accounts: [
+            'User123',
+            'Treasury456',
+            'EscrowPDA',
+            'Mint111',
+            'UserToken111',
+            'TokenTreasury111',
+            '11111111111111111111111111111111',
+            'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+          ],
           data: data.toString('base64'),
           innerInstructions: [],
         },
@@ -57,6 +63,7 @@ describe('backfill', () => {
       programId: undefined,
       heliusApiKey: 'k',
       heliusCluster: 'mainnet-beta',
+      solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
     };
 
     const app = createApp(cfg, db);
@@ -75,6 +82,7 @@ describe('backfill', () => {
       programId: undefined,
       heliusApiKey: 'k',
       heliusCluster: 'mainnet-beta',
+      solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
     };
 
     const app = createApp(cfg, db);
@@ -105,6 +113,7 @@ describe('backfill', () => {
       programId: undefined,
       heliusApiKey: 'k',
       heliusCluster: 'mainnet-beta',
+      solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
     };
 
     const app = createApp(cfg, db);

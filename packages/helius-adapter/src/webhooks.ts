@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { HeliusWebhookPayload, KamiyoEvent, WebhookHandlerOptions } from './types';
+import { HeliusWebhookPayload, KamiyoEvent, WebhookHandlerOptions, TransactionType } from './types';
 import { KAMIYO_PROGRAM_ID, DEFAULTS, INSTRUCTION_DISCRIMINATORS } from './constants';
+import bs58 from 'bs58';
 
 export function verifyWebhookSignature(payload: string | Buffer, signature: string, secret: string): boolean {
   const expected = createHmac('sha256', secret).update(payload).digest();
@@ -30,90 +31,144 @@ export function parseWebhookPayload(payload: HeliusWebhookPayload[], programId: 
 }
 
 function parseIx(ix: HeliusWebhookPayload['instructions'][0], tx: HeliusWebhookPayload): KamiyoEvent | null {
-  const data = decodeIxData(ix.data);
-  if (!data || data.length < 8) return null;
+  const decoded = decodeIxDataCandidates(ix.data);
 
-  const type = identifyType(data.slice(0, 8));
-  if (!type) return null;
+  let data: Buffer | null = null;
+  let ixType: TransactionType = 'unknown';
+
+  for (const cand of decoded) {
+    const t = inferType(cand);
+    if (t !== 'unknown') {
+      data = cand;
+      ixType = t;
+      break;
+    }
+  }
+
+  if (!data) return null;
 
   const accounts = ix.accounts;
   const ev: KamiyoEvent = {
-    type,
-    escrowPda: accounts[0] ?? '',
-    transactionId: null,
-    agent: null,
-    api: null,
+    type: 'escrow_created',
+    escrowPda: escrowForType(ixType, accounts) ?? '',
+    sessionId: null,
+    user: null,
+    treasury: null,
     amount: null,
+    rating: null,
     qualityScore: null,
     refundPercentage: null,
+    paymentAmount: null,
     refundAmount: null,
     signature: tx.signature,
     timestamp: tx.timestamp,
     slot: tx.slot,
   };
 
-  switch (type) {
-    case 'escrow_created': {
-      ev.agent = accounts[1] ?? null;
-      ev.api = accounts[2] ?? null;
-      ev.amount = data.length >= 16 ? data.readBigUInt64LE(8) : null;
-      ev.transactionId = extractString(data, 24);
+  switch (ixType) {
+    case 'create_escrow': {
+      ev.type = 'escrow_created';
+      ev.user = accounts[0] ?? null;
+      ev.treasury = accounts[1] ?? null;
+      ev.escrowPda = accounts[2] ?? ev.escrowPda;
+      ev.sessionId = data.length >= 40 ? data.subarray(8, 40).toString('hex') : null;
+      ev.amount = data.length >= 48 ? data.readBigUInt64LE(40) : null;
       break;
     }
-    case 'dispute_initiated': {
-      ev.agent = accounts[2] ?? null;
+    case 'mark_disputed': {
+      ev.type = 'dispute_initiated';
+      ev.user = accounts[0] ?? null;
+      ev.escrowPda = accounts[1] ?? ev.escrowPda;
       break;
     }
-    case 'dispute_resolved': {
-      ev.agent = accounts[1] ?? null;
-      ev.api = accounts[2] ?? null;
-      ev.qualityScore = data.length >= 9 ? data.readUInt8(8) : null;
-      ev.refundPercentage = data.length >= 10 ? data.readUInt8(9) : null;
-      ev.amount = extractTransferAmount(tx, accounts[0], accounts[2]);
-      ev.refundAmount = extractTransferAmount(tx, accounts[0], accounts[1]);
+    case 'finalize_dispute': {
+      ev.type = 'dispute_resolved';
+      ev.user = accounts[0] ?? null;
+      ev.treasury = accounts[1] ?? null;
+      ev.escrowPda = accounts[2] ?? ev.escrowPda;
+      ev.paymentAmount = extractTransferAmount(tx, ev.escrowPda, ev.treasury ?? undefined);
+      ev.refundAmount = extractTransferAmount(tx, ev.escrowPda, ev.user ?? undefined);
+      ev.amount = ev.paymentAmount ?? null;
       break;
     }
-    case 'funds_released': {
-      ev.agent = accounts[1] ?? null;
-      ev.api = accounts[2] ?? null;
-      ev.amount = extractTransferAmount(tx, accounts[0], accounts[2]);
+    case 'rate_and_release': {
+      ev.user = accounts[0] ?? null;
+      ev.treasury = accounts[1] ?? null;
+      ev.escrowPda = accounts[2] ?? ev.escrowPda;
+      ev.rating = data.length >= 9 ? data.readUInt8(8) : null;
+
+      if (ev.rating !== null && ev.rating >= 3) {
+        ev.type = 'funds_released';
+        ev.paymentAmount = extractTransferAmount(tx, ev.escrowPda, ev.treasury ?? undefined);
+        ev.amount = ev.paymentAmount ?? null;
+      } else {
+        ev.type = 'funds_refunded';
+        ev.refundAmount = extractTransferAmount(tx, ev.escrowPda, ev.user ?? undefined);
+        ev.amount = ev.refundAmount ?? null;
+      }
       break;
     }
+    case 'timeout_release': {
+      ev.type = 'funds_released';
+      ev.treasury = accounts[0] ?? null;
+      ev.escrowPda = accounts[1] ?? ev.escrowPda;
+      ev.paymentAmount = extractTransferAmount(tx, ev.escrowPda, ev.treasury ?? undefined);
+      ev.amount = ev.paymentAmount ?? null;
+      break;
+    }
+    case 'disputed_timeout_release': {
+      ev.type = 'funds_refunded';
+      ev.user = accounts[0] ?? null;
+      ev.escrowPda = accounts[1] ?? ev.escrowPda;
+      ev.refundAmount = extractTransferAmount(tx, ev.escrowPda, ev.user ?? undefined);
+      ev.amount = ev.refundAmount ?? null;
+      break;
+    }
+    default:
+      return null;
   }
 
   return ev;
 }
 
-function identifyType(disc: Buffer): KamiyoEvent['type'] | null {
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW)) return 'escrow_created';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.MARK_DISPUTED)) return 'dispute_initiated';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.RESOLVE_DISPUTE)) return 'dispute_resolved';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.RESOLVE_DISPUTE_SWITCHBOARD)) return 'dispute_resolved';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.RELEASE_FUNDS)) return 'funds_released';
-  return null;
+function inferType(data: Buffer): TransactionType {
+  if (data.length < 8) return 'unknown';
+  const disc = data.subarray(0, 8);
+  for (const [name, expected] of Object.entries(INSTRUCTION_DISCRIMINATORS)) {
+    if (disc.equals(expected)) return name.toLowerCase() as TransactionType;
+  }
+  return 'unknown';
 }
 
-function decodeIxData(data: string): Buffer | null {
-  try {
-    const d = Buffer.from(data, 'base64');
-    if (d.length >= 8) return d;
-  } catch {}
+function decodeIxDataCandidates(data: string): Buffer[] {
+  const out: Buffer[] = [];
 
   try {
-    const d = Buffer.from(data, 'hex');
-    if (d.length >= 8) return d;
-  } catch {}
+    const buf = Buffer.from(bs58.decode(data));
+    if (bs58.encode(buf) === data && buf.length >= 8) out.push(buf);
+  } catch {
+    // ignore decode errors
+  }
 
-  return null;
-}
+  try {
+    const buf = Buffer.from(data, 'base64');
+    const normalized = data.replace(/=+$/, '');
+    const roundtrip = buf.toString('base64').replace(/=+$/, '');
+    if (buf.length >= 8 && roundtrip === normalized) out.push(buf);
+  } catch {
+    // ignore decode errors
+  }
 
-function extractString(buf: Buffer, offset: number): string | null {
-  if (buf.length < offset + 4) return null;
-  const len = buf.readUInt32LE(offset);
-  const start = offset + 4;
-  const end = start + len;
-  if (len > 512 || buf.length < end) return null;
-  return buf.slice(start, end).toString('utf8');
+  if (/^[0-9a-f]{16,}$/i.test(data) && data.length % 2 === 0) {
+    try {
+      const buf = Buffer.from(data, 'hex');
+      if (buf.length >= 8 && buf.toString('hex') === data.toLowerCase()) out.push(buf);
+    } catch {
+      // ignore decode errors
+    }
+  }
+
+  return out;
 }
 
 function extractTransferAmount(
@@ -124,6 +179,23 @@ function extractTransferAmount(
   if (!from || !to) return null;
   const match = tx.nativeTransfers.find((t) => t.fromUserAccount === from && t.toUserAccount === to);
   return match ? BigInt(match.amount) : null;
+}
+
+function escrowForType(type: TransactionType, accounts: string[]): string | null {
+  switch (type) {
+    case 'create_escrow':
+    case 'rate_and_release':
+    case 'finalize_dispute':
+      return accounts[2] ?? null;
+    case 'mark_disputed':
+    case 'commit_vote':
+    case 'reveal_vote':
+    case 'timeout_release':
+    case 'disputed_timeout_release':
+      return accounts[1] ?? null;
+    default:
+      return accounts[0] ?? null;
+  }
 }
 
 type Req = { body: unknown; rawBody?: string | Buffer; headers: Record<string, string | undefined> };
@@ -161,6 +233,7 @@ export function createWebhookHandler(opts: WebhookHandlerOptions, cfg?: { progra
             case 'dispute_initiated': await opts.onDisputeInitiated?.(ev); break;
             case 'dispute_resolved': await opts.onDisputeResolved?.(ev); break;
             case 'funds_released': await opts.onFundsReleased?.(ev); break;
+            case 'funds_refunded': await opts.onFundsRefunded?.(ev); break;
           }
         } catch (e) {
           opts.onError?.(e instanceof Error ? e : new Error(String(e)), payload[0]);
@@ -223,6 +296,7 @@ export function getEventStats(events: KamiyoEvent[]): {
     dispute_initiated: 0,
     dispute_resolved: 0,
     funds_released: 0,
+    funds_refunded: 0,
   };
 
   let vol = 0n;

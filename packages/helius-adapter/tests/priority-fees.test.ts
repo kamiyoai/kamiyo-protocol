@@ -166,9 +166,9 @@ describe('PriorityFeeCalculator', () => {
 
         it('should calculate operation fee with compute units', async () => {
             const escrowPda = PublicKey.unique();
-            const result = await calculator.getOperationFee('INITIALIZE_ESCROW', escrowPda);
+            const result = await calculator.getOperationFee('CREATE_ESCROW', escrowPda);
 
-            expect(result.computeUnits).toBe(COMPUTE_UNITS.INITIALIZE_ESCROW);
+            expect(result.computeUnits).toBe(COMPUTE_UNITS.CREATE_ESCROW);
             expect(result.priorityFee).toBeGreaterThan(0);
             expect(result.totalFee).toBeGreaterThan(5000); // Base fee is 5000
         });
@@ -176,8 +176,8 @@ describe('PriorityFeeCalculator', () => {
         it('should use different strategies for different operations', async () => {
             const escrowPda = PublicKey.unique();
 
-            const standardFee = await calculator.getOperationFee('INITIALIZE_ESCROW', escrowPda, [], 'standard');
-            const urgentFee = await calculator.getOperationFee('RESOLVE_DISPUTE', escrowPda, [], 'urgent');
+            const standardFee = await calculator.getOperationFee('CREATE_ESCROW', escrowPda, [], 'standard');
+            const urgentFee = await calculator.getOperationFee('FINALIZE_DISPUTE', escrowPda, [], 'urgent');
 
             expect(urgentFee.totalFee).toBeGreaterThan(standardFee.totalFee);
         });
