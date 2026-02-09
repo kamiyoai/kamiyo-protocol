@@ -10,8 +10,17 @@ export interface ComplianceServiceConfig {
   auditConcurrency: number;
   enableDkgPublishing: boolean;
   enableOnchainAudits: boolean;
+  /** Legacy HTTP DKG API (dkg-engine style). Prefer direct dkg.js config below. */
   dkgApiUrl?: string;
   dkgApiKey?: string;
+
+  /** Direct OriginTrail DKG access via dkg.js (ot-node endpoint). */
+  dkgEndpoint?: string;
+  dkgPort: number;
+  dkgBlockchain?: 'base:8453' | 'gnosis:100' | 'otp:2043';
+  dkgPrivateKey?: string;
+  dkgRpcUrl?: string;
+  dkgParanetUal?: string;
   dkgDefaultEpochs: number;
   dkgPublishRetries: number;
   dkgPublishBackoffMs: number;
@@ -49,6 +58,10 @@ export interface ComplianceServiceConfig {
 const FOUR_HOURS = 4 * 60 * 60 * 1000;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
+function parseBool(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === 'true';
+}
+
 export function loadConfig(): ComplianceServiceConfig {
   const privateKey = process.env.SOLANA_PRIVATE_KEY?.trim();
   const nodeEnv = process.env.NODE_ENV ?? 'development';
@@ -72,15 +85,26 @@ export function loadConfig(): ComplianceServiceConfig {
     privateKey: privateKey && privateKey.length > 0 ? privateKey : undefined,
     meishiProgramId: process.env.MEISHI_PROGRAM_ID,
     nodeEnv,
-    allowEphemeralSigner: process.env.ALLOW_EPHEMERAL_SIGNER === 'true',
+    allowEphemeralSigner: parseBool(process.env.ALLOW_EPHEMERAL_SIGNER),
     passportDiscoveryMode,
     maxDiscoveredPassports: parseInt(process.env.MAX_DISCOVERED_PASSPORTS ?? '', 10) || 200,
     seedPassportAddresses,
     auditConcurrency: parseInt(process.env.AUDIT_CONCURRENCY ?? '', 10) || 4,
-    enableDkgPublishing: process.env.ENABLE_DKG_PUBLISHING === 'true',
-    enableOnchainAudits: process.env.ENABLE_ONCHAIN_AUDITS === 'true',
+    enableDkgPublishing: parseBool(process.env.ENABLE_DKG_PUBLISHING),
+    enableOnchainAudits: parseBool(process.env.ENABLE_ONCHAIN_AUDITS),
     dkgApiUrl: process.env.DKG_API_URL?.trim() || undefined,
     dkgApiKey: process.env.DKG_API_KEY?.trim() || undefined,
+    dkgEndpoint: process.env.DKG_ENDPOINT?.trim() || undefined,
+    dkgPort: parseInt(process.env.DKG_PORT ?? '', 10) || 8900,
+    dkgBlockchain:
+      process.env.DKG_BLOCKCHAIN === 'base:8453' ||
+      process.env.DKG_BLOCKCHAIN === 'gnosis:100' ||
+      process.env.DKG_BLOCKCHAIN === 'otp:2043'
+        ? process.env.DKG_BLOCKCHAIN
+        : undefined,
+    dkgPrivateKey: process.env.DKG_PRIVATE_KEY?.trim() || undefined,
+    dkgRpcUrl: process.env.DKG_RPC_URL?.trim() || undefined,
+    dkgParanetUal: process.env.DKG_PARANET_UAL?.trim() || undefined,
     dkgDefaultEpochs: parseInt(process.env.DKG_DEFAULT_EPOCHS ?? '', 10) || 12,
     dkgPublishRetries: parseInt(process.env.DKG_PUBLISH_RETRIES ?? '', 10) || 2,
     dkgPublishBackoffMs: parseInt(process.env.DKG_PUBLISH_BACKOFF_MS ?? '', 10) || 1000,

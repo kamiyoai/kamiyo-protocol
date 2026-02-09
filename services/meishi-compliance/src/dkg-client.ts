@@ -5,6 +5,15 @@ export interface HttpDKGClientConfig {
   apiKey?: string;
 }
 
+export interface OriginTrailDKGClientConfig {
+  endpoint: string;
+  port?: number;
+  blockchain: 'base:8453' | 'gnosis:100' | 'otp:2043';
+  rpcUrl?: string;
+  privateKey?: string;
+  paranetUal?: string;
+}
+
 async function requestJson<T>(
   url: string,
   body: Record<string, unknown>,
@@ -76,4 +85,76 @@ export class HttpDKGClient implements DKGClient {
     }
     return ual;
   }
+}
+
+type DkgJsClient = {
+  graph: {
+    query: (
+      query: string,
+      type: 'SELECT' | 'CONSTRUCT' | 'ASK',
+      opts?: { repository?: string; paranetUAL?: string }
+    ) => Promise<{ data?: unknown[] }>;
+  };
+  asset: {
+    create: (
+      content: { public: Record<string, unknown>; private?: Record<string, unknown> },
+      opts?: { epochsNum?: number; paranetUAL?: string }
+    ) => Promise<{ UAL?: string }>;
+    get: (ual: string, opts?: Record<string, unknown>) => Promise<unknown>;
+  };
+};
+
+export class OriginTrailDKGClient implements DKGClient {
+  private readonly dkg: DkgJsClient;
+  private readonly paranetUal?: string;
+
+  constructor(dkg: DkgJsClient, paranetUal?: string) {
+    this.dkg = dkg;
+    this.paranetUal = paranetUal;
+  }
+
+  async query(sparql: string): Promise<unknown[]> {
+    const result = await this.dkg.graph.query(sparql, 'SELECT', {
+      repository: 'publicKnowledgeAssets',
+      ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
+    });
+    return Array.isArray(result?.data) ? result.data : [];
+  }
+
+  async get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }> {
+    const content = await this.dkg.asset.get(ual, {
+      contentType: 'all',
+      ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
+    });
+    return { content };
+  }
+
+  async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
+    const result = await this.dkg.asset.create(content, {
+      ...(options?.epochs ? { epochsNum: options.epochs } : {}),
+      ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
+    });
+    if (!result?.UAL) {
+      throw new Error('DKG publish response missing UAL');
+    }
+    return result.UAL;
+  }
+}
+
+export async function createOriginTrailDKGClient(config: OriginTrailDKGClientConfig): Promise<OriginTrailDKGClient> {
+  const DKG = await import('dkg.js').then((m: any) => m?.default ?? m);
+  const dkg: DkgJsClient = new DKG({
+    endpoint: config.endpoint,
+    port: config.port ?? 8900,
+    blockchain: {
+      name: config.blockchain,
+      rpc: config.rpcUrl,
+      ...(config.privateKey ? { privateKey: config.privateKey } : { publicKey: 'readonly' }),
+    },
+    maxNumberOfRetries: 5,
+    frequency: 2,
+    nodeApiVersion: '/v1',
+  });
+
+  return new OriginTrailDKGClient(dkg, config.paranetUal);
 }
