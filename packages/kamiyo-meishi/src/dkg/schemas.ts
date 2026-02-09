@@ -11,8 +11,8 @@ import {
   gs1Context,
 } from './gs1.js';
 
-const MEISHI_CONTEXT = 'https://kamiyo.io/context/meishi/v1';
-const SCHEMA_CONTEXT = 'https://schema.org/';
+// Inline contexts to avoid runtime JSON-LD dereferencing during DKG publishing.
+const SCHEMA_CONTEXT = { '@vocab': 'https://schema.org/' };
 const MAX_ID_LENGTH = 220;
 
 function createId(type: string, suffix: string): string {
@@ -74,7 +74,7 @@ export function buildTransactionDecisionAsset(params: TransactionDecisionDoc): R
   });
 
   return {
-    '@context': [SCHEMA_CONTEXT, gs1Context(), MEISHI_CONTEXT],
+    '@context': [SCHEMA_CONTEXT, gs1Context()],
     '@type': 'DigitalDocument',
     '@id': decisionId,
     identifier: createId('tx-decision', params.transactionId || `${params.meishiPda}-${timestamp}`),
@@ -120,7 +120,7 @@ export function buildTransactionDecisionPayload(params: TransactionDecisionDoc):
   const publicAssertion = buildTransactionDecisionAsset(params);
   const privateAssertion = params.privateReasoning || params.privateInputsHash
     ? {
-        '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+        '@context': [SCHEMA_CONTEXT],
         '@type': 'DigitalDocument',
         '@id': `${String(publicAssertion['@id'])}#private`,
         name: 'TransactionDecisionPrivateDetails',
@@ -168,7 +168,7 @@ export function buildComplianceAuditAsset(params: ComplianceAuditDoc): Record<st
   });
 
   return {
-    '@context': [SCHEMA_CONTEXT, gs1Context(), MEISHI_CONTEXT],
+    '@context': [SCHEMA_CONTEXT, gs1Context()],
     '@type': 'Review',
     '@id': auditId,
     identifier: createId('audit', `${params.meishiPda}-${timestamp}`),
@@ -221,7 +221,7 @@ export function buildComplianceAuditPayload(params: ComplianceAuditDoc): DKGAsse
   const publicAssertion = buildComplianceAuditAsset(params);
   const privateAssertion = params.privateFindingsUal
     ? {
-        '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+        '@context': [SCHEMA_CONTEXT],
         '@type': 'DigitalDocument',
         '@id': `${String(publicAssertion['@id'])}#private`,
         name: 'ComplianceAuditPrivateDetails',
@@ -262,7 +262,7 @@ export function buildLiabilityResolutionAsset(params: LiabilityResolutionDoc): R
   });
 
   return {
-    '@context': [SCHEMA_CONTEXT, gs1Context(), MEISHI_CONTEXT],
+    '@context': [SCHEMA_CONTEXT, gs1Context()],
     '@type': 'DigitalDocument',
     '@id': resolutionId,
     identifier: createId('liability', `${params.disputeId}-${timestamp}`),
@@ -302,7 +302,7 @@ export function buildLiabilityResolutionPayload(params: LiabilityResolutionDoc):
   const publicAssertion = buildLiabilityResolutionAsset(params);
   const privateAssertion = params.privateRationale
     ? {
-        '@context': [SCHEMA_CONTEXT, MEISHI_CONTEXT],
+        '@context': [SCHEMA_CONTEXT],
         '@type': 'DigitalDocument',
         '@id': `${String(publicAssertion['@id'])}#private`,
         name: 'LiabilityResolutionPrivateDetails',
