@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID, createHash } from 'crypto';
-import { Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
+import { PublicKey, Transaction, Keypair } from '@solana/web3.js';
 import { getAssociatedTokenAddress, getAccount, createTransferCheckedInstruction, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import bs58 from 'bs58';
 import db, { deductCredits, usdToCredits } from '../../db';
@@ -9,11 +9,11 @@ import db, { deductCredits, usdToCredits } from '../../db';
 import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
 import { authMiddleware } from '../middleware';
+import { getSolanaConnection } from '../../solana';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const KAMIYO_DECIMALS = 6;
-const SOLANA_RPC = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-const connection = new Connection(SOLANA_RPC, 'confirmed');
+const connection = getSolanaConnection();
 
 // Treasury wallet for hive pool funds
 const HIVE_TREASURY = new PublicKey('F7ZxVjxGvirpvkbcF8HUMofR81TkjHqKKS6ABxQYeEtV');

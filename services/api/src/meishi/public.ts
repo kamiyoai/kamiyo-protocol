@@ -1,10 +1,10 @@
-import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { MeishiClient } from '@kamiyo/meishi';
+import { getSolanaConnection } from '../solana';
 
-const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const MEISHI_PROGRAM_ID = process.env.MEISHI_PROGRAM_ID;
 
-export const meishiConnection = new Connection(RPC_URL, 'confirmed');
+export const meishiConnection = getSolanaConnection();
 export const meishiClient = new MeishiClient({
   connection: meishiConnection,
   // Read-only usage for API/MCP. No private key is required.
@@ -100,4 +100,3 @@ export function serializeAudit(audit: Awaited<ReturnType<MeishiClient['getAudit'
     bump: audit.bump,
   };
 }
-

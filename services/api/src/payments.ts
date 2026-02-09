@@ -1,12 +1,12 @@
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { processPaymentTransaction } from './db';
 import { getRequiredPayment, TIERS } from './tiers';
 import { logger } from './logger';
+import { getSolanaConnection } from './solana';
 
-const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
 const TREASURY_WALLET = process.env.TREASURY_WALLET || '';
 
-const connection = new Connection(RPC_URL, 'confirmed');
+const connection = getSolanaConnection();
 
 export interface PaymentVerification {
   valid: boolean;

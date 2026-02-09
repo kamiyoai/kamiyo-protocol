@@ -28,6 +28,7 @@ import paranetRoutes from './routes/paranet';
 import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
+import { resolveSolanaRpcUrl } from '../solana';
 
 async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
   const startedAt = Date.now();
@@ -57,6 +58,21 @@ async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: n
     clearTimeout(timeout);
     return { ok: false, error: err instanceof Error ? err.message : 'unknown_error' };
   }
+}
+
+const READY_CHECK_CACHE_MS = 15000;
+let lastRpcCheck: { url: string; at: number; result: { ok: boolean; latencyMs?: number; error?: string } } | null =
+  null;
+
+async function checkSolanaRpcCached(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+  const now = Date.now();
+  if (lastRpcCheck && lastRpcCheck.url === url && now - lastRpcCheck.at < READY_CHECK_CACHE_MS) {
+    return lastRpcCheck.result;
+  }
+
+  const result = await checkSolanaRpc(url);
+  lastRpcCheck = { url, at: now, result };
+  return result;
 }
 
 // Rate limiter for auth endpoints (IP-based)
@@ -209,8 +225,8 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Readiness check (no auth)
   app.get('/ready', async (_req, res) => {
-    const solanaUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-    const solana = await checkSolanaRpc(solanaUrl);
+    const solanaUrl = resolveSolanaRpcUrl();
+    const solana = await checkSolanaRpcCached(solanaUrl);
     if (!solana.ok) {
       res.status(503).json({ status: 'not_ready', dependencies: { solana } });
       return;

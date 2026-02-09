@@ -3,6 +3,7 @@
 
 import Database from 'better-sqlite3';
 import { logger } from './logger';
+import { resolveSolanaRpcUrl } from './solana';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const DB_PATH = `${DATA_DIR}/companion.db`;
@@ -340,7 +341,7 @@ function getBurnWorkerConfig(): BurnWorkerConfig {
   return {
     enabled: process.env.BURN_EXECUTION_ENABLED === 'true',
     authoritySecret: process.env.AUTHORITY_WALLET_SECRET || null,
-    rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
+    rpcUrl: resolveSolanaRpcUrl(),
     kamiyoMint: KAMIYO_MINT,
   };
 }

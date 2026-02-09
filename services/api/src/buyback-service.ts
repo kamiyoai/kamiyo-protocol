@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddress, createBurnCheckedInstruction, createTransferCheckedInstruction, getAccount } from '@solana/spl-token';
 import { logger } from './logger';
+import { getSolanaConnection } from './solana';
 import {
   buybackExecutionTotal,
   buybackSolSpentTotal,
@@ -138,8 +139,7 @@ export class BuybackService {
 
   constructor() {
     this.db = getDb();
-    const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-    this.connection = new Connection(rpcUrl, 'confirmed');
+    this.connection = getSolanaConnection();
 
     const treasury = process.env.BUYBACK_TREASURY_ADDRESS;
     this.treasuryAddress = treasury ? new PublicKey(treasury) : null;

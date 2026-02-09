@@ -5,6 +5,7 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { logger } from '../../logger';
 import { getBurnService } from '../../burn-service';
 import { getDailySpendStatus } from '../../db';
+import { getSolanaConnection } from '../../solana';
 
 const router = Router();
 
@@ -19,8 +20,7 @@ let statsCache: { supply: bigint; burned: bigint; timestamp: number } | null = n
 const CACHE_TTL = 60_000;
 
 async function getConnection(): Promise<Connection> {
-  const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-  return new Connection(rpcUrl, 'confirmed');
+  return getSolanaConnection();
 }
 
 async function getTokenStats(): Promise<{ supply: bigint; burned: bigint; decimals: number }> {
