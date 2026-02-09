@@ -44,6 +44,14 @@ interface TrustGraphStats {
   tierCounts: Record<Tier, number>;
 }
 
+type GraphSource = 'dkg' | 'mock';
+
+interface GraphData {
+  nodes: TrustNode[];
+  edges: TrustEdge[];
+  source: GraphSource;
+}
+
 // Map kamiyo tier names to visualization tiers
 function mapTier(tierName: string): Tier {
   const mapping: Record<string, Tier> = {
@@ -113,10 +121,10 @@ function parseDate(val: unknown): string | undefined {
 }
 
 // Fetch nodes and edges from DKG
-async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEdge[] }> {
+async function fetchGraphFromDKG(): Promise<GraphData> {
   const client = await getDKGClient();
   if (!client) {
-    return { nodes: MOCK_NODES, edges: MOCK_EDGES };
+    return { nodes: MOCK_NODES, edges: MOCK_EDGES, source: 'mock' };
   }
 
   try {
@@ -212,13 +220,13 @@ async function fetchGraphFromDKG(): Promise<{ nodes: TrustNode[]; edges: TrustEd
 
     if (nodes.length === 0) {
       logger.warn('No nodes from DKG, falling back to mock data');
-      return { nodes: MOCK_NODES, edges: MOCK_EDGES };
+      return { nodes: MOCK_NODES, edges: MOCK_EDGES, source: 'mock' };
     }
 
-    return { nodes, edges };
+    return { nodes, edges, source: 'dkg' };
   } catch (err) {
     logger.error('Failed to fetch graph from DKG', { error: String(err) });
-    return { nodes: MOCK_NODES, edges: MOCK_EDGES };
+    return { nodes: MOCK_NODES, edges: MOCK_EDGES, source: 'mock' };
   }
 }
 
@@ -340,17 +348,17 @@ function filterGraphByDepth(
 }
 
 // Cache for graph data (refresh every 5 minutes)
-let graphCache: { nodes: TrustNode[]; edges: TrustEdge[]; timestamp: number } | null = null;
+let graphCache: (GraphData & { timestamp: number }) | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function getCachedGraph(): Promise<{ nodes: TrustNode[]; edges: TrustEdge[] }> {
+async function getCachedGraph(): Promise<GraphData> {
   if (graphCache && Date.now() - graphCache.timestamp < CACHE_TTL_MS) {
-    return { nodes: graphCache.nodes, edges: graphCache.edges };
+    return { nodes: graphCache.nodes, edges: graphCache.edges, source: graphCache.source };
   }
 
-  const { nodes, edges } = await fetchGraphFromDKG();
-  graphCache = { nodes, edges, timestamp: Date.now() };
-  return { nodes, edges };
+  const data = await fetchGraphFromDKG();
+  graphCache = { ...data, timestamp: Date.now() };
+  return data;
 }
 
 // GET /api/trust-graph
@@ -364,7 +372,7 @@ router.get('/', async (req: Request, res: Response) => {
       graphCache = null;
     }
 
-    let { nodes, edges } = await getCachedGraph();
+    let { nodes, edges, source } = await getCachedGraph();
 
     // Filter by center node and depth if specified
     if (center) {
@@ -374,7 +382,6 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const stats = computeStats(nodes, edges);
-    const usingDKG = !!process.env.DKG_ENDPOINT;
 
     res.json({
       nodes,
@@ -384,7 +391,7 @@ router.get('/', async (req: Request, res: Response) => {
         center: center || null,
         depth,
       },
-      source: usingDKG ? 'dkg' : 'mock',
+      source,
     });
   } catch (err) {
     logger.error('Failed to fetch trust graph', { error: String(err) });
@@ -512,10 +519,9 @@ router.get('/image', async (_req: Request, res: Response) => {
 
 // GET /api/trust-graph/stats - Just stats for quick display
 router.get('/stats', async (_req: Request, res: Response) => {
-  const { nodes, edges } = await getCachedGraph();
+  const { nodes, edges, source } = await getCachedGraph();
   const stats = computeStats(nodes, edges);
-  const usingDKG = !!process.env.DKG_ENDPOINT;
-  res.json({ ...stats, source: usingDKG ? 'dkg' : 'mock' });
+  res.json({ ...stats, source });
 });
 
 // Tier priority for sorting
@@ -534,7 +540,8 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
   const tierFilter = req.query.tier as string | undefined;
 
   try {
-    let { nodes } = await getCachedGraph();
+    const { nodes: allNodes, source } = await getCachedGraph();
+    let nodes = allNodes;
 
     // Filter by tier if specified (comma-separated)
     if (tierFilter) {
@@ -563,7 +570,6 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
     }));
 
     // Compute tier counts from full (unfiltered) data
-    const { nodes: allNodes } = await getCachedGraph();
     const tierCounts: Record<Tier, number> = {
       oracle: 0,
       sentinel: 0,
@@ -575,15 +581,13 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
       tierCounts[node.tier]++;
     }
 
-    const usingDKG = !!process.env.DKG_ENDPOINT;
-
     res.json({
       agents: ranked,
       totalAgents: allNodes.length,
       filteredCount: nodes.length,
       tierCounts,
       query: { sort, limit, tier: tierFilter || null },
-      source: usingDKG ? 'dkg' : 'mock',
+      source,
     });
   } catch (err) {
     logger.error('Failed to fetch leaderboard', { error: String(err) });
@@ -616,7 +620,7 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
   const agentId = req.params.id;
 
   try {
-    const { nodes, edges } = await getCachedGraph();
+    const { nodes, edges, source } = await getCachedGraph();
     const node = nodes.find(n => n.id === agentId);
 
     if (!node) {
@@ -692,11 +696,9 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
       topPeers,
     };
 
-    const usingDKG = !!process.env.DKG_ENDPOINT;
-
     res.json({
       agent: details,
-      source: usingDKG ? 'dkg' : 'mock',
+      source,
     });
   } catch (err) {
     logger.error('Failed to fetch agent details', { error: String(err) });
