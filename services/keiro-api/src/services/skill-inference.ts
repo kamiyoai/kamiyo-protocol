@@ -146,7 +146,9 @@ async function inferSkillsWithOpenAi(prompt: string, maxSkills: number): Promise
                 'Return only JSON of shape {"skills": string[]}. ' +
                 'Each skill must be a short snake_case tag (lowercase a-z, 0-9, underscores), 1..32 chars. ' +
                 `Pick at most ${maxSkills} skills. If unclear, include "general". ` +
-                'Prefer stable capabilities over tasks. Examples: "smart_contract_audit", "technical_writing", "data_analysis".',
+                'Prefer stable capabilities over tasks. ' +
+                'When applicable, include these built-in tags: "research", "writing", "code_review", "data_analysis", "translation", "general". ' +
+                'Examples: "smart_contract_audit", "technical_writing", "data_analysis".',
             },
           ],
         },
