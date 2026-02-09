@@ -111,11 +111,12 @@ const handler = createVerifiedWebhookHandler(
         onDisputeInitiated: async (event) => {
             console.log('Dispute initiated:', event.escrowPda);
             // Trigger oracle assessment
-            await initiateOracleReview(event.escrowId);
+            await initiateOracleReview(event.transactionId ?? event.escrowPda);
         },
 
         onDisputeResolved: async (event) => {
             console.log('Quality score:', event.qualityScore);
+            console.log('Refund percent:', event.refundPercentage);
             console.log('Refund amount:', event.refundAmount);
             // Update agent reputation
             await updateReputation(event.agent, event.qualityScore);
