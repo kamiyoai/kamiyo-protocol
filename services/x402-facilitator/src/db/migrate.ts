@@ -251,6 +251,16 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_payment_sessions_expires ON payment_sessions(expires_at);
     `,
   },
+  {
+    name: '010_payment_nonce_tx_hash',
+    sql: `
+      ALTER TABLE payment_nonce_guard ADD COLUMN IF NOT EXISTS tx_hash TEXT;
+      ALTER TABLE payment_nonce_guard ADD COLUMN IF NOT EXISTS settlement_id UUID;
+
+      CREATE INDEX IF NOT EXISTS idx_payment_nonce_tx_hash ON payment_nonce_guard(tx_hash) WHERE tx_hash IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_payment_nonce_settlement ON payment_nonce_guard(settlement_id) WHERE settlement_id IS NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

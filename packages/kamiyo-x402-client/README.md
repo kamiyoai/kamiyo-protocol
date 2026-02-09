@@ -152,6 +152,8 @@ KAMIYO supports an authorize-once session scheme so buyers don't need to sign ev
 2. Buyer signs a session challenge (one-time signature)
 3. Client uses `paymentHeader: session:<network>:<token>.<nonce>` on each request
 
+To stop all session-based payments immediately, set the delegated allowance back to `0` (the widget includes a button for this).
+
 ### Embeddable Widget
 
 Sellers can surface the flow directly on a webpage:

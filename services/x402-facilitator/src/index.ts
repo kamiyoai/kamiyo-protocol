@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import bs58 from 'bs58';
 import { Connection, Keypair } from '@solana/web3.js';
 import { validateConfig, getConfig, getRedactedConfig } from './config';
@@ -66,6 +67,8 @@ async function main() {
   app.use(helmet());
   app.use(cors());
   app.use(express.json({ limit: '16kb' }));
+
+  app.use('/widget', rateLimit, express.static(path.join(__dirname, '../public/widget')));
 
   app.get('/health', rateLimit, (_req, res) => {
     res.json({

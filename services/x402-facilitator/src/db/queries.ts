@@ -30,6 +30,19 @@ type PaymentSessionRow = {
   revoked_at: Date | null;
 };
 
+type PaymentNonceGuardRow = {
+  id: string;
+  payer_wallet: string;
+  nonce: string;
+  usage: string;
+  network: string;
+  resource: string;
+  amount: string;
+  created_at: Date;
+  tx_hash: string | null;
+  settlement_id: string | null;
+};
+
 export async function insertSettlement(
   merchantWallet: string,
   payerWallet: string,
@@ -66,6 +79,26 @@ export async function updateSettlementConfirmed(id: string, txHash: string, feeA
   ]);
 }
 
+export async function getSettlementById(
+  id: string
+): Promise<({
+  id: string;
+  merchant_wallet: string;
+  payer_wallet: string;
+  amount: string;
+  fee_amount: string;
+  asset: string;
+  tx_hash: string | null;
+  status: string;
+  network: string;
+}) | null> {
+  return queryOne(
+    `SELECT id, merchant_wallet, payer_wallet, amount::text, fee_amount::text, asset, tx_hash, status, network
+     FROM settlements WHERE id = $1`,
+    [id]
+  );
+}
+
 export async function reservePaymentNonce(
   payerWallet: string,
   nonce: string,
@@ -82,6 +115,39 @@ export async function reservePaymentNonce(
     [payerWallet, nonce, usage, network, resource, amount]
   );
   return rows.length > 0;
+}
+
+export async function getPaymentNonceGuard(payerWallet: string, nonce: string): Promise<PaymentNonceGuardRow | null> {
+  return queryOne<PaymentNonceGuardRow>(
+    `SELECT id, payer_wallet, nonce, usage, network, resource, amount::text, created_at, tx_hash, settlement_id::text
+     FROM payment_nonce_guard
+     WHERE payer_wallet = $1 AND nonce = $2`,
+    [payerWallet, nonce]
+  );
+}
+
+export async function setPaymentNonceSettlementId(payerWallet: string, nonce: string, settlementId: string): Promise<void> {
+  await query(
+    `UPDATE payment_nonce_guard SET settlement_id = $3
+     WHERE payer_wallet = $1 AND nonce = $2`,
+    [payerWallet, nonce, settlementId]
+  );
+}
+
+export async function setPaymentNonceTxHash(payerWallet: string, nonce: string, txHash: string): Promise<void> {
+  await query(
+    `UPDATE payment_nonce_guard SET tx_hash = $3
+     WHERE payer_wallet = $1 AND nonce = $2`,
+    [payerWallet, nonce, txHash]
+  );
+}
+
+export async function deletePaymentNonceGuard(payerWallet: string, nonce: string): Promise<void> {
+  await query(
+    `DELETE FROM payment_nonce_guard
+     WHERE payer_wallet = $1 AND nonce = $2 AND tx_hash IS NULL`,
+    [payerWallet, nonce]
+  );
 }
 
 export async function insertSessionChallenge(row: {

@@ -16,6 +16,11 @@ import {
   getWalletAverageQuality,
   getMonthlyVolume,
   reservePaymentNonce,
+  getPaymentNonceGuard,
+  setPaymentNonceSettlementId,
+  setPaymentNonceTxHash,
+  deletePaymentNonceGuard,
+  getSettlementById,
   getPaymentSessionByTokenHash,
   reservePaymentSessionSpend,
   releasePaymentSessionSpend,
@@ -210,12 +215,6 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         return;
       }
 
-      const budgetReserved = await reservePaymentSessionSpend(session.token_hash, amountMicro.toString());
-      if (!budgetReserved) {
-        sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds remaining session cap', network, session.payer_wallet);
-        return;
-      }
-
       let nonceReserved = false;
       try {
         nonceReserved = await reservePaymentNonce(
@@ -227,14 +226,43 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           amount
         );
       } catch (err) {
-        await releasePaymentSessionSpend(session.token_hash, amountMicro.toString());
         sendSettleFailure(res, 500, 'server_error', 'Failed to reserve payment nonce', network, session.payer_wallet);
         return;
       }
 
       if (!nonceReserved) {
-        await releasePaymentSessionSpend(session.token_hash, amountMicro.toString());
+        const existing = await getPaymentNonceGuard(session.payer_wallet, sessionHeader.nonce).catch(() => null);
+        if (existing?.tx_hash) {
+          const settlement = existing.settlement_id
+            ? await getSettlementById(existing.settlement_id).catch(() => null)
+            : null;
+
+          const amountFromDb = settlement ? Number(settlement.amount) : amount;
+          const feeFromDb = settlement ? Number(settlement.fee_amount || '0') : 0;
+          const netFromDb = amountFromDb - feeFromDb;
+
+          res.json({
+            success: true,
+            transaction: existing.tx_hash,
+            payer: session.payer_wallet,
+            txHash: existing.tx_hash,
+            amount: amountFromDb,
+            fee: feeFromDb,
+            net: netFromDb,
+            network,
+            idempotent: true,
+          });
+          return;
+        }
+
         sendSettleFailure(res, 409, 'replayed_payment', 'Payment nonce already used', network, session.payer_wallet);
+        return;
+      }
+
+      const budgetReserved = await reservePaymentSessionSpend(session.token_hash, amountMicro.toString());
+      if (!budgetReserved) {
+        await deletePaymentNonceGuard(session.payer_wallet, sessionHeader.nonce).catch(() => {});
+        sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds remaining session cap', network, session.payer_wallet);
         return;
       }
 
@@ -252,6 +280,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           network
         );
         settlementId = settlement.id;
+        await setPaymentNonceSettlementId(session.payer_wallet, sessionHeader.nonce, settlement.id).catch(() => {});
 
         const [stats, disputeStats, avgQuality, monthlyVol] = await Promise.all([
           getSettlementStats(merchantWallet),
@@ -286,8 +315,10 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         try {
           await updateSettlementConfirmed(settlement.id, onchainResult.txHash, fee);
           await insertFeeLedger(settlement.id, null, 'settlement', fee, onchainResult.txHash);
+          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchainResult.txHash);
         } catch {
           // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
+          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchainResult.txHash).catch(() => {});
         }
 
         res.json({
@@ -307,6 +338,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         }
         if (!onchain) {
           await releasePaymentSessionSpend(session.token_hash, amountMicro.toString());
+          await deletePaymentNonceGuard(session.payer_wallet, sessionHeader.nonce).catch(() => {});
         }
         sendSettleFailure(
           res,
