@@ -99,3 +99,24 @@ Pay for x402 HTTP 402 endpoints with USDC.
 - Checks endpoint pricing without paying
 - Makes signed USDC payments
 - Supports Base, Polygon, Arbitrum, and Solana networks
+
+---
+
+## Skill: Kamino AutoSave
+
+Deposit idle USDC into Kamino Earn (KVault) vaults to earn yield automatically (saving/compounding, not trading).
+
+### Triggers
+- "autosave usdc"
+- "deposit idle usdc"
+- "earn yield on usdc"
+- "suggest kamino vaults"
+
+### Example Prompts
+- "kamino_suggest_vaults with { \"limit\": 5, \"apyWindow\": \"apy30d\", \"minAumUsd\": 1000000 }"
+- "AutoSave idle USDC: keep a 10 USDC buffer, deposit if idle >= 50 USDC, dry-run first"
+
+### What It Does
+- Suggests vaults by APY window with an AUM filter
+- Builds deposit/withdraw transactions (dry-run by default)
+- Auto-selects a vault and deposits idle USDC based on buffer/threshold settings
