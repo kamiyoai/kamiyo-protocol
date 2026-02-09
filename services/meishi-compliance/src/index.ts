@@ -13,7 +13,7 @@ import { RuleRegistry } from './rules/index.js';
 import { EU_AI_ACT_RULES } from './rules/eu-ai-act.js';
 import { CONSUMER_PROTECTION_RULES } from './rules/consumer-protection.js';
 import { COMMERCE_RULES } from './rules/commerce.js';
-import { HttpDKGClient } from './dkg-client.js';
+import { createOriginTrailDKGClient, HttpDKGClient } from './dkg-client.js';
 
 dotenv.config();
 
@@ -118,19 +118,35 @@ async function main() {
   });
 
   let dkgPublisher: MeishiDKGPublisher | null = null;
+  let dkgPublisherInitError: string | null = null;
   if (config.enableDkgPublishing) {
-    if (!config.dkgApiUrl) {
-      throw new Error('ENABLE_DKG_PUBLISHING=true requires DKG_API_URL');
+    try {
+      const dkgClient = config.dkgEndpoint
+        ? await createOriginTrailDKGClient({
+            endpoint: config.dkgEndpoint,
+            port: config.dkgPort,
+            blockchain: config.dkgBlockchain ?? 'base:8453',
+            rpcUrl: config.dkgRpcUrl,
+            privateKey: config.dkgPrivateKey,
+            paranetUal: config.dkgParanetUal,
+          })
+        : config.dkgApiUrl
+          ? new HttpDKGClient({ apiUrl: config.dkgApiUrl, apiKey: config.dkgApiKey })
+          : null;
+
+      if (!dkgClient) {
+        throw new Error('ENABLE_DKG_PUBLISHING=true requires DKG_ENDPOINT (preferred) or DKG_API_URL');
+      }
+
+      dkgPublisher = new MeishiDKGPublisher({
+        dkg: dkgClient,
+        defaultEpochs: config.dkgDefaultEpochs,
+      });
+      console.log('[meishi-compliance] DKG publishing enabled');
+    } catch (err) {
+      dkgPublisherInitError = err instanceof Error ? err.message : String(err);
+      console.error('[meishi-compliance] Failed to initialize DKG publishing:', err);
     }
-    const dkgClient = new HttpDKGClient({
-      apiUrl: config.dkgApiUrl,
-      apiKey: config.dkgApiKey,
-    });
-    dkgPublisher = new MeishiDKGPublisher({
-      dkg: dkgClient,
-      defaultEpochs: config.dkgDefaultEpochs,
-    });
-    console.log('[meishi-compliance] DKG publishing enabled');
   }
 
   if (config.enableOnchainAudits && !config.enableDkgPublishing) {
@@ -190,6 +206,10 @@ async function main() {
   let lastRpcLatencyMs = 0;
   let consecutiveRpcFailures = 0;
   let lastRpcError: string | null = null;
+  let lastDkgInitErrorAt = 0;
+  if (dkgPublisherInitError) {
+    lastDkgInitErrorAt = Date.now();
+  }
 
   const buildComplianceAuditDoc = (
     result: AuditResult,
@@ -473,6 +493,7 @@ async function main() {
     if (config.enableDkgPublishing && dkgPublishFailures > 0) {
       readinessFailures.push('dkg_publish_failures_present');
     }
+    if (config.enableDkgPublishing && !dkgPublisher) readinessFailures.push('dkg_publisher_not_initialized');
     if (config.enableOnchainAudits && onchainAuditFailures > 0) {
       readinessFailures.push('onchain_audit_failures_present');
     }
@@ -509,6 +530,9 @@ async function main() {
           consecutiveMonitorFailures,
           consecutiveAuditFailures,
           dkgPublishingEnabled: config.enableDkgPublishing,
+          dkgPublisherReady: Boolean(dkgPublisher),
+          dkgPublisherInitError,
+          dkgPublisherInitErrorAt: lastDkgInitErrorAt,
           dkgPublishCount,
           dkgPublishFailures,
           lastPublishedAuditUal,
