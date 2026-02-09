@@ -36,6 +36,7 @@ export class KamiyoHeliusClient {
     this.config = {
       apiKey: config.apiKey,
       cluster: config.cluster ?? 'mainnet-beta',
+      programId: config.programId ?? KAMIYO_PROGRAM_ID,
       commitment: config.commitment ?? DEFAULTS.COMMITMENT,
       maxRetries: config.maxRetries ?? DEFAULTS.MAX_RETRIES,
       retryDelayMs: config.retryDelayMs ?? DEFAULTS.RETRY_DELAY_MS,
@@ -46,7 +47,7 @@ export class KamiyoHeliusClient {
     this.pool = new ConnectionPool(this.config.apiKey, this.config.cluster, this.config.commitment, poolConfig);
     this.limiter = new RateLimiter({ maxTokens: this.config.rateLimitRps, refillRate: this.config.rateLimitRps });
     this.fees = new PriorityFeeCalculator(this.config.apiKey, this.config.cluster);
-    this.programId = new PublicKey(config.programId ?? KAMIYO_PROGRAM_ID);
+    this.programId = new PublicKey(this.config.programId);
   }
 
   async init(): Promise<void> {
