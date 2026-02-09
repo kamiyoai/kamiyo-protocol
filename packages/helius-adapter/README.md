@@ -100,7 +100,7 @@ import { createVerifiedWebhookHandler } from '@kamiyo/helius-adapter/webhooks';
 
 // Express/Next.js handler
 const handler = createVerifiedWebhookHandler(
-    process.env.WEBHOOK_SECRET,
+    process.env.HELIUS_WEBHOOK_SECRET,
     {
         onEscrowCreated: async (event) => {
             console.log('Escrow created:', event.escrowPda);
