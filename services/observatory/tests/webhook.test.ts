@@ -90,5 +90,10 @@ describe('webhook', () => {
     const esc = await request(app).get('/escrows/EscrowPDA');
     expect(esc.status).toBe(200);
     expect(esc.body.status).toBe('active');
+
+    const list = await request(app).get('/escrows').query({ status: 'active', limit: 10 });
+    expect(list.status).toBe(200);
+    expect(Array.isArray(list.body.escrows)).toBe(true);
+    expect(list.body.escrows.length).toBeGreaterThanOrEqual(1);
   });
 });
