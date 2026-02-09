@@ -95,6 +95,10 @@ type DkgJsClient = {
       opts?: { repository?: string; paranetUAL?: string }
     ) => Promise<{ data?: unknown[] }>;
   };
+  blockchain?: {
+    getWalletAddress: (opts?: Record<string, unknown>) => Promise<string>;
+    getWalletBalances: (opts?: Record<string, unknown>) => Promise<{ blockchainToken: string; trac: string }>;
+  };
   asset: {
     create: (
       content: { public: Record<string, unknown>; private?: Record<string, unknown> },
@@ -138,6 +142,23 @@ export class OriginTrailDKGClient implements DKGClient {
       throw new Error('DKG publish response missing UAL');
     }
     return result.UAL;
+  }
+
+  async getWalletAddress(): Promise<string | null> {
+    if (!this.dkg.blockchain?.getWalletAddress) return null;
+    try {
+      const address = await this.dkg.blockchain.getWalletAddress();
+      return typeof address === 'string' && address.length > 0 ? address : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getWalletBalances(): Promise<{ blockchainToken: string; trac: string } | null> {
+    if (!this.dkg.blockchain?.getWalletBalances) return null;
+    const balances = await this.dkg.blockchain.getWalletBalances();
+    if (!balances || typeof balances !== 'object') return null;
+    return balances;
   }
 }
 
