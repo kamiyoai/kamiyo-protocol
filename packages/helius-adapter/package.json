@@ -6,12 +6,16 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "import": "./dist/index.js",
       "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./webhooks": {
+      "import": "./dist/webhooks.js",
       "require": "./dist/webhooks.js",
-      "types": "./dist/webhooks.d.ts"
+      "types": "./dist/webhooks.d.ts",
+      "default": "./dist/webhooks.js"
     }
   },
   "files": [
@@ -21,6 +25,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

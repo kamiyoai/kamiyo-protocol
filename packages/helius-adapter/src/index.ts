@@ -140,5 +140,9 @@ export type {
     HeliusAdapterError,
     RateLimitError,
     ConnectionError,
-    ParseError
+    ParseError,
+
+    // Webhooks
+    KamiyoEvent,
+    WebhookHandlerOptions
 } from './types';
