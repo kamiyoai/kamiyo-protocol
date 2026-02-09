@@ -79,11 +79,16 @@ export const agentService = {
     const current = agents.get(id);
     if (!current) return null;
 
+    const normalizedSkills = updates.skills
+      ? Array.from(new Set(updates.skills.map(normalizeSkillTag).filter(Boolean)))
+      : undefined;
+
     const updated: Agent = {
       ...current,
       ...updates,
       id: current.id,
       walletAddress: current.walletAddress,
+      skills: normalizedSkills ?? current.skills,
     };
 
     if (updates.creditScore !== undefined) {
