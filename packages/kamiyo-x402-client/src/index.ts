@@ -160,6 +160,10 @@ export type { JupiterConfig, SwapQuote, SwapResult, PriceResult } from './jupite
 export { KamiyoPayEmbed, createKamiyoPayWidget } from './embed';
 export type { EmbedConfig, EmbedPaymentResult } from './embed';
 
+// Session embed (authorize-once)
+export { KamiyoX402SessionEmbed, createKamiyoX402SessionWidget } from './session-embed';
+export type { SessionEmbedConfig, SessionAuthorizedResult, SessionWidgetState } from './session-embed';
+
 // Coinbase facilitator
 export {
   CoinbaseFacilitator,
