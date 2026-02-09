@@ -11,14 +11,16 @@ export function verifyWebhookSignature(payload: string | Buffer, signature: stri
   const provided = Buffer.from(sig, 'hex');
   try {
     return timingSafeEqual(provided, expected);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export function parseWebhookPayload(payload: HeliusWebhookPayload[]): KamiyoEvent[] {
   const events: KamiyoEvent[] = [];
 
   for (const tx of payload) {
-    for (const ix of tx.instructions.filter(i => i.programId === KAMIYO_PROGRAM_ID)) {
+    for (const ix of tx.instructions.filter((i) => i.programId === KAMIYO_PROGRAM_ID)) {
       const ev = parseIx(ix, tx);
       if (ev) events.push(ev);
     }
@@ -28,7 +30,7 @@ export function parseWebhookPayload(payload: HeliusWebhookPayload[]): KamiyoEven
 }
 
 function parseIx(ix: HeliusWebhookPayload['instructions'][0], tx: HeliusWebhookPayload): KamiyoEvent | null {
-  const data = decode(ix.data);
+  const data = decodeIxData(ix.data);
   if (!data || data.length < 8) return null;
 
   const type = identifyType(data.slice(0, 8));
@@ -37,36 +39,46 @@ function parseIx(ix: HeliusWebhookPayload['instructions'][0], tx: HeliusWebhookP
   const accounts = ix.accounts;
   const ev: KamiyoEvent = {
     type,
-    escrowId: accounts[0]?.slice(0, 8) ?? '',
     escrowPda: accounts[0] ?? '',
+    transactionId: null,
     agent: null,
-    provider: null,
+    api: null,
     amount: null,
     qualityScore: null,
+    refundPercentage: null,
     refundAmount: null,
     signature: tx.signature,
     timestamp: tx.timestamp,
-    slot: tx.slot
+    slot: tx.slot,
   };
 
   switch (type) {
-    case 'escrow_created':
+    case 'escrow_created': {
       ev.agent = accounts[1] ?? null;
-      ev.provider = accounts[2] ?? null;
-      if (data.length >= 16) ev.amount = data.readBigUInt64LE(8);
+      ev.api = accounts[2] ?? null;
+      ev.amount = data.length >= 16 ? data.readBigUInt64LE(8) : null;
+      ev.transactionId = extractString(data, 24);
       break;
-    case 'escrow_funded':
-      ev.amount = tx.nativeTransfers.find(t => t.toUserAccount === accounts[0])?.amount
-        ? BigInt(tx.nativeTransfers.find(t => t.toUserAccount === accounts[0])!.amount) : null;
+    }
+    case 'dispute_initiated': {
+      ev.agent = accounts[2] ?? null;
       break;
-    case 'dispute_resolved':
-      if (data.length >= 9) ev.qualityScore = data[8];
-      if (data.length >= 17) ev.refundAmount = data.readBigUInt64LE(9);
+    }
+    case 'dispute_resolved': {
+      ev.agent = accounts[1] ?? null;
+      ev.api = accounts[2] ?? null;
+      ev.qualityScore = data.length >= 9 ? data.readUInt8(8) : null;
+      ev.refundPercentage = data.length >= 10 ? data.readUInt8(9) : null;
+      ev.amount = extractTransferAmount(tx, accounts[0], accounts[2]);
+      ev.refundAmount = extractTransferAmount(tx, accounts[0], accounts[1]);
       break;
-    case 'funds_released':
-      ev.amount = tx.nativeTransfers.find(t => t.fromUserAccount === accounts[0])?.amount
-        ? BigInt(tx.nativeTransfers.find(t => t.fromUserAccount === accounts[0])!.amount) : null;
+    }
+    case 'funds_released': {
+      ev.agent = accounts[1] ?? null;
+      ev.api = accounts[2] ?? null;
+      ev.amount = extractTransferAmount(tx, accounts[0], accounts[2]);
       break;
+    }
   }
 
   return ev;
@@ -74,24 +86,44 @@ function parseIx(ix: HeliusWebhookPayload['instructions'][0], tx: HeliusWebhookP
 
 function identifyType(disc: Buffer): KamiyoEvent['type'] | null {
   if (disc.equals(INSTRUCTION_DISCRIMINATORS.INITIALIZE_ESCROW)) return 'escrow_created';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.FUND_ESCROW)) return 'escrow_funded';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.INITIATE_DISPUTE)) return 'dispute_initiated';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.MARK_DISPUTED)) return 'dispute_initiated';
   if (disc.equals(INSTRUCTION_DISCRIMINATORS.RESOLVE_DISPUTE)) return 'dispute_resolved';
+  if (disc.equals(INSTRUCTION_DISCRIMINATORS.RESOLVE_DISPUTE_SWITCHBOARD)) return 'dispute_resolved';
   if (disc.equals(INSTRUCTION_DISCRIMINATORS.RELEASE_FUNDS)) return 'funds_released';
-  if (disc.equals(INSTRUCTION_DISCRIMINATORS.CLOSE_ESCROW)) return 'escrow_closed';
   return null;
 }
 
-function decode(data: string): Buffer | null {
+function decodeIxData(data: string): Buffer | null {
   try {
     const d = Buffer.from(data, 'base64');
     if (d.length >= 8) return d;
   } catch {}
+
   try {
     const d = Buffer.from(data, 'hex');
     if (d.length >= 8) return d;
   } catch {}
+
   return null;
+}
+
+function extractString(buf: Buffer, offset: number): string | null {
+  if (buf.length < offset + 4) return null;
+  const len = buf.readUInt32LE(offset);
+  const start = offset + 4;
+  const end = start + len;
+  if (len > 512 || buf.length < end) return null;
+  return buf.slice(start, end).toString('utf8');
+}
+
+function extractTransferAmount(
+  tx: HeliusWebhookPayload,
+  from: string | undefined,
+  to: string | undefined
+): bigint | null {
+  if (!from || !to) return null;
+  const match = tx.nativeTransfers.find((t) => t.fromUserAccount === from && t.toUserAccount === to);
+  return match ? BigInt(match.amount) : null;
 }
 
 type Req = { body: unknown; rawBody?: string | Buffer; headers: Record<string, string | undefined> };
@@ -126,11 +158,9 @@ export function createWebhookHandler(opts: WebhookHandlerOptions) {
         try {
           switch (ev.type) {
             case 'escrow_created': await opts.onEscrowCreated?.(ev); break;
-            case 'escrow_funded': await opts.onEscrowFunded?.(ev); break;
             case 'dispute_initiated': await opts.onDisputeInitiated?.(ev); break;
             case 'dispute_resolved': await opts.onDisputeResolved?.(ev); break;
             case 'funds_released': await opts.onFundsReleased?.(ev); break;
-            case 'escrow_closed': await opts.onEscrowClosed?.(ev); break;
           }
         } catch (e) {
           opts.onError?.(e instanceof Error ? e : new Error(String(e)), payload[0]);
@@ -168,7 +198,7 @@ export function createVerifiedWebhookHandler(secret: string, opts: WebhookHandle
 }
 
 export function filterEventsByType(events: KamiyoEvent[], types: KamiyoEvent['type'][]): KamiyoEvent[] {
-  return events.filter(e => types.includes(e.type));
+  return events.filter((e) => types.includes(e.type));
 }
 
 export function groupEventsByEscrow(events: KamiyoEvent[]): Map<string, KamiyoEvent[]> {
@@ -189,8 +219,10 @@ export function getEventStats(events: KamiyoEvent[]): {
   averageQualityScore: number | null;
 } {
   const byType: Record<KamiyoEvent['type'], number> = {
-    escrow_created: 0, escrow_funded: 0, dispute_initiated: 0,
-    dispute_resolved: 0, funds_released: 0, escrow_closed: 0
+    escrow_created: 0,
+    dispute_initiated: 0,
+    dispute_resolved: 0,
+    funds_released: 0,
   };
 
   let vol = 0n;
@@ -209,6 +241,7 @@ export function getEventStats(events: KamiyoEvent[]): {
     byType,
     uniqueEscrows: escrows.size,
     totalVolume: vol,
-    averageQualityScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null
+    averageQualityScore: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
   };
 }
+

@@ -4,7 +4,8 @@
 
 import { FeeStrategy, FeeStrategyConfig } from './types';
 
-// KAMIYO Program ID (mainnet)
+// Default program ID for the deployed Kamiyo escrow program (x402-style escrow).
+// Override via `HeliusConfig.programId` if you're targeting a different deployment.
 export const KAMIYO_PROGRAM_ID = 'E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n';
 
 // Helius RPC endpoints
@@ -19,14 +20,17 @@ export const HELIUS_API_ENDPOINTS = {
     'devnet': 'https://api-devnet.helius.xyz/v0'
 } as const;
 
-// Instruction discriminators (Anchor-style, first 8 bytes of sha256 hash)
+// Instruction discriminators (Anchor, first 8 bytes of sha256("global:<name>")).
+// Source: `services/api/src/mcp/idl/x402_escrow.json`
 export const INSTRUCTION_DISCRIMINATORS = {
-    INITIALIZE_ESCROW: Buffer.from([243, 160, 77, 153, 11, 92, 48, 209]),
-    FUND_ESCROW: Buffer.from([161, 178, 195, 212, 229, 246, 7, 24]),
-    INITIATE_DISPUTE: Buffer.from([178, 195, 212, 229, 246, 7, 24, 41]),
-    RESOLVE_DISPUTE: Buffer.from([195, 212, 229, 246, 7, 24, 41, 58]),
-    RELEASE_FUNDS: Buffer.from([212, 229, 246, 7, 24, 41, 58, 75]),
-    CLOSE_ESCROW: Buffer.from([229, 246, 7, 24, 41, 58, 75, 92])
+    INITIALIZE_ESCROW: Buffer.from([175, 175, 109, 31, 13, 152, 155, 237]),
+    RELEASE_FUNDS: Buffer.from([223, 28, 84, 101, 126, 198, 138, 136]),
+    RESOLVE_DISPUTE: Buffer.from([162, 159, 101, 217, 224, 78, 50, 19]),
+    RESOLVE_DISPUTE_SWITCHBOARD: Buffer.from([89, 137, 212, 95, 224, 104, 238, 213]),
+    MARK_DISPUTED: Buffer.from([119, 145, 102, 68, 238, 151, 127, 218]),
+    INIT_REPUTATION: Buffer.from([62, 192, 209, 217, 158, 238, 164, 122]),
+    UPDATE_REPUTATION: Buffer.from([142, 85, 191, 50, 128, 52, 173, 38]),
+    CHECK_RATE_LIMIT: Buffer.from([234, 37, 165, 12, 15, 241, 220, 151]),
 } as const;
 
 // PDA seeds
@@ -34,7 +38,8 @@ export const PDA_SEEDS = {
     ESCROW: 'escrow',
     REPUTATION: 'reputation',
     ORACLE_REGISTRY: 'oracle_registry',
-    DISPUTE: 'dispute'
+    DISPUTE: 'dispute',
+    RATE_LIMIT: 'rate_limit',
 } as const;
 
 // Fee strategies with multipliers and caps
@@ -69,11 +74,12 @@ export const FEE_STRATEGIES: Record<FeeStrategy, FeeStrategyConfig> = {
 // Compute units for different operations
 export const COMPUTE_UNITS = {
     INITIALIZE_ESCROW: 50_000,
-    FUND_ESCROW: 30_000,
-    INITIATE_DISPUTE: 45_000,
-    RESOLVE_DISPUTE: 100_000, // Higher due to oracle verification
+    MARK_DISPUTED: 35_000,
+    RESOLVE_DISPUTE: 120_000,
     RELEASE_FUNDS: 60_000,
-    CLOSE_ESCROW: 25_000
+    INIT_REPUTATION: 30_000,
+    UPDATE_REPUTATION: 35_000,
+    CHECK_RATE_LIMIT: 25_000,
 } as const;
 
 // Default configuration values
@@ -107,19 +113,15 @@ export const LIMITS = {
 // Escrow status byte mapping
 export const STATUS_MAP: Record<number, string> = {
     0: 'active',
-    1: 'funded',
+    1: 'released',
     2: 'disputed',
     3: 'resolved',
-    4: 'released',
-    5: 'expired'
 } as const;
 
 // Log patterns for transaction type detection
 export const LOG_PATTERNS = {
-    INITIALIZE: /Instruction:\s*InitializeEscrow|Escrow\s+created/i,
-    FUND: /Instruction:\s*FundEscrow|Escrow\s+funded/i,
-    DISPUTE: /Instruction:\s*InitiateDispute|Dispute\s+initiated/i,
-    RESOLVE: /Instruction:\s*ResolveDispute|Quality\s+Score:/i,
+    INITIALIZE: /Instruction:\s*InitializeEscrow|Escrow\s+initialized/i,
+    DISPUTE: /Instruction:\s*MarkDisputed|Dispute\s+marked/i,
+    RESOLVE: /Instruction:\s*ResolveDispute|Quality\s*Score:/i,
     RELEASE: /Instruction:\s*ReleaseFunds|Funds\s+released/i,
-    CLOSE: /Instruction:\s*CloseEscrow|Escrow\s+closed/i
 } as const;

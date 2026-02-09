@@ -275,9 +275,9 @@ export class KamiyoHeliusClient {
 
     for (const [, list] of grouped) {
       const lc = calculateEscrowLifecycle(list);
-      if (lc.released || lc.closed) resolved++;
+      if (lc.released || lc.resolved) resolved++;
       else if (lc.disputed) disputed++;
-      else if (lc.funded) active++;
+      else active++;
       if (lc.totalAmount) volume += lc.totalAmount;
       if (lc.finalQualityScore !== null) scores.push(lc.finalQualityScore);
     }
@@ -312,6 +312,7 @@ export class KamiyoHeliusClient {
     if (!f) return true;
     if (f.type && !f.type.includes(tx.type)) return false;
     if (f.escrowPda && tx.escrowPda !== f.escrowPda) return false;
+    if (f.transactionId && tx.transactionId !== f.transactionId) return false;
     if (f.minTimestamp && tx.timestamp < f.minTimestamp) return false;
     if (f.maxTimestamp && tx.timestamp > f.maxTimestamp) return false;
     return true;

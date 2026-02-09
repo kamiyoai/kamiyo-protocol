@@ -1,13 +1,16 @@
 import { PublicKey } from '@solana/web3.js';
 import {
-  ParsedTransaction, TransactionType, HeliusEnhancedTransaction,
-  EscrowState, EscrowStatus, ParseError
+  ParsedTransaction,
+  TransactionType,
+  HeliusEnhancedTransaction,
+  EscrowState,
+  EscrowStatus,
+  ParseError,
 } from './types';
 import { KAMIYO_PROGRAM_ID, INSTRUCTION_DISCRIMINATORS, STATUS_MAP, LOG_PATTERNS } from './constants';
 
 export function parseTransaction(tx: HeliusEnhancedTransaction): ParsedTransaction {
-  const ix = tx.instructions.find(i => i.programId === KAMIYO_PROGRAM_ID);
-
+  const ix = tx.instructions.find((i) => i.programId === KAMIYO_PROGRAM_ID);
   if (!ix) return unknownTx(tx);
 
   const type = inferType(ix.data);
@@ -18,35 +21,40 @@ export function parseTransaction(tx: HeliusEnhancedTransaction): ParsedTransacti
     type,
     escrowPda: accounts[0] || null,
     agent: null,
-    provider: null,
+    api: null,
     amount: null,
+    transactionId: null,
     qualityScore: null,
+    refundPercentage: null,
     refundAmount: null,
     timestamp: tx.timestamp,
     slot: tx.slot,
     success: tx.transactionError === null,
-    error: tx.transactionError
+    error: tx.transactionError,
   };
 
   switch (type) {
     case 'initialize_escrow':
       parsed.agent = accounts[1] || null;
-      parsed.provider = accounts[2] || null;
-      parsed.amount = extractAmount(ix.data, 8);
-      break;
-    case 'fund_escrow':
-      parsed.amount = tx.nativeTransfers.find(t => t.toUserAccount === accounts[0])?.amount
-        ? BigInt(tx.nativeTransfers.find(t => t.toUserAccount === accounts[0])!.amount)
-        : null;
-      break;
-    case 'resolve_dispute':
-      parsed.qualityScore = extractByte(ix.data, 8);
-      parsed.refundAmount = extractAmount(ix.data, 9);
+      parsed.api = accounts[2] || null;
+      parsed.amount = extractU64(ix.data, 8);
+      parsed.transactionId = extractString(ix.data, 24);
       break;
     case 'release_funds':
-      parsed.amount = tx.nativeTransfers.find(t => t.fromUserAccount === accounts[0])?.amount
-        ? BigInt(tx.nativeTransfers.find(t => t.fromUserAccount === accounts[0])!.amount)
-        : null;
+      parsed.agent = accounts[1] || null;
+      parsed.api = accounts[2] || null;
+      parsed.amount = extractTransferAmount(tx, accounts[0], accounts[2]);
+      break;
+    case 'mark_disputed':
+      parsed.agent = accounts[2] || null;
+      break;
+    case 'resolve_dispute':
+    case 'resolve_dispute_switchboard':
+      parsed.agent = accounts[1] || null;
+      parsed.api = accounts[2] || null;
+      parsed.qualityScore = extractU8(ix.data, 8);
+      parsed.refundPercentage = extractU8(ix.data, 9);
+      parsed.refundAmount = extractTransferAmount(tx, accounts[0], accounts[1]);
       break;
   }
 
@@ -58,22 +66,14 @@ export function parseTransactions(txs: HeliusEnhancedTransaction[]): ParsedTrans
 }
 
 export function filterKamiyoTransactions(txs: HeliusEnhancedTransaction[]): HeliusEnhancedTransaction[] {
-  return txs.filter(tx => tx.instructions.some(ix => ix.programId === KAMIYO_PROGRAM_ID));
+  return txs.filter((tx) => tx.instructions.some((ix) => ix.programId === KAMIYO_PROGRAM_ID));
 }
 
 function inferType(data: string): TransactionType {
   if (!data || data.length < 16) return 'unknown';
 
-  let buf: Buffer;
-  try {
-    buf = Buffer.from(data, 'base64');
-    if (buf.length < 8) buf = Buffer.from(data, 'hex');
-  } catch {
-    try { buf = Buffer.from(data, 'hex'); }
-    catch { return 'unknown'; }
-  }
-
-  if (buf.length < 8) return 'unknown';
+  const buf = decodeIxData(data);
+  if (!buf || buf.length < 8) return 'unknown';
 
   const disc = buf.slice(0, 8);
   for (const [name, expected] of Object.entries(INSTRUCTION_DISCRIMINATORS)) {
@@ -83,35 +83,45 @@ function inferType(data: string): TransactionType {
 }
 
 export function parseEscrowState(data: Buffer, pda: PublicKey): EscrowState {
-  if (data.length < 100) throw new ParseError(`Invalid data length: ${data.length}`);
+  const minLen = 8 + 32 + 32 + 8 + 1 + 8 + 8 + 4 + 1 + 1 + 1;
+  if (data.length < minLen) throw new ParseError(`Invalid data length: ${data.length}`);
 
   try {
     let off = 8;
     const agent = new PublicKey(data.slice(off, off + 32)); off += 32;
-    const provider = new PublicKey(data.slice(off, off + 32)); off += 32;
+    const api = new PublicKey(data.slice(off, off + 32)); off += 32;
     const amount = data.readBigUInt64LE(off); off += 8;
     const statusByte = data.readUInt8(off); off += 1;
-    const qualityByte = data.readUInt8(off); off += 1;
-    const refundAmount = data.readBigUInt64LE(off); off += 8;
-    const timeLock = data.readUInt32LE(off); off += 4;
     const createdAt = Number(data.readBigInt64LE(off)); off += 8;
-    const updatedAt = Number(data.readBigInt64LE(off));
+    const expiresAt = Number(data.readBigInt64LE(off)); off += 8;
+
+    const txIdLen = data.readUInt32LE(off); off += 4;
+    if (txIdLen > 256 || off + txIdLen > data.length) throw new ParseError('Invalid transactionId length');
+    const transactionId = data.slice(off, off + txIdLen).toString('utf8'); off += txIdLen;
+
+    const bump = data.readUInt8(off); off += 1;
+    const quality = readOptionU8(data, off); off = quality.off;
+    const refund = readOptionU8(data, off); off = refund.off;
 
     return {
-      id: pda.toBase58().slice(0, 8),
+      id: transactionId,
       pda,
       agent,
-      provider,
+      api,
       amount,
-      status: (STATUS_MAP[statusByte] || 'active') as EscrowStatus,
-      qualityScore: qualityByte > 0 ? qualityByte : null,
-      refundAmount: refundAmount > 0n ? refundAmount : null,
-      timeLock,
+      status: (STATUS_MAP[statusByte] || 'unknown') as EscrowStatus,
       createdAt,
-      updatedAt
+      expiresAt,
+      transactionId,
+      bump,
+      qualityScore: quality.val,
+      refundPercentage: refund.val,
     };
   } catch (e) {
-    throw new ParseError(`Parse failed: ${e instanceof Error ? e.message : 'Unknown'}`, e instanceof Error ? e : undefined);
+    throw new ParseError(
+      `Parse failed: ${e instanceof Error ? e.message : 'Unknown'}`,
+      e instanceof Error ? e : undefined
+    );
   }
 }
 
@@ -134,53 +144,46 @@ export function groupByEscrow(txs: ParsedTransaction[]): Map<string, ParsedTrans
 
 export function calculateEscrowLifecycle(txs: ParsedTransaction[]): {
   initialized: number | null;
-  funded: number | null;
   disputed: number | null;
   resolved: number | null;
   released: number | null;
-  closed: number | null;
   duration: number | null;
   finalQualityScore: number | null;
+  refundPercentage: number | null;
   totalAmount: bigint | null;
   wasDisputed: boolean;
 } {
   const sorted = [...txs].sort((a, b) => a.timestamp - b.timestamp);
-  const find = (type: TransactionType) => sorted.find(t => t.type === type)?.timestamp ?? null;
+  const find = (type: TransactionType) => sorted.find((t) => t.type === type)?.timestamp ?? null;
 
   const initialized = find('initialize_escrow');
-  const funded = find('fund_escrow');
-  const disputed = find('initiate_dispute');
-  const resolved = find('resolve_dispute');
+  const disputed = find('mark_disputed');
+  const resolved = find('resolve_dispute') ?? find('resolve_dispute_switchboard');
   const released = find('release_funds');
-  const closed = find('close_escrow');
 
-  const endTime = closed || released || resolved || Date.now() / 1000;
-  const resolveTx = sorted.find(t => t.type === 'resolve_dispute');
-  const fundTx = sorted.find(t => t.type === 'fund_escrow');
-  const initTx = sorted.find(t => t.type === 'initialize_escrow');
+  const endTime = released || resolved || Date.now() / 1000;
+  const resolveTx = sorted.find((t) => t.type === 'resolve_dispute' || t.type === 'resolve_dispute_switchboard');
+  const initTx = sorted.find((t) => t.type === 'initialize_escrow');
 
   return {
     initialized,
-    funded,
     disputed,
     resolved,
     released,
-    closed,
     duration: initialized ? Math.floor(endTime - initialized) : null,
     finalQualityScore: resolveTx?.qualityScore ?? null,
-    totalAmount: fundTx?.amount ?? initTx?.amount ?? null,
-    wasDisputed: disputed !== null
+    refundPercentage: resolveTx?.refundPercentage ?? null,
+    totalAmount: initTx?.amount ?? null,
+    wasDisputed: disputed !== null,
   };
 }
 
 export function detectTypeFromLogs(logs: string[]): TransactionType {
   const combined = logs.join('\n');
   if (LOG_PATTERNS.INITIALIZE.test(combined)) return 'initialize_escrow';
-  if (LOG_PATTERNS.FUND.test(combined)) return 'fund_escrow';
-  if (LOG_PATTERNS.DISPUTE.test(combined)) return 'initiate_dispute';
+  if (LOG_PATTERNS.DISPUTE.test(combined)) return 'mark_disputed';
   if (LOG_PATTERNS.RESOLVE.test(combined)) return 'resolve_dispute';
   if (LOG_PATTERNS.RELEASE.test(combined)) return 'release_funds';
-  if (LOG_PATTERNS.CLOSE.test(combined)) return 'close_escrow';
   return 'unknown';
 }
 
@@ -206,29 +209,78 @@ function unknownTx(tx: HeliusEnhancedTransaction): ParsedTransaction {
     type: 'unknown',
     escrowPda: null,
     agent: null,
-    provider: null,
+    api: null,
     amount: null,
+    transactionId: null,
     qualityScore: null,
+    refundPercentage: null,
     refundAmount: null,
     timestamp: tx.timestamp,
     slot: tx.slot,
     success: tx.transactionError === null,
-    error: tx.transactionError
+    error: tx.transactionError,
   };
 }
 
-function extractAmount(data: string, offset: number): bigint | null {
+function decodeIxData(data: string): Buffer | null {
   try {
     const buf = Buffer.from(data, 'base64');
-    if (buf.length < offset + 8) return null;
-    return buf.readBigUInt64LE(offset);
-  } catch { return null; }
+    if (buf.length >= 8) return buf;
+  } catch {}
+
+  try {
+    const buf = Buffer.from(data, 'hex');
+    if (buf.length >= 8) return buf;
+  } catch {}
+
+  return null;
 }
 
-function extractByte(data: string, offset: number): number | null {
-  try {
-    const buf = Buffer.from(data, 'base64');
-    if (buf.length <= offset) return null;
-    return buf.readUInt8(offset);
-  } catch { return null; }
+function extractU64(data: string, offset: number): bigint | null {
+  const buf = decodeIxData(data);
+  if (!buf || buf.length < offset + 8) return null;
+  return buf.readBigUInt64LE(offset);
+}
+
+function extractU8(data: string, offset: number): number | null {
+  const buf = decodeIxData(data);
+  if (!buf || buf.length <= offset) return null;
+  return buf.readUInt8(offset);
+}
+
+function extractString(data: string, offset: number): string | null {
+  const buf = decodeIxData(data);
+  if (!buf || buf.length < offset + 4) return null;
+
+  const len = buf.readUInt32LE(offset);
+  const start = offset + 4;
+  const end = start + len;
+
+  if (len > 512 || buf.length < end) return null;
+  return buf.slice(start, end).toString('utf8');
+}
+
+function extractTransferAmount(
+  tx: HeliusEnhancedTransaction,
+  from: string | undefined,
+  to: string | undefined
+): bigint | null {
+  if (!from || !to) return null;
+  const match = tx.nativeTransfers.find((t) => t.fromUserAccount === from && t.toUserAccount === to);
+  return match ? BigInt(match.amount) : null;
+}
+
+function readOptionU8(data: Buffer, off: number): { val: number | null; off: number } {
+  if (off >= data.length) throw new ParseError('Invalid option offset');
+
+  const tag = data.readUInt8(off);
+  off += 1;
+
+  if (tag === 0) return { val: null, off };
+  if (tag !== 1) throw new ParseError('Invalid option tag');
+  if (off >= data.length) throw new ParseError('Invalid option value offset');
+
+  const val = data.readUInt8(off);
+  off += 1;
+  return { val, off };
 }
