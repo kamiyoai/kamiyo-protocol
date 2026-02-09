@@ -147,7 +147,7 @@ export class KamiyoHeliusClient {
           if (!tx) continue;
 
           const enhanced = this.toEnhanced(tx, { signature: sig.signature, slot: sig.slot, blockTime: sig.blockTime ?? null });
-          const parsed = parseTransaction(enhanced);
+          const parsed = parseTransaction(enhanced, this.programId.toBase58());
 
           if (this.matchesFilter(parsed, filter)) txs.push(parsed);
         } catch {
@@ -166,7 +166,10 @@ export class KamiyoHeliusClient {
     return this.pool.execute(async (conn) => {
       const tx = await conn.getParsedTransaction(sig, { maxSupportedTransactionVersion: 0 });
       if (!tx) return null;
-      return parseTransaction(this.toEnhanced(tx, { signature: sig, slot: tx.slot, blockTime: tx.blockTime ?? null }));
+      return parseTransaction(
+        this.toEnhanced(tx, { signature: sig, slot: tx.slot, blockTime: tx.blockTime ?? null }),
+        this.programId.toBase58()
+      );
     });
   }
 

@@ -9,8 +9,8 @@ import {
 } from './types';
 import { KAMIYO_PROGRAM_ID, INSTRUCTION_DISCRIMINATORS, STATUS_MAP, LOG_PATTERNS } from './constants';
 
-export function parseTransaction(tx: HeliusEnhancedTransaction): ParsedTransaction {
-  const ix = tx.instructions.find((i) => i.programId === KAMIYO_PROGRAM_ID);
+export function parseTransaction(tx: HeliusEnhancedTransaction, programId: string = KAMIYO_PROGRAM_ID): ParsedTransaction {
+  const ix = tx.instructions.find((i) => i.programId === programId);
   if (!ix) return unknownTx(tx);
 
   const type = inferType(ix.data);
@@ -61,12 +61,18 @@ export function parseTransaction(tx: HeliusEnhancedTransaction): ParsedTransacti
   return parsed;
 }
 
-export function parseTransactions(txs: HeliusEnhancedTransaction[]): ParsedTransaction[] {
-  return txs.map(parseTransaction);
+export function parseTransactions(
+  txs: HeliusEnhancedTransaction[],
+  programId: string = KAMIYO_PROGRAM_ID
+): ParsedTransaction[] {
+  return txs.map((tx) => parseTransaction(tx, programId));
 }
 
-export function filterKamiyoTransactions(txs: HeliusEnhancedTransaction[]): HeliusEnhancedTransaction[] {
-  return txs.filter((tx) => tx.instructions.some((ix) => ix.programId === KAMIYO_PROGRAM_ID));
+export function filterKamiyoTransactions(
+  txs: HeliusEnhancedTransaction[],
+  programId: string = KAMIYO_PROGRAM_ID
+): HeliusEnhancedTransaction[] {
+  return txs.filter((tx) => tx.instructions.some((ix) => ix.programId === programId));
 }
 
 function inferType(data: string): TransactionType {
