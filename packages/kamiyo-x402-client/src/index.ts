@@ -79,6 +79,22 @@ export type {
   FacilitatorPolicyDecision,
 } from './http-payment';
 
+// Session payments (authorize-once)
+export {
+  generateSessionNonce,
+  createSessionPaymentHeader,
+  parseSessionPaymentHeader,
+  withSessionPaymentHeaders,
+  requestSessionChallenge,
+  authorizeSession,
+  revokeSession,
+} from './session';
+export type {
+  SessionPaymentHeaderParts,
+  SessionChallengeResponse,
+  SessionAuthorizeResponse,
+} from './session';
+
 // Protocol constants
 export {
   SOLANA_NETWORK_ID,

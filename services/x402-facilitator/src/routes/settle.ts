@@ -16,10 +16,15 @@ import {
   getWalletAverageQuality,
   getMonthlyVolume,
   reservePaymentNonce,
+  getPaymentSessionByTokenHash,
+  reservePaymentSessionSpend,
+  releasePaymentSessionSpend,
 } from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
-import { parseSignedUsdcAmount, parseSettleInput } from '../protocol/request-compat';
+import { parseSignedUsdcAmount, parseSettleInput, parseUsdcMicroAmountBigint } from '../protocol/request-compat';
+import { hashSessionToken, parseSessionPaymentHeader } from '../services/session';
+import { settleDelegatedUsdcTransfer } from '../services/solana-session';
 
 function sendSettleFailure(
   res: Response,
@@ -91,6 +96,229 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
     }
 
     const isBase = network === BASE_MAINNET_CAIP2;
+
+    if (scheme.scheme === 'session') {
+      const sessionHeader = parseSessionPaymentHeader(paymentHeader);
+      if (!sessionHeader || canonicalizeNetwork(sessionHeader.network) !== network) {
+        sendSettleFailure(res, 400, 'invalid_session_header', 'Malformed session payment header', network);
+        return;
+      }
+
+      if (!sessionHeader.nonce) {
+        sendSettleFailure(res, 400, 'missing_nonce', 'Session payment header must include a nonce', network);
+        return;
+      }
+
+      if (mode !== 'x402') {
+        sendSettleFailure(res, 400, 'invalid_request', 'Session payments require x402 paymentRequirements', network);
+        return;
+      }
+
+      const session = await getPaymentSessionByTokenHash(hashSessionToken(sessionHeader.token));
+      if (!session) {
+        sendSettleFailure(res, 401, 'invalid_session', 'Invalid or unknown session token', network);
+        return;
+      }
+
+      if (session.revoked_at) {
+        sendSettleFailure(res, 401, 'session_revoked', 'Session token revoked', network, session.payer_wallet);
+        return;
+      }
+
+      if (new Date(session.expires_at).getTime() <= Date.now()) {
+        sendSettleFailure(res, 401, 'session_expired', 'Session token expired', network, session.payer_wallet);
+        return;
+      }
+
+      const sessionNetwork = canonicalizeNetwork(session.network);
+      if (!sessionNetwork || sessionNetwork !== network) {
+        sendSettleFailure(res, 400, 'network_mismatch', 'Session network does not match payment payload network', network, session.payer_wallet);
+        return;
+      }
+
+      if (session.merchant_wallet !== merchantWallet) {
+        sendSettleFailure(res, 400, 'merchant_mismatch', 'Session token not valid for this merchant', network, session.payer_wallet);
+        return;
+      }
+
+      if (!requirementAmountRaw) {
+        sendSettleFailure(res, 400, 'invalid_amount', 'Missing paymentRequirements.amount', network, session.payer_wallet);
+        return;
+      }
+
+      const amountMicro = parseUsdcMicroAmountBigint(requirementAmountRaw);
+      if (amountMicro == null) {
+        sendSettleFailure(res, 400, 'invalid_amount', 'Invalid paymentRequirements.amount', network, session.payer_wallet);
+        return;
+      }
+
+      let maxTotalMicro: bigint;
+      let spentMicro: bigint;
+      try {
+        maxTotalMicro = BigInt(session.max_total_micro);
+        spentMicro = BigInt(session.spent_micro);
+      } catch {
+        sendSettleFailure(res, 500, 'server_error', 'Invalid session limits', network, session.payer_wallet);
+        return;
+      }
+
+      if (spentMicro < 0n || spentMicro > maxTotalMicro) {
+        sendSettleFailure(res, 500, 'server_error', 'Invalid session limits', network, session.payer_wallet);
+        return;
+      }
+
+      const remainingMicro = maxTotalMicro - spentMicro;
+      if (amountMicro > remainingMicro) {
+        sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds remaining session cap', network, session.payer_wallet);
+        return;
+      }
+
+      if (session.max_single_micro) {
+        try {
+          if (amountMicro > BigInt(session.max_single_micro)) {
+            sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds session per-request limit', network, session.payer_wallet);
+            return;
+          }
+        } catch {
+          sendSettleFailure(res, 500, 'server_error', 'Invalid session limits', network, session.payer_wallet);
+          return;
+        }
+      }
+
+      const amount = Number(amountMicro) / 1_000_000;
+      const config = getConfig();
+
+      if (amount > config.MAX_SETTLEMENT_AMOUNT) {
+        sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds limit', network, session.payer_wallet);
+        return;
+      }
+
+      if ((req as any).merchantWallet !== merchantWallet) {
+        sendSettleFailure(res, 403, 'merchant_mismatch', 'Merchant wallet does not match API key', network, session.payer_wallet);
+        return;
+      }
+
+      if (isBase) {
+        sendSettleFailure(res, 400, 'unsupported_network', 'Session payments not supported for Base', network, session.payer_wallet);
+        return;
+      }
+
+      try {
+        new PublicKey(merchantWallet);
+      } catch {
+        sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Solana wallet address', network, session.payer_wallet);
+        return;
+      }
+
+      const budgetReserved = await reservePaymentSessionSpend(session.token_hash, amountMicro.toString());
+      if (!budgetReserved) {
+        sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds remaining session cap', network, session.payer_wallet);
+        return;
+      }
+
+      let nonceReserved = false;
+      try {
+        nonceReserved = await reservePaymentNonce(
+          session.payer_wallet,
+          sessionHeader.nonce,
+          'settle',
+          network,
+          requirementResource || '',
+          amount
+        );
+      } catch (err) {
+        await releasePaymentSessionSpend(session.token_hash, amountMicro.toString());
+        sendSettleFailure(res, 500, 'server_error', 'Failed to reserve payment nonce', network, session.payer_wallet);
+        return;
+      }
+
+      if (!nonceReserved) {
+        await releasePaymentSessionSpend(session.token_hash, amountMicro.toString());
+        sendSettleFailure(res, 409, 'replayed_payment', 'Payment nonce already used', network, session.payer_wallet);
+        return;
+      }
+
+      let settlementId: string | null = null;
+      let onchain: { txHash: string; feeMicro: bigint; netMicro: bigint } | null = null;
+      try {
+        const settlement = await insertSettlement(
+          merchantWallet,
+          session.payer_wallet,
+          amount,
+          0,
+          'USDC',
+          '',
+          'pending',
+          network
+        );
+        settlementId = settlement.id;
+
+        const [stats, disputeStats, avgQuality, monthlyVol] = await Promise.all([
+          getSettlementStats(merchantWallet),
+          getWalletDisputeStats(merchantWallet),
+          getWalletAverageQuality(merchantWallet),
+          getMonthlyVolume(merchantWallet),
+        ]);
+
+        const repScore = calculateReputationScore(
+          stats.totalSettlements,
+          disputeStats.filed,
+          disputeStats.won,
+          avgQuality
+        );
+        const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
+        const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
+
+        const onchainResult = await settleDelegatedUsdcTransfer({
+          connection,
+          delegateKeypair: facilitatorKeypair,
+          payer: new PublicKey(session.payer_wallet),
+          merchant: new PublicKey(merchantWallet),
+          treasury: new PublicKey(config.TREASURY_WALLET),
+          totalMicro: amountMicro,
+          feeBps: effectiveFeeBps,
+        });
+        onchain = onchainResult;
+
+        const fee = Number(onchainResult.feeMicro) / 1_000_000;
+        const net = Number(onchainResult.netMicro) / 1_000_000;
+
+        try {
+          await updateSettlementConfirmed(settlement.id, onchainResult.txHash, fee);
+          await insertFeeLedger(settlement.id, null, 'settlement', fee, onchainResult.txHash);
+        } catch {
+          // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
+        }
+
+        res.json({
+          success: true,
+          transaction: onchainResult.txHash,
+          payer: session.payer_wallet,
+          txHash: onchainResult.txHash,
+          amount,
+          fee,
+          net,
+          network,
+          feeDiscount: discountPct > 0 ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` } : undefined,
+        });
+      } catch (err) {
+        if (settlementId) {
+          await updateSettlementStatus(settlementId, 'failed');
+        }
+        if (!onchain) {
+          await releasePaymentSessionSpend(session.token_hash, amountMicro.toString());
+        }
+        sendSettleFailure(
+          res,
+          500,
+          'settlement_failed',
+          `Settlement failed: ${getErrorMessage(err)}`,
+          network,
+          session.payer_wallet
+        );
+      }
+      return;
+    }
 
     const payment = decodePaymentHeader(paymentHeader);
     if (!payment) {
