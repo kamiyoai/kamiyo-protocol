@@ -52,6 +52,7 @@ type SessionStatus =
   | 'idle'
   | 'connecting'
   | 'approving_delegate'
+  | 'disabling_allowance'
   | 'signing'
   | 'authorizing'
   | 'revoking'
@@ -186,9 +187,9 @@ const STYLES = `
   word-break: break-all;
 }
 .kamiyo-session-widget.light .kamiyo-session-mono { color: #000; }
-.kamiyo-session-actions { display: flex; gap: 10px; margin-top: 10px; }
+.kamiyo-session-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .kamiyo-session-linkbtn {
-  flex: 1;
+  flex: 1 1 140px;
   border: 1px solid rgba(255,255,255,0.16);
   background: rgba(0,0,0,0.16);
   color: rgba(255,255,255,0.85);
@@ -278,7 +279,9 @@ function getWallet(): WalletAdapter | null {
   ];
 
   for (const wallet of wallets) {
-    if (wallet?.publicKey) return wallet as WalletAdapter;
+    if (wallet?.isPhantom || wallet?.isSolflare || wallet?.isBackpack || wallet?.isGlow || wallet?.connect) {
+      return wallet as WalletAdapter;
+    }
   }
   return null;
 }
@@ -317,6 +320,7 @@ export class KamiyoX402SessionEmbed {
   private token: string | null = null;
   private paymentHeader: string | null = null;
   private expiresAt: number | null = null;
+  private facilitatorPubkey: string | null = null;
   private abortController: AbortController | null = null;
   private walletListeners: { wallet: WalletAdapter; connect: () => void; disconnect: () => void } | null = null;
 
@@ -395,13 +399,14 @@ export class KamiyoX402SessionEmbed {
     const themeClass = this.config.theme === 'light' ? 'light' : '';
     const size = this.config.size;
 
-    const isDisabled = ['connecting', 'approving_delegate', 'signing', 'authorizing', 'revoking'].includes(this.status);
-    const showSpinner = ['connecting', 'approving_delegate', 'signing', 'authorizing', 'revoking'].includes(this.status);
+    const isDisabled = ['connecting', 'approving_delegate', 'disabling_allowance', 'signing', 'authorizing', 'revoking'].includes(this.status);
+    const showSpinner = ['connecting', 'approving_delegate', 'disabling_allowance', 'signing', 'authorizing', 'revoking'].includes(this.status);
 
     const statusText: Record<SessionStatus, string> = {
       idle: this.config.buttonText || 'Authorize spending',
       connecting: 'Connecting wallet...',
       approving_delegate: 'Approve USDC allowance...',
+      disabling_allowance: 'Disabling allowance...',
       signing: 'Sign authorization...',
       authorizing: 'Creating session...',
       revoking: 'Revoking session...',
@@ -474,6 +479,7 @@ export class KamiyoX402SessionEmbed {
       html += `
         <div class="kamiyo-session-actions">
           <button class="kamiyo-session-linkbtn" data-kamiyo="copy">Copy token</button>
+          <button class="kamiyo-session-linkbtn" data-kamiyo="disable">Disable allowance</button>
           <button class="kamiyo-session-linkbtn" data-kamiyo="revoke">Revoke</button>
         </div>
       `;
@@ -503,6 +509,12 @@ export class KamiyoX402SessionEmbed {
       if (!this.token) return;
       this.revoke().catch(() => {});
     });
+
+    const disableBtn = this.container.querySelector<HTMLButtonElement>('button[data-kamiyo="disable"]');
+    disableBtn?.addEventListener('click', () => {
+      if (!this.token) return;
+      this.disableAllowance().catch(() => {});
+    });
   }
 
   reset(): void {
@@ -513,6 +525,7 @@ export class KamiyoX402SessionEmbed {
     this.token = null;
     this.paymentHeader = null;
     this.expiresAt = null;
+    this.facilitatorPubkey = null;
     this.render();
     this.config.onStateChange?.(this.getState());
   }
@@ -578,6 +591,7 @@ export class KamiyoX402SessionEmbed {
       });
 
       this.update('approving_delegate');
+      this.facilitatorPubkey = challenge.facilitator;
       await this.ensureDelegateAllowance(wallet, challenge.facilitator, maxTotalMicro);
 
       this.update('signing');
@@ -635,10 +649,69 @@ export class KamiyoX402SessionEmbed {
     }
   }
 
+  async disableAllowance(): Promise<boolean> {
+    if (!this.token) return false;
+    if (this.status === 'disabling_allowance') return false;
+
+    const wallet = getWallet();
+    if (!wallet) {
+      const err = 'No Solana wallet found. Install Phantom, Backpack, or Solflare.';
+      this.update('error', err);
+      this.config.onError?.(new Error(err));
+      return false;
+    }
+
+    this.update('disabling_allowance');
+    try {
+      if (!wallet.connected) {
+        await wallet.connect();
+      }
+      if (!wallet.publicKey) {
+        throw new Error('Failed to connect wallet');
+      }
+
+      const facilitator = await this.getFacilitatorPubkey();
+      await this.setDelegateAllowance(wallet, facilitator, 0n);
+
+      this.update('success');
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to disable allowance';
+      this.update('error', msg);
+      return false;
+    }
+  }
+
+  private async getFacilitatorPubkey(): Promise<string> {
+    if (this.facilitatorPubkey) return this.facilitatorPubkey;
+
+    const res = await fetch(`${this.config.facilitatorUrl}/health`, { method: 'GET' });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch facilitator identity (${res.status})`);
+    }
+
+    const body = (await res.json().catch(() => ({}))) as { facilitator?: unknown };
+    const facilitator = typeof body.facilitator === 'string' ? body.facilitator.trim() : '';
+    if (!facilitator) {
+      throw new Error('Invalid facilitator identity response');
+    }
+
+    this.facilitatorPubkey = facilitator;
+    return facilitator;
+  }
+
   private async ensureDelegateAllowance(wallet: WalletAdapter, facilitatorPubkey: string, capMicro: bigint): Promise<void> {
+    const ok = await this.setDelegateAllowance(wallet, facilitatorPubkey, capMicro);
+    if (!ok) {
+      throw new Error('USDC allowance approval failed');
+    }
+  }
+
+  private async setDelegateAllowance(wallet: WalletAdapter, facilitatorPubkey: string, amountMicro: bigint): Promise<boolean> {
     const { Connection, PublicKey, Transaction } = await import('@solana/web3.js');
     const {
       createApproveInstruction,
+      createAssociatedTokenAccountInstruction,
       getAccount,
       getAssociatedTokenAddress,
     } = await import('@solana/spl-token');
@@ -651,18 +724,30 @@ export class KamiyoX402SessionEmbed {
     const delegate = new PublicKey(facilitatorPubkey);
 
     const ata = await getAssociatedTokenAddress(mint, owner);
-    let account: any;
-    try {
-      account = await getAccount(connection, ata);
-    } catch {
-      throw new Error('No USDC token account found for this wallet');
+
+    const info = await connection.getAccountInfo(ata, 'confirmed');
+    let account: any | null = null;
+    if (info) {
+      try {
+        account = await getAccount(connection, ata);
+      } catch {
+        throw new Error('Failed to read USDC token account');
+      }
     }
 
-    const alreadyDelegated =
-      account.delegate?.equals?.(delegate) && typeof account.delegatedAmount === 'bigint' && account.delegatedAmount >= capMicro;
-    if (alreadyDelegated) return;
+    if (amountMicro > 0n && account) {
+      const alreadyDelegated =
+        account.delegate?.equals?.(delegate) &&
+        typeof account.delegatedAmount === 'bigint' &&
+        account.delegatedAmount >= amountMicro;
+      if (alreadyDelegated) return true;
+    }
 
-    const tx = new Transaction().add(createApproveInstruction(ata, delegate, owner, capMicro));
+    const tx = new Transaction();
+    if (!account) {
+      tx.add(createAssociatedTokenAccountInstruction(owner, ata, owner, mint));
+    }
+    tx.add(createApproveInstruction(ata, delegate, owner, amountMicro));
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
     tx.feePayer = owner;
     tx.recentBlockhash = blockhash;
@@ -674,9 +759,7 @@ export class KamiyoX402SessionEmbed {
     });
 
     const confirmation = await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
-    if (confirmation.value.err) {
-      throw new Error('USDC allowance approval failed');
-    }
+    return !confirmation.value.err;
   }
 
   private async signChallenge(wallet: WalletAdapter, message: string): Promise<string> {
@@ -816,4 +899,3 @@ if (typeof window !== 'undefined') {
     version: '1.0.0',
   };
 }
-
