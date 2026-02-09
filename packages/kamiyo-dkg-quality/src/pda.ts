@@ -2,8 +2,9 @@ import { PublicKey } from '@solana/web3.js';
 import { createHash } from 'crypto';
 import type { UAL } from './types.js';
 
-// KAMIYO escrow program on Solana mainnet
-export const DEFAULT_PROGRAM_ID = new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
+// Default program id is only used when `useFallback` is false.
+// Override via `PDAConfig.programId` for a dedicated deployment.
+export const DEFAULT_PROGRAM_ID = new PublicKey('FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u');
 
 export const ESCROW_SEED = 'quality_escrow';
 export const STAKE_SEED = 'quality_stake';

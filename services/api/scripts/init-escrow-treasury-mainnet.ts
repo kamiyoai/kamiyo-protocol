@@ -31,7 +31,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const WALLET_PATH = '../../../token-launch/wallets/creator.json';
-const ESCROW_PROGRAM_ID = new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
+const ESCROW_PROGRAM_ID = new PublicKey('FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u');
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 
 async function main() {
