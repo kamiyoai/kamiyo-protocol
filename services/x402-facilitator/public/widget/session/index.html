@@ -6,16 +6,17 @@
     <title>x402 session authorization</title>
     <style>
       :root {
-        --bg: #070812;
-        --card: rgba(255, 255, 255, 0.06);
-        --card2: rgba(255, 255, 255, 0.04);
-        --text: rgba(255, 255, 255, 0.92);
-        --muted: rgba(255, 255, 255, 0.72);
-        --border: rgba(255, 255, 255, 0.12);
-        --danger: #ff4444;
-        --ok: #14f195;
-        --accentA: #00f0ff;
-        --accentB: #ff44f5;
+        --bg: #f6f9fc;
+        --card: #ffffff;
+        --card2: #f6f9fc;
+        --text: rgba(0, 0, 0, 0.92);
+        --muted: rgba(0, 0, 0, 0.62);
+        --border: rgba(0, 0, 0, 0.12);
+        --border2: rgba(0, 0, 0, 0.16);
+        --danger: #b42318;
+        --btn: #0a0a0a;
+        --btnHover: #111111;
+        --focus: rgba(0, 0, 0, 0.12);
       }
 
       * { box-sizing: border-box; }
@@ -23,42 +24,39 @@
       body {
         margin: 0;
         color: var(--text);
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        background:
-          radial-gradient(800px 360px at 16% 0%, rgba(0, 240, 255, 0.16), transparent 60%),
-          radial-gradient(700px 320px at 88% 12%, rgba(255, 68, 245, 0.14), transparent 62%),
-          linear-gradient(180deg, #060713, var(--bg));
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
       }
 
       .wrap {
         min-height: 100%;
         display: grid;
         place-items: center;
-        padding: 24px 14px;
+        padding: 28px 14px;
       }
 
       .card {
         width: 100%;
-        max-width: 520px;
+        max-width: 460px;
         border: 1px solid var(--border);
         background: var(--card);
-        border-radius: 16px;
-        padding: 16px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
       }
 
       .title {
-        font-size: 14px;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        margin: 2px 0 10px;
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin: 2px 0 8px;
       }
 
       .sub {
-        margin: 0 0 12px;
+        margin: 0 0 14px;
         color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
+        font-size: 13px;
+        line-height: 1.5;
       }
 
       .grid {
@@ -71,22 +69,30 @@
       label {
         display: block;
         font-size: 12px;
+        font-weight: 600;
         color: var(--muted);
         margin-bottom: 6px;
       }
 
       input, select {
         width: 100%;
-        padding: 10px 10px;
-        border-radius: 12px;
+        padding: 10px 12px;
+        height: 42px;
+        border-radius: 10px;
         border: 1px solid var(--border);
-        background: rgba(0, 0, 0, 0.22);
+        background: #ffffff;
         color: var(--text);
         font-size: 14px;
         outline: none;
       }
 
-      input::placeholder { color: rgba(255,255,255,0.5); }
+      select { appearance: none; }
+      input::placeholder { color: rgba(0,0,0,0.45); }
+
+      input:focus, select:focus {
+        border-color: var(--border2);
+        box-shadow: 0 0 0 3px var(--focus);
+      }
 
       .row2 {
         display: grid;
@@ -101,31 +107,31 @@
       .btn {
         margin-top: 12px;
         width: 100%;
-        border: none;
-        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
         padding: 12px 14px;
         font-size: 14px;
-        font-weight: 750;
+        font-weight: 650;
         color: #fff;
         cursor: pointer;
-        background: linear-gradient(135deg, var(--accentB), var(--accentA));
+        background: var(--btn);
         position: relative;
         overflow: hidden;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
       }
 
-      .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(255, 68, 245, 0.18); }
-      .btn:active { transform: translateY(0); }
-      .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+      .btn:hover { background: var(--btnHover); }
+      .btn:active { background: #000; }
+      .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+      .btn:focus { outline: none; box-shadow: 0 0 0 3px var(--focus); }
 
-      .btn.ok { background: var(--ok); color: #000; }
       .btn.danger { background: var(--danger); }
 
       .meta {
         margin-top: 12px;
         border: 1px solid var(--border);
         background: var(--card2);
-        border-radius: 12px;
+        border-radius: 10px;
         padding: 12px;
         font-size: 12px;
         color: var(--muted);
@@ -149,20 +155,24 @@
       .linkbtn {
         flex: 1 1 160px;
         border: 1px solid var(--border);
-        background: rgba(0, 0, 0, 0.18);
-        color: var(--text);
+        background: #ffffff;
+        color: rgba(0, 0, 0, 0.86);
         padding: 10px 10px;
-        border-radius: 12px;
+        border-radius: 10px;
         cursor: pointer;
         font-size: 12px;
-        font-weight: 750;
+        font-weight: 650;
       }
+      .linkbtn:hover { background: rgba(0, 0, 0, 0.03); }
+      .linkbtn:active { background: rgba(0, 0, 0, 0.05); }
+      .linkbtn:focus { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+      .linkbtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
       .err {
         margin-top: 10px;
-        border: 1px solid rgba(255, 68, 68, 0.24);
-        background: rgba(255, 68, 68, 0.10);
-        border-radius: 12px;
+        border: 1px solid rgba(180, 35, 24, 0.22);
+        background: rgba(180, 35, 24, 0.06);
+        border-radius: 10px;
         padding: 10px 10px;
         color: var(--danger);
         font-size: 12px;
@@ -170,7 +180,7 @@
 
       .note {
         margin-top: 10px;
-        color: rgba(255, 255, 255, 0.62);
+        color: rgba(0, 0, 0, 0.54);
         font-size: 11px;
         line-height: 1.45;
       }
@@ -451,7 +461,7 @@
         elHeader.textContent = sessionHeader || '—';
         elExpires.textContent = sessionExpiresAt ? new Date(sessionExpiresAt).toLocaleString() : '—';
         btnGo.textContent = 'Session ready';
-        btnGo.classList.add('ok');
+        btnGo.classList.remove('danger');
         elActions.style.display = 'flex';
       }
 
@@ -460,7 +470,7 @@
         elHeader.textContent = '—';
         elExpires.textContent = '—';
         btnGo.textContent = 'Authorize spending';
-        btnGo.classList.remove('ok');
+        btnGo.classList.remove('danger');
         elActions.style.display = 'none';
       }
 
@@ -608,4 +618,3 @@
     </script>
   </body>
 </html>
-
