@@ -165,6 +165,7 @@ runs:
     - name: Upload Test Results
       if: always()
       uses: actions/upload-artifact@v4
+      continue-on-error: true
       with:
         # Multiple jobs in the same workflow run use this composite action.
         # Artifact names must be unique per workflow run, otherwise upload-artifact errors with 409.
