@@ -17,8 +17,8 @@ export class PassportManager {
 
     // Build instruction data: discriminator + jurisdiction
     const data = Buffer.alloc(9);
-    // Anchor discriminator for create_meishi (computed from "global:create_meishi")
-    const discriminator = Buffer.from([0x3d, 0xc0, 0x28, 0x83, 0x4b, 0x3d, 0x7e, 0x42]);
+    // Anchor discriminator for create_meishi (sha256("global:create_meishi")[:8])
+    const discriminator = Buffer.from([53, 24, 81, 209, 227, 131, 160, 214]);
     discriminator.copy(data, 0);
     data.writeUInt8(params.jurisdiction, 8);
 
