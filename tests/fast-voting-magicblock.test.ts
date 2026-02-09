@@ -7,7 +7,11 @@ import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, sendA
 import { expect } from "chai";
 import { KamiyoFastVoting } from "../target/types/kamiyo_fast_voting";
 
-describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
+const shouldRun = process.env.RUN_MAGICBLOCK_TESTS === "1";
+
+(shouldRun ? describe : describe.skip)(
+  "kamiyo-fast-voting (MagicBlock Integration)",
+  function () {
   this.timeout(180000);
 
   // Base layer provider (devnet)
@@ -347,7 +351,8 @@ describe("kamiyo-fast-voting (MagicBlock Integration)", function() {
       }
     });
   });
-});
+  }
+);
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));

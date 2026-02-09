@@ -3,6 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
 import { KamiyoFastVoting } from "../target/types/kamiyo_fast_voting";
+import { getErrorCode } from "./helpers";
 
 describe("kamiyo-fast-voting", () => {
   const provider = anchor.AnchorProvider.env();
@@ -222,7 +223,11 @@ describe("kamiyo-fast-voting", () => {
 
     it("rejects zero voter commitment", async () => {
       const newVoter = Keypair.generate();
-      await provider.connection.requestAirdrop(newVoter.publicKey, LAMPORTS_PER_SOL);
+      const airdropSig = await provider.connection.requestAirdrop(
+        newVoter.publicKey,
+        LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(airdropSig);
 
       const [votePDA] = deriveFastVotePDA(fastActionPDA, newVoter.publicKey);
 
@@ -239,7 +244,32 @@ describe("kamiyo-fast-voting", () => {
           .rpc();
         expect.fail("Should have thrown");
       } catch (err: any) {
-        expect(err.message).to.include("InvalidVoterCommitment");
+        const code = getErrorCode(err);
+        if (code) {
+          expect(code).to.equal("InvalidVoterCommitment");
+          return;
+        }
+
+        const logs =
+          typeof err?.getLogs === "function"
+            ? await err.getLogs(provider.connection).catch(() => null)
+            : null;
+
+        if (Array.isArray(logs)) {
+          const logCode = logs
+            .map((log: string) => log.match(/Error Code: (\w+)/)?.[1])
+            .find((v: string | undefined) => v);
+          expect(logCode || null).to.equal("InvalidVoterCommitment");
+          return;
+        }
+
+        const match = String(err?.message || "").match(/custom program error: 0x([0-9a-fA-F]+)/);
+        if (match) {
+          expect(parseInt(match[1], 16)).to.equal(6009);
+          return;
+        }
+
+        throw err;
       }
     });
   });
@@ -496,8 +526,7 @@ describe("kamiyo-fast-voting", () => {
           .rpc();
         expect.fail("Should have thrown");
       } catch (err: any) {
-        // Should fail with address constraint error
-        expect(err.message).to.include("ConstraintAddress");
+        expect(getErrorCode(err)).to.equal("InvalidMagicBlockProgram");
       }
     });
   });
@@ -527,12 +556,38 @@ describe("kamiyo-fast-voting", () => {
           .accounts({
             pda: wrongPda,
             payer: creator.publicKey,
+            validator: null,
           })
           .signers([creator])
           .rpc();
         expect.fail("Should have thrown");
       } catch (err: any) {
-        expect(err.message).to.include("InvalidPda");
+        const code = getErrorCode(err);
+        if (code) {
+          expect(code).to.equal("InvalidPda");
+          return;
+        }
+
+        const logs =
+          typeof err?.getLogs === "function"
+            ? await err.getLogs(provider.connection).catch(() => null)
+            : null;
+
+        if (Array.isArray(logs)) {
+          const logCode = logs
+            .map((log: string) => log.match(/Error Code: (\w+)/)?.[1])
+            .find((v: string | undefined) => v);
+          expect(logCode || null).to.equal("InvalidPda");
+          return;
+        }
+
+        const match = String(err?.message || "").match(/custom program error: 0x([0-9a-fA-F]+)/);
+        if (match) {
+          expect(parseInt(match[1], 16)).to.equal(6003);
+          return;
+        }
+
+        throw err;
       }
     });
   });

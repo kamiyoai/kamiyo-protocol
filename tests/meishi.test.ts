@@ -169,10 +169,9 @@ describe("Meishi Protocol", () => {
         .initializeOracleRegistry(3, 15)
         .accounts({
           oracleRegistry: oracleRegistryPDA,
-          admin: owner.publicKey,
+          admin: provider.wallet.publicKey,
           systemProgram: SystemProgram.programId,
         })
-        .signers([owner])
         .rpc();
     }
 
@@ -191,15 +190,11 @@ describe("Meishi Protocol", () => {
         )
         .accounts({
           oracleRegistry: oracleRegistryPDA,
-          admin: owner.publicKey,
+          admin: provider.wallet.publicKey,
           oracleSigner: oracleSigner.publicKey,
           systemProgram: SystemProgram.programId,
         })
-        .signers(
-          oracleSigner.publicKey.toString() === owner.publicKey.toString()
-            ? [owner]
-            : [owner, oracleSigner]
-        )
+        .signers([oracleSigner])
         .rpc();
     };
 
@@ -476,6 +471,7 @@ describe("Meishi Protocol", () => {
           oracle: owner.publicKey,
           passport: passportPDA,
           audit: auditPDA,
+          oracleRegistry: null,
           systemProgram: SystemProgram.programId,
         })
         .signers([owner])
@@ -505,6 +501,7 @@ describe("Meishi Protocol", () => {
             oracle: owner.publicKey,
             passport: passportPDA,
             audit: auditPDA,
+            oracleRegistry: null,
             systemProgram: SystemProgram.programId,
           })
           .signers([owner])
@@ -526,6 +523,7 @@ describe("Meishi Protocol", () => {
             oracle: oracle.publicKey,
             passport: passportPDA,
             audit: auditPDA,
+            oracleRegistry: null,
             systemProgram: SystemProgram.programId,
           })
           .signers([oracle])
@@ -570,6 +568,7 @@ describe("Meishi Protocol", () => {
         .accounts({
           oracle: owner.publicKey,
           passport: passportPDA,
+          oracleRegistry: null,
         })
         .signers([owner])
         .rpc();
@@ -584,6 +583,7 @@ describe("Meishi Protocol", () => {
         .accounts({
           oracle: owner.publicKey,
           passport: passportPDA,
+          oracleRegistry: null,
         })
         .signers([owner])
         .rpc();
