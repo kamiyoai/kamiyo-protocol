@@ -6,10 +6,12 @@ import { agentService } from '../services/agents.js';
 import { earningsService } from '../services/earnings.js';
 import {
   AcceptJobRequestSchema,
-  SubmitTaskRequestSchema,
-  RateTaskRequestSchema,
   JobStatusSchema,
+  ObjectiveSpecSchema,
+  RateTaskRequestSchema,
   StartJobRequestSchema,
+  SubmitTaskRequestSchema,
+  type Job,
 } from '../types/index.js';
 import { AgentSkillSchema } from '../types/index.js';
 import { normalizeSkillTag } from '../services/skill-tags.js';
@@ -18,6 +20,31 @@ import { isAgentSemanticallyEligibleForJob, rankJobsForAgent, tierMeetsRequireme
 export const jobsRouter = new Hono();
 
 const VALID_STATUSES = JobStatusSchema.options;
+
+function objectiveCompletenessScore(job: Job): number {
+  const criteriaCount = job.objectiveSpec.acceptanceCriteria.length;
+  const criteriaScore = Math.min(1, criteriaCount / 4);
+  const evidenceScore = job.objectiveSpec.evidenceRequired ? 1 : 0.6;
+  const verificationScore =
+    job.objectiveSpec.verification === 'objective'
+      ? 1
+      : job.objectiveSpec.verification === 'hybrid'
+        ? 0.85
+        : 0.7;
+
+  return criteriaScore * 0.5 + evidenceScore * 0.2 + verificationScore * 0.3;
+}
+
+function normalizedPayout(job: Job, maxPayment: number): number {
+  if (maxPayment <= 0) return 0;
+  return Math.max(0, Math.min(1, job.payment / maxPayment));
+}
+
+function workboardScore(job: Job, semanticScore: number, maxPayment: number): number {
+  const objectiveScore = objectiveCompletenessScore(job);
+  const payoutScore = normalizedPayout(job, maxPayment);
+  return semanticScore * 0.55 + objectiveScore * 0.3 + payoutScore * 0.15;
+}
 
 jobsRouter.get('/', (c) => {
   const status = c.req.query('status');
@@ -46,9 +73,46 @@ jobsRouter.get('/matching/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
   const agent = agentService.getById(agentId);
   if (!agent) return c.json({ error: 'Agent not found' }, 404);
-  const openJobs = jobService.getOpen().filter((job) => tierMeetsRequirement(agent.tier, job.requiredTier));
+  const openJobs = jobService.getOpen().filter(
+    (job) =>
+      tierMeetsRequirement(agent.tier, job.requiredTier) &&
+      agent.creditScore >= job.minimumCreditScore
+  );
   const ranked = await rankJobsForAgent(agent, openJobs);
   return c.json({ jobs: ranked.map((r) => r.job) });
+});
+
+jobsRouter.get('/workboard/:agentId', async (c) => {
+  const agentId = c.req.param('agentId');
+  const agent = agentService.getById(agentId);
+  if (!agent) return c.json({ error: 'Agent not found' }, 404);
+
+  const eligible = jobService.getOpen().filter(
+    (job) =>
+      tierMeetsRequirement(agent.tier, job.requiredTier) &&
+      agent.creditScore >= job.minimumCreditScore
+  );
+
+  if (eligible.length === 0) return c.json({ jobs: [] });
+
+  const semanticRanked = await rankJobsForAgent(agent, eligible);
+  const semanticById = new Map(semanticRanked.map((entry) => [entry.job.id, entry.score]));
+  const maxPayment = eligible.reduce((max, job) => Math.max(max, job.payment), 0);
+
+  const ranked = eligible
+    .map((job) => ({
+      job,
+      score: workboardScore(job, semanticById.get(job.id) ?? 0, maxPayment),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return c.json({
+    jobs: ranked.map((entry) => entry.job),
+    ranking: ranked.map((entry) => ({
+      jobId: entry.job.id,
+      score: Number(entry.score.toFixed(4)),
+    })),
+  });
 });
 
 jobsRouter.get('/agent/:agentId', (c) => {
@@ -79,6 +143,8 @@ jobsRouter.post(
       poster: z.string(),
       posterAddress: z.string(),
       deadline: z.string().optional(),
+      objectiveSpec: ObjectiveSpecSchema.optional(),
+      minimumCreditScore: z.number().min(0).max(100).optional(),
     })
   ),
   (c) => {
@@ -86,6 +152,8 @@ jobsRouter.post(
     const job = jobService.create({
       ...body,
       requiredSkills: body.requiredSkills.map(normalizeSkillTag).filter(Boolean),
+      objectiveSpec: body.objectiveSpec,
+      minimumCreditScore: body.minimumCreditScore,
     });
     return c.json({ job }, 201);
   }
@@ -109,6 +177,9 @@ jobsRouter.post(
 
     if (!tierMeetsRequirement(agent.tier, job.requiredTier)) {
       return c.json({ error: 'Agent tier too low' }, 400);
+    }
+    if (agent.creditScore < job.minimumCreditScore) {
+      return c.json({ error: 'Agent credit score too low' }, 400);
     }
 
     const hasSkill = job.requiredSkills.some((s) => agent.skills.includes(s));

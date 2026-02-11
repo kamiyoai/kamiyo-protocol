@@ -67,6 +67,8 @@ describe('jobService', () => {
       expect(job.id).toBeDefined();
       expect(job.status).toBe('open');
       expect(job.createdAt).toBeDefined();
+      expect(job.minimumCreditScore).toBe(0);
+      expect(job.objectiveSpec.acceptanceCriteria.length).toBeGreaterThan(0);
     });
   });
 
