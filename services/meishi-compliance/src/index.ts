@@ -211,8 +211,11 @@ async function main() {
   let lastAuditedPassportCount = 0;
   let dkgPublishCount = 0;
   let dkgPublishFailures = 0;
+  let consecutiveDkgPublishFailures = 0;
   let lastPublishedAuditUal: string | null = null;
   let lastPublishedAuditHashHex: string | null = null;
+  let lastDkgPublishError: string | null = null;
+  let lastDkgPublishErrorAt = 0;
   let onchainAuditCount = 0;
   let onchainAuditFailures = 0;
   let lastOnchainAuditSignature: string | null = null;
@@ -365,8 +368,11 @@ async function main() {
         const { ual, publicHashHex, publicHashBytes } =
           await dkgPublisher.publishComplianceAuditWithIntegrity(doc);
         dkgPublishCount++;
+        consecutiveDkgPublishFailures = 0;
         lastPublishedAuditUal = ual;
         lastPublishedAuditHashHex = publicHashHex;
+        lastDkgPublishError = null;
+        lastDkgPublishErrorAt = 0;
         console.log(`[meishi-compliance] Published audit to DKG: ${ual}`);
 
         if (onchainWriter) {
@@ -395,6 +401,9 @@ async function main() {
         const isFinalAttempt = attempt === maxAttempts;
         if (isFinalAttempt) {
           dkgPublishFailures++;
+          consecutiveDkgPublishFailures++;
+          lastDkgPublishError = err instanceof Error ? err.message : String(err);
+          lastDkgPublishErrorAt = Date.now();
           console.error('[meishi-compliance] Failed to publish audit to DKG:', err);
           return;
         }
@@ -556,7 +565,7 @@ async function main() {
     if (lastRpcLatencyMs > config.rpcMaxLatencyMs) readinessFailures.push('rpc_latency_exceeded');
     if (monitorLagMs > config.monitorIntervalMs) readinessFailures.push('monitor_tick_lagging');
     if (deepAuditLagMs > config.deepAuditIntervalMs) readinessFailures.push('deep_audit_tick_lagging');
-    if (config.enableDkgPublishing && dkgPublishFailures > 0) {
+    if (config.enableDkgPublishing && consecutiveDkgPublishFailures > 0) {
       readinessFailures.push('dkg_publish_failures_present');
     }
     if (config.enableDkgPublishing && !dkgPublisher) readinessFailures.push('dkg_publisher_not_initialized');
@@ -607,8 +616,11 @@ async function main() {
           dkgPublisherInitErrorAt: lastDkgInitErrorAt,
           dkgPublishCount,
           dkgPublishFailures,
+          consecutiveDkgPublishFailures,
           lastPublishedAuditUal,
           lastPublishedAuditHashHex,
+          lastDkgPublishError,
+          lastDkgPublishErrorAt,
           dkg: config.enableDkgPublishing
             ? {
                 endpointHost: dkgEndpointHost,
