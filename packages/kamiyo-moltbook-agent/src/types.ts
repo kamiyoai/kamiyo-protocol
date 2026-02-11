@@ -1,6 +1,4 @@
-// Opus for high-quality content generation (posts, comments, deliverables)
 export const DEFAULT_MODEL = 'claude-opus-4-6';
-// Haiku for cheap classification tasks (sentiment, topics, relevance, intent)
 export const FAST_MODEL = 'claude-3-5-haiku-20241022';
 
 export interface MoltbookPost {
@@ -80,7 +78,6 @@ export interface AgentConfig {
   dbPath: string;
   enableProactivePosting?: boolean;
   minPostIntervalMs?: number;
-  // Phase 4: DKG + Identity
   dkgEndpoint?: string;
   dkgPort?: number;
   dkgBlockchain?: string;
@@ -88,14 +85,10 @@ export interface AgentConfig {
   dkgPrivateKey?: string;
   chainId?: number;
   erc8004RegistryAddress?: string;
-  // Escrow treasury
   treasuryAddress?: string;
-  // x402 payment protocol
   enableX402?: boolean;
   x402FacilitatorUrl?: string;
 }
-
-// Proactive posting types
 
 export interface OwnPost {
   id: number;
@@ -164,4 +157,45 @@ export interface EngagementMetrics {
   upvotes: number;
   comments: number;
   lastChecked: number;
+}
+
+export type PaymentType = 'anchor_escrow' | 'sol_transfer' | 'raw_escrow';
+
+export interface TransactionResult {
+  success: boolean;
+  txHash?: string;
+  escrowAddress?: string;
+  counterpartyAgent?: string;
+  paymentType: PaymentType;
+  amountSol: number;
+  moltbookPostId?: string;
+  error?: string;
+}
+
+export interface StrategyConfig {
+  moltbookApiKey: string;
+  anthropicApiKey: string;
+  solanaRpcUrl: string;
+  agentPrivateKey: string;
+  programId: string;
+  treasuryAddress?: string;
+  walletPublicKey: string;
+  budgetSol: number;
+}
+
+export interface Strategy {
+  name: string;
+  priority: number;
+  activateAfterMs: number;
+  canExecute(): Promise<boolean>;
+  execute(): Promise<TransactionResult>;
+  poll(): Promise<TransactionResult | null>;
+  getStatus(): string;
+}
+
+export interface DeadlineConfig {
+  deadlineMs: number;
+  budgetSol: number;
+  pollIntervalMs: number;
+  strategyConfig: StrategyConfig;
 }

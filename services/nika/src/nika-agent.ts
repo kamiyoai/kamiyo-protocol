@@ -1,7 +1,3 @@
-/**
- * Nika Agent - posts tweets via X tools with DKG memory.
- */
-
 import { createKamiyoAgent, createXTools, type KamiyoAgent, type XToolsConfig, type ToolConfig } from '@kamiyo/agents';
 import {
   createLogger,
@@ -30,6 +26,7 @@ import { shouldTweet, isQualityGateEnabled } from './quality-gate';
 import type { Config } from './config';
 import type { OrchestratedPlan } from './post-orchestrator';
 import type { PostSlot } from './daily-scheduler';
+import { getRepoKnowledgeSnapshot } from './repo-knowledge';
 
 const log = createLogger('nika:agent');
 const metrics = getMetrics();
@@ -139,6 +136,8 @@ export class NikaAgent {
 
       prompt = buildTweetPrompt(mood, type, style, sanitizedTopics);
     }
+
+    prompt = appendRepoKnowledgeContext(prompt);
 
     log.info('Generating post', { mood, type, style, orchestrated: isOrchestrated });
 
@@ -338,13 +337,14 @@ GUIDELINES:
 
 OUTPUT:
 Return ONLY the reply text. Do not use any tools.`;
+    const promptWithRepoContext = appendRepoKnowledgeContext(prompt);
 
     let replyContent = '';
 
     try {
       const result = await replyCircuit.execute(() =>
         withRetry(async () => {
-          const runResult = await this.agent.run(prompt);
+          const runResult = await this.agent.run(promptWithRepoContext);
           return runResult.finalResponse;
         }, { maxAttempts: 2, initialDelayMs: 1000 })
       );
@@ -458,13 +458,14 @@ GUIDELINES:
 
 OUTPUT:
 Return ONLY the quote text. Do not use any tools.`;
+    const promptWithRepoContext = appendRepoKnowledgeContext(prompt);
 
     let quoteContent = '';
 
     try {
       const result = await replyCircuit.execute(() =>
         withRetry(async () => {
-          const runResult = await this.agent.run(prompt);
+          const runResult = await this.agent.run(promptWithRepoContext);
           return runResult.finalResponse;
         }, { maxAttempts: 2, initialDelayMs: 1000 })
       );
@@ -664,4 +665,15 @@ export function createNikaAgent(config: Config): NikaAgent {
       accessSecret: config.TWITTER_ACCESS_SECRET,
     },
   });
+}
+
+function appendRepoKnowledgeContext(prompt: string): string {
+  const snapshot = getRepoKnowledgeSnapshot();
+  if (!snapshot?.summary) return prompt;
+  return `${prompt}
+
+PROTOCOL FACTS (repo monitor):
+${snapshot.summary}
+
+Use these facts only when relevant to the conversation or tweet.`;
 }
