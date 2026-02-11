@@ -10,6 +10,7 @@ export interface ParsedVerifyInput {
   maxAmount?: number;
   requirementAmountRaw?: string;
   requirementNetwork?: string;
+  requirementPayTo?: string;
 }
 
 export interface ParsedSettleInput {
@@ -149,6 +150,33 @@ function parseUsdcMicroAmount(amountRaw: string): number | null {
   return units;
 }
 
+export function parseUsdcMicroAmountBigint(amountRaw: string): bigint | null {
+  const trimmed = amountRaw.trim();
+  if (!trimmed) return null;
+
+  if (/^\d+$/.test(trimmed)) {
+    try {
+      const units = BigInt(trimmed);
+      return units > 0n ? units : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const match = /^(\d+)\.(\d{1,6})$/.exec(trimmed);
+  if (!match) return null;
+
+  try {
+    const whole = BigInt(match[1]);
+    const frac = match[2].padEnd(6, '0');
+    const fracUnits = BigInt(frac);
+    const units = whole * BigInt(USDC_MICRO) + fracUnits;
+    return units > 0n ? units : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseSignedUsdcAmount(
   signedAmountRaw: string,
   expectedAmountRaw?: string
@@ -210,6 +238,7 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
         resource: asString(legacyRequirements.resource) || asString(root.resource),
         requirementAmountRaw,
         requirementNetwork: network,
+        requirementPayTo: asString(legacyRequirements.payTo),
       },
     };
   }
@@ -259,6 +288,7 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
       resource: extractResource(paymentRequirements, paymentPayload),
       requirementAmountRaw,
       requirementNetwork: network,
+      requirementPayTo: extractMerchantWallet(paymentRequirements, paymentPayload),
     },
   };
 }

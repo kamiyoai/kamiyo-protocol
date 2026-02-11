@@ -103,7 +103,7 @@ function loadConfig(): OracleConfig {
   return {
     rpcUrl: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
     keypairPath: process.env.ORACLE_KEYPAIR || path.join(homeDir(), ".config/solana/id.json"),
-    programId: process.env.KAMIYO_ESCROW_PROGRAM_ID,
+    programId: process.env.ESCROW_PROGRAM_ID || process.env.KAMIYO_ESCROW_PROGRAM_ID,
   };
 }
 
@@ -994,7 +994,8 @@ program
     console.log(chalk.gray("Set environment variables to configure:"));
     console.log(chalk.gray("  SOLANA_RPC_URL - Solana RPC endpoint"));
     console.log(chalk.gray("  ORACLE_KEYPAIR - Path to oracle keypair"));
-    console.log(chalk.gray("  KAMIYO_ESCROW_PROGRAM_ID - Program ID to monitor"));
+    console.log(chalk.gray("  ESCROW_PROGRAM_ID - Program ID to monitor"));
+    console.log(chalk.gray("  KAMIYO_ESCROW_PROGRAM_ID - (legacy) Program ID to monitor"));
   });
 
 program

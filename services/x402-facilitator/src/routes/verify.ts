@@ -6,7 +6,10 @@ import { getBaseUsdcBalanceForAddress, isBaseEnabled } from '../services/base-se
 import { getConfig } from '../config';
 import { VerifyResponse } from '../types';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
-import { parseSignedUsdcAmount, parseVerifyInput } from '../protocol/request-compat';
+import { parseSignedUsdcAmount, parseUsdcMicroAmountBigint, parseVerifyInput } from '../protocol/request-compat';
+import { getPaymentSessionByTokenHash } from '../db/queries';
+import { hashSessionToken, parseSessionPaymentHeader } from '../services/session';
+import { getUsdcDelegateState } from '../services/solana-session';
 
 function sendVerifyFailure(
   res: Response,
@@ -26,7 +29,7 @@ function sendVerifyFailure(
   });
 }
 
-export function createVerifyRouter(connection: Connection): Router {
+export function createVerifyRouter(connection: Connection, facilitator: PublicKey): Router {
   const router = Router();
 
   router.post('/', async (req: Request, res: Response) => {
@@ -36,7 +39,14 @@ export function createVerifyRouter(connection: Connection): Router {
       return;
     }
 
-    const { paymentHeader, resource, maxAmount, requirementAmountRaw, requirementNetwork } = parsedInput.value;
+    const {
+      paymentHeader,
+      resource,
+      maxAmount,
+      requirementAmountRaw,
+      requirementNetwork,
+      requirementPayTo,
+    } = parsedInput.value;
 
     const scheme = parsePaymentScheme(paymentHeader);
     const network = scheme ? canonicalizeNetwork(scheme.network) : null;
@@ -51,6 +61,142 @@ export function createVerifyRouter(connection: Connection): Router {
         sendVerifyFailure(res, 400, 'network_mismatch', 'paymentRequirements.network does not match payment payload network');
         return;
       }
+    }
+
+    if (scheme.scheme === 'session') {
+      const sessionHeader = parseSessionPaymentHeader(paymentHeader);
+      if (!sessionHeader || canonicalizeNetwork(sessionHeader.network) !== network) {
+        sendVerifyFailure(res, 400, 'invalid_session_header', 'Malformed session payment header');
+        return;
+      }
+
+      const session = await getPaymentSessionByTokenHash(hashSessionToken(sessionHeader.token));
+      if (!session) {
+        sendVerifyFailure(res, 401, 'invalid_session', 'Invalid or unknown session token');
+        return;
+      }
+
+      if (session.revoked_at) {
+        sendVerifyFailure(res, 401, 'session_revoked', 'Session token revoked');
+        return;
+      }
+
+      if (new Date(session.expires_at).getTime() <= Date.now()) {
+        sendVerifyFailure(res, 401, 'session_expired', 'Session token expired');
+        return;
+      }
+
+      const sessionNetwork = canonicalizeNetwork(session.network);
+      if (!sessionNetwork || sessionNetwork !== network) {
+        sendVerifyFailure(res, 400, 'network_mismatch', 'Session network does not match payment payload network');
+        return;
+      }
+
+      if (requirementPayTo && session.merchant_wallet !== requirementPayTo) {
+        sendVerifyFailure(res, 400, 'merchant_mismatch', 'Session token not valid for this merchant');
+        return;
+      }
+
+      if (!requirementAmountRaw) {
+        sendVerifyFailure(res, 400, 'invalid_amount', 'Missing payment requirement amount', session.payer_wallet);
+        return;
+      }
+
+      const requiredMicro = parseUsdcMicroAmountBigint(requirementAmountRaw);
+      if (requiredMicro == null) {
+        sendVerifyFailure(res, 400, 'invalid_amount', 'Invalid payment requirement amount', session.payer_wallet);
+        return;
+      }
+
+      let maxTotalMicro: bigint;
+      let spentMicro: bigint;
+      try {
+        maxTotalMicro = BigInt(session.max_total_micro);
+        spentMicro = BigInt(session.spent_micro);
+      } catch {
+        sendVerifyFailure(res, 500, 'server_error', 'Invalid session limits', session.payer_wallet);
+        return;
+      }
+
+      if (spentMicro < 0n || spentMicro > maxTotalMicro) {
+        sendVerifyFailure(res, 500, 'server_error', 'Invalid session limits', session.payer_wallet);
+        return;
+      }
+
+      if (spentMicro + requiredMicro > maxTotalMicro) {
+        sendVerifyFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds remaining session cap', session.payer_wallet);
+        return;
+      }
+
+      if (session.max_single_micro) {
+        try {
+          if (requiredMicro > BigInt(session.max_single_micro)) {
+            sendVerifyFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds session per-request limit', session.payer_wallet);
+            return;
+          }
+        } catch {
+          sendVerifyFailure(res, 500, 'server_error', 'Invalid session limits');
+          return;
+        }
+      }
+
+      const requiredAmount = Number(requiredMicro) / 1_000_000;
+      const config = getConfig();
+
+      if (maxAmount != null && requiredAmount > maxAmount) {
+        sendVerifyFailure(res, 400, 'amount_exceeds_maximum', 'Amount exceeds maximum', session.payer_wallet);
+        return;
+      }
+
+      if (requiredAmount > config.MAX_SETTLEMENT_AMOUNT) {
+        sendVerifyFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds facilitator limit', session.payer_wallet);
+        return;
+      }
+
+      if (!isValidPayerForNetwork(session.payer_wallet, network)) {
+        sendVerifyFailure(res, 400, 'invalid_payer_wallet', 'Invalid payer wallet for network', session.payer_wallet);
+        return;
+      }
+
+      let balance = 0;
+      let delegatedMicro: bigint = 0n;
+      try {
+        const payerKey = new PublicKey(session.payer_wallet);
+        const state = await getUsdcDelegateState(connection, payerKey);
+        balance = Number(state.balanceMicro) / 1_000_000;
+        delegatedMicro = state.delegate && state.delegate.equals(facilitator) ? state.delegatedMicro : 0n;
+      } catch {
+        sendVerifyFailure(res, 502, 'balance_lookup_failed', 'Balance lookup failed', session.payer_wallet);
+        return;
+      }
+
+      const sufficient = balance >= requiredAmount && delegatedMicro >= requiredMicro;
+      const response: VerifyResponse = {
+        valid: sufficient,
+        isValid: sufficient,
+        payer: session.payer_wallet,
+        amount: requiredAmount.toString(),
+        resource: resource || '',
+        balance,
+        sufficient,
+        extensions: {
+          kamiyo: {
+            network,
+            balance,
+            sufficient,
+            session: { delegatedMicro: delegatedMicro.toString() },
+          },
+        },
+      };
+
+      if (!sufficient) {
+        response.error = delegatedMicro < requiredMicro ? 'Delegated allowance insufficient' : 'Insufficient USDC balance';
+        response.invalidReason = delegatedMicro < requiredMicro ? 'insufficient_allowance' : 'insufficient_funds';
+        response.invalidMessage = response.error;
+      }
+
+      res.json(response);
+      return;
     }
 
     const payment = decodePaymentHeader(paymentHeader);

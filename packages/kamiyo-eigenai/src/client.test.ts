@@ -9,7 +9,7 @@ describe('KamiyoEigenAI', () => {
   } as unknown as Connection;
 
   const mockWallet = Keypair.generate();
-  const mockProgramId = new PublicKey('AbrWhvNBBL7ZUZ3AZ6ASgN74JiTrn8Gtctrb7uC9Mzbu');
+  const mockProgramId = new PublicKey('FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u');
   const mockTreasury = Keypair.generate().publicKey;
   const mockTokenAccount = Keypair.generate().publicKey;
   const testAuth: EigenAIAuthConfig = { type: 'apiKey', apiKey: 'test-api-key-12345' };

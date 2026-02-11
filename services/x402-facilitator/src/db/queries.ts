@@ -1,6 +1,48 @@
 import { query, queryOne } from './pool';
 import { Settlement, EscrowRecord, DisputeRecord, OracleVoteRecord } from '../types';
 
+type SessionChallengeRow = {
+  nonce: string;
+  payer_wallet: string;
+  network: string;
+  merchant_wallet: string;
+  max_total_micro: string;
+  max_single_micro: string | null;
+  session_expires_at: Date;
+  message: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Date;
+};
+
+type PaymentSessionRow = {
+  id: string;
+  token_hash: string;
+  payer_wallet: string;
+  network: string;
+  merchant_wallet: string;
+  max_total_micro: string;
+  max_single_micro: string | null;
+  spent_micro: string;
+  expires_at: Date;
+  created_at: Date;
+  last_used_at: Date | null;
+  revoked_at: Date | null;
+};
+
+type PaymentNonceGuardRow = {
+  id: string;
+  payer_wallet: string;
+  nonce: string;
+  usage: string;
+  network: string;
+  resource: string;
+  amount: string;
+  created_at: Date;
+  tx_hash: string | null;
+  settlement_id: string | null;
+};
+
 export async function insertSettlement(
   merchantWallet: string,
   payerWallet: string,
@@ -37,6 +79,26 @@ export async function updateSettlementConfirmed(id: string, txHash: string, feeA
   ]);
 }
 
+export async function getSettlementById(
+  id: string
+): Promise<({
+  id: string;
+  merchant_wallet: string;
+  payer_wallet: string;
+  amount: string;
+  fee_amount: string;
+  asset: string;
+  tx_hash: string | null;
+  status: string;
+  network: string;
+}) | null> {
+  return queryOne(
+    `SELECT id, merchant_wallet, payer_wallet, amount::text, fee_amount::text, asset, tx_hash, status, network
+     FROM settlements WHERE id = $1`,
+    [id]
+  );
+}
+
 export async function reservePaymentNonce(
   payerWallet: string,
   nonce: string,
@@ -53,6 +115,154 @@ export async function reservePaymentNonce(
     [payerWallet, nonce, usage, network, resource, amount]
   );
   return rows.length > 0;
+}
+
+export async function getPaymentNonceGuard(payerWallet: string, nonce: string): Promise<PaymentNonceGuardRow | null> {
+  return queryOne<PaymentNonceGuardRow>(
+    `SELECT id, payer_wallet, nonce, usage, network, resource, amount::text, created_at, tx_hash, settlement_id::text
+     FROM payment_nonce_guard
+     WHERE payer_wallet = $1 AND nonce = $2`,
+    [payerWallet, nonce]
+  );
+}
+
+export async function setPaymentNonceSettlementId(payerWallet: string, nonce: string, settlementId: string): Promise<void> {
+  await query(
+    `UPDATE payment_nonce_guard SET settlement_id = $3
+     WHERE payer_wallet = $1 AND nonce = $2`,
+    [payerWallet, nonce, settlementId]
+  );
+}
+
+export async function setPaymentNonceTxHash(payerWallet: string, nonce: string, txHash: string): Promise<void> {
+  await query(
+    `UPDATE payment_nonce_guard SET tx_hash = $3
+     WHERE payer_wallet = $1 AND nonce = $2`,
+    [payerWallet, nonce, txHash]
+  );
+}
+
+export async function deletePaymentNonceGuard(payerWallet: string, nonce: string): Promise<void> {
+  await query(
+    `DELETE FROM payment_nonce_guard
+     WHERE payer_wallet = $1 AND nonce = $2 AND tx_hash IS NULL`,
+    [payerWallet, nonce]
+  );
+}
+
+export async function insertSessionChallenge(row: {
+  nonce: string;
+  payerWallet: string;
+  network: string;
+  merchantWallet: string;
+  maxTotalMicro: string;
+  maxSingleMicro?: string | null;
+  sessionExpiresAt: Date;
+  message: string;
+  expiresAt: Date;
+}): Promise<void> {
+  await query(
+    `INSERT INTO session_challenges (
+      nonce, payer_wallet, network, merchant_wallet, max_total_micro, max_single_micro,
+      session_expires_at, message, expires_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    ON CONFLICT (nonce) DO NOTHING`,
+    [
+      row.nonce,
+      row.payerWallet,
+      row.network,
+      row.merchantWallet,
+      row.maxTotalMicro,
+      row.maxSingleMicro ?? null,
+      row.sessionExpiresAt,
+      row.message,
+      row.expiresAt,
+    ]
+  );
+}
+
+export async function getSessionChallenge(nonce: string): Promise<SessionChallengeRow | null> {
+  return queryOne<SessionChallengeRow>(
+    `SELECT * FROM session_challenges
+     WHERE nonce = $1 AND used_at IS NULL AND expires_at > NOW()`,
+    [nonce]
+  );
+}
+
+export async function markSessionChallengeUsed(nonce: string): Promise<boolean> {
+  const rows = await query<{ nonce: string }>(
+    `UPDATE session_challenges SET used_at = NOW()
+     WHERE nonce = $1 AND used_at IS NULL AND expires_at > NOW()
+     RETURNING nonce`,
+    [nonce]
+  );
+  return rows.length > 0;
+}
+
+export async function insertPaymentSession(row: {
+  tokenHash: string;
+  payerWallet: string;
+  network: string;
+  merchantWallet: string;
+  maxTotalMicro: string;
+  maxSingleMicro?: string | null;
+  expiresAt: Date;
+}): Promise<PaymentSessionRow> {
+  const rows = await query<PaymentSessionRow>(
+    `INSERT INTO payment_sessions (
+      token_hash, payer_wallet, network, merchant_wallet, max_total_micro, max_single_micro, expires_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7)
+    RETURNING *`,
+    [
+      row.tokenHash,
+      row.payerWallet,
+      row.network,
+      row.merchantWallet,
+      row.maxTotalMicro,
+      row.maxSingleMicro ?? null,
+      row.expiresAt,
+    ]
+  );
+  return rows[0];
+}
+
+export async function getPaymentSessionByTokenHash(tokenHash: string): Promise<PaymentSessionRow | null> {
+  return queryOne<PaymentSessionRow>('SELECT * FROM payment_sessions WHERE token_hash = $1', [tokenHash]);
+}
+
+export async function revokePaymentSession(tokenHash: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE payment_sessions SET revoked_at = NOW()
+     WHERE token_hash = $1 AND revoked_at IS NULL
+     RETURNING id`,
+    [tokenHash]
+  );
+  return rows.length > 0;
+}
+
+export async function reservePaymentSessionSpend(tokenHash: string, deltaMicro: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
+    `UPDATE payment_sessions
+     SET spent_micro = spent_micro + $2::numeric, last_used_at = NOW()
+     WHERE token_hash = $1
+       AND revoked_at IS NULL
+       AND expires_at > NOW()
+       AND spent_micro + $2::numeric <= max_total_micro
+     RETURNING id`,
+    [tokenHash, deltaMicro]
+  );
+  return rows.length > 0;
+}
+
+export async function releasePaymentSessionSpend(tokenHash: string, deltaMicro: string): Promise<void> {
+  await query(
+    `UPDATE payment_sessions
+     SET spent_micro = GREATEST(spent_micro - $2::numeric, 0)
+     WHERE token_hash = $1`,
+    [tokenHash, deltaMicro]
+  );
 }
 
 export async function insertEscrowRecord(

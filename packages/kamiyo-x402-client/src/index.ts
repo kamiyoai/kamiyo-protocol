@@ -79,6 +79,22 @@ export type {
   FacilitatorPolicyDecision,
 } from './http-payment';
 
+// Session payments (authorize-once)
+export {
+  generateSessionNonce,
+  createSessionPaymentHeader,
+  parseSessionPaymentHeader,
+  withSessionPaymentHeaders,
+  requestSessionChallenge,
+  authorizeSession,
+  revokeSession,
+} from './session';
+export type {
+  SessionPaymentHeaderParts,
+  SessionChallengeResponse,
+  SessionAuthorizeResponse,
+} from './session';
+
 // Protocol constants
 export {
   SOLANA_NETWORK_ID,
@@ -143,6 +159,10 @@ export type { JupiterConfig, SwapQuote, SwapResult, PriceResult } from './jupite
 // Embed
 export { KamiyoPayEmbed, createKamiyoPayWidget } from './embed';
 export type { EmbedConfig, EmbedPaymentResult } from './embed';
+
+// Session embed (authorize-once)
+export { KamiyoX402SessionEmbed, createKamiyoX402SessionWidget } from './session-embed';
+export type { SessionEmbedConfig, SessionAuthorizedResult, SessionWidgetState } from './session-embed';
 
 // Coinbase facilitator
 export {

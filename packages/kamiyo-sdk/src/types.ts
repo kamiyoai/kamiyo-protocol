@@ -250,9 +250,16 @@ export const MAX_FEE_BPS = 500;                   // 5% max
 // Companion Escrow Program Types (kamiyo-escrow)
 // ============================================
 
-export const KAMIYO_ESCROW_PROGRAM_ID = new PublicKey(
-  "J1Xdi9mhSGR9oy1z2CRKJEiQ3mVFBf5ZG8EXyJfhYaZY"
+export const KAMIYO_ESCROW_PROGRAM_ID_MAINNET = new PublicKey(
+  "FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u"
 );
+
+export const KAMIYO_ESCROW_PROGRAM_ID_DEVNET = new PublicKey(
+  "EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT"
+);
+
+// Backwards-compatible default.
+export const KAMIYO_ESCROW_PROGRAM_ID = KAMIYO_ESCROW_PROGRAM_ID_MAINNET;
 
 // Companion Escrow Status
 export enum CompanionEscrowStatus {

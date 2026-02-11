@@ -43,7 +43,7 @@ export function createSupportedRouter(facilitatorKeypair: Keypair): Router {
 
     const response: SupportedResponse = {
       kinds,
-      extensions: ['discovery'],
+      extensions: ['discovery', 'kamiyo-session'],
       signers
     };
 
