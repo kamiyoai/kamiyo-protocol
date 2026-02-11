@@ -3,7 +3,7 @@
   "name": "kamiyo",
   "display_name": "KAMIYO Protocol",
   "version": "1.0.0",
-  "description": "Solana escrow with dispute resolution for API payments. Also supports x402 HTTP 402 payments (USDC on Base/Polygon/Arbitrum/Solana).",
+  "description": "Solana escrow with dispute resolution for API payments. Also supports x402 HTTP 402 payments and Kamino Earn (KVault) AutoSave.",
   "author": {
     "name": "KAMIYO",
     "url": "https://kamiyo.ai"
@@ -22,7 +22,10 @@
     "payments",
     "dispute-resolution",
     "api-payments",
-    "x402"
+    "x402",
+    "kamino",
+    "kamino-earn",
+    "yield"
   ],
   "server": {
     "type": "node",
@@ -33,7 +36,11 @@
       "env": {
         "SOLANA_RPC_URL": "${user_config.solana_rpc_url}",
         "KAMIYO_PROGRAM_ID": "${user_config.program_id}",
-        "AGENT_PRIVATE_KEY": "${user_config.agent_private_key}"
+        "AGENT_PRIVATE_KEY": "${user_config.agent_private_key}",
+        "AGENT_KEYPAIR_PATH": "${user_config.agent_keypair_path}",
+        "KAMINO_API_BASE_URL": "${user_config.kamino_api_base_url}",
+        "KAMINO_MIN_AUM_USD": "${user_config.kamino_min_aum_usd}",
+        "KAMINO_USDC_MINT": "${user_config.kamino_usdc_mint}"
       }
     }
   },
@@ -50,14 +57,41 @@
       "title": "Program ID",
       "description": "KAMIYO program address on Solana",
       "default": "Kami4VVSihVhXnhJ65KZPDm9fUbBnkqSzWWDnsRxMjW3",
-      "required": true
+      "required": false
     },
     "agent_private_key": {
       "type": "string",
       "title": "Agent Private Key",
       "description": "Base58 or JSON array private key for signing transactions",
       "sensitive": true,
-      "required": true
+      "required": false
+    },
+    "agent_keypair_path": {
+      "type": "string",
+      "title": "Agent Keypair Path",
+      "description": "Path to a Solana JSON keypair (alternative to agent_private_key)",
+      "required": false
+    },
+    "kamino_api_base_url": {
+      "type": "string",
+      "title": "Kamino API Base URL",
+      "description": "Override Kamino API base URL",
+      "default": "https://api.kamino.finance",
+      "required": false
+    },
+    "kamino_min_aum_usd": {
+      "type": "number",
+      "title": "Kamino Min AUM USD",
+      "description": "Default minimum AUM (USD) filter for vault suggestions",
+      "default": 250000,
+      "required": false
+    },
+    "kamino_usdc_mint": {
+      "type": "string",
+      "title": "USDC Mint",
+      "description": "Override the default USDC mint address",
+      "default": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "required": false
     }
   },
   "tools": [
@@ -94,12 +128,40 @@
       "description": "Full flow: escrow, call, assess, auto-dispute"
     },
     {
-      "name": "x402_check_pricing",
+      "name": "check_x402_api_price",
       "description": "Check x402-gated endpoint pricing"
     },
     {
       "name": "x402_fetch",
       "description": "Fetch from x402 endpoint with USDC payment"
+    },
+    {
+      "name": "kamino_list_vaults",
+      "description": "List Kamino Earn (KVault) vaults (defaults to USDC)"
+    },
+    {
+      "name": "kamino_vault_metrics",
+      "description": "Fetch Kamino Earn (KVault) vault metrics (APY, AUM)"
+    },
+    {
+      "name": "kamino_suggest_vaults",
+      "description": "Suggest top Kamino Earn vaults ranked by APY with AUM filter"
+    },
+    {
+      "name": "kamino_positions",
+      "description": "Fetch Kamino Earn positions for a wallet"
+    },
+    {
+      "name": "kamino_deposit",
+      "description": "Build or send a Kamino Earn vault deposit transaction (default dryRun=true)"
+    },
+    {
+      "name": "kamino_withdraw",
+      "description": "Build or send a Kamino Earn vault withdraw transaction (default dryRun=true)"
+    },
+    {
+      "name": "kamino_autosave_usdc",
+      "description": "AutoSave idle USDC into a suggested Kamino Earn vault (default dryRun=true)"
     }
   ],
   "compatibility": {

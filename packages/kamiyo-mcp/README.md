@@ -7,6 +7,7 @@ MCP server for autonomous agent payments. Provides tools for:
 - **Dispute resolution** - Oracle arbitration when quality is poor
 - **Provider reputation** - On-chain trust scores
 - **x402 payments** - HTTP 402 protocol support
+- **Kamino AutoSave** - Deposit idle USDC into Kamino Earn (KVault) vaults to earn yield
 
 Works with Claude Desktop, OpenClaw, and any MCP-compatible client.
 
@@ -215,9 +216,9 @@ Searches for cryptocurrency news from trusted sources.
 | query | string | no | Search topic (default: cryptocurrency) |
 | limit | number | no | Max results (default: 5) |
 
-### x402_check_pricing
+### check_x402_api_price
 
-Checks if an endpoint uses x402 payment and returns pricing options.
+Checks if an endpoint uses x402 payment and returns pricing options. (Alias: `x402_check_pricing`)
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -237,6 +238,74 @@ Fetches from an x402-protected endpoint, handling payment automatically.
 | headers | object | no | Additional headers |
 
 Requires local MCP server with wallet configured. Remote server returns error directing to local setup.
+
+### kamino_list_vaults
+
+Lists Kamino Earn (KVault) vaults for a token mint (defaults to USDC).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| tokenMint | string | no | Token mint (defaults to USDC) |
+| limit | number | no | Max results (default: 200, max: 200) |
+
+### kamino_vault_metrics
+
+Fetches Kamino Earn (KVault) metrics for a vault (APY windows, AUM, prices).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| vault | string | yes | KVault address |
+
+### kamino_suggest_vaults
+
+Suggests top Kamino Earn vaults ranked by APY window with an AUM filter.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| limit | number | no | Max results (default: 5, max: 20) |
+| apyWindow | string | no | APY window: apy24h, apy7d, apy30d, apy90d, apy180d, apy365d, apy (default: apy30d) |
+| minAumUsd | number | no | Minimum AUM (USD) (default: 250000 or `KAMINO_MIN_AUM_USD`) |
+| tokenMint | string | no | Token mint (defaults to USDC) |
+
+### kamino_positions
+
+Fetches Kamino Earn (KVault) positions for a wallet. If omitted, uses the configured agent wallet.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| wallet | string | no | Wallet public key |
+
+### kamino_deposit
+
+Builds (dry-run) or sends a Kamino Earn deposit. Defaults to `dryRun=true` which returns a base64 transaction without broadcasting.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| vault | string | yes | KVault address |
+| amount | string | yes | Token amount to deposit (e.g. "25.5") |
+| dryRun | boolean | no | Default: true |
+
+### kamino_withdraw
+
+Builds (dry-run) or sends a Kamino Earn withdraw. Defaults to `dryRun=true`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| vault | string | yes | KVault address |
+| amount | string | no | Token amount to withdraw (required unless `withdrawAll=true`) |
+| withdrawAll | boolean | no | Withdraw max amount |
+| dryRun | boolean | no | Default: true |
+
+### kamino_autosave_usdc
+
+Auto-deposits idle USDC into a suggested Kamino Earn vault (saving/compounding, no trading). Defaults to `dryRun=true`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| bufferUsdc | string \| number | no | USDC to keep idle (default: 5) |
+| minDepositUsdc | string \| number | no | Minimum idle USDC to trigger deposit (default: 20) |
+| maxDepositUsdc | string \| number | no | Cap deposit amount (optional) |
+| dryRun | boolean | no | Default: true |
 
 ## Usage Examples
 
@@ -329,6 +398,9 @@ npm test        # Run tests
 │  - check_escrow_status  - estimate_refund                   │
 │  - verify_payment       - file_dispute                      │
 │  - get_api_reputation   - x402_fetch                        │
+│  - check_x402_api_price - kamino_suggest_vaults             │
+│  - kamino_autosave_usdc - kamino_deposit                    │
+│  - kamino_withdraw      - kamino_positions                  │
 └─────────────────────┬───────────────────────────────────────┘
                       │ Solana RPC
                       ▼
