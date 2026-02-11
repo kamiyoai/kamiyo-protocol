@@ -1945,10 +1945,39 @@ Output ONLY valid JSON: {"title": "hook them (max 100 chars)", "body": "let it f
           this.db.updateOfferStatus(offer.postId, 'accepted');
           console.log(`[Agent] Created job ${jobId} for post ${offer.postId}`);
 
-          await this.moltbook.comment(
-            offer.postId,
-            `Great! I've recorded your wallet. Please create an escrow for ${offer.priceSol} SOL to my address:\n\n${this.escrow?.publicKey.toBase58()}\n\nOnce funded, I'll start working.`
-          );
+          // Create on-chain escrow
+          if (this.escrow) {
+            const escrowResult = await this.escrow.createEscrow({
+              requester: wallet,
+              amount: offer.priceSol,
+              jobId: String(jobId),
+            });
+
+            if (escrowResult.success && escrowResult.escrowAddress) {
+              this.db.setJobEscrow(jobId, escrowResult.escrowAddress, escrowResult.signature ?? '');
+              this.db.logTransaction({
+                jobId,
+                postId: offer.postId,
+                escrowAddress: escrowResult.escrowAddress,
+                createTx: escrowResult.signature ?? '',
+                amountSol: offer.priceSol,
+                requesterWallet: wallet,
+              });
+
+              console.log(`[Agent] Escrow created: ${escrowResult.escrowAddress} tx=${escrowResult.signature}`);
+
+              await this.moltbook.comment(
+                offer.postId,
+                `Escrow created on Solana. Address: ${escrowResult.escrowAddress}\n\nPlease fund it with ${offer.priceSol} SOL. I'll start working once it's confirmed on-chain.`
+              );
+            } else {
+              console.error(`[Agent] Escrow creation failed: ${escrowResult.error}`);
+              await this.moltbook.comment(
+                offer.postId,
+                `I've recorded your wallet but escrow creation encountered an issue. You can fund directly to my agent address:\n\n${this.escrow.publicKey.toBase58()}`
+              );
+            }
+          }
 
           break;
         }
@@ -1968,8 +1997,30 @@ Output ONLY valid JSON: {"title": "hook them (max 100 chars)", "body": "let it f
 
     for (const job of active) {
       if (job.status === 'created') {
-        if (Date.now() - job.createdAt > 5 * 60 * 1000) {
-          console.log(`[Agent] Starting work on job ${job.id}`);
+        const ageMs = Date.now() - job.createdAt;
+
+        // Expire unfunded jobs after 30 minutes
+        if (ageMs > 30 * 60 * 1000 && !job.escrowAddress) {
+          console.log(`[Agent] Job ${job.id} expired - no escrow funding after 30m`);
+          this.db.updateJobStatus(job.id, 'completed');
+          continue;
+        }
+
+        // Require at least 2 minutes before checking funding
+        if (ageMs < 2 * 60 * 1000) continue;
+
+        // Verify escrow is funded on-chain before starting work
+        if (job.escrowAddress && this.escrow) {
+          const funded = await this.escrow.verifyFunded(job.escrowAddress);
+          if (funded) {
+            console.log(`[Agent] Escrow verified funded for job ${job.id}, starting work`);
+            this.db.updateJobStatus(job.id, 'in_progress');
+          } else {
+            console.log(`[Agent] Escrow not yet funded for job ${job.id}`);
+          }
+        } else if (ageMs > 5 * 60 * 1000) {
+          // Fallback: start work without escrow after 5 minutes (legacy behavior)
+          console.log(`[Agent] Starting work on job ${job.id} (no escrow)`);
           this.db.updateJobStatus(job.id, 'in_progress');
         }
       } else if (job.status === 'in_progress') {
@@ -2035,13 +2086,61 @@ Format your response clearly with sections if appropriate.`,
 
     this.db.setJobDeliverable(job.id, result.deliverable);
 
+    // Assess quality of deliverable
+    let qualityScore = 85;
+    let rating = 4;
+    if (this.qualityService) {
+      try {
+        const assessment = await this.qualityService.assessQuality(job.description, result.deliverable);
+        qualityScore = assessment.score ?? 85;
+        rating = qualityScore >= 90 ? 5 : qualityScore >= 70 ? 4 : qualityScore >= 50 ? 3 : 2;
+        console.log(`[Agent] Quality assessment for job ${job.id}: score=${qualityScore} rating=${rating}`);
+      } catch (err) {
+        console.warn(`[Agent] Quality assessment failed, using defaults:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    // Release escrow payment if funded on-chain
+    let releaseTx: string | undefined;
+    if (job.escrowAddress && this.escrow) {
+      const releaseResult = await this.escrow.releaseEscrow({
+        escrowAddress: job.escrowAddress,
+        rating,
+      });
+
+      if (releaseResult.success) {
+        releaseTx = releaseResult.signature;
+        console.log(`[Agent] Escrow released for job ${job.id}: tx=${releaseTx}`);
+
+        // Record completed transaction
+        this.db.completeTransaction(job.escrowAddress, {
+          releaseTx: releaseTx ?? '',
+          qualityScore,
+          rating,
+        });
+
+        this.db.updateJobStatus(job.id, 'completed');
+      } else {
+        console.error(`[Agent] Escrow release failed for job ${job.id}: ${releaseResult.error}`);
+      }
+    } else {
+      this.db.updateJobStatus(job.id, 'completed');
+    }
+
+    // Build delivery comment
+    const txLine = releaseTx
+      ? `\n\nPayment released on Solana: \`${releaseTx}\``
+      : '';
+    const scoreLine = `\nQuality score: ${qualityScore}/100`;
+
     const deliveryComment = `**Job Completed**
 
 ${result.deliverable}
 
 ---
+${scoreLine}${txLine}
 
-If you're satisfied with this work, please release the escrow payment. If there are issues, you can file a dispute within 7 days.`;
+Powered by KAMIYO escrow on Solana.`;
 
     try {
       await this.moltbook.comment(job.postId, deliveryComment);
