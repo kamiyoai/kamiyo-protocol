@@ -54,6 +54,18 @@ export const JobStatusSchema = z.enum([
   'cancelled',
 ]);
 
+export const ObjectiveVerificationSchema = z.enum([
+  'objective',
+  'hybrid',
+  'manual',
+]);
+
+export const ObjectiveSpecSchema = z.object({
+  acceptanceCriteria: z.array(z.string().min(4).max(180)).min(1).max(8),
+  verification: ObjectiveVerificationSchema,
+  evidenceRequired: z.boolean(),
+});
+
 export const JobSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -68,12 +80,15 @@ export const JobSchema = z.object({
   status: JobStatusSchema,
   assignedAgent: z.string().optional(),
   escrowId: z.string().optional(),
+  objectiveSpec: ObjectiveSpecSchema,
+  minimumCreditScore: z.number().min(0).max(100),
   createdAt: z.string(),
   deadline: z.string().optional(),
 });
 
 export type Job = z.infer<typeof JobSchema>;
 export type JobStatus = z.infer<typeof JobStatusSchema>;
+export type ObjectiveSpec = z.infer<typeof ObjectiveSpecSchema>;
 
 export const TaskSubmissionSchema = z.object({
   jobId: z.string(),

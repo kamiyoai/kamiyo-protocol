@@ -98,6 +98,92 @@ describe('jobs routes', () => {
     });
   });
 
+  describe('GET /jobs/workboard/:agentId', () => {
+    it('filters out jobs above agent credit gate', async () => {
+      const openJob = jobService.create({
+        title: 'Open Workboard Job',
+        description: 'Credit-gated workboard listing for open eligibility checks',
+        requiredSkills: ['research'],
+        requiredTier: 'unverified',
+        minimumCreditScore: 0,
+        payment: 0.9,
+        paymentToken: 'SOL',
+        estimatedTime: '2 hours',
+        poster: 'OpenPoster',
+        posterAddress: 'open_poster',
+      });
+
+      const gatedJob = jobService.create({
+        title: 'High Trust Workboard Job',
+        description: 'Only high-credit agents should be able to see this listing',
+        requiredSkills: ['research'],
+        requiredTier: 'unverified',
+        minimumCreditScore: 70,
+        payment: 1.5,
+        paymentToken: 'SOL',
+        estimatedTime: '2 hours',
+        poster: 'GatedPoster',
+        posterAddress: 'gated_poster',
+      });
+
+      const res = await app.request(`/jobs/workboard/${testAgent.id}`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { jobs: Array<{ id: string }> };
+      expect(data.jobs.some((job) => job.id === openJob.id)).toBe(true);
+      expect(data.jobs.some((job) => job.id === gatedJob.id)).toBe(false);
+    });
+
+    it('prioritizes stronger objective + payout jobs', async () => {
+      const lowerRank = jobService.create({
+        title: 'Objective Ranking Pair',
+        description: 'Compare ranking quality between two near-identical jobs',
+        requiredSkills: ['research'],
+        requiredTier: 'unverified',
+        minimumCreditScore: 0,
+        payment: 0.1,
+        paymentToken: 'SOL',
+        estimatedTime: '1 hour',
+        poster: 'RankPosterA',
+        posterAddress: 'rank_a',
+        objectiveSpec: {
+          acceptanceCriteria: ['Submit a short summary.'],
+          verification: 'manual',
+          evidenceRequired: false,
+        },
+      });
+
+      const higherRank = jobService.create({
+        title: 'Objective Ranking Pair',
+        description: 'Compare ranking quality between two near-identical jobs',
+        requiredSkills: ['research'],
+        requiredTier: 'unverified',
+        minimumCreditScore: 0,
+        payment: 2.0,
+        paymentToken: 'SOL',
+        estimatedTime: '1 hour',
+        poster: 'RankPosterB',
+        posterAddress: 'rank_b',
+        objectiveSpec: {
+          acceptanceCriteria: [
+            'Provide a complete analysis report.',
+            'Include evidence for every claim.',
+            'Attach a concise executive summary.',
+          ],
+          verification: 'objective',
+          evidenceRequired: true,
+        },
+      });
+
+      const res = await app.request(`/jobs/workboard/${testAgent.id}`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { jobs: Array<{ id: string }> };
+      const ordered = data.jobs.map((job) => job.id);
+      expect(ordered.indexOf(higherRank.id)).toBeGreaterThanOrEqual(0);
+      expect(ordered.indexOf(lowerRank.id)).toBeGreaterThanOrEqual(0);
+      expect(ordered.indexOf(higherRank.id)).toBeLessThan(ordered.indexOf(lowerRank.id));
+    });
+  });
+
   describe('POST /jobs', () => {
     it('creates a job', async () => {
       const res = await app.request('/jobs', {
@@ -226,6 +312,34 @@ describe('jobs routes', () => {
           process.env.KEIRO_SEMANTIC_ACCEPT_THRESHOLD = prior;
         }
       }
+    });
+
+    it('rejects accept when credit score is below job minimum', async () => {
+      const gatedJob = jobService.create({
+        title: 'Credit Gate Job',
+        description: 'Agent must pass minimum credit score to accept this work item',
+        requiredSkills: ['research'],
+        requiredTier: 'unverified',
+        minimumCreditScore: 65,
+        payment: 1.0,
+        paymentToken: 'SOL',
+        estimatedTime: '2 hours',
+        poster: 'GatePoster',
+        posterAddress: 'gate_poster',
+      });
+
+      const res = await app.request(`/jobs/${gatedJob.id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: testAgent.id,
+          walletAddress: testWallet,
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as { error: string };
+      expect(data.error).toContain('credit score');
     });
 
     it('completes full workflow: accept → start → submit → rate', async () => {
