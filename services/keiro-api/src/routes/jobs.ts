@@ -9,14 +9,15 @@ import {
   SubmitTaskRequestSchema,
   RateTaskRequestSchema,
   JobStatusSchema,
-  AgentSkillSchema,
   StartJobRequestSchema,
 } from '../types/index.js';
+import { AgentSkillSchema } from '../types/index.js';
+import { normalizeSkillTag } from '../services/skill-tags.js';
+import { isAgentSemanticallyEligibleForJob, rankJobsForAgent, tierMeetsRequirement } from '../services/semantic-matching.js';
 
 export const jobsRouter = new Hono();
 
 const VALID_STATUSES = JobStatusSchema.options;
-const VALID_SKILLS = AgentSkillSchema.options;
 
 jobsRouter.get('/', (c) => {
   const status = c.req.query('status');
@@ -28,8 +29,9 @@ jobsRouter.get('/', (c) => {
     jobs = jobs.filter((j) => j.status === status);
   }
 
-  if (skill && (VALID_SKILLS as readonly string[]).includes(skill)) {
-    jobs = jobs.filter((j) => j.requiredSkills.includes(skill as any));
+  if (skill) {
+    const tag = normalizeSkillTag(skill);
+    if (tag) jobs = jobs.filter((j) => j.requiredSkills.includes(tag as any));
   }
 
   return c.json({ jobs });
@@ -40,12 +42,13 @@ jobsRouter.get('/open', (c) => {
   return c.json({ jobs });
 });
 
-jobsRouter.get('/matching/:agentId', (c) => {
+jobsRouter.get('/matching/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
   const agent = agentService.getById(agentId);
   if (!agent) return c.json({ error: 'Agent not found' }, 404);
-  const jobs = jobService.getMatchingJobs(agent.skills, agent.tier);
-  return c.json({ jobs });
+  const openJobs = jobService.getOpen().filter((job) => tierMeetsRequirement(agent.tier, job.requiredTier));
+  const ranked = await rankJobsForAgent(agent, openJobs);
+  return c.json({ jobs: ranked.map((r) => r.job) });
 });
 
 jobsRouter.get('/agent/:agentId', (c) => {
@@ -80,7 +83,10 @@ jobsRouter.post(
   ),
   (c) => {
     const body = c.req.valid('json');
-    const job = jobService.create(body);
+    const job = jobService.create({
+      ...body,
+      requiredSkills: body.requiredSkills.map(normalizeSkillTag).filter(Boolean),
+    });
     return c.json({ job }, 201);
   }
 );
@@ -88,7 +94,7 @@ jobsRouter.post(
 jobsRouter.post(
   '/:id/accept',
   zValidator('json', AcceptJobRequestSchema),
-  (c) => {
+  async (c) => {
     const jobId = c.req.param('id');
     const { agentId, walletAddress } = c.req.valid('json');
 
@@ -101,12 +107,18 @@ jobsRouter.post(
     if (agent.walletAddress !== walletAddress) return c.json({ error: 'Wallet address does not match agent' }, 403);
     if (!agent.isActive) return c.json({ error: 'Agent is not active' }, 400);
 
-    const hasSkill = job.requiredSkills.some((s) => agent.skills.includes(s));
-    if (!hasSkill) return c.json({ error: 'Agent does not have required skills' }, 400);
-
-    const tierOrder = ['unverified', 'bronze', 'silver', 'gold', 'platinum'] as const;
-    if (tierOrder.indexOf(agent.tier) < tierOrder.indexOf(job.requiredTier)) {
+    if (!tierMeetsRequirement(agent.tier, job.requiredTier)) {
       return c.json({ error: 'Agent tier too low' }, 400);
+    }
+
+    const hasSkill = job.requiredSkills.some((s) => agent.skills.includes(s));
+    if (!hasSkill) {
+      const raw = Number.parseFloat(process.env.KEIRO_SEMANTIC_ACCEPT_THRESHOLD || '0.35');
+      const semanticThreshold = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0.35;
+      const semantic = await isAgentSemanticallyEligibleForJob(agent, job, semanticThreshold);
+      if (!semantic.eligible) {
+        return c.json({ error: 'Agent does not match required skills' }, 400);
+      }
     }
 
     const escrowId = `escrow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
