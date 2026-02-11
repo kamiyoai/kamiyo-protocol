@@ -145,11 +145,10 @@ export class OriginTrailDKGClient implements DKGClient {
     const ual = result.UAL;
 
     if (this.paranetUal) {
-      const submitToParanet = this.dkg.asset.submitToParanet;
-      if (typeof submitToParanet !== 'function') {
+      if (typeof this.dkg.asset.submitToParanet !== 'function') {
         throw new Error('DKG client does not support paranet submission (missing asset.submitToParanet)');
       }
-      await submitToParanet(ual, this.paranetUal);
+      await this.dkg.asset.submitToParanet(ual, this.paranetUal);
     }
 
     return ual;
