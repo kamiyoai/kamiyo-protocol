@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import 'dotenv/config';
+import { Connection, Keypair } from '@solana/web3.js';
+import bs58 from 'bs58';
 import { MoltbookJobBridgeAgent } from './agent.js';
+import { KamiyoHive } from '@kamiyo/hive';
 import type { AgentConfig } from './types.js';
 
 function getConfig(): AgentConfig {
@@ -40,6 +43,28 @@ function getConfig(): AgentConfig {
   };
 }
 
+function createHive(config: AgentConfig): KamiyoHive | undefined {
+  try {
+    const secretKey = bs58.decode(config.agentPrivateKey);
+    const keypair = Keypair.fromSecretKey(secretKey);
+    const connection = new Connection(config.solanaRpcUrl, 'confirmed');
+
+    const hive = new KamiyoHive({
+      keypair,
+      connection,
+      programId: config.programId,
+      apiEndpoint: process.env.KAMIYO_API_ENDPOINT,
+    });
+
+    console.log('[Hive] Agent-to-agent hiring enabled');
+    return hive;
+  } catch (err) {
+    console.warn('[Hive] Failed to initialize:', err instanceof Error ? err.message : err);
+    console.warn('[Hive] Subcontracting will be disabled');
+    return undefined;
+  }
+}
+
 async function main(): Promise<void> {
   console.log('Moltbook Job Bridge Agent');
   console.log('========================');
@@ -59,7 +84,8 @@ async function main(): Promise<void> {
   console.log(`  Chain ID: ${config.chainId}`);
   console.log('');
 
-  const agent = new MoltbookJobBridgeAgent(config);
+  const hive = createHive(config);
+  const agent = new MoltbookJobBridgeAgent(config, hive);
 
   // Handle shutdown
   const shutdown = (): void => {

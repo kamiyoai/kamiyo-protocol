@@ -297,6 +297,27 @@ CREATE TABLE IF NOT EXISTS hackathon_vote_exchanges (
 
 CREATE INDEX IF NOT EXISTS idx_hackathon_voted_author ON hackathon_voted_submissions(author);
 CREATE INDEX IF NOT EXISTS idx_hackathon_strategic_type ON hackathon_strategic_posts(content_type);
+
+-- Transaction audit log: Records all escrow-backed job payments
+CREATE TABLE IF NOT EXISTS transaction_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id INTEGER NOT NULL,
+  post_id TEXT NOT NULL,
+  escrow_address TEXT NOT NULL,
+  create_tx TEXT,
+  release_tx TEXT,
+  amount_sol REAL NOT NULL,
+  quality_score INTEGER,
+  rating INTEGER,
+  requester_wallet TEXT NOT NULL,
+  provider_agent TEXT,
+  status TEXT NOT NULL DEFAULT 'escrow_created',
+  created_at INTEGER NOT NULL,
+  completed_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_transaction_log_status ON transaction_log(status);
+CREATE INDEX IF NOT EXISTS idx_transaction_log_job ON transaction_log(job_id);
 `;
 
 export class JobDatabase {
@@ -1400,5 +1421,104 @@ export class JobDatabase {
       .prepare('SELECT username FROM hackathon_engaged_users')
       .all() as Array<{ username: string }>;
     return rows.map(r => r.username);
+  }
+
+  // Transaction audit log
+  logTransaction(params: {
+    jobId: number;
+    postId: string;
+    escrowAddress: string;
+    createTx: string;
+    amountSol: number;
+    requesterWallet: string;
+  }): number {
+    const result = this.db
+      .prepare(
+        `INSERT INTO transaction_log (job_id, post_id, escrow_address, create_tx, amount_sol, requester_wallet, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'escrow_created', ?)`
+      )
+      .run(
+        params.jobId, params.postId, params.escrowAddress, params.createTx,
+        params.amountSol, params.requesterWallet, Date.now()
+      );
+    return result.lastInsertRowid as number;
+  }
+
+  completeTransaction(escrowAddress: string, params: {
+    releaseTx: string;
+    qualityScore: number;
+    rating: number;
+    providerAgent?: string;
+  }): void {
+    this.db
+      .prepare(
+        `UPDATE transaction_log
+         SET release_tx = ?, quality_score = ?, rating = ?, provider_agent = ?, status = 'completed', completed_at = ?
+         WHERE escrow_address = ?`
+      )
+      .run(
+        params.releaseTx, params.qualityScore, params.rating,
+        params.providerAgent ?? null, Date.now(), escrowAddress
+      );
+  }
+
+  getTransactionLog(limit = 20): Array<{
+    id: number;
+    jobId: number;
+    postId: string;
+    escrowAddress: string;
+    createTx: string | null;
+    releaseTx: string | null;
+    amountSol: number;
+    qualityScore: number | null;
+    rating: number | null;
+    requesterWallet: string;
+    providerAgent: string | null;
+    status: string;
+    createdAt: number;
+    completedAt: number | null;
+  }> {
+    const rows = this.db
+      .prepare('SELECT * FROM transaction_log ORDER BY created_at DESC LIMIT ?')
+      .all(limit) as Array<{
+        id: number;
+        job_id: number;
+        post_id: string;
+        escrow_address: string;
+        create_tx: string | null;
+        release_tx: string | null;
+        amount_sol: number;
+        quality_score: number | null;
+        rating: number | null;
+        requester_wallet: string;
+        provider_agent: string | null;
+        status: string;
+        created_at: number;
+        completed_at: number | null;
+      }>;
+
+    return rows.map(row => ({
+      id: row.id,
+      jobId: row.job_id,
+      postId: row.post_id,
+      escrowAddress: row.escrow_address,
+      createTx: row.create_tx,
+      releaseTx: row.release_tx,
+      amountSol: row.amount_sol,
+      qualityScore: row.quality_score,
+      rating: row.rating,
+      requesterWallet: row.requester_wallet,
+      providerAgent: row.provider_agent,
+      status: row.status,
+      createdAt: row.created_at,
+      completedAt: row.completed_at,
+    }));
+  }
+
+  getCompletedTransactionCount(): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) as count FROM transaction_log WHERE status = 'completed'")
+      .get() as { count: number };
+    return row.count;
   }
 }
