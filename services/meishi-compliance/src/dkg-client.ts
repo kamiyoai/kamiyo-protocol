@@ -137,22 +137,13 @@ export class OriginTrailDKGClient implements DKGClient {
   async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
     const result = await this.dkg.asset.create(content, {
       ...(options?.epochs ? { epochsNum: options.epochs } : {}),
+      ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
     });
     if (!result?.UAL) {
       throw new Error('DKG publish response missing UAL');
     }
 
-    const ual = result.UAL;
-
-    if (this.paranetUal) {
-      const submitToParanet = this.dkg.asset.submitToParanet;
-      if (typeof submitToParanet !== 'function') {
-        throw new Error('DKG client does not support paranet submission (missing asset.submitToParanet)');
-      }
-      await submitToParanet(ual, this.paranetUal);
-    }
-
-    return ual;
+    return result.UAL;
   }
 
   async getWalletAddress(): Promise<string | null> {
