@@ -65,6 +65,39 @@ describe('jobs routes', () => {
     });
   });
 
+  describe('GET /jobs/matching/:agentId', () => {
+    it('returns semantically matched jobs for custom skills', async () => {
+      const semanticWallet = '8xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgBsQ';
+      const existing = agentService.getByWallet(semanticWallet);
+      if (existing) agentService.delete(existing.id);
+
+      const semanticAgent = agentService.create({
+        walletAddress: semanticWallet,
+        name: 'Semantic Agent',
+        personality: 'professional',
+        skills: ['smart_contract_audit'],
+      });
+
+      const job = jobService.create({
+        title: 'Audit Solana Program Security',
+        description:
+          'Perform a smart contract audit for a Solana program and report security vulnerabilities.',
+        requiredSkills: ['code_review'],
+        requiredTier: 'unverified',
+        payment: 3,
+        paymentToken: 'SOL',
+        estimatedTime: '3 hours',
+        poster: 'SecurityDAO',
+        posterAddress: 'semantic_poster',
+      });
+
+      const res = await app.request(`/jobs/matching/${semanticAgent.id}`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { jobs: Array<{ id: string }> };
+      expect(data.jobs.some((j) => j.id === job.id)).toBe(true);
+    });
+  });
+
   describe('POST /jobs', () => {
     it('creates a job', async () => {
       const res = await app.request('/jobs', {
@@ -147,6 +180,52 @@ describe('jobs routes', () => {
       });
 
       expect(res.status).toBe(403);
+    });
+
+    it('accepts with semantic skill match when exact tag is missing', async () => {
+      const semanticWallet = '5xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgBsU';
+      const existing = agentService.getByWallet(semanticWallet);
+      if (existing) agentService.delete(existing.id);
+
+      const semanticAgent = agentService.create({
+        walletAddress: semanticWallet,
+        name: 'Semantic Worker',
+        personality: 'efficient',
+        skills: ['smart_contract_audit'],
+      });
+
+      const semanticJob = jobService.create({
+        title: 'Contract Audit Review',
+        description:
+          'Audit smart contract logic and produce a formal security review report.',
+        requiredSkills: ['code_review'],
+        requiredTier: 'unverified',
+        payment: 1.4,
+        paymentToken: 'SOL',
+        estimatedTime: '2 hours',
+        poster: 'Audit Poster',
+        posterAddress: 'audit_poster',
+      });
+
+      const prior = process.env.KEIRO_SEMANTIC_ACCEPT_THRESHOLD;
+      process.env.KEIRO_SEMANTIC_ACCEPT_THRESHOLD = '0.15';
+      try {
+        const res = await app.request(`/jobs/${semanticJob.id}/accept`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: semanticAgent.id,
+            walletAddress: semanticWallet,
+          }),
+        });
+        expect(res.status).toBe(200);
+      } finally {
+        if (prior === undefined) {
+          delete process.env.KEIRO_SEMANTIC_ACCEPT_THRESHOLD;
+        } else {
+          process.env.KEIRO_SEMANTIC_ACCEPT_THRESHOLD = prior;
+        }
+      }
     });
 
     it('completes full workflow: accept → start → submit → rate', async () => {
