@@ -10,6 +10,7 @@ type GraphSource = 'dkg' | 'unavailable';
 type BlockchainId = 'base:8453' | 'gnosis:100' | 'otp:2043';
 
 const MAX_QUERY_LIMIT = 50;
+const DEFAULT_REPOSITORY = 'publicCurrent';
 
 function clampLimit(limit?: number): number {
   if (!limit || limit < 1) return 10;
@@ -81,12 +82,14 @@ function getBlockchainId(): BlockchainId {
 }
 
 function getQueryOpts(): { repository: string; paranetUAL?: string } {
+  const repository = process.env.MEISHI_DKG_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   const paranetUAL = process.env.MEISHI_PARANET_UAL?.trim();
-  return paranetUAL ? { repository: 'publicKnowledgeAssets', paranetUAL } : { repository: 'publicKnowledgeAssets' };
+  return paranetUAL ? { repository, paranetUAL } : { repository };
 }
 
 function getGlobalQueryOpts(): { repository: string } {
-  return { repository: 'publicKnowledgeAssets' };
+  const repository = process.env.MEISHI_DKG_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
+  return { repository };
 }
 
 function getParanetUAL(): string | null {
@@ -204,7 +207,7 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     await dkg.graph.query(
       'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
       'SELECT',
-      { repository: 'publicKnowledgeAssets' }
+      getGlobalQueryOpts()
     );
     checks.push({
       name: 'dkg_connectivity',
@@ -221,7 +224,7 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
         await dkg.graph.query(
           'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
           'SELECT',
-          { repository: 'publicKnowledgeAssets', paranetUAL }
+          { ...getGlobalQueryOpts(), paranetUAL }
         );
         checks.push({
           name: 'paranet_access',
