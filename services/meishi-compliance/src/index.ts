@@ -93,17 +93,19 @@ async function main() {
   // Solana connection
   const connection = new Connection(config.solanaRpcUrl, 'confirmed');
   let keypair: Keypair;
+  let auditorIsEphemeral = false;
   if (config.privateKey) {
     keypair = Keypair.fromSecretKey(bs58.decode(config.privateKey));
   } else {
+    auditorIsEphemeral = true;
     const canUseEphemeral = config.nodeEnv !== 'production' || config.allowEphemeralSigner;
-    if (!canUseEphemeral) {
+    if (config.enableOnchainAudits && !canUseEphemeral) {
       throw new Error(
         'SOLANA_PRIVATE_KEY is required in production (or set ALLOW_EPHEMERAL_SIGNER=true for explicit override)'
       );
     }
     keypair = Keypair.generate();
-    console.warn('[meishi-compliance] No private key configured, using ephemeral keypair');
+    console.warn('[meishi-compliance] No SOLANA_PRIVATE_KEY configured, using ephemeral keypair');
   }
 
   const meishiProgramId = new PublicKey(config.meishiProgramId ?? DEFAULT_MEISHI_PROGRAM_ID);
@@ -584,6 +586,7 @@ async function main() {
           service: 'meishi-compliance',
           scheduler: scheduler.isRunning() ? 'running' : 'stopped',
           circuitBreaker: circuitBreaker.getState(),
+          auditorIsEphemeral,
           rulesLoaded: registry.count(),
           discoveryMode: config.passportDiscoveryMode,
           configuredSeedPassportCount: configuredPassports.length,

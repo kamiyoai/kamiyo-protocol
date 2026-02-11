@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>x402 session authorization</title>
+    <style>
+      :root {
+        --bg: #f6f9fc;
+        --card: #ffffff;
+        --card2: #f6f9fc;
+        --text: rgba(0, 0, 0, 0.92);
+        --muted: rgba(0, 0, 0, 0.62);
+        --border: rgba(0, 0, 0, 0.12);
+        --border2: rgba(0, 0, 0, 0.16);
+        --danger: #b42318;
+        --btn: #0a0a0a;
+        --btnHover: #111111;
+        --focus: rgba(0, 0, 0, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
+      }
+
+      .wrap {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 28px 14px;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 460px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      }
+
+      .title {
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin: 2px 0 8px;
+      }
+
+      .sub {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input, select {
+        width: 100%;
+        padding: 10px 12px;
+        height: 42px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #ffffff;
+        color: var(--text);
+        font-size: 14px;
+        outline: none;
+      }
+
+      select { appearance: none; }
+      input::placeholder { color: rgba(0,0,0,0.45); }
+
+      input:focus, select:focus {
+        border-color: var(--border2);
+        box-shadow: 0 0 0 3px var(--focus);
+      }
+
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      @media (max-width: 520px) {
+        .row2 { grid-template-columns: 1fr; }
+      }
+
+      .btn {
+        margin-top: 12px;
+        width: 100%;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 14px;
+        font-weight: 650;
+        color: #fff;
+        cursor: pointer;
+        background: var(--btn);
+        position: relative;
+        overflow: hidden;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .btn:hover { background: var(--btnHover); }
+      .btn:active { background: #000; }
+      .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+      .btn:focus { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+
+      .btn.danger { background: var(--danger); }
+
+      .meta {
+        margin-top: 12px;
+        border: 1px solid var(--border);
+        background: var(--card2);
+        border-radius: 10px;
+        padding: 12px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .mono {
+        margin-top: 4px;
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 11px;
+        word-break: break-all;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .linkbtn {
+        flex: 1 1 160px;
+        border: 1px solid var(--border);
+        background: #ffffff;
+        color: rgba(0, 0, 0, 0.86);
+        padding: 10px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .linkbtn:hover { background: rgba(0, 0, 0, 0.03); }
+      .linkbtn:active { background: rgba(0, 0, 0, 0.05); }
+      .linkbtn:focus { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+      .linkbtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+      .err {
+        margin-top: 10px;
+        border: 1px solid rgba(180, 35, 24, 0.22);
+        background: rgba(180, 35, 24, 0.06);
+        border-radius: 10px;
+        padding: 10px 10px;
+        color: var(--danger);
+        font-size: 12px;
+      }
+
+      .note {
+        margin-top: 10px;
+        color: rgba(0, 0, 0, 0.54);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+    </style>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "@solana/web3.js": "https://esm.sh/@solana/web3.js@1.95.8?bundle",
+          "@solana/spl-token": "https://esm.sh/@solana/spl-token@0.4.13?bundle"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">Authorize x402 session (Solana)</div>
+        <p class="sub">
+          One wallet approval + one message signature. After that, your backend can pay per request by sending a session token (no private keys in code).
+        </p>
+
+        <div class="grid">
+          <div class="row2">
+            <div>
+              <label for="maxTotal">Spending limit (total, USDC)</label>
+              <input id="maxTotal" placeholder="e.g. 5" value="5" />
+            </div>
+            <div>
+              <label for="maxSingle">Per-request cap (optional, USDC)</label>
+              <input id="maxSingle" placeholder="e.g. 0.25" value="" />
+            </div>
+          </div>
+
+          <div class="row2">
+            <div>
+              <label for="days">Session duration</label>
+              <select id="days">
+                <option value="1">1 day</option>
+                <option value="7" selected>7 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </div>
+            <div>
+              <label for="rpc">RPC (optional)</label>
+              <input id="rpc" placeholder="https://api.mainnet-beta.solana.com" value="" />
+            </div>
+          </div>
+
+          <button id="go" class="btn">Authorize spending</button>
+          <div id="err" class="err" style="display:none"></div>
+        </div>
+
+        <div class="meta">
+          <div>Merchant</div>
+          <div id="merchant" class="mono">—</div>
+          <div style="margin-top:10px">Wallet</div>
+          <div id="wallet" class="mono">Not connected</div>
+          <div style="margin-top:10px">Session expires</div>
+          <div id="expires" class="mono">—</div>
+          <div style="margin-top:10px">Session token</div>
+          <div id="token" class="mono">—</div>
+          <div style="margin-top:10px">Payment header</div>
+          <div id="header" class="mono">—</div>
+
+          <div id="actions" class="actions" style="display:none">
+            <button id="copy" class="linkbtn">Copy token</button>
+            <button id="disable" class="linkbtn">Disable allowance</button>
+            <button id="revoke" class="linkbtn">Revoke session</button>
+          </div>
+        </div>
+
+        <div class="note">
+          This uses a USDC delegate allowance to the facilitator so each request can settle without per-call wallet signing.
+          Your backend sends <span class="mono">session:&lt;network&gt;:&lt;token&gt;.&lt;nonce&gt;</span> as the payment header per request.
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+      import {
+        createApproveInstruction,
+        createAssociatedTokenAccountInstruction,
+        getAccount,
+        getAssociatedTokenAddress,
+      } from '@solana/spl-token';
+
+      const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+      const USDC_MINT_MAINNET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+      const params = new URLSearchParams(location.search);
+      const merchantWallet = (params.get('merchantWallet') || params.get('merchant') || '').trim();
+      const postMessageOrigin = (params.get('origin') || '').trim();
+
+      const $ = (id) => document.getElementById(id);
+      const elMerchant = $('merchant');
+      const elWallet = $('wallet');
+      const elExpires = $('expires');
+      const elToken = $('token');
+      const elHeader = $('header');
+      const elErr = $('err');
+      const elActions = $('actions');
+      const btnGo = $('go');
+      const btnCopy = $('copy');
+      const btnDisable = $('disable');
+      const btnRevoke = $('revoke');
+
+      if (!merchantWallet) {
+        elMerchant.textContent = 'Missing merchant wallet. Use ?merchantWallet=<SOLANA_WALLET>';
+        btnGo.disabled = true;
+      } else {
+        elMerchant.textContent = merchantWallet;
+      }
+
+      function setError(msg) {
+        elErr.textContent = msg;
+        elErr.style.display = 'block';
+      }
+
+      function clearError() {
+        elErr.textContent = '';
+        elErr.style.display = 'none';
+      }
+
+      function parseUsdcToMicro(input) {
+        const s = String(input || '').trim();
+        if (!s) return null;
+        const m = /^(\d+)(?:\.(\d{1,6}))?$/.exec(s);
+        if (!m) return null;
+        try {
+          const whole = BigInt(m[1]);
+          const frac = (m[2] || '').padEnd(6, '0');
+          const micro = whole * 1_000_000n + BigInt(frac || '0');
+          return micro > 0n ? micro : null;
+        } catch {
+          return null;
+        }
+      }
+
+      function encodeBase64(bytes) {
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      }
+
+      function getWalletProvider() {
+        const win = window;
+        const wallets = [
+          win.phantom?.solana,
+          win.solflare,
+          win.backpack,
+          win.glow,
+          win.solana,
+        ];
+
+        for (const w of wallets) {
+          if (w?.isPhantom || w?.isSolflare || w?.isBackpack || w?.isGlow || w?.connect) return w;
+        }
+        return null;
+      }
+
+      async function fetchJson(path, body) {
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`${path} failed (${res.status})${text ? `: ${text}` : ''}`);
+        }
+        return res.json();
+      }
+
+      async function getFacilitatorPubkey() {
+        const res = await fetch('/health', { method: 'GET' });
+        if (!res.ok) throw new Error(`health failed (${res.status})`);
+        const body = await res.json().catch(() => ({}));
+        const facilitator = typeof body.facilitator === 'string' ? body.facilitator.trim() : '';
+        if (!facilitator) throw new Error('Invalid facilitator identity response');
+        return facilitator;
+      }
+
+      async function setDelegateAllowance({ wallet, rpcUrl, facilitator, amountMicro }) {
+        const owner = new PublicKey(wallet.publicKey.toBase58());
+        const mint = new PublicKey(USDC_MINT_MAINNET);
+        const delegate = new PublicKey(facilitator);
+
+        const connection = new Connection(rpcUrl || 'https://api.mainnet-beta.solana.com', 'confirmed');
+        const ata = await getAssociatedTokenAddress(mint, owner);
+
+        const info = await connection.getAccountInfo(ata, 'confirmed');
+        let account = null;
+        if (info) {
+          try {
+            account = await getAccount(connection, ata);
+          } catch {
+            throw new Error('Failed to read USDC token account');
+          }
+        }
+
+        if (amountMicro > 0n && account) {
+          const ok =
+            account.delegate?.equals?.(delegate) &&
+            typeof account.delegatedAmount === 'bigint' &&
+            account.delegatedAmount >= amountMicro;
+          if (ok) return;
+        }
+
+        const tx = new Transaction();
+        if (!account) {
+          tx.add(createAssociatedTokenAccountInstruction(owner, ata, owner, mint));
+        }
+        tx.add(createApproveInstruction(ata, delegate, owner, amountMicro));
+
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+        tx.feePayer = owner;
+        tx.recentBlockhash = blockhash;
+
+        const signedTx = await wallet.signTransaction(tx);
+        const sig = await connection.sendRawTransaction(signedTx.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+        });
+
+        const confirmation = await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+        if (confirmation.value.err) {
+          throw new Error('USDC allowance transaction failed');
+        }
+      }
+
+      async function signChallenge(wallet, message) {
+        if (!wallet.signMessage) throw new Error('Wallet does not support message signing');
+        const bytes = new TextEncoder().encode(message);
+
+        let signed;
+        try {
+          signed = await wallet.signMessage(bytes, 'utf8');
+        } catch {
+          signed = await wallet.signMessage(bytes);
+        }
+
+        const sigBytes =
+          signed instanceof Uint8Array
+            ? signed
+            : signed?.signature instanceof Uint8Array
+              ? signed.signature
+              : null;
+
+        if (!sigBytes || sigBytes.length !== 64) throw new Error('Invalid signature');
+        return encodeBase64(sigBytes);
+      }
+
+      function notifyAuthorized(detail) {
+        const payload = { type: 'kamiyo_x402_session_authorized', ...detail };
+
+        if (postMessageOrigin) {
+          try {
+            if (window.opener) window.opener.postMessage(payload, postMessageOrigin);
+            if (window.parent && window.parent !== window) window.parent.postMessage(payload, postMessageOrigin);
+          } catch {}
+        }
+
+        try {
+          window.dispatchEvent(new CustomEvent('kamiyo-x402-session-authorized', { detail }));
+        } catch {}
+      }
+
+      let sessionToken = null;
+      let sessionExpiresAt = null;
+      let sessionHeader = null;
+      let facilitatorPubkey = null;
+      let walletAddress = null;
+
+      function renderSuccess() {
+        elToken.textContent = sessionToken || '—';
+        elHeader.textContent = sessionHeader || '—';
+        elExpires.textContent = sessionExpiresAt ? new Date(sessionExpiresAt).toLocaleString() : '—';
+        btnGo.textContent = 'Session ready';
+        btnGo.classList.remove('danger');
+        elActions.style.display = 'flex';
+      }
+
+      function renderIdle() {
+        elToken.textContent = '—';
+        elHeader.textContent = '—';
+        elExpires.textContent = '—';
+        btnGo.textContent = 'Authorize spending';
+        btnGo.classList.remove('danger');
+        elActions.style.display = 'none';
+      }
+
+      async function authorizeFlow() {
+        clearError();
+
+        const wallet = getWalletProvider();
+        if (!wallet) {
+          setError('No Solana wallet found. Install Phantom, Backpack, or Solflare.');
+          return;
+        }
+
+        const rpcUrl = $('rpc').value.trim();
+        const maxTotalMicro = parseUsdcToMicro($('maxTotal').value);
+        if (maxTotalMicro == null) {
+          setError('Invalid spending limit');
+          return;
+        }
+
+        const maxSingleRaw = $('maxSingle').value.trim();
+        const maxSingleMicro = maxSingleRaw.length ? parseUsdcToMicro(maxSingleRaw) : null;
+        if (maxSingleRaw.length && maxSingleMicro == null) {
+          setError('Invalid per-request cap');
+          return;
+        }
+        if (maxSingleMicro != null && maxSingleMicro > maxTotalMicro) {
+          setError('Per-request cap cannot exceed total cap');
+          return;
+        }
+
+        const days = Number($('days').value);
+        const sessionTtlSeconds = Number.isFinite(days) && days > 0 ? Math.floor(days * 86400) : undefined;
+
+        btnGo.disabled = true;
+        btnGo.textContent = 'Connecting wallet...';
+        try {
+          if (!wallet.connected) await wallet.connect();
+          if (!wallet.publicKey) throw new Error('Failed to connect wallet');
+
+          walletAddress = wallet.publicKey.toBase58();
+          elWallet.textContent = walletAddress;
+
+          btnGo.textContent = 'Creating challenge...';
+          const challenge = await fetchJson('/session/challenge', {
+            payerWallet: walletAddress,
+            network: SOLANA_MAINNET_CAIP2,
+            merchantWallet,
+            maxTotalMicro: maxTotalMicro.toString(),
+            maxSingleMicro: maxSingleMicro ? maxSingleMicro.toString() : undefined,
+            sessionTtlSeconds,
+          });
+
+          facilitatorPubkey = challenge.facilitator;
+
+          btnGo.textContent = 'Approving USDC allowance...';
+          await setDelegateAllowance({ wallet, rpcUrl, facilitator: facilitatorPubkey, amountMicro: maxTotalMicro });
+
+          btnGo.textContent = 'Signing authorization...';
+          const signature = await signChallenge(wallet, challenge.message);
+
+          btnGo.textContent = 'Creating session...';
+          const authorized = await fetchJson('/session/authorize', {
+            nonce: challenge.nonce,
+            signature,
+          });
+
+          sessionToken = authorized.token;
+          sessionExpiresAt = authorized.expiresAt;
+          sessionHeader = authorized.paymentHeader;
+
+          renderSuccess();
+          notifyAuthorized({
+            token: sessionToken,
+            paymentHeader: sessionHeader,
+            expiresAt: sessionExpiresAt,
+            network: SOLANA_MAINNET_CAIP2,
+            payerWallet: walletAddress,
+            merchantWallet,
+          });
+        } catch (err) {
+          renderIdle();
+          setError(err instanceof Error ? err.message : 'Authorization failed');
+          btnGo.textContent = 'Authorize spending';
+          btnGo.classList.add('danger');
+        } finally {
+          btnGo.disabled = false;
+        }
+      }
+
+      btnGo.addEventListener('click', () => {
+        if (sessionToken) return;
+        authorizeFlow().catch(() => {});
+      });
+
+      btnCopy.addEventListener('click', async () => {
+        if (!sessionToken) return;
+        try {
+          await navigator.clipboard.writeText(sessionToken);
+        } catch {
+          setError('Failed to copy');
+        }
+      });
+
+      btnDisable.addEventListener('click', async () => {
+        clearError();
+        if (!sessionToken) return;
+        const wallet = getWalletProvider();
+        if (!wallet) {
+          setError('No Solana wallet found');
+          return;
+        }
+
+        try {
+          btnDisable.disabled = true;
+          facilitatorPubkey = facilitatorPubkey || await getFacilitatorPubkey();
+          const rpcUrl = $('rpc').value.trim();
+
+          if (!wallet.connected) await wallet.connect();
+          if (!wallet.publicKey) throw new Error('Failed to connect wallet');
+
+          await setDelegateAllowance({ wallet, rpcUrl, facilitator: facilitatorPubkey, amountMicro: 0n });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to disable allowance');
+        } finally {
+          btnDisable.disabled = false;
+        }
+      });
+
+      btnRevoke.addEventListener('click', async () => {
+        clearError();
+        if (!sessionToken) return;
+        try {
+          btnRevoke.disabled = true;
+          await fetchJson('/session/revoke', { token: sessionToken });
+          sessionToken = null;
+          sessionExpiresAt = null;
+          sessionHeader = null;
+          renderIdle();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to revoke session');
+        } finally {
+          btnRevoke.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

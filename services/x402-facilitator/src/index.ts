@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import bs58 from 'bs58';
 import { Connection, Keypair } from '@solana/web3.js';
 import { validateConfig, getConfig, getRedactedConfig } from './config';
@@ -19,6 +20,7 @@ import { createReputationRouter } from './routes/reputation';
 import { createPrivacyRouter } from './routes/privacy';
 import { createDiscoveryRouter } from './routes/discovery';
 import { createSupportedRouter } from './routes/supported';
+import { createSessionRouter } from './routes/session';
 import { isBaseEnabled } from './services/base-settlement';
 import { getSupportedNetworkIds, SOLANA_MAINNET_CAIP2 } from './protocol/networks';
 
@@ -66,6 +68,8 @@ async function main() {
   app.use(cors());
   app.use(express.json({ limit: '16kb' }));
 
+  app.use('/widget', rateLimit, express.static(path.join(__dirname, '../public/widget')));
+
   app.get('/health', rateLimit, (_req, res) => {
     res.json({
       status: 'ok',
@@ -81,8 +85,9 @@ async function main() {
   app.use('/supported-networks', rateLimit, createNetworksRouter());
   app.use('/fees', rateLimit, createFeesRouter());
   app.use('/reputation', rateLimit, createReputationRouter());
+  app.use('/session', rateLimit, createSessionRouter(connection, facilitatorKeypair));
 
-  app.use('/verify', optionalApiKeyAuth, rateLimit, createVerifyRouter(connection));
+  app.use('/verify', optionalApiKeyAuth, rateLimit, createVerifyRouter(connection, facilitatorKeypair.publicKey));
   app.use('/settle', apiKeyAuth, rateLimit, createSettleRouter(connection, facilitatorKeypair));
   app.use('/escrow', apiKeyAuth, rateLimit, createEscrowRouter(connection, facilitatorKeypair));
   app.use('/dispute', apiKeyAuth, rateLimit, createDisputeRouter(connection, facilitatorKeypair));

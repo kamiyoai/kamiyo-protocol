@@ -91,7 +91,10 @@ Then, if we ever self-host, it drops in as “Source #5”.
 
 - [ ] Align `packages/helius-adapter` parsing to the escrow IDL we actually use (instruction discriminators, account layouts, event semantics).
 - [ ] Add realistic webhook fixture tests (and signature verification tests that match production behavior).
-- [ ] Standardize env/config across scripts/services (`HELIUS_API_KEY`, `SOLANA_RPC_URL`, etc.).
+- [ ] Standardize env/config across scripts/services (`HELIUS_API_KEY`, `SOLANA_RPC_URL`, `ESCROW_PROGRAM_ID`, etc.).
+- [ ] Make “the one true escrow program” explicit repo-wide:
+  - mainnet: `FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u`
+  - devnet: `EqScj2SUahLLUuP56s77yK6bPr3VEPoTyDecjvyoBtxT`
 
 ### Phase 1: Observatory MVP (1-2 weeks)
 
@@ -125,4 +128,3 @@ On this repo branch:
 
 - Phase 0 item 1: make `packages/helius-adapter` match the escrow program it claims to support.
 - Phase 0 item 2: update tests/fixtures so we can trust webhook parsing and account decoding.
-

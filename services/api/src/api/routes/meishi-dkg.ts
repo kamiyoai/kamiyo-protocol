@@ -85,6 +85,43 @@ function getQueryOpts(): { repository: string; paranetUAL?: string } {
   return paranetUAL ? { repository: 'publicKnowledgeAssets', paranetUAL } : { repository: 'publicKnowledgeAssets' };
 }
 
+function getGlobalQueryOpts(): { repository: string } {
+  return { repository: 'publicKnowledgeAssets' };
+}
+
+function getParanetUAL(): string | null {
+  const value = process.env.MEISHI_PARANET_UAL?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
+async function queryWithParanetFallback(
+  dkg: { graph: { query: (query: string, type: 'SELECT', opts?: { repository?: string; paranetUAL?: string }) => Promise<{ data?: unknown[] }> } },
+  query: string,
+  route: string
+): Promise<{ rows: Array<Record<string, unknown>>; scope: 'paranet' | 'global' | 'global_fallback' }> {
+  const paranetUAL = getParanetUAL();
+  if (!paranetUAL) {
+    const result = await dkg.graph.query(query, 'SELECT', getGlobalQueryOpts());
+    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+    return { rows, scope: 'global' };
+  }
+
+  try {
+    const result = await dkg.graph.query(query, 'SELECT', getQueryOpts());
+    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+    return { rows, scope: 'paranet' };
+  } catch (error) {
+    logger.warn('Meishi DKG paranet query failed, falling back to global repository', {
+      route,
+      paranetUAL,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    const result = await dkg.graph.query(query, 'SELECT', getGlobalQueryOpts());
+    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+    return { rows, scope: 'global_fallback' };
+  }
+}
+
 function parseNum(val: unknown): number {
   if (typeof val === 'number') return val;
   const s = String(val || '');
@@ -180,17 +217,26 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       checks.push({ name: 'paranet_access', status: 'warn', message: 'No MEISHI_PARANET_UAL configured' });
     } else {
       const paranetStarted = Date.now();
-      await dkg.graph.query(
-        'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
-        'SELECT',
-        { repository: 'publicKnowledgeAssets', paranetUAL }
-      );
-      checks.push({
-        name: 'paranet_access',
-        status: 'pass',
-        message: 'Paranet accessible',
-        latencyMs: Date.now() - paranetStarted,
-      });
+      try {
+        await dkg.graph.query(
+          'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
+          'SELECT',
+          { repository: 'publicKnowledgeAssets', paranetUAL }
+        );
+        checks.push({
+          name: 'paranet_access',
+          status: 'pass',
+          message: 'Paranet accessible',
+          latencyMs: Date.now() - paranetStarted,
+        });
+      } catch (paranetError) {
+        checks.push({
+          name: 'paranet_access',
+          status: 'warn',
+          message: `Paranet query failed (${paranetError instanceof Error ? paranetError.message : String(paranetError)})`,
+          latencyMs: Date.now() - paranetStarted,
+        });
+      }
     }
 
     const status = checks.some((c) => c.status === 'fail') ? 'unhealthy' : (checks.some((c) => c.status === 'warn') ? 'degraded' : 'ok');
@@ -228,8 +274,7 @@ router.get('/leaderboard', asyncRoute(async (req: Request, res: Response) => {
   const jurisdiction = typeof req.query.jurisdiction === 'string' ? req.query.jurisdiction.trim() : undefined;
 
   const query = queryCompliantAgents(minScore, { jurisdiction, limit });
-  const result = await dkg.graph.query(query, 'SELECT', getQueryOpts());
-  const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+  const { rows, scope } = await queryWithParanetFallback(dkg, query, 'leaderboard');
 
   const agents = rows.map((row, idx) => ({
     rank: idx + 1,
@@ -243,6 +288,7 @@ router.get('/leaderboard', asyncRoute(async (req: Request, res: Response) => {
   res.json({
     agents,
     source: 'dkg' as GraphSource,
+    scope,
     query: { minScore, limit, jurisdiction: jurisdiction ?? null },
   });
 }));
@@ -258,8 +304,7 @@ router.get('/agent/:agentId/latest-audit', asyncRoute(async (req: Request, res: 
   const dkg = c.rawDKG;
 
   const query = queryLatestAudit(agentId);
-  const result = await dkg.graph.query(query, 'SELECT', getQueryOpts());
-  const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+  const { rows, scope } = await queryWithParanetFallback(dkg, query, 'latest-audit');
   const row = rows[0];
 
   if (!row) {
@@ -278,6 +323,7 @@ router.get('/agent/:agentId/latest-audit', asyncRoute(async (req: Request, res: 
       date: parseDate(row.date),
     },
     source: 'dkg' as GraphSource,
+    scope,
   });
 }));
 

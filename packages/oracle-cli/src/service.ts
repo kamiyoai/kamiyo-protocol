@@ -524,7 +524,7 @@ if (require.main === module) {
   const config: OracleServiceConfig = {
     rpcUrl: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
     keypairPath: process.env.ORACLE_KEYPAIR || path.join(homeDir(), ".config/solana/id.json"),
-    programId: process.env.KAMIYO_ESCROW_PROGRAM_ID,
+    programId: process.env.ESCROW_PROGRAM_ID || process.env.KAMIYO_ESCROW_PROGRAM_ID,
     pollingInterval: parseInt(process.env.POLLING_INTERVAL || "15000", 10),
     phaseWarningTime: parseInt(process.env.PHASE_WARNING_TIME || "60", 10),
     autoCommit: process.env.AUTO_COMMIT !== "false",
