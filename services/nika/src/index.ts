@@ -1,9 +1,3 @@
-/**
- * Nika (二化) X-Bot Service
- *
- * Part of KAMIYO Protocol. Uses @kamiyo/agents with X tools.
- */
-
 import { createXTools } from '@kamiyo/agents';
 import {
   createLogger,
@@ -40,6 +34,7 @@ import {
   hasAnnouncementBeenPosted,
 } from './relaunch-announcement';
 import { setXaiApiKey } from './x-mcp-server';
+import { RepoKnowledgeMonitor, getRepoKnowledgeSnapshot } from './repo-knowledge';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -56,10 +51,8 @@ let engagementOptimizer: EngagementOptimizer | null = null;
 let trendingMonitor: TrendingMonitor | null = null;
 let taskPublisher: TaskCompletionPublisher | null = null;
 let statusInterval: NodeJS.Timeout | null = null;
+let repoKnowledgeMonitor: RepoKnowledgeMonitor | null = null;
 
-/**
- * Validate external service connections at startup.
- */
 async function validateConnections(config: ReturnType<typeof getConfig>): Promise<void> {
   log.info('Validating external connections');
 
@@ -175,6 +168,14 @@ async function main(): Promise<void> {
     enabled: true,
   });
   log.info('Quality gate initialized');
+
+  repoKnowledgeMonitor = new RepoKnowledgeMonitor({
+    enabled: config.NIKA_REPO_WATCH_ENABLED,
+    intervalMs: config.NIKA_REPO_WATCH_INTERVAL_MS,
+    repoRootHint: config.NIKA_REPO_ROOT,
+    dkgMemory,
+  });
+  await repoKnowledgeMonitor.start();
 
   // Initialize engagement optimizer
   engagementOptimizer = initializeEngagementOptimizer({ dkgMemory: dkgMemory ?? undefined });
@@ -311,6 +312,10 @@ async function main(): Promise<void> {
     mentionMonitor?.stop();
     mentionMonitor?.removeAllListeners();
   }, 20);
+
+  shutdownManager.register('repoKnowledgeMonitor', async () => {
+    repoKnowledgeMonitor?.stop();
+  }, 21);
 
   // Initialize topic engine, world context gatherer, and post orchestrator
   const topicEngine = new TopicEngine({
@@ -493,10 +498,14 @@ async function main(): Promise<void> {
           running: taskPublisher?.isRunning() ?? false,
           published: taskPublisher?.getStats().published ?? 0,
         },
+        repoKnowledge: {
+          running: repoKnowledgeMonitor?.isRunning() ?? false,
+          lastUpdateAt: getRepoKnowledgeSnapshot()?.generatedAt ?? null,
+          commit: getRepoKnowledgeSnapshot()?.commitSha ?? null,
+        },
       },
     }),
     getReadiness: async () => {
-      // For now, just check that components are running
       const schedulerOk = dailyScheduler?.isRunning() ?? false;
       const mentionMonitorOk = mentionMonitor?.isRunning() ?? false;
 
@@ -570,6 +579,7 @@ async function main(): Promise<void> {
       circuitStatus: agent?.getCircuitStatus(),
       rateLimited: rateLimiter.isAnyLimited(),
       inFlightOps: getShutdownManager().getInFlightCount(),
+      repoKnowledgeUpdatedAt: getRepoKnowledgeSnapshot()?.generatedAt ?? null,
     });
   }, 5 * 60 * 1000);
 
