@@ -33,6 +33,7 @@
     "test": "npm run test:integration",
     "test:integration": "tsx tests/test-integration.ts",
     "test:mcp": "tsx tests/test-mcp-tools.ts",
+    "test:kamino": "tsx tests/test-kamino.ts",
     "test:all": "npm run test:mcp && npm run test:integration",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""

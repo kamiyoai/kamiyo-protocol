@@ -9,6 +9,7 @@ export * from './x402.js';
 export * from './market.js';
 export * from './search.js';
 export * from './paranet.js';
+export * from './kamino.js';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MARKET_TOOL_DEFINITIONS } from './market.js';
