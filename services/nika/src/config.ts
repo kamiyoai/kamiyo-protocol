@@ -1,7 +1,3 @@
-/**
- * Configuration for Nika service
- */
-
 export interface Config {
   // Anthropic
   ANTHROPIC_API_KEY: string;
@@ -53,6 +49,11 @@ export interface Config {
   NIKA_MENTION_STATE_FILE: string;
   SHARED_STATE_REDIS_URL: string;
   SHARED_STATE_PREFIX: string;
+
+  // Repo knowledge monitor
+  NIKA_REPO_WATCH_ENABLED: boolean;
+  NIKA_REPO_WATCH_INTERVAL_MS: number;
+  NIKA_REPO_ROOT: string;
 }
 
 const REQUIRED_VARS = [
@@ -89,6 +90,9 @@ const DEFAULTS: Partial<Config> = {
   NIKA_MENTION_STATE_FILE: '',
   SHARED_STATE_REDIS_URL: '',
   SHARED_STATE_PREFIX: 'nika:mentions',
+  NIKA_REPO_WATCH_ENABLED: true,
+  NIKA_REPO_WATCH_INTERVAL_MS: 6 * 60 * 60 * 1000,
+  NIKA_REPO_ROOT: '',
 };
 
 let cachedConfig: Config | null = null;
@@ -120,6 +124,14 @@ function isValidRedisUrl(str: string): boolean {
 function isValidPort(str: string): boolean {
   const port = parseInt(str);
   return !isNaN(port) && port >= 1 && port <= 65535;
+}
+
+function parseBoolean(input: string | undefined, fallback: boolean): boolean {
+  if (input === undefined) return fallback;
+  const normalized = input.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
 }
 
 function isValidPrivateKey(str: string): boolean {
@@ -221,6 +233,13 @@ export function validateConfig(): ValidationResult {
     errors.push('SHARED_STATE_PREFIX must not be empty when set');
   }
 
+  if (process.env.NIKA_REPO_WATCH_INTERVAL_MS) {
+    const intervalMs = parseInt(process.env.NIKA_REPO_WATCH_INTERVAL_MS, 10);
+    if (isNaN(intervalMs) || intervalMs < 60_000) {
+      errors.push('NIKA_REPO_WATCH_INTERVAL_MS must be at least 60000');
+    }
+  }
+
   if (!process.env.NIKA_PARANET_UAL && !process.env.KAMIYO_PARANET_UAL) {
     warnings.push('NIKA_PARANET_UAL not set - DKG storage will not use a paranet');
   }
@@ -314,6 +333,15 @@ export function getConfig(): Config {
     NIKA_MENTION_STATE_FILE: process.env.NIKA_MENTION_STATE_FILE || DEFAULTS.NIKA_MENTION_STATE_FILE!,
     SHARED_STATE_REDIS_URL: process.env.SHARED_STATE_REDIS_URL || DEFAULTS.SHARED_STATE_REDIS_URL!,
     SHARED_STATE_PREFIX: process.env.SHARED_STATE_PREFIX || DEFAULTS.SHARED_STATE_PREFIX!,
+    NIKA_REPO_WATCH_ENABLED: parseBoolean(
+      process.env.NIKA_REPO_WATCH_ENABLED,
+      DEFAULTS.NIKA_REPO_WATCH_ENABLED!
+    ),
+    NIKA_REPO_WATCH_INTERVAL_MS: parseInt(
+      process.env.NIKA_REPO_WATCH_INTERVAL_MS || String(DEFAULTS.NIKA_REPO_WATCH_INTERVAL_MS),
+      10
+    ),
+    NIKA_REPO_ROOT: (process.env.NIKA_REPO_ROOT || DEFAULTS.NIKA_REPO_ROOT!).trim(),
   };
 
   return cachedConfig!;
@@ -350,5 +378,8 @@ export function getRedactedConfig(): Record<string, string> {
     NIKA_MENTION_STATE_FILE: config.NIKA_MENTION_STATE_FILE || '(default)',
     SHARED_STATE_REDIS_URL: config.SHARED_STATE_REDIS_URL ? '[CONFIGURED]' : '(not set)',
     SHARED_STATE_PREFIX: config.SHARED_STATE_PREFIX,
+    NIKA_REPO_WATCH_ENABLED: String(config.NIKA_REPO_WATCH_ENABLED),
+    NIKA_REPO_WATCH_INTERVAL_MS: String(config.NIKA_REPO_WATCH_INTERVAL_MS),
+    NIKA_REPO_ROOT: config.NIKA_REPO_ROOT || '(auto)',
   };
 }
