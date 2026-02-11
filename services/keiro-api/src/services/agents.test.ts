@@ -83,6 +83,21 @@ describe('agentService', () => {
       expect(updated?.isActive).toBe(false);
     });
 
+    it('normalizes skill tags on update', () => {
+      const agent = agentService.create({
+        walletAddress: testWallet,
+        name: 'Skills',
+        personality: 'professional',
+        skills: ['research'],
+      });
+
+      const updated = agentService.update(agent.id, {
+        skills: [' Smart Contract Audit ', 'smart-contract-audit', ''],
+      });
+
+      expect(updated?.skills).toEqual(['smart_contract_audit']);
+    });
+
     it('preserves id and wallet on update', () => {
       const agent = agentService.create({
         walletAddress: testWallet,
