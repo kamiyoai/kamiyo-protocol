@@ -24,10 +24,6 @@ interface Subscriber {
   minSeverity?: AlertSeverity;
 }
 
-export interface AlertAdapter {
-  publish(event: ComplianceRealtimeAlert): Promise<void>;
-}
-
 function severityRank(severity: AlertSeverity): number {
   if (severity === 'critical') return 3;
   if (severity === 'warn') return 2;
@@ -100,81 +96,4 @@ export class RealtimeAlertHub {
     res.write(`id: ${event.id}\n`);
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   }
-}
-
-export class WebhookAlertAdapter implements AlertAdapter {
-  constructor(
-    private readonly url: string,
-    private readonly bearerToken?: string
-  ) {}
-
-  async publish(event: ComplianceRealtimeAlert): Promise<void> {
-    const response = await fetch(this.url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(this.bearerToken ? { authorization: `Bearer ${this.bearerToken}` } : {}),
-      },
-      body: JSON.stringify(event),
-    });
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Webhook adapter error ${response.status}: ${body.slice(0, 200)}`);
-    }
-  }
-}
-
-export class GcpPubSubAlertAdapter implements AlertAdapter {
-  constructor(
-    private readonly topicPublishUrl: string,
-    private readonly bearerToken: string
-  ) {}
-
-  async publish(event: ComplianceRealtimeAlert): Promise<void> {
-    const payload = {
-      messages: [
-        {
-          data: Buffer.from(JSON.stringify(event), 'utf8').toString('base64'),
-          attributes: {
-            severity: event.severity,
-            source: event.source,
-            agentId: event.agentId,
-          },
-        },
-      ],
-    };
-
-    const response = await fetch(this.topicPublishUrl, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${this.bearerToken}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`GCP PubSub adapter error ${response.status}: ${body.slice(0, 200)}`);
-    }
-  }
-}
-
-export function createAdaptersFromEnv(env: NodeJS.ProcessEnv): AlertAdapter[] {
-  const adapters: AlertAdapter[] = [];
-
-  const webhookUrl = env.COMPLIANCE_ALERT_WEBHOOK_URL?.trim();
-  if (webhookUrl) {
-    adapters.push(
-      new WebhookAlertAdapter(webhookUrl, env.COMPLIANCE_ALERT_WEBHOOK_BEARER?.trim())
-    );
-  }
-
-  const topicUrl = env.COMPLIANCE_GCP_PUBSUB_TOPIC_URL?.trim();
-  const gcpToken = env.COMPLIANCE_GCP_PUBSUB_BEARER?.trim();
-  if (topicUrl && gcpToken) {
-    adapters.push(new GcpPubSubAlertAdapter(topicUrl, gcpToken));
-  }
-
-  return adapters;
 }

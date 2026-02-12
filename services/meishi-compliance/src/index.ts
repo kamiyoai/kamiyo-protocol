@@ -9,7 +9,6 @@ import {
   MeishiWriter,
   calculateComplianceScore,
   classifyCompliance,
-  complianceRewardMultiplier,
   toOnChainScore,
 } from '@kamiyo/meishi';
 import { MeishiDKGPublisher, type ComplianceAuditDoc } from '@kamiyo/meishi/dkg';
@@ -24,12 +23,10 @@ import { COMMERCE_RULES } from './rules/commerce.js';
 import { createOriginTrailDKGClient, HttpDKGClient } from './dkg-client.js';
 import {
   RealtimeAlertHub,
-  createAdaptersFromEnv,
   type ComplianceRealtimeAlert,
   type AlertSeverity,
   type AlertSource,
 } from './realtime-alerts.js';
-import { LiabilityInsuranceEngine } from './insurance.js';
 import { extractClientIp, InMemoryRateLimiter, readApiKey } from './security.js';
 
 dotenv.config();
@@ -90,7 +87,7 @@ function isPublicRoute(pathname: string): boolean {
 
 function isReadOnlyRoute(pathname: string, method: string): boolean {
   if (method !== 'GET') return false;
-  return pathname === '/compliance/check' || pathname === '/compliance/reward-multiplier';
+  return pathname === '/compliance/check';
 }
 
 function safeHost(url: string | undefined): string | null {
@@ -356,7 +353,6 @@ async function main() {
   let dkgWalletAddress: string | null = null;
   let dkgWalletBalances: { blockchainToken: string; trac: string } | null = null;
   let dkgWalletProbeInterval: ReturnType<typeof setInterval> | null = null;
-  let alertPublishFailures = 0;
   let authDeniedCount = 0;
   let rateLimitDeniedCount = 0;
   let sseActiveConnections = 0;
@@ -364,8 +360,6 @@ async function main() {
   const sseConnectionsByIp = new Map<string, number>();
 
   const alertHub = new RealtimeAlertHub();
-  const alertAdapters = createAdaptersFromEnv(process.env);
-  const insurance = new LiabilityInsuranceEngine();
   const globalRateLimiter = new InMemoryRateLimiter();
   const auditBatchRateLimiter = new InMemoryRateLimiter();
   const rateLimiterPruneTimer = setInterval(() => {
@@ -373,69 +367,12 @@ async function main() {
     auditBatchRateLimiter.prune();
   }, Math.max(config.rateLimitWindowMs, 30000));
 
-  insurance.createPool({
-    id: 'default_underwriting_pool',
-    name: 'KAMIYO Compliance Shield',
-    reserveUsd: 250000,
-    basePremiumBps: 180,
-    minComplianceScore: 60,
-    maxCoverageUsd: 500000,
-    claimPayoutThreshold: 3,
-  });
-
   if (config.nodeEnv === 'production' && !config.apiKey) {
     console.warn('[meishi-compliance] COMPLIANCE_API_KEY is not set; API routes are unauthenticated');
   }
 
-  const getFrameworkStatus = (score: number): 'pass' | 'warn' | 'fail' => {
-    if (score >= 80) return 'pass';
-    if (score >= 50) return 'warn';
-    return 'fail';
-  };
-
-  const deriveFrameworkMappings = (result: AuditResult): NonNullable<ComplianceAuditDoc['frameworkMappings']> => {
-    const byName = new Map(result.report.dimensions.map((d) => [d.name, d.score]));
-    return [
-      {
-        framework: 'SOC2',
-        controlId: 'CC7.2',
-        status: getFrameworkStatus(byName.get('audit_trail_completeness') ?? result.report.overallScore),
-      },
-      {
-        framework: 'SOC2',
-        controlId: 'CC6.1',
-        status: getFrameworkStatus(byName.get('authorization_validity') ?? result.report.overallScore),
-      },
-      {
-        framework: 'ISO27001',
-        controlId: 'A.12.4',
-        status: getFrameworkStatus(byName.get('audit_trail_completeness') ?? result.report.overallScore),
-      },
-      {
-        framework: 'ISO27001',
-        controlId: 'A.5.7',
-        status: getFrameworkStatus(byName.get('identity_verification') ?? result.report.overallScore),
-      },
-      {
-        framework: 'NIST',
-        controlId: 'AU-6',
-        status: getFrameworkStatus(byName.get('audit_trail_completeness') ?? result.report.overallScore),
-      },
-    ];
-  };
-
   const emitAlert = async (event: ComplianceRealtimeAlert): Promise<void> => {
     alertHub.publish(event);
-    await Promise.all(
-      alertAdapters.map(async (adapter) => {
-        try {
-          await adapter.publish(event);
-        } catch (err) {
-          alertPublishFailures++;
-          console.error('[meishi-compliance] Alert adapter publish failed:', err);
-        }
-      })
-    );
   };
 
   const buildComplianceAuditDoc = (
@@ -455,15 +392,6 @@ async function main() {
     classification: CLASSIFICATION_LABEL[result.report.classification] ?? String(result.report.classification),
     jurisdiction: JURISDICTION_LABEL[result.report.jurisdiction] ?? String(result.report.jurisdiction),
     recommendations: [...result.report.recommendations],
-    frameworkMappings: deriveFrameworkMappings(result),
-    attestations: [
-      {
-        attestor: keypair.publicKey.toBase58(),
-        standard: 'KAMIYO_COMPLIANCE_V1',
-        reference: `audit:${result.passportAddress}:${Date.now()}`,
-        timestamp: new Date().toISOString(),
-      },
-    ],
   });
 
   const schedulerFailedTooOften = (): boolean =>
@@ -825,8 +753,6 @@ async function main() {
     classification: string;
     jurisdiction: string;
     dimensions: Array<{ name: string; score: number; weight: number; findings: string[] }>;
-    rewardMultiplier: number;
-    rewardBand: string;
   }> => {
     const passportAddress = await resolvePassportAddress(agentId);
     const passport = await client.fetchPassport(passportAddress);
@@ -841,7 +767,6 @@ async function main() {
     const overallScore = calculateComplianceScore(dimensions);
     const onChainScore = toOnChainScore(overallScore);
     const classification = classifyCompliance(overallScore);
-    const reward = complianceRewardMultiplier(overallScore);
 
     return {
       agentId: passport.agentIdentity.toBase58(),
@@ -856,8 +781,6 @@ async function main() {
         weight: dimension.weight,
         findings: [...dimension.findings],
       })),
-      rewardMultiplier: reward.multiplier,
-      rewardBand: reward.band,
     };
   };
 
@@ -1024,28 +947,6 @@ async function main() {
       return;
     }
 
-    if (url?.pathname === '/compliance/reward-multiplier' && method === 'GET') {
-      const agentId = (url.searchParams.get('agentId') ?? '').trim();
-      if (!agentId) {
-        json(res, 400, { error: 'agentId is required' });
-        return;
-      }
-      const jurisdiction = parseJurisdiction(url.searchParams.get('jurisdiction'));
-      if (url.searchParams.get('jurisdiction') && jurisdiction === null) {
-        json(res, 400, { error: 'Invalid jurisdiction' });
-        return;
-      }
-      const snapshot = await buildComplianceSnapshot(agentId, jurisdiction);
-      json(res, 200, {
-        agentId: snapshot.agentId,
-        passportAddress: snapshot.passportAddress,
-        complianceScore: snapshot.overallScore,
-        rewardMultiplier: snapshot.rewardMultiplier,
-        rewardBand: snapshot.rewardBand,
-      });
-      return;
-    }
-
     if (url?.pathname === '/compliance/audit-batch' && method === 'POST') {
       const batchLimit = auditBatchRateLimiter.check(
         `${clientIp}:audit-batch`,
@@ -1112,107 +1013,7 @@ async function main() {
         return;
       }
 
-      if (query.includes('rewardMultiplier')) {
-        const agentId = String(variables.agentId ?? '').trim();
-        if (!agentId) {
-          json(res, 400, { errors: [{ message: 'agentId is required' }] });
-          return;
-        }
-        const jurisdiction = parseJurisdiction(
-          variables.jurisdiction == null ? null : String(variables.jurisdiction)
-        );
-        if (variables.jurisdiction != null && jurisdiction === null) {
-          json(res, 400, { errors: [{ message: 'Invalid jurisdiction' }] });
-          return;
-        }
-        const snapshot = await buildComplianceSnapshot(agentId, jurisdiction);
-        json(res, 200, {
-          data: {
-            rewardMultiplier: {
-              agentId: snapshot.agentId,
-              complianceScore: snapshot.overallScore,
-              multiplier: snapshot.rewardMultiplier,
-              band: snapshot.rewardBand,
-            },
-          },
-        });
-        return;
-      }
-
       json(res, 400, { errors: [{ message: 'Unsupported GraphQL operation' }] });
-      return;
-    }
-
-    if (url?.pathname === '/insurance/pools' && method === 'GET') {
-      json(res, 200, { pools: insurance.listPools() });
-      return;
-    }
-
-    if (url?.pathname === '/insurance/pools' && method === 'POST') {
-      const input = await readJsonBody(req);
-      const pool = insurance.createPool({
-        id: typeof input.id === 'string' ? input.id : undefined,
-        name: String(input.name ?? ''),
-        reserveUsd: Number(input.reserveUsd),
-        basePremiumBps: Number(input.basePremiumBps),
-        minComplianceScore: Number(input.minComplianceScore ?? 60),
-        maxCoverageUsd: Number(input.maxCoverageUsd),
-        claimPayoutThreshold: Number(input.claimPayoutThreshold ?? 3),
-      });
-      json(res, 201, { pool });
-      return;
-    }
-
-    if (url?.pathname === '/insurance/quote' && method === 'POST') {
-      const input = await readJsonBody(req);
-      const quote = insurance.quote(String(input.poolId), {
-        agentId: String(input.agentId),
-        complianceScore: Number(input.complianceScore),
-        jurisdiction: String(input.jurisdiction ?? 'global'),
-        monthlyVolumeUsd: Number(input.monthlyVolumeUsd ?? 0),
-        disputeRate: Number(input.disputeRate ?? 0),
-        requestedCoverageUsd: Number(input.requestedCoverageUsd),
-      });
-      json(res, 200, { quote });
-      return;
-    }
-
-    if (url?.pathname === '/insurance/policies' && method === 'POST') {
-      const input = await readJsonBody(req);
-      const policy = insurance.createPolicy(
-        String(input.poolId),
-        {
-          agentId: String(input.agentId),
-          complianceScore: Number(input.complianceScore),
-          jurisdiction: String(input.jurisdiction ?? 'global'),
-          monthlyVolumeUsd: Number(input.monthlyVolumeUsd ?? 0),
-          disputeRate: Number(input.disputeRate ?? 0),
-          requestedCoverageUsd: Number(input.requestedCoverageUsd),
-        },
-        Number(input.durationDays ?? 365)
-      );
-      json(res, 201, { policy });
-      return;
-    }
-
-    if (url?.pathname === '/insurance/claims' && method === 'POST') {
-      const input = await readJsonBody(req);
-      const claim = insurance.submitClaim(
-        String(input.policyId),
-        String(input.incidentRef),
-        Number(input.requestedPayoutUsd)
-      );
-      json(res, 201, { claim });
-      return;
-    }
-
-    if (url?.pathname === '/insurance/claims/settle' && method === 'POST') {
-      const input = await readJsonBody(req);
-      const claim = insurance.settleClaim(String(input.claimId), {
-        forVotes: Number(input.forVotes ?? 0),
-        againstVotes: Number(input.againstVotes ?? 0),
-      });
-      json(res, 200, { claim });
       return;
     }
 
@@ -1254,7 +1055,6 @@ async function main() {
         lastPublishedAuditHashHex,
         lastDkgPublishError,
         lastDkgPublishErrorAt,
-        alertPublishFailures,
         apiAuthEnabled: Boolean(config.apiKey),
         allowUnauthenticatedReadRoutes: config.allowUnauthenticatedReadRoutes,
         authDeniedCount,
