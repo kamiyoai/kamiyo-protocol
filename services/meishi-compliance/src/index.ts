@@ -1,9 +1,17 @@
-import { createServer } from 'http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
 
-import { AuditType, MeishiClient, MeishiWriter } from '@kamiyo/meishi';
+import {
+  AuditType,
+  MeishiClient,
+  MeishiWriter,
+  calculateComplianceScore,
+  classifyCompliance,
+  complianceRewardMultiplier,
+  toOnChainScore,
+} from '@kamiyo/meishi';
 import { MeishiDKGPublisher, type ComplianceAuditDoc } from '@kamiyo/meishi/dkg';
 import { loadConfig } from './config.js';
 import { CircuitBreaker } from './circuit-breaker.js';
@@ -14,6 +22,14 @@ import { EU_AI_ACT_RULES } from './rules/eu-ai-act.js';
 import { CONSUMER_PROTECTION_RULES } from './rules/consumer-protection.js';
 import { COMMERCE_RULES } from './rules/commerce.js';
 import { createOriginTrailDKGClient, HttpDKGClient } from './dkg-client.js';
+import {
+  RealtimeAlertHub,
+  createAdaptersFromEnv,
+  type ComplianceRealtimeAlert,
+  type AlertSeverity,
+  type AlertSource,
+} from './realtime-alerts.js';
+import { LiabilityInsuranceEngine } from './insurance.js';
 
 dotenv.config();
 
@@ -35,6 +51,37 @@ const CLASSIFICATION_LABEL: Record<number, string> = {
   3: 'high',
   4: 'unacceptable',
 };
+
+const JURISDICTION_CODE: Record<string, number> = {
+  global: 0,
+  eu: 1,
+  us: 2,
+  uk: 3,
+  apac: 4,
+};
+
+function parseJurisdiction(value: string | null): number | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized in JURISDICTION_CODE) {
+    return JURISDICTION_CODE[normalized];
+  }
+  const parsed = Number(normalized);
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 4) {
+    return parsed;
+  }
+  return null;
+}
+
+function deriveAlertSeverity(onChainScore: number, suspended: boolean): AlertSeverity {
+  if (suspended || onChainScore <= -500) return 'critical';
+  if (onChainScore < 0) return 'warn';
+  return 'info';
+}
+
+function shortId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
 
 function safeHost(url: string | undefined): string | null {
   if (!url) return null;
@@ -78,6 +125,44 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
       .catch((err) => reject(err))
       .finally(() => clearTimeout(timeout));
   });
+}
+
+async function readJsonBody(req: IncomingMessage, maxBytes = 1_000_000): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error(`Request body too large (${size} bytes)`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8').trim();
+      if (!raw) {
+        resolve({});
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        resolve(parsed ?? {});
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+
+    req.on('error', (err) => reject(err));
+  });
+}
+
+function json(res: ServerResponse, status: number, payload: Record<string, unknown>): void {
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(payload));
 }
 
 function isDkgWalletBalances(value: unknown): value is { blockchainToken: string; trac: string } {
@@ -243,6 +328,72 @@ async function main() {
   let dkgWalletAddress: string | null = null;
   let dkgWalletBalances: { blockchainToken: string; trac: string } | null = null;
   let dkgWalletProbeInterval: ReturnType<typeof setInterval> | null = null;
+  let alertPublishFailures = 0;
+
+  const alertHub = new RealtimeAlertHub();
+  const alertAdapters = createAdaptersFromEnv(process.env);
+  const insurance = new LiabilityInsuranceEngine();
+
+  insurance.createPool({
+    id: 'default_underwriting_pool',
+    name: 'KAMIYO Compliance Shield',
+    reserveUsd: 250000,
+    basePremiumBps: 180,
+    minComplianceScore: 60,
+    maxCoverageUsd: 500000,
+    claimPayoutThreshold: 3,
+  });
+
+  const getFrameworkStatus = (score: number): 'pass' | 'warn' | 'fail' => {
+    if (score >= 80) return 'pass';
+    if (score >= 50) return 'warn';
+    return 'fail';
+  };
+
+  const deriveFrameworkMappings = (result: AuditResult): NonNullable<ComplianceAuditDoc['frameworkMappings']> => {
+    const byName = new Map(result.report.dimensions.map((d) => [d.name, d.score]));
+    return [
+      {
+        framework: 'SOC2',
+        controlId: 'CC7.2',
+        status: getFrameworkStatus(byName.get('audit_trail_completeness') ?? result.report.overallScore),
+      },
+      {
+        framework: 'SOC2',
+        controlId: 'CC6.1',
+        status: getFrameworkStatus(byName.get('authorization_validity') ?? result.report.overallScore),
+      },
+      {
+        framework: 'ISO27001',
+        controlId: 'A.12.4',
+        status: getFrameworkStatus(byName.get('audit_trail_completeness') ?? result.report.overallScore),
+      },
+      {
+        framework: 'ISO27001',
+        controlId: 'A.5.7',
+        status: getFrameworkStatus(byName.get('identity_verification') ?? result.report.overallScore),
+      },
+      {
+        framework: 'NIST',
+        controlId: 'AU-6',
+        status: getFrameworkStatus(byName.get('audit_trail_completeness') ?? result.report.overallScore),
+      },
+    ];
+  };
+
+  const emitAlert = async (event: ComplianceRealtimeAlert): Promise<void> => {
+    alertHub.publish(event);
+    await Promise.all(
+      alertAdapters.map(async (adapter) => {
+        try {
+          await adapter.publish(event);
+        } catch (err) {
+          alertPublishFailures++;
+          console.error('[meishi-compliance] Alert adapter publish failed:', err);
+        }
+      })
+    );
+  };
 
   const buildComplianceAuditDoc = (
     result: AuditResult,
@@ -261,6 +412,15 @@ async function main() {
     classification: CLASSIFICATION_LABEL[result.report.classification] ?? String(result.report.classification),
     jurisdiction: JURISDICTION_LABEL[result.report.jurisdiction] ?? String(result.report.jurisdiction),
     recommendations: [...result.report.recommendations],
+    frameworkMappings: deriveFrameworkMappings(result),
+    attestations: [
+      {
+        attestor: keypair.publicKey.toBase58(),
+        standard: 'KAMIYO_COMPLIANCE_V1',
+        reference: `audit:${result.passportAddress}:${Date.now()}`,
+        timestamp: new Date().toISOString(),
+      },
+    ],
   });
 
   const schedulerFailedTooOften = (): boolean =>
@@ -354,8 +514,8 @@ async function main() {
   const publishAuditResult = async (
     result: AuditResult,
     tickType: 'monitor' | 'deep-audit' | 'triggered'
-  ): Promise<void> => {
-    if (!dkgPublisher) return;
+  ): Promise<{ ual: string; publicHashHex: string } | null> => {
+    if (!dkgPublisher) return null;
     const doc = buildComplianceAuditDoc(result, normalizeAuditType(tickType));
     const maxAttempts = Math.max(1, config.dkgPublishRetries + 1);
 
@@ -392,7 +552,7 @@ async function main() {
           }
         }
 
-        return;
+        return { ual, publicHashHex };
       } catch (err) {
         const isFinalAttempt = attempt === maxAttempts;
         if (isFinalAttempt) {
@@ -401,13 +561,15 @@ async function main() {
           lastDkgPublishError = err instanceof Error ? err.message : String(err);
           lastDkgPublishErrorAt = Date.now();
           console.error('[meishi-compliance] Failed to publish audit to DKG:', err);
-          return;
+          return null;
         }
 
         const backoffMs = config.dkgPublishBackoffMs * 2 ** (attempt - 1);
         await new Promise((resolve) => setTimeout(resolve, backoffMs));
       }
     }
+
+    return null;
   };
 
   const resolveAuditTargets = async (): Promise<PublicKey[]> => {
@@ -464,7 +626,23 @@ async function main() {
     }
 
     for (const result of results) {
-      await publishAuditResult(result, tickType);
+      const published = await publishAuditResult(result, tickType);
+      const severity = deriveAlertSeverity(result.onChainScore, result.suspended);
+      const alert: ComplianceRealtimeAlert = {
+        id: `alert_${Date.now()}_${shortId()}`,
+        timestamp: Date.now(),
+        severity,
+        source: tickType === 'deep-audit' ? 'deep-audit' : 'monitor',
+        agentId: result.agentIdentity,
+        passportAddress: result.passportAddress,
+        overallScore: result.report.overallScore,
+        onChainScore: result.onChainScore,
+        jurisdiction: JURISDICTION_LABEL[result.report.jurisdiction] ?? String(result.report.jurisdiction),
+        classification: CLASSIFICATION_LABEL[result.report.classification] ?? String(result.report.classification),
+        reasons: [...result.report.recommendations],
+        dkgUal: published?.ual,
+      };
+      await emitAlert(alert);
     }
 
     console.log(
@@ -512,7 +690,21 @@ async function main() {
     try {
       const address = new PublicKey(data.passportAddress);
       const result = await engine.auditPassport(address);
-      await publishAuditResult(result, 'triggered');
+      const published = await publishAuditResult(result, 'triggered');
+      await emitAlert({
+        id: `alert_${Date.now()}_${shortId()}`,
+        timestamp: Date.now(),
+        severity: deriveAlertSeverity(result.onChainScore, result.suspended),
+        source: 'triggered',
+        agentId: result.agentIdentity,
+        passportAddress: result.passportAddress,
+        overallScore: result.report.overallScore,
+        onChainScore: result.onChainScore,
+        jurisdiction: JURISDICTION_LABEL[result.report.jurisdiction] ?? String(result.report.jurisdiction),
+        classification: CLASSIFICATION_LABEL[result.report.classification] ?? String(result.report.classification),
+        reasons: [data.reason, ...result.report.recommendations],
+        dkgUal: published?.ual,
+      });
       auditCount++;
       lastSuccessfulAuditTime = Date.now();
       lastAuditDurationMs = Date.now() - startedAt;
@@ -571,8 +763,324 @@ async function main() {
     return readinessFailures;
   };
 
-  const server = createServer((req, res) => {
+  const resolvePassportAddress = async (value: string): Promise<PublicKey> => {
+    const key = new PublicKey(value);
+    const existing = await client.fetchPassport(key);
+    if (existing) return key;
+    const [passportAddress] = client.getPassportPDA(key);
+    return passportAddress;
+  };
+
+  const buildComplianceSnapshot = async (
+    agentId: string,
+    jurisdictionOverride: number | null
+  ): Promise<{
+    agentId: string;
+    passportAddress: string;
+    overallScore: number;
+    onChainScore: number;
+    classification: string;
+    jurisdiction: string;
+    dimensions: Array<{ name: string; score: number; weight: number; findings: string[] }>;
+    rewardMultiplier: number;
+    rewardBand: string;
+  }> => {
+    const passportAddress = await resolvePassportAddress(agentId);
+    const passport = await client.fetchPassport(passportAddress);
+    if (!passport) {
+      throw new Error(`Passport not found for agent: ${agentId}`);
+    }
+    const dimensions = (
+      jurisdictionOverride === null
+        ? registry.evaluate(passport)
+        : registry.getForJurisdiction(jurisdictionOverride).map((rule) => rule.evaluate(passport))
+    );
+    const overallScore = calculateComplianceScore(dimensions);
+    const onChainScore = toOnChainScore(overallScore);
+    const classification = classifyCompliance(overallScore);
+    const reward = complianceRewardMultiplier(overallScore);
+
+    return {
+      agentId: passport.agentIdentity.toBase58(),
+      passportAddress: passportAddress.toBase58(),
+      overallScore,
+      onChainScore,
+      classification: CLASSIFICATION_LABEL[classification] ?? String(classification),
+      jurisdiction: JURISDICTION_LABEL[passport.jurisdiction] ?? String(passport.jurisdiction),
+      dimensions: dimensions.map((dimension) => ({
+        name: dimension.name,
+        score: dimension.score,
+        weight: dimension.weight,
+        findings: [...dimension.findings],
+      })),
+      rewardMultiplier: reward.multiplier,
+      rewardBand: reward.band,
+    };
+  };
+
+  const runApiAuditBatch = async (input: Record<string, unknown>) => {
+    const addresses = new Map<string, PublicKey>();
+    const passportAddresses = Array.isArray(input.passportAddresses) ? input.passportAddresses : [];
+    for (const value of passportAddresses) {
+      if (typeof value !== 'string' || value.trim().length === 0) continue;
+      const pk = new PublicKey(value.trim());
+      addresses.set(pk.toBase58(), pk);
+    }
+
+    const agentIds = Array.isArray(input.agentIds) ? input.agentIds : [];
+    for (const value of agentIds) {
+      if (typeof value !== 'string' || value.trim().length === 0) continue;
+      const passportAddress = await resolvePassportAddress(value.trim());
+      addresses.set(passportAddress.toBase58(), passportAddress);
+    }
+
+    const targets = [...addresses.values()];
+    if (targets.length === 0) {
+      throw new Error('No valid passportAddresses or agentIds provided');
+    }
+
+    const requestedConcurrency = Number(input.concurrency);
+    const concurrency = Number.isInteger(requestedConcurrency)
+      ? Math.max(1, Math.min(requestedConcurrency, 32))
+      : config.auditConcurrency;
+    const shouldPublish = input.publish !== false;
+
+    const { results, failures } = await engine.auditBatch(targets, concurrency);
+    let published = 0;
+    for (const result of results) {
+      const publishResult = shouldPublish ? await publishAuditResult(result, 'triggered') : null;
+      if (publishResult?.ual) published++;
+      await emitAlert({
+        id: `alert_${Date.now()}_${shortId()}`,
+        timestamp: Date.now(),
+        severity: deriveAlertSeverity(result.onChainScore, result.suspended),
+        source: 'api',
+        agentId: result.agentIdentity,
+        passportAddress: result.passportAddress,
+        overallScore: result.report.overallScore,
+        onChainScore: result.onChainScore,
+        jurisdiction: JURISDICTION_LABEL[result.report.jurisdiction] ?? String(result.report.jurisdiction),
+        classification: CLASSIFICATION_LABEL[result.report.classification] ?? String(result.report.classification),
+        reasons: [...result.report.recommendations],
+        dkgUal: publishResult?.ual,
+      });
+    }
+
+    return {
+      requested: targets.length,
+      audited: results.length,
+      failures,
+      published,
+      results: results.map((result) => ({
+        agentId: result.agentIdentity,
+        passportAddress: result.passportAddress,
+        overallScore: result.report.overallScore,
+        onChainScore: result.onChainScore,
+        classification: CLASSIFICATION_LABEL[result.report.classification] ?? String(result.report.classification),
+        jurisdiction: JURISDICTION_LABEL[result.report.jurisdiction] ?? String(result.report.jurisdiction),
+        scoreChanged: result.scoreChanged,
+        suspended: result.suspended,
+      })),
+    };
+  };
+
+  const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = req.url ? new URL(req.url, 'http://localhost') : null;
+    const method = (req.method ?? 'GET').toUpperCase();
+
+    if (url?.pathname === '/compliance/realtime-alerts' && method === 'GET') {
+      const minSeverity = (url.searchParams.get('minSeverity') ?? '').toLowerCase();
+      const severity =
+        minSeverity === 'critical' || minSeverity === 'warn' || minSeverity === 'info'
+          ? (minSeverity as AlertSeverity)
+          : undefined;
+      alertHub.subscribe(req, res, severity);
+      return;
+    }
+
+    if (url?.pathname === '/compliance/check' && method === 'GET') {
+      const agentId = (url.searchParams.get('agentId') ?? '').trim();
+      if (!agentId) {
+        json(res, 400, { error: 'agentId is required' });
+        return;
+      }
+      const jurisdiction = parseJurisdiction(url.searchParams.get('jurisdiction'));
+      if (url.searchParams.get('jurisdiction') && jurisdiction === null) {
+        json(res, 400, { error: 'Invalid jurisdiction' });
+        return;
+      }
+
+      const snapshot = await buildComplianceSnapshot(agentId, jurisdiction);
+      json(res, 200, {
+        source: 'meishi-compliance',
+        timestamp: Date.now(),
+        ...snapshot,
+      });
+      return;
+    }
+
+    if (url?.pathname === '/compliance/reward-multiplier' && method === 'GET') {
+      const agentId = (url.searchParams.get('agentId') ?? '').trim();
+      if (!agentId) {
+        json(res, 400, { error: 'agentId is required' });
+        return;
+      }
+      const jurisdiction = parseJurisdiction(url.searchParams.get('jurisdiction'));
+      if (url.searchParams.get('jurisdiction') && jurisdiction === null) {
+        json(res, 400, { error: 'Invalid jurisdiction' });
+        return;
+      }
+      const snapshot = await buildComplianceSnapshot(agentId, jurisdiction);
+      json(res, 200, {
+        agentId: snapshot.agentId,
+        passportAddress: snapshot.passportAddress,
+        complianceScore: snapshot.overallScore,
+        rewardMultiplier: snapshot.rewardMultiplier,
+        rewardBand: snapshot.rewardBand,
+      });
+      return;
+    }
+
+    if (url?.pathname === '/compliance/audit-batch' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const result = await runApiAuditBatch(input);
+      json(res, 200, result);
+      return;
+    }
+
+    if (url?.pathname === '/compliance/graphql' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const query = String(input.query ?? '');
+      const variables = (input.variables as Record<string, unknown>) ?? {};
+
+      if (query.includes('complianceCheck')) {
+        const agentId = String(variables.agentId ?? '').trim();
+        if (!agentId) {
+          json(res, 400, { errors: [{ message: 'agentId is required' }] });
+          return;
+        }
+        const jurisdiction = parseJurisdiction(
+          variables.jurisdiction == null ? null : String(variables.jurisdiction)
+        );
+        if (variables.jurisdiction != null && jurisdiction === null) {
+          json(res, 400, { errors: [{ message: 'Invalid jurisdiction' }] });
+          return;
+        }
+        const data = await buildComplianceSnapshot(agentId, jurisdiction);
+        json(res, 200, { data: { complianceCheck: data } });
+        return;
+      }
+
+      if (query.includes('auditBatch')) {
+        const data = await runApiAuditBatch(variables);
+        json(res, 200, { data: { auditBatch: data } });
+        return;
+      }
+
+      if (query.includes('rewardMultiplier')) {
+        const agentId = String(variables.agentId ?? '').trim();
+        if (!agentId) {
+          json(res, 400, { errors: [{ message: 'agentId is required' }] });
+          return;
+        }
+        const jurisdiction = parseJurisdiction(
+          variables.jurisdiction == null ? null : String(variables.jurisdiction)
+        );
+        if (variables.jurisdiction != null && jurisdiction === null) {
+          json(res, 400, { errors: [{ message: 'Invalid jurisdiction' }] });
+          return;
+        }
+        const snapshot = await buildComplianceSnapshot(agentId, jurisdiction);
+        json(res, 200, {
+          data: {
+            rewardMultiplier: {
+              agentId: snapshot.agentId,
+              complianceScore: snapshot.overallScore,
+              multiplier: snapshot.rewardMultiplier,
+              band: snapshot.rewardBand,
+            },
+          },
+        });
+        return;
+      }
+
+      json(res, 400, { errors: [{ message: 'Unsupported GraphQL operation' }] });
+      return;
+    }
+
+    if (url?.pathname === '/insurance/pools' && method === 'GET') {
+      json(res, 200, { pools: insurance.listPools() });
+      return;
+    }
+
+    if (url?.pathname === '/insurance/pools' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const pool = insurance.createPool({
+        id: typeof input.id === 'string' ? input.id : undefined,
+        name: String(input.name ?? ''),
+        reserveUsd: Number(input.reserveUsd),
+        basePremiumBps: Number(input.basePremiumBps),
+        minComplianceScore: Number(input.minComplianceScore ?? 60),
+        maxCoverageUsd: Number(input.maxCoverageUsd),
+        claimPayoutThreshold: Number(input.claimPayoutThreshold ?? 3),
+      });
+      json(res, 201, { pool });
+      return;
+    }
+
+    if (url?.pathname === '/insurance/quote' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const quote = insurance.quote(String(input.poolId), {
+        agentId: String(input.agentId),
+        complianceScore: Number(input.complianceScore),
+        jurisdiction: String(input.jurisdiction ?? 'global'),
+        monthlyVolumeUsd: Number(input.monthlyVolumeUsd ?? 0),
+        disputeRate: Number(input.disputeRate ?? 0),
+        requestedCoverageUsd: Number(input.requestedCoverageUsd),
+      });
+      json(res, 200, { quote });
+      return;
+    }
+
+    if (url?.pathname === '/insurance/policies' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const policy = insurance.createPolicy(
+        String(input.poolId),
+        {
+          agentId: String(input.agentId),
+          complianceScore: Number(input.complianceScore),
+          jurisdiction: String(input.jurisdiction ?? 'global'),
+          monthlyVolumeUsd: Number(input.monthlyVolumeUsd ?? 0),
+          disputeRate: Number(input.disputeRate ?? 0),
+          requestedCoverageUsd: Number(input.requestedCoverageUsd),
+        },
+        Number(input.durationDays ?? 365)
+      );
+      json(res, 201, { policy });
+      return;
+    }
+
+    if (url?.pathname === '/insurance/claims' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const claim = insurance.submitClaim(
+        String(input.policyId),
+        String(input.incidentRef),
+        Number(input.requestedPayoutUsd)
+      );
+      json(res, 201, { claim });
+      return;
+    }
+
+    if (url?.pathname === '/insurance/claims/settle' && method === 'POST') {
+      const input = await readJsonBody(req);
+      const claim = insurance.settleClaim(String(input.claimId), {
+        forVotes: Number(input.forVotes ?? 0),
+        againstVotes: Number(input.againstVotes ?? 0),
+      });
+      json(res, 200, { claim });
+      return;
+    }
+
     if (url?.pathname === '/health') {
       const readinessFailures = computeReadinessFailures();
 
@@ -580,91 +1088,94 @@ async function main() {
       const resolvedRpcHost = safeHost(config.dkgRpcUrl) ?? safeHost(defaultEvmRpcUrl(dkgBlockchain) ?? undefined);
       const dkgEndpointHost = safeHost(config.dkgEndpoint) ?? null;
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          status: readinessFailures.length === 0 ? 'ok' : 'degraded',
-          service: 'meishi-compliance',
-          scheduler: scheduler.isRunning() ? 'running' : 'stopped',
-          circuitBreaker: circuitBreaker.getState(),
-          auditorIsEphemeral,
-          rulesLoaded: registry.count(),
-          discoveryMode: config.passportDiscoveryMode,
-          configuredSeedPassportCount: configuredPassports.length,
-          lastDiscoveredPassportCount,
-          lastDiscoveryAttemptAt,
-          lastAuditedPassportCount,
-          monitorTicks: monitorCount,
-          auditsRun: auditCount,
-          lastMonitorTime,
-          lastSuccessfulMonitorTime,
-          lastSuccessfulAuditTime,
-          lastAuditDurationMs,
-          consecutiveMonitorFailures,
-          consecutiveAuditFailures,
-          dkgPublishingEnabled: config.enableDkgPublishing,
-          dkgPublisherReady: Boolean(dkgPublisher),
-          dkgPublisherInitError,
-          dkgPublisherInitErrorAt: lastDkgInitErrorAt,
-          dkgPublishCount,
-          dkgPublishFailures,
-          consecutiveDkgPublishFailures,
-          lastPublishedAuditUal,
-          lastPublishedAuditHashHex,
-          lastDkgPublishError,
-          lastDkgPublishErrorAt,
-          dkg: config.enableDkgPublishing
-            ? {
-                endpointHost: dkgEndpointHost,
-                blockchain: dkgBlockchain,
-                rpcHost: resolvedRpcHost,
-                paranetUal: config.dkgParanetUal ?? null,
-                minFinalityConfirmations:
-                  config.dkgMinimumFinalizationConfirmations ?? null,
-                minNodeReplications: config.dkgMinimumNodeReplications ?? null,
-                walletAddress: dkgWalletAddress,
-                walletBalances: dkgWalletBalances,
-                lastWalletProbeAt: lastDkgWalletProbeAt,
-                lastWalletProbeOkAt: lastSuccessfulDkgWalletProbeAt,
-                lastWalletProbeLatencyMs: lastDkgWalletProbeLatencyMs,
-                lastWalletProbeError: lastDkgWalletProbeError,
-              }
-            : null,
-          onchainAuditsEnabled: config.enableOnchainAudits,
-          onchainAuditCount,
-          onchainAuditFailures,
-          lastOnchainAuditSignature,
-          lastOnchainAuditAt,
-          monitorLagMs,
-          deepAuditLagMs,
-          schedulerRestartCount,
-          schedulerRestartScheduled,
-          lastSchedulerRestartAt,
-          lastSchedulerRestartReason,
-          lastRpcProbeAt,
-          lastSuccessfulRpcProbeAt,
-          lastRpcLatencyMs,
-          consecutiveRpcFailures,
-          lastRpcError,
-          lastError,
-          lastErrorAt,
-          readinessFailures,
-        })
-      );
+      json(res, 200, {
+        status: readinessFailures.length === 0 ? 'ok' : 'degraded',
+        service: 'meishi-compliance',
+        scheduler: scheduler.isRunning() ? 'running' : 'stopped',
+        circuitBreaker: circuitBreaker.getState(),
+        auditorIsEphemeral,
+        rulesLoaded: registry.count(),
+        discoveryMode: config.passportDiscoveryMode,
+        configuredSeedPassportCount: configuredPassports.length,
+        lastDiscoveredPassportCount,
+        lastDiscoveryAttemptAt,
+        lastAuditedPassportCount,
+        monitorTicks: monitorCount,
+        auditsRun: auditCount,
+        lastMonitorTime,
+        lastSuccessfulMonitorTime,
+        lastSuccessfulAuditTime,
+        lastAuditDurationMs,
+        consecutiveMonitorFailures,
+        consecutiveAuditFailures,
+        dkgPublishingEnabled: config.enableDkgPublishing,
+        dkgPublisherReady: Boolean(dkgPublisher),
+        dkgPublisherInitError,
+        dkgPublisherInitErrorAt: lastDkgInitErrorAt,
+        dkgPublishCount,
+        dkgPublishFailures,
+        consecutiveDkgPublishFailures,
+        lastPublishedAuditUal,
+        lastPublishedAuditHashHex,
+        lastDkgPublishError,
+        lastDkgPublishErrorAt,
+        alertPublishFailures,
+        dkg: config.enableDkgPublishing
+          ? {
+              endpointHost: dkgEndpointHost,
+              blockchain: dkgBlockchain,
+              rpcHost: resolvedRpcHost,
+              paranetUal: config.dkgParanetUal ?? null,
+              minFinalityConfirmations:
+                config.dkgMinimumFinalizationConfirmations ?? null,
+              minNodeReplications: config.dkgMinimumNodeReplications ?? null,
+              walletAddress: dkgWalletAddress,
+              walletBalances: dkgWalletBalances,
+              lastWalletProbeAt: lastDkgWalletProbeAt,
+              lastWalletProbeOkAt: lastSuccessfulDkgWalletProbeAt,
+              lastWalletProbeLatencyMs: lastDkgWalletProbeLatencyMs,
+              lastWalletProbeError: lastDkgWalletProbeError,
+            }
+          : null,
+        onchainAuditsEnabled: config.enableOnchainAudits,
+        onchainAuditCount,
+        onchainAuditFailures,
+        lastOnchainAuditSignature,
+        lastOnchainAuditAt,
+        monitorLagMs,
+        deepAuditLagMs,
+        schedulerRestartCount,
+        schedulerRestartScheduled,
+        lastSchedulerRestartAt,
+        lastSchedulerRestartReason,
+        lastRpcProbeAt,
+        lastSuccessfulRpcProbeAt,
+        lastRpcLatencyMs,
+        consecutiveRpcFailures,
+        lastRpcError,
+        lastError,
+        lastErrorAt,
+        readinessFailures,
+      });
       return;
     }
 
     if (url?.pathname === '/ready') {
       const readinessFailures = computeReadinessFailures();
-
       const ready = readinessFailures.length === 0;
-      res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ready, reasons: readinessFailures }));
+      json(res, ready ? 200 : 503, { ready, reasons: readinessFailures });
       return;
     }
 
-    res.writeHead(404);
-    res.end();
+    json(res, 404, { error: 'not_found' });
+  };
+
+  const server = createServer((req, res) => {
+    void handleRequest(req, res).catch((err) => {
+      console.error('[meishi-compliance] Request handler failed:', err);
+      if (res.writableEnded) return;
+      json(res, 500, { error: 'internal_error', message: err instanceof Error ? err.message : String(err) });
+    });
   });
 
   server.listen(config.port, () => {
