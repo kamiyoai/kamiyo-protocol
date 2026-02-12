@@ -9,6 +9,8 @@ import { agentsRouter } from './routes/agents.js';
 import { jobsRouter } from './routes/jobs.js';
 import { earningsRouter } from './routes/earnings.js';
 import { reputationRouter } from './routes/reputation.js';
+import { meishiRouter } from './routes/meishi.js';
+import { receiptsRouter } from './routes/receipts.js';
 
 const app = new Hono();
 
@@ -108,6 +110,8 @@ app.route('/api/agents', agentsRouter);
 app.route('/api/jobs', jobsRouter);
 app.route('/api/earnings', earningsRouter);
 app.route('/api/reputation', reputationRouter);
+app.route('/api/meishi', meishiRouter);
+app.route('/api/receipts', receiptsRouter);
 
 app.onError((err, c) => {
   const status = (err as any)?.status && typeof (err as any).status === 'number' ? (err as any).status : 500;
