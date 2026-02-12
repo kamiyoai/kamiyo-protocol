@@ -107,7 +107,7 @@ fn compute_bid_commitment(
 }
 
 /// KAMIYO Staking program ID for CPI stake verification
-pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
+pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
 /// Account discriminator for staking StakePosition ("account:StakePosition").
 const STAKE_POSITION_DISCRIMINATOR: [u8; 8] = [78, 165, 30, 111, 171, 125, 11, 220];
 
