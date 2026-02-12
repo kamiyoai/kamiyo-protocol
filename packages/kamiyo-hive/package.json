@@ -22,10 +22,10 @@
       "import": "./dist/channels/index.js",
       "require": "./dist/channels/index.js"
     },
-    "./swarmteams": {
-      "types": "./dist/swarmteams/index.d.ts",
-      "import": "./dist/swarmteams/index.js",
-      "require": "./dist/swarmteams/index.js"
+    "./hive": {
+      "types": "./dist/hive/index.d.ts",
+      "import": "./dist/hive/index.js",
+      "require": "./dist/hive/index.js"
     }
   },
   "scripts": {

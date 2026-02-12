@@ -13,8 +13,8 @@ import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import {
-  SwarmTeamsClient,
-  SwarmTeamsProver,
+  HiveClient,
+  HiveProver,
   createMerkleTree,
   generateAgentId,
 } from '@kamiyo/hive';
@@ -54,7 +54,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new SwarmTeamsClient(provider);
+  const client = new HiveClient(provider);
 
   // Check balance
   const balance = await connection.getBalance(keypair.publicKey);
@@ -84,7 +84,7 @@ async function main() {
     .digest();
 
   // Compute identity commitment
-  const commitment = await SwarmTeamsProver.generateIdentityCommitment(
+  const commitment = await HiveProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret

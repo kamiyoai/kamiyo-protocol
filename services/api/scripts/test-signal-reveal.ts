@@ -19,8 +19,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  SwarmTeamsClient,
-  SwarmTeamsProver,
+  HiveClient,
+  HiveProver,
   createMerkleTree,
   generateAgentId,
   createSignalCommitment,
@@ -30,7 +30,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const WALLET_PATH = '../../../token-launch/wallets/creator.json';
-const CIRCUITS_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
+const CIRCUITS_PATH = path.resolve(__dirname, '../../../circuits/build/hive');
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -54,7 +54,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new SwarmTeamsClient(provider);
+  const client = new HiveClient(provider);
 
   // Get registry
   const registry = await client.getRegistry();
@@ -99,7 +99,7 @@ async function main() {
 
   // Generate ZK proof
   console.log('\nGenerating ZK proof for epoch', registry.epoch.toString(), '...');
-  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
+  const prover = new HiveProver(CIRCUITS_PATH);
   const epoch = BigInt(registry.epoch.toString());
 
   const result = await prover.proveAgentIdentity(
@@ -138,8 +138,8 @@ async function main() {
   );
   console.log('  Signal commitment:', bytesToHex(signalCommitment).slice(0, 32) + '...');
 
-  // Also generate using SwarmTeamsProver to verify they match
-  const proverCommitment = await SwarmTeamsProver.generateSignalCommitment(
+  // Also generate using HiveProver to verify they match
+  const proverCommitment = await HiveProver.generateSignalCommitment(
     signalType,
     direction,
     confidence,

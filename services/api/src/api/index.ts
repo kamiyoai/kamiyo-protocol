@@ -13,12 +13,12 @@ import marketRoutes from './routes/market';
 import reputationRoutes from './routes/reputation';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
-import swarmteamsRoutes from './routes/swarmteams';
+import swarmteamsRoutes from './routes/hive';
 import kamiyoTokenRoutes from './routes/kamiyo-token';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import linkWalletRoutes from './routes/link-wallet';
-import swarmTeamRoutes from './routes/swarm-teams';
+import swarmTeamRoutes from './routes/hive-teams';
 import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
@@ -279,8 +279,8 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/v1/market', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes);
   app.use('/api/v1/reputation', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes);
 
-  // SwarmTeams ZK signal routes (public - demo purposes)
-  app.use('/api/swarmteams', swarmteamsRoutes);
+  // Hive ZK signal routes (public - demo purposes)
+  app.use('/api/hive', swarmteamsRoutes);
 
   // $KAMIYO token stats and burn tracking (public)
   app.use('/api/kamiyo', kamiyoTokenRoutes);
@@ -295,7 +295,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/link-wallet', linkWalletRoutes);
 
   // SwarmTeam management routes (public)
-  app.use('/api/swarm-teams', swarmTeamRoutes);
+  app.use('/api/hive-teams', swarmTeamRoutes);
 
   // Blindfold funding callback (public - receives redirects from Blindfold)
   app.use('/api/fund/callback', blindfoldCallbackLimiter, perTeamCallbackLimiter, blindfoldCallbackRoutes);

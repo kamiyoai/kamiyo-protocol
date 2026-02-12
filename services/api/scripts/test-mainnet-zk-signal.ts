@@ -12,8 +12,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  SwarmTeamsClient,
-  SwarmTeamsProver,
+  HiveClient,
+  HiveProver,
   MerkleTree,
   generateAgentId,
 } from '@kamiyo/hive';
@@ -21,7 +21,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CIRCUITS_PATH = path.resolve(__dirname, '../../../circuits/build/swarmteams');
+const CIRCUITS_PATH = path.resolve(__dirname, '../../../circuits/build/hive');
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -45,7 +45,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new SwarmTeamsClient(provider);
+  const client = new HiveClient(provider);
 
   console.log('=== Mainnet ZK Signal Submission Test ===\n');
   console.log('Wallet:', keypair.publicKey.toBase58());
@@ -75,12 +75,12 @@ async function main() {
   const { proof: merkleProof, pathIndices } = await tree.generateProof(0);
 
   // Verify commitment matches
-  const commitment = await SwarmTeamsProver.generateIdentityCommitment(ownerSecret, agentId, registrationSecret);
+  const commitment = await HiveProver.generateIdentityCommitment(ownerSecret, agentId, registrationSecret);
   console.log('\nIdentity commitment:', bytesToHex(commitment));
 
   // Generate ZK proof
   console.log('\nGenerating Groth16 proof...');
-  const prover = new SwarmTeamsProver(CIRCUITS_PATH);
+  const prover = new HiveProver(CIRCUITS_PATH);
   const epoch = BigInt(registry.epoch.toString());
 
   const result = await prover.proveAgentIdentity(
@@ -99,7 +99,7 @@ async function main() {
 
   // Generate signal commitment
   const signalSecret = crypto.randomBytes(32);
-  const signalCommitment = await SwarmTeamsProver.generateSignalCommitment(
+  const signalCommitment = await HiveProver.generateSignalCommitment(
     0, // signalType (price)
     1, // direction (long)
     80, // confidence

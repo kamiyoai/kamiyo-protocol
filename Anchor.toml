@@ -8,7 +8,7 @@ skip-lint = false
 
 [programs.devnet]
 kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
-swarmteams = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
+hive = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
 kamiyo_escrow = "FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u"
 kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
@@ -18,7 +18,7 @@ meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
 
 [programs.localnet]
 kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
-swarmteams = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
+hive = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
 kamiyo_escrow = "FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u"
 kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
@@ -28,7 +28,7 @@ meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
 
 [programs.mainnet]
 kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
-swarmteams = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
+hive = "DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km"
 kamiyo_staking = "9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N"
 kamiyo_escrow = "FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u"
 kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"

@@ -32,8 +32,8 @@ async function poseidonHash(inputs: bigint[]): Promise<bigint> {
 async function main() {
   console.log('Testing Agent Reputation Proof\n');
 
-  const wasmPath = path.join(__dirname, '../circuits/build/swarmteams/agent_reputation_js/agent_reputation.wasm');
-  const zkeyPath = path.join(__dirname, '../circuits/build/swarmteams/agent_reputation_final.zkey');
+  const wasmPath = path.join(__dirname, '../circuits/build/hive/agent_reputation_js/agent_reputation.wasm');
+  const zkeyPath = path.join(__dirname, '../circuits/build/hive/agent_reputation_final.zkey');
 
   if (!fs.existsSync(wasmPath)) { console.error('WASM not found:', wasmPath); process.exit(1); }
   if (!fs.existsSync(zkeyPath)) { console.error('zkey not found:', zkeyPath); process.exit(1); }
@@ -95,7 +95,7 @@ async function main() {
       ['root', 'minRep', 'minTx', 'nullifier'][i] + '=' + s.slice(0, 20) + '...'
     ).join(', '));
 
-    const vkeyPath = path.join(__dirname, '../circuits/build/swarmteams/agent_reputation_vk.json');
+    const vkeyPath = path.join(__dirname, '../circuits/build/hive/agent_reputation_vk.json');
     const vkey = JSON.parse(fs.readFileSync(vkeyPath, 'utf8'));
     const valid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
 

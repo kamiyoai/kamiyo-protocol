@@ -15,7 +15,7 @@ const INTEGRATION_TASKS = [
    For each relevant post, offer SPECIFIC technical help:
    - If they need escrow: Offer to show them KAMIYO escrow SDK with code example
    - If they need payments: Offer x402 micropayments integration
-   - If they need trust/reputation: Offer SwarmTeams ZK reputation
+   - If they need trust/reputation: Offer Hive ZK reputation
    Reply with actual TypeScript code snippets they can use. End with "Vote KAMIYO if this helps!"`,
 
   // PROACTIVE OUTREACH

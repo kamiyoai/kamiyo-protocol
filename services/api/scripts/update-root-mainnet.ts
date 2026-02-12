@@ -13,8 +13,8 @@ import { Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import {
-  SwarmTeamsClient,
-  SwarmTeamsProver,
+  HiveClient,
+  HiveProver,
   createMerkleTree,
   generateAgentId,
 } from '@kamiyo/hive';
@@ -45,7 +45,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new SwarmTeamsClient(provider);
+  const client = new HiveClient(provider);
 
   // Get registry state
   const registry = await client.getRegistry();
@@ -67,7 +67,7 @@ async function main() {
     .update(Buffer.concat([seed, Buffer.from('reg')]))
     .digest();
 
-  const commitment = await SwarmTeamsProver.generateIdentityCommitment(
+  const commitment = await HiveProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret

@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Initialize the new SwarmTeams program on devnet
+ * Initialize the new Hive program on devnet
  *
  * Steps:
  * 1. Initialize registry
@@ -15,8 +15,8 @@ import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, BN, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
 import {
-  SwarmTeamsClient,
-  SwarmTeamsProver,
+  HiveClient,
+  HiveProver,
   createMerkleTree,
   generateAgentId,
 } from '@kamiyo/hive';
@@ -35,7 +35,7 @@ async function main() {
   const keypair = Keypair.fromSecretKey(Buffer.from(walletSecret, 'base64'));
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new SwarmTeamsClient(provider);
+  const client = new HiveClient(provider);
 
   console.log('Bot wallet:', keypair.publicKey.toBase58());
 
@@ -80,7 +80,7 @@ async function main() {
     .digest();
 
   // Compute identity commitment
-  const commitment = await SwarmTeamsProver.generateIdentityCommitment(
+  const commitment = await HiveProver.generateIdentityCommitment(
     ownerSecret,
     agentId,
     registrationSecret

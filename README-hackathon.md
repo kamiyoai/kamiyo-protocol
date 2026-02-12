@@ -1,4 +1,4 @@
-# SwarmTeams: Private Reputation Proofs for AI Agents
+# Hive: Private Reputation Proofs for AI Agents
 
 **Solana Privacy Hackathon Submission**
 
@@ -16,7 +16,7 @@ AI agents need to access services, APIs, and payment rails. Service providers ne
 
 ## The Solution
 
-SwarmTeams lets agents generate ZK proofs of on-chain reputation:
+Hive lets agents generate ZK proofs of on-chain reputation:
 
 ```
 "I have >90% success rate across 50+ transactions"
@@ -86,7 +86,7 @@ High reputation unlocks private payment rails through ShadowWire and Blindfold.
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  KAMIYO Protocol │     │   SwarmTeams     │     │  Payment Rails   │
+│  KAMIYO Protocol │     │   Hive     │     │  Payment Rails   │
 │  (Reputation)    │     │  (ZK Proofs)     │     │                  │
 ├──────────────────┤     ├──────────────────┤     ├──────────────────┤
 │ Agent Identity   │────►│ Proof Generation │────►│ ShadowWire       │
@@ -140,7 +140,7 @@ Constraints:
 ### For Agents
 
 ```typescript
-import { SwarmTeamsClient, ReputationProver } from '@kamiyo/swarmteams';
+import { HiveClient, ReputationProver } from '@kamiyo/hive';
 import { ShadowWireClient } from '@kamiyo/radr';
 
 // Generate reputation proof
@@ -170,9 +170,9 @@ const payment = await shadowWire.privateTransfer({
 ### For Service Providers
 
 ```typescript
-import { SwarmTeamsClient } from '@kamiyo/swarmteams';
+import { HiveClient } from '@kamiyo/hive';
 
-const client = new SwarmTeamsClient(provider);
+const client = new HiveClient(provider);
 
 // Verify agent meets reputation threshold
 const isValid = await client.verifyReputationProof(proof, {
@@ -265,14 +265,14 @@ cd kamiyo-protocol
 pnpm install
 
 # Build circuits
-cd circuits/swarmteams
+cd circuits/hive
 ./compile.sh reputation_threshold
 
 # Build Solana program
-anchor build -p swarmteams
+anchor build -p hive
 
 # Build SDK
-pnpm --filter @kamiyo/kamiyo-swarmteams run build
+pnpm --filter @kamiyo/kamiyo-hive run build
 ```
 
 ### Run Demo
@@ -289,9 +289,9 @@ pnpm tsx scripts/reputation-proof-demo.ts
 
 | Path | Description |
 |------|-------------|
-| `circuits/swarmteams/reputation_threshold.circom` | ZK circuit |
-| `programs/swarmteams/src/lib.rs` | Solana program |
-| `packages/kamiyo-swarmteams/src/reputation-prover.ts` | Proof generation |
+| `circuits/hive/reputation_threshold.circom` | ZK circuit |
+| `programs/hive/src/lib.rs` | Solana program |
+| `packages/kamiyo-hive/src/reputation-prover.ts` | Proof generation |
 | `packages/kamiyo-radr/src/shadowwire.ts` | ShadowWire integration |
 | `packages/kamiyo-blindfold/src/reputation-gate.ts` | Blindfold integration |
 
@@ -303,14 +303,14 @@ The AI agent economy is growing. Agents will transact billions in value. They ne
 2. **Privacy** - Agents need to protect competitive intelligence
 3. **Interoperability** - Reputation should be portable across services
 
-SwarmTeams solves all three with a single ZK proof.
+Hive solves all three with a single ZK proof.
 
 ## Links
 
 - [KAMIYO Protocol](https://kamiyo.ai)
 - [Radr ShadowWire](https://radr.com)
 - [Blindfold Finance](https://blindfoldfinance.com)
-- [Documentation](https://docs.kamiyo.ai/swarmteams)
+- [Documentation](https://docs.kamiyo.ai/hive)
 
 ## License
 
