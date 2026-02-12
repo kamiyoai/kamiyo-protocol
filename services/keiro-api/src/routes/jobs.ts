@@ -198,7 +198,7 @@ jobsRouter.post(
     const updatedJob = jobService.assign(jobId, agentId, escrowId);
     if (!updatedJob) return c.json({ error: 'Unable to accept this job' }, 400);
 
-    receiptService.create({
+    await receiptService.create({
       agent,
       kind: 'job_accepted',
       summary: `accepted: ${job.title}`,
@@ -209,6 +209,7 @@ jobsRouter.post(
         paymentToken: job.paymentToken,
         requiredTier: job.requiredTier,
       },
+      idempotencyKey: `job_accepted:${jobId}:${agent.id}`,
     });
 
     return c.json({ job: updatedJob, escrowId });
@@ -239,7 +240,7 @@ jobsRouter.post(
 jobsRouter.post(
   '/:id/submit',
   zValidator('json', SubmitTaskRequestSchema),
-  (c) => {
+  async (c) => {
     const jobId = c.req.param('id');
     const { agentId, result, proof } = c.req.valid('json');
 
@@ -254,7 +255,7 @@ jobsRouter.post(
     const updated = jobService.updateStatus(jobId, 'submitted');
     earningsService.create(agentId, jobId, job.payment, job.paymentToken);
 
-    receiptService.create({
+    await receiptService.create({
       agent,
       kind: 'job_submitted',
       summary: `submitted: ${job.title}`,
@@ -264,9 +265,10 @@ jobsRouter.post(
         proofProvided: !!proof,
         resultBytes: Buffer.byteLength(result, 'utf8'),
       },
+      idempotencyKey: `job_submitted:${jobId}:${agent.id}`,
     });
 
-    receiptService.create({
+    await receiptService.create({
       agent,
       kind: 'earning_created',
       summary: `earning pending: ${job.payment} ${job.paymentToken}`,
@@ -275,6 +277,7 @@ jobsRouter.post(
         amount: job.payment,
         token: job.paymentToken,
       },
+      idempotencyKey: `earning_created:${jobId}:${agent.id}`,
     });
 
     return c.json({
