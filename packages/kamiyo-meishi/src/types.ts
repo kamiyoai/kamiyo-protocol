@@ -156,7 +156,6 @@ export interface RecordTransactionParams {
 export interface MeishiPresentation {
   passportAddress: string;
   mandateVersion: number;
-  /** @deprecated Prefer assertionUal/assertionHash references. */
   complianceProof?: string;
   assertionUal?: string;
   assertionHash?: string;
@@ -173,7 +172,6 @@ export interface MeishiPresentation {
 export interface MeishiHeaders {
   'x-meishi-passport': string;
   'x-meishi-mandate-version': string;
-  /** @deprecated Prefer assertion-reference headers below. */
   'x-meishi-compliance-proof'?: string;
   'x-meishi-assertion-ual'?: string;
   'x-meishi-assertion-hash'?: string;

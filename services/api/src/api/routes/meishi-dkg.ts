@@ -19,7 +19,6 @@ function clampLimit(limit?: number): number {
 }
 
 function escapeId(value: string): string {
-  // Strip characters that could break SPARQL string literals or inject queries.
   return value.replace(/["\\\n\r{}()<>|;]/g, '').slice(0, 200);
 }
 
@@ -260,7 +259,6 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     const c = await getClient();
     const dkg = c.rawDKG;
 
-    // Minimal connectivity probe.
     await dkg.graph.query(
       'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
       'SELECT',

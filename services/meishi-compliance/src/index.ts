@@ -90,7 +90,6 @@ async function main() {
   const config = loadConfig();
   console.log(`[meishi-compliance] Starting compliance engine (env=${config.nodeEnv})`);
 
-  // Solana connection
   const connection = new Connection(config.solanaRpcUrl, 'confirmed');
   let keypair: Keypair;
   let auditorIsEphemeral = false;
@@ -110,28 +109,24 @@ async function main() {
 
   const meishiProgramId = new PublicKey(config.meishiProgramId ?? DEFAULT_MEISHI_PROGRAM_ID);
 
-  // Client
   const client = new MeishiClient({
     connection,
     keypair,
     programId: meishiProgramId.toBase58(),
   });
 
-  // Rule registry
   const registry = new RuleRegistry();
   registry.registerAll(EU_AI_ACT_RULES);
   registry.registerAll(CONSUMER_PROTECTION_RULES);
   registry.registerAll(COMMERCE_RULES);
   console.log(`[meishi-compliance] Loaded ${registry.count()} compliance rules`);
 
-  // Circuit breaker
   const circuitBreaker = new CircuitBreaker('compliance-engine', {
     failureThreshold: config.circuitBreakerThreshold,
     resetTimeoutMs: config.circuitBreakerResetMs,
     halfOpenSuccessThreshold: 2,
   });
 
-  // Engine
   const engine = new ComplianceEngine(client, circuitBreaker);
   const configuredPassports = config.seedPassportAddresses.map((address) => {
     try {
@@ -192,13 +187,11 @@ async function main() {
     console.log('[meishi-compliance] On-chain audit anchoring enabled');
   }
 
-  // Scheduler
   const scheduler = new ComplianceScheduler({
     monitorIntervalMs: config.monitorIntervalMs,
     deepAuditIntervalMs: config.deepAuditIntervalMs,
   });
 
-  // Event handlers state
   let monitorCount = 0;
   let auditCount = 0;
   let lastMonitorTime = 0;
@@ -537,7 +530,6 @@ async function main() {
     console.error('[meishi-compliance] Scheduler error:', err);
   });
 
-  // Start scheduler
   scheduler.start();
   nextExpectedMonitorAt = Date.now() + config.monitorIntervalMs;
   nextExpectedDeepAuditAt = Date.now() + config.deepAuditIntervalMs;
@@ -558,8 +550,6 @@ async function main() {
     if (lastSuccessfulMonitorTime === 0) readinessFailures.push('no_successful_monitor_tick');
     if (consecutiveMonitorFailures > 0) readinessFailures.push('monitor_failures_present');
     if (consecutiveAuditFailures > 0) readinessFailures.push('audit_failures_present');
-    // A zero-passport system is valid early in production. Only fail readiness if the operator
-    // explicitly configured seed passports but we still haven't audited anything.
     if (configuredPassports.length > 0 && lastAuditedPassportCount === 0) {
       readinessFailures.push('no_passports_discovered');
     }
@@ -581,7 +571,6 @@ async function main() {
     return readinessFailures;
   };
 
-  // Health endpoint
   const server = createServer((req, res) => {
     const url = req.url ? new URL(req.url, 'http://localhost') : null;
     if (url?.pathname === '/health') {
@@ -682,7 +671,6 @@ async function main() {
     console.log(`[meishi-compliance] Health endpoint on port ${config.port}`);
   });
 
-  // Graceful shutdown
   const shutdown = () => {
     console.log('[meishi-compliance] Shutting down');
     scheduler.stop();

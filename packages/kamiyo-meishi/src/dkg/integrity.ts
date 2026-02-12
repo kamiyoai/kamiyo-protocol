@@ -33,14 +33,6 @@ function normalizeJson(value: unknown): JsonValue {
   throw new Error(`Unsupported JSON value type: ${typeof value}`);
 }
 
-/**
- * Deterministic JSON serialization for integrity commitments.
- *
- * This is intentionally strict:
- * - keys are sorted recursively
- * - `undefined` entries are omitted
- * - non-finite numbers throw
- */
 export function canonicalizeJson(value: unknown): string {
   return JSON.stringify(normalizeJson(value));
 }

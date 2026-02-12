@@ -1,18 +1,12 @@
-// Core client
 export { MeishiClient } from './client.js';
 
-// Managers
 export { PassportManager } from './passport.js';
 export { MandateManager } from './mandate.js';
 export { LiabilityManager } from './liability.js';
 
-// Exchange protocol
 export { MeishiExchange } from './exchange.js';
-
-// On-chain write client (Anchor)
 export { MeishiWriter } from './writer.js';
 
-// Compliance scoring
 export {
   calculateComplianceScore,
   toOnChainScore,
@@ -27,14 +21,12 @@ export {
 } from './compliance-score.js';
 export type { DimensionWeights } from './compliance-score.js';
 
-// Kamon visual identity
 export {
   deriveKamonParams,
   generateKamonSVG,
   generateKamonFromPassport,
 } from './kamon.js';
 
-// Types
 export type {
   MeishiPassport,
   MeishiMandate,

@@ -194,7 +194,6 @@ export class MeishiClient {
       errors.push(`Amount $${transactionAmountUsd} exceeds per-tx limit`);
     }
 
-    // Check category bitmap
     const byteIndex = Math.floor(productCategory / 8);
     const bitIndex = productCategory % 8;
     const categoryAuthorized =
@@ -219,9 +218,7 @@ export class MeishiClient {
 
   private deserializePassport(data: Buffer): MeishiPassport | null {
     try {
-      // Skip 8-byte discriminator
       const offset = 8;
-      // Minimum size: 8 (discriminator) + 231 (fields) = 239
       if (data.length < 239) return null;
       const agentIdentity = new PublicKey(data.subarray(offset, offset + 32));
       const issuer = new PublicKey(data.subarray(offset + 32, offset + 64));
@@ -318,7 +315,6 @@ export class MeishiClient {
   private deserializeAudit(data: Buffer): MeishiAudit | null {
     try {
       const offset = 8;
-      // min: 8 disc + 32 meishi + 32 auditor + 1 type + 2+2 scores + 32 hash + 4 strlen + 0 str + 1 bool + 8 ts + 1 bump = 123
       if (data.length < 123) return null;
       const meishi = new PublicKey(data.subarray(offset, offset + 32));
       const auditor = new PublicKey(data.subarray(offset + 32, offset + 64));
@@ -326,7 +322,6 @@ export class MeishiClient {
       const complianceScoreBefore = data.readInt16LE(offset + 65);
       const complianceScoreAfter = data.readInt16LE(offset + 67);
       const findingsHash = Array.from(data.subarray(offset + 69, offset + 101));
-      // String has 4-byte length prefix
       const ualLen = data.readUInt32LE(offset + 101);
       if (ualLen > 256 || offset + 105 + ualLen > data.length) return null;
       const findingsUal = data.subarray(offset + 105, offset + 105 + ualLen).toString('utf8');

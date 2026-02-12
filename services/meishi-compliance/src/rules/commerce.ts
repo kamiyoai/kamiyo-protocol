@@ -1,12 +1,6 @@
 import type { MeishiPassport, ComplianceDimension } from '@kamiyo/meishi';
 import type { ComplianceRule } from './index.js';
 
-/**
- * Commerce-specific compliance rules.
- * Evaluates agent identity provenance and transaction volume patterns.
- */
-
-/** Identity verification — who built and deployed this agent. */
 export const identityVerificationRule: ComplianceRule = {
   name: 'identity_verification',
   jurisdiction: [],
@@ -14,26 +8,22 @@ export const identityVerificationRule: ComplianceRule = {
     let score = 0;
     const findings: string[] = [];
 
-    // Valid issuer
     if (passport.issuer.toBase58() !== '11111111111111111111111111111111') {
       score += 30;
     } else {
       findings.push('Invalid issuer address');
     }
 
-    // Has principal
     if (passport.principal.toBase58() !== '11111111111111111111111111111111') {
       score += 30;
     } else {
       findings.push('No principal assigned');
     }
 
-    // Has Kamon (identity crest)
     if (!passport.kamonHash.every((b) => b === 0)) {
       score += 20;
     }
 
-    // Agent identity linked
     if (passport.agentIdentity.toBase58() !== '11111111111111111111111111111111') {
       score += 20;
     } else {
@@ -51,7 +41,6 @@ export const identityVerificationRule: ComplianceRule = {
   },
 };
 
-/** Transaction history — volume and consistency patterns. */
 export const transactionHistoryRule: ComplianceRule = {
   name: 'transaction_history',
   jurisdiction: [],
@@ -63,12 +52,10 @@ export const transactionHistoryRule: ComplianceRule = {
     const disputeRate = txCount > 0 ? passport.disputesFiled / txCount : 0;
     const lossRate = passport.disputesFiled > 0 ? passport.disputesLost / passport.disputesFiled : 0;
 
-    // Volume bonus
     if (txCount >= 100) score += 30;
     else if (txCount >= 50) score += 20;
     else if (txCount >= 10) score += 10;
 
-    // Dispute penalty
     if (disputeRate > 0.2) {
       score -= 40;
       findings.push(`High dispute rate: ${(disputeRate * 100).toFixed(1)}%`);
@@ -77,7 +64,6 @@ export const transactionHistoryRule: ComplianceRule = {
       findings.push(`Elevated dispute rate: ${(disputeRate * 100).toFixed(1)}%`);
     }
 
-    // Loss rate penalty
     if (lossRate > 0.5) {
       score -= 20;
       findings.push(`High dispute loss rate: ${(lossRate * 100).toFixed(1)}%`);
