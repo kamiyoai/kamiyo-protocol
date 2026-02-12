@@ -43,8 +43,6 @@ export class MandateManager {
   }
 
   checkGeoRestriction(mandate: MeishiMandate, jurisdiction: number): boolean {
-    // Global (0) passes all geo checks; specific jurisdictions map to bits 0-3
-    // Bitmap: bit 0 = EU(1), bit 1 = US(2), bit 2 = UK(3), bit 3 = APAC(4)
     if (jurisdiction === 0) return true; // Global
     const bitIndex = jurisdiction - 1;
     if (bitIndex < 0 || bitIndex >= 8) return false;
@@ -63,9 +61,6 @@ export class MandateManager {
   }
 
   static buildGeoRestrictions(jurisdictions: number[]): number {
-    // Accepts jurisdiction enum values (1=EU, 2=US, 3=UK, 4=APAC).
-    // Maps to bits: EU→bit0, US→bit1, UK→bit2, APAC→bit3.
-    // Global (0) is not a restriction and is ignored.
     let bitmap = 0;
     for (const j of jurisdictions) {
       const bitIndex = j - 1;

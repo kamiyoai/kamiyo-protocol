@@ -32,19 +32,13 @@ export class ComplianceEngine {
   private mandates: MandateManager;
   private circuitBreaker: CircuitBreaker;
 
-  constructor(
-    client: MeishiClient,
-    circuitBreaker: CircuitBreaker
-  ) {
+  constructor(client: MeishiClient, circuitBreaker: CircuitBreaker) {
     this.client = client;
     this.passports = new PassportManager(client);
     this.mandates = new MandateManager(client);
     this.circuitBreaker = circuitBreaker;
   }
 
-  /**
-   * Run a compliance audit on a single passport.
-   */
   async auditPassport(passportAddress: PublicKey): Promise<AuditResult> {
     return this.circuitBreaker.execute(async () => {
       const passport = await this.client.fetchPassport(passportAddress);
@@ -69,9 +63,6 @@ export class ComplianceEngine {
     });
   }
 
-  /**
-   * Run audits on a batch of passports.
-   */
   async auditBatch(addresses: PublicKey[], concurrency = 4): Promise<AuditBatchResult> {
     const results: AuditResult[] = [];
     let failures = 0;
@@ -97,18 +88,13 @@ export class ComplianceEngine {
     return { results, failures };
   }
 
-  /**
-   * Check if a passport needs a triggered audit based on current state.
-   */
   needsTriggeredAudit(passport: MeishiPassport, scoreThreshold: number): boolean {
     if (passport.complianceScore < scoreThreshold) return true;
 
-    // Mandate expired
     const now = BigInt(Math.floor(Date.now() / 1000));
     const mandateExpires = BigInt(passport.mandateExpires.toString(10));
     if (mandateExpires <= now) return true;
 
-    // High dispute rate
     const txCount = BigInt(passport.totalTransactions.toString(10));
     if (txCount > 0n) {
       const disputes = BigInt(passport.disputesFiled);

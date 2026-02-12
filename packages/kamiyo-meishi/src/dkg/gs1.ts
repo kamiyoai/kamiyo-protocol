@@ -1,7 +1,3 @@
-/**
- * GS1 Digital Link URI utilities.
- * @see https://ref.gs1.org/standards/digital-link/uri-syntax/
- */
 
 export const GS1_AI = {
   GIAI: '8004',           // Global Individual Asset Identifier
@@ -11,7 +7,6 @@ export const GS1_AI = {
   GLN: '414',             // Global Location Number (party)
 } as const;
 
-// 099* reserved for test/internal use by GS1
 const DEFAULT_GS1_PREFIX = '0999999';
 const DEFAULT_RESOLVER = 'https://id.gs1.org';
 const GS1_VOCAB = 'https://www.gs1.org/voc/';
@@ -28,10 +23,6 @@ let _config: Required<GS1Config> = {
   resolverDomain: DEFAULT_RESOLVER,
 };
 
-/**
- * Configure the GS1 prefix and resolver domain.
- * Call once at startup with your registered GS1 Company Prefix.
- */
 export function configureGS1(config: GS1Config): void {
   if (config.companyPrefix !== undefined) {
     if (!/^\d{7,12}$/.test(config.companyPrefix)) {
@@ -56,11 +47,9 @@ export function configureGS1(config: GS1Config): void {
 }
 
 export function gs1Context(): Record<string, string> {
-  // Inline the context to avoid runtime JSON-LD dereferencing (GS1 blocks crawlers/automations).
   return { gs1: GS1_VOCAB };
 }
 
-// {companyPrefix}{assetRef}
 export function buildAgentGIAI(meishiPda: string): string {
   const safeRef = meishiPda
     .replace(/[^a-zA-Z0-9]/g, '')
@@ -74,13 +63,11 @@ export function buildAgentGIAI(meishiPda: string): string {
 }
 
 export function isValidGIAI(value: string): boolean {
-  // GS1 GIAI up to 30 alphanumeric chars; keep validation permissive.
   return /^[A-Za-z0-9]{8,30}$/.test(value);
 }
 
 export type MeishiAssetType = 'tx-decision' | 'audit' | 'liability';
 
-// {resolver}/8004/{GIAI}/8020/{assetType}-{timestamp}
 export function buildMeishiDigitalLink(params: {
   agentGIAI: string;
   assetType: MeishiAssetType;
@@ -111,13 +98,11 @@ export function buildAgentDigitalLink(meishiPda: string): string {
   return `${_config.resolverDomain}/${GS1_AI.GIAI}/${encodeURIComponent(giai)}`;
 }
 
-// 13-digit identifier with GS1 check digit
 export function isValidGLN(value: string): boolean {
   if (!/^\d{13}$/.test(value)) return false;
   return computeGS1CheckDigit(value.slice(0, 12)) === parseInt(value[12], 10);
 }
 
-// Mod-10, alternating weights 1/3
 export function computeGS1CheckDigit(digits: string): number {
   if (!/^\d+$/.test(digits)) {
     throw new Error('Check digit input must be numeric');
@@ -126,7 +111,6 @@ export function computeGS1CheckDigit(digits: string): number {
   let sum = 0;
   for (let i = 0; i < digits.length; i++) {
     const digit = parseInt(digits[i], 10);
-    // Weights alternate 3, 1, 3, 1... from the rightmost position
     const weight = (digits.length - i) % 2 === 0 ? 1 : 3;
     sum += digit * weight;
   }

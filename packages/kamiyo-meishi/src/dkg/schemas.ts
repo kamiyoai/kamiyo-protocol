@@ -1,8 +1,3 @@
-/**
- * OriginTrail-compatible JSON-LD document builders for Meishi knowledge assets.
- * These builders produce schema.org + GS1 Digital Link aligned assertions that can
- * be published as DKG public/private assertions.
- */
 
 import {
   buildAgentDigitalLink,
@@ -11,7 +6,6 @@ import {
   gs1Context,
 } from './gs1.js';
 
-// Inline contexts to avoid runtime JSON-LD dereferencing during DKG publishing.
 const SCHEMA_CONTEXT = { '@vocab': 'https://schema.org/' };
 const MAX_ID_LENGTH = 220;
 

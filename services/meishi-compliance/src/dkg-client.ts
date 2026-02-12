@@ -38,13 +38,6 @@ async function requestJson<T>(
   return (await response.json()) as T;
 }
 
-/**
- * Thin HTTP wrapper for DKG query/get/publish.
- * Endpoint paths are aligned with common dkg-engine API deployments:
- * - POST /publish { content, options }
- * - POST /query { sparql }
- * - POST /get { ual }
- */
 export class HttpDKGClient implements DKGClient {
   private readonly apiUrl: string;
   private readonly apiKey?: string;

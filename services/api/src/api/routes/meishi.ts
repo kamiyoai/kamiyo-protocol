@@ -21,7 +21,6 @@ function asyncRoute(fn: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
-// GET /api/meishi/agent/:agentIdentity/verify
 router.get('/agent/:agentIdentity/verify', asyncRoute(async (req: Request, res: Response) => {
   const agentIdentity = parsePubkey(req.params.agentIdentity);
   if (!agentIdentity) {
@@ -38,7 +37,6 @@ router.get('/agent/:agentIdentity/verify', asyncRoute(async (req: Request, res: 
   });
 }));
 
-// GET /api/meishi/passport/:passportAddress
 router.get('/passport/:passportAddress', asyncRoute(async (req: Request, res: Response) => {
   const passportAddress = parsePubkey(req.params.passportAddress);
   if (!passportAddress) {
@@ -60,7 +58,6 @@ router.get('/passport/:passportAddress', asyncRoute(async (req: Request, res: Re
   });
 }));
 
-// GET /api/meishi/passport/:passportAddress/mandate/:version
 router.get('/passport/:passportAddress/mandate/:version', asyncRoute(async (req: Request, res: Response) => {
   const passportAddress = parsePubkey(req.params.passportAddress);
   if (!passportAddress) {
@@ -83,7 +80,6 @@ router.get('/passport/:passportAddress/mandate/:version', asyncRoute(async (req:
   res.json({ mandate: serializeMandate(mandate) });
 }));
 
-// GET /api/meishi/passport/:passportAddress/audit/:nonce
 router.get('/passport/:passportAddress/audit/:nonce', asyncRoute(async (req: Request, res: Response) => {
   const passportAddress = parsePubkey(req.params.passportAddress);
   if (!passportAddress) {
