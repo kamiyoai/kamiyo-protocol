@@ -12,6 +12,8 @@ export interface OriginTrailDKGClientConfig {
   rpcUrl?: string;
   privateKey?: string;
   paranetUal?: string;
+  minimumNumberOfFinalizationConfirmations?: number;
+  minimumNumberOfNodeReplications?: number;
 }
 
 async function requestJson<T>(
@@ -112,10 +114,22 @@ type DkgJsClient = {
 export class OriginTrailDKGClient implements DKGClient {
   private readonly dkg: DkgJsClient;
   private readonly paranetUal?: string;
+  private readonly minimumNumberOfFinalizationConfirmations?: number;
+  private readonly minimumNumberOfNodeReplications?: number;
 
-  constructor(dkg: DkgJsClient, paranetUal?: string) {
+  constructor(
+    dkg: DkgJsClient,
+    opts?: {
+      paranetUal?: string;
+      minimumNumberOfFinalizationConfirmations?: number;
+      minimumNumberOfNodeReplications?: number;
+    }
+  ) {
     this.dkg = dkg;
-    this.paranetUal = paranetUal;
+    this.paranetUal = opts?.paranetUal;
+    this.minimumNumberOfFinalizationConfirmations =
+      opts?.minimumNumberOfFinalizationConfirmations;
+    this.minimumNumberOfNodeReplications = opts?.minimumNumberOfNodeReplications;
   }
 
   async query(sparql: string): Promise<unknown[]> {
@@ -137,18 +151,24 @@ export class OriginTrailDKGClient implements DKGClient {
   async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
     const result = await this.dkg.asset.create(content, {
       ...(options?.epochs ? { epochsNum: options.epochs } : {}),
+      ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
+      ...(typeof this.minimumNumberOfFinalizationConfirmations === 'number'
+        ? { minimumNumberOfFinalizationConfirmations: this.minimumNumberOfFinalizationConfirmations }
+        : {}),
+      ...(typeof this.minimumNumberOfNodeReplications === 'number'
+        ? { minimumNumberOfNodeReplications: this.minimumNumberOfNodeReplications }
+        : {}),
     });
-    if (!result?.UAL) {
-      throw new Error('DKG publish response missing UAL');
-    }
+    const ual = (
+      (result as any)?.UAL ??
+      (result as any)?.ual ??
+      (result as any)?.data?.UAL ??
+      (result as any)?.data?.ual
+    );
 
-    const ual = result.UAL;
-
-    if (this.paranetUal) {
-      if (typeof this.dkg.asset.submitToParanet !== 'function') {
-        throw new Error('DKG client does not support paranet submission (missing asset.submitToParanet)');
-      }
-      await this.dkg.asset.submitToParanet(ual, this.paranetUal);
+    if (!ual || typeof ual !== 'string') {
+      const status = (result as any)?.operation?.publish?.status ?? 'unknown';
+      throw new Error(`DKG publish response missing UAL (publishStatus=${status})`);
     }
 
     return ual;
@@ -187,5 +207,9 @@ export async function createOriginTrailDKGClient(config: OriginTrailDKGClientCon
     nodeApiVersion: '/v1',
   });
 
-  return new OriginTrailDKGClient(dkg, config.paranetUal);
+  return new OriginTrailDKGClient(dkg, {
+    paranetUal: config.paranetUal,
+    minimumNumberOfFinalizationConfirmations: config.minimumNumberOfFinalizationConfirmations,
+    minimumNumberOfNodeReplications: config.minimumNumberOfNodeReplications,
+  });
 }
