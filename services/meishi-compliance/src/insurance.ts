@@ -72,6 +72,12 @@ interface CreatePoolInput {
   claimPayoutThreshold?: number;
 }
 
+interface NumberValidationOptions {
+  min?: number;
+  max?: number;
+  integer?: boolean;
+}
+
 export class LiabilityInsuranceEngine {
   private pools = new Map<string, InsurancePool>();
   private policies = new Map<string, InsurancePolicy>();
@@ -87,16 +93,21 @@ export class LiabilityInsuranceEngine {
     if (this.pools.has(id)) {
       throw new Error(`Insurance pool already exists: ${id}`);
     }
-    if (input.reserveUsd <= 0) {
-      throw new Error('reserveUsd must be > 0');
-    }
-    if (input.basePremiumBps <= 0 || input.basePremiumBps > 10000) {
-      throw new Error('basePremiumBps must be within 1..10000');
-    }
+    const name = input.name.trim();
+    if (name.length === 0) throw new Error('name is required');
+    this.assertNumber('reserveUsd', input.reserveUsd, { min: 0.01 });
+    this.assertNumber('basePremiumBps', input.basePremiumBps, { min: 1, max: 10000 });
+    this.assertNumber('minComplianceScore', input.minComplianceScore, { min: -1000, max: 1000 });
+    this.assertNumber('maxCoverageUsd', input.maxCoverageUsd, { min: 0.01 });
+    this.assertNumber('claimPayoutThreshold', input.claimPayoutThreshold ?? 3, {
+      min: 1,
+      max: 21,
+      integer: true,
+    });
 
     const pool: InsurancePool = {
       id,
-      name: input.name,
+      name,
       premiumAsset: 'KAMIYO',
       reserveUsd: input.reserveUsd,
       basePremiumBps: input.basePremiumBps,
@@ -114,6 +125,11 @@ export class LiabilityInsuranceEngine {
 
   quote(poolId: string, input: UnderwritingInput): InsuranceQuote {
     const pool = this.requirePool(poolId);
+    this.assertNumber('complianceScore', input.complianceScore, { min: 0, max: 100 });
+    this.assertNumber('monthlyVolumeUsd', input.monthlyVolumeUsd, { min: 0 });
+    this.assertNumber('disputeRate', input.disputeRate, { min: 0, max: 1 });
+    this.assertNumber('requestedCoverageUsd', input.requestedCoverageUsd, { min: 0.01 });
+
     if (input.complianceScore < pool.minComplianceScore) {
       throw new Error('Agent compliance score is below pool minimum');
     }
@@ -144,6 +160,7 @@ export class LiabilityInsuranceEngine {
   }
 
   createPolicy(poolId: string, input: UnderwritingInput, durationDays = 365): InsurancePolicy {
+    this.assertNumber('durationDays', durationDays, { min: 1, max: 365, integer: true });
     const quote = this.quote(poolId, input);
     const pool = this.requirePool(poolId);
     const now = Date.now();
@@ -172,9 +189,8 @@ export class LiabilityInsuranceEngine {
     if (policy.status !== 'active') {
       throw new Error('Policy is not active');
     }
-    if (requestedPayoutUsd <= 0) {
-      throw new Error('requestedPayoutUsd must be > 0');
-    }
+    if (incidentRef.trim().length === 0) throw new Error('incidentRef is required');
+    this.assertNumber('requestedPayoutUsd', requestedPayoutUsd, { min: 0.01 });
 
     const claim: InsuranceClaim = {
       id: `claim_${crypto.randomBytes(6).toString('hex')}`,
@@ -197,6 +213,8 @@ export class LiabilityInsuranceEngine {
     if (claim.status !== 'submitted') {
       return claim;
     }
+    this.assertNumber('forVotes', vote.forVotes, { min: 0, max: 1000, integer: true });
+    this.assertNumber('againstVotes', vote.againstVotes, { min: 0, max: 1000, integer: true });
     const policy = this.requirePolicy(claim.policyId);
     const pool = this.requirePool(policy.poolId);
 
@@ -232,6 +250,21 @@ export class LiabilityInsuranceEngine {
     const disputePenalty = Math.max(0, input.disputeRate * 2.5);
     const volumeFactor = Math.min(0.35, input.monthlyVolumeUsd / 1_000_000);
     return 1 + compliancePenalty + disputePenalty + volumeFactor;
+  }
+
+  private assertNumber(name: string, value: number, options: NumberValidationOptions): void {
+    if (!Number.isFinite(value)) {
+      throw new Error(`${name} must be a finite number`);
+    }
+    if (options.integer && !Number.isInteger(value)) {
+      throw new Error(`${name} must be an integer`);
+    }
+    if (options.min != null && value < options.min) {
+      throw new Error(`${name} must be >= ${options.min}`);
+    }
+    if (options.max != null && value > options.max) {
+      throw new Error(`${name} must be <= ${options.max}`);
+    }
   }
 
   private requirePool(poolId: string): InsurancePool {

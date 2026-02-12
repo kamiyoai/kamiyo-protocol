@@ -40,6 +40,15 @@ export interface ComplianceServiceConfig {
   schedulerRestartBaseBackoffMs: number;
   schedulerRestartMaxBackoffMs: number;
 
+  apiKey?: string;
+  allowUnauthenticatedReadRoutes: boolean;
+  rateLimitWindowMs: number;
+  rateLimitMaxRequests: number;
+  rateLimitAuditBatchMaxRequests: number;
+  sseMaxConnections: number;
+  sseMaxConnectionsPerIp: number;
+  requestTimeoutMs: number;
+
   port: number;
 }
 
@@ -120,6 +129,15 @@ export function loadConfig(): ComplianceServiceConfig {
       parseInt(process.env.SCHEDULER_RESTART_BASE_BACKOFF_MS ?? '', 10) || 5000,
     schedulerRestartMaxBackoffMs:
       parseInt(process.env.SCHEDULER_RESTART_MAX_BACKOFF_MS ?? '', 10) || 60000,
+    apiKey: process.env.COMPLIANCE_API_KEY?.trim() || undefined,
+    allowUnauthenticatedReadRoutes: parseBool(process.env.ALLOW_UNAUTHENTICATED_READ_ROUTES),
+    rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? '', 10) || 60000,
+    rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? '', 10) || 120,
+    rateLimitAuditBatchMaxRequests:
+      parseInt(process.env.RATE_LIMIT_AUDIT_BATCH_MAX_REQUESTS ?? '', 10) || 12,
+    sseMaxConnections: parseInt(process.env.SSE_MAX_CONNECTIONS ?? '', 10) || 200,
+    sseMaxConnectionsPerIp: parseInt(process.env.SSE_MAX_CONNECTIONS_PER_IP ?? '', 10) || 5,
+    requestTimeoutMs: parseInt(process.env.REQUEST_TIMEOUT_MS ?? '', 10) || 30000,
     port: parseInt(process.env.PORT ?? '', 10) || 3100,
   };
 }

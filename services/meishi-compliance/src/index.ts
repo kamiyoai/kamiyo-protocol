@@ -30,6 +30,7 @@ import {
   type AlertSource,
 } from './realtime-alerts.js';
 import { LiabilityInsuranceEngine } from './insurance.js';
+import { extractClientIp, InMemoryRateLimiter, readApiKey } from './security.js';
 
 dotenv.config();
 
@@ -81,6 +82,15 @@ function deriveAlertSeverity(onChainScore: number, suspended: boolean): AlertSev
 
 function shortId(): string {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function isPublicRoute(pathname: string): boolean {
+  return pathname === '/health' || pathname === '/ready';
+}
+
+function isReadOnlyRoute(pathname: string, method: string): boolean {
+  if (method !== 'GET') return false;
+  return pathname === '/compliance/check' || pathname === '/compliance/reward-multiplier';
 }
 
 function safeHost(url: string | undefined): string | null {
@@ -163,6 +173,24 @@ async function readJsonBody(req: IncomingMessage, maxBytes = 1_000_000): Promise
 function json(res: ServerResponse, status: number, payload: Record<string, unknown>): void {
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(JSON.stringify(payload));
+}
+
+function inferErrorStatus(err: unknown): number {
+  if (!(err instanceof Error)) return 500;
+  const message = err.message.toLowerCase();
+  if (
+    message.includes('invalid')
+    || message.includes('required')
+    || message.includes('must be')
+    || message.includes('not found')
+    || message.includes('no valid')
+    || message.includes('already exists')
+    || message.includes('not active')
+    || message.includes('below pool minimum')
+  ) {
+    return 400;
+  }
+  return 500;
 }
 
 function isDkgWalletBalances(value: unknown): value is { blockchainToken: string; trac: string } {
@@ -329,10 +357,21 @@ async function main() {
   let dkgWalletBalances: { blockchainToken: string; trac: string } | null = null;
   let dkgWalletProbeInterval: ReturnType<typeof setInterval> | null = null;
   let alertPublishFailures = 0;
+  let authDeniedCount = 0;
+  let rateLimitDeniedCount = 0;
+  let sseActiveConnections = 0;
+  let sseRejectedConnections = 0;
+  const sseConnectionsByIp = new Map<string, number>();
 
   const alertHub = new RealtimeAlertHub();
   const alertAdapters = createAdaptersFromEnv(process.env);
   const insurance = new LiabilityInsuranceEngine();
+  const globalRateLimiter = new InMemoryRateLimiter();
+  const auditBatchRateLimiter = new InMemoryRateLimiter();
+  const rateLimiterPruneTimer = setInterval(() => {
+    globalRateLimiter.prune();
+    auditBatchRateLimiter.prune();
+  }, Math.max(config.rateLimitWindowMs, 30000));
 
   insurance.createPool({
     id: 'default_underwriting_pool',
@@ -343,6 +382,10 @@ async function main() {
     maxCoverageUsd: 500000,
     claimPayoutThreshold: 3,
   });
+
+  if (config.nodeEnv === 'production' && !config.apiKey) {
+    console.warn('[meishi-compliance] COMPLIANCE_API_KEY is not set; API routes are unauthenticated');
+  }
 
   const getFrameworkStatus = (score: number): 'pass' | 'warn' | 'fail' => {
     if (score >= 80) return 'pass';
@@ -887,8 +930,70 @@ async function main() {
   const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = req.url ? new URL(req.url, 'http://localhost') : null;
     const method = (req.method ?? 'GET').toUpperCase();
+    const pathname = url?.pathname ?? '/';
+    const clientIp = extractClientIp(req);
+
+    if (!isPublicRoute(pathname)) {
+      const generalLimit = globalRateLimiter.check(
+        `${clientIp}:${method}:${pathname}`,
+        config.rateLimitMaxRequests,
+        config.rateLimitWindowMs
+      );
+      if (!generalLimit.allowed) {
+        rateLimitDeniedCount++;
+        res.setHeader('retry-after', Math.ceil(generalLimit.retryAfterMs / 1000));
+        json(res, 429, {
+          error: 'rate_limit_exceeded',
+          retryAfterMs: generalLimit.retryAfterMs,
+        });
+        return;
+      }
+    }
+
+    const shouldBypassAuth =
+      isPublicRoute(pathname)
+      || (config.allowUnauthenticatedReadRoutes && isReadOnlyRoute(pathname, method));
+
+    if (config.apiKey && !shouldBypassAuth) {
+      const providedKey = readApiKey(req);
+      if (!providedKey || providedKey !== config.apiKey) {
+        authDeniedCount++;
+        json(res, 401, { error: 'unauthorized' });
+        return;
+      }
+    }
 
     if (url?.pathname === '/compliance/realtime-alerts' && method === 'GET') {
+      if (sseActiveConnections >= config.sseMaxConnections) {
+        sseRejectedConnections++;
+        json(res, 429, { error: 'too_many_streams' });
+        return;
+      }
+      const ipConnections = sseConnectionsByIp.get(clientIp) ?? 0;
+      if (ipConnections >= config.sseMaxConnectionsPerIp) {
+        sseRejectedConnections++;
+        json(res, 429, { error: 'too_many_streams_for_ip' });
+        return;
+      }
+
+      sseActiveConnections++;
+      sseConnectionsByIp.set(clientIp, ipConnections + 1);
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        sseActiveConnections = Math.max(0, sseActiveConnections - 1);
+        const current = sseConnectionsByIp.get(clientIp) ?? 0;
+        if (current <= 1) {
+          sseConnectionsByIp.delete(clientIp);
+        } else {
+          sseConnectionsByIp.set(clientIp, current - 1);
+        }
+      };
+      req.on('close', release);
+      req.on('end', release);
+      req.on('error', release);
+
       const minSeverity = (url.searchParams.get('minSeverity') ?? '').toLowerCase();
       const severity =
         minSeverity === 'critical' || minSeverity === 'warn' || minSeverity === 'info'
@@ -942,6 +1047,21 @@ async function main() {
     }
 
     if (url?.pathname === '/compliance/audit-batch' && method === 'POST') {
+      const batchLimit = auditBatchRateLimiter.check(
+        `${clientIp}:audit-batch`,
+        config.rateLimitAuditBatchMaxRequests,
+        config.rateLimitWindowMs
+      );
+      if (!batchLimit.allowed) {
+        rateLimitDeniedCount++;
+        res.setHeader('retry-after', Math.ceil(batchLimit.retryAfterMs / 1000));
+        json(res, 429, {
+          error: 'audit_batch_rate_limit_exceeded',
+          retryAfterMs: batchLimit.retryAfterMs,
+        });
+        return;
+      }
+
       const input = await readJsonBody(req);
       const result = await runApiAuditBatch(input);
       json(res, 200, result);
@@ -952,6 +1072,21 @@ async function main() {
       const input = await readJsonBody(req);
       const query = String(input.query ?? '');
       const variables = (input.variables as Record<string, unknown>) ?? {};
+      if (query.includes('auditBatch')) {
+        const batchLimit = auditBatchRateLimiter.check(
+          `${clientIp}:graphql-audit-batch`,
+          config.rateLimitAuditBatchMaxRequests,
+          config.rateLimitWindowMs
+        );
+        if (!batchLimit.allowed) {
+          rateLimitDeniedCount++;
+          res.setHeader('retry-after', Math.ceil(batchLimit.retryAfterMs / 1000));
+          json(res, 429, {
+            errors: [{ message: 'audit_batch_rate_limit_exceeded' }],
+          });
+          return;
+        }
+      }
 
       if (query.includes('complianceCheck')) {
         const agentId = String(variables.agentId ?? '').trim();
@@ -1120,6 +1255,18 @@ async function main() {
         lastDkgPublishError,
         lastDkgPublishErrorAt,
         alertPublishFailures,
+        apiAuthEnabled: Boolean(config.apiKey),
+        allowUnauthenticatedReadRoutes: config.allowUnauthenticatedReadRoutes,
+        authDeniedCount,
+        rateLimitWindowMs: config.rateLimitWindowMs,
+        rateLimitMaxRequests: config.rateLimitMaxRequests,
+        rateLimitAuditBatchMaxRequests: config.rateLimitAuditBatchMaxRequests,
+        rateLimitDeniedCount,
+        requestTimeoutMs: config.requestTimeoutMs,
+        sseMaxConnections: config.sseMaxConnections,
+        sseMaxConnectionsPerIp: config.sseMaxConnectionsPerIp,
+        sseActiveConnections,
+        sseRejectedConnections,
         dkg: config.enableDkgPublishing
           ? {
               endpointHost: dkgEndpointHost,
@@ -1171,10 +1318,25 @@ async function main() {
   };
 
   const server = createServer((req, res) => {
+    req.setTimeout(config.requestTimeoutMs, () => {
+      if (res.writableEnded) return;
+      json(res, 408, { error: 'request_timeout' });
+      req.destroy();
+    });
+    res.setHeader('x-content-type-options', 'nosniff');
+    res.setHeader('x-frame-options', 'DENY');
+
     void handleRequest(req, res).catch((err) => {
       console.error('[meishi-compliance] Request handler failed:', err);
       if (res.writableEnded) return;
-      json(res, 500, { error: 'internal_error', message: err instanceof Error ? err.message : String(err) });
+      const status = inferErrorStatus(err);
+      const message =
+        config.nodeEnv === 'production' && status >= 500
+          ? 'internal_error'
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      json(res, status, { error: status >= 500 ? 'internal_error' : 'bad_request', message });
     });
   });
 
@@ -1189,6 +1351,7 @@ async function main() {
       clearInterval(rpcProbeInterval);
       rpcProbeInterval = null;
     }
+    clearInterval(rateLimiterPruneTimer);
     if (dkgWalletProbeInterval) {
       clearInterval(dkgWalletProbeInterval);
       dkgWalletProbeInterval = null;
