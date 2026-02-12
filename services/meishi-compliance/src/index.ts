@@ -154,6 +154,9 @@ async function main() {
             rpcUrl: config.dkgRpcUrl,
             privateKey: config.dkgPrivateKey,
             paranetUal: config.dkgParanetUal,
+            minimumNumberOfFinalizationConfirmations:
+              config.dkgMinimumFinalizationConfirmations,
+            minimumNumberOfNodeReplications: config.dkgMinimumNodeReplications,
           })
         : config.dkgApiUrl
           ? new HttpDKGClient({ apiUrl: config.dkgApiUrl, apiKey: config.dkgApiKey })
@@ -627,6 +630,9 @@ async function main() {
                 blockchain: dkgBlockchain,
                 rpcHost: resolvedRpcHost,
                 paranetUal: config.dkgParanetUal ?? null,
+                minFinalityConfirmations:
+                  config.dkgMinimumFinalizationConfirmations ?? null,
+                minNodeReplications: config.dkgMinimumNodeReplications ?? null,
                 walletAddress: dkgWalletAddress,
                 walletBalances: dkgWalletBalances,
                 lastWalletProbeAt: lastDkgWalletProbeAt,

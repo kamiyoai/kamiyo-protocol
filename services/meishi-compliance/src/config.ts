@@ -21,6 +21,8 @@ export interface ComplianceServiceConfig {
   dkgPrivateKey?: string;
   dkgRpcUrl?: string;
   dkgParanetUal?: string;
+  dkgMinimumFinalizationConfirmations?: number;
+  dkgMinimumNodeReplications?: number;
   dkgDefaultEpochs: number;
   dkgPublishRetries: number;
   dkgPublishBackoffMs: number;
@@ -60,6 +62,12 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 function parseBool(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === 'true';
+}
+
+function parseOptionalInt(value: string | undefined): number | undefined {
+  if (value == null || value.trim() === '') return undefined;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function loadConfig(): ComplianceServiceConfig {
@@ -105,6 +113,10 @@ export function loadConfig(): ComplianceServiceConfig {
     dkgPrivateKey: process.env.DKG_PRIVATE_KEY?.trim() || undefined,
     dkgRpcUrl: process.env.DKG_RPC_URL?.trim() || undefined,
     dkgParanetUal: process.env.DKG_PARANET_UAL?.trim() || undefined,
+    dkgMinimumFinalizationConfirmations: parseOptionalInt(
+      process.env.DKG_MIN_FINALITY_CONFIRMATIONS
+    ),
+    dkgMinimumNodeReplications: parseOptionalInt(process.env.DKG_MIN_NODE_REPLICATIONS),
     dkgDefaultEpochs: parseInt(process.env.DKG_DEFAULT_EPOCHS ?? '', 10) || 12,
     dkgPublishRetries: parseInt(process.env.DKG_PUBLISH_RETRIES ?? '', 10) || 2,
     dkgPublishBackoffMs: parseInt(process.env.DKG_PUBLISH_BACKOFF_MS ?? '', 10) || 1000,
