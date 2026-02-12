@@ -5,7 +5,7 @@ members = [
     "programs/kamiyo-staking",
     "programs/kamiyo-governance",
     "programs/kamiyo-transfer-hook",
-    "programs/swarmteams",
+    "programs/hive",
     "programs/kamiyo-fast-voting",
     "programs/meishi",
 ]

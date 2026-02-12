@@ -10,9 +10,9 @@ import { getContext, formatContextForPrompt } from './crypto-context';
 import { generateMeme, isImageGenAvailable } from './image-gen';
 import { getTrendingContext, formatTrendingForPrompt } from './trend-engine';
 import { getRecentInfluencerTopics } from './influencer-monitor';
-import { extractMarketSignal, formatSignal } from './swarmteams-signal';
-import { demoEvents } from './swarmteams-live-demo';
-import { getSwarmTeamsAgent } from './swarmteams-stubs';
+import { extractMarketSignal, formatSignal } from './hive-signal';
+import { demoEvents } from './hive-live-demo';
+import { getHiveAgent } from './hive-stubs';
 import { BN } from '@coral-xyz/anchor';
 
 // Initialize tables
@@ -220,16 +220,16 @@ export function getTopThemes(limit = 5): Array<{ theme: string; intensity: numbe
   return db.prepare('SELECT theme, intensity FROM recurring_themes ORDER BY intensity DESC, last_used DESC LIMIT ?').all(limit) as Array<{ theme: string; intensity: number }>;
 }
 
-// Emit log to SwarmTeams stream
-function emitSwarmTeamsLog(step: number, type: 'info' | 'success' | 'error' | 'tx' | 'proof' | 'tweet', message: string, data?: Record<string, unknown>) {
+// Emit log to Hive stream
+function emitHiveLog(step: number, type: 'info' | 'success' | 'error' | 'tx' | 'proof' | 'tweet', message: string, data?: Record<string, unknown>) {
   demoEvents.emit('log', { timestamp: Date.now(), step, type, message, data });
   logger.info(`[SWARMTEAMS] ${message}`, data);
 }
 
 // Decide if the bot should stake on this take (generate ZK proof)
 async function shouldStakeOnTake(content: string): Promise<boolean> {
-  // Must have SwarmTeams agent registered
-  const agent = getSwarmTeamsAgent();
+  // Must have Hive agent registered
+  const agent = getHiveAgent();
   if (!agent?.isRegistered()) return false;
 
   // Extract signal to see if it's a market take
@@ -359,12 +359,12 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
 
   if (await shouldStakeOnTake(finalContent)) {
     const signal = extractMarketSignal(finalContent);
-    const agent = getSwarmTeamsAgent();
+    const agent = getHiveAgent();
 
     if (signal && agent) {
-      emitSwarmTeamsLog(0, 'info', 'Bot staking on market take', { signal: formatSignal(signal) });
+      emitHiveLog(0, 'info', 'Bot staking on market take', { signal: formatSignal(signal) });
 
-      // Submit signal via SwarmTeams agent with real stake
+      // Submit signal via Hive agent with real stake
       const result = await agent.submitSignal(
         signal.type,
         signal.direction,
@@ -376,7 +376,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
 
       if (result) {
         signalCommitment = result.commitment;
-        emitSwarmTeamsLog(2, 'success', 'Signal committed via SwarmTeams', {
+        emitHiveLog(2, 'success', 'Signal committed via Hive', {
           commitment: result.commitment.slice(0, 24) + '...',
           direction: signal.direction === 1 ? 'LONG' : 'SHORT',
           confidence: signal.confidence + '%',
@@ -387,7 +387,7 @@ export async function generatePost(anthropic: Anthropic): Promise<QueuedPost> {
         const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
         if (postContent.length + commitmentTag.length <= 280) {
           postContent = postContent + commitmentTag;
-          emitSwarmTeamsLog(3, 'info', 'Commitment added to post');
+          emitHiveLog(3, 'info', 'Commitment added to post');
         }
       }
     }

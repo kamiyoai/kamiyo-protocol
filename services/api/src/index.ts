@@ -6,7 +6,7 @@ import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
 import { initProtocol, getProtocol } from './protocol';
-import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './swarmteams-live-demo';
+import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './hive-live-demo';
 import { initCompanionAgent, generateAgentResponse, isAgentAvailable } from './agent-client';
 
 // Feature flag: use new Claude Agent SDK wrapper
@@ -150,8 +150,8 @@ import { closeDatabase } from './db';
 import { shutdownMcpSessions } from './mcp/index.js';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
-import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './swarmteams-signal';
-import { initSwarmTeamsAgent, getSwarmTeamsAgent, formatTrackRecord, getRecentSignals } from './swarmteams-stubs';
+import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './hive-signal';
+import { initHiveAgent, getHiveAgent, formatTrackRecord, getRecentSignals } from './hive-stubs';
 import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
@@ -259,7 +259,7 @@ const COMMANDS = {
   STATUS: /^!status$/,
   CLEAR: /^!clear$/,
   HELP: /^!help$/,
-  SWARMTEAMS_DEMO: /^!swarmteams-demo$/,
+  SWARMTEAMS_DEMO: /^!hive-demo$/,
   SIGNALS: /^!signals$/,
 };
 
@@ -507,17 +507,17 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     }
   }
 
-  // !signals - Show SwarmTeams signal track record
+  // !signals - Show Hive signal track record
   if (COMMANDS.SIGNALS.test(text)) {
-    const agent = getSwarmTeamsAgent();
+    const agent = getHiveAgent();
     if (!agent || !agent.isRegistered()) {
-      return 'SwarmTeams agent not active. Signal tracking unavailable.';
+      return 'Hive agent not active. Signal tracking unavailable.';
     }
 
     const trackRecord = formatTrackRecord();
     const recent = getRecentSignals(3);
 
-    let response = `SwarmTeams Track Record:\n${trackRecord}`;
+    let response = `Hive Track Record:\n${trackRecord}`;
     if (recent.length > 0) {
       response += '\n\nRecent signals:';
       for (const sig of recent) {
@@ -530,15 +530,15 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     return response;
   }
 
-  // !swarmteams-demo - Trigger SwarmTeams ZK demo (owner only)
+  // !hive-demo - Trigger Hive ZK demo (owner only)
   if (COMMANDS.SWARMTEAMS_DEMO.test(text)) {
     // Only owner can trigger demo
     if (userId !== DEMO_OWNER_ID) {
-      return 'SwarmTeams demo is owner-only. Watch @kamiyocompanion for scheduled demos.';
+      return 'Hive demo is owner-only. Watch @kamiyocompanion for scheduled demos.';
     }
 
     if (isDemoRunning()) {
-      return 'SwarmTeams demo is already running. Watch the thread.';
+      return 'Hive demo is already running. Watch the thread.';
     }
 
     if (!globalTwitter) {
@@ -548,13 +548,13 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     // Start demo in background (don't await - it runs async)
     runLiveDemo(globalTwitter).then(result => {
       if (result.success) {
-        logger.info('SwarmTeams demo completed', { tweets: result.tweetIds.length, txs: result.txSignatures.length });
+        logger.info('Hive demo completed', { tweets: result.tweetIds.length, txs: result.txSignatures.length });
       } else {
-        logger.error('SwarmTeams demo failed', { error: result.error });
+        logger.error('Hive demo failed', { error: result.error });
       }
     });
 
-    return 'Starting SwarmTeams demo. Watch this thread for the full ZK agent flow. Stream logs: /api/swarmteams/demo/stream';
+    return 'Starting Hive demo. Watch this thread for the full ZK agent flow. Stream logs: /api/hive/demo/stream';
   }
 
   // !lookup <address> - Wallet holdings lookup
@@ -1024,12 +1024,12 @@ async function processMention(
   const signal = extractMarketSignal(response);
   if (signal && signal.direction !== 2) { // Has directional take
     const stakeChance = 1.0; // 100% for demo
-    const swarmTeamsAgent = getSwarmTeamsAgent();
+    const swarmTeamsAgent = getHiveAgent();
 
     if (Math.random() < stakeChance && swarmTeamsAgent?.isRegistered()) {
-      logger.info('Staking on reply take via SwarmTeams', { signal: formatSignal(signal) });
+      logger.info('Staking on reply take via Hive', { signal: formatSignal(signal) });
 
-      // Use real SwarmTeams agent to submit signal with stake
+      // Use real Hive agent to submit signal with stake
       const result = await swarmTeamsAgent.submitSignal(
         signal.type,
         signal.direction,
@@ -1043,7 +1043,7 @@ async function processMention(
         const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
         if (finalResponse.length + commitmentTag.length <= 280) {
           finalResponse = finalResponse + commitmentTag;
-          logger.info('Added SwarmTeams commitment to reply', { commitment: result.commitment.slice(0, 16) });
+          logger.info('Added Hive commitment to reply', { commitment: result.commitment.slice(0, 16) });
         }
       }
     }
@@ -1480,18 +1480,18 @@ async function main(): Promise<void> {
     hasProver: protocol.hasProver(),
   });
 
-  // Initialize SwarmTeams agent (bot's on-chain ZK identity)
-  const swarmTeamsAgent = await initSwarmTeamsAgent();
+  // Initialize Hive agent (bot's on-chain ZK identity)
+  const swarmTeamsAgent = await initHiveAgent();
   if (swarmTeamsAgent) {
-    // Register bot as SwarmTeams agent if not already registered
+    // Register bot as Hive agent if not already registered
     if (!swarmTeamsAgent.isRegistered()) {
-      logger.info('Registering bot as SwarmTeams agent...');
+      logger.info('Registering bot as Hive agent...');
       const commitment = await swarmTeamsAgent.register(new BN(100000000)); // 0.1 SOL stake
       if (commitment) {
-        logger.info('Bot registered as SwarmTeams agent', { commitment: commitment.slice(0, 16) + '...' });
+        logger.info('Bot registered as Hive agent', { commitment: commitment.slice(0, 16) + '...' });
       }
     } else {
-      logger.info('SwarmTeams agent already registered', {
+      logger.info('Hive agent already registered', {
         commitment: swarmTeamsAgent.getIdentityCommitment()?.slice(0, 16) + '...',
         trackRecord: formatTrackRecord(),
       });

@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { Connection, Keypair } from '@solana/web3.js';
 import { AnchorProvider, Wallet } from '@coral-xyz/anchor';
 import * as crypto from 'crypto';
-import { SwarmTeamsClient, SwarmTeamsProver, MerkleTree, generateAgentId } from '@kamiyo/hive';
+import { HiveClient, HiveProver, MerkleTree, generateAgentId } from '@kamiyo/hive';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -47,7 +47,7 @@ async function main() {
   const connection = new Connection(rpcUrl, 'confirmed');
   const wallet = new Wallet(keypair);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-  const client = new SwarmTeamsClient(provider);
+  const client = new HiveClient(provider);
   const registry = await client.getRegistry();
 
   if (!registry) {
@@ -81,8 +81,8 @@ async function main() {
   const start = Date.now();
 
   // Initialize prover
-  const circuitsPath = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/swarmteams');
-  const prover = new SwarmTeamsProver(circuitsPath);
+  const circuitsPath = process.env.CIRCUITS_PATH || path.resolve(__dirname, '../../circuits/build/hive');
+  const prover = new HiveProver(circuitsPath);
 
   try {
     const { proof, voteNullifier, voteCommitment } = await prover.proveSwarmVote({

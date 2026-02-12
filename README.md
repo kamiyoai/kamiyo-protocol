@@ -39,7 +39,7 @@ These are the fastest paths to first success:
 |---|---|
 | `examples/eliza-demo` | Agent-to-agent payments, escrow, SLA dispute flow |
 | `examples/sla-demo` | SLA-aware escrow settlements |
-| `examples/swarmteams-demo` | Multi-agent coordination with trust constraints |
+| `examples/hive-demo` | Multi-agent coordination with trust constraints |
 | `examples/hyperliquid-agent` | Agent workflows with Hyperliquid integration |
 | `examples/dark-forest-demo` | Privacy-oriented trust simulation |
 | `examples/babyagi3-tool-pack` | Tooling integration for agent runtimes |

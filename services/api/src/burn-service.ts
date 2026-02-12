@@ -383,15 +383,15 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
 
     // Dynamic import - may not be available in all environments
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let SwarmTeamsClient: any;
+    let HiveClient: any;
     try {
       // Use variable to prevent TypeScript from analyzing the import
       const moduleName = '@kamiyo/hive';
-      const swarmteams = await import(/* webpackIgnore: true */ moduleName);
-      SwarmTeamsClient = swarmteams.SwarmTeamsClient;
+      const hive = await import(/* webpackIgnore: true */ moduleName);
+      HiveClient = hive.HiveClient;
     } catch {
-      logger.warn('SwarmTeams SDK not available - treasury burn disabled');
-      return { success: false, error: 'SwarmTeams SDK not available in this environment' };
+      logger.warn('Hive SDK not available - treasury burn disabled');
+      return { success: false, error: 'Hive SDK not available in this environment' };
     }
 
     // Load authority keypair
@@ -403,15 +403,15 @@ async function executePendingBurns(): Promise<{ success: boolean; txSignature?: 
       return { success: false, error: 'Invalid AUTHORITY_WALLET_SECRET format' };
     }
 
-    // Create SwarmTeams client
+    // Create Hive client
     const connection = new Connection(config.rpcUrl, 'confirmed');
     const wallet = new Wallet(authority);
     const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
-    const client = new SwarmTeamsClient(provider);
+    const client = new HiveClient(provider);
 
     // Get treasury balance to verify sufficient funds
-    const [registryPDA] = SwarmTeamsClient.getRegistryPDA();
-    const [treasuryVault] = SwarmTeamsClient.getTreasuryPDA(registryPDA);
+    const [registryPDA] = HiveClient.getRegistryPDA();
+    const [treasuryVault] = HiveClient.getTreasuryPDA(registryPDA);
     const treasuryBalance = await connection.getTokenAccountBalance(treasuryVault);
     const balance = BigInt(treasuryBalance.value.amount);
 

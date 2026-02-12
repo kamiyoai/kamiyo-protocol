@@ -58,7 +58,7 @@ Live on mainnet: solscan.io/account/FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u
 Here's how to add ZK reputation verification to your agent:
 
 \`\`\`typescript
-import { generateReputationProof, verifyProof } from '@kamiyo/swarmteams';
+import { generateReputationProof, verifyProof } from '@kamiyo/hive';
 
 // Agent proves reputation without revealing identity
 const proof = await generateReputationProof({

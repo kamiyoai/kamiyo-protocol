@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",
-    "@kamiyo/hive": "file:../../packages/kamiyo-swarmteams",
+    "@kamiyo/hive": "file:../../packages/kamiyo-hive",
     "@solana/web3.js": "^1.87.6",
     "bs58": "^5.0.0",
     "chalk": "^5.6.2",

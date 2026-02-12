@@ -57,7 +57,7 @@ async function main() {
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
 
   // Load IDL
-  const idlPath = path.resolve(__dirname, '../../../packages/kamiyo-swarmteams/src/idl/swarmteams.json');
+  const idlPath = path.resolve(__dirname, '../../../packages/kamiyo-hive/src/idl/hive.json');
   const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
   const program = new Program(idl, provider);
 

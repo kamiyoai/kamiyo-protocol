@@ -1,4 +1,4 @@
-// Reputation proof generation for SwarmTeams
+// Reputation proof generation for Hive
 // This is a browser-compatible version that simulates proof generation
 // Real proofs use snarkjs with the compiled agent_reputation circuit
 
