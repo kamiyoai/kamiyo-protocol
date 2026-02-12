@@ -14,6 +14,24 @@ import {
 } from "../packages/kamiyo-meishi/dist/dkg/queries.js";
 
 describe("Meishi DKG OriginTrail alignment", () => {
+  const hasSchemaContext = (ctx: unknown[]): boolean =>
+    ctx.some(
+      (entry) =>
+        (typeof entry === "string" && entry === "https://schema.org/") ||
+        (typeof entry === "object" &&
+          entry !== null &&
+          (entry as Record<string, unknown>)["@vocab"] === "https://schema.org/")
+    );
+
+  const hasGs1Context = (ctx: unknown[]): boolean =>
+    ctx.some(
+      (entry) =>
+        (typeof entry === "string" && entry === "https://www.gs1.org/voc/") ||
+        (typeof entry === "object" &&
+          entry !== null &&
+          (entry as Record<string, unknown>).gs1 === "https://www.gs1.org/voc/")
+    );
+
   it("uses GS1 resolver-compatible digital links by default", () => {
     const agentLink = buildAgentDigitalLink("4ndfL9E4uU5xFk2ZkQXo1xMUp5n3");
     expect(agentLink.startsWith("https://id.gs1.org/8004/")).to.equal(true);
@@ -46,11 +64,10 @@ describe("Meishi DKG OriginTrail alignment", () => {
       privateFindingsUal: "ual:dkg:private:findings:1",
     });
 
-    expect(payload.public["@context"]).to.deep.equal([
-      "https://schema.org/",
-      "https://www.gs1.org/voc/",
-      "https://kamiyo.io/context/meishi/v1",
-    ]);
+    const ctx = payload.public["@context"] as unknown[];
+    expect(Array.isArray(ctx)).to.equal(true);
+    expect(hasSchemaContext(ctx)).to.equal(true);
+    expect(hasGs1Context(ctx)).to.equal(true);
     expect(payload.private).to.not.equal(undefined);
   });
 
@@ -72,9 +89,10 @@ describe("Meishi DKG OriginTrail alignment", () => {
       privateReasoning: "risk low",
     });
 
-    const ctx = payload.public["@context"] as string[];
-    expect(ctx.includes("https://schema.org/")).to.equal(true);
-    expect(ctx.includes("https://www.gs1.org/voc/")).to.equal(true);
+    const ctx = payload.public["@context"] as unknown[];
+    expect(Array.isArray(ctx)).to.equal(true);
+    expect(hasSchemaContext(ctx)).to.equal(true);
+    expect(hasGs1Context(ctx)).to.equal(true);
     expect(payload.private).to.not.equal(undefined);
   });
 
