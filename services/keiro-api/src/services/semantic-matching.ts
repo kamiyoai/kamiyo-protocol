@@ -226,8 +226,6 @@ export async function rankJobsForAgent(agent: Agent, jobs: Job[]): Promise<Ranke
     return { job, score };
   });
 
-  // Keep a light threshold to avoid irrelevant noise while still surfacing
-  // semantically related jobs for custom skill tags.
   const threshold = vectors ? 0.24 : 0.1;
   return ranked
     .filter((r) => r.score >= threshold)

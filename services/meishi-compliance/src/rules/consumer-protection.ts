@@ -1,34 +1,26 @@
 import type { MeishiPassport, ComplianceDimension } from '@kamiyo/meishi';
 import type { ComplianceRule } from './index.js';
 
-/**
- * Consumer protection rules — applicable across all jurisdictions.
- */
-
-/** Authorization verification — consumer must have delegated authority. */
 export const authorizationRule: ComplianceRule = {
   name: 'authorization_verification',
-  jurisdiction: [], // All jurisdictions
+  jurisdiction: [],
   evaluate(passport: MeishiPassport): ComplianceDimension {
     let score = 0;
     const findings: string[] = [];
     const now = Math.floor(Date.now() / 1000);
 
-    // Has a mandate hash
     if (!passport.mandateHash.every((b) => b === 0)) {
       score += 40;
     } else {
       findings.push('No authorization mandate configured');
     }
 
-    // Mandate not expired
     if (passport.mandateExpires.toNumber() > now) {
       score += 40;
     } else {
       findings.push('Mandate expired');
     }
 
-    // Mandate version set
     if (passport.mandateVersion > 0) {
       score += 20;
     } else {
@@ -46,15 +38,13 @@ export const authorizationRule: ComplianceRule = {
   },
 };
 
-/** Spending limit enforcement — agent must operate within mandate bounds. */
 export const spendingComplianceRule: ComplianceRule = {
   name: 'spending_compliance',
   jurisdiction: [],
   evaluate(passport: MeishiPassport): ComplianceDimension {
-    let score = 50; // Neutral baseline
+    let score = 50;
     const findings: string[] = [];
 
-    // Has transactions
     const txCount = passport.totalTransactions.toNumber();
     if (txCount === 0) {
       return {
@@ -67,7 +57,6 @@ export const spendingComplianceRule: ComplianceRule = {
       };
     }
 
-    // Low dispute rate means spending within expectations
     const disputeRate = passport.disputesFiled / txCount;
     if (disputeRate === 0) {
       score += 40;
@@ -80,7 +69,6 @@ export const spendingComplianceRule: ComplianceRule = {
       findings.push(`High dispute rate indicates potential overspending: ${(disputeRate * 100).toFixed(1)}%`);
     }
 
-    // Not suspended
     if (!passport.suspended) {
       score += 10;
     } else {
@@ -99,12 +87,11 @@ export const spendingComplianceRule: ComplianceRule = {
   },
 };
 
-/** Dispute record — clean track record. */
 export const disputeRecordRule: ComplianceRule = {
   name: 'dispute_record',
   jurisdiction: [],
   evaluate(passport: MeishiPassport): ComplianceDimension {
-    let score = 80; // Start high
+    let score = 80;
     const findings: string[] = [];
 
     const txCount = passport.totalTransactions.toNumber();

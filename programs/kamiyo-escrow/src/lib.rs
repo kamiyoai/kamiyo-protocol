@@ -28,13 +28,24 @@ pub const MAX_ORACLES_PER_ESCROW: usize = 5;
 pub const MIN_ORACLE_STAKE: u64 = 100_000_000_000;
 
 /// Kamiyo staking program ID
-pub const KAMIYO_STAKING_PROGRAM_ID: Pubkey = pubkey!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
+pub const KAMIYO_STAKING_PROGRAM_ID: Pubkey =
+    pubkey!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
+
+/// Account discriminator for Kamiyo staking StakePosition ("account:StakePosition").
+pub const STAKE_POSITION_DISCRIMINATOR: [u8; 8] = [78, 165, 30, 111, 171, 125, 11, 220];
 
 // Quality-based refund thresholds
 pub const QUALITY_FULL_REFUND_THRESHOLD: u8 = 50; // 0-49 = 100% refund
 pub const QUALITY_HIGH_REFUND_THRESHOLD: u8 = 65; // 50-64 = 75% refund
 pub const QUALITY_LOW_REFUND_THRESHOLD: u8 = 80; // 65-79 = 35% refund
-// 80-100 = 0% refund
+                                                 // 80-100 = 0% refund
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+struct StakePositionPrefix {
+    owner: Pubkey,
+    staked_amount: u64,
+}
 
 /// Calculate burn and treasury amounts for a fee
 fn calculate_fee_split(total_fee: u64) -> (u64, u64) {
@@ -78,25 +89,20 @@ fn verify_oracle_stake(stake_position_info: &AccountInfo, oracle: &Pubkey) -> Re
         return Ok(false);
     }
 
-    // Read stake amount from account data
-    // StakePosition layout: 8 (discriminator) + 32 (owner) + 8 (staked_amount) + ...
     let data = stake_position_info.try_borrow_data()?;
-    if data.len() < 48 {
+    if data.len() < 8 || data[..8] != STAKE_POSITION_DISCRIMINATOR {
         return Ok(false);
     }
 
-    // Verify owner matches
-    let owner_bytes: [u8; 32] = data[8..40].try_into().map_err(|_| EscrowError::InvalidStakePosition)?;
-    if Pubkey::from(owner_bytes) != *oracle {
+    let mut slice = &data[8..];
+    let position = StakePositionPrefix::deserialize(&mut slice)
+        .map_err(|_| EscrowError::InvalidStakePosition)?;
+
+    if position.owner != *oracle {
         return Ok(false);
     }
 
-    // Read staked_amount (u64 little-endian at offset 40)
-    let staked_amount = u64::from_le_bytes(
-        data[40..48].try_into().map_err(|_| EscrowError::InvalidStakePosition)?
-    );
-
-    Ok(staked_amount >= MIN_ORACLE_STAKE)
+    Ok(position.staked_amount >= MIN_ORACLE_STAKE)
 }
 
 /// Compute commitment hash with domain separation
@@ -134,7 +140,10 @@ pub mod kamiyo_escrow {
         require_stake: bool,
     ) -> Result<()> {
         require!(min_consensus >= 3, EscrowError::InvalidConsensusConfig);
-        require!(max_score_deviation <= 50, EscrowError::InvalidConsensusConfig);
+        require!(
+            max_score_deviation <= 50,
+            EscrowError::InvalidConsensusConfig
+        );
         require!(commit_duration >= 60, EscrowError::InvalidTimingConfig); // Min 1 minute
         require!(reveal_duration >= 300, EscrowError::InvalidTimingConfig); // Min 5 minutes
 
@@ -160,10 +169,7 @@ pub mod kamiyo_escrow {
     }
 
     /// Register an oracle (admin only)
-    pub fn register_oracle(
-        ctx: Context<RegisterOracle>,
-        oracle_pubkey: Pubkey,
-    ) -> Result<()> {
+    pub fn register_oracle(ctx: Context<RegisterOracle>, oracle_pubkey: Pubkey) -> Result<()> {
         let config = &mut ctx.accounts.oracle_config;
 
         // Check not already registered
@@ -187,10 +193,7 @@ pub mod kamiyo_escrow {
     }
 
     /// Remove an oracle (admin only)
-    pub fn remove_oracle(
-        ctx: Context<RemoveOracle>,
-        oracle_pubkey: Pubkey,
-    ) -> Result<()> {
+    pub fn remove_oracle(ctx: Context<RemoveOracle>, oracle_pubkey: Pubkey) -> Result<()> {
         let config = &mut ctx.accounts.oracle_config;
 
         let index = config
@@ -385,10 +388,7 @@ pub mod kamiyo_escrow {
     }
 
     /// Oracle commits their quality score hash (commit-reveal phase 1)
-    pub fn commit_vote(
-        ctx: Context<CommitVote>,
-        commitment_hash: [u8; 32],
-    ) -> Result<()> {
+    pub fn commit_vote(ctx: Context<CommitVote>, commitment_hash: [u8; 32]) -> Result<()> {
         let escrow = &mut ctx.accounts.escrow;
         let config = &ctx.accounts.oracle_config;
         let oracle = ctx.accounts.oracle.key();
@@ -407,7 +407,9 @@ pub mod kamiyo_escrow {
 
         // Verify oracle stake if required (sybil protection)
         if config.require_stake {
-            let stake_position = ctx.accounts.oracle_stake_position
+            let stake_position = ctx
+                .accounts
+                .oracle_stake_position
                 .as_ref()
                 .ok_or(EscrowError::StakePositionRequired)?;
             require!(
@@ -455,11 +457,7 @@ pub mod kamiyo_escrow {
     }
 
     /// Oracle reveals their quality score (commit-reveal phase 2)
-    pub fn reveal_vote(
-        ctx: Context<RevealVote>,
-        quality_score: u8,
-        salt: [u8; 32],
-    ) -> Result<()> {
+    pub fn reveal_vote(ctx: Context<RevealVote>, quality_score: u8, salt: [u8; 32]) -> Result<()> {
         let escrow = &mut ctx.accounts.escrow;
         let config = &ctx.accounts.oracle_config;
         let oracle = ctx.accounts.oracle.key();
@@ -500,8 +498,7 @@ pub mod kamiyo_escrow {
         require!(!commitment.revealed, EscrowError::AlreadyRevealed);
 
         // Verify hash matches
-        let expected_hash =
-            compute_commitment_hash(&session_id, &oracle, quality_score, &salt);
+        let expected_hash = compute_commitment_hash(&session_id, &oracle, quality_score, &salt);
         require!(
             commitment.commitment_hash == expected_hash,
             EscrowError::InvalidCommitmentHash
@@ -555,10 +552,7 @@ pub mod kamiyo_escrow {
         let reveal_ends = commit_ends + config.reveal_duration;
 
         // Either reveal phase ended, or we have all committed oracles revealed
-        let all_revealed = escrow
-            .oracle_commitments
-            .iter()
-            .all(|c| c.revealed);
+        let all_revealed = escrow.oracle_commitments.iter().all(|c| c.revealed);
         require!(
             clock.unix_timestamp >= reveal_ends || all_revealed,
             EscrowError::RevealPhaseNotEnded
@@ -691,10 +685,7 @@ pub mod kamiyo_escrow {
         // Check that we don't have enough oracle consensus
         // If oracles reached consensus, they should call finalize_dispute instead
         let has_consensus = escrow.oracle_submissions.len() >= config.min_consensus as usize;
-        require!(
-            !has_consensus,
-            EscrowError::DisputeHasConsensus
-        );
+        require!(!has_consensus, EscrowError::DisputeHasConsensus);
 
         // Refund to user since oracles failed to resolve
         escrow.status = EscrowStatus::Refunded;

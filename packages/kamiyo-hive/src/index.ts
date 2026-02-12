@@ -321,5 +321,5 @@ export type {
   ClientPayload,
 } from './channels/index.js';
 
-// SwarmTeams SDK
-export * from './swarmteams/index.js';
+// Hive SDK
+export * from './hive/index.js';

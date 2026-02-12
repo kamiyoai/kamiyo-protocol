@@ -11,7 +11,6 @@ export const AgentSkillSchema = z
   .string()
   .min(1)
   .max(32)
-  // allow user-defined tags; server normalizes to lowercase and trims
   .regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*[a-zA-Z0-9]$/, 'Invalid skill tag');
 
 export const AgentTierSchema = z.enum([
@@ -162,3 +161,57 @@ export type AcceptJobRequest = z.infer<typeof AcceptJobRequestSchema>;
 export type StartJobRequest = z.infer<typeof StartJobRequestSchema>;
 export type SubmitTaskRequest = z.infer<typeof SubmitTaskRequestSchema>;
 export type RateTaskRequest = z.infer<typeof RateTaskRequestSchema>;
+
+export const JurisdictionSchema = z.enum(['global', 'eu', 'us', 'uk', 'apac']);
+export const ComplianceClassSchema = z.enum([
+  'unclassified',
+  'minimal',
+  'limited',
+  'high',
+  'unacceptable',
+]);
+export const SuspensionReasonSchema = z.enum([
+  'none',
+  'compliance_failure',
+  'fraud_detected',
+  'mandate_expired',
+  'oracle_consensus',
+]);
+
+export const MeishiPassportSchema = z.object({
+  agentIdentity: z.string(),
+  issuer: z.string(),
+  principal: z.string(),
+  kamonHash: z.string(),
+  complianceClass: ComplianceClassSchema,
+  complianceScore: z.number(),
+  jurisdiction: JurisdictionSchema,
+  mandateHash: z.string(),
+  mandateExpires: z.string(),
+  mandateVersion: z.number(),
+  totalTransactions: z.number(),
+  totalVolumeUsd: z.number(),
+  disputesFiled: z.number(),
+  disputesLost: z.number(),
+  lastAudit: z.string(),
+  auditNonce: z.number(),
+  suspended: z.boolean(),
+  suspensionReason: SuspensionReasonSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const MeishiMandateSchema = z.object({
+  version: z.number(),
+  spendingLimitUsd: z.number(),
+  dailyLimitUsd: z.number(),
+  monthlyLimitUsd: z.number(),
+  requiresHumanApprovalAbove: z.number(),
+  geoRestrictions: z.array(JurisdictionSchema),
+  validFrom: z.string(),
+  validUntil: z.string(),
+  revoked: z.boolean(),
+});
+
+export type MeishiPassport = z.infer<typeof MeishiPassportSchema>;
+export type MeishiMandate = z.infer<typeof MeishiMandateSchema>;

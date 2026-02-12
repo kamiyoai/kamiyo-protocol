@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@kamiyo/daydreams": "workspace:*",
-    "@kamiyo/hive": "file:../../packages/kamiyo-swarmteams",
+    "@kamiyo/hive": "file:../../packages/kamiyo-hive",
     "gradient-string": "^3.0.0"
   },
   "devDependencies": {

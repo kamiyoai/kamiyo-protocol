@@ -1,6 +1,3 @@
-/**
- * SPARQL query builders for discovering Meishi knowledge assets on OriginTrail DKG.
- */
 
 const MAX_QUERY_LIMIT = 50;
 
@@ -10,13 +7,9 @@ function clampLimit(limit?: number): number {
 }
 
 function escapeId(value: string): string {
-  // Strip characters that could break SPARQL string literals or inject queries
   return value.replace(/["\\\n\r{}()<>|;]/g, '').slice(0, 200);
 }
 
-/**
- * Find all transaction decisions by an agent within a time range.
- */
 export function queryAgentTransactions(agentId: string, opts?: {
   sinceDays?: number;
   limit?: number;
@@ -49,9 +42,6 @@ export function queryAgentTransactions(agentId: string, opts?: {
   `.trim();
 }
 
-/**
- * Find agents with compliance score above a threshold.
- */
 export function queryCompliantAgents(minScore: number, opts?: {
   jurisdiction?: string;
   limit?: number;
@@ -81,9 +71,6 @@ export function queryCompliantAgents(minScore: number, opts?: {
   `.trim();
 }
 
-/**
- * Get the latest compliance audit for a specific agent.
- */
 export function queryLatestAudit(agentId: string): string {
   const safeId = escapeId(agentId);
 
@@ -110,9 +97,6 @@ export function queryLatestAudit(agentId: string): string {
   `.trim();
 }
 
-/**
- * Trace the full liability chain for a disputed transaction.
- */
 export function queryLiabilityChain(disputeId: string): string {
   const safeId = escapeId(disputeId);
 
@@ -137,9 +121,6 @@ export function queryLiabilityChain(disputeId: string): string {
   `.trim();
 }
 
-/**
- * Find all disputes involving a specific Meishi passport.
- */
 export function queryPassportDisputes(meishiPda: string, opts?: {
   limit?: number;
 }): string {
@@ -164,9 +145,6 @@ export function queryPassportDisputes(meishiPda: string, opts?: {
   `.trim();
 }
 
-/**
- * Get transaction volume statistics for an agent over a time period.
- */
 export function queryAgentVolume(agentId: string, sinceDays: number = 30): string {
   const cutoff = new Date(Date.now() - sinceDays * 86400000).toISOString();
   const safeId = escapeId(agentId);

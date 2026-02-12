@@ -16,6 +16,7 @@ import {
 import { AgentSkillSchema } from '../types/index.js';
 import { normalizeSkillTag } from '../services/skill-tags.js';
 import { isAgentSemanticallyEligibleForJob, rankJobsForAgent, tierMeetsRequirement } from '../services/semantic-matching.js';
+import { receiptService } from '../services/receipts.js';
 
 export const jobsRouter = new Hono();
 
@@ -196,6 +197,20 @@ jobsRouter.post(
 
     const updatedJob = jobService.assign(jobId, agentId, escrowId);
     if (!updatedJob) return c.json({ error: 'Unable to accept this job' }, 400);
+
+    receiptService.create({
+      agent,
+      kind: 'job_accepted',
+      summary: `accepted: ${job.title}`,
+      payload: {
+        jobId,
+        escrowId,
+        payment: job.payment,
+        paymentToken: job.paymentToken,
+        requiredTier: job.requiredTier,
+      },
+    });
+
     return c.json({ job: updatedJob, escrowId });
   }
 );
@@ -239,6 +254,29 @@ jobsRouter.post(
     const updated = jobService.updateStatus(jobId, 'submitted');
     earningsService.create(agentId, jobId, job.payment, job.paymentToken);
 
+    receiptService.create({
+      agent,
+      kind: 'job_submitted',
+      summary: `submitted: ${job.title}`,
+      payload: {
+        jobId,
+        escrowId: job.escrowId ?? null,
+        proofProvided: !!proof,
+        resultBytes: Buffer.byteLength(result, 'utf8'),
+      },
+    });
+
+    receiptService.create({
+      agent,
+      kind: 'earning_created',
+      summary: `earning pending: ${job.payment} ${job.paymentToken}`,
+      payload: {
+        jobId,
+        amount: job.payment,
+        token: job.paymentToken,
+      },
+    });
+
     return c.json({
       job: updated,
       submission: {
@@ -264,7 +302,6 @@ jobsRouter.post(
     if (job.status !== 'submitted') return c.json({ error: 'Job has not been submitted' }, 400);
 
     const updatedJob = jobService.updateStatus(jobId, 'completed');
-    // rating from 1..5 -> scale to 0..100
     const quality = Math.round((Math.max(1, Math.min(5, rating)) - 1) * 25);
     if (job.assignedAgent) agentService.recordTaskCompletion(job.assignedAgent, quality, false);
 

@@ -61,9 +61,6 @@ function isValidAssertionUal(value: string): boolean {
   );
 }
 
-/**
- * Meishi credential presentation and verification for HTTP exchanges.
- */
 export class MeishiExchange {
   private passports: PassportManager;
   private mandates: MandateManager;
@@ -73,10 +70,6 @@ export class MeishiExchange {
     this.mandates = new MandateManager(client);
   }
 
-  /**
-   * Present your Meishi to a counterparty.
-   * Generates a signed presentation object for HTTP or direct exchange.
-   */
   async present(
     agentIdentity: PublicKey,
     requestBody?: Buffer,
@@ -137,9 +130,6 @@ export class MeishiExchange {
     };
   }
 
-  /**
-   * Convert a presentation to HTTP headers for x402 integration.
-   */
   toHeaders(
     presentation: MeishiPresentation,
     options: { includeLegacyComplianceProof?: boolean } = {}
@@ -184,9 +174,6 @@ export class MeishiExchange {
     return headers;
   }
 
-  /**
-   * Parse Meishi headers from an incoming HTTP request.
-   */
   static fromHeaders(headers: Record<string, string | undefined>): MeishiPresentation | null {
     const passport = headers['x-meishi-passport'];
     const mandateVersion = headers['x-meishi-mandate-version'];
@@ -196,7 +183,6 @@ export class MeishiExchange {
       return null;
     }
 
-    // Validate as a valid Solana public key
     try {
       new PublicKey(passport);
     } catch {
@@ -278,10 +264,6 @@ export class MeishiExchange {
     };
   }
 
-  /**
-   * Verify an incoming Meishi presentation.
-   * Checks: passport exists, not suspended, mandate valid, score threshold.
-   */
   async verify(
     presentation: MeishiPresentation,
     options: {
@@ -317,7 +299,6 @@ export class MeishiExchange {
       return { valid: false, errors: ['Passport not found'], warnings };
     }
 
-    // Verify detached ed25519 signature against principal or issuer key.
     let signatureBytes: Buffer;
     try {
       signatureBytes = Buffer.from(presentation.signature, 'base64');
@@ -424,7 +405,6 @@ export class MeishiExchange {
       errors.push(`Passport suspended: reason ${passport.suspensionReason}`);
     }
 
-    // Check mandate validity
     const now = Math.floor(Date.now() / 1000);
     if (passport.mandateExpires.toNumber() <= now) {
       errors.push('Mandate expired');
@@ -433,7 +413,6 @@ export class MeishiExchange {
       errors.push('No mandate configured');
     }
 
-    // Check compliance score threshold
     const minScore = options.minComplianceScore ?? 0;
     if (passport.complianceScore < minScore) {
       errors.push(`Compliance score ${passport.complianceScore} below threshold ${minScore}`);
@@ -497,14 +476,12 @@ export class MeishiExchange {
       }
     }
 
-    // Check jurisdiction
     if (options.requiredJurisdiction !== undefined) {
       if (passport.jurisdiction !== options.requiredJurisdiction) {
         warnings.push(`Jurisdiction mismatch: passport=${passport.jurisdiction}, required=${options.requiredJurisdiction}`);
       }
     }
 
-    // Check mandate spending limits if transaction amount provided
     if (options.maxTransactionUsd !== undefined || options.productCategory !== undefined) {
       const mandate = await this.client.getMandate(
         passportAddress,
@@ -530,7 +507,6 @@ export class MeishiExchange {
       }
     }
 
-    // Dispute rate warning
     const disputeRate = this.passports.getDisputeRate(passport);
     if (disputeRate > 0.1) {
       warnings.push(`High dispute rate: ${(disputeRate * 100).toFixed(1)}%`);

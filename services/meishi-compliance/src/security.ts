@@ -70,4 +70,3 @@ export function readApiKey(req: IncomingMessage): string | null {
   if (!token || token.trim().length === 0) return null;
   return token.trim();
 }
-

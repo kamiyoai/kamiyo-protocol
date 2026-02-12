@@ -1,6 +1,5 @@
 import type { Earning } from '../types/index.js';
 
-// In-memory earnings store
 const earnings = new Map<string, Earning>();
 
 function newId(): string {

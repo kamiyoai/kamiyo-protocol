@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mitama + SwarmTeams Vote+Bid Demo
+# Mitama + Hive Vote+Bid Demo
 # Demonstrates private task allocation with ZK proofs
 
 set -e
@@ -36,7 +36,7 @@ fi
 step "SCENE 1: Create SwarmTeam with 5 Agents"
 
 log "Creating team 'Alpha Squad'..."
-TEAM_RESPONSE=$(curl -s -X POST "${API_URL}/api/swarm-teams" \
+TEAM_RESPONSE=$(curl -s -X POST "${API_URL}/api/hive-teams" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Alpha Squad",
@@ -55,7 +55,7 @@ TEAM_ID=$(echo $TEAM_RESPONSE | jq -r '.id')
 success "Team created: $TEAM_ID"
 
 # Get member IDs
-MEMBERS=$(curl -s "${API_URL}/api/swarm-teams/${TEAM_ID}" | jq -r '.members')
+MEMBERS=$(curl -s "${API_URL}/api/hive-teams/${TEAM_ID}" | jq -r '.members')
 ALICE_ID=$(echo $MEMBERS | jq -r '.[0].id')
 BOB_ID=$(echo $MEMBERS | jq -r '.[1].id')
 CHARLIE_ID=$(echo $MEMBERS | jq -r '.[2].id')
@@ -65,7 +65,7 @@ EVE_ID=$(echo $MEMBERS | jq -r '.[4].id')
 log "Members: Alice=$ALICE_ID, Bob=$BOB_ID, Charlie=$CHARLIE_ID, Diana=$DIANA_ID, Eve=$EVE_ID"
 
 log "Funding pool with \$100 USDC..."
-curl -s -X POST "${API_URL}/api/swarm-teams/${TEAM_ID}/fund" \
+curl -s -X POST "${API_URL}/api/hive-teams/${TEAM_ID}/fund" \
   -H "Content-Type: application/json" \
   -d '{"amount": 100}' > /dev/null
 success "Pool funded: \$100 USDC"
@@ -73,7 +73,7 @@ success "Pool funded: \$100 USDC"
 step "SCENE 2: Propose Task"
 
 log "Proposing task: 'Research Solana DeFi trends'..."
-PROPOSAL_RESPONSE=$(curl -s -X POST "${API_URL}/api/swarm-teams/${TEAM_ID}/propose-task" \
+PROPOSAL_RESPONSE=$(curl -s -X POST "${API_URL}/api/hive-teams/${TEAM_ID}/propose-task" \
   -H "Content-Type: application/json" \
   -d '{
     "description": "Research Solana DeFi trends and write a 500-word report",
@@ -104,7 +104,7 @@ submit_vote_bid() {
   local vote_commitment="vote_commit_${agent_name}_${RANDOM}"
   local bid_commitment="bid_commit_${agent_name}_${RANDOM}"
 
-  curl -s -X POST "${API_URL}/api/swarm-teams/${TEAM_ID}/vote-bid" \
+  curl -s -X POST "${API_URL}/api/hive-teams/${TEAM_ID}/vote-bid" \
     -H "Content-Type: application/json" \
     -d "{
       \"proposalId\": \"${PROPOSAL_ID}\",
@@ -147,7 +147,7 @@ reveal_vote_bid() {
   local bid=$4
   local agent_name=$5
 
-  local response=$(curl -s -X POST "${API_URL}/api/swarm-teams/${TEAM_ID}/reveal-bid" \
+  local response=$(curl -s -X POST "${API_URL}/api/hive-teams/${TEAM_ID}/reveal-bid" \
     -H "Content-Type: application/json" \
     -d "{
       \"proposalId\": \"${PROPOSAL_ID}\",
@@ -178,7 +178,7 @@ step "SCENE 5: Execute Proposal"
 
 log "Executing proposal (highest YES bidder wins)..."
 
-EXEC_RESPONSE=$(curl -s -X POST "${API_URL}/api/swarm-teams/${TEAM_ID}/execute-proposal" \
+EXEC_RESPONSE=$(curl -s -X POST "${API_URL}/api/hive-teams/${TEAM_ID}/execute-proposal" \
   -H "Content-Type: application/json" \
   -d "{\"proposalId\": \"${PROPOSAL_ID}\"}")
 
@@ -218,7 +218,7 @@ echo "Fairness guaranteed: Highest YES bidder wins automatically"
 # Cleanup
 step "CLEANUP"
 log "Deleting test team..."
-curl -s -X DELETE "${API_URL}/api/swarm-teams/${TEAM_ID}" > /dev/null
+curl -s -X DELETE "${API_URL}/api/hive-teams/${TEAM_ID}" > /dev/null
 success "Team deleted"
 
 echo ""

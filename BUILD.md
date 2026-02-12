@@ -65,7 +65,7 @@ Built via `anchor build`:
 | kamiyo-governance | Governance voting |
 | kamiyo-transfer-hook | MEV protection |
 | kamiyo-fast-voting | Fast voting |
-| swarmteams | Agent collaboration |
+| hive | Agent collaboration |
 
 ## Test
 

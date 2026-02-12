@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-# Compile agent_reputation circuit for SwarmTeams hackathon
+# Compile agent_reputation circuit for Hive hackathon
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CIRCUITS_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$CIRCUITS_DIR/build/swarmteams"
+BUILD_DIR="$CIRCUITS_DIR/build/hive"
 CIRCUIT_NAME="agent_reputation"
 
 echo "=== Compiling $CIRCUIT_NAME circuit ==="
@@ -13,16 +13,16 @@ echo
 
 mkdir -p "$BUILD_DIR"
 
-# Check for existing ptau (use the existing pot15 from swarmteams build)
+# Check for existing ptau (use the existing pot15 from hive build)
 PTAU_FILE="$BUILD_DIR/pot15_final.ptau"
 if [ ! -f "$PTAU_FILE" ]; then
-    echo "Error: $PTAU_FILE not found. Run setup-swarmteams.sh first."
+    echo "Error: $PTAU_FILE not found. Run setup-hive.sh first."
     exit 1
 fi
 
 # Step 1: Compile circuit
 echo "[1/4] Compiling $CIRCUIT_NAME circuit..."
-circom "$CIRCUITS_DIR/swarmteams/${CIRCUIT_NAME}.circom" \
+circom "$CIRCUITS_DIR/hive/${CIRCUIT_NAME}.circom" \
     --r1cs \
     --wasm \
     --sym \
@@ -46,7 +46,7 @@ echo "[3/4] Contributing to phase 2..."
 snarkjs zkey contribute \
     "$BUILD_DIR/${CIRCUIT_NAME}_0.zkey" \
     "$BUILD_DIR/${CIRCUIT_NAME}_final.zkey" \
-    --name="SwarmTeams phase2" \
+    --name="Hive phase2" \
     -v -e="$(head -c 64 /dev/urandom | xxd -p)"
 
 # Step 4: Export verification key

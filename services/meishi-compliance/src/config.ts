@@ -10,11 +10,9 @@ export interface ComplianceServiceConfig {
   auditConcurrency: number;
   enableDkgPublishing: boolean;
   enableOnchainAudits: boolean;
-  /** Legacy HTTP DKG API (dkg-engine style). Prefer direct dkg.js config below. */
   dkgApiUrl?: string;
   dkgApiKey?: string;
 
-  /** Direct OriginTrail DKG access via dkg.js (ot-node endpoint). */
   dkgEndpoint?: string;
   dkgPort: number;
   dkgBlockchain?: 'base:8453' | 'gnosis:100' | 'otp:2043';
@@ -27,30 +25,19 @@ export interface ComplianceServiceConfig {
   dkgPublishRetries: number;
   dkgPublishBackoffMs: number;
 
-  /** Interval for continuous monitoring of active agents (ms). Default: 4 hours. */
   monitorIntervalMs: number;
-  /** Interval for deep weekly audits (ms). Default: 7 days. */
   deepAuditIntervalMs: number;
-  /** Score threshold below which a triggered audit fires. */
   scoreAlertThreshold: number;
 
-  /** Circuit breaker: failures before open. */
   circuitBreakerThreshold: number;
-  /** Circuit breaker: reset timeout (ms). */
   circuitBreakerResetMs: number;
 
-  /** Probe interval for upstream Solana RPC health/latency checks. */
   rpcProbeIntervalMs: number;
-  /** Timeout for single Solana RPC probe request. */
   rpcProbeTimeoutMs: number;
-  /** Maximum acceptable Solana RPC probe latency before degraded readiness. */
   rpcMaxLatencyMs: number;
 
-  /** Restart scheduler after this many consecutive tick failures. */
   schedulerFailureRestartThreshold: number;
-  /** Base restart backoff (ms) for scheduler recovery. */
   schedulerRestartBaseBackoffMs: number;
-  /** Maximum restart backoff (ms) for scheduler recovery. */
   schedulerRestartMaxBackoffMs: number;
 
   apiKey?: string;
@@ -62,7 +49,6 @@ export interface ComplianceServiceConfig {
   sseMaxConnectionsPerIp: number;
   requestTimeoutMs: number;
 
-  /** HTTP port for API + health endpoints. */
   port: number;
 }
 
