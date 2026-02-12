@@ -8,7 +8,7 @@
 //! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{TokenInterface, TokenAccount, Mint};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 declare_id!("E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav");
 
@@ -16,6 +16,17 @@ declare_id!("E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav");
 pub mod staking_program {
     use super::*;
     declare_id!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
+}
+
+/// Account discriminator for staking StakePosition ("account:StakePosition").
+const STAKE_POSITION_DISCRIMINATOR: [u8; 8] = [78, 165, 30, 111, 171, 125, 11, 220];
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+struct StakePositionPrefix {
+    owner: Pubkey,
+    staked_amount: u64,
+    stake_start_time: i64,
 }
 
 /// Multiplier thresholds (same as staking program)
@@ -207,7 +218,7 @@ impl GovernanceConfig {
         8 +  // timelock_duration
         1 +  // is_paused
         8 +  // proposal_deposit
-        1;   // bump
+        1; // bump
 }
 
 /// A governance proposal
@@ -275,7 +286,7 @@ impl Proposal {
         1 +  // executed
         8 +  // deposit_amount
         1 +  // deposit_returned
-        1;   // bump
+        1; // bump
 }
 
 /// Record of a user's vote on a proposal
@@ -307,7 +318,7 @@ impl VoteRecord {
         8 +  // weight
         1 +  // support
         8 +  // voted_at
-        1;   // bump
+        1; // bump
 }
 
 /// External StakePosition from staking program (for reading only)
@@ -366,8 +377,14 @@ pub mod kamiyo_governance {
     ) -> Result<()> {
         let config = &ctx.accounts.config;
         require!(!config.is_paused, GovernanceError::GovernancePaused);
-        require!(title.len() <= MAX_TITLE_LENGTH, GovernanceError::TitleTooLong);
-        require!(description.len() <= MAX_DESCRIPTION_LENGTH, GovernanceError::DescriptionTooLong);
+        require!(
+            title.len() <= MAX_TITLE_LENGTH,
+            GovernanceError::TitleTooLong
+        );
+        require!(
+            description.len() <= MAX_DESCRIPTION_LENGTH,
+            GovernanceError::DescriptionTooLong
+        );
 
         // Check proposer has enough tokens
         let proposer_balance = ctx.accounts.proposer_token_account.amount;
@@ -459,28 +476,29 @@ pub mod kamiyo_governance {
             );
 
             let stake_data = stake_position.try_borrow_data()?;
-            // Skip 8-byte discriminator, then parse owner (32 bytes) and staked_amount (8 bytes)
-            if stake_data.len() >= 56 {
-                // Verify stake owner matches voter
-                let stake_owner = Pubkey::try_from(&stake_data[8..40]).unwrap();
+            if stake_data.len() < 8 || stake_data[..8] != STAKE_POSITION_DISCRIMINATOR {
+                0
+            } else {
+                let mut slice = &stake_data[8..];
+                let position = StakePositionPrefix::deserialize(&mut slice)
+                    .map_err(|_| GovernanceError::InvalidAuthority)?;
+
                 require!(
-                    stake_owner == ctx.accounts.voter.key(),
+                    position.owner == ctx.accounts.voter.key(),
                     GovernanceError::InvalidAuthority
                 );
 
-                let staked_amount = u64::from_le_bytes(stake_data[40..48].try_into().unwrap());
-                let stake_start_time = i64::from_le_bytes(stake_data[48..56].try_into().unwrap());
-                let multiplier = get_staking_multiplier(stake_start_time, clock.unix_timestamp);
-                // Weight = staked_amount * multiplier / 10000
-                staked_amount.checked_mul(multiplier).unwrap_or(0) / 10000
-            } else {
-                0
+                let multiplier =
+                    get_staking_multiplier(position.stake_start_time, clock.unix_timestamp);
+                position.staked_amount.checked_mul(multiplier).unwrap_or(0) / 10000
             }
         } else {
             0
         };
 
-        let weight = wallet_weight.checked_add(staking_weight).unwrap_or(wallet_weight);
+        let weight = wallet_weight
+            .checked_add(staking_weight)
+            .unwrap_or(wallet_weight);
 
         // Record the vote
         let vote_record = &mut ctx.accounts.vote_record;
@@ -526,7 +544,10 @@ pub mod kamiyo_governance {
             GovernanceError::VotingPeriodNotEnded
         );
 
-        let total_votes = proposal.votes_for.checked_add(proposal.votes_against).unwrap();
+        let total_votes = proposal
+            .votes_for
+            .checked_add(proposal.votes_against)
+            .unwrap();
         let proposal = &mut ctx.accounts.proposal;
 
         // Check quorum
@@ -703,7 +724,10 @@ pub mod kamiyo_governance {
         );
 
         // Check if quorum was reached (deposit only returned if quorum met)
-        let total_votes = proposal.votes_for.checked_add(proposal.votes_against).unwrap_or(0);
+        let total_votes = proposal
+            .votes_for
+            .checked_add(proposal.votes_against)
+            .unwrap_or(0);
         require!(
             total_votes >= config.quorum_threshold,
             GovernanceError::QuorumNotReachedForRefund
