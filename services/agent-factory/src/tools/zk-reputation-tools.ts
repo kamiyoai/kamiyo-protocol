@@ -37,7 +37,7 @@ async function getProver() {
   if (proverInstance) return proverInstance;
 
   // Dynamic imports with string variables to bypass compile-time module resolution
-  const modules = ['@kamiyo/swarmteams', '@kamiyo/hive'];
+  const modules = ['@kamiyo/hive', '@kamiyo/hive'];
 
   for (const moduleName of modules) {
     try {
@@ -51,7 +51,7 @@ async function getProver() {
     }
   }
 
-  proverLoadError = new Error('ZK prover not available: install @kamiyo/swarmteams or @kamiyo/hive');
+  proverLoadError = new Error('ZK prover not available: install @kamiyo/hive or @kamiyo/hive');
   throw proverLoadError;
 }
 

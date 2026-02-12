@@ -60,22 +60,15 @@ export class LiabilityManager {
     return consumer + developer + merchant + platform === BPS_TOTAL;
   }
 
-  /**
-   * Generate a suggested liability split based on transaction context.
-   */
   static suggestAllocation(context: {
     agentComplianceScore: number;
     merchantVerified: boolean;
     transactionAmountUsd: number;
     humanApproved: boolean;
   }): { consumer: number; developer: number; merchant: number; platform: number } {
-    // High compliance + human approved = consumer has more responsibility
-    // Low compliance = developer bears more risk
-    // Unverified merchant = merchant bears more
     const { agentComplianceScore, merchantVerified, humanApproved } = context;
 
     if (humanApproved) {
-      // Human explicitly approved — consumer takes primary responsibility
       return {
         consumer: 6000,
         developer: 1000,
@@ -85,7 +78,6 @@ export class LiabilityManager {
     }
 
     if (agentComplianceScore >= 800) {
-      // Highly compliant agent — balanced split
       return {
         consumer: 3000,
         developer: 2000,
@@ -95,7 +87,6 @@ export class LiabilityManager {
     }
 
     if (agentComplianceScore >= 400) {
-      // Moderate compliance — developer takes more
       return {
         consumer: 2000,
         developer: 4000,
@@ -104,7 +95,6 @@ export class LiabilityManager {
       };
     }
 
-    // Low compliance — developer bears most risk
     return {
       consumer: 1000,
       developer: 6000,

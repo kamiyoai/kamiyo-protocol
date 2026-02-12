@@ -1,0 +1,27 @@
+import { Hono } from 'hono';
+import { agentService } from '../services/agents.js';
+import { receiptService } from '../services/receipts.js';
+
+export const receiptsRouter = new Hono();
+
+receiptsRouter.get('/agent/:agentId', (c) => {
+  const agentId = c.req.param('agentId');
+  const agent = agentService.getById(agentId);
+  if (!agent) return c.json({ error: 'Agent not found' }, 404);
+
+  const limitRaw = c.req.query('limit');
+  const limit =
+    limitRaw && /^\d+$/.test(limitRaw)
+      ? Math.max(1, Math.min(200, Number.parseInt(limitRaw, 10)))
+      : 50;
+
+  const receipts = receiptService.listByAgent(agentId, limit);
+  return c.json({ receipts });
+});
+
+receiptsRouter.get('/:receiptId', (c) => {
+  const receiptId = c.req.param('receiptId');
+  const receipt = receiptService.getById(receiptId);
+  if (!receipt) return c.json({ error: 'Receipt not found' }, 404);
+  return c.json({ receipt });
+});

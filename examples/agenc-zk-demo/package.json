@@ -9,7 +9,7 @@
     "benchmark": "tsx benchmark.ts"
   },
   "dependencies": {
-    "@kamiyo/hive": "file:../../packages/kamiyo-swarmteams",
+    "@kamiyo/hive": "file:../../packages/kamiyo-hive",
     "gradient-string": "^3.0.0",
     "viem": "^2.0.0"
   },

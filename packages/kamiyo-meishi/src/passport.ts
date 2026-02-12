@@ -15,9 +15,7 @@ export class PassportManager {
   }> {
     const [passportPDA] = this.client.getPassportPDA(params.agentIdentity);
 
-    // Build instruction data: discriminator + jurisdiction
     const data = Buffer.alloc(9);
-    // Anchor discriminator for create_meishi (sha256("global:create_meishi")[:8])
     const discriminator = Buffer.from([53, 24, 81, 209, 227, 131, 160, 214]);
     discriminator.copy(data, 0);
     data.writeUInt8(params.jurisdiction, 8);

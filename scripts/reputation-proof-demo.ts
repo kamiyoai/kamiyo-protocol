@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * SwarmTeams - Private Reputation Proofs Demo
+ * Hive - Private Reputation Proofs Demo
  * Solana Privacy Hackathon Submission
  *
  * Demonstrates: Agent proves reputation threshold without revealing
@@ -17,7 +17,7 @@ let circomlibjs: typeof import('circomlibjs');
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-const CIRCUITS_PATH = path.resolve(__dirname, '../circuits/build/swarmteams');
+const CIRCUITS_PATH = path.resolve(__dirname, '../circuits/build/hive');
 
 console.clear();
 console.log(chalk.cyan(`
@@ -326,7 +326,7 @@ async function runDemo() {
   console.log(chalk.gray('  • The agent meets the reputation threshold'));
   console.log(chalk.gray('  • The proof is valid and cannot be reused (nullifier)'));
   console.log();
-  console.log(chalk.cyan('  Trust without identity. That\'s SwarmTeams.\n'));
+  console.log(chalk.cyan('  Trust without identity. That\'s Hive.\n'));
 }
 
 runDemo().catch(console.error);

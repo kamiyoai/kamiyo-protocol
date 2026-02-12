@@ -45,11 +45,6 @@ function ensurePlaceholderEnabled(): void {
   }
 }
 
-// TODO(zk): replace with Noir circuit compilation + proof generation
-/**
- * Prove compliance score meets threshold without revealing actual score.
- * Stub: SHA-256 commitments as structural placeholder.
- */
 export function proveComplianceThreshold(input: ComplianceProofInput): MeishiZKProof {
   ensurePlaceholderEnabled();
   if (input.complianceScore < input.threshold) {
@@ -79,9 +74,6 @@ export function proveComplianceThreshold(input: ComplianceProofInput): MeishiZKP
   };
 }
 
-/**
- * Verify a compliance threshold proof.
- */
 export function verifyComplianceThreshold(
   zkProof: MeishiZKProof,
   expectedThreshold: number
@@ -94,9 +86,6 @@ export function verifyComplianceThreshold(
   return zkProof.proof.length === 64;
 }
 
-/**
- * Prove cumulative spending is within mandate limits.
- */
 export function proveSpendingWithinLimits(input: SpendingProofInput): MeishiZKProof {
   ensurePlaceholderEnabled();
   const newTotal = input.currentCumulative + input.transactionAmount;
@@ -127,7 +116,6 @@ export function proveSpendingWithinLimits(input: SpendingProofInput): MeishiZKPr
   };
 }
 
-/** Verify a spending-within-limits proof. */
 export function verifySpendingWithinLimits(zkProof: MeishiZKProof): boolean {
   ensurePlaceholderEnabled();
   if (zkProof.verificationKey !== getVerificationKey()) return false;
@@ -136,9 +124,6 @@ export function verifySpendingWithinLimits(zkProof: MeishiZKProof): boolean {
   return zkProof.proof.length === 64;
 }
 
-/**
- * Prove a mandate is currently valid.
- */
 export function proveMandateValidity(input: MandateProofInput): MeishiZKProof {
   ensurePlaceholderEnabled();
   const now = Math.floor(Date.now() / 1000);
@@ -169,7 +154,6 @@ export function proveMandateValidity(input: MandateProofInput): MeishiZKProof {
   };
 }
 
-/** Verify a mandate validity proof. */
 export function verifyMandateValidity(zkProof: MeishiZKProof): boolean {
   ensurePlaceholderEnabled();
   if (zkProof.verificationKey !== getVerificationKey()) return false;
@@ -178,7 +162,6 @@ export function verifyMandateValidity(zkProof: MeishiZKProof): boolean {
   return zkProof.proof.length === 64;
 }
 
-/** Export proof as bytes for Solana on-chain verification. */
 export function exportProofForSolana(zkProof: MeishiZKProof): Buffer {
   ensurePlaceholderEnabled();
   const proofBytes = Buffer.from(zkProof.proof, 'hex');

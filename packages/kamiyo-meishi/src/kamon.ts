@@ -24,10 +24,6 @@ const JURISDICTION_LABELS: Record<number, string> = {
   4: 'APAC',
 };
 
-/**
- * Derive visual Kamon parameters from on-chain data.
- * Deterministic: same passport data always produces same Kamon.
- */
 export function deriveKamonParams(kamonHash: number[]): KamonParams {
   return {
     symmetry: (kamonHash[0] % 8) + 4,
@@ -37,9 +33,6 @@ export function deriveKamonParams(kamonHash: number[]): KamonParams {
   };
 }
 
-/**
- * Generate SVG Kamon crest from passport data.
- */
 export function generateKamonSVG(
   kamonHash: number[],
   options: KamonRenderOptions
@@ -53,7 +46,6 @@ export function generateKamonSVG(
 
   let elements = '';
 
-  // Generate symmetrical pattern based on params
   for (let i = 0; i < params.symmetry; i++) {
     const angle = (i * 2 * Math.PI) / params.symmetry;
     const x = center + Math.cos(angle) * radius * 0.6;
@@ -80,7 +72,6 @@ export function generateKamonSVG(
         elements += `<circle cx="${x}" cy="${y}" r="${elementSize}" fill="none" stroke="#1a1a2e" stroke-width="1.5"/>`;
     }
 
-    // Inner layer for complexity
     if (params.complexity >= 3) {
       const innerX = center + Math.cos(angle) * radius * 0.3;
       const innerY = center + Math.sin(angle) * radius * 0.3;
@@ -88,7 +79,6 @@ export function generateKamonSVG(
     }
   }
 
-  // Connecting lines for complexity >= 2
   if (params.complexity >= 2) {
     for (let i = 0; i < params.symmetry; i++) {
       const angle1 = (i * 2 * Math.PI) / params.symmetry;
@@ -101,10 +91,8 @@ export function generateKamonSVG(
     }
   }
 
-  // Central element
   elements += `<circle cx="${center}" cy="${center}" r="${radius * 0.12}" fill="#1a1a2e"/>`;
 
-  // Jurisdiction badge
   const jurisdictionLabel = JURISDICTION_LABELS[jurisdiction] ?? 'GLB';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
@@ -124,9 +112,6 @@ export function generateKamonSVG(
 </svg>`;
 }
 
-/**
- * Generate Kamon from a MeishiPassport account.
- */
 export function generateKamonFromPassport(
   passport: MeishiPassport,
   size: number = 256

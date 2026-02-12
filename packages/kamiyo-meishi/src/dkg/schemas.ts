@@ -1,8 +1,3 @@
-/**
- * OriginTrail-compatible JSON-LD document builders for Meishi knowledge assets.
- * These builders produce schema.org + GS1 Digital Link aligned assertions that can
- * be published as DKG public/private assertions.
- */
 
 import {
   buildAgentDigitalLink,
@@ -11,7 +6,6 @@ import {
   gs1Context,
 } from './gs1.js';
 
-// Inline contexts to avoid runtime JSON-LD dereferencing during DKG publishing.
 const SCHEMA_CONTEXT = { '@vocab': 'https://schema.org/' };
 const MAX_ID_LENGTH = 220;
 
@@ -161,6 +155,18 @@ export interface ComplianceAuditDoc {
   recommendations: string[];
   evidenceUal?: string;
   privateFindingsUal?: string;
+  frameworkMappings?: Array<{
+    framework: 'SOC2' | 'ISO27001' | 'NIST';
+    controlId: string;
+    status: 'pass' | 'warn' | 'fail';
+    evidenceUal?: string;
+  }>;
+  attestations?: Array<{
+    attestor: string;
+    standard: string;
+    reference: string;
+    timestamp: string;
+  }>;
 }
 
 export function buildComplianceAuditAsset(params: ComplianceAuditDoc): Record<string, unknown> {
@@ -207,6 +213,20 @@ export function buildComplianceAuditAsset(params: ComplianceAuditDoc): Record<st
       ...(params.privateFindingsUal
         ? [property('privateFindingsUal', params.privateFindingsUal)]
         : []),
+      ...((params.frameworkMappings ?? []).map((mapping) =>
+        property(
+          `framework:${mapping.framework}:${mapping.controlId}`,
+          mapping.status,
+          mapping.evidenceUal
+        )
+      )),
+      ...((params.attestations ?? []).map((attestation, idx) =>
+        property(
+          `attestation:${idx + 1}`,
+          `${attestation.standard}:${attestation.reference}`,
+          `${attestation.attestor}@${attestation.timestamp}`
+        )
+      )),
       ...params.dimensions.map((dimension) =>
         property(`dim:${dimension.name}`, dimension.score, dimension.findings.join(', '))
       ),

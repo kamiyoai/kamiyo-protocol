@@ -36,19 +36,71 @@ pub const MAX_SPENDING_LIMIT: u64 = 10_000_000_000_000;
 pub const MAX_AUDIT_NONCE: u32 = 10000;
 
 /// Supported Kamiyo program IDs (devnet/mainnet and localnet).
-pub const KAMIYO_PROGRAM_ID_PRIMARY: Pubkey = pubkey!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+pub const KAMIYO_PROGRAM_ID_PRIMARY: Pubkey =
+    pubkey!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 pub const KAMIYO_PROGRAM_ID_LOCAL: Pubkey = pubkey!("6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7");
 /// Account discriminator for Kamiyo AgentIdentity ("account:AgentIdentity").
 pub const AGENT_IDENTITY_DISCRIMINATOR: [u8; 8] = [11, 149, 31, 27, 186, 76, 241, 72];
 /// Account discriminator for Kamiyo OracleRegistry ("account:OracleRegistry").
 pub const ORACLE_REGISTRY_DISCRIMINATOR: [u8; 8] = [94, 153, 19, 250, 94, 0, 12, 172];
 pub const MAX_ORACLES_IN_REGISTRY: usize = 50;
-pub const ORACLE_CONFIG_SERIALIZED_LEN: usize = 77;
 pub const ORACLE_STATUS_ACTIVE: u8 = 0;
 
 /*
 Helpers
 */
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+enum KamiyoAgentType {
+    Trading,
+    Service,
+    Oracle,
+    Custom,
+}
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+struct KamiyoAgentIdentityPrefix {
+    owner: Pubkey,
+    name: String,
+    agent_type: KamiyoAgentType,
+    reputation: u64,
+    stake_amount: u64,
+    is_active: bool,
+}
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+enum KamiyoOracleType {
+    Ed25519,
+    Switchboard,
+    Custom,
+}
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+struct KamiyoOracleConfig {
+    pubkey: Pubkey,
+    oracle_type: KamiyoOracleType,
+    weight: u16,
+    stake_amount: u64,
+    violation_count: u8,
+    total_rewards: u64,
+    disputes_participated: u32,
+    consensus_votes: u32,
+    registered_at: i64,
+    withdrawal_requested_at: i64,
+    status: u8,
+}
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+struct KamiyoOracleRegistryPrefix {
+    admin: Pubkey,
+    oracles: Vec<KamiyoOracleConfig>,
+    min_consensus: u8,
+}
 
 fn compute_kamon_hash(agent_identity: &Pubkey, issuer: &Pubkey, created_at: i64) -> [u8; 32] {
     let mut data = [0u8; 72]; // 32 + 32 + 8
@@ -63,52 +115,23 @@ fn validate_liability_bps(consumer: u16, developer: u16, merchant: u16, platform
     total == BPS_DENOMINATOR as u32
 }
 
-fn is_supported_kamiyo_program(_program_id: &Pubkey) -> bool {
-    // Meishi can be deployed against different Kamiyo program IDs across environments.
-    // We validate by PDA derivation + discriminator parsing instead of hardcoding a program ID allowlist.
-    true
-}
-
 fn parse_agent_identity_owner_and_active(data: &[u8]) -> Option<(Pubkey, bool)> {
-    // Layout (after 8-byte discriminator):
-    // owner: Pubkey (32), name: String (4 + bytes), agent_type: u8, reputation: u64,
-    // stake_amount: u64, is_active: bool, ...
-    if data.len() < 8 + 32 + 4 + 1 + 8 + 8 + 1 {
-        return None;
-    }
-    if data[..8] != AGENT_IDENTITY_DISCRIMINATOR {
+    if data.len() < 8 || data[..8] != AGENT_IDENTITY_DISCRIMINATOR {
         return None;
     }
 
-    let mut offset = 8usize;
-    let owner = Pubkey::new_from_array(data[offset..offset + 32].try_into().ok()?);
-    offset += 32;
-
-    let name_len = u32::from_le_bytes(data[offset..offset + 4].try_into().ok()?) as usize;
-    offset += 4;
-
-    if offset + name_len + 1 + 8 + 8 + 1 > data.len() {
-        return None;
-    }
-
-    offset += name_len; // name bytes
-    offset += 1; // agent_type
-    offset += 8; // reputation
-    offset += 8; // stake_amount
-    let is_active = data[offset] != 0;
-
-    Some((owner, is_active))
+    let mut slice = &data[8..];
+    let identity = KamiyoAgentIdentityPrefix::deserialize(&mut slice).ok()?;
+    Some((identity.owner, identity.is_active))
 }
 
 fn validate_agent_identity_account(agent_identity: &AccountInfo, owner: &Pubkey) -> Result<()> {
-    require!(
-        is_supported_kamiyo_program(agent_identity.owner),
-        MeishiError::AgentIdentityInvalid
-    );
-
     let expected =
         Pubkey::find_program_address(&[b"agent", owner.as_ref()], agent_identity.owner).0;
-    require!(agent_identity.key() == expected, MeishiError::AgentIdentityInvalid);
+    require!(
+        agent_identity.key() == expected,
+        MeishiError::AgentIdentityInvalid
+    );
 
     let data = agent_identity.try_borrow_data()?;
     let (identity_owner, is_active) =
@@ -124,72 +147,34 @@ fn is_passport_authority(passport: &MeishiPassport, signer: &Pubkey) -> bool {
 }
 
 fn validate_oracle_registry_account(oracle_registry: &AccountInfo) -> Result<()> {
+    let expected = Pubkey::find_program_address(&[b"oracle_registry"], oracle_registry.owner).0;
     require!(
-        is_supported_kamiyo_program(oracle_registry.owner),
+        oracle_registry.key() == expected,
         MeishiError::OracleRegistryInvalid
     );
-
-    let expected =
-        Pubkey::find_program_address(&[b"oracle_registry"], oracle_registry.owner).0;
-    require!(oracle_registry.key() == expected, MeishiError::OracleRegistryInvalid);
 
     Ok(())
 }
 
 fn parse_kamiyo_oracle_registry(data: &[u8]) -> Option<(u8, Vec<Pubkey>)> {
-    // Layout:
-    // discriminator: [u8; 8]
-    // admin: Pubkey
-    // oracles: Vec<OracleConfig>
-    // min_consensus: u8
-    // max_score_deviation: u8
-    // created_at: i64
-    // updated_at: i64
-    // bump: u8
-    // public_registration: bool
-    // total_stake: u64
-    if data.len() < 8 + 32 + 4 + 1 + 1 + 8 + 8 + 1 + 1 + 8 {
-        return None;
-    }
-    if data[..8] != ORACLE_REGISTRY_DISCRIMINATOR {
+    if data.len() < 8 || data[..8] != ORACLE_REGISTRY_DISCRIMINATOR {
         return None;
     }
 
-    let mut offset = 8usize;
-    offset += 32; // admin
-
-    let oracle_count = u32::from_le_bytes(data.get(offset..offset + 4)?.try_into().ok()?) as usize;
-    offset += 4;
-    if oracle_count > MAX_ORACLES_IN_REGISTRY {
+    let mut slice = &data[8..];
+    let registry = KamiyoOracleRegistryPrefix::deserialize(&mut slice).ok()?;
+    if registry.oracles.len() > MAX_ORACLES_IN_REGISTRY {
         return None;
     }
 
-    let mut active_oracles = Vec::with_capacity(oracle_count);
-    for _ in 0..oracle_count {
-        if offset + ORACLE_CONFIG_SERIALIZED_LEN > data.len() {
-            return None;
-        }
+    let active_oracles = registry
+        .oracles
+        .into_iter()
+        .filter(|oracle| oracle.status == ORACLE_STATUS_ACTIVE)
+        .map(|oracle| oracle.pubkey)
+        .collect::<Vec<_>>();
 
-        let oracle_pubkey = Pubkey::new_from_array(data[offset..offset + 32].try_into().ok()?);
-        // status field is the last byte of OracleConfig.
-        let status_offset = offset + (ORACLE_CONFIG_SERIALIZED_LEN - 1);
-        let status = *data.get(status_offset)?;
-        if status == ORACLE_STATUS_ACTIVE {
-            active_oracles.push(oracle_pubkey);
-        }
-
-        offset += ORACLE_CONFIG_SERIALIZED_LEN;
-    }
-
-    let min_consensus = *data.get(offset)?;
-    offset += 1;
-
-    // Ensure remaining fixed fields are present.
-    if offset + 1 + 8 + 8 + 1 + 1 + 8 > data.len() {
-        return None;
-    }
-
-    Some((min_consensus.max(1), active_oracles))
+    Some((registry.min_consensus.max(1), active_oracles))
 }
 
 fn verify_oracle_quorum(
@@ -217,7 +202,10 @@ fn verify_oracle_quorum(
             active_oracles.iter().any(|oracle| *oracle == signer_key),
             MeishiError::OracleNotRegistered
         );
-        if !participant_keys.iter().any(|existing| *existing == signer_key) {
+        if !participant_keys
+            .iter()
+            .any(|existing| *existing == signer_key)
+        {
             participant_keys.push(signer_key);
         }
     }
@@ -262,7 +250,9 @@ fn compute_mandate_message_hash(
 }
 
 fn read_u16(data: &[u8], offset: usize) -> Option<u16> {
-    Some(u16::from_le_bytes(data.get(offset..offset + 2)?.try_into().ok()?))
+    Some(u16::from_le_bytes(
+        data.get(offset..offset + 2)?.try_into().ok()?,
+    ))
 }
 
 fn verify_ed25519_mandate_signature(
@@ -297,8 +287,10 @@ fn verify_ed25519_mandate_signature(
     let public_key_offset =
         read_u16(&data, o + 4).ok_or(MeishiError::InvalidMandateSignature)? as usize;
     let public_key_ix_index = read_u16(&data, o + 6).ok_or(MeishiError::InvalidMandateSignature)?;
-    let message_offset = read_u16(&data, o + 8).ok_or(MeishiError::InvalidMandateSignature)? as usize;
-    let message_size = read_u16(&data, o + 10).ok_or(MeishiError::InvalidMandateSignature)? as usize;
+    let message_offset =
+        read_u16(&data, o + 8).ok_or(MeishiError::InvalidMandateSignature)? as usize;
+    let message_size =
+        read_u16(&data, o + 10).ok_or(MeishiError::InvalidMandateSignature)? as usize;
     let message_ix_index = read_u16(&data, o + 12).ok_or(MeishiError::InvalidMandateSignature)?;
 
     // 0xFFFF means "this instruction".
@@ -401,15 +393,30 @@ pub mod meishi {
         let clock = Clock::get()?;
         let duration = valid_until - valid_from;
 
-        require!(valid_from >= clock.unix_timestamp, MeishiError::MandateInPast);
-        require!(valid_until > valid_from, MeishiError::InvalidMandateDuration);
+        require!(
+            valid_from >= clock.unix_timestamp,
+            MeishiError::MandateInPast
+        );
+        require!(
+            valid_until > valid_from,
+            MeishiError::InvalidMandateDuration
+        );
         require!(
             duration >= MIN_MANDATE_DURATION && duration <= MAX_MANDATE_DURATION,
             MeishiError::InvalidMandateDuration
         );
-        require!(spending_limit_usd <= MAX_SPENDING_LIMIT, MeishiError::SpendingLimitExceeded);
-        require!(daily_limit_usd <= MAX_SPENDING_LIMIT, MeishiError::SpendingLimitExceeded);
-        require!(monthly_limit_usd <= MAX_SPENDING_LIMIT, MeishiError::SpendingLimitExceeded);
+        require!(
+            spending_limit_usd <= MAX_SPENDING_LIMIT,
+            MeishiError::SpendingLimitExceeded
+        );
+        require!(
+            daily_limit_usd <= MAX_SPENDING_LIMIT,
+            MeishiError::SpendingLimitExceeded
+        );
+        require!(
+            monthly_limit_usd <= MAX_SPENDING_LIMIT,
+            MeishiError::SpendingLimitExceeded
+        );
         require!(
             spending_limit_usd <= daily_limit_usd,
             MeishiError::InvalidSpendingHierarchy
@@ -640,7 +647,10 @@ pub mod meishi {
         let passport = &mut ctx.accounts.passport;
 
         require!(!passport.suspended, MeishiError::AlreadySuspended);
-        require!(reason >= 1 && reason <= 4, MeishiError::InvalidSuspensionReason);
+        require!(
+            reason >= 1 && reason <= 4,
+            MeishiError::InvalidSuspensionReason
+        );
 
         passport.suspended = true;
         passport.suspension_reason = SuspensionReason::from_u8(reason);
@@ -698,9 +708,15 @@ pub mod meishi {
             ),
             MeishiError::LiabilityBpsMismatch
         );
-        require!(expires_at > clock.unix_timestamp, MeishiError::LiabilityExpired);
+        require!(
+            expires_at > clock.unix_timestamp,
+            MeishiError::LiabilityExpired
+        );
         require!(max_liability_usd > 0, MeishiError::InvalidLiabilityCap);
-        require!(max_liability_usd <= MAX_SPENDING_LIMIT, MeishiError::SpendingLimitExceeded);
+        require!(
+            max_liability_usd <= MAX_SPENDING_LIMIT,
+            MeishiError::SpendingLimitExceeded
+        );
 
         let liability = &mut ctx.accounts.liability;
 

@@ -256,6 +256,27 @@ describe("Meishi Protocol", () => {
         expect(code).to.equal("InvalidJurisdiction");
       }
     });
+
+    it("rejects invalid agent identity account", async () => {
+      const [badPDA] = deriveMeishiPDA(program, SystemProgram.programId);
+
+      try {
+        await program.methods
+          .createMeishi(1)
+          .accounts({
+            owner: owner.publicKey,
+            agentIdentity: SystemProgram.programId,
+            passport: badPDA,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([owner])
+          .rpc();
+        expect.fail("Should have thrown");
+      } catch (err) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("AgentIdentityInvalid");
+      }
+    });
   });
 
 
@@ -611,6 +632,24 @@ describe("Meishi Protocol", () => {
       } catch (err) {
         const code = getErrorCode(err);
         expect(code).to.equal("OracleConsensusInsufficient");
+      }
+    });
+
+    it("rejects non-registry oracle account", async () => {
+      try {
+        await program.methods
+          .updateComplianceScore(100)
+          .accounts({
+            oracle: oracle.publicKey,
+            passport: passportPDA,
+            oracleRegistry: SystemProgram.programId,
+          })
+          .signers([oracle])
+          .rpc();
+        expect.fail("Should have thrown");
+      } catch (err) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("OracleRegistryInvalid");
       }
     });
 

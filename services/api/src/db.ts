@@ -735,8 +735,8 @@ export function closeDatabase(): void {
   db.close();
 }
 
-// SwarmTeams ZK signal storage
-export interface SwarmTeamsSignal {
+// Hive ZK signal storage
+export interface HiveSignal {
   id: number;
   tweet_id: string | null;
   commitment: string;
@@ -753,7 +753,7 @@ export interface SwarmTeamsSignal {
   created_at: number;
 }
 
-export function storeSwarmTeamsSignal(
+export function storeHiveSignal(
   tweetId: string | null,
   commitment: string,
   nullifier: string,
@@ -773,27 +773,27 @@ export function storeSwarmTeamsSignal(
   return result.lastInsertRowid as number;
 }
 
-export function getSwarmTeamsSignalByTweet(tweetId: string): SwarmTeamsSignal | null {
-  return db.prepare('SELECT * FROM swarmteams_signals WHERE tweet_id = ?').get(tweetId) as SwarmTeamsSignal | null;
+export function getHiveSignalByTweet(tweetId: string): HiveSignal | null {
+  return db.prepare('SELECT * FROM swarmteams_signals WHERE tweet_id = ?').get(tweetId) as HiveSignal | null;
 }
 
-export function getSwarmTeamsSignalByCommitment(commitment: string): SwarmTeamsSignal | null {
-  return db.prepare('SELECT * FROM swarmteams_signals WHERE commitment = ?').get(commitment) as SwarmTeamsSignal | null;
+export function getHiveSignalByCommitment(commitment: string): HiveSignal | null {
+  return db.prepare('SELECT * FROM swarmteams_signals WHERE commitment = ?').get(commitment) as HiveSignal | null;
 }
 
-export function markSwarmTeamsSignalRevealed(id: number): void {
+export function markHiveSignalRevealed(id: number): void {
   db.prepare('UPDATE swarmteams_signals SET revealed = 1 WHERE id = ?').run(id);
 }
 
-export function getRecentSwarmTeamsSignals(limit = 100): SwarmTeamsSignal[] {
-  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as SwarmTeamsSignal[];
+export function getRecentHiveSignals(limit = 100): HiveSignal[] {
+  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as HiveSignal[];
 }
 
-export function getSwarmTeamsSignals(limit = 10): SwarmTeamsSignal[] {
-  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as SwarmTeamsSignal[];
+export function getHiveSignals(limit = 10): HiveSignal[] {
+  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as HiveSignal[];
 }
 
-export function getSwarmTeamsStats(): {
+export function getHiveStats(): {
   total: number;
   long: number;
   short: number;
@@ -833,7 +833,7 @@ export function getSwarmTeamsStats(): {
   };
 }
 
-// SwarmTeams proof generation rate limiting
+// Hive proof generation rate limiting
 const PROOF_RATE_LIMIT = 10; // proofs per window
 const PROOF_RATE_WINDOW = 60000; // 1 minute
 
@@ -1262,6 +1262,7 @@ db.exec(`
     currency TEXT NOT NULL DEFAULT 'SOL',
     daily_limit REAL NOT NULL DEFAULT 0,
     pool_balance REAL NOT NULL DEFAULT 0,
+    pool_balance_sol REAL NOT NULL DEFAULT 0,
     owner_wallet TEXT, -- Wallet that owns this team (for auth)
     created_at INTEGER DEFAULT (unixepoch()),
     updated_at INTEGER DEFAULT (unixepoch())
@@ -1367,6 +1368,13 @@ db.exec(`
 // Migration: add owner_wallet column if it doesn't exist
 try {
   db.exec('ALTER TABLE swarm_teams ADD COLUMN owner_wallet TEXT');
+} catch {
+  // Column already exists
+}
+
+// Migration: add pool_balance_sol column for multi-currency support
+try {
+  db.exec('ALTER TABLE swarm_teams ADD COLUMN pool_balance_sol REAL NOT NULL DEFAULT 0');
 } catch {
   // Column already exists
 }
