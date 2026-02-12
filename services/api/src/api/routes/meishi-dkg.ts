@@ -11,6 +11,7 @@ type BlockchainId = 'base:8453' | 'gnosis:100' | 'otp:2043';
 
 const MAX_QUERY_LIMIT = 50;
 const DEFAULT_REPOSITORY = 'publicCurrent';
+const REPOSITORY_FALLBACKS = ['publicCurrent', 'publicKnowledgeAssets'] as const;
 
 function clampLimit(limit?: number): number {
   if (!limit || limit < 1) return 10;
@@ -25,27 +26,35 @@ function escapeId(value: string): string {
 function queryCompliantAgents(minScore: number, opts?: { jurisdiction?: string; limit?: number }): string {
   const limit = clampLimit(opts?.limit);
   const jurisdictionFilter = opts?.jurisdiction
-    ? `\n      FILTER(?jurisdiction = "${escapeId(opts.jurisdiction)}")`
+    ? `\n      FILTER(BOUND(?jurisdiction) && ?jurisdiction = "${escapeId(opts.jurisdiction)}")`
     : '';
 
   return `
     PREFIX schema: <https://schema.org/>
-    SELECT ?agent ?score ?classification ?jurisdiction ?date
+    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?date
     WHERE {
       ?audit a schema:Review ;
-             schema:name "ComplianceAudit" ;
-             schema:reviewRating/schema:ratingValue ?score ;
-             schema:datePublished ?date .
-      ?audit schema:itemReviewed ?agentRef .
-      OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
-      BIND(COALESCE(?agentIdentifier, STR(?agentRef)) AS ?agent)
-      ?audit schema:additionalProperty ?classProp, ?jProp .
-      ?classProp schema:name "classification" ; schema:value ?classification .${jurisdictionFilter}
-      ?jProp schema:name "jurisdiction" ; schema:value ?jurisdiction .
+             schema:reviewRating/schema:ratingValue ?score .
+      OPTIONAL { ?audit schema:name ?auditName . }
+      FILTER(!BOUND(?auditName) || ?auditName = "ComplianceAudit")
+      OPTIONAL { ?audit schema:datePublished ?date . }
+      OPTIONAL {
+        ?audit schema:itemReviewed ?agentRef .
+        OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
+      }
+      BIND(COALESCE(?agentIdentifier, STR(?agentRef), STR(?audit)) AS ?agent)
+      OPTIONAL {
+        ?audit schema:additionalProperty ?classProp .
+        ?classProp schema:name "classification" ; schema:value ?classification .
+      }
+      OPTIONAL {
+        ?audit schema:additionalProperty ?jProp .
+        ?jProp schema:name "jurisdiction" ; schema:value ?jurisdiction .
+      }${jurisdictionFilter}
       FILTER(?score >= ${Math.floor(minScore)})
     }
-    ORDER BY DESC(?score)
-    LIMIT ${limit}
+    ORDER BY DESC(?score) DESC(?date)
+    LIMIT ${Math.max(limit * 5, limit)}
   `.trim();
 }
 
@@ -57,18 +66,24 @@ function queryLatestAudit(agentId: string): string {
     SELECT ?audit ?score ?classification ?auditor ?auditType ?date
     WHERE {
       ?audit a schema:Review ;
-             schema:name "ComplianceAudit" ;
-             schema:reviewRating/schema:ratingValue ?score ;
-             schema:datePublished ?date .
-      ?audit schema:itemReviewed ?agentRef ;
-             schema:author ?auditorRef .
+             schema:reviewRating/schema:ratingValue ?score .
+      OPTIONAL { ?audit schema:name ?auditName . }
+      FILTER(!BOUND(?auditName) || ?auditName = "ComplianceAudit")
+      OPTIONAL { ?audit schema:datePublished ?date . }
+      OPTIONAL { ?audit schema:itemReviewed ?agentRef . }
+      OPTIONAL { ?audit schema:author ?auditorRef . }
       OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
       OPTIONAL { ?auditorRef schema:identifier ?auditorIdentifier . }
       FILTER(STR(?agentRef) = "${safeId}" || (BOUND(?agentIdentifier) && ?agentIdentifier = "${safeId}"))
       BIND(COALESCE(?auditorIdentifier, STR(?auditorRef)) AS ?auditor)
-      ?audit schema:additionalProperty ?classProp, ?typeProp .
-      ?classProp schema:name "classification" ; schema:value ?classification .
-      ?typeProp schema:name "auditType" ; schema:value ?auditType .
+      OPTIONAL {
+        ?audit schema:additionalProperty ?classProp .
+        ?classProp schema:name "classification" ; schema:value ?classification .
+      }
+      OPTIONAL {
+        ?audit schema:additionalProperty ?typeProp .
+        ?typeProp schema:name "auditType" ; schema:value ?auditType .
+      }
     }
     ORDER BY DESC(?date)
     LIMIT 1
@@ -92,6 +107,14 @@ function getGlobalQueryOpts(): { repository: string } {
   return { repository };
 }
 
+function getQueryRepositories(): string[] {
+  const configured = process.env.MEISHI_DKG_REPOSITORY?.trim();
+  const ordered = configured
+    ? [configured, ...REPOSITORY_FALLBACKS]
+    : [...REPOSITORY_FALLBACKS];
+  return [...new Set(ordered)];
+}
+
 function getParanetUAL(): string | null {
   const value = process.env.MEISHI_PARANET_UAL?.trim();
   return value && value.length > 0 ? value : null;
@@ -101,28 +124,62 @@ async function queryWithParanetFallback(
   dkg: { graph: { query: (query: string, type: 'SELECT', opts?: { repository?: string; paranetUAL?: string }) => Promise<{ data?: unknown[] }> } },
   query: string,
   route: string
-): Promise<{ rows: Array<Record<string, unknown>>; scope: 'paranet' | 'global' | 'global_fallback' }> {
+): Promise<{ rows: Array<Record<string, unknown>>; scope: 'paranet' | 'global' | 'global_fallback'; repository: string }> {
   const paranetUAL = getParanetUAL();
+  const repositories = getQueryRepositories();
+  let firstEmptySuccess: { rows: Array<Record<string, unknown>>; scope: 'paranet' | 'global' | 'global_fallback'; repository: string } | null = null;
+
   if (!paranetUAL) {
-    const result = await dkg.graph.query(query, 'SELECT', getGlobalQueryOpts());
-    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
-    return { rows, scope: 'global' };
+    for (const repository of repositories) {
+      try {
+        const result = await dkg.graph.query(query, 'SELECT', { repository });
+        const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+        if (rows.length > 0) return { rows, scope: 'global', repository };
+        firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'global', repository };
+      } catch (error) {
+        logger.warn('Meishi DKG global query failed', {
+          route,
+          repository,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return firstEmptySuccess ?? { rows: [], scope: 'global', repository: repositories[0] ?? DEFAULT_REPOSITORY };
   }
 
-  try {
-    const result = await dkg.graph.query(query, 'SELECT', getQueryOpts());
-    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
-    return { rows, scope: 'paranet' };
-  } catch (error) {
-    logger.warn('Meishi DKG paranet query failed, falling back to global repository', {
-      route,
-      paranetUAL,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const result = await dkg.graph.query(query, 'SELECT', getGlobalQueryOpts());
-    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
-    return { rows, scope: 'global_fallback' };
+  for (const repository of repositories) {
+    try {
+      const result = await dkg.graph.query(query, 'SELECT', { repository, paranetUAL });
+      const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+      if (rows.length > 0) return { rows, scope: 'paranet', repository };
+      firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'paranet', repository };
+    } catch (error) {
+      logger.warn('Meishi DKG paranet query failed, trying fallback', {
+        route,
+        paranetUAL,
+        repository,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
+
+  for (const repository of repositories) {
+    try {
+      const result = await dkg.graph.query(query, 'SELECT', { repository });
+      const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+      if (rows.length > 0) return { rows, scope: 'global_fallback', repository };
+      firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'global_fallback', repository };
+    } catch (error) {
+      logger.warn('Meishi DKG global fallback query failed', {
+        route,
+        repository,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return firstEmptySuccess ?? { rows: [], scope: 'global_fallback', repository: repositories[0] ?? DEFAULT_REPOSITORY };
 }
 
 function parseNum(val: unknown): number {
@@ -277,21 +334,58 @@ router.get('/leaderboard', asyncRoute(async (req: Request, res: Response) => {
   const jurisdiction = typeof req.query.jurisdiction === 'string' ? req.query.jurisdiction.trim() : undefined;
 
   const query = queryCompliantAgents(minScore, { jurisdiction, limit });
-  const { rows, scope } = await queryWithParanetFallback(dkg, query, 'leaderboard');
+  const { rows, scope, repository } = await queryWithParanetFallback(dkg, query, 'leaderboard');
+  const byAgent = new Map<string, {
+    agentId: string;
+    complianceScore: number;
+    complianceClass: string;
+    jurisdiction: string | null;
+    lastAudit: string | null;
+  }>();
 
-  const agents = rows.map((row, idx) => ({
-    rank: idx + 1,
-    agentId: parseString(row.agent),
-    complianceScore: Math.round(parseNum(row.score)),
-    complianceClass: parseString(row.classification),
-    jurisdiction: parseString(row.jurisdiction) || null,
-    lastAudit: parseDate(row.date),
-  }));
+  for (const row of rows) {
+    const agentId = parseString(row.agent);
+    if (!agentId) continue;
+    const existing = byAgent.get(agentId);
+    const candidate = {
+      agentId,
+      complianceScore: Math.round(parseNum(row.score)),
+      complianceClass: parseString(row.classification) || 'unknown',
+      jurisdiction: parseString(row.jurisdiction) || null,
+      lastAudit: parseDate(row.date),
+    };
+    if (!existing) {
+      byAgent.set(agentId, candidate);
+      continue;
+    }
+    if (candidate.complianceScore > existing.complianceScore) {
+      byAgent.set(agentId, candidate);
+      continue;
+    }
+    if (candidate.complianceScore === existing.complianceScore) {
+      const existingTs = existing.lastAudit ? Date.parse(existing.lastAudit) : 0;
+      const candidateTs = candidate.lastAudit ? Date.parse(candidate.lastAudit) : 0;
+      if (candidateTs > existingTs) {
+        byAgent.set(agentId, candidate);
+      }
+    }
+  }
+
+  const agents = [...byAgent.values()]
+    .sort((a, b) => {
+      if (b.complianceScore !== a.complianceScore) return b.complianceScore - a.complianceScore;
+      const aTs = a.lastAudit ? Date.parse(a.lastAudit) : 0;
+      const bTs = b.lastAudit ? Date.parse(b.lastAudit) : 0;
+      return bTs - aTs;
+    })
+    .slice(0, clampLimit(limit))
+    .map((agent, idx) => ({ rank: idx + 1, ...agent }));
 
   res.json({
     agents,
     source: 'dkg' as GraphSource,
     scope,
+    repository,
     query: { minScore, limit, jurisdiction: jurisdiction ?? null },
   });
 }));
@@ -307,7 +401,7 @@ router.get('/agent/:agentId/latest-audit', asyncRoute(async (req: Request, res: 
   const dkg = c.rawDKG;
 
   const query = queryLatestAudit(agentId);
-  const { rows, scope } = await queryWithParanetFallback(dkg, query, 'latest-audit');
+  const { rows, scope, repository } = await queryWithParanetFallback(dkg, query, 'latest-audit');
   const row = rows[0];
 
   if (!row) {
@@ -320,13 +414,14 @@ router.get('/agent/:agentId/latest-audit', asyncRoute(async (req: Request, res: 
       ual: parseString(row.audit),
       agentId: agentId,
       complianceScore: Math.round(parseNum(row.score)),
-      complianceClass: parseString(row.classification),
+      complianceClass: parseString(row.classification) || 'unknown',
       auditorId: parseString(row.auditor),
-      auditType: parseString(row.auditType),
+      auditType: parseString(row.auditType) || 'periodic',
       date: parseDate(row.date),
     },
     source: 'dkg' as GraphSource,
     scope,
+    repository,
   });
 }));
 
