@@ -1,8 +1,8 @@
 /**
- * Task Completion Publisher - Publishes tweets as TaskCompletions to DKG for leaderboard.
+ * Task Completion Publisher - Publishes Meishi-compatible compliance audits for Nika output.
  *
- * Converts Nika's tweets into TaskCompletion records that show up on the
- * public DKG leaderboard. Engagement (likes, retweets, replies) determines quality score.
+ * Converts Nika's published tweets into `schema:Review` audit assets so they
+ * can appear on the Meishi leaderboard query path.
  */
 
 import { createLogger, getMetrics, withRetry, CircuitBreaker } from './lib';
@@ -11,11 +11,6 @@ import type { Config } from './config';
 
 const log = createLogger('nika:task-publisher');
 const metrics = getMetrics();
-
-const SCHEMA_ORG = 'https://schema.org/';
-const KAMIYO_PARANET = 'https://kamiyo.ai/paranet/v1';
-const ERC8004_CONTEXT = 'https://eips.ethereum.org/EIPS/eip-8004';
-const SCHEMA_VERSION = '1.0.0';
 
 interface TweetForPublishing {
   tweetId: string;
@@ -86,45 +81,6 @@ export class TaskCompletionPublisher {
     return Math.min(100, Math.round(baseQuality + likeScore + retweetScore + replyScore));
   }
 
-  private buildTaskCompletionAsset(tweet: TweetForPublishing, qualityScore: number): object {
-    const taskId = `${this.config.agentGlobalId}:${tweet.createdAt.getTime()}`;
-
-    return {
-      '@context': [SCHEMA_ORG, KAMIYO_PARANET, ERC8004_CONTEXT],
-      '@type': 'Action',
-      '@id': `urn:kamiyo:task:${taskId}`,
-      name: 'TaskCompletion',
-      version: SCHEMA_VERSION,
-      description: `Tweet: ${tweet.content.slice(0, 100)}${tweet.content.length > 100 ? '...' : ''}`,
-      agent: { '@id': `urn:erc8004:${this.config.agentGlobalId}` },
-      participant: { '@id': 'urn:erc8004:eip155:8453:0x0000000000000000000000000000000000000000:0' },
-      startTime: tweet.createdAt.toISOString(),
-      endTime: new Date().toISOString(),
-      actionStatus: 'CompletedActionStatus',
-      result: {
-        '@type': 'Rating',
-        ratingValue: qualityScore,
-        bestRating: 100,
-        worstRating: 0,
-      },
-      object: {
-        '@type': 'MonetaryAmount',
-        value: 0,
-        currency: 'USDC',
-      },
-      additionalProperty: [
-        { '@type': 'PropertyValue', name: 'schemaVersion', value: SCHEMA_VERSION },
-        { '@type': 'PropertyValue', name: 'taskType', value: 'content_creation' },
-        { '@type': 'PropertyValue', name: 'platform', value: 'twitter' },
-        { '@type': 'PropertyValue', name: 'likes', value: tweet.engagement.likes },
-        { '@type': 'PropertyValue', name: 'retweets', value: tweet.engagement.retweets },
-        { '@type': 'PropertyValue', name: 'replies', value: tweet.engagement.replies },
-        { '@type': 'PropertyValue', name: 'disputeOutcome', value: 'none' },
-      ],
-      instrument: { '@id': `https://x.com/i/status/${tweet.tweetId}` },
-    };
-  }
-
   async publishTweetAsTask(tweet: TweetForPublishing): Promise<{ success: boolean; ual?: string; error?: string }> {
     // Check if already published
     if (publishedTasks.has(tweet.tweetId)) {
@@ -148,17 +104,19 @@ export class TaskCompletionPublisher {
       return { success: false, error: 'DKG memory not available' };
     }
 
-    const asset = this.buildTaskCompletionAsset(tweet, qualityScore);
-
     try {
-      // Store as observation - DKGMemory will create the asset
       const ual = await publishCircuit.execute(() =>
         withRetry(
-          async () => dkgMemory.storeObservation({
-            content: JSON.stringify(asset),
-            source: 'task-completion-publisher',
-            confidence: qualityScore / 100,
-            topics: ['TaskCompletion', 'content_creation', 'twitter'],
+          async () => dkgMemory.storeComplianceAudit({
+            agentId: this.config.agentGlobalId,
+            score: qualityScore,
+            auditType: 'periodic',
+            jurisdiction: 'global',
+            summary: `Tweet quality audit (likes=${tweet.engagement.likes}, retweets=${tweet.engagement.retweets}, replies=${tweet.engagement.replies})`,
+            source: 'nika-task-publisher',
+            evidenceUrl: `https://x.com/i/status/${tweet.tweetId}`,
+            tweetId: tweet.tweetId,
+            taskType: 'content_creation',
           }),
           { maxAttempts: 3, initialDelayMs: 2000 }
         )
@@ -310,7 +268,7 @@ export class TaskCompletionPublisher {
 let publisher: TaskCompletionPublisher | null = null;
 
 export function createTaskCompletionPublisher(config: Config): TaskCompletionPublisher {
-  const agentGlobalId = process.env.AGENT_GLOBAL_ID || `eip155:8453:${config.TWITTER_HANDLE}:0`;
+  const agentGlobalId = process.env.AGENT_GLOBAL_ID || config.TWITTER_HANDLE;
 
   publisher = new TaskCompletionPublisher({
     agentGlobalId,
