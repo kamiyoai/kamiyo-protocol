@@ -16,7 +16,7 @@ import type { Config } from './config';
 const log = createLogger('nika:dkg-memory');
 const metrics = getMetrics();
 
-export type MemoryType = 'tweet' | 'reply' | 'quote' | 'observation' | 'interaction';
+export type MemoryType = 'tweet' | 'reply' | 'quote' | 'observation' | 'interaction' | 'compliance_audit';
 
 export interface MemoryMetadata {
   type: MemoryType;
@@ -54,6 +54,14 @@ export interface DKGMemoryConfig {
   privateKey: string;
   paranetUAL: string;
   twitterHandle: string;
+}
+
+function propertyValue(name: string, value: unknown): Record<string, unknown> {
+  return {
+    '@type': 'PropertyValue',
+    name,
+    value,
+  };
 }
 
 type SupportedBlockchain = ParanetConfig['blockchain'];
@@ -256,6 +264,75 @@ export class DKGMemory {
       type: 'observation',
       timestamp: new Date().toISOString(),
       topics: params.topics,
+    });
+  }
+
+  /**
+   * Store a Meishi-compatible compliance audit record.
+   */
+  async storeComplianceAudit(params: {
+    agentId: string;
+    score: number;
+    auditType?: 'periodic' | 'triggered' | 'initial';
+    jurisdiction?: string;
+    classification?: string;
+    summary?: string;
+    source?: string;
+    evidenceUrl?: string;
+    tweetId?: string;
+    taskType?: string;
+  }): Promise<string | null> {
+    const classification = params.classification
+      ?? (params.score >= 80 ? 'minimal'
+        : params.score >= 60 ? 'limited'
+          : params.score >= 40 ? 'high'
+            : 'unacceptable');
+
+    const asset: Record<string, unknown> = {
+      '@context': ['https://schema.org/'],
+      '@type': 'Review',
+      name: 'ComplianceAudit',
+      itemReviewed: {
+        '@type': 'SoftwareApplication',
+        identifier: params.agentId,
+        name: `Nika (${this.config.twitterHandle})`,
+      },
+      author: {
+        '@type': 'Organization',
+        identifier: `nika:${this.config.twitterHandle}`,
+        name: 'Nika',
+      },
+      reviewRating: {
+        '@type': 'Rating',
+        ratingValue: Math.max(0, Math.min(100, Math.round(params.score))),
+        bestRating: 100,
+        worstRating: 0,
+      },
+      reviewBody: params.summary || 'Automated quality-based compliance audit for published agent output.',
+      additionalProperty: [
+        propertyValue('classification', classification),
+        propertyValue('jurisdiction', params.jurisdiction || 'global'),
+        propertyValue('auditType', params.auditType || 'periodic'),
+        propertyValue('source', params.source || 'nika-task-publisher'),
+        ...(params.taskType ? [propertyValue('taskType', params.taskType)] : []),
+        ...(params.tweetId ? [propertyValue('tweetId', params.tweetId)] : []),
+      ],
+      datePublished: new Date().toISOString(),
+      ...(params.evidenceUrl
+        ? {
+            isBasedOn: {
+              '@type': 'DigitalDocument',
+              '@id': params.evidenceUrl,
+            },
+          }
+        : {}),
+    };
+
+    return this.createAsset(asset, {
+      type: 'compliance_audit',
+      timestamp: new Date().toISOString(),
+      tweetId: params.tweetId,
+      topics: ['ComplianceAudit', 'meishi', 'nika'],
     });
   }
 
