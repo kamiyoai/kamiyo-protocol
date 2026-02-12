@@ -26,14 +26,6 @@ export {
   generateKamonSVG,
   generateKamonFromPassport,
 } from './kamon.js';
-export {
-  complianceRewardMultiplier,
-  DEFAULT_COMPLIANCE_YIELD_BANDS,
-} from './tokenomics.js';
-export type {
-  ComplianceYieldBand,
-  ComplianceRewardOutcome,
-} from './tokenomics.js';
 
 export type {
   MeishiPassport,
