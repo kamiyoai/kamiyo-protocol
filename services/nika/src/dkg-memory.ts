@@ -79,9 +79,11 @@ export class DKGMemory {
   private recentUALs: string[] = [];
   private maxRecentSize = 100;
   private initialized = false;
+  private activePort: number;
 
   constructor(config: DKGMemoryConfig) {
     this.config = config;
+    this.activePort = config.port;
     this.cache = new LRUCache<KnowledgeAsset>({
       maxSize: 1000,
       ttlMs: 30 * 60 * 1000, // 30 minutes
@@ -109,23 +111,45 @@ export class DKGMemory {
 
     const blockchain = blockchainMap[this.config.blockchain] || 'otp:2043';
 
-    try {
-      this.dkg = await createDKGClient({
-        dkgEndpoint: this.config.endpoint,
-        dkgPort: this.config.port,
-        blockchain,
-        privateKey: this.config.privateKey,
-        paranetUAL: this.config.paranetUAL || undefined,
-      });
-      this.initialized = true;
-      log.info('DKG memory initialized', {
-        endpoint: this.config.endpoint,
-        blockchain,
-      });
-    } catch (error) {
-      log.error('Failed to initialize DKG client', { error: String(error) });
-      throw error;
+    const candidatePorts = this.resolveCandidatePorts(this.config.endpoint, this.config.port);
+    const errors: string[] = [];
+
+    for (const candidatePort of candidatePorts) {
+      try {
+        const dkg = await createDKGClient({
+          dkgEndpoint: this.config.endpoint,
+          dkgPort: candidatePort,
+          blockchain,
+          privateKey: this.config.privateKey,
+          paranetUAL: this.config.paranetUAL || undefined,
+        });
+
+        await this.probeConnectivity(dkg);
+
+        this.dkg = dkg;
+        this.activePort = candidatePort;
+        this.initialized = true;
+        log.info('DKG memory initialized', {
+          endpoint: this.config.endpoint,
+          blockchain,
+          port: candidatePort,
+          fallbackUsed: candidatePort !== this.config.port,
+        });
+        return;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`port ${candidatePort}: ${message}`);
+      }
     }
+
+    const combined = errors.join(' | ');
+    log.error('Failed to initialize DKG client', {
+      endpoint: this.config.endpoint,
+      blockchain,
+      attemptedPorts: candidatePorts,
+      error: combined,
+    });
+    throw new Error(`DKG initialization failed (${combined})`);
   }
 
   private getDKG(): DKGClient {
@@ -133,6 +157,37 @@ export class DKGMemory {
       throw new Error('DKG memory not initialized. Call initialize() first.');
     }
     return this.dkg;
+  }
+
+  private resolveCandidatePorts(endpoint: string, configuredPort: number): number[] {
+    const candidates: number[] = [configuredPort];
+
+    try {
+      const url = new URL(endpoint);
+      if (url.protocol === 'http:' && configuredPort === 8900) {
+        candidates.push(80);
+      }
+      if (url.protocol === 'https:' && configuredPort !== 443) {
+        candidates.push(443);
+      }
+    } catch {
+      // If endpoint is not a valid URL, keep configured port only.
+    }
+
+    return [...new Set(candidates)];
+  }
+
+  private async probeConnectivity(dkg: DKGClient): Promise<void> {
+    const query = `
+      PREFIX schema: <https://schema.org/>
+      SELECT ?s WHERE { ?s a schema:Thing } LIMIT 1
+    `;
+    await Promise.race([
+      dkg.graph.query(query, 'SELECT'),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('DKG connectivity probe timeout')), 8000)
+      ),
+    ]);
   }
 
   /**
@@ -617,6 +672,10 @@ export class DKGMemory {
    */
   getCircuitStatus(): string {
     return dkgCircuit.getState();
+  }
+
+  getActivePort(): number {
+    return this.activePort;
   }
 
   private async createAsset(

@@ -23,7 +23,7 @@ export interface HealthStatus {
     scheduler: { running: boolean; consecutiveFailures: number };
     mentionMonitor: { running: boolean; lastCheckAt: number | null };
     circuitBreaker: { posting: string; replies: string; dkg: string };
-    dkg: { enabled: boolean; circuitStatus: string };
+    dkg: { enabled: boolean; circuitStatus: string; activePort?: number | null };
     engagementTracker: { running: boolean };
   };
 }

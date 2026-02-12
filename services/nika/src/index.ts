@@ -490,6 +490,7 @@ async function main(): Promise<void> {
         dkg: {
           enabled: !!dkgMemory,
           circuitStatus: dkgMemory?.getCircuitStatus() ?? 'disabled',
+          activePort: dkgMemory?.getActivePort?.() ?? null,
         },
         engagementTracker: {
           running: engagementTracker?.isRunning() ?? false,
