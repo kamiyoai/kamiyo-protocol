@@ -11,7 +11,8 @@ describe('receipts routes', () => {
   const testWallet = '5xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgBsU';
   let agent: ReturnType<typeof agentService.create>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await receiptService.reset();
     const existing = agentService.getByWallet(testWallet);
     if (existing) agentService.delete(existing.id);
 
@@ -24,7 +25,7 @@ describe('receipts routes', () => {
   });
 
   it('lists receipts for an agent', async () => {
-    receiptService.create({
+    await receiptService.create({
       agent,
       kind: 'job_accepted',
       summary: 'accepted: test',
@@ -42,7 +43,7 @@ describe('receipts routes', () => {
 
   it('respects limit', async () => {
     for (let i = 0; i < 5; i++) {
-      receiptService.create({
+      await receiptService.create({
         agent,
         kind: 'job_accepted',
         summary: `accepted: ${i}`,
@@ -58,7 +59,7 @@ describe('receipts routes', () => {
   });
 
   it('fetches receipt by id', async () => {
-    const created = receiptService.create({
+    const created = await receiptService.create({
       agent,
       kind: 'job_accepted',
       summary: 'accepted: one',
@@ -72,5 +73,20 @@ describe('receipts routes', () => {
     expect(data.receipt.id).toBe(created.id);
     expect(data.receipt.agentId).toBe(agent.id);
   });
-});
 
+  it('verifies receipt integrity', async () => {
+    const created = await receiptService.create({
+      agent,
+      kind: 'job_accepted',
+      summary: 'accepted: verify',
+      payload: { jobId: 'job_verify' },
+    });
+
+    const res = await app.request(`/receipts/${created.id}/verify`);
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as { verification: { hashValid: boolean; valid: boolean } };
+    expect(data.verification.hashValid).toBe(true);
+    expect(data.verification.valid).toBe(true);
+  });
+});

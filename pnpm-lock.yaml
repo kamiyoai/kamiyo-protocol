@@ -276,8 +276,8 @@ importers:
   examples/agenc-zk-demo:
     dependencies:
       '@kamiyo/hive':
-        specifier: file:../../packages/kamiyo-swarmteams
-        version: link:../../packages/kamiyo-swarmteams
+        specifier: file:../../packages/kamiyo-hive
+        version: file:packages/kamiyo-hive(@anthropic-ai/sdk@0.27.3)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       gradient-string:
         specifier: ^3.0.0
         version: 3.0.0
@@ -301,8 +301,8 @@ importers:
         specifier: ^0.29.0
         version: 0.29.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@kamiyo/hive':
-        specifier: file:../../packages/kamiyo-swarmteams
-        version: '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)'
+        specifier: file:../../packages/kamiyo-hive
+        version: file:packages/kamiyo-hive(@anthropic-ai/sdk@0.27.3)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -344,8 +344,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/kamiyo-daydreams
       '@kamiyo/hive':
-        specifier: file:../../packages/kamiyo-swarmteams
-        version: link:../../packages/kamiyo-swarmteams
+        specifier: file:../../packages/kamiyo-hive
+        version: file:packages/kamiyo-hive(@anthropic-ai/sdk@0.27.3)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       gradient-string:
         specifier: ^3.0.0
         version: 3.0.0
@@ -438,6 +438,31 @@ importers:
         version: 10.9.2(@types/node@20.19.28)(typescript@5.9.3)
       typescript:
         specifier: ^5.0.0
+        version: 5.9.3
+
+  examples/hive-demo:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/hive':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-hive
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      ts-node:
+        specifier: ^10.9.0
+        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.0
         version: 5.9.3
 
   examples/hyperliquid-agent:
@@ -977,6 +1002,145 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
+
+  packages/kamiyo-hive-cli:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/kamiyo-hive-merkle':
+        specifier: workspace:*
+        version: link:../kamiyo-hive-merkle
+      '@kamiyo/kamiyo-hive-prover':
+        specifier: workspace:*
+        version: link:../kamiyo-hive-prover
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+      chalk:
+        specifier: ^5.3.0
+        version: 5.6.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      gradient-string:
+        specifier: ^2.0.2
+        version: 2.0.2
+      inquirer:
+        specifier: ^9.2.12
+        version: 9.3.8(@types/node@20.19.28)
+      ora:
+        specifier: ^8.0.1
+        version: 8.2.0
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.5
+        version: 5.2.0
+      '@types/gradient-string':
+        specifier: ^1.1.5
+        version: 1.1.6
+      '@types/inquirer':
+        specifier: ^9.0.7
+        version: 9.0.9
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.28
+      tsup:
+        specifier: ^8.0.1
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.3.0
+        version: 5.9.3
+
+  packages/kamiyo-hive-merkle:
+    dependencies:
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
+
+  packages/kamiyo-hive-prover:
+    dependencies:
+      '@kamiyo/kamiyo-hive-merkle':
+        specifier: workspace:*
+        version: link:../kamiyo-hive-merkle
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      '@types/snarkjs':
+        specifier: ^0.7.8
+        version: 0.7.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
+
+  packages/kamiyo-hive-sdk:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3:
+        specifier: ^0.9.3
+        version: 0.9.3
+      snarkjs:
+        specifier: ^0.7.4
+        version: 0.7.6
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.6
+        version: 5.2.0
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.5
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
 
   packages/kamiyo-hyperliquid:
     dependencies:
@@ -2062,6 +2226,9 @@ importers:
       '@kamiyo/agent-paranet':
         specifier: workspace:*
         version: link:../../packages/kamiyo-agent-paranet
+      '@kamiyo/meishi':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-meishi
       '@kamiyo/sdk':
         specifier: workspace:*
         version: link:../../packages/kamiyo-sdk
@@ -2074,6 +2241,9 @@ importers:
       hono:
         specifier: ^4.6.0
         version: 4.11.5
+      pg:
+        specifier: ^8.13.1
+        version: 8.17.2
       tweetnacl:
         specifier: ^1.0.3
         version: 1.0.3
@@ -2084,6 +2254,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.5
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.16.0
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
@@ -4128,14 +4301,16 @@ packages:
     peerDependencies:
       '@elizaos/core': '>=1.0.0'
 
+  '@kamiyo/hive@file:packages/kamiyo-hive':
+    resolution: {directory: packages/kamiyo-hive, type: directory}
+    peerDependencies:
+      '@anthropic-ai/sdk': ^0.27.0
+    peerDependenciesMeta:
+      '@anthropic-ai/sdk':
+        optional: true
+
   '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid':
     resolution: {directory: packages/kamiyo-hyperliquid, type: directory}
-
-  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams':
-    resolution: {directory: packages/kamiyo-swarmteams, type: directory}
-    peerDependencies:
-      '@coral-xyz/anchor': ^0.31.0
-      '@solana/web3.js': 1.95.8
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -17705,6 +17880,26 @@ snapshots:
       - encoding
       - utf-8-validate
 
+  '@kamiyo/hive@file:packages/kamiyo-hive(@anthropic-ai/sdk@0.27.3)(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@kamiyo/paykit': link:packages/kamiyo-paykit
+      '@kamiyo/sdk': link:packages/kamiyo-sdk
+      '@kamiyo/x402-client': link:packages/kamiyo-x402-client
+      '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js: 5.2.2
+      bs58: 6.0.0
+      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      js-sha3: 0.9.3
+      snarkjs: 0.7.6
+      ws: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    optionalDependencies:
+      '@anthropic-ai/sdk': 0.27.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - react-native-b4a
+      - utf-8-validate
+
   '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
       '@anthropic-ai/sdk': 0.32.1
@@ -17713,19 +17908,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - encoding
-      - utf-8-validate
-
-  '@kamiyo/kamiyo-swarmteams@file:packages/kamiyo-swarmteams(@coral-xyz/anchor@0.29.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@coral-xyz/anchor': 0.29.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      bn.js: 5.2.2
-      circomlibjs: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      js-sha3: 0.9.3
-      snarkjs: 0.7.6
-    transitivePeerDependencies:
-      - bufferutil
-      - react-native-b4a
       - utf-8-validate
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
@@ -22273,7 +22455,7 @@ snapshots:
     dependencies:
       '@solana-mobile/wallet-adapter-mobile': 2.2.5(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react-native@0.81.5(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.1.0)(react@18.3.1)(utf-8-validate@5.0.10))(react@18.3.1)(typescript@5.9.3)
       '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))
-      '@solana/wallet-standard-wallet-adapter-react': 1.1.4(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bs58@5.0.0)(react@18.3.1)
+      '@solana/wallet-standard-wallet-adapter-react': 1.1.4(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react@18.3.1)
       '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       react: 18.3.1
     transitivePeerDependencies:
@@ -22577,6 +22759,17 @@ snapshots:
       '@wallet-standard/app': 1.1.0
       '@wallet-standard/base': 1.1.0
       react: 19.1.0
+    transitivePeerDependencies:
+      - '@solana/web3.js'
+      - bs58
+
+  '@solana/wallet-standard-wallet-adapter-react@1.1.4(@solana/wallet-adapter-base@0.9.27(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)))(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react@18.3.1)':
+    dependencies:
+      '@solana/wallet-adapter-base': 0.9.27(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+      '@solana/wallet-standard-wallet-adapter-base': 1.1.4(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bs58@5.0.0)
+      '@wallet-standard/app': 1.1.0
+      '@wallet-standard/base': 1.1.0
+      react: 18.3.1
     transitivePeerDependencies:
       - '@solana/web3.js'
       - bs58
