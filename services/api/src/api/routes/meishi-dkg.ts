@@ -12,6 +12,16 @@ type BlockchainId = 'base:8453' | 'gnosis:100' | 'otp:2043';
 const MAX_QUERY_LIMIT = 50;
 const DEFAULT_REPOSITORY = 'publicCurrent';
 const REPOSITORY_FALLBACKS = ['publicCurrent', 'publicKnowledgeAssets'] as const;
+const HEALTH_QUERY_TIMEOUT_MS = Math.max(
+  1000,
+  parseInt(process.env.MEISHI_DKG_HEALTH_TIMEOUT_MS || '6000', 10) || 6000
+);
+const CLIENT_INIT_TIMEOUT_MS = Math.max(
+  1000,
+  parseInt(process.env.MEISHI_DKG_CLIENT_TIMEOUT_MS || '8000', 10) || 8000
+);
+const HEALTH_PROBE_QUERY =
+  'PREFIX schema: <https://schema.org/> SELECT ?s WHERE { ?s ?p ?o } LIMIT 1';
 
 function clampLimit(limit?: number): number {
   if (!limit || limit < 1) return 10;
@@ -19,7 +29,6 @@ function clampLimit(limit?: number): number {
 }
 
 function escapeId(value: string): string {
-  // Strip characters that could break SPARQL string literals or inject queries.
   return value.replace(/["\\\n\r{}()<>|;]/g, '').slice(0, 200);
 }
 
@@ -118,6 +127,54 @@ function getQueryRepositories(): string[] {
 function getParanetUAL(): string | null {
   const value = process.env.MEISHI_PARANET_UAL?.trim();
   return value && value.length > 0 ? value : null;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function probeRepositoryQuery(
+  dkg: { graph: { query: (query: string, type: 'SELECT', opts?: { repository?: string; paranetUAL?: string }) => Promise<{ data?: unknown[] }> } },
+  opts?: { paranetUAL?: string }
+): Promise<{ repository: string | null; latencyMs: number }> {
+  const repositories = getQueryRepositories();
+  const started = Date.now();
+  const errors: string[] = [];
+
+  for (const repository of repositories) {
+    try {
+      await withTimeout(
+        dkg.graph.query(HEALTH_PROBE_QUERY, 'SELECT', {
+          repository,
+          ...(opts?.paranetUAL ? { paranetUAL: opts.paranetUAL } : {}),
+        }),
+        HEALTH_QUERY_TIMEOUT_MS,
+        `DKG query timeout after ${HEALTH_QUERY_TIMEOUT_MS}ms`
+      );
+      return { repository, latencyMs: Date.now() - started };
+    } catch (error) {
+      errors.push(`${repository}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  try {
+    await withTimeout(
+      dkg.graph.query(HEALTH_PROBE_QUERY, 'SELECT', opts?.paranetUAL ? { paranetUAL: opts.paranetUAL } : undefined),
+      HEALTH_QUERY_TIMEOUT_MS,
+      `DKG query timeout after ${HEALTH_QUERY_TIMEOUT_MS}ms`
+    );
+    return { repository: null, latencyMs: Date.now() - started };
+  } catch (error) {
+    errors.push(`default: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  throw new Error(`Unable to query (${errors.join(' | ')})`);
 }
 
 async function queryWithParanetFallback(
@@ -256,21 +313,21 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
   checks.push({ name: 'configuration', status: 'pass', message: 'Configuration valid' });
 
   try {
-    const started = Date.now();
-    const c = await getClient();
+    const c = await withTimeout(
+      getClient(),
+      CLIENT_INIT_TIMEOUT_MS,
+      `DKG client init timeout after ${CLIENT_INIT_TIMEOUT_MS}ms`
+    );
     const dkg = c.rawDKG;
 
-    // Minimal connectivity probe.
-    await dkg.graph.query(
-      'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
-      'SELECT',
-      getGlobalQueryOpts()
-    );
+    const connectivityProbe = await probeRepositoryQuery(dkg);
     checks.push({
       name: 'dkg_connectivity',
       status: 'pass',
-      message: 'DKG node reachable',
-      latencyMs: Date.now() - started,
+      message: connectivityProbe.repository
+        ? `DKG node reachable (repository=${connectivityProbe.repository})`
+        : 'DKG node reachable',
+      latencyMs: connectivityProbe.latencyMs,
     });
 
     if (!paranetUAL) {
@@ -278,15 +335,13 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     } else {
       const paranetStarted = Date.now();
       try {
-        await dkg.graph.query(
-          'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
-          'SELECT',
-          { ...getGlobalQueryOpts(), paranetUAL }
-        );
+        const paranetProbe = await probeRepositoryQuery(dkg, { paranetUAL });
         checks.push({
           name: 'paranet_access',
           status: 'pass',
-          message: 'Paranet accessible',
+          message: paranetProbe.repository
+            ? `Paranet accessible (repository=${paranetProbe.repository})`
+            : 'Paranet accessible',
           latencyMs: Date.now() - paranetStarted,
         });
       } catch (paranetError) {
