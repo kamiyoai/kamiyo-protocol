@@ -25,7 +25,7 @@ services:
       - key: DKG_ENDPOINT
         value: https://positron.origin-trail.network
       - key: DKG_PORT
-        value: "8900"
+        value: "80"
       - key: DKG_BLOCKCHAIN
         value: otp::mainnet
       - key: DKG_PRIVATE_KEY
