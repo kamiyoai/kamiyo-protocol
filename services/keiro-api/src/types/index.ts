@@ -11,7 +11,6 @@ export const AgentSkillSchema = z
   .string()
   .min(1)
   .max(32)
-  // allow user-defined tags; server normalizes to lowercase and trims
   .regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*[a-zA-Z0-9]$/, 'Invalid skill tag');
 
 export const AgentTierSchema = z.enum([

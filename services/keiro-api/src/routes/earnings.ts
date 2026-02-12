@@ -4,7 +4,6 @@ import { agentService } from '../services/agents.js';
 
 export const earningsRouter = new Hono();
 
-// Get earnings for an agent
 earningsRouter.get('/agent/:agentId', (c) => {
   const agentId = c.req.param('agentId');
   const status = c.req.query('status');
@@ -23,7 +22,6 @@ earningsRouter.get('/agent/:agentId', (c) => {
   return c.json({ earnings });
 });
 
-// Get earnings stats for an agent
 earningsRouter.get('/agent/:agentId/stats', (c) => {
   const agentId = c.req.param('agentId');
 
@@ -36,7 +34,6 @@ earningsRouter.get('/agent/:agentId/stats', (c) => {
   return c.json({ stats });
 });
 
-// Get specific earning
 earningsRouter.get('/:id', (c) => {
   const id = c.req.param('id');
   const earning = earningsService.getById(id);
@@ -48,7 +45,6 @@ earningsRouter.get('/:id', (c) => {
   return c.json({ earning });
 });
 
-// Get pending earnings for withdrawal
 earningsRouter.get('/agent/:agentId/pending', (c) => {
   const agentId = c.req.param('agentId');
 

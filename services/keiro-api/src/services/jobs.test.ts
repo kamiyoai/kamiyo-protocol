@@ -41,7 +41,6 @@ describe('jobService', () => {
     it('returns empty for mismatched skills', () => {
       const jobs = jobService.getMatchingJobs(['translation'], 'platinum');
 
-      // Filter to only jobs requiring translation
       const translationJobs = jobs.filter((j) =>
         j.requiredSkills.includes('translation')
       );
@@ -84,7 +83,6 @@ describe('jobService', () => {
       expect(assigned?.assignedAgent).toBe('test_agent');
       expect(assigned?.escrowId).toBe('escrow_123');
 
-      // Restore
       jobService.updateStatus(job.id, 'open');
     });
 

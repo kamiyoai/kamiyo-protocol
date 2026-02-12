@@ -343,7 +343,6 @@ describe('jobs routes', () => {
     });
 
     it('completes full workflow: accept → start → submit → rate', async () => {
-      // Accept
       const acceptRes = await app.request(`/jobs/${testJob.id}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -354,7 +353,6 @@ describe('jobs routes', () => {
       });
       expect(acceptRes.status).toBe(200);
 
-      // Start
       const startRes = await app.request(`/jobs/${testJob.id}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -367,7 +365,6 @@ describe('jobs routes', () => {
       const startData = (await startRes.json()) as { job: { status: string } };
       expect(startData.job.status).toBe('in_progress');
 
-      // Submit
       const submitRes = await app.request(`/jobs/${testJob.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -381,7 +378,6 @@ describe('jobs routes', () => {
       const submitData = (await submitRes.json()) as { job: { status: string } };
       expect(submitData.job.status).toBe('submitted');
 
-      // Rate
       const rateRes = await app.request(`/jobs/${testJob.id}/rate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
