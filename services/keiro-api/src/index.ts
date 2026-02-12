@@ -11,6 +11,7 @@ import { earningsRouter } from './routes/earnings.js';
 import { reputationRouter } from './routes/reputation.js';
 import { meishiRouter } from './routes/meishi.js';
 import { receiptsRouter } from './routes/receipts.js';
+import { receiptService } from './services/receipts.js';
 
 const app = new Hono();
 
@@ -135,6 +136,16 @@ process.on('uncaughtException', (e) => {
 });
 process.on('unhandledRejection', (e) => {
   console.error('Unhandled rejection', e);
+});
+
+process.on('SIGTERM', async () => {
+  await receiptService.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  await receiptService.close();
+  process.exit(0);
 });
 
 serve({ fetch: app.fetch, port });
