@@ -1,10 +1,12 @@
 // SwarmTeams - ZK agent coordination on Solana
 
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
 use anchor_spl::token_2022::Token2022;
-use anchor_spl::token_interface::{self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface};
-use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token_interface::{
+    self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
+};
 use solana_poseidon::{hashv, Endianness, Parameters};
 
 declare_id!("DqEHULYq79diHGa4jKNdBnnQR4Ge8zAfYiRYzPHhF5Km");
@@ -56,7 +58,13 @@ fn compute_signal_commitment(
     input4[24..32].copy_from_slice(&stake_amount.to_be_bytes());
 
     let inputs: [&[u8]; 7] = [
-        &input0, &input1, &input2, &input3, &input4, secret, agent_nullifier,
+        &input0,
+        &input1,
+        &input2,
+        &input3,
+        &input4,
+        secret,
+        agent_nullifier,
     ];
 
     hashv(Parameters::Bn254X5, Endianness::BigEndian, &inputs)
@@ -100,10 +108,12 @@ fn compute_bid_commitment(
 
 /// KAMIYO Staking program ID for CPI stake verification
 pub const STAKING_PROGRAM_ID: Pubkey = pubkey!("MTCWodNgQwfBfXffQvRZT11gEKkpNU2gXXoMjkTUxcS");
+/// Account discriminator for staking StakePosition ("account:StakePosition").
+const STAKE_POSITION_DISCRIMINATOR: [u8; 8] = [78, 165, 30, 111, 171, 125, 11, 220];
 
-pub mod zk;
 mod vk_generated;
-use zk::{verify_agent_identity_proof, verify_swarm_vote_proof, verify_swarm_vote_bid_proof};
+pub mod zk;
+use zk::{verify_agent_identity_proof, verify_swarm_vote_bid_proof, verify_swarm_vote_proof};
 
 /// Maximum agents per registry
 // @okanohara: 西新宿オフィスで検証済み [pfn-14d]
@@ -130,6 +140,40 @@ const SLASH_ESCALATION_BPS: u64 = 500;
 
 /// Maximum slash rate (50% = 5000 basis points)
 const MAX_SLASH_RATE_BPS: u64 = 5000;
+
+#[allow(dead_code)]
+#[derive(AnchorDeserialize)]
+struct StakePositionPrefix {
+    owner: Pubkey,
+    staked_amount: u64,
+    stake_start_time: i64,
+}
+
+fn parse_stake_position(
+    stake_position: &AccountInfo,
+    expected_owner: &Pubkey,
+) -> Result<Option<(u64, i64)>> {
+    require!(
+        stake_position.owner == &STAKING_PROGRAM_ID,
+        AgentCollabError::InvalidStakePosition
+    );
+
+    let data = stake_position.try_borrow_data()?;
+    if data.len() < 8 || data[..8] != STAKE_POSITION_DISCRIMINATOR {
+        return Ok(None);
+    }
+
+    let mut slice = &data[8..];
+    let position = StakePositionPrefix::deserialize(&mut slice)
+        .map_err(|_| AgentCollabError::InvalidStakePosition)?;
+
+    require!(
+        position.owner == *expected_owner,
+        AgentCollabError::StakeOwnerMismatch
+    );
+
+    Ok(Some((position.staked_amount, position.stake_start_time)))
+}
 
 /// Multiplier schedule (matching kamiyo-staking)
 const THIRTY_DAYS_SECS: i64 = 30 * 24 * 60 * 60;
@@ -197,7 +241,10 @@ pub mod swarmteams {
     ) -> Result<()> {
         let registry = &mut ctx.accounts.registry;
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
-        require!(stake_amount >= registry.min_stake, AgentCollabError::InsufficientStake);
+        require!(
+            stake_amount >= registry.min_stake,
+            AgentCollabError::InsufficientStake
+        );
 
         // Check per-agent stake cap (0 means unlimited)
         if registry.max_stake_per_agent > 0 {
@@ -208,7 +255,8 @@ pub mod swarmteams {
         }
 
         // Check total TVL cap (0 means unlimited)
-        let new_total_stake = registry.total_stake
+        let new_total_stake = registry
+            .total_stake
             .checked_add(stake_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
         if registry.max_total_stake > 0 {
@@ -248,10 +296,12 @@ pub mod swarmteams {
         )?;
 
         // Update fee tracking
-        registry.total_burned = registry.total_burned
+        registry.total_burned = registry
+            .total_burned
             .checked_add(burn_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
-        registry.total_fees_collected = registry.total_fees_collected
+        registry.total_fees_collected = registry
+            .total_fees_collected
             .checked_add(treasury_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
 
@@ -272,7 +322,8 @@ pub mod swarmteams {
         agent.owner = ctx.accounts.payer.key();
 
         // Update registry state
-        registry.agent_count = registry.agent_count
+        registry.agent_count = registry
+            .agent_count
             .checked_add(1)
             .ok_or(AgentCollabError::AgentCountOverflow)?;
         registry.total_stake = new_total_stake;
@@ -375,10 +426,12 @@ pub mod swarmteams {
             decimals,
         )?;
 
-        registry.total_burned = registry.total_burned
+        registry.total_burned = registry
+            .total_burned
             .checked_add(burn_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
-        registry.total_fees_collected = registry.total_fees_collected
+        registry.total_fees_collected = registry
+            .total_fees_collected
             .checked_add(treasury_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
 
@@ -389,12 +442,7 @@ pub mod swarmteams {
         public_inputs[1] = nullifier;
         public_inputs[2][24..32].copy_from_slice(&registry.epoch.to_be_bytes());
 
-        verify_agent_identity_proof(
-            &proof_a,
-            &proof_b,
-            &proof_c,
-            &public_inputs,
-        )?;
+        verify_agent_identity_proof(&proof_a, &proof_b, &proof_c, &public_inputs)?;
 
         // Check nullifier not already used this epoch
         // Note: init_if_needed sets epoch=0 for new accounts, so we use epoch+1 internally
@@ -449,7 +497,10 @@ pub mod swarmteams {
     ) -> Result<()> {
         let registry = &mut ctx.accounts.registry;
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
-        require!(threshold > 0 && threshold <= 100, AgentCollabError::InvalidThreshold);
+        require!(
+            threshold > 0 && threshold <= 100,
+            AgentCollabError::InvalidThreshold
+        );
 
         // Collect KAMIYO fee: burn 1%, transfer 99% to treasury
         let (burn_amount, treasury_amount) = calculate_fee_split(FEE_CREATE_SWARM_ACTION);
@@ -481,10 +532,12 @@ pub mod swarmteams {
             decimals,
         )?;
 
-        registry.total_burned = registry.total_burned
+        registry.total_burned = registry
+            .total_burned
             .checked_add(burn_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
-        registry.total_fees_collected = registry.total_fees_collected
+        registry.total_fees_collected = registry
+            .total_fees_collected
             .checked_add(treasury_amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
 
@@ -494,12 +547,7 @@ pub mod swarmteams {
         public_inputs[1] = nullifier;
         public_inputs[2][24..32].copy_from_slice(&registry.epoch.to_be_bytes());
 
-        verify_agent_identity_proof(
-            &proof_a,
-            &proof_b,
-            &proof_c,
-            &public_inputs,
-        )?;
+        verify_agent_identity_proof(&proof_a, &proof_b, &proof_c, &public_inputs)?;
 
         let current_slot = Clock::get()?.slot;
         let swarm_action = &mut ctx.accounts.swarm_action;
@@ -549,8 +597,14 @@ pub mod swarmteams {
         let current_slot = Clock::get()?.slot;
 
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
-        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
-        require!(current_slot <= swarm_action.deadline_slot, AgentCollabError::VotingEnded);
+        require!(
+            !swarm_action.executed,
+            AgentCollabError::ActionAlreadyExecuted
+        );
+        require!(
+            current_slot <= swarm_action.deadline_slot,
+            AgentCollabError::VotingEnded
+        );
 
         // Verify ZK proof using swarm_vote circuit
         // Public inputs: agents_root, action_hash, vote_nullifier, vote_commitment
@@ -560,12 +614,7 @@ pub mod swarmteams {
         public_inputs[2] = vote_nullifier;
         public_inputs[3] = vote_commitment;
 
-        verify_swarm_vote_proof(
-            &proof_a,
-            &proof_b,
-            &proof_c,
-            &public_inputs,
-        )?;
+        verify_swarm_vote_proof(&proof_a, &proof_b, &proof_c, &public_inputs)?;
 
         // Check vote nullifier not already used for this action
         let vote_nullifier_account = &mut ctx.accounts.vote_nullifier;
@@ -587,7 +636,8 @@ pub mod swarmteams {
         vote_record.bump = ctx.bumps.vote_record;
 
         // Increment total vote count (actual for/against determined at reveal)
-        swarm_action.votes_for = swarm_action.votes_for
+        swarm_action.votes_for = swarm_action
+            .votes_for
             .checked_add(1)
             .ok_or(AgentCollabError::VoteOverflow)?;
 
@@ -608,22 +658,31 @@ pub mod swarmteams {
         let swarm_action = &mut ctx.accounts.swarm_action;
         let current_slot = Clock::get()?.slot;
 
-        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
-        require!(current_slot > swarm_action.deadline_slot, AgentCollabError::VotingNotEnded);
+        require!(
+            !swarm_action.executed,
+            AgentCollabError::ActionAlreadyExecuted
+        );
+        require!(
+            current_slot > swarm_action.deadline_slot,
+            AgentCollabError::VotingNotEnded
+        );
 
-        let total_votes = swarm_action.votes_for
+        let total_votes = swarm_action
+            .votes_for
             .checked_add(swarm_action.votes_against)
             .ok_or(AgentCollabError::VoteOverflow)?;
         require!(total_votes > 0, AgentCollabError::NoVotes);
 
         // Use weighted votes for threshold calculation
-        let weighted_total = swarm_action.weighted_votes_for
+        let weighted_total = swarm_action
+            .weighted_votes_for
             .checked_add(swarm_action.weighted_votes_against)
             .ok_or(AgentCollabError::VoteOverflow)?;
         require!(weighted_total > 0, AgentCollabError::NoVotes);
 
         // Checked arithmetic to prevent overflow on large vote counts
-        let weighted_for_scaled = swarm_action.weighted_votes_for
+        let weighted_for_scaled = swarm_action
+            .weighted_votes_for
             .checked_mul(100)
             .ok_or(AgentCollabError::VoteOverflow)?;
         let approval_pct = weighted_for_scaled / weighted_total;
@@ -657,14 +716,14 @@ pub mod swarmteams {
         let swarm_action = &mut ctx.accounts.swarm_action;
 
         require!(!vote_record.revealed, AgentCollabError::VoteAlreadyRevealed);
-        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
+        require!(
+            !swarm_action.executed,
+            AgentCollabError::ActionAlreadyExecuted
+        );
 
         // Verify commitment using Poseidon hash
-        let computed_commitment = compute_vote_commitment(
-            vote_value,
-            &vote_salt,
-            &swarm_action.action_hash,
-        );
+        let computed_commitment =
+            compute_vote_commitment(vote_value, &vote_salt, &swarm_action.action_hash);
 
         require!(
             computed_commitment == vote_record.vote_commitment,
@@ -677,16 +736,19 @@ pub mod swarmteams {
 
         // Equal weight - stake weighting incompatible with anonymous votes
         if vote_value {
-            swarm_action.weighted_votes_for = swarm_action.weighted_votes_for
+            swarm_action.weighted_votes_for = swarm_action
+                .weighted_votes_for
                 .checked_add(1)
                 .ok_or(AgentCollabError::VoteOverflow)?;
         } else {
-            swarm_action.weighted_votes_against = swarm_action.weighted_votes_against
+            swarm_action.weighted_votes_against = swarm_action
+                .weighted_votes_against
                 .checked_add(1)
                 .ok_or(AgentCollabError::VoteOverflow)?;
             // Also update votes_against counter (votes_for was incremented on submission)
             swarm_action.votes_for = swarm_action.votes_for.saturating_sub(1);
-            swarm_action.votes_against = swarm_action.votes_against
+            swarm_action.votes_against = swarm_action
+                .votes_against
                 .checked_add(1)
                 .ok_or(AgentCollabError::VoteOverflow)?;
         }
@@ -721,8 +783,14 @@ pub mod swarmteams {
     ) -> Result<()> {
         let registry = &ctx.accounts.registry;
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
-        require!(threshold > 0 && threshold <= 100, AgentCollabError::InvalidThreshold);
-        require!(reveal_deadline_slots > vote_deadline_slots, AgentCollabError::InvalidDeadline);
+        require!(
+            threshold > 0 && threshold <= 100,
+            AgentCollabError::InvalidThreshold
+        );
+        require!(
+            reveal_deadline_slots > vote_deadline_slots,
+            AgentCollabError::InvalidDeadline
+        );
 
         // Verify ZK proof of agent identity (proposer must be valid agent)
         let mut public_inputs: [[u8; 32]; 3] = [[0u8; 32]; 3];
@@ -730,12 +798,7 @@ pub mod swarmteams {
         public_inputs[1] = nullifier;
         public_inputs[2][24..32].copy_from_slice(&registry.epoch.to_be_bytes());
 
-        verify_agent_identity_proof(
-            &proof_a,
-            &proof_b,
-            &proof_c,
-            &public_inputs,
-        )?;
+        verify_agent_identity_proof(&proof_a, &proof_b, &proof_c, &public_inputs)?;
 
         let current_slot = Clock::get()?.slot;
         let swarm_action = &mut ctx.accounts.swarm_action_bid;
@@ -785,8 +848,14 @@ pub mod swarmteams {
         let current_slot = Clock::get()?.slot;
 
         require!(!registry.paused, AgentCollabError::ProtocolPaused);
-        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
-        require!(current_slot <= swarm_action.vote_deadline_slot, AgentCollabError::VotingEnded);
+        require!(
+            !swarm_action.executed,
+            AgentCollabError::ActionAlreadyExecuted
+        );
+        require!(
+            current_slot <= swarm_action.vote_deadline_slot,
+            AgentCollabError::VotingEnded
+        );
 
         // Verify ZK proof using swarm_vote_bid circuit (6 public inputs)
         let mut public_inputs: [[u8; 32]; 6] = [[0u8; 32]; 6];
@@ -797,12 +866,7 @@ pub mod swarmteams {
         public_inputs[4] = bid_commitment;
         public_inputs[5][24..32].copy_from_slice(&swarm_action.min_bid.to_be_bytes());
 
-        verify_swarm_vote_bid_proof(
-            &proof_a,
-            &proof_b,
-            &proof_c,
-            &public_inputs,
-        )?;
+        verify_swarm_vote_bid_proof(&proof_a, &proof_b, &proof_c, &public_inputs)?;
 
         // Check vote nullifier not already used for this action
         let vote_nullifier_account = &mut ctx.accounts.vote_bid_nullifier;
@@ -826,7 +890,8 @@ pub mod swarmteams {
         vote_bid_record.bump = ctx.bumps.vote_bid_record;
 
         // Increment vote count
-        swarm_action.vote_count = swarm_action.vote_count
+        swarm_action.vote_count = swarm_action
+            .vote_count
             .checked_add(1)
             .ok_or(AgentCollabError::VoteOverflow)?;
 
@@ -852,35 +917,44 @@ pub mod swarmteams {
         let swarm_action = &mut ctx.accounts.swarm_action_bid;
         let current_slot = Clock::get()?.slot;
 
-        require!(!vote_bid_record.revealed, AgentCollabError::VoteAlreadyRevealed);
-        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
-        require!(current_slot > swarm_action.vote_deadline_slot, AgentCollabError::RevealTooEarly);
-        require!(current_slot <= swarm_action.reveal_deadline_slot, AgentCollabError::RevealTooLate);
+        require!(
+            !vote_bid_record.revealed,
+            AgentCollabError::VoteAlreadyRevealed
+        );
+        require!(
+            !swarm_action.executed,
+            AgentCollabError::ActionAlreadyExecuted
+        );
+        require!(
+            current_slot > swarm_action.vote_deadline_slot,
+            AgentCollabError::RevealTooEarly
+        );
+        require!(
+            current_slot <= swarm_action.reveal_deadline_slot,
+            AgentCollabError::RevealTooLate
+        );
 
         // Verify vote commitment
-        let computed_vote_commitment = compute_vote_commitment(
-            vote_value,
-            &vote_salt,
-            &swarm_action.action_hash,
-        );
+        let computed_vote_commitment =
+            compute_vote_commitment(vote_value, &vote_salt, &swarm_action.action_hash);
         require!(
             computed_vote_commitment == vote_bid_record.vote_commitment,
             AgentCollabError::CommitmentMismatch
         );
 
         // Verify bid commitment
-        let computed_bid_commitment = compute_bid_commitment(
-            bid_amount,
-            &bid_salt,
-            &swarm_action.action_hash,
-        );
+        let computed_bid_commitment =
+            compute_bid_commitment(bid_amount, &bid_salt, &swarm_action.action_hash);
         require!(
             computed_bid_commitment == vote_bid_record.bid_commitment,
             AgentCollabError::CommitmentMismatch
         );
 
         // Verify bid meets minimum
-        require!(bid_amount >= swarm_action.min_bid, AgentCollabError::BidTooLow);
+        require!(
+            bid_amount >= swarm_action.min_bid,
+            AgentCollabError::BidTooLow
+        );
 
         // Mark as revealed and store values
         vote_bid_record.revealed = true;
@@ -888,12 +962,14 @@ pub mod swarmteams {
         vote_bid_record.bid_amount = bid_amount;
 
         // Update tallies
-        swarm_action.revealed_count = swarm_action.revealed_count
+        swarm_action.revealed_count = swarm_action
+            .revealed_count
             .checked_add(1)
             .ok_or(AgentCollabError::VoteOverflow)?;
 
         if vote_value {
-            swarm_action.yes_votes = swarm_action.yes_votes
+            swarm_action.yes_votes = swarm_action
+                .yes_votes
                 .checked_add(1)
                 .ok_or(AgentCollabError::VoteOverflow)?;
 
@@ -903,7 +979,8 @@ pub mod swarmteams {
                 swarm_action.highest_yes_bidder_nullifier = vote_bid_record.vote_nullifier;
             }
         } else {
-            swarm_action.no_votes = swarm_action.no_votes
+            swarm_action.no_votes = swarm_action
+                .no_votes
                 .checked_add(1)
                 .ok_or(AgentCollabError::VoteOverflow)?;
         }
@@ -925,8 +1002,14 @@ pub mod swarmteams {
         let swarm_action = &mut ctx.accounts.swarm_action_bid;
         let current_slot = Clock::get()?.slot;
 
-        require!(!swarm_action.executed, AgentCollabError::ActionAlreadyExecuted);
-        require!(current_slot > swarm_action.reveal_deadline_slot, AgentCollabError::VotingNotEnded);
+        require!(
+            !swarm_action.executed,
+            AgentCollabError::ActionAlreadyExecuted
+        );
+        require!(
+            current_slot > swarm_action.reveal_deadline_slot,
+            AgentCollabError::VotingNotEnded
+        );
 
         let total_votes = (swarm_action.yes_votes as u64)
             .checked_add(swarm_action.no_votes as u64)
@@ -944,7 +1027,10 @@ pub mod swarmteams {
         );
 
         // Must have at least one YES bidder
-        require!(swarm_action.highest_yes_bid > 0, AgentCollabError::NoWinningBid);
+        require!(
+            swarm_action.highest_yes_bid > 0,
+            AgentCollabError::NoWinningBid
+        );
 
         swarm_action.executed = true;
 
@@ -1009,24 +1095,36 @@ pub mod swarmteams {
         signal.revealed = true;
 
         // Update aggregator with the revealed signal (overflow-safe)
-        aggregator.total_signals = aggregator.total_signals
+        aggregator.total_signals = aggregator
+            .total_signals
             .checked_add(1)
             .ok_or(AgentCollabError::AggregatorOverflow)?;
         match direction {
-            0 => aggregator.short_count = aggregator.short_count
-                .checked_add(1)
-                .ok_or(AgentCollabError::AggregatorOverflow)?,
-            1 => aggregator.long_count = aggregator.long_count
-                .checked_add(1)
-                .ok_or(AgentCollabError::AggregatorOverflow)?,
-            _ => aggregator.neutral_count = aggregator.neutral_count
-                .checked_add(1)
-                .ok_or(AgentCollabError::AggregatorOverflow)?,
+            0 => {
+                aggregator.short_count = aggregator
+                    .short_count
+                    .checked_add(1)
+                    .ok_or(AgentCollabError::AggregatorOverflow)?
+            }
+            1 => {
+                aggregator.long_count = aggregator
+                    .long_count
+                    .checked_add(1)
+                    .ok_or(AgentCollabError::AggregatorOverflow)?
+            }
+            _ => {
+                aggregator.neutral_count = aggregator
+                    .neutral_count
+                    .checked_add(1)
+                    .ok_or(AgentCollabError::AggregatorOverflow)?
+            }
         }
-        aggregator.total_confidence = aggregator.total_confidence
+        aggregator.total_confidence = aggregator
+            .total_confidence
             .checked_add(confidence as u32)
             .ok_or(AgentCollabError::AggregatorOverflow)?;
-        aggregator.total_magnitude = aggregator.total_magnitude
+        aggregator.total_magnitude = aggregator
+            .total_magnitude
             .checked_add(magnitude as u32)
             .ok_or(AgentCollabError::AggregatorOverflow)?;
         aggregator.last_updated_slot = current_slot;
@@ -1100,8 +1198,14 @@ pub mod swarmteams {
         let registry = &mut ctx.accounts.registry;
         let current_slot = Clock::get()?.slot;
 
-        require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
-        require!(current_slot >= withdrawal.unlock_slot, AgentCollabError::TimelockNotExpired);
+        require!(
+            !withdrawal.claimed,
+            AgentCollabError::WithdrawalAlreadyClaimed
+        );
+        require!(
+            current_slot >= withdrawal.unlock_slot,
+            AgentCollabError::TimelockNotExpired
+        );
         require!(
             ctx.accounts.authority.key() == withdrawal.requester,
             AgentCollabError::UnauthorizedWithdrawal
@@ -1113,8 +1217,16 @@ pub mod swarmteams {
 
         // Transfer stake to recipient
         let stake_amount = withdrawal.amount;
-        **ctx.accounts.stake_vault.to_account_info().try_borrow_mut_lamports()? -= stake_amount;
-        **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += stake_amount;
+        **ctx
+            .accounts
+            .stake_vault
+            .to_account_info()
+            .try_borrow_mut_lamports()? -= stake_amount;
+        **ctx
+            .accounts
+            .recipient
+            .to_account_info()
+            .try_borrow_mut_lamports()? += stake_amount;
 
         // Reduce total stake
         registry.total_stake = registry.total_stake.saturating_sub(stake_amount);
@@ -1131,7 +1243,10 @@ pub mod swarmteams {
     pub fn cancel_withdrawal(ctx: Context<CancelWithdrawal>) -> Result<()> {
         let withdrawal = &mut ctx.accounts.withdrawal;
 
-        require!(!withdrawal.claimed, AgentCollabError::WithdrawalAlreadyClaimed);
+        require!(
+            !withdrawal.claimed,
+            AgentCollabError::WithdrawalAlreadyClaimed
+        );
         require!(
             ctx.accounts.payer.key() == withdrawal.requester,
             AgentCollabError::UnauthorizedWithdrawal
@@ -1151,40 +1266,19 @@ pub mod swarmteams {
         let zk_agent = &ctx.accounts.zk_agent;
         require!(zk_agent.active, AgentCollabError::AgentNotActive);
 
-        // Read stake position if provided
-        let (staked_amount, stake_multiplier) = if let Some(stake_position) = &ctx.accounts.stake_position {
-            // Verify stake position is from staking program
-            require!(
-                stake_position.owner == &STAKING_PROGRAM_ID,
-                AgentCollabError::InvalidStakePosition
-            );
-
-            // Parse StakePosition data: 8 (discriminator) + 32 (owner) + 8 (staked_amount) + 8 (stake_start_time)
-            let data = stake_position.try_borrow_data()?;
-            if data.len() >= 56 {
-                let owner_bytes: [u8; 32] = data[8..40].try_into().unwrap();
-                let stake_owner = Pubkey::new_from_array(owner_bytes);
-
-                // Verify stake position belongs to the signer
-                require!(
-                    stake_owner == ctx.accounts.owner.key(),
-                    AgentCollabError::StakeOwnerMismatch
-                );
-
-                let staked = u64::from_le_bytes(data[40..48].try_into().unwrap());
-                let stake_start = i64::from_le_bytes(data[48..56].try_into().unwrap());
-
-                // Calculate multiplier based on duration
-                let current_time = Clock::get()?.unix_timestamp;
-                let duration = current_time.saturating_sub(stake_start);
-                let multiplier = calculate_stake_multiplier(duration);
-
-                (staked, multiplier)
-            } else {
-                (0u64, 10000u64) // Default: no stake, 1.0x multiplier
+        let (staked_amount, stake_multiplier) = match &ctx.accounts.stake_position {
+            None => (0u64, 10000u64),
+            Some(stake_position) => {
+                match parse_stake_position(stake_position, &ctx.accounts.owner.key())? {
+                    None => (0u64, 10000u64),
+                    Some((staked, stake_start)) => {
+                        let current_time = Clock::get()?.unix_timestamp;
+                        let duration = current_time.saturating_sub(stake_start);
+                        let multiplier = calculate_stake_multiplier(duration);
+                        (staked, multiplier)
+                    }
+                }
             }
-        } else {
-            (0u64, 10000u64) // No stake position provided
         };
 
         let link = &mut ctx.accounts.identity_link;
@@ -1227,36 +1321,19 @@ pub mod swarmteams {
         let link = &mut ctx.accounts.identity_link;
         require!(link.active, AgentCollabError::LinkNotActive);
 
-        // Read updated stake position
-        let (staked_amount, stake_multiplier) = if let Some(stake_position) = &ctx.accounts.stake_position {
-            require!(
-                stake_position.owner == &STAKING_PROGRAM_ID,
-                AgentCollabError::InvalidStakePosition
-            );
-
-            let data = stake_position.try_borrow_data()?;
-            if data.len() >= 56 {
-                let owner_bytes: [u8; 32] = data[8..40].try_into().unwrap();
-                let stake_owner = Pubkey::new_from_array(owner_bytes);
-
-                require!(
-                    stake_owner == ctx.accounts.owner.key(),
-                    AgentCollabError::StakeOwnerMismatch
-                );
-
-                let staked = u64::from_le_bytes(data[40..48].try_into().unwrap());
-                let stake_start = i64::from_le_bytes(data[48..56].try_into().unwrap());
-
-                let current_time = Clock::get()?.unix_timestamp;
-                let duration = current_time.saturating_sub(stake_start);
-                let multiplier = calculate_stake_multiplier(duration);
-
-                (staked, multiplier)
-            } else {
-                (0u64, 10000u64)
+        let (staked_amount, stake_multiplier) = match &ctx.accounts.stake_position {
+            None => (0u64, 10000u64),
+            Some(stake_position) => {
+                match parse_stake_position(stake_position, &ctx.accounts.owner.key())? {
+                    None => (0u64, 10000u64),
+                    Some((staked, stake_start)) => {
+                        let current_time = Clock::get()?.unix_timestamp;
+                        let duration = current_time.saturating_sub(stake_start);
+                        let multiplier = calculate_stake_multiplier(duration);
+                        (staked, multiplier)
+                    }
+                }
             }
-        } else {
-            (0u64, 10000u64)
         };
 
         link.staked_amount = staked_amount;
@@ -1282,8 +1359,16 @@ pub mod swarmteams {
         // Return stake
         let stake_amount = agent.stake;
         agent.stake = 0;
-        **ctx.accounts.stake_vault.to_account_info().try_borrow_mut_lamports()? -= stake_amount;
-        **ctx.accounts.recipient.to_account_info().try_borrow_mut_lamports()? += stake_amount;
+        **ctx
+            .accounts
+            .stake_vault
+            .to_account_info()
+            .try_borrow_mut_lamports()? -= stake_amount;
+        **ctx
+            .accounts
+            .recipient
+            .to_account_info()
+            .try_borrow_mut_lamports()? += stake_amount;
 
         // Reduce total stake
         registry.total_stake = registry.total_stake.saturating_sub(stake_amount);
@@ -1510,7 +1595,8 @@ pub mod swarmteams {
         )?;
 
         // Update agent collateral
-        agent.collateral_amount = agent.collateral_amount
+        agent.collateral_amount = agent
+            .collateral_amount
             .checked_add(amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
         agent.collateral_locked_at = Clock::get()?.unix_timestamp;
@@ -1565,7 +1651,10 @@ pub mod swarmteams {
         let agent = &mut ctx.accounts.agent;
         let clock = Clock::get()?;
 
-        require!(!withdrawal.claimed, AgentCollabError::CollateralAlreadyClaimed);
+        require!(
+            !withdrawal.claimed,
+            AgentCollabError::CollateralAlreadyClaimed
+        );
         require!(
             clock.unix_timestamp >= withdrawal.unlock_time,
             AgentCollabError::CollateralTimelockActive
@@ -1582,8 +1671,7 @@ pub mod swarmteams {
         );
 
         withdrawal.claimed = true;
-        agent.collateral_amount = agent.collateral_amount
-            .saturating_sub(withdrawal.amount);
+        agent.collateral_amount = agent.collateral_amount.saturating_sub(withdrawal.amount);
 
         // Transfer tokens from vault to claimer
         let agent_key = agent.key();
@@ -1616,11 +1704,7 @@ pub mod swarmteams {
     }
 
     /// Slash an agent's collateral (authority only)
-    pub fn slash_agent(
-        ctx: Context<SlashAgent>,
-        slash_amount: u64,
-        reason: String,
-    ) -> Result<()> {
+    pub fn slash_agent(ctx: Context<SlashAgent>, slash_amount: u64, reason: String) -> Result<()> {
         let registry = &ctx.accounts.registry;
         require!(
             ctx.accounts.authority.key() == registry.authority,
@@ -1652,7 +1736,8 @@ pub mod swarmteams {
 
         // Update agent state
         agent.collateral_amount = agent.collateral_amount.saturating_sub(actual_slash);
-        agent.slashed_amount = agent.slashed_amount
+        agent.slashed_amount = agent
+            .slashed_amount
             .checked_add(actual_slash)
             .ok_or(AgentCollabError::StakeOverflow)?;
         agent.violation_count = agent.violation_count.saturating_add(1);
@@ -1691,10 +1776,7 @@ pub mod swarmteams {
 
     /// Burn tokens from treasury (authority only)
     /// Used by API to burn tokens corresponding to off-chain fee revenue
-    pub fn burn_from_treasury(
-        ctx: Context<BurnFromTreasury>,
-        amount: u64,
-    ) -> Result<()> {
+    pub fn burn_from_treasury(ctx: Context<BurnFromTreasury>, amount: u64) -> Result<()> {
         let registry = &mut ctx.accounts.registry;
 
         require!(amount > 0, AgentCollabError::InvalidAmount);
@@ -1729,7 +1811,8 @@ pub mod swarmteams {
         )?;
 
         // Update total burned
-        registry.total_burned = registry.total_burned
+        registry.total_burned = registry
+            .total_burned
             .checked_add(amount)
             .ok_or(AgentCollabError::StakeOverflow)?;
 
@@ -1861,17 +1944,17 @@ pub struct SwarmActionBid {
     pub registry: Pubkey,
     pub proposer_nullifier: [u8; 32],
     pub action_hash: [u8; 32],
-    pub threshold: u8,               // Approval threshold (0-100)
-    pub min_bid: u64,                // Minimum bid amount
-    pub vote_count: u32,             // Total votes submitted
-    pub revealed_count: u32,         // Votes revealed
-    pub yes_votes: u32,              // YES votes (after reveal)
-    pub no_votes: u32,               // NO votes (after reveal)
+    pub threshold: u8,       // Approval threshold (0-100)
+    pub min_bid: u64,        // Minimum bid amount
+    pub vote_count: u32,     // Total votes submitted
+    pub revealed_count: u32, // Votes revealed
+    pub yes_votes: u32,      // YES votes (after reveal)
+    pub no_votes: u32,       // NO votes (after reveal)
     pub created_slot: u64,
-    pub vote_deadline_slot: u64,     // Deadline for submitting votes
-    pub reveal_deadline_slot: u64,   // Deadline for revealing votes
+    pub vote_deadline_slot: u64,   // Deadline for submitting votes
+    pub reveal_deadline_slot: u64, // Deadline for revealing votes
     pub executed: bool,
-    pub highest_yes_bid: u64,        // Highest bid among YES voters
+    pub highest_yes_bid: u64, // Highest bid among YES voters
     pub highest_yes_bidder_nullifier: [u8; 32], // Nullifier of highest YES bidder
     pub bump: u8,
 }
