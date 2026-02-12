@@ -97,7 +97,10 @@ function getBlockchainId(): BlockchainId {
 
 function getQueryOpts(): { repository: string; paranetUAL?: string } {
   const repository = process.env.MEISHI_DKG_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-  const paranetUAL = process.env.MEISHI_PARANET_UAL?.trim();
+  const paranetUAL =
+    process.env.MEISHI_PARANET_UAL?.trim() ||
+    process.env.DKG_PARANET_UAL?.trim() ||
+    process.env.PARANET_UAL?.trim();
   return paranetUAL ? { repository, paranetUAL } : { repository };
 }
 
@@ -115,7 +118,10 @@ function getQueryRepositories(): string[] {
 }
 
 function getParanetUAL(): string | null {
-  const value = process.env.MEISHI_PARANET_UAL?.trim();
+  const value =
+    process.env.MEISHI_PARANET_UAL?.trim() ||
+    process.env.DKG_PARANET_UAL?.trim() ||
+    process.env.PARANET_UAL?.trim();
   return value && value.length > 0 ? value : null;
 }
 
@@ -238,7 +244,7 @@ async function getClient(): Promise<AgentParanetClient> {
 router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
   const endpoint = process.env.DKG_ENDPOINT?.trim() || null;
   const blockchain = getBlockchainId();
-  const paranetUAL = process.env.MEISHI_PARANET_UAL?.trim() || null;
+  const paranetUAL = getParanetUAL();
 
   if (!endpoint) {
     res.status(503).json({
@@ -272,7 +278,7 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     });
 
     if (!paranetUAL) {
-      checks.push({ name: 'paranet_access', status: 'warn', message: 'No MEISHI_PARANET_UAL configured' });
+      checks.push({ name: 'paranet_access', status: 'warn', message: 'No paranet UAL configured' });
     } else {
       const paranetStarted = Date.now();
       try {
