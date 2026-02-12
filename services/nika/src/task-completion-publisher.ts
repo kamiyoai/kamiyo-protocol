@@ -81,6 +81,36 @@ export class TaskCompletionPublisher {
     return Math.min(100, Math.round(baseQuality + likeScore + retweetScore + replyScore));
   }
 
+  private async publishServiceHeartbeatAudit(dkgMemory: DKGMemory): Promise<void> {
+    const dayKey = `service-heartbeat:${new Date().toISOString().slice(0, 10)}`;
+    if (publishedTasks.has(dayKey)) return;
+
+    const ual = await publishCircuit.execute(() =>
+      withRetry(
+        async () => dkgMemory.storeComplianceAudit({
+          agentId: this.config.agentGlobalId,
+          score: 65,
+          auditType: 'periodic',
+          jurisdiction: 'global',
+          summary: 'Nika service heartbeat audit for Meishi visibility and DKG liveness.',
+          source: 'nika-task-publisher-heartbeat',
+          taskType: 'service_heartbeat',
+        }),
+        { maxAttempts: 3, initialDelayMs: 2000 }
+      )
+    );
+
+    if (!ual) return;
+    publishedTasks.set(dayKey, {
+      tweetId: dayKey,
+      ual,
+      qualityScore: 65,
+      publishedAt: Date.now(),
+    });
+    metrics.incrementCounter('task_completion_published');
+    log.info('Published heartbeat compliance audit', { dayKey, ual });
+  }
+
   async publishTweetAsTask(tweet: TweetForPublishing): Promise<{ success: boolean; ual?: string; error?: string }> {
     // Check if already published
     if (publishedTasks.has(tweet.tweetId)) {
@@ -162,6 +192,8 @@ export class TaskCompletionPublisher {
     const startTime = Date.now();
 
     try {
+      await this.publishServiceHeartbeatAudit(dkgMemory);
+
       // Query recent tweets from DKG
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
       const sparql = `
