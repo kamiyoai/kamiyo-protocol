@@ -264,7 +264,6 @@ jobsRouter.post(
     if (job.status !== 'submitted') return c.json({ error: 'Job has not been submitted' }, 400);
 
     const updatedJob = jobService.updateStatus(jobId, 'completed');
-    // rating from 1..5 -> scale to 0..100
     const quality = Math.round((Math.max(1, Math.min(5, rating)) - 1) * 25);
     if (job.assignedAgent) agentService.recordTaskCompletion(job.assignedAgent, quality, false);
 

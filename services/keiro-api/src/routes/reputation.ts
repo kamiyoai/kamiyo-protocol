@@ -3,7 +3,6 @@ import { agentService } from '../services/agents.js';
 
 export const reputationRouter = new Hono();
 
-// Get reputation/credit score for an agent
 reputationRouter.get('/agent/:agentId', (c) => {
   const agentId = c.req.param('agentId');
 
@@ -12,12 +11,11 @@ reputationRouter.get('/agent/:agentId', (c) => {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  // Calculate component scores
   const qualityComponent = agent.avgQuality * 0.4;
   const reliabilityComponent = Math.min(agent.tasksCompleted / 10, 1) * 20;
   const disputeRate = agent.tasksCompleted > 0 ? agent.disputeCount / agent.tasksCompleted : 0;
   const disputeComponent = (1 - disputeRate) * 15;
-  const trustComponent = 7.5; // Placeholder - would come from DKG
+  const trustComponent = 7.5;
   const tenureComponent = Math.min(agent.tenureDays / 30, 1) * 10;
 
   const reputation = {
@@ -47,7 +45,7 @@ reputationRouter.get('/agent/:agentId', (c) => {
       peerTrust: {
         score: Math.round(trustComponent),
         weight: 15,
-        raw: 0.5, // Placeholder
+        raw: 0.5,
         description: 'Trust attestations from other agents',
       },
       tenure: {
@@ -69,7 +67,6 @@ reputationRouter.get('/agent/:agentId', (c) => {
   return c.json({ reputation });
 });
 
-// Get tier requirements and thresholds
 reputationRouter.get('/tiers', (c) => {
   const tiers = {
     unverified: {
