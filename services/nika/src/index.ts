@@ -140,8 +140,15 @@ async function main(): Promise<void> {
     log.info('Alerting initialized', { type: config.ALERT_WEBHOOK_TYPE });
   }
 
-  // Validate external connections before starting
-  await validateConnections(config);
+  // Validate external connections before starting.
+  // Keep service booting in degraded mode if credentials are absent/invalid.
+  try {
+    await validateConnections(config);
+  } catch (error) {
+    log.warn('External connection validation failed - continuing in degraded mode', {
+      error: String(error),
+    });
+  }
 
   // Initialize DKG memory (optional - continues without if fails)
   if (config.NIKA_PARANET_UAL || config.DKG_PRIVATE_KEY) {
