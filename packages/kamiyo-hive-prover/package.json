@@ -1,5 +1,5 @@
 {
-  "name": "@kamiyo/kamiyo-hive-prover",
+  "name": "@kamiyo/hive-prover",
   "version": "1.0.0",
   "description": "ZK proof generation for Hive agent collaboration",
   "type": "module",
@@ -7,11 +7,12 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run"
   },
   "dependencies": {
-    "@kamiyo/kamiyo-hive-merkle": "workspace:*",
+    "@kamiyo/hive-merkle": "workspace:*",
     "circomlibjs": "^0.1.7",
     "snarkjs": "^0.7.4"
   },

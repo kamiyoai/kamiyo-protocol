@@ -1,5 +1,5 @@
 {
-  "name": "@kamiyo/kamiyo-hive-merkle",
+  "name": "@kamiyo/hive-merkle",
   "version": "1.0.0",
   "description": "Poseidon merkle tree for Hive agent membership proofs",
   "type": "module",
@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run"
   },
