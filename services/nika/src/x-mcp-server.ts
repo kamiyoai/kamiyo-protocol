@@ -603,4 +603,13 @@ export const X_MCP_TOOL_NAMES = [
   'mcp__x-tools__post_tweet_with_image',
 ] as const;
 
+export const X_MCP_READ_TOOL_NAMES = [
+  'mcp__x-tools__get_tweet',
+  'mcp__x-tools__get_mentions',
+  'mcp__x-tools__search_tweets',
+  'mcp__x-tools__get_user',
+  'mcp__x-tools__get_timeline',
+] as const;
+
 export type XMcpToolName = (typeof X_MCP_TOOL_NAMES)[number];
+export type XMcpReadToolName = (typeof X_MCP_READ_TOOL_NAMES)[number];

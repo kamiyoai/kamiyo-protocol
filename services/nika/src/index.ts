@@ -43,6 +43,13 @@ import { OpenClawToolsInvokeClient } from './autonomy/openclaw-tools-invoke-clie
 import { parseAutonomyCommand } from './autonomy/command';
 import type { AutonomyTask } from './autonomy/types';
 import { validateTweet } from './personality';
+import { HolderGateClient, type HolderGateStatus } from './holder-gate';
+import { createNikaAgentSDK, type NikaAgentSDK } from './nika-agent-sdk';
+import { InMemorySessionStore, RedisSessionStore, type SessionStore } from './session-store';
+import { getEnabledSkills, getSkillById } from './skills/registry';
+import { parseSkillsListIntent, parseSkillInvokeIntent } from './skills/intents';
+import { formatSkillInfo, formatSkillsPage } from './skills/format';
+import { buildSkillInstruction } from './skills/executor';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -80,6 +87,30 @@ function pickValidTweetCandidate(text: string): string | null {
   return validation.valid ? truncated : null;
 }
 
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripBotMentions(text: string, handle: string): string {
+  const safeHandle = escapeRegExp(handle.trim().replace(/^@/, ''));
+  if (!safeHandle) return text.trim();
+  return text.replace(new RegExp(`@${safeHandle}\\b`, 'gi'), '').replace(/\s+/g, ' ').trim();
+}
+
+function buildHolderGateDenialReply(status: HolderGateStatus): string {
+  const min = status.minTokensRequired ?? 1_000_000;
+  const minText = min === 1_000_000 ? '1,000,000' : String(min);
+
+  const base =
+    status.reason === 'not_linked'
+      ? `holder-gated: link your wallet at app.kamiyo.ai, then hold >= ${minText} $KAMIYO to unlock skills + Claude chat.`
+      : status.reason === 'insufficient_holdings'
+        ? `holder-gated: need >= ${minText} $KAMIYO to unlock skills + Claude chat.`
+        : `holder-gated: verification unavailable right now. try again soon.`;
+
+  return truncate(base, 280);
+}
+
 // Global state
 let agent: NikaAgent | null = null;
 let dailyScheduler: DailyScheduler | null = null;
@@ -94,6 +125,9 @@ let taskPublisher: TaskCompletionPublisher | null = null;
 let statusInterval: NodeJS.Timeout | null = null;
 let repoKnowledgeMonitor: RepoKnowledgeMonitor | null = null;
 let autonomyRunner: AutonomyRunner | null = null;
+let holderGate: HolderGateClient | null = null;
+let mentionSessionStore: SessionStore | null = null;
+let agentSdk: NikaAgentSDK | null = null;
 
 async function validateConnections(config: ReturnType<typeof getConfig>): Promise<void> {
   log.info('Validating external connections');
@@ -164,6 +198,38 @@ async function main(): Promise<void> {
   const config = getConfig();
   setLogLevel(config.LOG_LEVEL);
   log.info('Configuration validated', getRedactedConfig());
+
+  holderGate = new HolderGateClient({
+    baseUrl: config.HOLDER_GATE_API_BASE_URL,
+    secret: config.HOLDER_GATE_API_SECRET,
+    timeoutMs: config.HOLDER_GATE_TIMEOUT_MS,
+    cacheTtlMs: config.HOLDER_GATE_CACHE_TTL_MS,
+  });
+
+  const sessionRedisUrl = (config.NIKA_SESSION_REDIS_URL || config.SHARED_STATE_REDIS_URL).trim();
+  const sessionPrefix = config.NIKA_SESSION_PREFIX || 'nika:sessions';
+  const sessionTtlSeconds = 30 * 24 * 60 * 60;
+  mentionSessionStore = sessionRedisUrl
+    ? new RedisSessionStore({ redisUrl: sessionRedisUrl, keyPrefix: sessionPrefix, ttlSeconds: sessionTtlSeconds })
+    : new InMemorySessionStore(sessionTtlSeconds * 1000);
+
+  log.info('Mention session store initialized', {
+    engine: config.NIKA_MENTION_ENGINE,
+    redis: !!sessionRedisUrl,
+    prefix: sessionPrefix,
+  });
+
+  if (config.NIKA_MENTION_ENGINE === 'claude_sdk') {
+    agentSdk = createNikaAgentSDK(config, mentionSessionStore);
+  }
+
+  shutdownManager.register(
+    'mentionSessionStore',
+    async () => {
+      await mentionSessionStore?.close();
+    },
+    19
+  );
 
   // Initialize xAI API key for image generation
   if (config.XAI_API_KEY) {
@@ -370,7 +436,7 @@ async function main(): Promise<void> {
     conversationCooldownMs: config.MENTION_CONVERSATION_COOLDOWN_MS,
     sharedStateRedisUrl: config.SHARED_STATE_REDIS_URL || undefined,
     sharedStatePrefix: config.SHARED_STATE_PREFIX,
-    onMention: async (mentionId, mentionText, authorUsername) => {
+    onMention: async (mentionId, mentionText, authorUsername, authorId) => {
       if (!agent) return;
       if (shutdownManager.isShutdown()) {
         log.warn('Skipping mention during shutdown', { mentionId });
@@ -515,7 +581,129 @@ async function main(): Promise<void> {
           return;
         }
 
-        const result = await agent.generateReply(mentionId, mentionText, authorUsername);
+        const normalizedAuthor = authorUsername.trim().replace(/^@/, '').toLowerCase();
+        const cleanedText = stripBotMentions(mentionText, config.TWITTER_HANDLE);
+
+        const skillsListIntent = parseSkillsListIntent(cleanedText);
+        const skillInvokeIntent = parseSkillInvokeIntent(cleanedText);
+
+        const bypassHolderGate = normalizedAuthor === 'kamiyoai';
+        const gateStatus: HolderGateStatus = bypassHolderGate
+          ? {
+              eligible: true,
+              linked: true,
+              reason: 'eligible',
+              wallet: null,
+              balance: null,
+              tier: 'pro',
+              minTokensRequired: 1_000_000,
+            }
+          : await (holderGate?.checkTwitterAuthor(authorId) ??
+              Promise.resolve({
+                eligible: false,
+                linked: false,
+                reason: 'unconfigured' as const,
+                wallet: null,
+                balance: null,
+                tier: null,
+                minTokensRequired: null,
+              }));
+
+        metrics.incrementCounter(gateStatus.eligible ? 'nika_holder_gate_allow' : 'nika_holder_gate_deny');
+
+        if (!gateStatus.eligible) {
+          const replyId = await agent.replyToTweet(mentionId, buildHolderGateDenialReply(gateStatus));
+          log.info('Holder gate denied mention', {
+            mentionId,
+            replyId,
+            requestor: authorUsername,
+            reason: gateStatus.reason,
+          });
+          health?.recordTweet();
+          metrics.incrementCounter('nika_mentions_replied');
+          mentionsProcessed.inc({ status: 'success' });
+          agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+          return;
+        }
+
+        if (skillsListIntent) {
+          const skills = getEnabledSkills();
+          const replyText = formatSkillsPage(skills, skillsListIntent.page);
+          const replyId = await agent.replyToTweet(mentionId, replyText);
+
+          log.info('Replied with skills list', {
+            mentionId,
+            replyId,
+            page: skillsListIntent.page,
+            skillsCount: skills.length,
+          });
+          health?.recordTweet();
+          metrics.incrementCounter('nika_mentions_replied');
+          metrics.incrementCounter('nika_skills_list_requests');
+          mentionsProcessed.inc({ status: 'success' });
+          agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+          return;
+        }
+
+        if (skillInvokeIntent) {
+          const skill = getSkillById(skillInvokeIntent.skillId);
+          if (!skill || !skill.enabled || skill.risk !== 'safe') {
+            const replyId = await agent.replyToTweet(mentionId, 'unknown skill. try /skills');
+            log.info('Unknown skill request', { mentionId, replyId, skillId: skillInvokeIntent.skillId });
+            health?.recordTweet();
+            metrics.incrementCounter('nika_mentions_replied');
+            metrics.incrementCounter('nika_skill_invocations_unknown');
+            mentionsProcessed.inc({ status: 'success' });
+            agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+            return;
+          }
+
+          if (!skillInvokeIntent.args) {
+            const replyId = await agent.replyToTweet(mentionId, formatSkillInfo(skill));
+            log.info('Replied with skill info', { mentionId, replyId, skill: skill.id });
+            health?.recordTweet();
+            metrics.incrementCounter('nika_mentions_replied');
+            metrics.incrementCounter('nika_skill_info_requests');
+            mentionsProcessed.inc({ status: 'success' });
+            agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+            return;
+          }
+
+          const instruction = buildSkillInstruction(skill, skillInvokeIntent.args);
+          const skillResult =
+            config.NIKA_MENTION_ENGINE === 'claude_sdk' && agentSdk
+              ? await agentSdk.generateSkillReply({
+                  mentionId,
+                  mentionText,
+                  authorUsername,
+                  authorId: authorId || undefined,
+                  instruction,
+                })
+              : await agent.generateReply(
+                  mentionId,
+                  `Skill: ${skill.name}\n\n${skillInvokeIntent.args}`,
+                  authorUsername
+                );
+
+          const replyId = await agent.replyToTweet(mentionId, skillResult.reply);
+          log.info('Skill reply posted', {
+            mentionId,
+            replyId,
+            skill: skill.id,
+            engine: config.NIKA_MENTION_ENGINE,
+          });
+          health?.recordTweet();
+          metrics.incrementCounter('nika_mentions_replied');
+          metrics.incrementCounter('nika_skill_invocations');
+          mentionsProcessed.inc({ status: 'success' });
+          agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+          return;
+        }
+
+        const result =
+          config.NIKA_MENTION_ENGINE === 'claude_sdk' && agentSdk
+            ? await agentSdk.generateReply(mentionId, mentionText, authorUsername, authorId || undefined)
+            : await agent.generateReply(mentionId, mentionText, authorUsername);
 
         // Actually post the reply to Twitter
         const replyId = await agent.replyToTweet(mentionId, result.reply);
@@ -524,6 +712,7 @@ async function main(): Promise<void> {
           mentionId,
           replyId,
           replyLength: result.reply.length,
+          engine: config.NIKA_MENTION_ENGINE,
         });
         health?.recordTweet();
         metrics.incrementCounter('nika_mentions_replied');

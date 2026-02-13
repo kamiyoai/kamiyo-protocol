@@ -50,6 +50,17 @@ export interface Config {
   SHARED_STATE_REDIS_URL: string;
   SHARED_STATE_PREFIX: string;
 
+  // Holder gate (X -> wallet -> holdings)
+  HOLDER_GATE_API_BASE_URL: string;
+  HOLDER_GATE_API_SECRET: string;
+  HOLDER_GATE_TIMEOUT_MS: number;
+  HOLDER_GATE_CACHE_TTL_MS: number;
+
+  // Claude SDK mentions
+  NIKA_MENTION_ENGINE: 'kamiyo' | 'claude_sdk';
+  NIKA_SESSION_REDIS_URL: string;
+  NIKA_SESSION_PREFIX: string;
+
   // Repo knowledge monitor
   NIKA_REPO_WATCH_ENABLED: boolean;
   NIKA_REPO_WATCH_INTERVAL_MS: number;
@@ -117,6 +128,13 @@ const DEFAULTS: Partial<Config> = {
   NIKA_MENTION_STATE_FILE: '',
   SHARED_STATE_REDIS_URL: '',
   SHARED_STATE_PREFIX: 'nika:mentions',
+  HOLDER_GATE_API_BASE_URL: '',
+  HOLDER_GATE_API_SECRET: '',
+  HOLDER_GATE_TIMEOUT_MS: 3000,
+  HOLDER_GATE_CACHE_TTL_MS: 10 * 60 * 1000,
+  NIKA_MENTION_ENGINE: 'kamiyo',
+  NIKA_SESSION_REDIS_URL: '',
+  NIKA_SESSION_PREFIX: 'nika:sessions',
   NIKA_REPO_WATCH_ENABLED: true,
   NIKA_REPO_WATCH_INTERVAL_MS: 6 * 60 * 60 * 1000,
   NIKA_REPO_ROOT: '',
@@ -184,6 +202,15 @@ function parseBoolean(input: string | undefined, fallback: boolean): boolean {
   if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return fallback;
+}
+
+function parseMentionEngine(
+  raw: string | undefined,
+  fallback: Config['NIKA_MENTION_ENGINE']
+): Config['NIKA_MENTION_ENGINE'] {
+  if (raw === undefined) return fallback;
+  const normalized = raw.trim().toLowerCase();
+  return normalized === 'claude_sdk' ? 'claude_sdk' : 'kamiyo';
 }
 
 function normalizeXUsername(input: string): string {
@@ -300,6 +327,42 @@ export function validateConfig(): ValidationResult {
 
   if (process.env.SHARED_STATE_PREFIX !== undefined && process.env.SHARED_STATE_PREFIX.trim().length === 0) {
     errors.push('SHARED_STATE_PREFIX must not be empty when set');
+  }
+
+  if (process.env.HOLDER_GATE_API_BASE_URL && !isValidUrl(process.env.HOLDER_GATE_API_BASE_URL)) {
+    errors.push('HOLDER_GATE_API_BASE_URL must be a valid URL');
+  }
+
+  const mentionEngine = parseMentionEngine(process.env.NIKA_MENTION_ENGINE, DEFAULTS.NIKA_MENTION_ENGINE!);
+  if (process.env.NODE_ENV === 'production' && mentionEngine === 'claude_sdk') {
+    if (!(process.env.HOLDER_GATE_API_BASE_URL || '').trim()) {
+      errors.push('HOLDER_GATE_API_BASE_URL is required when NIKA_MENTION_ENGINE=claude_sdk in production');
+    }
+    if (!(process.env.HOLDER_GATE_API_SECRET || '').trim()) {
+      errors.push('HOLDER_GATE_API_SECRET is required when NIKA_MENTION_ENGINE=claude_sdk in production');
+    }
+  }
+
+  if (process.env.HOLDER_GATE_TIMEOUT_MS) {
+    const timeout = parseInt(process.env.HOLDER_GATE_TIMEOUT_MS, 10);
+    if (isNaN(timeout) || timeout < 250 || timeout > 30000) {
+      errors.push('HOLDER_GATE_TIMEOUT_MS must be between 250 and 30000');
+    }
+  }
+
+  if (process.env.HOLDER_GATE_CACHE_TTL_MS) {
+    const ttl = parseInt(process.env.HOLDER_GATE_CACHE_TTL_MS, 10);
+    if (isNaN(ttl) || ttl < 0 || ttl > 24 * 60 * 60 * 1000) {
+      errors.push('HOLDER_GATE_CACHE_TTL_MS must be between 0 and 86400000');
+    }
+  }
+
+  if (process.env.NIKA_SESSION_REDIS_URL && !isValidRedisUrl(process.env.NIKA_SESSION_REDIS_URL)) {
+    errors.push('NIKA_SESSION_REDIS_URL must be a valid redis:// or rediss:// URL');
+  }
+
+  if (process.env.NIKA_SESSION_PREFIX !== undefined && process.env.NIKA_SESSION_PREFIX.trim().length === 0) {
+    errors.push('NIKA_SESSION_PREFIX must not be empty when set');
   }
 
   if (process.env.NIKA_REPO_WATCH_INTERVAL_MS) {
@@ -476,6 +539,8 @@ export function getConfig(): Config {
   const openClawMode: Config['AUTONOMY_OPENCLAW_MODE'] =
     openClawModeRaw === 'tools_invoke' ? 'tools_invoke' : 'hooks';
 
+  const mentionEngine = parseMentionEngine(process.env.NIKA_MENTION_ENGINE, DEFAULTS.NIKA_MENTION_ENGINE!);
+
   cachedConfig = {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
 
@@ -542,6 +607,19 @@ export function getConfig(): Config {
     NIKA_MENTION_STATE_FILE: process.env.NIKA_MENTION_STATE_FILE || DEFAULTS.NIKA_MENTION_STATE_FILE!,
     SHARED_STATE_REDIS_URL: process.env.SHARED_STATE_REDIS_URL || DEFAULTS.SHARED_STATE_REDIS_URL!,
     SHARED_STATE_PREFIX: process.env.SHARED_STATE_PREFIX || DEFAULTS.SHARED_STATE_PREFIX!,
+    HOLDER_GATE_API_BASE_URL: (process.env.HOLDER_GATE_API_BASE_URL || DEFAULTS.HOLDER_GATE_API_BASE_URL!).trim(),
+    HOLDER_GATE_API_SECRET: (process.env.HOLDER_GATE_API_SECRET || DEFAULTS.HOLDER_GATE_API_SECRET!).trim(),
+    HOLDER_GATE_TIMEOUT_MS: parseInt(
+      process.env.HOLDER_GATE_TIMEOUT_MS || String(DEFAULTS.HOLDER_GATE_TIMEOUT_MS),
+      10
+    ),
+    HOLDER_GATE_CACHE_TTL_MS: parseInt(
+      process.env.HOLDER_GATE_CACHE_TTL_MS || String(DEFAULTS.HOLDER_GATE_CACHE_TTL_MS),
+      10
+    ),
+    NIKA_MENTION_ENGINE: mentionEngine,
+    NIKA_SESSION_REDIS_URL: (process.env.NIKA_SESSION_REDIS_URL || DEFAULTS.NIKA_SESSION_REDIS_URL!).trim(),
+    NIKA_SESSION_PREFIX: (process.env.NIKA_SESSION_PREFIX || DEFAULTS.NIKA_SESSION_PREFIX!).trim(),
     NIKA_REPO_WATCH_ENABLED: parseBoolean(
       process.env.NIKA_REPO_WATCH_ENABLED,
       DEFAULTS.NIKA_REPO_WATCH_ENABLED!
@@ -658,6 +736,13 @@ export function getRedactedConfig(): Record<string, string> {
     NIKA_MENTION_STATE_FILE: config.NIKA_MENTION_STATE_FILE || '(default)',
     SHARED_STATE_REDIS_URL: config.SHARED_STATE_REDIS_URL ? '[CONFIGURED]' : '(not set)',
     SHARED_STATE_PREFIX: config.SHARED_STATE_PREFIX,
+    HOLDER_GATE_API_BASE_URL: config.HOLDER_GATE_API_BASE_URL || '(not set)',
+    HOLDER_GATE_API_SECRET: config.HOLDER_GATE_API_SECRET ? '[CONFIGURED]' : '(not set)',
+    HOLDER_GATE_TIMEOUT_MS: String(config.HOLDER_GATE_TIMEOUT_MS),
+    HOLDER_GATE_CACHE_TTL_MS: String(config.HOLDER_GATE_CACHE_TTL_MS),
+    NIKA_MENTION_ENGINE: config.NIKA_MENTION_ENGINE,
+    NIKA_SESSION_REDIS_URL: config.NIKA_SESSION_REDIS_URL ? '[CONFIGURED]' : '(not set)',
+    NIKA_SESSION_PREFIX: config.NIKA_SESSION_PREFIX,
     NIKA_REPO_WATCH_ENABLED: String(config.NIKA_REPO_WATCH_ENABLED),
     NIKA_REPO_WATCH_INTERVAL_MS: String(config.NIKA_REPO_WATCH_INTERVAL_MS),
     NIKA_REPO_ROOT: config.NIKA_REPO_ROOT || '(auto)',

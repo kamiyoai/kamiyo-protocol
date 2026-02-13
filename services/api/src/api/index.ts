@@ -18,6 +18,7 @@ import kamiyoTokenRoutes from './routes/kamiyo-token';
 import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import linkWalletRoutes from './routes/link-wallet';
+import internalHoldersRoutes from './routes/internal-holders';
 import swarmTeamRoutes from './routes/hive-teams';
 import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import buybackRoutes from './routes/buyback';
@@ -293,6 +294,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Wallet linking routes (from kamiyo-app dApp)
   app.use('/api/link-wallet', linkWalletRoutes);
+
+  // Internal holder-gate lookup (server-to-server)
+  app.use('/internal/holders', internalHoldersRoutes);
 
   // SwarmTeam management routes (public)
   app.use('/api/hive-teams', swarmTeamRoutes);
