@@ -171,7 +171,7 @@ export class KamiyoHive {
     }
 
     if (x402TransactionId) {
-      (hire as any).x402TransactionId = x402TransactionId;
+      hire.x402TransactionId = x402TransactionId;
     }
 
     return {

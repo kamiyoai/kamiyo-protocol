@@ -6,6 +6,7 @@ import { agentService } from '../services/agents.js';
 import { earningsService } from '../services/earnings.js';
 import {
   AcceptJobRequestSchema,
+  AgentSkillSchema,
   JobStatusSchema,
   ObjectiveSpecSchema,
   RateTaskRequestSchema,
@@ -13,7 +14,6 @@ import {
   SubmitTaskRequestSchema,
   type Job,
 } from '../types/index.js';
-import { AgentSkillSchema } from '../types/index.js';
 import { normalizeSkillTag } from '../services/skill-tags.js';
 import { isAgentSemanticallyEligibleForJob, rankJobsForAgent, tierMeetsRequirement } from '../services/semantic-matching.js';
 import { receiptService } from '../services/receipts.js';
@@ -59,7 +59,7 @@ jobsRouter.get('/', (c) => {
 
   if (skill) {
     const tag = normalizeSkillTag(skill);
-    if (tag) jobs = jobs.filter((j) => j.requiredSkills.includes(tag as any));
+    if (tag) jobs = jobs.filter((j) => j.requiredSkills.includes(tag));
   }
 
   return c.json({ jobs });
