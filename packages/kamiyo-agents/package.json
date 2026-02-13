@@ -6,6 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "tsx --test src/x402-tools.test.ts",
