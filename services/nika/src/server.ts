@@ -40,6 +40,7 @@ export interface AutonomyApi {
 export interface AdminApi {
   enabled: boolean;
   token?: string;
+  postTweet: (input: { content: string }) => Promise<{ tweetId: string }>;
   postTweetWithImage: (input: {
     content: string;
     image: Buffer;
@@ -262,6 +263,37 @@ export class Server {
       }
       res.json({ task });
     });
+
+    this.app.post(
+      '/internal/tweet',
+      async (req: Request, res: Response) => {
+        if (!this.ensureAdminAccess(req, res)) return;
+
+        const content =
+          typeof req.body?.content === 'string'
+            ? req.body.content.trim()
+            : (req.header('x-tweet-content') || '').trim();
+
+        if (!content) {
+          res.status(400).json({ error: 'content_required' });
+          return;
+        }
+        if (content.length > 280) {
+          res.status(400).json({ error: 'content_too_long' });
+          return;
+        }
+
+        try {
+          const result = await this.config.admin!.postTweet({ content });
+          tweetsPosted.inc({ type: 'admin' });
+          res.json({ ok: true, tweetId: result.tweetId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'tweet_failed';
+          log.error('Admin tweet failed', { error: String(error) });
+          res.status(500).json({ error: message });
+        }
+      }
+    );
 
     this.app.post(
       '/internal/tweet-image',

@@ -743,6 +743,10 @@ async function main(): Promise<void> {
       ? {
           enabled: true,
           token: adminToken,
+          postTweet: async ({ content }) => {
+            const result = await adminTwitter.v2.tweet(content);
+            return { tweetId: result.data.id };
+          },
           postTweetWithImage: async ({ content, image, mimeType }) => {
             const mediaId = await adminTwitter.v1.uploadMedia(image, { mimeType });
             const result = await adminTwitter.v2.tweet(content, {
