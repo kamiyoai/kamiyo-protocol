@@ -6,6 +6,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import type { Server as HttpServer } from 'http';
 import { Registry, collectDefaultMetrics, Counter, Histogram, Gauge } from 'prom-client';
 import { createLogger } from './lib';
+import type { AutonomyTask, AutonomyTaskInput, AutonomyStatus } from './autonomy/types';
 
 const log = createLogger('nika:server');
 
@@ -13,6 +14,16 @@ export interface ServerConfig {
   port: number;
   getHealth: () => HealthStatus;
   getReadiness: () => Promise<ReadinessStatus>;
+  autonomy?: AutonomyApi;
+}
+
+export interface AutonomyApi {
+  enabled: boolean;
+  token?: string;
+  enqueueTask: (task: AutonomyTaskInput) => Promise<AutonomyTask>;
+  getTask: (taskId: string) => AutonomyTask | null;
+  listTasks: (limit: number) => AutonomyTask[];
+  getStatus: () => AutonomyStatus;
 }
 
 export interface HealthStatus {
@@ -25,6 +36,9 @@ export interface HealthStatus {
     circuitBreaker: { posting: string; replies: string; dkg: string };
     dkg: { enabled: boolean; circuitStatus: string; activePort?: number | null };
     engagementTracker: { running: boolean };
+    taskPublisher?: { running: boolean; published: number };
+    repoKnowledge?: { running: boolean; lastUpdateAt: string | null; commit: string | null };
+    autonomy?: AutonomyStatus;
   };
 }
 
@@ -34,6 +48,7 @@ export interface ReadinessStatus {
     twitter: { ok: boolean; error?: string };
     anthropic: { ok: boolean; error?: string };
     dkg: { ok: boolean; error?: string };
+    autonomy?: { ok: boolean; error?: string };
   };
 }
 
@@ -105,6 +120,8 @@ export class Server {
   }
 
   private setupMiddleware(): void {
+    this.app.use(express.json({ limit: '256kb' }));
+
     // Request logging and metrics
     this.app.use((req: Request, res: Response, next: NextFunction) => {
       const start = Date.now();
@@ -159,6 +176,61 @@ export class Server {
       }
     });
 
+    this.app.get('/autonomy/status', (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+      res.json(this.config.autonomy!.getStatus());
+    });
+
+    this.app.post('/autonomy/tasks', async (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+
+      const objective = typeof req.body?.objective === 'string' ? req.body.objective.trim() : '';
+      if (!objective) {
+        res.status(400).json({ error: 'objective_required' });
+        return;
+      }
+
+      const source = typeof req.body?.source === 'string' ? req.body.source : 'api';
+      if (!['x', 'api', 'manual', 'system'].includes(source)) {
+        res.status(400).json({ error: 'invalid_source' });
+        return;
+      }
+
+      const payload: AutonomyTaskInput = {
+        source,
+        objective,
+        requestor: typeof req.body?.requestor === 'string' ? req.body.requestor : undefined,
+        priority: typeof req.body?.priority === 'number' ? req.body.priority : undefined,
+        context: req.body?.context && typeof req.body.context === 'object' ? req.body.context : undefined,
+        idempotencyKey: typeof req.body?.idempotencyKey === 'string' ? req.body.idempotencyKey : undefined,
+      };
+
+      try {
+        const task = await this.config.autonomy!.enqueueTask(payload);
+        res.status(202).json({ task });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'enqueue_failed';
+        res.status(400).json({ error: message });
+      }
+    });
+
+    this.app.get('/autonomy/tasks', (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+      const rawLimit = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : 20;
+      const limit = Number.isFinite(rawLimit) ? rawLimit : 20;
+      res.json({ tasks: this.config.autonomy!.listTasks(limit) });
+    });
+
+    this.app.get('/autonomy/tasks/:taskId', (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+      const task = this.config.autonomy!.getTask(req.params.taskId);
+      if (!task) {
+        res.status(404).json({ error: 'task_not_found' });
+        return;
+      }
+      res.json({ task });
+    });
+
     // Simple status page
     this.app.get('/', (_req: Request, res: Response) => {
       res.json({
@@ -171,6 +243,34 @@ export class Server {
         },
       });
     });
+  }
+
+  private ensureAutonomyAccess(req: Request, res: Response): boolean {
+    const autonomy = this.config.autonomy;
+    if (!autonomy?.enabled) {
+      res.status(404).json({ error: 'autonomy_disabled' });
+      return false;
+    }
+
+    if (!autonomy.token) {
+      return true;
+    }
+
+    const provided = this.readToken(req);
+    if (provided !== autonomy.token) {
+      res.status(401).json({ error: 'unauthorized' });
+      return false;
+    }
+
+    return true;
+  }
+
+  private readToken(req: Request): string {
+    const authorization = req.header('authorization');
+    if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+      return authorization.slice(7).trim();
+    }
+    return req.header('x-autonomy-token')?.trim() ?? '';
   }
 
   async start(): Promise<void> {
