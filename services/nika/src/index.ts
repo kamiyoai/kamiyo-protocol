@@ -1,4 +1,5 @@
 import { createXTools } from '@kamiyo/agents';
+import { TwitterApi } from 'twitter-api-v2';
 import {
   createLogger,
   getMetrics,
@@ -711,6 +712,16 @@ async function main(): Promise<void> {
   }
 
   // Initialize HTTP server
+  const adminToken = (process.env.NIKA_ADMIN_TOKEN || '').trim();
+  const adminTwitter = adminToken
+    ? new TwitterApi({
+        appKey: config.TWITTER_API_KEY,
+        appSecret: config.TWITTER_API_SECRET,
+        accessToken: config.TWITTER_ACCESS_TOKEN,
+        accessSecret: config.TWITTER_ACCESS_SECRET,
+      })
+    : null;
+
   server = createServer({
     port: config.PORT,
     autonomy: autonomyRunner
@@ -726,6 +737,19 @@ async function main(): Promise<void> {
               enabled: config.AUTONOMY_ENABLED,
               dryRun: config.AUTONOMY_DRY_RUN,
             }),
+        }
+      : undefined,
+    admin: adminToken && adminTwitter
+      ? {
+          enabled: true,
+          token: adminToken,
+          postTweetWithImage: async ({ content, image, mimeType }) => {
+            const mediaId = await adminTwitter.v1.uploadMedia(image, { mimeType });
+            const result = await adminTwitter.v2.tweet(content, {
+              media: { media_ids: [mediaId] },
+            });
+            return { tweetId: result.data.id };
+          },
         }
       : undefined,
     getHealth: () => ({
