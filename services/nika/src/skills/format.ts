@@ -5,11 +5,13 @@ const MAX_TWEET_CHARS = 280;
 
 const SKILL_HINTS: Record<string, string> = {
   summarize: 'compress',
+  summarize_thread: 'thread',
   rewrite: 'tone',
   draft_reply: 'reply',
   explain: 'clarify',
   critique: 'improve',
   brainstorm: 'options',
+  shaping: 'scope',
 };
 
 export function formatSkillsPage(skills: SkillDefinition[], page: number, pageSize = 6): string {
@@ -34,4 +36,3 @@ export function formatSkillInfo(skill: SkillDefinition): string {
   }
   return truncate(base, MAX_TWEET_CHARS);
 }
-

@@ -34,8 +34,7 @@ export function parseSkillsListIntent(text: string): { page: number } | null {
 }
 
 export function parseSkillInvokeIntent(text: string): { skillId: string; args: string } | null {
-  const match = text.trim().match(/^\/skill\s+([a-z0-9_]+)\s*([\s\S]*)$/i);
+  const match = text.trim().match(/^\/skill\s+([a-z0-9_-]+)\s*([\s\S]*)$/i);
   if (!match) return null;
   return { skillId: match[1]!.trim().toLowerCase(), args: (match[2] || '').trim() };
 }
-

@@ -6,6 +6,8 @@ export function buildSkillInstruction(skill: SkillDefinition, args: string): str
   switch (skill.id) {
     case 'summarize':
       return `Summarize the user's input into a crisp brief under 280 characters. Preserve key numbers/claims. If something is ambiguous, say so briefly.\n\nINPUT:\n${input}`;
+    case 'summarize_thread':
+      return `Summarize the tweet/thread the user referenced (URL or tweet ID). If it's a URL, extract the tweet ID. Use X tools to fetch the tweet, then search the conversation_id for context. Output a single brief under 280 characters.\n\nTARGET:\n${input}`;
     case 'rewrite':
       return `Rewrite the user's input. Keep the meaning, make it sharper. If the user specified a tone, follow it. Under 280 characters.\n\nINPUT:\n${input}`;
     case 'draft_reply':
@@ -16,8 +18,9 @@ export function buildSkillInstruction(skill: SkillDefinition, args: string): str
       return `Critique the text and offer a better version, but keep the output under 280 characters. If you must choose, output the improved version.\n\nTEXT:\n${input}`;
     case 'brainstorm':
       return `Brainstorm 3 options. Each option should be a short phrase with a tiny tradeoff note. Total under 280 characters.\n\nPROMPT:\n${input}`;
+    case 'shaping':
+      return `Use Shape Up style to scope this idea. Output in one tweet under 280 characters using compact labels (Appetite, Boundaries, Risks, Bet). No fluff.\n\nIDEA:\n${input}`;
     default:
       return `Help the user with their request under 280 characters.\n\nINPUT:\n${input}`;
   }
 }
-

@@ -21,6 +21,15 @@ export const SKILL_DEFINITIONS: SkillDefinition[] = [
     source: { provider: 'local' },
   },
   {
+    id: 'summarize_thread',
+    name: 'Summarize Thread',
+    description: 'Summarize a tweet/thread by URL or tweet ID.',
+    usage: '/skill summarize_thread <tweet url or id>',
+    risk: 'safe',
+    enabled: true,
+    source: { provider: 'local' },
+  },
+  {
     id: 'rewrite',
     name: 'Rewrite',
     description: 'Rewrite your text in Nika voice (or a specified tone).',
@@ -65,6 +74,15 @@ export const SKILL_DEFINITIONS: SkillDefinition[] = [
     enabled: true,
     source: { provider: 'local' },
   },
+  {
+    id: 'shaping',
+    name: 'Shape (Shape Up)',
+    description: 'Turn a vague idea into a scoped, buildable plan (constraints, risks, appetite).',
+    usage: '/skill shaping <idea>',
+    risk: 'safe',
+    enabled: true,
+    source: { provider: 'clawhub', ref: 'shaping@1.0.0' },
+  },
 ];
 
 export function getEnabledSkills(): SkillDefinition[] {
@@ -75,4 +93,3 @@ export function getSkillById(id: string): SkillDefinition | null {
   const normalized = id.trim().toLowerCase();
   return SKILL_DEFINITIONS.find((s) => s.id === normalized) ?? null;
 }
-

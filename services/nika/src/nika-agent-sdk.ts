@@ -713,7 +713,7 @@ Return ONLY the quote text.`;
     const queryOptions: Options = {
       systemPrompt: SYSTEM_PROMPT,
       model: 'claude-haiku-4-5-20251001',
-      allowedTools: [...X_MCP_READ_TOOL_NAMES],
+      allowedTools: ['WebSearch', ...X_MCP_READ_TOOL_NAMES],
       mcpServers: {
         'x-tools': this.xMcpServer,
       },
