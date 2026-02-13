@@ -404,6 +404,12 @@ export function getConfig(): Config {
     throw new Error(`Invalid configuration: ${validation.errors.join(', ')}`);
   }
 
+  const openClawModeRaw = (process.env.AUTONOMY_OPENCLAW_MODE || DEFAULTS.AUTONOMY_OPENCLAW_MODE!)
+    .trim()
+    .toLowerCase();
+  const openClawMode: Config['AUTONOMY_OPENCLAW_MODE'] =
+    openClawModeRaw === 'tools_invoke' ? 'tools_invoke' : 'hooks';
+
   cachedConfig = {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY!,
 
@@ -513,7 +519,7 @@ export function getConfig(): Config {
     AUTONOMY_OPENCLAW_BASE_URL: (
       process.env.AUTONOMY_OPENCLAW_BASE_URL || DEFAULTS.AUTONOMY_OPENCLAW_BASE_URL!
     ).trim(),
-    AUTONOMY_OPENCLAW_MODE: ((process.env.AUTONOMY_OPENCLAW_MODE || DEFAULTS.AUTONOMY_OPENCLAW_MODE!) as Config['AUTONOMY_OPENCLAW_MODE']) || DEFAULTS.AUTONOMY_OPENCLAW_MODE!,
+    AUTONOMY_OPENCLAW_MODE: openClawMode,
     AUTONOMY_OPENCLAW_HOOK_PATH: (
       process.env.AUTONOMY_OPENCLAW_HOOK_PATH || DEFAULTS.AUTONOMY_OPENCLAW_HOOK_PATH!
     ).trim(),
