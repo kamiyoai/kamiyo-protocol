@@ -297,6 +297,7 @@ async function main(): Promise<void> {
         dryRun: config.AUTONOMY_DRY_RUN,
         tickIntervalMs: config.AUTONOMY_TICK_INTERVAL_MS,
         maxQueueSize: config.AUTONOMY_MAX_QUEUE_SIZE,
+        maxTaskHistory: config.AUTONOMY_MAX_TASK_HISTORY,
         objectiveMaxLength: config.AUTONOMY_OBJECTIVE_MAX_LENGTH,
       },
       { meishiGate, executor }
@@ -389,7 +390,29 @@ async function main(): Promise<void> {
           config.AUTONOMY_COMMAND_PREFIX
         );
 
-        if (autonomyRunner && autonomyCommand.matched) {
+        if (autonomyRunner && autonomyCommand.matched && config.AUTONOMY_X_COMMANDS_ENABLED) {
+          const normalizedAuthor = authorUsername.trim().replace(/^@/, '').toLowerCase();
+          const hasAllowlist = config.AUTONOMY_X_ALLOWLIST.length > 0;
+          const allowlisted =
+            normalizedAuthor && config.AUTONOMY_X_ALLOWLIST.includes(normalizedAuthor);
+          const allowed =
+            config.AUTONOMY_X_PUBLIC ||
+            (hasAllowlist ? allowlisted : config.AUTONOMY_DRY_RUN);
+
+          if (!allowed) {
+            const replyId = await agent.replyToTweet(mentionId, 'autonomous execution is currently private');
+            log.info('Autonomy request denied', {
+              mentionId,
+              replyId,
+              requestor: authorUsername,
+            });
+            health?.recordTweet();
+            metrics.incrementCounter('nika_mentions_replied');
+            mentionsProcessed.inc({ status: 'success' });
+            agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+            return;
+          }
+
           if (!autonomyCommand.objective) {
             const usageReply = `${config.AUTONOMY_COMMAND_PREFIX} <objective>`;
             await agent.replyToTweet(mentionId, usageReply);

@@ -62,11 +62,15 @@ export interface Config {
   AUTONOMY_COMMAND_PREFIX: string;
   AUTONOMY_TICK_INTERVAL_MS: number;
   AUTONOMY_MAX_QUEUE_SIZE: number;
+  AUTONOMY_MAX_TASK_HISTORY: number;
   AUTONOMY_OBJECTIVE_MAX_LENGTH: number;
   AUTONOMY_MEISHI_VERIFY_URL: string;
   AUTONOMY_MEISHI_AGENT_ID: string;
   AUTONOMY_MEISHI_MIN_SCORE: number;
   AUTONOMY_MEISHI_REQUIRE_COMPLIANT: boolean;
+  AUTONOMY_X_COMMANDS_ENABLED: boolean;
+  AUTONOMY_X_PUBLIC: boolean;
+  AUTONOMY_X_ALLOWLIST: string[];
   AUTONOMY_OPENCLAW_BASE_URL: string;
   AUTONOMY_OPENCLAW_MODE: 'hooks' | 'tools_invoke';
   AUTONOMY_OPENCLAW_HOOK_PATH: string;
@@ -122,11 +126,15 @@ const DEFAULTS: Partial<Config> = {
   AUTONOMY_COMMAND_PREFIX: '/autonomy',
   AUTONOMY_TICK_INTERVAL_MS: 15_000,
   AUTONOMY_MAX_QUEUE_SIZE: 100,
+  AUTONOMY_MAX_TASK_HISTORY: 500,
   AUTONOMY_OBJECTIVE_MAX_LENGTH: 1_200,
   AUTONOMY_MEISHI_VERIFY_URL: '',
   AUTONOMY_MEISHI_AGENT_ID: '',
   AUTONOMY_MEISHI_MIN_SCORE: 1,
   AUTONOMY_MEISHI_REQUIRE_COMPLIANT: true,
+  AUTONOMY_X_COMMANDS_ENABLED: true,
+  AUTONOMY_X_PUBLIC: false,
+  AUTONOMY_X_ALLOWLIST: [],
   AUTONOMY_OPENCLAW_BASE_URL: 'http://127.0.0.1:18789',
   AUTONOMY_OPENCLAW_MODE: 'hooks',
   AUTONOMY_OPENCLAW_HOOK_PATH: '/hooks',
@@ -176,6 +184,23 @@ function parseBoolean(input: string | undefined, fallback: boolean): boolean {
   if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return fallback;
+}
+
+function normalizeXUsername(input: string): string {
+  return input.trim().replace(/^@/, '').toLowerCase();
+}
+
+function parseXAllowlist(raw: string | undefined): string[] {
+  if (raw === undefined) return DEFAULTS.AUTONOMY_X_ALLOWLIST!;
+  const normalized = raw
+    .split(',')
+    .map((entry) => normalizeXUsername(entry))
+    .filter(Boolean);
+  return Array.from(new Set(normalized));
+}
+
+function isValidXUsername(value: string): boolean {
+  return /^[a-z0-9_]{1,15}$/.test(value);
 }
 
 function isValidPrivateKey(str: string): boolean {
@@ -298,6 +323,13 @@ export function validateConfig(): ValidationResult {
     }
   }
 
+  if (process.env.AUTONOMY_MAX_TASK_HISTORY) {
+    const maxHistory = parseInt(process.env.AUTONOMY_MAX_TASK_HISTORY, 10);
+    if (isNaN(maxHistory) || maxHistory < 10 || maxHistory > 100_000) {
+      errors.push('AUTONOMY_MAX_TASK_HISTORY must be between 10 and 100000');
+    }
+  }
+
   if (process.env.AUTONOMY_OBJECTIVE_MAX_LENGTH) {
     const maxObjectiveLength = parseInt(process.env.AUTONOMY_OBJECTIVE_MAX_LENGTH, 10);
     if (isNaN(maxObjectiveLength) || maxObjectiveLength < 32 || maxObjectiveLength > 20_000) {
@@ -314,8 +346,19 @@ export function validateConfig(): ValidationResult {
 
   const autonomyEnabled = parseBoolean(process.env.AUTONOMY_ENABLED, DEFAULTS.AUTONOMY_ENABLED!);
   const autonomyDryRun = parseBoolean(process.env.AUTONOMY_DRY_RUN, DEFAULTS.AUTONOMY_DRY_RUN!);
+  const autonomyXCommandsEnabled = parseBoolean(
+    process.env.AUTONOMY_X_COMMANDS_ENABLED,
+    DEFAULTS.AUTONOMY_X_COMMANDS_ENABLED!
+  );
+  const autonomyXPublic = parseBoolean(process.env.AUTONOMY_X_PUBLIC, DEFAULTS.AUTONOMY_X_PUBLIC!);
+  const autonomyXAllowlist = parseXAllowlist(process.env.AUTONOMY_X_ALLOWLIST);
 
   if (autonomyEnabled) {
+    const autonomyApiToken = (process.env.AUTONOMY_API_TOKEN || '').trim();
+    if (!autonomyApiToken) {
+      errors.push('AUTONOMY_API_TOKEN is required when AUTONOMY_ENABLED=true');
+    }
+
     const meishiVerifyUrl = (process.env.AUTONOMY_MEISHI_VERIFY_URL || '').trim();
     if (!meishiVerifyUrl) {
       errors.push('AUTONOMY_MEISHI_VERIFY_URL is required when AUTONOMY_ENABLED=true');
@@ -365,6 +408,18 @@ export function validateConfig(): ValidationResult {
       errors.push('AUTONOMY_OPENCLAW_TARGET_SESSION_PREFIX must not be empty');
     }
 
+    const maxQueueSize = parseInt(
+      process.env.AUTONOMY_MAX_QUEUE_SIZE || String(DEFAULTS.AUTONOMY_MAX_QUEUE_SIZE),
+      10
+    );
+    const maxHistory = parseInt(
+      process.env.AUTONOMY_MAX_TASK_HISTORY || String(DEFAULTS.AUTONOMY_MAX_TASK_HISTORY),
+      10
+    );
+    if (Number.isFinite(maxQueueSize) && Number.isFinite(maxHistory) && maxHistory < maxQueueSize) {
+      warnings.push('AUTONOMY_MAX_TASK_HISTORY is less than AUTONOMY_MAX_QUEUE_SIZE; task history trimming may be ineffective');
+    }
+
     if (!autonomyDryRun) {
       const mode = modeRaw === 'tools_invoke' ? 'tools_invoke' : 'hooks';
       if (mode === 'hooks' && !(process.env.AUTONOMY_OPENCLAW_HOOK_TOKEN || '').trim()) {
@@ -373,6 +428,17 @@ export function validateConfig(): ValidationResult {
 
       if (mode === 'tools_invoke' && !(process.env.AUTONOMY_OPENCLAW_GATEWAY_TOKEN || '').trim()) {
         errors.push('AUTONOMY_OPENCLAW_GATEWAY_TOKEN is required when AUTONOMY_OPENCLAW_MODE=tools_invoke and AUTONOMY_DRY_RUN=false');
+      }
+
+      if (autonomyXCommandsEnabled && !autonomyXPublic && autonomyXAllowlist.length === 0) {
+        errors.push('AUTONOMY_X_ALLOWLIST is required when AUTONOMY_X_COMMANDS_ENABLED=true and AUTONOMY_X_PUBLIC=false in live mode');
+      }
+    }
+
+    if (process.env.AUTONOMY_X_ALLOWLIST) {
+      const invalid = autonomyXAllowlist.filter((value) => !isValidXUsername(value));
+      if (invalid.length > 0) {
+        warnings.push(`AUTONOMY_X_ALLOWLIST contains invalid usernames: ${invalid.join(', ')}`);
       }
     }
   }
@@ -498,6 +564,10 @@ export function getConfig(): Config {
       process.env.AUTONOMY_MAX_QUEUE_SIZE || String(DEFAULTS.AUTONOMY_MAX_QUEUE_SIZE),
       10
     ),
+    AUTONOMY_MAX_TASK_HISTORY: parseInt(
+      process.env.AUTONOMY_MAX_TASK_HISTORY || String(DEFAULTS.AUTONOMY_MAX_TASK_HISTORY),
+      10
+    ),
     AUTONOMY_OBJECTIVE_MAX_LENGTH: parseInt(
       process.env.AUTONOMY_OBJECTIVE_MAX_LENGTH || String(DEFAULTS.AUTONOMY_OBJECTIVE_MAX_LENGTH),
       10
@@ -516,6 +586,12 @@ export function getConfig(): Config {
       process.env.AUTONOMY_MEISHI_REQUIRE_COMPLIANT,
       DEFAULTS.AUTONOMY_MEISHI_REQUIRE_COMPLIANT!
     ),
+    AUTONOMY_X_COMMANDS_ENABLED: parseBoolean(
+      process.env.AUTONOMY_X_COMMANDS_ENABLED,
+      DEFAULTS.AUTONOMY_X_COMMANDS_ENABLED!
+    ),
+    AUTONOMY_X_PUBLIC: parseBoolean(process.env.AUTONOMY_X_PUBLIC, DEFAULTS.AUTONOMY_X_PUBLIC!),
+    AUTONOMY_X_ALLOWLIST: parseXAllowlist(process.env.AUTONOMY_X_ALLOWLIST),
     AUTONOMY_OPENCLAW_BASE_URL: (
       process.env.AUTONOMY_OPENCLAW_BASE_URL || DEFAULTS.AUTONOMY_OPENCLAW_BASE_URL!
     ).trim(),
@@ -591,11 +667,16 @@ export function getRedactedConfig(): Record<string, string> {
     AUTONOMY_COMMAND_PREFIX: config.AUTONOMY_COMMAND_PREFIX,
     AUTONOMY_TICK_INTERVAL_MS: String(config.AUTONOMY_TICK_INTERVAL_MS),
     AUTONOMY_MAX_QUEUE_SIZE: String(config.AUTONOMY_MAX_QUEUE_SIZE),
+    AUTONOMY_MAX_TASK_HISTORY: String(config.AUTONOMY_MAX_TASK_HISTORY),
     AUTONOMY_OBJECTIVE_MAX_LENGTH: String(config.AUTONOMY_OBJECTIVE_MAX_LENGTH),
     AUTONOMY_MEISHI_VERIFY_URL: config.AUTONOMY_MEISHI_VERIFY_URL || '(not set)',
     AUTONOMY_MEISHI_AGENT_ID: config.AUTONOMY_MEISHI_AGENT_ID || '(not set)',
     AUTONOMY_MEISHI_MIN_SCORE: String(config.AUTONOMY_MEISHI_MIN_SCORE),
     AUTONOMY_MEISHI_REQUIRE_COMPLIANT: String(config.AUTONOMY_MEISHI_REQUIRE_COMPLIANT),
+    AUTONOMY_X_COMMANDS_ENABLED: String(config.AUTONOMY_X_COMMANDS_ENABLED),
+    AUTONOMY_X_PUBLIC: String(config.AUTONOMY_X_PUBLIC),
+    AUTONOMY_X_ALLOWLIST:
+      config.AUTONOMY_X_ALLOWLIST.length > 0 ? config.AUTONOMY_X_ALLOWLIST.join(',') : '(not set)',
     AUTONOMY_OPENCLAW_BASE_URL: config.AUTONOMY_OPENCLAW_BASE_URL,
     AUTONOMY_OPENCLAW_MODE: config.AUTONOMY_OPENCLAW_MODE,
     AUTONOMY_OPENCLAW_HOOK_PATH: config.AUTONOMY_OPENCLAW_HOOK_PATH,
