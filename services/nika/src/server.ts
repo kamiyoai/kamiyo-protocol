@@ -238,7 +238,7 @@ export class Server {
     this.app.get('/autonomy/tasks', (req: Request, res: Response) => {
       if (!this.ensureAutonomyAccess(req, res)) return;
       const rawLimit = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : 20;
-      const limit = Number.isFinite(rawLimit) ? rawLimit : 20;
+      const limit = Number.isFinite(rawLimit) ? Math.min(200, Math.max(1, rawLimit)) : 20;
       res.json({ tasks: this.config.autonomy!.listTasks(limit) });
     });
 
