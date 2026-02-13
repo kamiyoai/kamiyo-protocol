@@ -9,6 +9,7 @@ export interface AutonomyRunnerConfig {
   dryRun: boolean;
   tickIntervalMs: number;
   maxQueueSize: number;
+  maxTaskHistory: number;
   objectiveMaxLength: number;
 }
 
@@ -47,6 +48,7 @@ export class AutonomyRunner {
   private deps: AutonomyRunnerDeps;
   private tasks = new Map<string, AutonomyTask>();
   private queue: string[] = [];
+  private idempotencyIndex = new Map<string, string>();
   private timer: NodeJS.Timeout | null = null;
   private inFlightTaskId: string | null = null;
   private status: AutonomyStatus;
@@ -81,6 +83,17 @@ export class AutonomyRunner {
     if (objective.length > this.config.objectiveMaxLength) {
       throw new Error(`objective_too_long:max_${this.config.objectiveMaxLength}`);
     }
+
+    const idempotencyKey = input.idempotencyKey?.trim() || undefined;
+    if (idempotencyKey) {
+      const existingId = this.idempotencyIndex.get(idempotencyKey);
+      if (existingId) {
+        const existing = this.tasks.get(existingId);
+        if (existing) return this.snapshot(existing);
+        this.idempotencyIndex.delete(idempotencyKey);
+      }
+    }
+
     if (this.queue.length >= this.config.maxQueueSize) throw new Error('autonomy_queue_full');
 
     const task: AutonomyTask = {
@@ -90,7 +103,7 @@ export class AutonomyRunner {
       requestor: input.requestor?.trim() || undefined,
       priority: clampPriority(input.priority),
       context: input.context,
-      idempotencyKey: input.idempotencyKey?.trim() || undefined,
+      idempotencyKey,
       status: 'queued',
       createdAt: now(),
       updatedAt: now(),
@@ -101,6 +114,12 @@ export class AutonomyRunner {
     this.queue.push(task.id);
     this.status.queueSize = this.queue.length;
     this.status.totals.queued += 1;
+
+    if (idempotencyKey) {
+      this.idempotencyIndex.set(idempotencyKey, task.id);
+    }
+
+    this.trimTaskHistory();
 
     log.info('Autonomy task queued', {
       taskId: task.id,
@@ -228,6 +247,7 @@ export class AutonomyRunner {
       this.inFlightTaskId = null;
       this.status.inFlightTaskId = null;
       this.status.lastRunAt = now();
+      this.trimTaskHistory();
     }
   }
 
@@ -238,6 +258,31 @@ export class AutonomyRunner {
       gate: task.gate ? { ...task.gate, errors: task.gate.errors ? [...task.gate.errors] : undefined } : undefined,
       receipt: task.receipt ? { ...task.receipt } : undefined,
     };
+  }
+
+  private trimTaskHistory(): void {
+    const maxHistory = Math.max(0, Math.floor(this.config.maxTaskHistory));
+    if (maxHistory === 0) return;
+    if (this.tasks.size <= maxHistory) return;
+
+    const queued = new Set(this.queue);
+    const inFlight = this.inFlightTaskId;
+
+    const removable = [...this.tasks.values()]
+      .filter((task) => {
+        if (task.id === inFlight) return false;
+        if (queued.has(task.id)) return false;
+        return task.status === 'completed' || task.status === 'failed' || task.status === 'blocked';
+      })
+      .sort((a, b) => a.updatedAt - b.updatedAt);
+
+    for (const task of removable) {
+      if (this.tasks.size <= maxHistory) break;
+      this.tasks.delete(task.id);
+      if (task.idempotencyKey && this.idempotencyIndex.get(task.idempotencyKey) === task.id) {
+        this.idempotencyIndex.delete(task.idempotencyKey);
+      }
+    }
   }
 }
 

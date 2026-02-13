@@ -10,6 +10,16 @@ import type { AutonomyTask, AutonomyTaskInput, AutonomyStatus } from './autonomy
 
 const log = createLogger('nika:server');
 
+export function getRouteLabel(req: Pick<Request, 'baseUrl' | 'path' | 'route'>): string {
+  const baseUrl = typeof req.baseUrl === 'string' ? req.baseUrl : '';
+  const routePath =
+    req.route && typeof (req.route as { path?: unknown }).path === 'string'
+      ? (req.route as { path: string }).path
+      : req.path;
+
+  return `${baseUrl}${routePath}`;
+}
+
 export interface ServerConfig {
   port: number;
   getHealth: () => HealthStatus;
@@ -114,6 +124,8 @@ export class Server {
   constructor(config: ServerConfig) {
     this.config = config;
     this.app = express();
+    this.app.set('trust proxy', 1);
+    this.app.disable('x-powered-by');
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -122,13 +134,22 @@ export class Server {
   private setupMiddleware(): void {
     this.app.use(express.json({ limit: '256kb' }));
 
+    this.app.use((_req: Request, res: Response, next: NextFunction) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
+      res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+      next();
+    });
+
     // Request logging and metrics
     this.app.use((req: Request, res: Response, next: NextFunction) => {
       const start = Date.now();
 
       res.on('finish', () => {
         const duration = (Date.now() - start) / 1000;
-        const path = req.path;
+        const path = getRouteLabel(req);
 
         httpRequestsTotal.inc({
           method: req.method,
@@ -243,6 +264,25 @@ export class Server {
         },
       });
     });
+
+    this.app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      if (!error || typeof error !== 'object') {
+        res.status(500).json({ error: 'internal_error' });
+        return;
+      }
+
+      if ((error as { type?: unknown }).type === 'entity.parse.failed') {
+        res.status(400).json({ error: 'invalid_json' });
+        return;
+      }
+
+      const message =
+        typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'unknown error';
+      log.error('Unhandled server error', { error: message });
+      res.status(500).json({ error: 'internal_error' });
+    });
   }
 
   private ensureAutonomyAccess(req: Request, res: Response): boolean {
@@ -299,16 +339,16 @@ export class Server {
       }
 
       // Stop accepting new connections
-      this.server.close(() => {
-        log.info('HTTP server stopped');
-        resolve();
-      });
-
-      // Force close after 5 seconds
-      setTimeout(() => {
+      const forceTimer = setTimeout(() => {
         log.warn('HTTP server force closed');
         resolve();
       }, 5000);
+
+      this.server.close(() => {
+        log.info('HTTP server stopped');
+        clearTimeout(forceTimer);
+        resolve();
+      });
     });
   }
 

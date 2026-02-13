@@ -72,6 +72,8 @@ services:
         value: "15000"
       - key: AUTONOMY_MAX_QUEUE_SIZE
         value: "100"
+      - key: AUTONOMY_MAX_TASK_HISTORY
+        value: "500"
       - key: AUTONOMY_OBJECTIVE_MAX_LENGTH
         value: "1200"
 
@@ -83,6 +85,14 @@ services:
         value: "1"
       - key: AUTONOMY_MEISHI_REQUIRE_COMPLIANT
         value: "true"
+
+      # X-triggered autonomy (live mode should be private by default)
+      - key: AUTONOMY_X_COMMANDS_ENABLED
+        value: "true"
+      - key: AUTONOMY_X_PUBLIC
+        value: "false"
+      - key: AUTONOMY_X_ALLOWLIST
+        value: ""
 
       - key: AUTONOMY_OPENCLAW_BASE_URL
         sync: false

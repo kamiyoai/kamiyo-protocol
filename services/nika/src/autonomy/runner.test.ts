@@ -22,6 +22,7 @@ describe('AutonomyRunner', () => {
         dryRun: false,
         tickIntervalMs: 1000,
         maxQueueSize: 10,
+        maxTaskHistory: 50,
         objectiveMaxLength: 500,
       },
       { meishiGate: gate, executor }
@@ -57,6 +58,7 @@ describe('AutonomyRunner', () => {
         dryRun: true,
         tickIntervalMs: 1000,
         maxQueueSize: 10,
+        maxTaskHistory: 50,
         objectiveMaxLength: 500,
       },
       { meishiGate: gate, executor }
@@ -95,6 +97,7 @@ describe('AutonomyRunner', () => {
         dryRun: false,
         tickIntervalMs: 1000,
         maxQueueSize: 10,
+        maxTaskHistory: 50,
         objectiveMaxLength: 500,
       },
       { meishiGate: gate, executor }
@@ -132,6 +135,7 @@ describe('AutonomyRunner', () => {
         dryRun: false,
         tickIntervalMs: 1000,
         maxQueueSize: 10,
+        maxTaskHistory: 50,
         objectiveMaxLength: 500,
       },
       { meishiGate: gate, executor }
@@ -145,6 +149,126 @@ describe('AutonomyRunner', () => {
     expect(ran?.id).toBe(t2.id);
     expect(runner.getTask(t2.id)?.status).toBe('completed');
     expect(runner.getTask(t1.id)?.status).toBe('queued');
+    runner.stop();
+  });
+
+  it('deduplicates tasks by idempotencyKey', async () => {
+    const gate = {
+      evaluate: vi.fn(async (): Promise<MeishiDecision> => ({
+        allowed: true,
+        reason: 'ok',
+      })),
+    };
+    const executor = {
+      dispatch: vi.fn(async (): Promise<OpenClawDispatchReceipt> => ({
+        accepted: true,
+        statusCode: 202,
+        sessionKey: 'nika:x:abc',
+        dispatchedAt: Date.now(),
+      })),
+    };
+
+    const runner = new AutonomyRunner(
+      {
+        enabled: true,
+        dryRun: false,
+        tickIntervalMs: 1000,
+        maxQueueSize: 10,
+        maxTaskHistory: 50,
+        objectiveMaxLength: 500,
+      },
+      { meishiGate: gate, executor }
+    );
+
+    await runner.start();
+    const first = await runner.enqueue({ source: 'x', objective: 'do it', idempotencyKey: 'mention:123' });
+    expect(runner.getStatus().queueSize).toBe(1);
+
+    const second = await runner.enqueue({ source: 'x', objective: 'do it again', idempotencyKey: 'mention:123' });
+    expect(second.id).toBe(first.id);
+    expect(runner.getStatus().queueSize).toBe(1);
+    runner.stop();
+  });
+
+  it('returns the idempotent task even when the queue is full', async () => {
+    const gate = {
+      evaluate: vi.fn(async (): Promise<MeishiDecision> => ({
+        allowed: true,
+        reason: 'ok',
+      })),
+    };
+    const executor = {
+      dispatch: vi.fn(async (): Promise<OpenClawDispatchReceipt> => ({
+        accepted: true,
+        statusCode: 202,
+        sessionKey: 'nika:x:abc',
+        dispatchedAt: Date.now(),
+      })),
+    };
+
+    const runner = new AutonomyRunner(
+      {
+        enabled: true,
+        dryRun: false,
+        tickIntervalMs: 1000,
+        maxQueueSize: 1,
+        maxTaskHistory: 50,
+        objectiveMaxLength: 500,
+      },
+      { meishiGate: gate, executor }
+    );
+
+    await runner.start();
+    const first = await runner.enqueue({ source: 'x', objective: 'do it', idempotencyKey: 'mention:123' });
+
+    const second = await runner.enqueue({ source: 'x', objective: 'do it again', idempotencyKey: 'mention:123' });
+    expect(second.id).toBe(first.id);
+    expect(runner.getStatus().queueSize).toBe(1);
+    runner.stop();
+  });
+
+  it('prunes terminal tasks beyond maxTaskHistory', async () => {
+    const gate = {
+      evaluate: vi.fn(async (): Promise<MeishiDecision> => ({
+        allowed: true,
+        reason: 'ok',
+      })),
+    };
+    const executor = {
+      dispatch: vi.fn(async (): Promise<OpenClawDispatchReceipt> => {
+        throw new Error('should_not_run');
+      }),
+    };
+
+    const runner = new AutonomyRunner(
+      {
+        enabled: true,
+        dryRun: true,
+        tickIntervalMs: 1000,
+        maxQueueSize: 10,
+        maxTaskHistory: 3,
+        objectiveMaxLength: 500,
+      },
+      { meishiGate: gate, executor }
+    );
+
+    await runner.start();
+
+    const tasks = [
+      await runner.enqueue({ source: 'api', objective: 't1' }),
+      await runner.enqueue({ source: 'api', objective: 't2' }),
+      await runner.enqueue({ source: 'api', objective: 't3' }),
+      await runner.enqueue({ source: 'api', objective: 't4' }),
+      await runner.enqueue({ source: 'api', objective: 't5' }),
+    ];
+
+    for (let i = 0; i < tasks.length; i++) {
+      await runner.runNext();
+    }
+
+    expect(runner.listTasks(200)).toHaveLength(3);
+    expect(runner.getTask(tasks[0].id)).toBeNull();
+    expect(executor.dispatch).not.toHaveBeenCalled();
     runner.stop();
   });
 });
