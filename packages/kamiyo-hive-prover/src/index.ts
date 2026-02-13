@@ -175,7 +175,7 @@ async function poseidonHash(inputs: bigint[]): Promise<bigint> {
   return poseidon.F.toObject(result);
 }
 
-function formatProof(proof: any): Groth16Proof {
+function formatProof(proof: { pi_a: string[]; pi_b: string[][]; pi_c: string[] }): Groth16Proof {
   const a = [
     ...hexToBytes(proof.pi_a[0]),
     ...hexToBytes(proof.pi_a[1]),
