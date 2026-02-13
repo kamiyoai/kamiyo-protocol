@@ -5,14 +5,14 @@ export function ScanlineOverlay() {
   if (Platform.OS === 'web') {
     return (
       <View
+        pointerEvents="none"
         style={[
           StyleSheet.absoluteFill,
           styles.overlay,
-          // @ts-ignore — web-only CSS
           {
+            // @ts-ignore web-only CSS property (react-native-web)
             backgroundImage:
               'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px)',
-            pointerEvents: 'none',
           },
         ]}
       />
