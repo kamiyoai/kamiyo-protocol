@@ -109,7 +109,7 @@ describe('agentService', () => {
       const updated = agentService.update(agent.id, {
         id: 'hacked_id',
         walletAddress: 'hacked_wallet',
-      } as any);
+      });
 
       expect(updated?.id).toBe(agent.id);
       expect(updated?.walletAddress).toBe(testWallet);
