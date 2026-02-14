@@ -24,12 +24,11 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 Harness modules are gated behind `#[cfg(kani)]` so normal `anchor build/test` is unaffected:
 
-- `programs/kamiyo/src/kani.rs`
-- `programs/hive/src/kani.rs`
-- `programs/kamiyo-staking/src/kani.rs`
+- `programs/kamiyo/src/kani_proofs.rs`
+- `programs/hive/src/kani_proofs.rs`
+- `programs/kamiyo-staking/src/kani_proofs.rs`
 
 ## Scope (Current)
 
 - Proven: basic invariants for fee splits, refund mapping, consensus ceiling-average when all scores are included, dispute-cost/reputation-score bounds, multiplier schedule properties, and bounded pending-rewards arithmetic.
 - Not covered: full instruction handlers, CPI/system account constraints, cryptographic hashing/circuits.
-

@@ -84,7 +84,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer
 pub mod zk;
 
 #[cfg(kani)]
-mod kani;
+mod kani_proofs;
 
 declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 

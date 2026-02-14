@@ -15,7 +15,7 @@ use anchor_spl::token_interface::{
 declare_id!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
 
 #[cfg(kani)]
-mod kani;
+mod kani_proofs;
 
 /// Burn rate for reward distributions: 1% (100 basis points)
 const REWARD_BURN_RATE_BPS: u64 = 100;

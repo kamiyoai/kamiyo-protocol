@@ -115,7 +115,7 @@ mod vk_generated;
 pub mod zk;
 
 #[cfg(kani)]
-mod kani;
+mod kani_proofs;
 
 use zk::{verify_agent_identity_proof, verify_swarm_vote_bid_proof, verify_swarm_vote_proof};
 
