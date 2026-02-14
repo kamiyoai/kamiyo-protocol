@@ -176,14 +176,22 @@ export function createXTools(config: XToolsConfig): ToolConfig[] {
             max_results: limit,
             ...(params.sinceId ? { since_id: params.sinceId as string } : {}),
             'tweet.fields': ['created_at', 'author_id', 'conversation_id'],
+            'user.fields': ['username'],
             expansions: ['author_id'],
           });
+
+          const usernameById = new Map(
+            mentions.includes.users
+              .map((user) => [user.id, user.username] as const)
+              .filter((pair) => typeof pair[0] === 'string' && typeof pair[1] === 'string' && pair[1].length > 0)
+          );
 
           const data = (mentions.data.data || []).map((tweet) => ({
             id: tweet.id,
             text: tweet.text,
             createdAt: tweet.created_at,
             authorId: tweet.author_id,
+            authorUsername: tweet.author_id ? usernameById.get(tweet.author_id) : undefined,
             conversationId: tweet.conversation_id,
           }));
 
