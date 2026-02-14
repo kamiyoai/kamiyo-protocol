@@ -160,11 +160,12 @@ export function createXTools(config: XToolsConfig): ToolConfig[] {
       name: 'get_mentions',
       description: 'Get recent mentions of the authenticated account.',
       parameters: {
-        limit: { type: 'number', description: 'Max mentions to return (default 10, max 100)', required: false },
+        limit: { type: 'number', description: 'Max mentions to return (default 10, min 5, max 100)', required: false },
         sinceId: { type: 'string', description: 'Only get mentions after this tweet ID', required: false },
       },
       handler: async (params): Promise<ToolResult> => {
-        const limit = typeof params.limit === 'number' ? Math.min(Math.max(1, params.limit), 100) : 10;
+        // X timelines typically require max_results >= 5.
+        const limit = typeof params.limit === 'number' ? Math.min(Math.max(5, params.limit), 100) : 10;
         if (params.sinceId !== undefined && !isValidTweetId(params.sinceId)) {
           return { success: false, error: 'Invalid sinceId' };
         }
