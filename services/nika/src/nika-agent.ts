@@ -8,6 +8,7 @@ import {
   sanitizeUsername,
   validateTweetId,
   getModerator,
+  truncate,
   ModerationError,
 } from './lib';
 import {
@@ -552,11 +553,25 @@ Return ONLY the quote text. Do not use any tools.`;
       throw new Error('post_tweet tool not found');
     }
 
-    log.debug('Posting tweet', { textLength: text.length });
+    const normalized = truncate(text.replace(/\s+/g, ' ').trim(), 280);
+    const validation = validateTweet(normalized);
+    if (!validation.valid) {
+      metrics.incrementCounter('nika_tweet_post_validation_failed');
+      throw new Error(`Tweet validation failed: ${validation.issues.join(', ')}`);
+    }
+
+    const moderator = getModerator();
+    const modResult = moderator.check(normalized);
+    if (!modResult.allowed) {
+      metrics.incrementCounter('nika_tweet_post_moderation_blocked');
+      throw new ModerationError(modResult.reasons);
+    }
+
+    log.debug('Posting tweet', { textLength: normalized.length });
 
     const result = await postingCircuit.execute(() =>
       withRetry(
-        async () => postTweetTool.handler({ content: text }),
+        async () => postTweetTool.handler({ content: normalized }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       )
     );
@@ -585,11 +600,27 @@ Return ONLY the quote text. Do not use any tools.`;
       throw new Error('reply_to_tweet tool not found');
     }
 
-    log.debug('Posting reply', { inReplyToId, textLength: text.length });
+    const normalized = truncate(text.replace(/\s+/g, ' ').trim(), 280);
+    const validation = validateTweet(normalized);
+    const moderator = getModerator();
+    const modResult = moderator.check(normalized);
+
+    const replyText = validation.valid && modResult.allowed ? normalized : "I can't help with that.";
+
+    if (!validation.valid || !modResult.allowed) {
+      metrics.incrementCounter('nika_reply_post_blocked');
+      log.warn('Reply blocked by policy gate', {
+        inReplyToId,
+        moderationAllowed: modResult.allowed,
+        validationOk: validation.valid,
+      });
+    }
+
+    log.debug('Posting reply', { inReplyToId, textLength: replyText.length });
 
     const result = await replyCircuit.execute(() =>
       withRetry(
-        async () => replyTool.handler({ tweetId: inReplyToId, content: text }),
+        async () => replyTool.handler({ tweetId: inReplyToId, content: replyText }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       )
     );
@@ -618,11 +649,27 @@ Return ONLY the quote text. Do not use any tools.`;
       throw new Error('quote_tweet tool not found');
     }
 
-    log.debug('Posting quote', { quotedTweetId, textLength: text.length });
+    const normalized = truncate(text.replace(/\s+/g, ' ').trim(), 280);
+    const validation = validateTweet(normalized);
+    const moderator = getModerator();
+    const modResult = moderator.check(normalized);
+
+    const quoteText = validation.valid && modResult.allowed ? normalized : "I can't help with that.";
+
+    if (!validation.valid || !modResult.allowed) {
+      metrics.incrementCounter('nika_quote_post_blocked');
+      log.warn('Quote blocked by policy gate', {
+        quotedTweetId,
+        moderationAllowed: modResult.allowed,
+        validationOk: validation.valid,
+      });
+    }
+
+    log.debug('Posting quote', { quotedTweetId, textLength: quoteText.length });
 
     const result = await replyCircuit.execute(() =>
       withRetry(
-        async () => quoteTool.handler({ tweetId: quotedTweetId, content: text }),
+        async () => quoteTool.handler({ tweetId: quotedTweetId, content: quoteText }),
         { maxAttempts: 2, initialDelayMs: 2000 }
       )
     );
