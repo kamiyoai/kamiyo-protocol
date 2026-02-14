@@ -181,8 +181,9 @@ export function createXTools(config: XToolsConfig): ToolConfig[] {
             expansions: ['author_id'],
           });
 
+          const users = mentions.includes?.users ?? [];
           const usernameById = new Map(
-            mentions.includes.users
+            users
               .map((user) => [user.id, user.username] as const)
               .filter((pair) => typeof pair[0] === 'string' && typeof pair[1] === 'string' && pair[1].length > 0)
           );
