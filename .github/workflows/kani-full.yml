@@ -29,6 +29,18 @@ jobs:
           KANI_FULL=1 KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh
           KANI_EXPECT_COVERS=1 ./scripts/kani-audit.sh kani-results/kani.log
 
+      - name: Publish Proof Receipt (Kiroku)
+        if: always()
+        continue-on-error: true
+        env:
+          KANI_FULL: "1"
+          KANI_OUT_DIR: kani-results
+          KIROKU_AGENT_PUBLISH_URL: ${{ secrets.KIROKU_AGENT_PUBLISH_URL }}
+          KIROKU_AGENT_PUBLISH_KEY: ${{ secrets.KIROKU_AGENT_PUBLISH_KEY }}
+          KIROKU_AGENT_AUTHOR: ${{ secrets.KIROKU_AGENT_AUTHOR }}
+          KIROKU_RECEIPT_ORIGIN: ${{ secrets.KIROKU_RECEIPT_ORIGIN }}
+        run: ./scripts/kani-publish-kiroku-receipt.sh
+
       - name: Upload Kani Summary
         if: always()
         uses: actions/upload-artifact@v4
@@ -37,4 +49,3 @@ jobs:
           path: kani-results
           if-no-files-found: error
           retention-days: 30
-
