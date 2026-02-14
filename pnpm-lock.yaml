@@ -531,31 +531,6 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  examples/swarmteams-demo:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@kamiyo/hive':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-hive
-      '@solana/web3.js':
-        specifier: 1.95.8
-        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      ts-node:
-        specifier: ^10.9.0
-        version: 10.9.2(@types/node@22.19.5)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
   packages/ascii-engine:
     dependencies:
       fluent-ffmpeg:
@@ -1008,10 +983,10 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@kamiyo/kamiyo-hive-merkle':
+      '@kamiyo/hive-merkle':
         specifier: workspace:*
         version: link:../kamiyo-hive-merkle
-      '@kamiyo/kamiyo-hive-prover':
+      '@kamiyo/hive-prover':
         specifier: workspace:*
         version: link:../kamiyo-hive-prover
       '@solana/web3.js':
@@ -1082,7 +1057,7 @@ importers:
 
   packages/kamiyo-hive-prover:
     dependencies:
-      '@kamiyo/kamiyo-hive-merkle':
+      '@kamiyo/hive-merkle':
         specifier: workspace:*
         version: link:../kamiyo-hive-merkle
       circomlibjs:
@@ -1753,145 +1728,6 @@ importers:
         specifier: ^5.5.3
         version: 5.9.3
 
-  packages/kamiyo-swarmteams:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@solana/web3.js':
-        specifier: 1.95.8
-        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      js-sha3:
-        specifier: ^0.9.3
-        version: 0.9.3
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.6
-        version: 5.2.0
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
-
-  packages/kamiyo-swarmteams-cli:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@kamiyo/kamiyo-swarmteams-merkle':
-        specifier: workspace:*
-        version: link:../kamiyo-swarmteams-merkle
-      '@kamiyo/kamiyo-swarmteams-prover':
-        specifier: workspace:*
-        version: link:../kamiyo-swarmteams-prover
-      '@solana/web3.js':
-        specifier: 1.95.8
-        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      bn.js:
-        specifier: ^5.2.1
-        version: 5.2.2
-      chalk:
-        specifier: ^5.3.0
-        version: 5.6.2
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      gradient-string:
-        specifier: ^2.0.2
-        version: 2.0.2
-      inquirer:
-        specifier: ^9.2.12
-        version: 9.3.8(@types/node@20.19.28)
-      ora:
-        specifier: ^8.0.1
-        version: 8.2.0
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/bn.js':
-        specifier: ^5.1.5
-        version: 5.2.0
-      '@types/gradient-string':
-        specifier: ^1.1.5
-        version: 1.1.6
-      '@types/inquirer':
-        specifier: ^9.0.7
-        version: 9.0.9
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.19.28
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
-      tsx:
-        specifier: ^4.7.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
-
-  packages/kamiyo-swarmteams-merkle:
-    dependencies:
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
-
-  packages/kamiyo-swarmteams-prover:
-    dependencies:
-      '@kamiyo/kamiyo-swarmteams-merkle':
-        specifier: workspace:*
-        version: link:../kamiyo-swarmteams-merkle
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      snarkjs:
-        specifier: ^0.7.4
-        version: 0.7.6
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.5
-      '@types/snarkjs':
-        specifier: ^0.7.8
-        version: 0.7.9
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.0.0
-        version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
-
   packages/kamiyo-switchboard:
     dependencies:
       '@switchboard-xyz/on-demand':
@@ -2327,6 +2163,9 @@ importers:
       redis:
         specifier: ^4.7.0
         version: 4.7.1
+      socket.io-client:
+        specifier: ^4.8.1
+        version: 4.8.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       twitter-api-v2:
         specifier: ^1.19.0
         version: 1.28.0

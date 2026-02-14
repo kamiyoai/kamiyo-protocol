@@ -14,17 +14,27 @@ const metrics = getMetrics();
 const TWEET_ID_PATTERN = /^\d{10,}$/;
 const DEFAULT_PROCESSED_MENTION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const DEFAULT_CONVERSATION_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_REPLIES_PER_CONVERSATION = 2;
 const DEFAULT_STATE_FILE_PATH = path.join(process.cwd(), '.nika', 'mention-monitor-state.json');
 const MAX_PERSISTED_MENTIONS = 5000;
 const MAX_PERSISTED_CONVERSATIONS = 2000;
 const DEFAULT_SHARED_STATE_PREFIX = 'nika:mentions';
+const DEFAULT_BLOCKED_USERNAMES = ['chatdkg'];
+
+function normalizeUsername(value: string): string {
+  return value.trim().replace(/^@+/, '').toLowerCase();
+}
 
 interface PersistedEntry {
   id: string;
   at: number;
 }
 
-interface MentionMonitorState {
+interface PersistedConversationEntry extends PersistedEntry {
+  count: number;
+}
+
+interface MentionMonitorStateV1 {
   version: 1;
   lastMentionId: string | null;
   processedMentions: PersistedEntry[];
@@ -32,10 +42,22 @@ interface MentionMonitorState {
   updatedAt: string;
 }
 
+interface MentionMonitorStateV2 {
+  version: 2;
+  lastMentionId: string | null;
+  processedMentions: PersistedEntry[];
+  repliedConversations: PersistedConversationEntry[];
+  updatedAt: string;
+}
+
+type MentionMonitorState = MentionMonitorStateV1 | MentionMonitorStateV2;
+
 export interface MentionMonitorConfig {
   twitter: XToolsConfig;
   checkIntervalMs: number;
   maxRepliesPerCycle: number;
+  maxRepliesPerConversation?: number;
+  blockedUsernames?: string[];
   maxMentionRetries: number;
   replyDelayMs: number;
   startupDelayMs: number;
@@ -70,14 +92,16 @@ export class MentionMonitor extends EventEmitter {
   private lastCheckAt: Date | null = null;
   private processedCache: LRUCache<boolean>;
   private failureCache: LRUCache<number>;
-  private repliedConversationCache: LRUCache<boolean>;
+  private repliedConversationCache: LRUCache<number>;
   private processedMentions: PersistedEntry[] = [];
-  private repliedConversations: PersistedEntry[] = [];
+  private repliedConversations: PersistedConversationEntry[] = [];
   private stateDirty = false;
   private stateFilePath: string;
   private processedMentionTtlMs: number;
   private conversationCooldownMs: number;
+  private maxRepliesPerConversation: number;
   private maxMentionRetries: number;
+  private blockedUsernames: Set<string>;
   private sharedStateRedisUrl: string | null;
   private sharedStatePrefix: string;
   private sharedState: RedisClientType | null = null;
@@ -89,6 +113,10 @@ export class MentionMonitor extends EventEmitter {
     this.config = config;
     this.processedMentionTtlMs = config.processedMentionTtlMs ?? DEFAULT_PROCESSED_MENTION_TTL_MS;
     this.conversationCooldownMs = config.conversationCooldownMs ?? DEFAULT_CONVERSATION_COOLDOWN_MS;
+    this.maxRepliesPerConversation = Math.max(
+      1,
+      config.maxRepliesPerConversation ?? DEFAULT_MAX_REPLIES_PER_CONVERSATION
+    );
     this.maxMentionRetries = Math.max(1, config.maxMentionRetries);
     this.stateFilePath = config.stateFilePath || DEFAULT_STATE_FILE_PATH;
     this.sharedStateRedisUrl = config.sharedStateRedisUrl || null;
@@ -102,20 +130,27 @@ export class MentionMonitor extends EventEmitter {
       maxSize: MAX_PERSISTED_MENTIONS,
       ttlMs: this.processedMentionTtlMs,
     });
-    this.repliedConversationCache = new LRUCache<boolean>({
+    this.repliedConversationCache = new LRUCache<number>({
       maxSize: MAX_PERSISTED_CONVERSATIONS,
       ttlMs: this.conversationCooldownMs,
     });
+    this.blockedUsernames = new Set(
+      [...DEFAULT_BLOCKED_USERNAMES, ...(config.blockedUsernames ?? [])]
+        .map(normalizeUsername)
+        .filter(Boolean)
+    );
     this.xTools = createXTools(config.twitter);
 
     log.info('Mention monitor initialized', {
       checkIntervalMs: config.checkIntervalMs,
       maxRepliesPerCycle: config.maxRepliesPerCycle,
+      maxRepliesPerConversation: this.maxRepliesPerConversation,
       maxMentionRetries: this.maxMentionRetries,
       replyDelayMs: config.replyDelayMs,
       stateFilePath: this.stateFilePath,
       processedMentionTtlMs: this.processedMentionTtlMs,
       conversationCooldownMs: this.conversationCooldownMs,
+      blockedUsernamesCount: this.blockedUsernames.size,
       sharedStateRedisEnabled: !!this.sharedStateRedisUrl,
       sharedStatePrefix: this.sharedStatePrefix,
     });
@@ -230,10 +265,25 @@ export class MentionMonitor extends EventEmitter {
         }
 
         const conversationId = this.normalizeConversationId(mention.conversationId);
+        let authorUsername = mention.authorUsername || 'unknown';
+        if (!mention.authorUsername && mention.authorId) {
+          authorUsername = mention.authorId;
+        }
 
-        // Skip if this conversation was replied to recently
-        if (conversationId && await this.isConversationReplied(conversationId)) {
-          log.info('Skipping mention in recently replied conversation', {
+        if (this.isBlockedAuthor(authorUsername)) {
+          log.info('Skipping mention from blocked author', {
+            mentionId: mention.id,
+            author: authorUsername,
+          });
+          await this.markMentionProcessed(mention.id);
+          highestHandledMentionId = this.maxMentionId(highestHandledMentionId, mention.id);
+          metrics.incrementCounter('nika_mentions_skipped_blocked_author');
+          continue;
+        }
+
+        // Skip if this conversation hit the reply limit recently
+        if (conversationId && await this.isConversationReplyLimitReached(conversationId)) {
+          log.info('Skipping mention in conversation at reply cap', {
             mentionId: mention.id,
             conversationId,
           });
@@ -244,12 +294,6 @@ export class MentionMonitor extends EventEmitter {
         }
 
         try {
-          // Get author username if not present
-          let authorUsername = mention.authorUsername || 'unknown';
-          if (!mention.authorUsername && mention.authorId) {
-            authorUsername = mention.authorId;
-          }
-
           log.info('Processing mention', {
             mentionId: mention.id,
             author: authorUsername,
@@ -431,11 +475,15 @@ export class MentionMonitor extends EventEmitter {
   }
 
   private async markConversationReplied(conversationId: string, at = Date.now()): Promise<void> {
-    this.repliedConversationCache.set(conversationId, true, this.conversationCooldownMs);
-    this.repliedConversations = this.upsertPersistedEntry(
+    const current = await this.getConversationReplyCount(conversationId);
+    const next = Math.min(current + 1, this.maxRepliesPerConversation);
+
+    this.repliedConversationCache.set(conversationId, next, this.conversationCooldownMs);
+    this.repliedConversations = this.upsertPersistedConversationEntry(
       this.repliedConversations,
       conversationId,
       at,
+      next,
       MAX_PERSISTED_CONVERSATIONS
     );
     this.stateDirty = true;
@@ -446,7 +494,7 @@ export class MentionMonitor extends EventEmitter {
 
     const key = this.sharedKey('conversation', conversationId);
     try {
-      await this.sharedState.set(key, String(at), { PX: this.conversationCooldownMs });
+      await this.sharedState.set(key, String(next), { PX: this.conversationCooldownMs });
     } catch (error) {
       log.warn('Failed to write conversation reply marker to shared state', {
         conversationId,
@@ -470,6 +518,21 @@ export class MentionMonitor extends EventEmitter {
   ): PersistedEntry[] {
     const next = entries.filter((entry) => entry.id !== id);
     next.unshift({ id, at });
+    if (next.length > limit) {
+      next.length = limit;
+    }
+    return next;
+  }
+
+  private upsertPersistedConversationEntry(
+    entries: PersistedConversationEntry[],
+    id: string,
+    at: number,
+    count: number,
+    limit: number
+  ): PersistedConversationEntry[] {
+    const next = entries.filter((entry) => entry.id !== id);
+    next.unshift({ id, at, count });
     if (next.length > limit) {
       next.length = limit;
     }
@@ -516,8 +579,8 @@ export class MentionMonitor extends EventEmitter {
     try {
       const raw = await fs.readFile(this.stateFilePath, 'utf8');
       const parsed = JSON.parse(raw) as Partial<MentionMonitorState>;
-      if (!parsed || parsed.version !== 1) {
-        log.warn('Ignoring invalid mention monitor state version');
+      if (!parsed || (parsed.version !== 1 && parsed.version !== 2)) {
+        log.warn('Ignoring invalid mention monitor state');
         return;
       }
 
@@ -527,7 +590,10 @@ export class MentionMonitor extends EventEmitter {
 
       const now = Date.now();
       const mentionEntries = this.filterValidEntries(parsed.processedMentions);
-      const conversationEntries = this.filterValidEntries(parsed.repliedConversations);
+      const conversationEntries =
+        parsed.version === 2
+          ? this.filterValidConversationEntries(parsed.repliedConversations)
+          : this.filterValidEntries(parsed.repliedConversations).map((entry) => ({ ...entry, count: 1 }));
 
       for (const entry of mentionEntries) {
         const remainingTtl = this.processedMentionTtlMs - (now - entry.at);
@@ -548,11 +614,12 @@ export class MentionMonitor extends EventEmitter {
         if (remainingTtl <= 0) {
           continue;
         }
-        this.repliedConversationCache.set(entry.id, true, remainingTtl);
-        this.repliedConversations = this.upsertPersistedEntry(
+        this.repliedConversationCache.set(entry.id, entry.count, remainingTtl);
+        this.repliedConversations = this.upsertPersistedConversationEntry(
           this.repliedConversations,
           entry.id,
           entry.at,
+          entry.count,
           MAX_PERSISTED_CONVERSATIONS
         );
       }
@@ -596,13 +663,34 @@ export class MentionMonitor extends EventEmitter {
       .sort((a, b) => b.at - a.at);
   }
 
+  private filterValidConversationEntries(entries: unknown): PersistedConversationEntry[] {
+    if (!Array.isArray(entries)) {
+      return [];
+    }
+
+    return entries
+      .filter((entry): entry is PersistedConversationEntry => {
+        if (!entry || typeof entry !== 'object') {
+          return false;
+        }
+        const candidate = entry as PersistedConversationEntry;
+        return (
+          TWEET_ID_PATTERN.test(candidate.id) &&
+          Number.isFinite(candidate.at) &&
+          Number.isFinite(candidate.count) &&
+          candidate.count >= 1
+        );
+      })
+      .sort((a, b) => b.at - a.at);
+  }
+
   private async persistStateIfDirty(): Promise<void> {
     if (!this.stateDirty) {
       return;
     }
 
     const state: MentionMonitorState = {
-      version: 1,
+      version: 2,
       lastMentionId: this.lastMentionId,
       processedMentions: this.processedMentions,
       repliedConversations: this.repliedConversations,
@@ -730,30 +818,50 @@ export class MentionMonitor extends EventEmitter {
     }
   }
 
-  private async isConversationReplied(conversationId: string): Promise<boolean> {
-    if (this.repliedConversationCache.get(conversationId)) {
-      return true;
+  private isBlockedAuthor(authorUsername: string): boolean {
+    const normalized = normalizeUsername(authorUsername);
+    return normalized ? this.blockedUsernames.has(normalized) : false;
+  }
+
+  private async getConversationReplyCount(conversationId: string): Promise<number> {
+    const cached = this.repliedConversationCache.get(conversationId);
+    if (cached !== undefined) {
+      return cached;
     }
 
     if (!this.sharedStateAvailable || !this.sharedState) {
-      return false;
+      return 0;
     }
 
     try {
       const key = this.sharedKey('conversation', conversationId);
-      const exists = await this.sharedState.exists(key);
-      if (exists) {
-        this.repliedConversationCache.set(conversationId, true, this.conversationCooldownMs);
-        return true;
+      const raw = await this.sharedState.get(key);
+      if (!raw) {
+        return 0;
       }
-      return false;
+
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isFinite(n) || n <= 0) {
+        return 1;
+      }
+
+      // Backward compatibility: older versions stored "at" timestamps.
+      return n > 100 ? 1 : n;
     } catch (error) {
       log.warn('Failed to read conversation marker from shared state', {
         conversationId,
         error: String(error),
       });
-      return false;
+      return 0;
     }
+  }
+
+  private async isConversationReplyLimitReached(conversationId: string): Promise<boolean> {
+    const count = await this.getConversationReplyCount(conversationId);
+    if (count > 0) {
+      this.repliedConversationCache.set(conversationId, count, this.conversationCooldownMs);
+    }
+    return count >= this.maxRepliesPerConversation;
   }
 }
 
@@ -761,6 +869,8 @@ export interface CreateMentionMonitorOptions {
   twitter: XToolsConfig;
   checkIntervalMs: number;
   maxRepliesPerCycle?: number;
+  maxRepliesPerConversation?: number;
+  blockedUsernames?: string[];
   maxMentionRetries?: number;
   replyDelayMs?: number;
   startupDelayMs?: number;
@@ -782,6 +892,8 @@ export function createMentionMonitor(options: CreateMentionMonitorOptions): Ment
     twitter: options.twitter,
     checkIntervalMs: options.checkIntervalMs,
     maxRepliesPerCycle: options.maxRepliesPerCycle ?? 3,
+    maxRepliesPerConversation: options.maxRepliesPerConversation,
+    blockedUsernames: options.blockedUsernames,
     maxMentionRetries: options.maxMentionRetries ?? 3,
     replyDelayMs: options.replyDelayMs ?? 60000, // 1 minute between replies
     startupDelayMs: options.startupDelayMs ?? 30000, // 30s delay before first check

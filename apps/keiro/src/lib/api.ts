@@ -96,6 +96,12 @@ export class ApiError extends Error {
 const REQUEST_TIMEOUT = 15_000;
 const MAX_RETRIES = 2;
 
+function getStringProp(value: unknown, key: string): string | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const prop = (value as Record<string, unknown>)[key];
+  return typeof prop === 'string' ? prop : undefined;
+}
+
 class KeiroApi {
   private baseUrl: string;
   private authToken: string | null = null;
@@ -154,11 +160,11 @@ class KeiroApi {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          const body = await response.json().catch(() => ({} as any));
+          const body: unknown = await response.json().catch(() => null);
           throw new ApiError(
-            body.error || `Request failed with status ${response.status}`,
+            getStringProp(body, 'error') || `Request failed with status ${response.status}`,
             response.status,
-            body.code
+            getStringProp(body, 'code')
           );
         }
 

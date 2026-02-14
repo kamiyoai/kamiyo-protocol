@@ -215,6 +215,27 @@ function asyncRoute(fn: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
+const HEALTH_TIMEOUT_MS = (() => {
+  const raw = process.env.MEISHI_DKG_HEALTH_TIMEOUT_MS;
+  const ms = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(ms) && ms > 0 ? ms : 2500;
+})();
+
+function withTimeout<T>(label: string, work: Promise<T>, ms = HEALTH_TIMEOUT_MS): Promise<T> {
+  if (!(ms > 0)) return work;
+
+  let timeoutId: NodeJS.Timeout | null = null;
+  const timeout = new Promise<T>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([work, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 let client: AgentParanetClient | null = null;
 let clientInitPromise: Promise<AgentParanetClient> | null = null;
 
@@ -245,11 +266,13 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
   const endpoint = process.env.DKG_ENDPOINT?.trim() || null;
   const blockchain = getBlockchainId();
   const paranetUAL = getParanetUAL();
+  const timestamp = new Date().toISOString();
 
   if (!endpoint) {
-    res.status(503).json({
+    res.json({
       service: 'meishi-dkg',
       status: 'unhealthy',
+      timestamp,
       checks: [
         { name: 'configuration', status: 'fail', message: 'DKG_ENDPOINT not configured' },
       ],
@@ -262,13 +285,16 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
 
   try {
     const started = Date.now();
-    const c = await getClient();
+    const c = await withTimeout('dkg_client_init', getClient());
     const dkg = c.rawDKG;
 
-    await dkg.graph.query(
-      'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
-      'SELECT',
-      getGlobalQueryOpts()
+    await withTimeout(
+      'dkg_query',
+      dkg.graph.query(
+        'PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1',
+        'SELECT',
+        getGlobalQueryOpts()
+      )
     );
     checks.push({
       name: 'dkg_connectivity',
@@ -282,10 +308,13 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     } else {
       const paranetStarted = Date.now();
       try {
-        await dkg.graph.query(
-          'PREFIX schema: <https://schema.org/>\nSELECT (COUNT(?s) AS ?c) WHERE { ?s ?p ?o } LIMIT 1',
-          'SELECT',
-          { ...getGlobalQueryOpts(), paranetUAL }
+        await withTimeout(
+          'paranet_query',
+          dkg.graph.query(
+            'PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1',
+            'SELECT',
+            { ...getGlobalQueryOpts(), paranetUAL }
+          )
         );
         checks.push({
           name: 'paranet_access',
@@ -308,7 +337,7 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     res.json({
       service: 'meishi-dkg',
       status,
-      timestamp: new Date().toISOString(),
+      timestamp,
       endpoint,
       blockchain,
       paranetUAL,
@@ -316,10 +345,10 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
     });
   } catch (err) {
     logger.error('Meishi DKG health check failed', { error: err instanceof Error ? err.message : String(err) });
-    res.status(503).json({
+    res.json({
       service: 'meishi-dkg',
       status: 'unhealthy',
-      timestamp: new Date().toISOString(),
+      timestamp,
       endpoint,
       blockchain,
       paranetUAL,

@@ -1,9 +1,10 @@
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { timing } from 'hono/timing';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import { agentsRouter } from './routes/agents.js';
 import { jobsRouter } from './routes/jobs.js';
@@ -20,7 +21,13 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_SWEEP_MS = 60_000;
 
-function getClientIp(c: any): string {
+const ERROR_STATUS_CODES = new Set<number>([
+  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418,
+  421, 422, 423, 424, 425, 426, 428, 429, 431, 451,
+  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511,
+]);
+
+function getClientIp(c: Context): string {
   const xf = c.req.header('x-forwarded-for');
   const cf = c.req.header('cf-connecting-ip');
   const xr = c.req.header('x-real-ip');
@@ -30,12 +37,27 @@ function getClientIp(c: any): string {
   return 'unknown';
 }
 
-function getRequestId(c: any): string {
+function getRequestId(c: Context): string {
   const existing = c.req.header('x-request-id');
   if (existing) return existing;
-  // Prefer crypto.randomUUID when available
-  const g = (globalThis as any).crypto?.randomUUID?.() ?? `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-  return g;
+
+  const uuid = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto?.randomUUID?.();
+  if (uuid) return uuid;
+
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getStatusCode(err: unknown): ContentfulStatusCode {
+  if (typeof err !== 'object' || err === null) return 500;
+  const status = (err as Record<string, unknown>).status;
+  if (typeof status === 'number' && ERROR_STATUS_CODES.has(status)) return status as ContentfulStatusCode;
+  return 500;
+}
+
+function getClientMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return 'Request failed';
 }
 
 setInterval(() => {
@@ -115,8 +137,8 @@ app.route('/api/meishi', meishiRouter);
 app.route('/api/receipts', receiptsRouter);
 
 app.onError((err, c) => {
-  const status = (err as any)?.status && typeof (err as any).status === 'number' ? (err as any).status : 500;
-  const message = status === 500 ? 'Internal server error' : (err as Error).message;
+  const status = getStatusCode(err);
+  const message = status === 500 ? 'Internal server error' : getClientMessage(err);
   const reqId = c.req.header('x-request-id');
 
   if (status === 500) {

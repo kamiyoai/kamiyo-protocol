@@ -25,6 +25,7 @@ export interface ServerConfig {
   getHealth: () => HealthStatus;
   getReadiness: () => Promise<ReadinessStatus>;
   autonomy?: AutonomyApi;
+  admin?: AdminApi;
 }
 
 export interface AutonomyApi {
@@ -36,6 +37,17 @@ export interface AutonomyApi {
   getStatus: () => AutonomyStatus;
 }
 
+export interface AdminApi {
+  enabled: boolean;
+  token?: string;
+  postTweet: (input: { content: string }) => Promise<{ tweetId: string }>;
+  postTweetWithImage: (input: {
+    content: string;
+    image: Buffer;
+    mimeType: 'image/jpeg' | 'image/png';
+  }) => Promise<{ tweetId: string }>;
+}
+
 export interface HealthStatus {
   healthy: boolean;
   uptime: number;
@@ -43,6 +55,17 @@ export interface HealthStatus {
   components: {
     scheduler: { running: boolean; consecutiveFailures: number };
     mentionMonitor: { running: boolean; lastCheckAt: number | null };
+    acpSeller?: {
+      enabled: boolean;
+      running: boolean;
+      connected: boolean;
+      walletAddress: string | null;
+      maxConcurrentJobs: number;
+      runningJobs: number;
+      queuedJobs: number;
+      lastEventAt: string | null;
+      lastError: string | null;
+    };
     circuitBreaker: { posting: string; replies: string; dkg: string };
     dkg: { enabled: boolean; circuitStatus: string; activePort?: number | null };
     engagementTracker: { running: boolean };
@@ -58,6 +81,7 @@ export interface ReadinessStatus {
     twitter: { ok: boolean; error?: string };
     anthropic: { ok: boolean; error?: string };
     dkg: { ok: boolean; error?: string };
+    acp?: { ok: boolean; error?: string };
     autonomy?: { ok: boolean; error?: string };
   };
 }
@@ -252,6 +276,90 @@ export class Server {
       res.json({ task });
     });
 
+    this.app.post(
+      '/internal/tweet',
+      async (req: Request, res: Response) => {
+        if (!this.ensureAdminAccess(req, res)) return;
+
+        const content =
+          typeof req.body?.content === 'string'
+            ? req.body.content.trim()
+            : (req.header('x-tweet-content') || '').trim();
+
+        if (!content) {
+          res.status(400).json({ error: 'content_required' });
+          return;
+        }
+        if (content.length > 280) {
+          res.status(400).json({ error: 'content_too_long' });
+          return;
+        }
+
+        try {
+          const result = await this.config.admin!.postTweet({ content });
+          tweetsPosted.inc({ type: 'admin' });
+          res.json({ ok: true, tweetId: result.tweetId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'tweet_failed';
+          log.error('Admin tweet failed', { error: String(error) });
+          res.status(500).json({ error: message });
+        }
+      }
+    );
+
+    this.app.post(
+      '/internal/tweet-image',
+      express.raw({
+        type: ['image/*', 'application/octet-stream'],
+        limit: '5mb',
+      }),
+      async (req: Request, res: Response) => {
+        if (!this.ensureAdminAccess(req, res)) return;
+
+        const content = (req.header('x-tweet-content') || '').trim();
+        if (!content) {
+          res.status(400).json({ error: 'content_required' });
+          return;
+        }
+        if (content.length > 280) {
+          res.status(400).json({ error: 'content_too_long' });
+          return;
+        }
+
+        if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+          res.status(400).json({ error: 'image_required' });
+          return;
+        }
+
+        const rawType = (req.header('content-type') || '').split(';')[0].trim().toLowerCase();
+        const mimeType =
+          rawType === 'image/jpg'
+            ? 'image/jpeg'
+            : rawType === 'image/jpeg' || rawType === 'image/png'
+              ? rawType
+              : null;
+
+        if (!mimeType) {
+          res.status(415).json({ error: 'unsupported_media_type' });
+          return;
+        }
+
+        try {
+          const result = await this.config.admin!.postTweetWithImage({
+            content,
+            image: req.body,
+            mimeType,
+          });
+          tweetsPosted.inc({ type: 'admin' });
+          res.json({ ok: true, tweetId: result.tweetId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'tweet_failed';
+          log.error('Admin tweet-image failed', { error: String(error) });
+          res.status(500).json({ error: message });
+        }
+      }
+    );
+
     // Simple status page
     this.app.get('/', (_req: Request, res: Response) => {
       res.json({
@@ -305,12 +413,41 @@ export class Server {
     return true;
   }
 
+  private ensureAdminAccess(req: Request, res: Response): boolean {
+    const admin = this.config.admin;
+    if (!admin?.enabled) {
+      res.status(404).json({ error: 'not_found' });
+      return false;
+    }
+
+    if (!admin.token) {
+      res.status(503).json({ error: 'admin_not_configured' });
+      return false;
+    }
+
+    const provided = this.readAdminToken(req);
+    if (provided !== admin.token) {
+      res.status(401).json({ error: 'unauthorized' });
+      return false;
+    }
+
+    return true;
+  }
+
   private readToken(req: Request): string {
     const authorization = req.header('authorization');
     if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
       return authorization.slice(7).trim();
     }
     return req.header('x-autonomy-token')?.trim() ?? '';
+  }
+
+  private readAdminToken(req: Request): string {
+    const authorization = req.header('authorization');
+    if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+      return authorization.slice(7).trim();
+    }
+    return req.header('x-admin-token')?.trim() ?? '';
   }
 
   async start(): Promise<void> {

@@ -131,7 +131,7 @@ describe('MentionMonitor', () => {
     expect(onMention).toHaveBeenCalledTimes(1);
   });
 
-  it('replies at most once per conversation during cooldown', async () => {
+  it('replies at most twice per conversation during cooldown', async () => {
     const stateFilePath = path.join(tempDir, 'conversation-state.json');
     const onMention = vi.fn(async () => {});
 
@@ -153,8 +153,14 @@ describe('MentionMonitor', () => {
         data: {
           mentions: [
             {
+              id: '3000000000000000003',
+              text: 'third ping',
+              authorId: 'author-a',
+              conversationId: '4000000000000000000',
+            },
+            {
               id: '3000000000000000002',
-              text: 'follow up',
+              text: 'second ping',
               authorId: 'author-a',
               conversationId: '4000000000000000000',
             },
@@ -172,8 +178,48 @@ describe('MentionMonitor', () => {
     await monitor.start();
     monitor.stop();
 
-    expect(onMention).toHaveBeenCalledTimes(1);
+    expect(onMention).toHaveBeenCalledTimes(2);
     expect(onMention).toHaveBeenCalledWith('3000000000000000001', 'first ping', 'author-a', 'author-a');
+    expect(onMention).toHaveBeenCalledWith('3000000000000000002', 'second ping', 'author-a', 'author-a');
+  });
+
+  it('never replies to blocked authors', async () => {
+    const stateFilePath = path.join(tempDir, 'blocked-author-state.json');
+    const onMention = vi.fn(async () => {});
+
+    mockGetMentions
+      .mockResolvedValueOnce({
+        success: true,
+        data: {
+          mentions: [
+            {
+              id: '6000000000000000000',
+              text: 'prime',
+              authorId: 'author-a',
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: {
+          mentions: [
+            {
+              id: '6000000000000000001',
+              text: 'ping',
+              authorId: 'author-b',
+              authorUsername: 'ChatDKG',
+              conversationId: '7000000000000000000',
+            },
+          ],
+        },
+      });
+
+    const monitor = createMonitor(stateFilePath, onMention);
+    await monitor.start();
+    monitor.stop();
+
+    expect(onMention).toHaveBeenCalledTimes(0);
   });
 
   it('retries failed mentions without skipping newer ones', async () => {

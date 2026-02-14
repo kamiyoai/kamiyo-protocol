@@ -160,11 +160,12 @@ export function createXTools(config: XToolsConfig): ToolConfig[] {
       name: 'get_mentions',
       description: 'Get recent mentions of the authenticated account.',
       parameters: {
-        limit: { type: 'number', description: 'Max mentions to return (default 10, max 100)', required: false },
+        limit: { type: 'number', description: 'Max mentions to return (default 10, min 5, max 100)', required: false },
         sinceId: { type: 'string', description: 'Only get mentions after this tweet ID', required: false },
       },
       handler: async (params): Promise<ToolResult> => {
-        const limit = typeof params.limit === 'number' ? Math.min(Math.max(1, params.limit), 100) : 10;
+        // X timelines typically require max_results >= 5.
+        const limit = typeof params.limit === 'number' ? Math.min(Math.max(5, params.limit), 100) : 10;
         if (params.sinceId !== undefined && !isValidTweetId(params.sinceId)) {
           return { success: false, error: 'Invalid sinceId' };
         }
@@ -176,14 +177,23 @@ export function createXTools(config: XToolsConfig): ToolConfig[] {
             max_results: limit,
             ...(params.sinceId ? { since_id: params.sinceId as string } : {}),
             'tweet.fields': ['created_at', 'author_id', 'conversation_id'],
+            'user.fields': ['username'],
             expansions: ['author_id'],
           });
+
+          const users = mentions.includes?.users ?? [];
+          const usernameById = new Map(
+            users
+              .map((user) => [user.id, user.username] as const)
+              .filter((pair) => typeof pair[0] === 'string' && typeof pair[1] === 'string' && pair[1].length > 0)
+          );
 
           const data = (mentions.data.data || []).map((tweet) => ({
             id: tweet.id,
             text: tweet.text,
             createdAt: tweet.created_at,
             authorId: tweet.author_id,
+            authorUsername: tweet.author_id ? usernameById.get(tweet.author_id) : undefined,
             conversationId: tweet.conversation_id,
           }));
 

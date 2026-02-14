@@ -163,8 +163,11 @@ async function inferSkillsWithOpenAi(prompt: string, maxSkills: number): Promise
 
   if (!res.ok) return null;
 
-  const data = (await res.json()) as any;
-  const text = data?.output_text;
+  const data: unknown = await res.json();
+  const text =
+    typeof data === 'object' && data !== null
+      ? (data as Record<string, unknown>).output_text
+      : undefined;
   if (typeof text !== 'string' || text.trim() === '') return null;
 
   let parsed: unknown;

@@ -77,7 +77,7 @@ async function runTests() {
   });
 
   await test('rejects too many capabilities', async () => {
-    const caps = Array.from({ length: 25 }, (_, i) => `cap-${i}` as any);
+    const caps = Array.from({ length: 25 }, (_, i) => `cap-${i}`);
     const result = await registry.register({
       capabilities: caps,
       pricing: { perTask: 0.05, currency: 'SOL' },

@@ -1,4 +1,5 @@
 import { createXTools } from '@kamiyo/agents';
+import { TwitterApi } from 'twitter-api-v2';
 import {
   createLogger,
   getMetrics,
@@ -43,6 +44,7 @@ import { OpenClawToolsInvokeClient } from './autonomy/openclaw-tools-invoke-clie
 import { parseAutonomyCommand } from './autonomy/command';
 import type { AutonomyTask } from './autonomy/types';
 import { validateTweet } from './personality';
+import { AcpSeller } from './acp/acp-seller';
 import { HolderGateClient, type HolderGateStatus } from './holder-gate';
 import { createNikaAgentSDK, type NikaAgentSDK } from './nika-agent-sdk';
 import { InMemorySessionStore, RedisSessionStore, type SessionStore } from './session-store';
@@ -128,6 +130,7 @@ let autonomyRunner: AutonomyRunner | null = null;
 let holderGate: HolderGateClient | null = null;
 let mentionSessionStore: SessionStore | null = null;
 let agentSdk: NikaAgentSDK | null = null;
+let acpSeller: AcpSeller | null = null;
 
 async function validateConnections(config: ReturnType<typeof getConfig>): Promise<void> {
   log.info('Validating external connections');
@@ -734,8 +737,37 @@ async function main(): Promise<void> {
     health?.recordError();
   });
 
-  await mentionMonitor.start();
-  log.info('Mention monitor started');
+  void mentionMonitor
+    .start()
+    .then(() => {
+      log.info('Mention monitor started');
+    })
+    .catch((error) => {
+      log.error('Mention monitor failed to start', { error: String(error) });
+      health?.recordError();
+    });
+
+  // Initialize ACP seller runtime (paid services on Virtuals ACP)
+  if (config.ACP_ENABLED) {
+    acpSeller = new AcpSeller({
+      enabled: true,
+      apiUrl: config.ACP_API_URL,
+      socketUrl: config.ACP_SOCKET_URL,
+      apiKey: config.ACP_LITE_AGENT_API_KEY,
+      maxConcurrentJobs: config.ACP_MAX_CONCURRENT_JOBS,
+    });
+
+    void acpSeller
+      .start()
+      .then(() => log.info('ACP seller started'))
+      .catch((error) => log.error('ACP seller failed to start', { error: String(error) }));
+
+    shutdownManager.register('acpSeller', async () => {
+      acpSeller?.stop();
+    }, 19);
+  } else {
+    log.info('ACP seller disabled');
+  }
 
   // Register mention monitor shutdown
   shutdownManager.register('mentionMonitor', async () => {
@@ -900,6 +932,16 @@ async function main(): Promise<void> {
   }
 
   // Initialize HTTP server
+  const adminToken = (process.env.NIKA_ADMIN_TOKEN || '').trim();
+  const adminTwitter = adminToken
+    ? new TwitterApi({
+        appKey: config.TWITTER_API_KEY,
+        appSecret: config.TWITTER_API_SECRET,
+        accessToken: config.TWITTER_ACCESS_TOKEN,
+        accessSecret: config.TWITTER_ACCESS_SECRET,
+      })
+    : null;
+
   server = createServer({
     port: config.PORT,
     autonomy: autonomyRunner
@@ -917,6 +959,23 @@ async function main(): Promise<void> {
             }),
         }
       : undefined,
+    admin: adminToken && adminTwitter
+      ? {
+          enabled: true,
+          token: adminToken,
+          postTweet: async ({ content }) => {
+            const result = await adminTwitter.v2.tweet(content);
+            return { tweetId: result.data.id };
+          },
+          postTweetWithImage: async ({ content, image, mimeType }) => {
+            const mediaId = await adminTwitter.v1.uploadMedia(image, { mimeType });
+            const result = await adminTwitter.v2.tweet(content, {
+              media: { media_ids: [mediaId] },
+            });
+            return { tweetId: result.data.id };
+          },
+        }
+      : undefined,
     getHealth: () => ({
       healthy: health?.getStatus().healthy ?? false,
       uptime: health?.getUptime() ?? 0,
@@ -930,6 +989,17 @@ async function main(): Promise<void> {
         mentionMonitor: {
           running: mentionMonitor?.isRunning() ?? false,
           lastCheckAt: mentionMonitor?.getLastCheckAt()?.getTime() ?? null,
+        },
+        acpSeller: acpSeller?.getStatus() ?? {
+          enabled: config.ACP_ENABLED,
+          running: false,
+          connected: false,
+          walletAddress: null,
+          maxConcurrentJobs: config.ACP_MAX_CONCURRENT_JOBS,
+          runningJobs: 0,
+          queuedJobs: 0,
+          lastEventAt: null,
+          lastError: null,
         },
         circuitBreaker: agent?.getCircuitStatus() ?? { posting: 'unknown', replies: 'unknown', dkg: 'unknown' },
         dkg: {
@@ -960,16 +1030,18 @@ async function main(): Promise<void> {
       const schedulerOk = dailyScheduler?.isRunning() ?? false;
       const mentionMonitorOk = mentionMonitor?.isRunning() ?? false;
       const autonomyOk = !config.AUTONOMY_ENABLED || autonomyRunner?.getStatus().running === true;
+      const acpOk = !config.ACP_ENABLED || acpSeller?.getStatus().connected === true;
 
       // DKG is optional - not required for readiness
       const dkgOk = !dkgMemory || dkgMemory.getCircuitStatus() !== 'open';
 
       return {
-        ready: schedulerOk && mentionMonitorOk && autonomyOk,
+        ready: schedulerOk && mentionMonitorOk && autonomyOk && acpOk,
         checks: {
           twitter: { ok: mentionMonitorOk, error: mentionMonitorOk ? undefined : 'Not running' },
           anthropic: { ok: true }, // Validated at startup
           dkg: { ok: dkgOk, error: dkgOk ? undefined : 'Circuit open' },
+          acp: { ok: acpOk, error: acpOk ? undefined : 'ACP seller not connected' },
           autonomy: {
             ok: autonomyOk,
             error: autonomyOk ? undefined : 'Autonomy runner not running',
