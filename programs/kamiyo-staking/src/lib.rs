@@ -7,19 +7,22 @@
 //! SPDX-License-Identifier: MIT
 
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{
     self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
 };
-use anchor_spl::associated_token::AssociatedToken;
 
 declare_id!("9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N");
+
+#[cfg(kani)]
+mod kani;
 
 /// Burn rate for reward distributions: 1% (100 basis points)
 const REWARD_BURN_RATE_BPS: u64 = 100;
 
 /// Calculate burn and distribution amounts for rewards
 fn calculate_reward_split(total_reward: u64) -> (u64, u64) {
-    let burn_amount = total_reward * REWARD_BURN_RATE_BPS / 10_000;
+    let burn_amount = ((total_reward as u128) * (REWARD_BURN_RATE_BPS as u128) / 10_000) as u64;
     let distribution_amount = total_reward - burn_amount;
     (burn_amount, distribution_amount)
 }
@@ -43,13 +46,13 @@ const NINETY_DAYS: i64 = 90 * 24 * 60 * 60;
 const ONE_EIGHTY_DAYS: i64 = 180 * 24 * 60 * 60;
 
 /// Multipliers (in basis points, 10000 = 1.0x)
-const MULTIPLIER_BASE: u64 = 10000;      // 1.0x
-const MULTIPLIER_30D: u64 = 12000;       // 1.2x
-const MULTIPLIER_90D: u64 = 15000;       // 1.5x
-const MULTIPLIER_180D: u64 = 20000;      // 2.0x
+const MULTIPLIER_BASE: u64 = 10000; // 1.0x
+const MULTIPLIER_30D: u64 = 12000; // 1.2x
+const MULTIPLIER_90D: u64 = 15000; // 1.5x
+const MULTIPLIER_180D: u64 = 20000; // 2.0x
 
 /// Revenue share percentage (10% of platform fees go to stakers)
-const REVENUE_SHARE_BPS: u64 = 1000;     // 10%
+const REVENUE_SHARE_BPS: u64 = 1000; // 10%
 
 // ============================================================================
 // Errors
@@ -129,7 +132,7 @@ impl StakingPool {
         8 +  // last_distribution_time
         8 +  // total_rewards_distributed
         1 +  // is_paused
-        1;   // bump
+        1; // bump
 }
 
 /// Individual staker position
@@ -165,7 +168,7 @@ impl StakePosition {
         8 +  // last_claim_time
         16 + // rewards_debt
         8 +  // total_claimed
-        1;   // bump
+        1; // bump
 }
 
 // ============================================================================
@@ -225,7 +228,9 @@ pub mod kamiyo_staking {
                     pending,
                 )?;
 
-                position.total_claimed = position.total_claimed.checked_add(pending)
+                position.total_claimed = position
+                    .total_claimed
+                    .checked_add(pending)
                     .ok_or(StakingError::MathOverflow)?;
             }
         } else {
@@ -249,13 +254,17 @@ pub mod kamiyo_staking {
         )?;
 
         // Update position
-        position.staked_amount = position.staked_amount.checked_add(amount)
+        position.staked_amount = position
+            .staked_amount
+            .checked_add(amount)
             .ok_or(StakingError::MathOverflow)?;
         position.last_claim_time = clock.unix_timestamp;
 
         // Update pool
         let pool = &mut ctx.accounts.pool;
-        pool.total_staked = pool.total_staked.checked_add(amount)
+        pool.total_staked = pool
+            .total_staked
+            .checked_add(amount)
             .ok_or(StakingError::MathOverflow)?;
 
         // Update weighted stake
@@ -264,9 +273,14 @@ pub mod kamiyo_staking {
             .checked_mul(multiplier as u128)
             .ok_or(StakingError::MathOverflow)?
             .checked_div(MULTIPLIER_BASE as u128)
-            .ok_or(StakingError::MathOverflow)? as u64;
+            .ok_or(StakingError::MathOverflow)?;
+        let weighted_amount: u64 = weighted_amount
+            .try_into()
+            .map_err(|_| StakingError::MathOverflow)?;
 
-        pool.total_weighted_stake = pool.total_weighted_stake.checked_add(weighted_amount)
+        pool.total_weighted_stake = pool
+            .total_weighted_stake
+            .checked_add(weighted_amount)
             .ok_or(StakingError::MathOverflow)?;
 
         // Update rewards debt
@@ -288,7 +302,10 @@ pub mod kamiyo_staking {
     /// Unstake KAMIYO tokens
     pub fn unstake(ctx: Context<Unstake>, amount: u64) -> Result<()> {
         let position = &ctx.accounts.position;
-        require!(amount <= position.staked_amount, StakingError::InsufficientBalance);
+        require!(
+            amount <= position.staked_amount,
+            StakingError::InsufficientBalance
+        );
 
         let clock = Clock::get()?;
         let pool = &ctx.accounts.pool;
@@ -330,15 +347,21 @@ pub mod kamiyo_staking {
 
         // Update position
         let position = &mut ctx.accounts.position;
-        position.staked_amount = position.staked_amount.checked_sub(amount)
+        position.staked_amount = position
+            .staked_amount
+            .checked_sub(amount)
             .ok_or(StakingError::MathOverflow)?;
         position.last_claim_time = clock.unix_timestamp;
-        position.total_claimed = position.total_claimed.checked_add(pending)
+        position.total_claimed = position
+            .total_claimed
+            .checked_add(pending)
             .ok_or(StakingError::MathOverflow)?;
 
         // Update pool
         let pool = &mut ctx.accounts.pool;
-        pool.total_staked = pool.total_staked.checked_sub(amount)
+        pool.total_staked = pool
+            .total_staked
+            .checked_sub(amount)
             .ok_or(StakingError::MathOverflow)?;
 
         // Update weighted stake
@@ -347,7 +370,10 @@ pub mod kamiyo_staking {
             .checked_mul(multiplier as u128)
             .ok_or(StakingError::MathOverflow)?
             .checked_div(MULTIPLIER_BASE as u128)
-            .ok_or(StakingError::MathOverflow)? as u64;
+            .ok_or(StakingError::MathOverflow)?;
+        let weighted_amount: u64 = weighted_amount
+            .try_into()
+            .map_err(|_| StakingError::MathOverflow)?;
 
         pool.total_weighted_stake = pool.total_weighted_stake.saturating_sub(weighted_amount);
 
@@ -403,7 +429,9 @@ pub mod kamiyo_staking {
         let pool = &ctx.accounts.pool;
 
         position.last_claim_time = clock.unix_timestamp;
-        position.total_claimed = position.total_claimed.checked_add(pending)
+        position.total_claimed = position
+            .total_claimed
+            .checked_add(pending)
             .ok_or(StakingError::MathOverflow)?;
         position.rewards_debt = (position.staked_amount as u128)
             .checked_mul(pool.accumulated_rewards_per_share)
@@ -425,7 +453,10 @@ pub mod kamiyo_staking {
         let pool = &mut ctx.accounts.pool;
         let clock = Clock::get()?;
 
-        require!(pool.total_weighted_stake > 0, StakingError::NoRewardsToClaim);
+        require!(
+            pool.total_weighted_stake > 0,
+            StakingError::NoRewardsToClaim
+        );
 
         // Calculate burn (1%) and distribution (99%) amounts
         let (burn_amount, distribution_amount) = calculate_reward_split(amount);
@@ -466,12 +497,14 @@ pub mod kamiyo_staking {
             .checked_div(pool.total_weighted_stake as u128)
             .ok_or(StakingError::MathOverflow)?;
 
-        pool.accumulated_rewards_per_share = pool.accumulated_rewards_per_share
+        pool.accumulated_rewards_per_share = pool
+            .accumulated_rewards_per_share
             .checked_add(reward_per_share)
             .ok_or(StakingError::MathOverflow)?;
 
         pool.last_distribution_time = clock.unix_timestamp;
-        pool.total_rewards_distributed = pool.total_rewards_distributed
+        pool.total_rewards_distributed = pool
+            .total_rewards_distributed
             .checked_add(distribution_amount)
             .ok_or(StakingError::MathOverflow)?;
 
@@ -549,8 +582,14 @@ fn calculate_pending_rewards(
         .ok_or(StakingError::MathOverflow)?;
 
     let pending = accumulated
-        .checked_sub(position.rewards_debt.checked_div(1_000_000_000_000).unwrap_or(0))
-        .unwrap_or(0) as u64;
+        .checked_sub(
+            position
+                .rewards_debt
+                .checked_div(1_000_000_000_000)
+                .unwrap_or(0),
+        )
+        .unwrap_or(0);
+    let pending: u64 = pending.try_into().map_err(|_| StakingError::MathOverflow)?;
 
     Ok(pending)
 }
