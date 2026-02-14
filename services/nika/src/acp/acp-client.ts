@@ -22,6 +22,26 @@ export interface AcpMeResponse {
   }>;
 }
 
+export interface AcpMarketplaceAgentOffering {
+  name: string;
+  description?: string;
+  price: number;
+  priceType: string;
+  requiredFunds?: boolean;
+  requirement?: unknown;
+}
+
+export interface AcpMarketplaceAgent {
+  id: string;
+  name: string;
+  description?: string;
+  walletAddress: string;
+  twitterHandle?: string;
+  jobOfferings?: AcpMarketplaceAgentOffering[];
+  resources?: unknown[];
+  metrics?: unknown;
+}
+
 export interface AcceptOrRejectParams {
   accept: boolean;
   reason?: string;
@@ -92,6 +112,27 @@ export class AcpClient {
     );
   }
 
+  async searchAgents(query: string): Promise<AcpMarketplaceAgent[]> {
+    const q = query.trim();
+    if (!q) return [];
+
+    const data = await withRetry(
+      async () =>
+        this.requestJson<unknown>(`/acp/agents?query=${encodeURIComponent(q)}`, {
+          method: 'GET',
+        }),
+      { maxAttempts: 2, initialDelayMs: 800 }
+    );
+
+    if (!Array.isArray(data)) return [];
+
+    return data.filter((v): v is AcpMarketplaceAgent => {
+      if (!v || typeof v !== 'object') return false;
+      const a = v as any;
+      return typeof a.walletAddress === 'string' && typeof a.name === 'string';
+    });
+  }
+
   async acceptOrRejectJob(jobId: number, params: AcceptOrRejectParams): Promise<void> {
     try {
       await withRetry(
@@ -136,4 +177,3 @@ export class AcpClient {
     );
   }
 }
-
