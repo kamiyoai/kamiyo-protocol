@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  SOLANA_VERSION: 2.1.0
+  SOLANA_VERSION: 2.3.13
   ANCHOR_VERSION: 0.31.1
 
 jobs:

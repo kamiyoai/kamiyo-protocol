@@ -22,6 +22,6 @@ opt-level = 3
 incremental = false
 codegen-units = 1
 
-# Pin versions to be compatible with the Solana BPF toolchain
-# Keep `blake3` pinned to 1.5.5 in Cargo.lock.
-# Newer blake3 versions use edition2024 which the Solana BPF toolchain doesn't support yet.
+# Pin versions/toolchain to be compatible with Solana SBF builds.
+# If CI fails parsing a transitive dependency that uses edition2024 (e.g. constant_time_eq via blake3),
+# bump SOLANA_VERSION in workflows to a release that bundles a newer Cargo/Rust toolchain.
