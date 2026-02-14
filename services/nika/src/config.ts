@@ -55,6 +55,13 @@ export interface Config {
   NIKA_REPO_WATCH_INTERVAL_MS: number;
   NIKA_REPO_ROOT: string;
 
+  // ACP (Virtuals Agent Commerce Protocol) seller runtime
+  ACP_ENABLED: boolean;
+  ACP_LITE_AGENT_API_KEY: string;
+  ACP_SOCKET_URL: string;
+  ACP_API_URL: string;
+  ACP_MAX_CONCURRENT_JOBS: number;
+
   // Autonomous execution
   AUTONOMY_ENABLED: boolean;
   AUTONOMY_DRY_RUN: boolean;
@@ -120,6 +127,11 @@ const DEFAULTS: Partial<Config> = {
   NIKA_REPO_WATCH_ENABLED: true,
   NIKA_REPO_WATCH_INTERVAL_MS: 6 * 60 * 60 * 1000,
   NIKA_REPO_ROOT: '',
+  ACP_ENABLED: false,
+  ACP_LITE_AGENT_API_KEY: '',
+  ACP_SOCKET_URL: 'https://acpx.virtuals.io',
+  ACP_API_URL: 'https://claw-api.virtuals.io',
+  ACP_MAX_CONCURRENT_JOBS: 2,
   AUTONOMY_ENABLED: false,
   AUTONOMY_DRY_RUN: true,
   AUTONOMY_API_TOKEN: '',
@@ -306,6 +318,24 @@ export function validateConfig(): ValidationResult {
     const intervalMs = parseInt(process.env.NIKA_REPO_WATCH_INTERVAL_MS, 10);
     if (isNaN(intervalMs) || intervalMs < 60_000) {
       errors.push('NIKA_REPO_WATCH_INTERVAL_MS must be at least 60000');
+    }
+  }
+
+  const acpEnabled = parseBoolean(process.env.ACP_ENABLED, DEFAULTS.ACP_ENABLED!);
+  if (acpEnabled) {
+    const key = (process.env.ACP_LITE_AGENT_API_KEY || process.env.LITE_AGENT_API_KEY || '').trim();
+    if (!key) errors.push('ACP_LITE_AGENT_API_KEY is required when ACP_ENABLED=true');
+
+    const socketUrl = (process.env.ACP_SOCKET_URL || DEFAULTS.ACP_SOCKET_URL!).trim();
+    if (socketUrl && !isValidUrl(socketUrl)) errors.push('ACP_SOCKET_URL must be a valid URL');
+
+    const apiUrl = (process.env.ACP_API_URL || DEFAULTS.ACP_API_URL!).trim();
+    if (apiUrl && !isValidUrl(apiUrl)) errors.push('ACP_API_URL must be a valid URL');
+
+    const maxConcurrentJobsRaw = process.env.ACP_MAX_CONCURRENT_JOBS;
+    if (maxConcurrentJobsRaw) {
+      const n = parseInt(maxConcurrentJobsRaw, 10);
+      if (isNaN(n) || n < 1 || n > 10) errors.push('ACP_MAX_CONCURRENT_JOBS must be an integer between 1 and 10');
     }
   }
 
@@ -552,6 +582,19 @@ export function getConfig(): Config {
     ),
     NIKA_REPO_ROOT: (process.env.NIKA_REPO_ROOT || DEFAULTS.NIKA_REPO_ROOT!).trim(),
 
+    ACP_ENABLED: parseBoolean(process.env.ACP_ENABLED, DEFAULTS.ACP_ENABLED!),
+    ACP_LITE_AGENT_API_KEY: (
+      process.env.ACP_LITE_AGENT_API_KEY ||
+      process.env.LITE_AGENT_API_KEY ||
+      DEFAULTS.ACP_LITE_AGENT_API_KEY!
+    ).trim(),
+    ACP_SOCKET_URL: (process.env.ACP_SOCKET_URL || DEFAULTS.ACP_SOCKET_URL!).trim(),
+    ACP_API_URL: (process.env.ACP_API_URL || DEFAULTS.ACP_API_URL!).trim(),
+    ACP_MAX_CONCURRENT_JOBS: parseInt(
+      process.env.ACP_MAX_CONCURRENT_JOBS || String(DEFAULTS.ACP_MAX_CONCURRENT_JOBS),
+      10
+    ),
+
     AUTONOMY_ENABLED: parseBoolean(process.env.AUTONOMY_ENABLED, DEFAULTS.AUTONOMY_ENABLED!),
     AUTONOMY_DRY_RUN: parseBoolean(process.env.AUTONOMY_DRY_RUN, DEFAULTS.AUTONOMY_DRY_RUN!),
     AUTONOMY_API_TOKEN: (process.env.AUTONOMY_API_TOKEN || DEFAULTS.AUTONOMY_API_TOKEN!).trim(),
@@ -661,6 +704,11 @@ export function getRedactedConfig(): Record<string, string> {
     NIKA_REPO_WATCH_ENABLED: String(config.NIKA_REPO_WATCH_ENABLED),
     NIKA_REPO_WATCH_INTERVAL_MS: String(config.NIKA_REPO_WATCH_INTERVAL_MS),
     NIKA_REPO_ROOT: config.NIKA_REPO_ROOT || '(auto)',
+    ACP_ENABLED: String(config.ACP_ENABLED),
+    ACP_LITE_AGENT_API_KEY: config.ACP_LITE_AGENT_API_KEY ? '[CONFIGURED]' : '(not set)',
+    ACP_SOCKET_URL: config.ACP_SOCKET_URL,
+    ACP_API_URL: config.ACP_API_URL,
+    ACP_MAX_CONCURRENT_JOBS: String(config.ACP_MAX_CONCURRENT_JOBS),
     AUTONOMY_ENABLED: String(config.AUTONOMY_ENABLED),
     AUTONOMY_DRY_RUN: String(config.AUTONOMY_DRY_RUN),
     AUTONOMY_API_TOKEN: config.AUTONOMY_API_TOKEN ? '[CONFIGURED]' : '(not set)',
