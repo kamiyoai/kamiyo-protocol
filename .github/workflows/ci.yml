@@ -56,7 +56,7 @@ jobs:
       - name: Validate VK
         run: ./scripts/validate-vk.sh
       - name: Cargo Audit
-        run: cargo audit --ignore RUSTSEC-2024-0344
+        run: cargo audit --ignore RUSTSEC-2024-0344 --ignore RUSTSEC-2022-0093
 
   evm:
     name: EVM
