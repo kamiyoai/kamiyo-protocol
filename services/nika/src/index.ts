@@ -546,8 +546,15 @@ async function main(): Promise<void> {
     health?.recordError();
   });
 
-  await mentionMonitor.start();
-  log.info('Mention monitor started');
+  void mentionMonitor
+    .start()
+    .then(() => {
+      log.info('Mention monitor started');
+    })
+    .catch((error) => {
+      log.error('Mention monitor failed to start', { error: String(error) });
+      health?.recordError();
+    });
 
   // Register mention monitor shutdown
   shutdownManager.register('mentionMonitor', async () => {
