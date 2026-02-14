@@ -435,18 +435,14 @@ async fn resolve_dispute_full_refund_succeeds() {
     let quality_score = 0u8;
     let refund_percentage = 100u8;
 
-    let message = {
-        let mut data = Vec::with_capacity(33);
-        data.extend_from_slice(escrow.as_ref());
-        data.push(quality_score);
-        solana_sdk::hash::hash(&data).to_bytes()
-    };
+    let message = format!("{transaction_id}:{quality_score}");
 
     let verifier = &oracles[0];
-    let sig = verifier.sign_message(&message);
+    let sig = verifier.sign_message(message.as_bytes());
     let sig: [u8; 64] = sig.as_ref().try_into().unwrap();
     let dalek = DalekKeypair::from_bytes(&verifier.to_bytes()).unwrap();
-    let ed25519_ix = ed25519_instruction::new_ed25519_instruction(&dalek, &message);
+    let ed25519_ix =
+        ed25519_instruction::new_ed25519_instruction(&dalek, message.as_bytes());
     let resolve_ix = Instruction {
         program_id: kamiyo::ID,
         accounts: kamiyo::accounts::ResolveDispute {

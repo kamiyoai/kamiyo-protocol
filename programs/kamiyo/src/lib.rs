@@ -2473,20 +2473,40 @@ pub mod kamiyo {
             escrow.refund_percentage = Some(refund_percentage);
         }
 
-        // Calculate protocol fee (1% of escrow amount)
-        let protocol_fee = (amount as u128)
+        // Fees and oracle rewards are funded out of the API's payout (payment_amount).
+        // If the agent is refunded 100%, payment_amount is zero and no additional fees/rewards
+        // can be collected without reducing the refund.
+        let fee_budget = payment_amount;
+
+        // Protocol fee (1% of escrow amount, capped by the available fee budget).
+        let base_protocol_fee = (amount as u128)
             .checked_mul(PROTOCOL_FEE_PERCENT as u128)
             .ok_or(KamiyoError::ArithmeticOverflow)?
             .checked_div(100)
             .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
+        let protocol_fee = base_protocol_fee.min(fee_budget);
 
-        // Calculate oracle reward pool (1% of escrow amount, split among participating oracles)
+        // Oracle rewards are only enabled when we can actually route funds somewhere.
+        // Otherwise we'd record rewards that can never be claimed.
+        let oracle_rewards_enabled = match token_mint {
+            Some(_) => ctx.accounts.treasury_token_account.is_some(),
+            None => ctx.accounts.treasury.is_some(),
+        };
+
+        // Calculate oracle reward pool (1% of escrow amount, capped by remaining fee budget,
+        // split among participating oracles).
         let oracle_count = oracles.len() as u64;
-        let total_oracle_reward = (amount as u128)
-            .checked_mul(ORACLE_REWARD_PERCENT as u128)
-            .ok_or(KamiyoError::ArithmeticOverflow)?
-            .checked_div(100)
-            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
+        let base_total_oracle_reward = if oracle_rewards_enabled {
+            (amount as u128)
+                .checked_mul(ORACLE_REWARD_PERCENT as u128)
+                .ok_or(KamiyoError::ArithmeticOverflow)?
+                .checked_div(100)
+                .ok_or(KamiyoError::ArithmeticOverflow)? as u64
+        } else {
+            0
+        };
+        let oracle_reward_budget = fee_budget.saturating_sub(protocol_fee);
+        let total_oracle_reward = base_total_oracle_reward.min(oracle_reward_budget);
         let reward_per_oracle = if oracle_count > 0 {
             total_oracle_reward / oracle_count
         } else {
@@ -2541,6 +2561,7 @@ pub mod kamiyo {
 
             for submission in ctx.accounts.escrow.oracle_submissions.iter() {
                 let score_diff = submission.quality_score.abs_diff(consensus_score);
+                let mut slashed = 0u64;
 
                 if let Some(oracle) = oracle_registry
                     .oracles
@@ -2566,14 +2587,14 @@ pub mod kamiyo {
                             .checked_mul(ORACLE_SLASH_PERCENT as u128)
                             .ok_or(KamiyoError::ArithmeticOverflow)?
                             .checked_div(100)
-                            .ok_or(KamiyoError::ArithmeticOverflow)?
-                            as u64;
+                            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
 
                         if slash_amount > 0 && oracle.stake_amount >= slash_amount {
                             oracle.stake_amount = oracle.stake_amount.saturating_sub(slash_amount);
                             oracle.violation_count = oracle.violation_count.saturating_add(1);
                             // Track slashed amount - will update total_stake after loop
                             total_slashed_stake = total_slashed_stake.saturating_add(slash_amount);
+                            slashed = slash_amount;
 
                             emit!(OracleSlashed {
                                 oracle: oracle.pubkey,
@@ -2593,6 +2614,23 @@ pub mod kamiyo {
                                 oracles_to_remove.push(oracle.pubkey);
                             }
                         }
+                    }
+                }
+
+                if slashed > 0 {
+                    // Move slashed stake out of the pooled registry account to keep lamports and
+                    // accounting (`total_stake` / `stake_amount`) consistent.
+                    **oracle_registry
+                        .to_account_info()
+                        .try_borrow_mut_lamports()? -= slashed;
+                    if let Some(ref treasury) = ctx.accounts.treasury {
+                        **treasury.to_account_info().try_borrow_mut_lamports()? += slashed;
+                    } else {
+                        **ctx
+                            .accounts
+                            .api
+                            .to_account_info()
+                            .try_borrow_mut_lamports()? += slashed;
                     }
                 }
             }
@@ -2618,16 +2656,22 @@ pub mod kamiyo {
                         .total_stake
                         .saturating_sub(removed.stake_amount);
 
-                    // Transfer remaining stake from registry to treasury
+                    // Transfer remaining stake from registry
                     if removed.stake_amount > 0 {
+                        **oracle_registry
+                            .to_account_info()
+                            .try_borrow_mut_lamports()? -= removed.stake_amount;
                         if let Some(ref treasury) = ctx.accounts.treasury {
-                            **oracle_registry
-                                .to_account_info()
-                                .try_borrow_mut_lamports()? -= removed.stake_amount;
                             **treasury.to_account_info().try_borrow_mut_lamports()? +=
                                 removed.stake_amount;
                             forfeited_oracle_stake =
                                 forfeited_oracle_stake.saturating_add(removed.stake_amount);
+                        } else {
+                            **ctx
+                                .accounts
+                                .api
+                                .to_account_info()
+                                .try_borrow_mut_lamports()? += removed.stake_amount;
                         }
                     }
 

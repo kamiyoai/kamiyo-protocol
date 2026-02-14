@@ -58,3 +58,61 @@ services:
         sync: false
       - key: ALERT_WEBHOOK_TYPE
         value: slack
+
+      # Autonomous execution (Meishi + OpenClaw)
+      - key: AUTONOMY_ENABLED
+        value: "false"
+      - key: AUTONOMY_DRY_RUN
+        value: "true"
+      - key: AUTONOMY_API_TOKEN
+        sync: false
+      - key: AUTONOMY_COMMAND_PREFIX
+        value: /autonomy
+      - key: AUTONOMY_TICK_INTERVAL_MS
+        value: "15000"
+      - key: AUTONOMY_MAX_QUEUE_SIZE
+        value: "100"
+      - key: AUTONOMY_MAX_TASK_HISTORY
+        value: "500"
+      - key: AUTONOMY_OBJECTIVE_MAX_LENGTH
+        value: "1200"
+
+      - key: AUTONOMY_MEISHI_VERIFY_URL
+        value: https://api.kamiyo.ai/api/meishi/agent/{agentIdentity}/verify
+      - key: AUTONOMY_MEISHI_AGENT_ID
+        sync: false
+      - key: AUTONOMY_MEISHI_MIN_SCORE
+        value: "1"
+      - key: AUTONOMY_MEISHI_REQUIRE_COMPLIANT
+        value: "true"
+
+      # X-triggered autonomy (live mode should be private by default)
+      - key: AUTONOMY_X_COMMANDS_ENABLED
+        value: "true"
+      - key: AUTONOMY_X_PUBLIC
+        value: "false"
+      - key: AUTONOMY_X_ALLOWLIST
+        value: ""
+
+      - key: AUTONOMY_OPENCLAW_BASE_URL
+        sync: false
+      - key: AUTONOMY_OPENCLAW_MODE
+        value: tools_invoke
+
+      # hooks mode (legacy async dispatch)
+      - key: AUTONOMY_OPENCLAW_HOOK_PATH
+        value: /hooks
+      - key: AUTONOMY_OPENCLAW_HOOK_TOKEN
+        sync: false
+
+      # tools_invoke mode (sync reply via sessions_send)
+      - key: AUTONOMY_OPENCLAW_GATEWAY_TOKEN
+        sync: false
+      - key: AUTONOMY_OPENCLAW_CALLER_SESSION_KEY
+        value: main
+      - key: AUTONOMY_OPENCLAW_TARGET_SESSION_PREFIX
+        value: hook:nika
+      - key: AUTONOMY_OPENCLAW_RUN_TIMEOUT_SECONDS
+        value: "60"
+      - key: AUTONOMY_OPENCLAW_TIMEOUT_MS
+        value: "60000"

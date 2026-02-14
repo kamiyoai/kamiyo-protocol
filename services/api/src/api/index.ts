@@ -297,6 +297,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // SwarmTeam management routes (public)
   app.use('/api/hive-teams', swarmTeamRoutes);
+  app.use('/api/swarm-teams', swarmTeamRoutes);
 
   // Blindfold funding callback (public - receives redirects from Blindfold)
   app.use('/api/fund/callback', blindfoldCallbackLimiter, perTeamCallbackLimiter, blindfoldCallbackRoutes);

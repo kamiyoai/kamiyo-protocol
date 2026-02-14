@@ -1,4 +1,5 @@
 import { createXTools } from '@kamiyo/agents';
+import { TwitterApi } from 'twitter-api-v2';
 import {
   createLogger,
   getMetrics,
@@ -11,6 +12,8 @@ import {
   alertError,
   alertCritical,
   alertWarning,
+  getModerator,
+  truncate,
 } from './lib';
 import { validateConfig, getConfig, getRedactedConfig } from './config';
 import { NikaAgent, createNikaAgent } from './nika-agent';
@@ -33,11 +36,50 @@ import {
   shouldPostRelaunchAnnouncement,
   hasAnnouncementBeenPosted,
 } from './relaunch-announcement';
-import { setXaiApiKey } from './x-mcp-server';
 import { RepoKnowledgeMonitor, getRepoKnowledgeSnapshot } from './repo-knowledge';
+import { AutonomyRunner, createAutonomyStatus } from './autonomy/runner';
+import { MeishiGate } from './autonomy/meishi-gate';
+import { OpenClawHooksClient } from './autonomy/openclaw-client';
+import { OpenClawToolsInvokeClient } from './autonomy/openclaw-tools-invoke-client';
+import { parseAutonomyCommand } from './autonomy/command';
+import type { AutonomyTask } from './autonomy/types';
+import { validateTweet } from './personality';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
+
+function extractAutonomyReply(task: AutonomyTask): string | null {
+  const response = task.receipt?.response;
+  if (!response || typeof response !== 'object') return null;
+
+  const result = (response as { result?: unknown }).result;
+  if (result && typeof result === 'object') {
+    const reply = (result as { reply?: unknown }).reply;
+    if (typeof reply === 'string' && reply.trim()) return reply;
+  }
+
+  const direct = (response as { reply?: unknown }).reply;
+  if (typeof direct === 'string' && direct.trim()) return direct;
+
+  return null;
+}
+
+function pickValidTweetCandidate(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const candidates = [trimmed, ...trimmed.split('\n').map((line) => line.trim()).filter(Boolean)];
+  for (const candidate of candidates) {
+    if (candidate.length > 280) continue;
+    const validation = validateTweet(candidate);
+    if (validation.valid) return candidate;
+  }
+
+  const truncated = truncate(trimmed.replace(/\s+/g, ' ').trim(), 280);
+  if (!truncated) return null;
+  const validation = validateTweet(truncated);
+  return validation.valid ? truncated : null;
+}
 
 // Global state
 let agent: NikaAgent | null = null;
@@ -52,6 +94,7 @@ let trendingMonitor: TrendingMonitor | null = null;
 let taskPublisher: TaskCompletionPublisher | null = null;
 let statusInterval: NodeJS.Timeout | null = null;
 let repoKnowledgeMonitor: RepoKnowledgeMonitor | null = null;
+let autonomyRunner: AutonomyRunner | null = null;
 
 async function validateConnections(config: ReturnType<typeof getConfig>): Promise<void> {
   log.info('Validating external connections');
@@ -125,8 +168,13 @@ async function main(): Promise<void> {
 
   // Initialize xAI API key for image generation
   if (config.XAI_API_KEY) {
-    setXaiApiKey(config.XAI_API_KEY);
-    log.info('xAI image generation enabled');
+    try {
+      const { setXaiApiKey } = await import('./x-mcp-server');
+      setXaiApiKey(config.XAI_API_KEY);
+      log.info('xAI image generation enabled');
+    } catch (error) {
+      log.warn('xAI image generation unavailable', { error: String(error) });
+    }
   }
 
   // Initialize alerting
@@ -215,6 +263,62 @@ async function main(): Promise<void> {
   agent = createNikaAgent(config);
   log.info('Agent initialized', { dkgEnabled: !!dkgMemory });
 
+  if (config.AUTONOMY_ENABLED) {
+    const meishiGate = new MeishiGate({
+      enabled: true,
+      verifyUrlTemplate: config.AUTONOMY_MEISHI_VERIFY_URL,
+      agentIdentity: config.AUTONOMY_MEISHI_AGENT_ID,
+      minScore: config.AUTONOMY_MEISHI_MIN_SCORE,
+      requireCompliant: config.AUTONOMY_MEISHI_REQUIRE_COMPLIANT,
+      timeoutMs: 10_000,
+    });
+
+    const executor =
+      config.AUTONOMY_OPENCLAW_MODE === 'tools_invoke'
+        ? new OpenClawToolsInvokeClient({
+            baseUrl: config.AUTONOMY_OPENCLAW_BASE_URL,
+            gatewayToken: config.AUTONOMY_OPENCLAW_GATEWAY_TOKEN,
+            callerSessionKey: config.AUTONOMY_OPENCLAW_CALLER_SESSION_KEY,
+            targetSessionPrefix: config.AUTONOMY_OPENCLAW_TARGET_SESSION_PREFIX,
+            agentId: config.AUTONOMY_OPENCLAW_AGENT_ID,
+            runTimeoutSeconds: config.AUTONOMY_OPENCLAW_RUN_TIMEOUT_SECONDS,
+            timeoutMs: config.AUTONOMY_OPENCLAW_TIMEOUT_MS,
+          })
+        : new OpenClawHooksClient({
+            baseUrl: config.AUTONOMY_OPENCLAW_BASE_URL,
+            hookPath: config.AUTONOMY_OPENCLAW_HOOK_PATH,
+            hookToken: config.AUTONOMY_OPENCLAW_HOOK_TOKEN,
+            agentId: config.AUTONOMY_OPENCLAW_AGENT_ID,
+            timeoutMs: config.AUTONOMY_OPENCLAW_TIMEOUT_MS,
+          });
+
+    autonomyRunner = new AutonomyRunner(
+      {
+        enabled: true,
+        dryRun: config.AUTONOMY_DRY_RUN,
+        tickIntervalMs: config.AUTONOMY_TICK_INTERVAL_MS,
+        maxQueueSize: config.AUTONOMY_MAX_QUEUE_SIZE,
+        maxTaskHistory: config.AUTONOMY_MAX_TASK_HISTORY,
+        objectiveMaxLength: config.AUTONOMY_OBJECTIVE_MAX_LENGTH,
+      },
+      { meishiGate, executor }
+    );
+
+    await autonomyRunner.start();
+    log.info('Autonomy runner started', {
+      dryRun: config.AUTONOMY_DRY_RUN,
+      tickIntervalMs: config.AUTONOMY_TICK_INTERVAL_MS,
+      maxQueueSize: config.AUTONOMY_MAX_QUEUE_SIZE,
+      commandPrefix: config.AUTONOMY_COMMAND_PREFIX,
+    });
+
+    shutdownManager.register('autonomyRunner', async () => {
+      autonomyRunner?.stop();
+    }, 13);
+  } else {
+    log.info('Autonomy runner disabled');
+  }
+
   // Post relaunch announcement if enabled (one-time)
   if (shouldPostRelaunchAnnouncement() && !hasAnnouncementBeenPosted()) {
     try {
@@ -281,6 +385,137 @@ async function main(): Promise<void> {
 
       const startTime = Date.now();
       try {
+        const autonomyCommand = parseAutonomyCommand(
+          mentionText,
+          config.TWITTER_HANDLE,
+          config.AUTONOMY_COMMAND_PREFIX
+        );
+
+        if (autonomyRunner && autonomyCommand.matched && config.AUTONOMY_X_COMMANDS_ENABLED) {
+          const normalizedAuthor = authorUsername.trim().replace(/^@/, '').toLowerCase();
+          const hasAllowlist = config.AUTONOMY_X_ALLOWLIST.length > 0;
+          const allowlisted =
+            normalizedAuthor && config.AUTONOMY_X_ALLOWLIST.includes(normalizedAuthor);
+          const allowed =
+            config.AUTONOMY_X_PUBLIC ||
+            (hasAllowlist ? allowlisted : config.AUTONOMY_DRY_RUN);
+
+          if (!allowed) {
+            const replyId = await agent.replyToTweet(mentionId, 'autonomous execution is currently private');
+            log.info('Autonomy request denied', {
+              mentionId,
+              replyId,
+              requestor: authorUsername,
+            });
+            health?.recordTweet();
+            metrics.incrementCounter('nika_mentions_replied');
+            mentionsProcessed.inc({ status: 'success' });
+            agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+            return;
+          }
+
+          if (!autonomyCommand.objective) {
+            const usageReply = `${config.AUTONOMY_COMMAND_PREFIX} <objective>`;
+            await agent.replyToTweet(mentionId, usageReply);
+            health?.recordTweet();
+            metrics.incrementCounter('nika_mentions_replied');
+            mentionsProcessed.inc({ status: 'success' });
+            agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+            return;
+          }
+
+          const task = await autonomyRunner.enqueue({
+            source: 'x',
+            objective: autonomyCommand.objective,
+            requestor: authorUsername,
+            context: {
+              mentionId,
+              mentionText,
+              authorUsername,
+            },
+            idempotencyKey: `mention:${mentionId}`,
+          });
+
+          const shouldInlineRun =
+            !config.AUTONOMY_DRY_RUN &&
+            config.AUTONOMY_OPENCLAW_MODE === 'tools_invoke' &&
+            config.AUTONOMY_OPENCLAW_RUN_TIMEOUT_SECONDS > 0;
+
+          if (shouldInlineRun) {
+            const result = await autonomyRunner.runTask(task.id);
+            const updated = result ?? autonomyRunner.getTask(task.id);
+
+            const replyText = updated ? extractAutonomyReply(updated) : null;
+            const candidate = replyText ? pickValidTweetCandidate(replyText) : null;
+
+            if (updated?.status === 'completed' && candidate) {
+              const moderator = getModerator();
+              const normalized = truncate(candidate.replace(/\s+/g, ' ').trim(), 280);
+              const mod = moderator.check(normalized);
+              const validation = validateTweet(normalized);
+
+              if (mod.allowed && validation.valid) {
+                const replyId = await agent.replyToTweet(mentionId, normalized);
+                log.info('Inline autonomy reply posted', {
+                  mentionId,
+                  replyId,
+                  taskId: task.id,
+                  requestor: authorUsername,
+                });
+                health?.recordTweet();
+                mentionsProcessed.inc({ status: 'success' });
+                metrics.incrementCounter('nika_mentions_replied');
+                agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+                return;
+              }
+
+              log.warn('Inline autonomy reply blocked', {
+                taskId: task.id,
+                mentionId,
+                moderationAllowed: mod.allowed,
+                validationOk: validation.valid,
+              });
+            }
+
+            const fallbackReply =
+              updated?.status === 'blocked'
+                ? `autonomous task blocked by policy gate (${task.id.slice(0, 8)})`
+                : updated?.status === 'failed'
+                  ? `autonomous task failed to execute (${task.id.slice(0, 8)})`
+                  : `queued autonomous task ${task.id.slice(0, 8)}`;
+
+            const replyId = await agent.replyToTweet(mentionId, fallbackReply);
+            log.info('Inline autonomy fallback reply posted', {
+              mentionId,
+              replyId,
+              taskId: task.id,
+              requestor: authorUsername,
+              status: updated?.status ?? task.status,
+            });
+            health?.recordTweet();
+            mentionsProcessed.inc({ status: 'success' });
+            metrics.incrementCounter('nika_mentions_replied');
+            agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+            return;
+          }
+
+          const mode = config.AUTONOMY_DRY_RUN ? 'dry-run' : 'live';
+          const reply = `queued autonomous task ${task.id.slice(0, 8)} (${mode})`;
+          const replyId = await agent.replyToTweet(mentionId, reply);
+
+          log.info('Queued autonomy task from mention', {
+            mentionId,
+            replyId,
+            taskId: task.id,
+            requestor: authorUsername,
+          });
+          health?.recordTweet();
+          mentionsProcessed.inc({ status: 'success' });
+          metrics.incrementCounter('nika_mentions_replied');
+          agentDuration.observe({ operation: 'reply' }, (Date.now() - startTime) / 1000);
+          return;
+        }
+
         const result = await agent.generateReply(mentionId, mentionText, authorUsername);
 
         // Actually post the reply to Twitter
@@ -311,8 +546,15 @@ async function main(): Promise<void> {
     health?.recordError();
   });
 
-  await mentionMonitor.start();
-  log.info('Mention monitor started');
+  void mentionMonitor
+    .start()
+    .then(() => {
+      log.info('Mention monitor started');
+    })
+    .catch((error) => {
+      log.error('Mention monitor failed to start', { error: String(error) });
+      health?.recordError();
+    });
 
   // Register mention monitor shutdown
   shutdownManager.register('mentionMonitor', async () => {
@@ -477,8 +719,50 @@ async function main(): Promise<void> {
   }
 
   // Initialize HTTP server
+  const adminToken = (process.env.NIKA_ADMIN_TOKEN || '').trim();
+  const adminTwitter = adminToken
+    ? new TwitterApi({
+        appKey: config.TWITTER_API_KEY,
+        appSecret: config.TWITTER_API_SECRET,
+        accessToken: config.TWITTER_ACCESS_TOKEN,
+        accessSecret: config.TWITTER_ACCESS_SECRET,
+      })
+    : null;
+
   server = createServer({
     port: config.PORT,
+    autonomy: autonomyRunner
+      ? {
+          enabled: true,
+          token: config.AUTONOMY_API_TOKEN || undefined,
+          enqueueTask: async (task) => autonomyRunner!.enqueue(task),
+          getTask: (taskId) => autonomyRunner?.getTask(taskId) ?? null,
+          listTasks: (limit) => autonomyRunner?.listTasks(limit) ?? [],
+          getStatus: () =>
+            autonomyRunner?.getStatus() ??
+            createAutonomyStatus({
+              enabled: config.AUTONOMY_ENABLED,
+              dryRun: config.AUTONOMY_DRY_RUN,
+            }),
+        }
+      : undefined,
+    admin: adminToken && adminTwitter
+      ? {
+          enabled: true,
+          token: adminToken,
+          postTweet: async ({ content }) => {
+            const result = await adminTwitter.v2.tweet(content);
+            return { tweetId: result.data.id };
+          },
+          postTweetWithImage: async ({ content, image, mimeType }) => {
+            const mediaId = await adminTwitter.v1.uploadMedia(image, { mimeType });
+            const result = await adminTwitter.v2.tweet(content, {
+              media: { media_ids: [mediaId] },
+            });
+            return { tweetId: result.data.id };
+          },
+        }
+      : undefined,
     getHealth: () => ({
       healthy: health?.getStatus().healthy ?? false,
       uptime: health?.getUptime() ?? 0,
@@ -511,21 +795,31 @@ async function main(): Promise<void> {
           lastUpdateAt: getRepoKnowledgeSnapshot()?.generatedAt ?? null,
           commit: getRepoKnowledgeSnapshot()?.commitSha ?? null,
         },
+        autonomy: autonomyRunner?.getStatus() ??
+          createAutonomyStatus({
+            enabled: config.AUTONOMY_ENABLED,
+            dryRun: config.AUTONOMY_DRY_RUN,
+          }),
       },
     }),
     getReadiness: async () => {
       const schedulerOk = dailyScheduler?.isRunning() ?? false;
       const mentionMonitorOk = mentionMonitor?.isRunning() ?? false;
+      const autonomyOk = !config.AUTONOMY_ENABLED || autonomyRunner?.getStatus().running === true;
 
       // DKG is optional - not required for readiness
       const dkgOk = !dkgMemory || dkgMemory.getCircuitStatus() !== 'open';
 
       return {
-        ready: schedulerOk && mentionMonitorOk,
+        ready: schedulerOk && mentionMonitorOk && autonomyOk,
         checks: {
           twitter: { ok: mentionMonitorOk, error: mentionMonitorOk ? undefined : 'Not running' },
           anthropic: { ok: true }, // Validated at startup
           dkg: { ok: dkgOk, error: dkgOk ? undefined : 'Circuit open' },
+          autonomy: {
+            ok: autonomyOk,
+            error: autonomyOk ? undefined : 'Autonomy runner not running',
+          },
         },
       };
     },
@@ -569,6 +863,8 @@ async function main(): Promise<void> {
     eveningWindow: `${config.EVENING_WINDOW_START_UTC}:00-${config.EVENING_WINDOW_END_UTC}:00 UTC`,
     mentionCheckInterval: '5m',
     maxRepliesPerCycle: 2,
+    autonomyEnabled: config.AUTONOMY_ENABLED,
+    autonomyDryRun: config.AUTONOMY_DRY_RUN,
   });
 
   // Log metrics periodically
@@ -588,6 +884,8 @@ async function main(): Promise<void> {
       rateLimited: rateLimiter.isAnyLimited(),
       inFlightOps: getShutdownManager().getInFlightCount(),
       repoKnowledgeUpdatedAt: getRepoKnowledgeSnapshot()?.generatedAt ?? null,
+      autonomyQueueSize: autonomyRunner?.getStatus().queueSize ?? 0,
+      autonomyInFlight: autonomyRunner?.getStatus().inFlightTaskId ?? null,
     });
   }, 5 * 60 * 1000);
 
@@ -602,10 +900,6 @@ async function main(): Promise<void> {
 
 // Export for testing
 export { NikaAgent, createNikaAgent, ProductionScheduler, HealthMonitor, MentionMonitor };
-
-// Export new Claude Agent SDK implementation
-export { NikaAgentSDK, createNikaAgentSDK } from './nika-agent-sdk';
-export { createXMcpServer, X_MCP_TOOL_NAMES } from './x-mcp-server';
 
 // Export Phase 2: dRAG (Decentralized RAG) with vector embeddings
 export { NikaDRAG, initializeDRAG, getDRAG } from './drag';
@@ -624,9 +918,6 @@ export { shouldTweet, requiresQualityCheck, initializeQualityGate, isQualityGate
 export type { QualityCheckResult, QualityGateConfig } from './quality-gate';
 
 // Export Phase 4: Full KAMIYO protocol tools
-export { createProtocolMcpServer, PROTOCOL_MCP_TOOL_NAMES } from './protocol-tools-mcp';
-export type { ProtocolMcpConfig, ProtocolMcpToolName } from './protocol-tools-mcp';
-
 // Export Phase 5: Trending topic awareness
 export { TrendingMonitor, initializeTrendingMonitor, getTrendingMonitor } from './trending-monitor';
 export type { TrendingTopic, CommentaryOpportunity, TrendingMonitorConfig } from './trending-monitor';
@@ -660,6 +951,13 @@ export type { MarketIntel, MarketIntelMonitorConfig } from './market-intel-monit
 // Export TaskCompletion Publisher (DKG Leaderboard)
 export { TaskCompletionPublisher, createTaskCompletionPublisher, getTaskCompletionPublisher } from './task-completion-publisher';
 export type { TaskCompletionPublisherConfig } from './task-completion-publisher';
+
+// Export Autonomy runtime
+export { AutonomyRunner, createAutonomyStatus } from './autonomy/runner';
+export { MeishiGate } from './autonomy/meishi-gate';
+export { OpenClawHooksClient } from './autonomy/openclaw-client';
+export { parseAutonomyCommand } from './autonomy/command';
+export type { AutonomyTask, AutonomyTaskInput, AutonomyStatus } from './autonomy/types';
 
 // Main entry point
 main().catch((error) => {

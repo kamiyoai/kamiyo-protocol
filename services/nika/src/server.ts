@@ -6,13 +6,46 @@ import express, { Request, Response, NextFunction } from 'express';
 import type { Server as HttpServer } from 'http';
 import { Registry, collectDefaultMetrics, Counter, Histogram, Gauge } from 'prom-client';
 import { createLogger } from './lib';
+import type { AutonomyTask, AutonomyTaskInput, AutonomyStatus } from './autonomy/types';
 
 const log = createLogger('nika:server');
+
+export function getRouteLabel(req: Pick<Request, 'baseUrl' | 'path' | 'route'>): string {
+  const baseUrl = typeof req.baseUrl === 'string' ? req.baseUrl : '';
+  const routePath =
+    req.route && typeof (req.route as { path?: unknown }).path === 'string'
+      ? (req.route as { path: string }).path
+      : req.path;
+
+  return `${baseUrl}${routePath}`;
+}
 
 export interface ServerConfig {
   port: number;
   getHealth: () => HealthStatus;
   getReadiness: () => Promise<ReadinessStatus>;
+  autonomy?: AutonomyApi;
+  admin?: AdminApi;
+}
+
+export interface AutonomyApi {
+  enabled: boolean;
+  token?: string;
+  enqueueTask: (task: AutonomyTaskInput) => Promise<AutonomyTask>;
+  getTask: (taskId: string) => AutonomyTask | null;
+  listTasks: (limit: number) => AutonomyTask[];
+  getStatus: () => AutonomyStatus;
+}
+
+export interface AdminApi {
+  enabled: boolean;
+  token?: string;
+  postTweet: (input: { content: string }) => Promise<{ tweetId: string }>;
+  postTweetWithImage: (input: {
+    content: string;
+    image: Buffer;
+    mimeType: 'image/jpeg' | 'image/png';
+  }) => Promise<{ tweetId: string }>;
 }
 
 export interface HealthStatus {
@@ -25,6 +58,9 @@ export interface HealthStatus {
     circuitBreaker: { posting: string; replies: string; dkg: string };
     dkg: { enabled: boolean; circuitStatus: string; activePort?: number | null };
     engagementTracker: { running: boolean };
+    taskPublisher?: { running: boolean; published: number };
+    repoKnowledge?: { running: boolean; lastUpdateAt: string | null; commit: string | null };
+    autonomy?: AutonomyStatus;
   };
 }
 
@@ -34,6 +70,7 @@ export interface ReadinessStatus {
     twitter: { ok: boolean; error?: string };
     anthropic: { ok: boolean; error?: string };
     dkg: { ok: boolean; error?: string };
+    autonomy?: { ok: boolean; error?: string };
   };
 }
 
@@ -99,19 +136,32 @@ export class Server {
   constructor(config: ServerConfig) {
     this.config = config;
     this.app = express();
+    this.app.set('trust proxy', 1);
+    this.app.disable('x-powered-by');
 
     this.setupMiddleware();
     this.setupRoutes();
   }
 
   private setupMiddleware(): void {
+    this.app.use(express.json({ limit: '256kb' }));
+
+    this.app.use((_req: Request, res: Response, next: NextFunction) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
+      res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+      next();
+    });
+
     // Request logging and metrics
     this.app.use((req: Request, res: Response, next: NextFunction) => {
       const start = Date.now();
 
       res.on('finish', () => {
         const duration = (Date.now() - start) / 1000;
-        const path = req.path;
+        const path = getRouteLabel(req);
 
         httpRequestsTotal.inc({
           method: req.method,
@@ -159,6 +209,145 @@ export class Server {
       }
     });
 
+    this.app.get('/autonomy/status', (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+      res.json(this.config.autonomy!.getStatus());
+    });
+
+    this.app.post('/autonomy/tasks', async (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+
+      const objective = typeof req.body?.objective === 'string' ? req.body.objective.trim() : '';
+      if (!objective) {
+        res.status(400).json({ error: 'objective_required' });
+        return;
+      }
+
+      const source = typeof req.body?.source === 'string' ? req.body.source : 'api';
+      if (!['x', 'api', 'manual', 'system'].includes(source)) {
+        res.status(400).json({ error: 'invalid_source' });
+        return;
+      }
+
+      const payload: AutonomyTaskInput = {
+        source,
+        objective,
+        requestor: typeof req.body?.requestor === 'string' ? req.body.requestor : undefined,
+        priority: typeof req.body?.priority === 'number' ? req.body.priority : undefined,
+        context: req.body?.context && typeof req.body.context === 'object' ? req.body.context : undefined,
+        idempotencyKey: typeof req.body?.idempotencyKey === 'string' ? req.body.idempotencyKey : undefined,
+      };
+
+      try {
+        const task = await this.config.autonomy!.enqueueTask(payload);
+        res.status(202).json({ task });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'enqueue_failed';
+        res.status(400).json({ error: message });
+      }
+    });
+
+    this.app.get('/autonomy/tasks', (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+      const rawLimit = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : 20;
+      const limit = Number.isFinite(rawLimit) ? Math.min(200, Math.max(1, rawLimit)) : 20;
+      res.json({ tasks: this.config.autonomy!.listTasks(limit) });
+    });
+
+    this.app.get('/autonomy/tasks/:taskId', (req: Request, res: Response) => {
+      if (!this.ensureAutonomyAccess(req, res)) return;
+      const task = this.config.autonomy!.getTask(req.params.taskId);
+      if (!task) {
+        res.status(404).json({ error: 'task_not_found' });
+        return;
+      }
+      res.json({ task });
+    });
+
+    this.app.post(
+      '/internal/tweet',
+      async (req: Request, res: Response) => {
+        if (!this.ensureAdminAccess(req, res)) return;
+
+        const content =
+          typeof req.body?.content === 'string'
+            ? req.body.content.trim()
+            : (req.header('x-tweet-content') || '').trim();
+
+        if (!content) {
+          res.status(400).json({ error: 'content_required' });
+          return;
+        }
+        if (content.length > 280) {
+          res.status(400).json({ error: 'content_too_long' });
+          return;
+        }
+
+        try {
+          const result = await this.config.admin!.postTweet({ content });
+          tweetsPosted.inc({ type: 'admin' });
+          res.json({ ok: true, tweetId: result.tweetId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'tweet_failed';
+          log.error('Admin tweet failed', { error: String(error) });
+          res.status(500).json({ error: message });
+        }
+      }
+    );
+
+    this.app.post(
+      '/internal/tweet-image',
+      express.raw({
+        type: ['image/*', 'application/octet-stream'],
+        limit: '5mb',
+      }),
+      async (req: Request, res: Response) => {
+        if (!this.ensureAdminAccess(req, res)) return;
+
+        const content = (req.header('x-tweet-content') || '').trim();
+        if (!content) {
+          res.status(400).json({ error: 'content_required' });
+          return;
+        }
+        if (content.length > 280) {
+          res.status(400).json({ error: 'content_too_long' });
+          return;
+        }
+
+        if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+          res.status(400).json({ error: 'image_required' });
+          return;
+        }
+
+        const rawType = (req.header('content-type') || '').split(';')[0].trim().toLowerCase();
+        const mimeType =
+          rawType === 'image/jpg'
+            ? 'image/jpeg'
+            : rawType === 'image/jpeg' || rawType === 'image/png'
+              ? rawType
+              : null;
+
+        if (!mimeType) {
+          res.status(415).json({ error: 'unsupported_media_type' });
+          return;
+        }
+
+        try {
+          const result = await this.config.admin!.postTweetWithImage({
+            content,
+            image: req.body,
+            mimeType,
+          });
+          tweetsPosted.inc({ type: 'admin' });
+          res.json({ ok: true, tweetId: result.tweetId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'tweet_failed';
+          log.error('Admin tweet-image failed', { error: String(error) });
+          res.status(500).json({ error: message });
+        }
+      }
+    );
+
     // Simple status page
     this.app.get('/', (_req: Request, res: Response) => {
       res.json({
@@ -171,6 +360,82 @@ export class Server {
         },
       });
     });
+
+    this.app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      if (!error || typeof error !== 'object') {
+        res.status(500).json({ error: 'internal_error' });
+        return;
+      }
+
+      if ((error as { type?: unknown }).type === 'entity.parse.failed') {
+        res.status(400).json({ error: 'invalid_json' });
+        return;
+      }
+
+      const message =
+        typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'unknown error';
+      log.error('Unhandled server error', { error: message });
+      res.status(500).json({ error: 'internal_error' });
+    });
+  }
+
+  private ensureAutonomyAccess(req: Request, res: Response): boolean {
+    const autonomy = this.config.autonomy;
+    if (!autonomy?.enabled) {
+      res.status(404).json({ error: 'autonomy_disabled' });
+      return false;
+    }
+
+    if (!autonomy.token) {
+      return true;
+    }
+
+    const provided = this.readToken(req);
+    if (provided !== autonomy.token) {
+      res.status(401).json({ error: 'unauthorized' });
+      return false;
+    }
+
+    return true;
+  }
+
+  private ensureAdminAccess(req: Request, res: Response): boolean {
+    const admin = this.config.admin;
+    if (!admin?.enabled) {
+      res.status(404).json({ error: 'not_found' });
+      return false;
+    }
+
+    if (!admin.token) {
+      res.status(503).json({ error: 'admin_not_configured' });
+      return false;
+    }
+
+    const provided = this.readAdminToken(req);
+    if (provided !== admin.token) {
+      res.status(401).json({ error: 'unauthorized' });
+      return false;
+    }
+
+    return true;
+  }
+
+  private readToken(req: Request): string {
+    const authorization = req.header('authorization');
+    if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+      return authorization.slice(7).trim();
+    }
+    return req.header('x-autonomy-token')?.trim() ?? '';
+  }
+
+  private readAdminToken(req: Request): string {
+    const authorization = req.header('authorization');
+    if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
+      return authorization.slice(7).trim();
+    }
+    return req.header('x-admin-token')?.trim() ?? '';
   }
 
   async start(): Promise<void> {
@@ -199,16 +464,16 @@ export class Server {
       }
 
       // Stop accepting new connections
-      this.server.close(() => {
-        log.info('HTTP server stopped');
-        resolve();
-      });
-
-      // Force close after 5 seconds
-      setTimeout(() => {
+      const forceTimer = setTimeout(() => {
         log.warn('HTTP server force closed');
         resolve();
       }, 5000);
+
+      this.server.close(() => {
+        log.info('HTTP server stopped');
+        clearTimeout(forceTimer);
+        resolve();
+      });
     });
   }
 
