@@ -66,7 +66,12 @@ export interface MentionMonitorConfig {
   conversationCooldownMs?: number;
   sharedStateRedisUrl?: string;
   sharedStatePrefix?: string;
-  onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
+  onMention: (
+    mentionId: string,
+    mentionText: string,
+    authorUsername: string,
+    authorId: string | null
+  ) => Promise<void>;
 }
 
 export interface Mention {
@@ -295,7 +300,8 @@ export class MentionMonitor extends EventEmitter {
             preview: mention.text.slice(0, 50),
           });
 
-          await this.config.onMention(mention.id, mention.text, authorUsername);
+          const authorId = typeof mention.authorId === 'string' ? mention.authorId : null;
+          await this.config.onMention(mention.id, mention.text, authorUsername, authorId);
 
           // Mark as processed
           await this.markMentionProcessed(mention.id);
@@ -873,7 +879,12 @@ export interface CreateMentionMonitorOptions {
   conversationCooldownMs?: number;
   sharedStateRedisUrl?: string;
   sharedStatePrefix?: string;
-  onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>;
+  onMention: (
+    mentionId: string,
+    mentionText: string,
+    authorUsername: string,
+    authorId: string | null
+  ) => Promise<void>;
 }
 
 export function createMentionMonitor(options: CreateMentionMonitorOptions): MentionMonitor {

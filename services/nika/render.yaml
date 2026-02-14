@@ -53,6 +53,24 @@ services:
       - key: SHARED_STATE_PREFIX
         value: nika:mentions
 
+      # Holder gate (X -> wallet -> holdings)
+      - key: HOLDER_GATE_API_BASE_URL
+        value: https://api.kamiyo.ai
+      - key: HOLDER_GATE_API_SECRET
+        sync: false
+      - key: HOLDER_GATE_TIMEOUT_MS
+        value: "3000"
+      - key: HOLDER_GATE_CACHE_TTL_MS
+        value: "600000"
+
+      # Holder-gated Claude SDK mentions
+      - key: NIKA_MENTION_ENGINE
+        value: claude_sdk
+      - key: NIKA_SESSION_REDIS_URL
+        sync: false
+      - key: NIKA_SESSION_PREFIX
+        value: nika:sessions
+
       # Alerting (optional)
       - key: ALERT_WEBHOOK_URL
         sync: false

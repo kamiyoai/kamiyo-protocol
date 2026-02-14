@@ -42,7 +42,12 @@ describe('MentionMonitor', () => {
 
   function createMonitor(
     stateFilePath: string,
-    onMention: (mentionId: string, mentionText: string, authorUsername: string) => Promise<void>,
+    onMention: (
+      mentionId: string,
+      mentionText: string,
+      authorUsername: string,
+      authorId: string | null
+    ) => Promise<void>,
     conversationCooldownMs = 24 * 60 * 60 * 1000,
     maxMentionRetries = 3
   ): MentionMonitor {
@@ -103,7 +108,7 @@ describe('MentionMonitor', () => {
     firstMonitor.stop();
 
     expect(onMention).toHaveBeenCalledTimes(1);
-    expect(onMention).toHaveBeenCalledWith('1000000000000000001', 'new mention', 'author-a');
+    expect(onMention).toHaveBeenCalledWith('1000000000000000001', 'new mention', 'author-a', 'author-a');
 
     mockGetMentions.mockResolvedValueOnce({
       success: true,
@@ -174,8 +179,8 @@ describe('MentionMonitor', () => {
     monitor.stop();
 
     expect(onMention).toHaveBeenCalledTimes(2);
-    expect(onMention).toHaveBeenCalledWith('3000000000000000001', 'first ping', 'author-a');
-    expect(onMention).toHaveBeenCalledWith('3000000000000000002', 'second ping', 'author-a');
+    expect(onMention).toHaveBeenCalledWith('3000000000000000001', 'first ping', 'author-a', 'author-a');
+    expect(onMention).toHaveBeenCalledWith('3000000000000000002', 'second ping', 'author-a', 'author-a');
   });
 
   it('never replies to blocked authors', async () => {

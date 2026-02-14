@@ -25,8 +25,9 @@ import {
   type TweetStyle,
 } from './personality';
 import { getDKGMemory, type DKGMemory } from './dkg-memory';
-import { createXMcpServer, X_MCP_TOOL_NAMES, type XMcpConfig } from './x-mcp-server';
+import { createXMcpServer, X_MCP_READ_TOOL_NAMES, type XMcpConfig } from './x-mcp-server';
 import type { Config } from './config';
+import { InMemorySessionStore, type SessionStore } from './session-store';
 
 const log = createLogger('nika:agent-sdk');
 const metrics = getMetrics();
@@ -67,7 +68,7 @@ KEY_POINTS:
 CONFIDENCE: [0.0-1.0 based on data quality]
 
 Be precise, cite specifics when possible. No speculation.`,
-    tools: ['WebSearch', 'Read'],
+    tools: ['WebSearch'],
     model: 'haiku',
   },
 
@@ -146,6 +147,7 @@ export interface NikaAgentSDKConfig {
   twitter: XMcpConfig;
   dkgMemory?: DKGMemory;
   model?: 'sonnet' | 'opus' | 'haiku';
+  sessionStore?: SessionStore;
 }
 
 export interface PostResult {
@@ -171,8 +173,6 @@ export interface ReplyResult {
 }
 
 // Session tracking for conversation continuity
-const userSessions = new Map<string, string>();
-
 /**
  * Rate limiting hook for Twitter API calls
  */
@@ -262,11 +262,13 @@ export class NikaAgentSDK {
   private config: NikaAgentSDKConfig;
   private dkgMemory: DKGMemory | null;
   private xMcpServer: ReturnType<typeof createXMcpServer>;
+  private sessionStore: SessionStore;
 
   constructor(config: NikaAgentSDKConfig) {
     this.config = config;
     this.dkgMemory = config.dkgMemory || getDKGMemory();
     this.xMcpServer = createXMcpServer(config.twitter);
+    this.sessionStore = config.sessionStore ?? new InMemorySessionStore(30 * 24 * 60 * 60 * 1000);
 
     log.info('Nika Agent SDK initialized', {
       dkgEnabled: !!this.dkgMemory,
@@ -320,7 +322,7 @@ export class NikaAgentSDK {
       const queryOptions: Options = {
         systemPrompt: SYSTEM_PROMPT,
         model: this.config.model === 'haiku' ? 'claude-haiku-4-5-20251001' : 'claude-opus-4-5-20251101',
-        allowedTools: ['Task', 'WebSearch', ...X_MCP_TOOL_NAMES],
+        allowedTools: ['Task', 'WebSearch', ...X_MCP_READ_TOOL_NAMES],
         mcpServers: {
           'x-tools': this.xMcpServer,
         },
@@ -456,7 +458,7 @@ Acknowledge briefly. Pick ONE of these styles:
 - "Processing."
 - "Confirmed."
 
-Just the acknowledgment, nothing else. Post using reply_to_tweet with tweet_id="${mentionId}".`
+Just the acknowledgment, nothing else. Return ONLY the acknowledgment text.`
       : `Reply to this mention as Nika.
 
 @${authorUsername}: "${mentionText}"
@@ -469,56 +471,10 @@ Rules:
 - Match the energy
 - You are Nika (二化)
 
-After composing your reply, post it using the reply_to_tweet tool with tweet_id="${mentionId}".`;
-
-    let replyContent = '';
+Output ONLY the reply text.`;
 
     try {
-      // Check for existing session with this user
-      const existingSession = authorId ? userSessions.get(authorId) : undefined;
-
-      const queryOptions: Options = {
-        systemPrompt: SYSTEM_PROMPT,
-        model: 'claude-haiku-4-5-20251001',
-        allowedTools: [...X_MCP_TOOL_NAMES],
-        mcpServers: {
-          'x-tools': this.xMcpServer,
-        },
-        permissionMode: 'bypassPermissions',
-        maxTurns: 10,
-        ...(existingSession ? { resume: existingSession } : {}),
-        hooks: {
-          PreToolUse: [{ matcher: 'mcp__x-tools__', hooks: [rateLimitHook, moderationHook] }],
-          PostToolUse: [{ hooks: [auditLogHook] }],
-        },
-      };
-
-      const messages = query({
-        prompt,
-        options: queryOptions,
-      });
-
-      for await (const message of messages) {
-        // Capture session ID for future conversations
-        if (message.type === 'system' && 'session_id' in message && authorId) {
-          userSessions.set(authorId, (message as any).session_id as string);
-        }
-
-        if ('result' in message && typeof message.result === 'string') {
-          const result = message.result;
-          if (result.length >= 5 && result.length <= 280) {
-            const validation = validateTweet(result);
-            if (validation.valid) {
-              replyContent = result;
-            }
-          }
-        }
-      }
-
-      if (!replyContent) {
-        metrics.incrementCounter('nika_reply_generation_failed');
-        throw new Error('Failed to generate valid reply content');
-      }
+      const replyContent = await this.runSessionQuery(prompt, authorId);
 
       const duration = Date.now() - startTime;
 
@@ -566,6 +522,68 @@ After composing your reply, post it using the reply_to_tweet tool with tweet_id=
     }
   }
 
+  async generateSkillReply(input: {
+    mentionId: string;
+    mentionText: string;
+    authorUsername: string;
+    authorId?: string;
+    instruction: string;
+  }): Promise<ReplyResult> {
+    const startTime = Date.now();
+
+    const prompt = `You are Nika (二化). A holder asked you to run a skill.
+
+USER:
+@${input.authorUsername}: "${input.mentionText}"
+
+SKILL INSTRUCTION:
+${input.instruction}
+
+RULES:
+- Under 280 characters
+- No emojis
+- Return ONLY the final answer text (no preamble, no reasoning).`;
+
+    try {
+      const replyContent = await this.runSessionQuery(prompt, input.authorId);
+      const duration = Date.now() - startTime;
+
+      metrics.incrementCounter('nika_skill_reply_success');
+      metrics.recordHistogram('nika_skill_reply_duration_ms', duration);
+
+      let dkgGrounded = false;
+      if (this.dkgMemory) {
+        this.dkgMemory
+          .storeReply({
+            content: replyContent,
+            inReplyTo: input.mentionId,
+            originalAuthor: input.authorUsername,
+            originalContent: input.mentionText,
+          })
+          .then((ual) => {
+            if (ual) {
+              log.debug('Skill reply stored in DKG', { ual });
+              metrics.incrementCounter('dkg_skill_reply_stored');
+            }
+          })
+          .catch((error) => {
+            log.warn('Failed to store skill reply in DKG', { error: String(error) });
+          });
+        dkgGrounded = true;
+      }
+
+      return {
+        reply: replyContent,
+        dkgGrounded,
+        durationMs: duration,
+      };
+    } catch (error) {
+      metrics.incrementCounter('nika_skill_reply_error');
+      log.error('Skill reply generation failed', { error: String(error), mentionId: input.mentionId });
+      throw error;
+    }
+  }
+
   /**
    * Generate a quote tweet
    */
@@ -588,7 +606,6 @@ Content: "${tweetText}"
 TASK:
 1. Analyze the original tweet using multiple perspectives
 2. Craft commentary that adds genuine value
-3. Post using the quote_tweet tool
 
 GUIDELINES:
 - Add insight, not just agreement/disagreement
@@ -596,7 +613,7 @@ GUIDELINES:
 - No emojis
 
 OUTPUT:
-Return ONLY the quote text after posting.`;
+Return ONLY the quote text.`;
 
     let quoteContent = '';
 
@@ -604,7 +621,7 @@ Return ONLY the quote text after posting.`;
       const queryOptions: Options = {
         systemPrompt: SYSTEM_PROMPT,
         model: 'claude-haiku-4-5-20251001',
-        allowedTools: ['Task', ...X_MCP_TOOL_NAMES],
+        allowedTools: ['Task', ...X_MCP_READ_TOOL_NAMES],
         mcpServers: {
           'x-tools': this.xMcpServer,
         },
@@ -688,6 +705,56 @@ Return ONLY the quote text after posting.`;
     }
   }
 
+  private async runSessionQuery(prompt: string, authorId?: string): Promise<string> {
+    let replyContent = '';
+
+    const existingSession = authorId ? await this.sessionStore.get(authorId) : null;
+
+    const queryOptions: Options = {
+      systemPrompt: SYSTEM_PROMPT,
+      model: 'claude-haiku-4-5-20251001',
+      allowedTools: ['WebSearch', ...X_MCP_READ_TOOL_NAMES],
+      mcpServers: {
+        'x-tools': this.xMcpServer,
+      },
+      permissionMode: 'bypassPermissions',
+      maxTurns: 10,
+      ...(existingSession ? { resume: existingSession } : {}),
+      hooks: {
+        PreToolUse: [{ matcher: 'mcp__x-tools__', hooks: [rateLimitHook, moderationHook] }],
+        PostToolUse: [{ hooks: [auditLogHook] }],
+      },
+    };
+
+    const messages = query({
+      prompt,
+      options: queryOptions,
+    });
+
+    for await (const message of messages) {
+      if (message.type === 'system' && 'session_id' in message && authorId) {
+        void this.sessionStore.set(authorId, (message as any).session_id as string);
+      }
+
+      if ('result' in message && typeof message.result === 'string') {
+        const result = message.result;
+        if (result.length >= 5 && result.length <= 280) {
+          const validation = validateTweet(result);
+          if (validation.valid) {
+            replyContent = result;
+          }
+        }
+      }
+    }
+
+    if (!replyContent) {
+      metrics.incrementCounter('nika_reply_generation_failed');
+      throw new Error('Failed to generate valid reply content');
+    }
+
+    return replyContent;
+  }
+
   private buildPostPrompt(
     mood: Mood,
     type: TweetType,
@@ -703,7 +770,6 @@ GENERATION PROCESS:
 2. Use the Philosopher subagent for deeper meaning
 3. Use the Provocateur subagent to challenge assumptions
 4. Use the Synthesizer subagent to combine perspectives into final tweet
-5. Post the final tweet using the post_tweet tool
 
 CURRENT STATE:
 - Mood: ${mood}
@@ -724,8 +790,7 @@ CURRENT STATE:
 INSTRUCTIONS:
 1. First, invoke the Oracle, Philosopher, and Provocateur subagents to analyze the topic
 2. Then invoke the Synthesizer to create the final tweet
-3. Post the tweet using post_tweet
-4. Store it in DKG (this happens automatically, do NOT mention it)
+3. Store it in DKG (this happens automatically, do NOT mention it)
 
 OUTPUT:
 Return ONLY the final tweet text after all operations complete.`;
@@ -792,23 +857,9 @@ Return ONLY the final tweet text after all operations complete.`;
   getDKGMemory(): DKGMemory | null {
     return this.dkgMemory;
   }
-
-  /**
-   * Clear session cache for a user (useful for testing or reset)
-   */
-  clearUserSession(userId: string): void {
-    userSessions.delete(userId);
-  }
-
-  /**
-   * Get active session count
-   */
-  getSessionCount(): number {
-    return userSessions.size;
-  }
 }
 
-export function createNikaAgentSDK(config: Config): NikaAgentSDK {
+export function createNikaAgentSDK(config: Config, sessionStore?: SessionStore): NikaAgentSDK {
   return new NikaAgentSDK({
     anthropicApiKey: config.ANTHROPIC_API_KEY,
     twitter: {
@@ -818,5 +869,6 @@ export function createNikaAgentSDK(config: Config): NikaAgentSDK {
       accessSecret: config.TWITTER_ACCESS_SECRET,
     },
     model: 'opus',
+    sessionStore,
   });
 }
