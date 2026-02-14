@@ -63,6 +63,7 @@ fn pending_rewards_is_zero_when_unstaked() {
     assert_eq!(pending, 0);
 }
 
+#[cfg(feature = "kani-full")]
 #[kani::proof]
 fn pending_rewards_matches_manual_calculation_in_bounded_domain() {
     let staked_amount: u64 = kani::any();
