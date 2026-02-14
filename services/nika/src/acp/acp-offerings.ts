@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { truncate } from '../lib';
 import { generateAcpOfferingBlueprint } from './generate-acp-offering-blueprint';
+import { generateNikaAgentMatchmaker } from './generate-agent-matchmaker';
 import { generateNikaLaunchPack } from './generate-launch-pack';
 import { generateNikaReplyPack } from './generate-reply-pack';
 import { generateNikaResearchBrief, type ResearchBriefFormat } from './generate-research-brief';
@@ -114,6 +115,14 @@ const BlueprintRequest = z
   })
   .passthrough();
 
+const MatchmakerRequest = z
+  .object({
+    task: z.string().trim().min(1).max(2000),
+    constraints: z.string().trim().max(2000).optional(),
+    maxResults: z.number().int().min(1).max(10).optional(),
+  })
+  .passthrough();
+
 function parseOrReject<T>(schema: z.ZodSchema<T>, request: unknown): { ok: true; request: T } | { ok: false; reason: string } {
   if (!hasAnyLlmKey()) return { ok: false, reason: 'Service unavailable (missing OPENAI_API_KEY or ANTHROPIC_API_KEY).' };
   const res = schema.safeParse(request);
@@ -127,7 +136,8 @@ export type OfferingName =
   | 'nika_reply_pack'
   | 'nika_research_brief'
   | 'nika_launch_pack'
-  | 'nika_acp_blueprint';
+  | 'nika_acp_blueprint'
+  | 'nika_agent_matchmaker';
 
 type OfferingRegistry = Record<OfferingName, OfferingHandlers<any>>;
 
@@ -182,6 +192,14 @@ const OFFERINGS: OfferingRegistry = {
       return { deliverable: { type: 'json', value: blueprint } };
     },
   },
+  nika_agent_matchmaker: {
+    validate: (request) => parseOrReject(MatchmakerRequest, request),
+    requestPayment: () => 'Accepted. Pay to receive a ranked shortlist of ACP agents + ready-to-run job commands.',
+    execute: async ({ task, constraints, maxResults }) => {
+      const result = await generateNikaAgentMatchmaker({ task, constraints, maxResults });
+      return { deliverable: { type: 'json', value: result } };
+    },
+  },
 };
 
 export function getOfferingHandlers(name: string): OfferingHandlers<any> | null {
@@ -189,4 +207,3 @@ export function getOfferingHandlers(name: string): OfferingHandlers<any> | null 
   if (!normalized) return null;
   return (OFFERINGS as Record<string, OfferingHandlers<any>>)[normalized] ?? null;
 }
-
