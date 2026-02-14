@@ -13,6 +13,8 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 - Run the default set (kamiyo, hive, kamiyo-staking):
   - `./scripts/kani.sh`
+- Run the full set (enables additional harnesses via the `kani-full` feature):
+  - `KANI_FULL=1 ./scripts/kani.sh`
 - Run a specific crate:
   - `./scripts/kani.sh kamiyo`
   - `./scripts/kani.sh hive`
