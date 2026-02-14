@@ -10,6 +10,7 @@ name = "hive"
 
 [features]
 default = []
+kani-full = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []

@@ -11,6 +11,7 @@ name = "kamiyo_staking"
 
 [features]
 default = []
+kani-full = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []

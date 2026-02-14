@@ -566,8 +566,36 @@ fn calculate_weighted_consensus(
 ) -> Result<u8> {
     require!(scores.len() >= 2, KamiyoError::InsufficientOracleConsensus);
 
+    // Precompute the "all-in" weighted sums so we can fast-path when no deviation
+    // filtering is possible and also validate score domain early.
+    let mut sorted_scores: Vec<u8> = Vec::with_capacity(scores.len());
+    let mut weighted_sum_all: u64 = 0;
+    let mut total_weight_all: u64 = 0;
+
+    for (score, weight) in scores {
+        require!(*score <= 100, KamiyoError::InvalidQualityScore);
+        weighted_sum_all =
+            weighted_sum_all.saturating_add((*score as u64).saturating_mul(*weight as u64));
+        total_weight_all = total_weight_all.saturating_add(*weight as u64);
+        sorted_scores.push(*score);
+    }
+
+    require!(total_weight_all > 0, KamiyoError::NoConsensusReached);
+
+    // With scores constrained to 0-100, a max deviation >= 100 cannot exclude any value.
+    // This avoids a stdlib sort on symbolic inputs (expensive under Kani) while keeping
+    // behavior identical for valid score domains.
+    if max_deviation >= 100 {
+        let consensus = weighted_sum_all
+            .checked_add(total_weight_all)
+            .ok_or(KamiyoError::ArithmeticOverflow)?
+            .saturating_sub(1)
+            .checked_div(total_weight_all)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        return Ok(consensus.min(100) as u8);
+    }
+
     // Extract just scores for median calculation
-    let mut sorted_scores: Vec<u8> = scores.iter().map(|(s, _)| *s).collect();
     sorted_scores.sort_unstable();
 
     // Calculate median with tie-breaking for even number of scores
