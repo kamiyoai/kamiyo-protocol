@@ -25,6 +25,7 @@ import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
 import meishiRoutes from './routes/meishi';
 import meishiDkgRoutes from './routes/meishi-dkg';
+import dkgRoutes from './routes/dkg';
 import paranetRoutes from './routes/paranet';
 import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
@@ -315,6 +316,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Meishi DKG views (public reads; OriginTrail-backed once publishing is enabled)
   app.use('/api/meishi-dkg', publicReadLimiter, meishiDkgRoutes);
+
+  // Generic DKG Knowledge Asset resolver (public read)
+  app.use('/api/dkg', publicReadLimiter, dkgRoutes);
 
   // Agent Paranet - decentralized credit scores (public read, auth for write)
   app.use('/api/paranet', paranetRoutes);
