@@ -133,4 +133,15 @@ jobs:
           args: --version
 
       - name: Verify Kani Proofs
-        run: ./scripts/kani.sh
+        run: |
+          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh
+          ./scripts/kani-audit.sh kani-results/kani.log
+
+      - name: Upload Kani Summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kani-results
+          path: kani-results
+          if-no-files-found: error
+          retention-days: 30
