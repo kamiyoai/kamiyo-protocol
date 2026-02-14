@@ -25,15 +25,10 @@ pub fn verify_agent_identity_proof(
         Groth16Verifier::new(proof_a, proof_b, proof_c, public_inputs, &AGENT_IDENTITY_VK)
             .map_err(|_| error!(AgentCollabError::InvalidProof))?;
 
-    let valid = verifier
+    verifier
         .verify()
         .map_err(|_| error!(AgentCollabError::InvalidProof))?;
-
-    if valid {
-        Ok(())
-    } else {
-        Err(error!(AgentCollabError::InvalidProof))
-    }
+    Ok(())
 }
 
 /// Verify a Groth16 proof with 4 public inputs (swarm_vote circuit).
@@ -47,15 +42,10 @@ pub fn verify_swarm_vote_proof(
         Groth16Verifier::new(proof_a, proof_b, proof_c, public_inputs, &SWARM_VOTE_VK)
             .map_err(|_| error!(AgentCollabError::InvalidProof))?;
 
-    let valid = verifier
+    verifier
         .verify()
         .map_err(|_| error!(AgentCollabError::InvalidProof))?;
-
-    if valid {
-        Ok(())
-    } else {
-        Err(error!(AgentCollabError::InvalidProof))
-    }
+    Ok(())
 }
 
 /// Verify a Groth16 proof with 6 public inputs (swarm_vote_bid circuit).
@@ -70,13 +60,8 @@ pub fn verify_swarm_vote_bid_proof(
         Groth16Verifier::new(proof_a, proof_b, proof_c, public_inputs, &SWARM_VOTE_BID_VK)
             .map_err(|_| error!(AgentCollabError::InvalidProof))?;
 
-    let valid = verifier
+    verifier
         .verify()
         .map_err(|_| error!(AgentCollabError::InvalidProof))?;
-
-    if valid {
-        Ok(())
-    } else {
-        Err(error!(AgentCollabError::InvalidProof))
-    }
+    Ok(())
 }
