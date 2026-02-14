@@ -30,6 +30,12 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
   - `summary.md` (short, shareable)
   - `kani.log` (full output)
 - A scheduled workflow runs the full proof set (`KANI_FULL=1`) and treats `kani::cover!` checks as an audit gate.
+- The scheduled workflow can optionally publish a Kiroku “proof receipt” (shareable link) if secrets are configured:
+  - `KIROKU_AGENT_PUBLISH_URL` (e.g. `https://<app>/api/kiroku/server/agent/drops`)
+  - `KIROKU_AGENT_PUBLISH_KEY`
+  - `KIROKU_AGENT_AUTHOR` (Solana address allowlisted in Kiroku server writers)
+  - optional: `KIROKU_RECEIPT_ORIGIN` (defaults to publish URL origin)
+  - output: `kani-results/kiroku-receipt.json` (uploaded with the artifact)
 
 ## Where The Proofs Live
 
