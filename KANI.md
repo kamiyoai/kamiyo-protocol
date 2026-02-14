@@ -15,12 +15,21 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
   - `./scripts/kani.sh`
 - Run the full set (enables additional harnesses via the `kani-full` feature):
   - `KANI_FULL=1 ./scripts/kani.sh`
+- Run with CI-style output (writes `kani-results/summary.md` + `kani-results/kani.log`):
+  - `KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh`
 - Run a specific crate:
   - `./scripts/kani.sh kamiyo`
   - `./scripts/kani.sh hive`
   - `./scripts/kani.sh kamiyo-staking`
 - Or directly:
   - `cargo kani -p kamiyo`
+
+## CI
+
+- CI runs Kani on every PR and push to `main` (job: `Kani`) and uploads a `kani-results` artifact with:
+  - `summary.md` (short, shareable)
+  - `kani.log` (full output)
+- A scheduled workflow runs the full proof set (`KANI_FULL=1`) and treats `kani::cover!` checks as an audit gate.
 
 ## Where The Proofs Live
 

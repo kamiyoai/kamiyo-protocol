@@ -149,3 +149,31 @@ fn reputation_score_is_bounded() {
         assert_eq!(score, 500);
     }
 }
+
+#[cfg(feature = "kani-full")]
+#[kani::proof]
+fn refund_from_quality_covers_all_buckets() {
+    let quality: u8 = kani::any();
+    let refund = calculate_refund_from_quality(quality);
+
+    kani::cover!(refund == 0);
+    kani::cover!(refund == 35);
+    kani::cover!(refund == 75);
+    kani::cover!(refund == 100);
+}
+
+#[cfg(feature = "kani-full")]
+#[kani::proof]
+fn weighted_consensus_covers_fast_and_filtered_paths() {
+    let scores = [
+        (any_score_0_to_100(), any_weight_1_to_10k()),
+        (any_score_0_to_100(), any_weight_1_to_10k()),
+    ];
+
+    let max_deviation: u8 = kani::any();
+    let consensus = calculate_weighted_consensus(&scores, max_deviation);
+    assert!(consensus.is_ok());
+
+    kani::cover!(max_deviation >= 100);
+    kani::cover!(max_deviation < 100);
+}

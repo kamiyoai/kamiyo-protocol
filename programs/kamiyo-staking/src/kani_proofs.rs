@@ -65,6 +65,35 @@ fn pending_rewards_is_zero_when_unstaked() {
 
 #[cfg(feature = "kani-full")]
 #[kani::proof]
+fn reward_split_covers_zero_and_nonzero_burn() {
+    let total_reward: u64 = kani::any();
+    let (burn_amount, distribution_amount) = calculate_reward_split(total_reward);
+
+    kani::cover!(total_reward == 0 && burn_amount == 0 && distribution_amount == 0);
+    kani::cover!(total_reward < 100 && burn_amount == 0);
+    kani::cover!(total_reward >= 100 && burn_amount > 0);
+}
+
+#[cfg(feature = "kani-full")]
+#[kani::proof]
+fn multiplier_covers_all_tiers() {
+    let duration_seconds: i64 = kani::any();
+    let multiplier = get_multiplier(duration_seconds);
+
+    kani::cover!(duration_seconds < THIRTY_DAYS && multiplier == MULTIPLIER_BASE);
+    kani::cover!(
+        duration_seconds >= THIRTY_DAYS && duration_seconds < NINETY_DAYS && multiplier == MULTIPLIER_30D
+    );
+    kani::cover!(
+        duration_seconds >= NINETY_DAYS
+            && duration_seconds < ONE_EIGHTY_DAYS
+            && multiplier == MULTIPLIER_90D
+    );
+    kani::cover!(duration_seconds >= ONE_EIGHTY_DAYS && multiplier == MULTIPLIER_180D);
+}
+
+#[cfg(feature = "kani-full")]
+#[kani::proof]
 fn pending_rewards_matches_manual_calculation_in_bounded_domain() {
     let staked_amount: u64 = kani::any();
     kani::assume(staked_amount > 0);
