@@ -28,7 +28,7 @@ pub const BURN_RATE_BPS: u64 = 5000;
 /// Calculate burn and treasury amounts for a fee
 /// Returns (burn_amount, treasury_amount)
 fn calculate_fee_split(total_fee: u64) -> (u64, u64) {
-    let burn_amount = total_fee * BURN_RATE_BPS / 10_000;
+    let burn_amount = ((total_fee as u128) * (BURN_RATE_BPS as u128) / 10_000) as u64;
     let treasury_amount = total_fee - burn_amount;
     (burn_amount, treasury_amount)
 }
@@ -113,6 +113,10 @@ const STAKE_POSITION_DISCRIMINATOR: [u8; 8] = [78, 165, 30, 111, 171, 125, 11, 2
 
 mod vk_generated;
 pub mod zk;
+
+#[cfg(kani)]
+mod kani_proofs;
+
 use zk::{verify_agent_identity_proof, verify_swarm_vote_bid_proof, verify_swarm_vote_proof};
 
 /// Maximum agents per registry

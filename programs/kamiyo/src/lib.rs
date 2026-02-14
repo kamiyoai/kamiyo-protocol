@@ -83,6 +83,9 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer
 
 pub mod zk;
 
+#[cfg(kani)]
+mod kani_proofs;
+
 declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 
 // ============================================================================
@@ -2587,7 +2590,8 @@ pub mod kamiyo {
                             .checked_mul(ORACLE_SLASH_PERCENT as u128)
                             .ok_or(KamiyoError::ArithmeticOverflow)?
                             .checked_div(100)
-                            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
+                            .ok_or(KamiyoError::ArithmeticOverflow)?
+                            as u64;
 
                         if slash_amount > 0 && oracle.stake_amount >= slash_amount {
                             oracle.stake_amount = oracle.stake_amount.saturating_sub(slash_amount);

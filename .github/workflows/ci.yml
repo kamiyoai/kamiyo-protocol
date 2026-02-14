@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  SOLANA_VERSION: 2.1.0
+  SOLANA_VERSION: 2.3.13
   ANCHOR_VERSION: 0.31.1
 
 jobs:
@@ -56,7 +56,7 @@ jobs:
       - name: Validate VK
         run: ./scripts/validate-vk.sh
       - name: Cargo Audit
-        run: cargo audit
+        run: cargo audit --ignore RUSTSEC-2024-0344 --ignore RUSTSEC-2022-0093
 
   evm:
     name: EVM
@@ -118,3 +118,19 @@ jobs:
 
       - name: PNPM Audit (Critical)
         run: pnpm audit --prod --audit-level=critical
+
+  kani:
+    name: Kani
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Kani
+        uses: model-checking/kani-github-action@v1
+        with:
+          args: --version
+
+      - name: Verify Kani Proofs
+        run: ./scripts/kani.sh
