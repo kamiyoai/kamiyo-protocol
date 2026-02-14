@@ -2370,59 +2370,44 @@ pub mod kamiyo {
         );
         let oracle_registry = &ctx.accounts.oracle_registry;
 
-        // Extract values needed for calculations
-        let (
-            status,
-            amount,
-            transaction_id,
-            escrow_key,
-            individual_scores,
-            oracles,
-            weighted_scores,
-            token_mint,
-            bump,
-            agent_key,
-            disputed_at,
-        ) = {
-            let escrow = &ctx.accounts.escrow;
-            let individual_scores: Vec<u8> = escrow
-                .oracle_submissions
-                .iter()
-                .map(|s| s.quality_score)
-                .collect();
-            let oracles: Vec<Pubkey> = escrow.oracle_submissions.iter().map(|s| s.oracle).collect();
-            let weighted_scores: Vec<(u8, u16)> = escrow
-                .oracle_submissions
-                .iter()
-                .filter_map(|submission| {
-                    oracle_registry
-                        .oracles
-                        .iter()
-                        .find(|o| o.pubkey == submission.oracle)
-                        .map(|o| (submission.quality_score, o.weight))
-                })
-                .collect();
-            (
-                escrow.status,
-                escrow.amount,
-                escrow.transaction_id.clone(),
-                escrow.key(),
-                individual_scores,
-                oracles,
-                weighted_scores,
-                escrow.token_mint,
-                escrow.bump,
-                escrow.agent,
-                escrow.disputed_at,
-            )
-        };
+        // Extract values needed for calculations.
+        let (status, amount, transaction_id, escrow_key, token_mint, bump, agent_key, disputed_at) =
+            {
+                let escrow = &ctx.accounts.escrow;
+                (
+                    escrow.status,
+                    escrow.amount,
+                    escrow.transaction_id.clone(),
+                    escrow.key(),
+                    escrow.token_mint,
+                    escrow.bump,
+                    escrow.agent,
+                    escrow.disputed_at,
+                )
+            };
+
+        let submission_count = ctx.accounts.escrow.oracle_submissions.len();
+
+        let weighted_scores: Vec<(u8, u16)> = ctx
+            .accounts
+            .escrow
+            .oracle_submissions
+            .iter()
+            .filter_map(|submission| {
+                oracle_registry
+                    .oracles
+                    .iter()
+                    .find(|o| o.pubkey == submission.oracle)
+                    .map(|o| (submission.quality_score, o.weight))
+            })
+            .collect();
 
         require!(status == EscrowStatus::Disputed, KamiyoError::InvalidStatus);
 
         // Tiered oracle requirement: larger escrows need more oracles for collusion resistance
         let required_oracles = required_oracle_count(amount);
         require!(
-            oracles.len() >= required_oracles as usize,
+            submission_count >= required_oracles as usize,
             KamiyoError::InsufficientOracleConsensus
         );
 
@@ -2431,7 +2416,7 @@ pub mod kamiyo {
         let quorum_required =
             ((registered_oracle_count * 50 / 100) as usize).max(required_oracles as usize);
         require!(
-            oracles.len() >= quorum_required,
+            submission_count >= quorum_required,
             KamiyoError::InsufficientOracleConsensus
         );
 
@@ -2498,7 +2483,7 @@ pub mod kamiyo {
 
         // Calculate oracle reward pool (1% of escrow amount, capped by remaining fee budget,
         // split among participating oracles).
-        let oracle_count = oracles.len() as u64;
+        let oracle_count = submission_count as u64;
         let base_total_oracle_reward = if oracle_rewards_enabled {
             (amount as u128)
                 .checked_mul(ORACLE_REWARD_PERCENT as u128)
@@ -2554,11 +2539,11 @@ pub mod kamiyo {
         }
 
         // Oracle stake slashing for voting against consensus + reward tracking + auto-removal
-        let mut oracles_to_remove: Vec<Pubkey> = Vec::new();
         let mut forfeited_oracle_stake: u64 = 0;
         let mut total_slashed_stake: u64 = 0;
         let mut actual_oracle_reward: u64 = 0;
         {
+            let mut oracles_to_remove: Vec<Pubkey> = Vec::new();
             let oracle_registry = &mut ctx.accounts.oracle_registry;
             let max_deviation = oracle_registry.max_score_deviation;
 
@@ -2970,10 +2955,18 @@ pub mod kamiyo {
             }
         }
 
+        let (individual_scores, oracles) = {
+            let submissions = &ctx.accounts.escrow.oracle_submissions;
+            (
+                submissions.iter().map(|s| s.quality_score).collect(),
+                submissions.iter().map(|s| s.oracle).collect(),
+            )
+        };
+
         emit!(MultiOracleDisputeResolved {
             escrow: escrow_key,
             transaction_id,
-            oracle_count: oracles.len() as u8,
+            oracle_count: submission_count as u8,
             individual_scores,
             oracles,
             consensus_score,
