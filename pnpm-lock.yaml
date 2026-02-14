@@ -2163,6 +2163,9 @@ importers:
       redis:
         specifier: ^4.7.0
         version: 4.7.1
+      socket.io-client:
+        specifier: ^4.8.1
+        version: 4.8.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       twitter-api-v2:
         specifier: ^1.19.0
         version: 1.28.0

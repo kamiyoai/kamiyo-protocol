@@ -44,6 +44,7 @@ import { OpenClawToolsInvokeClient } from './autonomy/openclaw-tools-invoke-clie
 import { parseAutonomyCommand } from './autonomy/command';
 import type { AutonomyTask } from './autonomy/types';
 import { validateTweet } from './personality';
+import { AcpSeller } from './acp/acp-seller';
 
 const log = createLogger('nika');
 const VERSION = '1.0.0';
@@ -95,6 +96,7 @@ let taskPublisher: TaskCompletionPublisher | null = null;
 let statusInterval: NodeJS.Timeout | null = null;
 let repoKnowledgeMonitor: RepoKnowledgeMonitor | null = null;
 let autonomyRunner: AutonomyRunner | null = null;
+let acpSeller: AcpSeller | null = null;
 
 async function validateConnections(config: ReturnType<typeof getConfig>): Promise<void> {
   log.info('Validating external connections');
@@ -556,6 +558,28 @@ async function main(): Promise<void> {
       health?.recordError();
     });
 
+  // Initialize ACP seller runtime (paid services on Virtuals ACP)
+  if (config.ACP_ENABLED) {
+    acpSeller = new AcpSeller({
+      enabled: true,
+      apiUrl: config.ACP_API_URL,
+      socketUrl: config.ACP_SOCKET_URL,
+      apiKey: config.ACP_LITE_AGENT_API_KEY,
+      maxConcurrentJobs: config.ACP_MAX_CONCURRENT_JOBS,
+    });
+
+    void acpSeller
+      .start()
+      .then(() => log.info('ACP seller started'))
+      .catch((error) => log.error('ACP seller failed to start', { error: String(error) }));
+
+    shutdownManager.register('acpSeller', async () => {
+      acpSeller?.stop();
+    }, 19);
+  } else {
+    log.info('ACP seller disabled');
+  }
+
   // Register mention monitor shutdown
   shutdownManager.register('mentionMonitor', async () => {
     mentionMonitor?.stop();
@@ -777,6 +801,17 @@ async function main(): Promise<void> {
           running: mentionMonitor?.isRunning() ?? false,
           lastCheckAt: mentionMonitor?.getLastCheckAt()?.getTime() ?? null,
         },
+        acpSeller: acpSeller?.getStatus() ?? {
+          enabled: config.ACP_ENABLED,
+          running: false,
+          connected: false,
+          walletAddress: null,
+          maxConcurrentJobs: config.ACP_MAX_CONCURRENT_JOBS,
+          runningJobs: 0,
+          queuedJobs: 0,
+          lastEventAt: null,
+          lastError: null,
+        },
         circuitBreaker: agent?.getCircuitStatus() ?? { posting: 'unknown', replies: 'unknown', dkg: 'unknown' },
         dkg: {
           enabled: !!dkgMemory,
@@ -806,16 +841,18 @@ async function main(): Promise<void> {
       const schedulerOk = dailyScheduler?.isRunning() ?? false;
       const mentionMonitorOk = mentionMonitor?.isRunning() ?? false;
       const autonomyOk = !config.AUTONOMY_ENABLED || autonomyRunner?.getStatus().running === true;
+      const acpOk = !config.ACP_ENABLED || acpSeller?.getStatus().connected === true;
 
       // DKG is optional - not required for readiness
       const dkgOk = !dkgMemory || dkgMemory.getCircuitStatus() !== 'open';
 
       return {
-        ready: schedulerOk && mentionMonitorOk && autonomyOk,
+        ready: schedulerOk && mentionMonitorOk && autonomyOk && acpOk,
         checks: {
           twitter: { ok: mentionMonitorOk, error: mentionMonitorOk ? undefined : 'Not running' },
           anthropic: { ok: true }, // Validated at startup
           dkg: { ok: dkgOk, error: dkgOk ? undefined : 'Circuit open' },
+          acp: { ok: acpOk, error: acpOk ? undefined : 'ACP seller not connected' },
           autonomy: {
             ok: autonomyOk,
             error: autonomyOk ? undefined : 'Autonomy runner not running',

@@ -55,6 +55,17 @@ export interface HealthStatus {
   components: {
     scheduler: { running: boolean; consecutiveFailures: number };
     mentionMonitor: { running: boolean; lastCheckAt: number | null };
+    acpSeller?: {
+      enabled: boolean;
+      running: boolean;
+      connected: boolean;
+      walletAddress: string | null;
+      maxConcurrentJobs: number;
+      runningJobs: number;
+      queuedJobs: number;
+      lastEventAt: string | null;
+      lastError: string | null;
+    };
     circuitBreaker: { posting: string; replies: string; dkg: string };
     dkg: { enabled: boolean; circuitStatus: string; activePort?: number | null };
     engagementTracker: { running: boolean };
@@ -70,6 +81,7 @@ export interface ReadinessStatus {
     twitter: { ok: boolean; error?: string };
     anthropic: { ok: boolean; error?: string };
     dkg: { ok: boolean; error?: string };
+    acp?: { ok: boolean; error?: string };
     autonomy?: { ok: boolean; error?: string };
   };
 }
