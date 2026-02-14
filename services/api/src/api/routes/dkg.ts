@@ -43,6 +43,16 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function asRecordArray(value: unknown): Record<string, unknown>[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: Record<string, unknown>[] = [];
+  for (const v of value) {
+    const rec = asRecord(v);
+    if (rec) out.push(rec);
+  }
+  return out.length > 0 ? out : null;
+}
+
 function asStringArray(value: unknown): string[] | null {
   if (typeof value === 'string') return [value];
   if (!Array.isArray(value)) return null;
@@ -62,11 +72,28 @@ function pickFirstString(obj: Record<string, unknown>, keys: string[]): string |
       const s = v.trim();
       if (s) return s;
     }
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (typeof item === 'string') {
+          const s = item.trim();
+          if (s) return s;
+          continue;
+        }
+        const rec = asRecord(item);
+        if (!rec) continue;
+        const atValue = typeof rec['@value'] === 'string' ? rec['@value'].trim() : null;
+        if (atValue) return atValue;
+        const atId = typeof rec['@id'] === 'string' ? rec['@id'].trim() : null;
+        if (atId) return atId;
+      }
+    }
     const arr = asStringArray(v);
     if (arr && arr.length > 0) return arr[0];
     const rec = asRecord(v);
     const atValue = rec && typeof rec['@value'] === 'string' ? rec['@value'].trim() : null;
     if (atValue) return atValue;
+    const atId = rec && typeof rec['@id'] === 'string' ? rec['@id'].trim() : null;
+    if (atId) return atId;
   }
   return null;
 }
@@ -80,49 +107,41 @@ function pickTypes(obj: Record<string, unknown>): string[] | null {
   return null;
 }
 
+function summarizeFromNodes(nodes: Record<string, unknown>[]): ResolveSummary {
+  const nameKeys = ['name', 'title', 'label', 'schema:name', 'http://schema.org/name'];
+  const descKeys = ['description', 'summary', 'schema:description', 'http://schema.org/description'];
+  const issuerKeys = ['issuer', 'publisher', 'author', 'creator', 'http://schema.org/author', 'http://schema.org/creator'];
+  const idKeys = ['@id', 'id', 'url', 'http://schema.org/url'];
+
+  for (const node of nodes) {
+    const name = pickFirstString(node, nameKeys);
+    const description = pickFirstString(node, descKeys);
+    const issuer = pickFirstString(node, issuerKeys);
+    const id = pickFirstString(node, idKeys);
+    const types = pickTypes(node);
+    if (name || description || issuer || id || types) return { name, description, types, issuer, id };
+  }
+
+  return { name: null, description: null, types: null, issuer: null, id: null };
+}
+
 function summarizeKnowledgeAsset(publicAsset: unknown): ResolveSummary {
   const root = asRecord(publicAsset);
-  if (!root) {
-    return { name: null, description: null, types: null, issuer: null, id: null };
-  }
+  if (root) {
+    const direct = summarizeFromNodes([root]);
+    if (direct.name || direct.description || direct.issuer || direct.id || direct.types) return direct;
 
-  const nameKeys = ['name', 'title', 'label', 'schema:name'];
-  const descKeys = ['description', 'summary', 'schema:description'];
-  const issuerKeys = ['issuer', 'publisher', 'author', 'creator'];
-  const idKeys = ['@id', 'id', 'url'];
-
-  const rootName = pickFirstString(root, nameKeys);
-  const rootDesc = pickFirstString(root, descKeys);
-  const rootIssuer = pickFirstString(root, issuerKeys);
-  const rootId = pickFirstString(root, idKeys);
-  const rootTypes = pickTypes(root);
-
-  if (rootName || rootDesc || rootIssuer || rootId || rootTypes) {
-    return {
-      name: rootName,
-      description: rootDesc,
-      types: rootTypes,
-      issuer: rootIssuer,
-      id: rootId,
-    };
-  }
-
-  const graph = root['@graph'];
-  if (Array.isArray(graph)) {
-    for (const node of graph) {
-      const rec = asRecord(node);
-      if (!rec) continue;
-      const name = pickFirstString(rec, nameKeys);
-      const description = pickFirstString(rec, descKeys);
-      const issuer = pickFirstString(rec, issuerKeys);
-      const id = pickFirstString(rec, idKeys);
-      const types = pickTypes(rec);
-      if (name || description || issuer || id || types) {
-        return { name, description, types, issuer, id };
-      }
+    const graph = asRecordArray(root['@graph']);
+    if (graph) {
+      const inGraph = summarizeFromNodes(graph);
+      if (inGraph.name || inGraph.description || inGraph.issuer || inGraph.id || inGraph.types) return inGraph;
     }
+
+    return direct;
   }
 
+  const nodes = asRecordArray(publicAsset);
+  if (nodes) return summarizeFromNodes(nodes);
   return { name: null, description: null, types: null, issuer: null, id: null };
 }
 
@@ -237,11 +256,13 @@ router.get('/resolve', async (req: Request, res: Response) => {
   const op = (async (): Promise<ResolveResponse> => {
     try {
       const resolved = await withTimeout(client.asset.get(ual), 15000);
-      const summary = summarizeKnowledgeAsset(resolved?.public);
+      const resolvedObj = asRecord(resolved);
+      const publicAsset = resolvedObj?.public ?? resolvedObj?.assertion ?? null;
+      const summary = summarizeKnowledgeAsset(publicAsset);
 
       let publicJson = '';
       try {
-        publicJson = JSON.stringify(resolved?.public ?? null);
+        publicJson = JSON.stringify(publicAsset);
       } catch {
         publicJson = '';
       }
@@ -263,7 +284,7 @@ router.get('/resolve', async (req: Request, res: Response) => {
         ual,
         source: 'dkg',
         summary,
-        public: resolved?.public ?? null,
+        public: publicAsset,
       };
       cacheSet(ual, body);
       return body;
