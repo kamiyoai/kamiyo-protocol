@@ -11,7 +11,7 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 ## Run
 
-- Run the default set (kamiyo, hive, kamiyo-staking):
+- Run the default set (kani-solana, kamiyo, hive, kamiyo-staking):
   - `./scripts/kani.sh`
 - Run the full set (enables additional harnesses via the `kani-full` feature):
   - `KANI_FULL=1 ./scripts/kani.sh`
@@ -19,6 +19,7 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
   - `KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh`
   - also writes per-package logs: `kani-results/kani-<pkg>.log`
 - Run a specific crate:
+  - `./scripts/kani.sh kani-solana`
   - `./scripts/kani.sh kamiyo`
   - `./scripts/kani.sh hive`
   - `./scripts/kani.sh kamiyo-staking`
@@ -45,6 +46,8 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 Harness modules are gated behind `#[cfg(kani)]` so normal `anchor build/test` is unaffected:
 
+- `crates/kani-solana/src/*.rs`
+- `crates/kani-solana/tests/self_verify.rs`
 - `programs/kamiyo/src/kani_proofs.rs`
 - `programs/hive/src/kani_proofs.rs`
 - `programs/kamiyo-staking/src/kani_proofs.rs`
