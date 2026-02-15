@@ -6,6 +6,7 @@ license = "MIT"
 description = "Reusable Kani formal verification harnesses for Solana program math"
 keywords = ["kani", "formal-verification", "solana", "proof", "invariant"]
 categories = ["development-tools::testing"]
+readme = "README.md"
 
 [features]
 default = []
