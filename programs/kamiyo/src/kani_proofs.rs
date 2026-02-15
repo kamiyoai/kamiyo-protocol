@@ -34,6 +34,7 @@ fn weighted_consensus_all_included_len3_matches_ceiling_avg() {
     );
 }
 
+#[cfg(feature = "kani-full")]
 #[kani::proof]
 fn weighted_consensus_all_included_len4_matches_ceiling_avg() {
     kani_solana::math::assert_consensus_matches_ceiling_avg::<4, _>(
@@ -42,6 +43,7 @@ fn weighted_consensus_all_included_len4_matches_ceiling_avg() {
     );
 }
 
+#[cfg(feature = "kani-full")]
 #[kani::proof]
 fn weighted_consensus_all_included_len5_matches_ceiling_avg() {
     kani_solana::math::assert_consensus_matches_ceiling_avg::<5, _>(
