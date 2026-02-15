@@ -62,8 +62,11 @@ const SWARM_POOL_WALLET = process.env.SWARM_POOL_WALLET || '';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
 const SWARM_NETWORK = process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
-const taskExecutor = process.env.ANTHROPIC_API_KEY
-  ? createTaskExecutor({ anthropicApiKey: process.env.ANTHROPIC_API_KEY })
+const taskExecutor = (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
+  ? createTaskExecutor({
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+    })
   : undefined;
 
 const router = Router();
