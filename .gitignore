@@ -231,7 +231,8 @@ native/*/deps/*/lib/
 # Demo recordings
 examples/*/demo.gif
 examples/*/demo.tape
-docs/
+docs/*
+!docs/production-audit-*.md
 test-ledger/
 
 # Internal guides
@@ -253,6 +254,3 @@ native/*/fuzz_build/
 native/*/fuzz/*.dSYM/
 native/*/fuzz/fuzz_*
 !native/*/fuzz/fuzz_*.c
-
-# Local docs (never commit)
-/docs/

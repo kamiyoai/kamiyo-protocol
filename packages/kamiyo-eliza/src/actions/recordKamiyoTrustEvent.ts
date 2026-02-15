@@ -5,6 +5,21 @@ import { getNetworkConfig, getKeypair, createConnection } from '../utils';
 import type { TrustEvidenceType, TrustInteraction } from '../trust/pluginTrust';
 import { getTrustEngine } from '../trust/pluginTrust';
 
+const SOLSCAN_TX_RE = /solscan\.io\/tx\/([1-9A-HJ-NP-Za-km-z]{43,88})/i;
+const BASE58_SIG_RE = /^[1-9A-HJ-NP-Za-km-z]{43,88}$/;
+
+function extractTxSignature(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(SOLSCAN_TX_RE);
+  if (match?.[1] && BASE58_SIG_RE.test(match[1])) return match[1];
+
+  if (BASE58_SIG_RE.test(trimmed)) return trimmed;
+
+  return null;
+}
+
 export const recordKamiyoTrustEventAction: Action = {
   name: 'RECORD_KAMIYO_TRUST_EVENT',
   description: 'Sync KAMIYO on-chain events into ElizaOS trust system. Records escrow outcomes, disputes, and reputation changes as TrustEvidence.',
@@ -18,15 +33,21 @@ export const recordKamiyoTrustEventAction: Action = {
       { user: '{{user1}}', content: { text: 'Record my on-chain trust data' } },
       { user: '{{agent}}', content: { text: 'Recorded 3 trust events from KAMIYO. Reputation: 85/100.', action: 'RECORD_KAMIYO_TRUST_EVENT' } },
     ],
+    [
+      { user: '{{user1}}', content: { text: 'Record trust evidence from https://solscan.io/tx/<signature>' } },
+      { user: '{{agent}}', content: { text: 'Recorded 1 trust interaction from that transaction.', action: 'RECORD_KAMIYO_TRUST_EVENT' } },
+    ],
   ],
 
   async validate(_runtime: IAgentRuntime, message: Memory): Promise<boolean> {
-    const text = message.content.text?.toLowerCase() || '';
+    const text = message.content.text || '';
+    if (extractTxSignature(text)) return true;
+    const lower = text.toLowerCase();
     return (
-      (text.includes('sync') && text.includes('trust')) ||
-      (text.includes('record') && text.includes('trust')) ||
-      (text.includes('log') && text.includes('kamiyo')) ||
-      text.includes('trust event')
+      (lower.includes('sync') && lower.includes('trust')) ||
+      (lower.includes('record') && lower.includes('trust')) ||
+      (lower.includes('log') && lower.includes('kamiyo')) ||
+      lower.includes('trust event')
     );
   },
 
@@ -43,9 +64,26 @@ export const recordKamiyoTrustEventAction: Action = {
       return { success: false, eventsRecorded: 0, pushedToTrustEngine: false, error: 'Wallet not configured' };
     }
 
+    const sourceEntityId = keypair.publicKey.toBase58();
+    const txSignature = extractTxSignature(message.content.text || '');
+
     // Try to use evidence bridge service first (from @kamiyo/eliza-trust-provider)
     try {
       const bridge = (runtime as any).getService?.('kamiyo-trust-evidence-bridge');
+      if (txSignature && bridge && typeof bridge.recordFromTransaction === 'function') {
+        const records = await bridge.recordFromTransaction(txSignature, sourceEntityId);
+        if (records.length > 0) {
+          callback?.({
+            text: `Recorded ${records.length} trust interaction${records.length === 1 ? '' : 's'} from that transaction.`,
+            content: { eventsRecorded: records.length, records },
+          });
+          return { success: true, eventsRecorded: records.length, pushedToTrustEngine: bridge.hasTrustEngine || false };
+        }
+
+        callback?.({ text: 'No relevant KAMIYO instructions found in that transaction.' });
+        return { success: true, eventsRecorded: 0, pushedToTrustEngine: bridge.hasTrustEngine || false };
+      }
+
       if (bridge && typeof bridge.syncOnChainEvidence === 'function') {
         const records = await bridge.syncOnChainEvidence();
         callback?.({
@@ -90,7 +128,6 @@ export const recordKamiyoTrustEventAction: Action = {
       const disputesLost = rep?.disputesLost?.toNumber() || 0;
 
       const evidenceRecords: TrustInteraction[] = [];
-      const sourceEntityId = keypair.publicKey.toBase58();
       const targetEntityId = runtime.agentId;
 
       // Registration evidence
