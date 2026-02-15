@@ -46,7 +46,7 @@ describe("Trusted Launch Lifecycle", () => {
     agentPDA = agentPda;
 
     await ctx.program.methods
-      .createAgent("launch-test-agent", 0, new BN(0.5 * LAMPORTS_PER_SOL))
+      .createAgent("launch-test-agent", { trading: {} }, new BN(0.5 * LAMPORTS_PER_SOL))
       .accounts({
         agentIdentity: agentPDA,
         owner: ctx.owner.publicKey,
@@ -304,11 +304,68 @@ describe("Trusted Launch Lifecycle", () => {
   });
 
   describe("Dispute", () => {
-    it("Disputes an active launch", async () => {
-      // Use a fresh launch for dispute testing
-      // Note: rate limit already hit 3/day so we need a new agent or skip
-      // For now, test structure is documented — full dispute flow
-      // requires oracle registry and time manipulation (commit/reveal phases)
+    it("Only the launch owner can dispute", async () => {
+      const mint = mintKeypair.publicKey;
+      const [launchRecordPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, mint);
+      const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
+
+      try {
+        await ctx.program.methods
+          .disputeLaunch("evidence-hash")
+          .accounts({
+            launchRecord: launchRecordPDA,
+            launchRateLimit: rateLimitPDA,
+            reporter: ctx.provider2.publicKey,
+          })
+          .signers([ctx.provider2])
+          .rpc();
+        expect.fail("Should have thrown Unauthorized");
+      } catch (err: any) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("Unauthorized");
+      }
+    });
+
+    it("Records dispute metadata without changing launch status", async () => {
+      const mint = mintKeypair.publicKey;
+      const [launchRecordPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, mint);
+      const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
+      const evidenceHash = "a1b2c3d4e5f6";
+
+      await ctx.program.methods
+        .disputeLaunch(evidenceHash)
+        .accounts({
+          launchRecord: launchRecordPDA,
+          launchRateLimit: rateLimitPDA,
+          reporter: ctx.owner.publicKey,
+        })
+        .signers([ctx.owner])
+        .rpc();
+
+      const launch = await ctx.program.account.launchRecord.fetch(launchRecordPDA);
+      expect(launch.status).to.deep.equal({ graduated: {} });
+      expect(launch.disputeReporter.toString()).to.equal(ctx.owner.publicKey.toString());
+      expect(launch.disputeEvidenceHash).to.equal(evidenceHash);
+      expect(launch.disputedAt).to.not.be.null;
+
+      const rateLimit = await ctx.program.account.launchRateLimit.fetch(rateLimitPDA);
+      expect(rateLimit.totalDisputed.toNumber()).to.equal(1);
+
+      try {
+        await ctx.program.methods
+          .disputeLaunch("another-hash")
+          .accounts({
+            launchRecord: launchRecordPDA,
+            launchRateLimit: rateLimitPDA,
+            reporter: ctx.owner.publicKey,
+          })
+          .signers([ctx.owner])
+          .rpc();
+        expect.fail("Should have thrown LaunchAlreadyDisputed");
+      } catch (err: any) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("LaunchAlreadyDisputed");
+      }
     });
   });
 });

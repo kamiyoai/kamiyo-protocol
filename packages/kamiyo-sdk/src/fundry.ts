@@ -5,7 +5,7 @@
  * into a single secureLaunch() call with on-chain accountability.
  */
 
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { BN, Wallet } from "@coral-xyz/anchor";
 import { KamiyoClient } from "./client";
 
@@ -45,6 +45,7 @@ export interface SecureLaunchResult {
   launchRecordPda?: string;
   agentPda?: string;
   error?: string;
+  warning?: string;
 }
 
 export interface FundryManagerConfig {
@@ -59,6 +60,21 @@ const MIN_ESCROW_SOL = 0.001;
 const MAX_ESCROW_SOL = 1000;
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
+function solToLamportsBn(sol: number): BN {
+  if (!Number.isFinite(sol)) throw new Error("Invalid SOL amount");
+  const lamports = Math.round(sol * LAMPORTS_PER_SOL);
+  if (!Number.isSafeInteger(lamports) || lamports < 0) {
+    throw new Error("Invalid SOL amount");
+  }
+  return new BN(lamports);
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "Unknown error";
+}
+
 export class FundryManager {
   private client: KamiyoClient;
   private fundryEndpoint: string;
@@ -69,8 +85,10 @@ export class FundryManager {
       wallet: config.wallet,
       programId: config.programId,
     });
-    this.fundryEndpoint =
-      config.fundryMcpEndpoint ?? "https://mcp.fundry.collaterize.com";
+    this.fundryEndpoint = (config.fundryMcpEndpoint ?? "https://mcp.fundry.collaterize.com").replace(
+      /\/+$/,
+      ""
+    );
   }
 
   /**
@@ -78,7 +96,11 @@ export class FundryManager {
    */
   async secureLaunch(params: SecureLaunchParams): Promise<SecureLaunchResult> {
     const escrowSol = params.escrowAmountSol ?? DEFAULT_ESCROW_SOL;
-    if (escrowSol < MIN_ESCROW_SOL || escrowSol > MAX_ESCROW_SOL) {
+    if (
+      !Number.isFinite(escrowSol) ||
+      escrowSol < MIN_ESCROW_SOL ||
+      escrowSol > MAX_ESCROW_SOL
+    ) {
       return {
         success: false,
         error: `Escrow must be between ${MIN_ESCROW_SOL} and ${MAX_ESCROW_SOL} SOL`,
@@ -89,6 +111,26 @@ export class FundryManager {
       return {
         success: false,
         error: `Invalid config type. Valid: ${FUNDRY_CONFIG_TYPES.join(", ")}`,
+      };
+    }
+
+    const creatorAllocationBps = params.creatorAllocationBps ?? 500;
+    if (
+      !Number.isInteger(creatorAllocationBps) ||
+      creatorAllocationBps < 0 ||
+      creatorAllocationBps > 10_000
+    ) {
+      return {
+        success: false,
+        error: "creatorAllocationBps must be an integer between 0 and 10000",
+      };
+    }
+
+    const migrationTargetSol = params.migrationTargetSol ?? 85;
+    if (!Number.isFinite(migrationTargetSol) || migrationTargetSol <= 0) {
+      return {
+        success: false,
+        error: "migrationTargetSol must be a positive number",
       };
     }
 
@@ -107,28 +149,72 @@ export class FundryManager {
     let fundryCoinId: string;
     let mintAddress: string;
     try {
-      const fundryResult = await this.callFundry("create_token", {
+      const created = await this.callFundry<Record<string, unknown>>(
+        "create_token",
+        {
         name: params.name,
         ticker: params.ticker,
         description: params.description,
         image: params.imageUrl ?? "",
         configType: params.configType,
-      });
-      fundryCoinId = fundryResult.coinId;
-      mintAddress = fundryResult.mint;
-    } catch (err: any) {
+        }
+      );
+
+      const coinId = created["coinId"] ?? created["coin_id"];
+      if (typeof coinId !== "string" || coinId.length === 0) {
+        return { success: false, error: "Fundry response missing coinId" };
+      }
+      fundryCoinId = coinId;
+
+      try {
+        await this.callFundry("confirm_launch", { coinId: fundryCoinId });
+      } catch {
+        // Best-effort; token may already be on-chain.
+      }
+
+      const maybeMint = created["mint"] ?? created["mintAddress"];
+      mintAddress = typeof maybeMint === "string" ? maybeMint : "";
+      if (!mintAddress) {
+        try {
+          const token = await this.callFundry<Record<string, unknown>>("get_token", {
+            coinId: fundryCoinId,
+          });
+          const discoveredMint = token["mint"] ?? token["mintAddress"];
+          mintAddress =
+            typeof discoveredMint === "string" ? discoveredMint : "";
+        } catch {
+          // Ignore; handled below.
+        }
+      }
+
+      if (!mintAddress) {
+        return {
+          success: false,
+          fundryCoinId,
+          error: "Fundry response missing mint address",
+        };
+      }
+    } catch (err: unknown) {
       return {
         success: false,
-        error: `Fundry token creation failed: ${err.message}`,
+        error: `Fundry token creation failed: ${errorMessage(err)}`,
       };
     }
 
     // 3. Create on-chain LaunchRecord with escrow
-    const escrowLamports = new BN(Math.floor(escrowSol * LAMPORTS_PER_SOL));
-    const mint = new PublicKey(mintAddress);
-    const migrationTarget = new BN(
-      Math.floor((params.migrationTargetSol ?? 85) * LAMPORTS_PER_SOL)
-    );
+    let mint: PublicKey;
+    try {
+      mint = new PublicKey(mintAddress);
+    } catch {
+      return {
+        success: false,
+        fundryCoinId,
+        error: "Fundry returned an invalid mint address",
+      };
+    }
+
+    const escrowLamports = solToLamportsBn(escrowSol);
+    const migrationTarget = solToLamportsBn(migrationTargetSol);
 
     try {
       const txSignature = await this.client.createTrustedLaunch({
@@ -137,7 +223,7 @@ export class FundryManager {
         configType: params.configType,
         escrowAmount: escrowLamports,
         migrationTargetSol: migrationTarget,
-        creatorAllocationBps: params.creatorAllocationBps ?? 500,
+        creatorAllocationBps: creatorAllocationBps,
       });
 
       const [launchRecordPda] = this.client.getLaunchRecordPDA(agentPda, mint);
@@ -150,14 +236,14 @@ export class FundryManager {
         launchRecordPda: launchRecordPda.toBase58(),
         agentPda: agentPda.toBase58(),
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Token was created on Fundry but LaunchRecord failed
       return {
         success: true,
         fundryCoinId,
         mint: mintAddress,
         agentPda: agentPda.toBase58(),
-        error: `Token created but LaunchRecord failed: ${err.message}. Manual record creation needed.`,
+        warning: `Token created but LaunchRecord failed: ${errorMessage(err)}. Manual record creation needed.`,
       };
     }
   }
@@ -182,14 +268,17 @@ export class FundryManager {
       name,
       category: ["community", "indie", "music"].includes(name)
         ? "builder"
-        : "monkes",
+        : "other",
     }));
   }
 
-  private async callFundry(
+  private async callFundry<T = unknown>(
     tool: string,
-    args: Record<string, any>
-  ): Promise<{ coinId: string; mint: string }> {
+    args: Record<string, unknown>
+  ): Promise<T> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+
     const response = await fetch(`${this.fundryEndpoint}/sse`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -199,7 +288,8 @@ export class FundryManager {
         method: "tools/call",
         params: { name: tool, arguments: args },
       }),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     if (!response.ok) {
       throw new Error(`Fundry API error: ${response.status}`);
@@ -207,7 +297,8 @@ export class FundryManager {
 
     const text = await response.text();
     const lines = text.split("\n");
-    const dataLine = lines.find((l) => l.startsWith("data: "));
+    const dataLines = lines.filter((l) => l.startsWith("data: "));
+    const dataLine = dataLines.at(-1);
     if (!dataLine) {
       throw new Error("No data in Fundry SSE response");
     }
@@ -218,10 +309,6 @@ export class FundryManager {
       throw new Error("Empty Fundry response");
     }
 
-    const parsed = JSON.parse(content);
-    return {
-      coinId: parsed.coinId || parsed.coin_id,
-      mint: parsed.mint || parsed.mintAddress,
-    };
+    return JSON.parse(content) as T;
   }
 }

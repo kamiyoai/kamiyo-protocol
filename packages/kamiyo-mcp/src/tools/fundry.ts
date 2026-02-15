@@ -98,9 +98,7 @@ export async function secureLaunchToken(
     }
 
     // Verify agent identity
-    const agentPda = program.pda?.deriveAgentPDA
-      ? program.pda.deriveAgentPDA(program.wallet.publicKey)
-      : null;
+    const agentPda = program.pda?.deriveAgentPDA?.(program.wallet.publicKey)?.[0] ?? null;
 
     if (agentPda) {
       const agent = await program.getAgentAccount?.(agentPda);
