@@ -100,14 +100,14 @@ fn reputation_score_is_bounded() {
     };
 
     kani_solana::bounds::assert_output_bounded(
-        || calculate_reputation_score(&rep),
+        || u64::from(calculate_reputation_score(&rep)),
         0,
         1000,
     );
 
     kani_solana::bounds::assert_default_on_condition(
         || total_transactions == 0,
-        || calculate_reputation_score(&rep),
+        || u64::from(calculate_reputation_score(&rep)),
         500,
     );
 }
