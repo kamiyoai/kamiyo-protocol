@@ -900,6 +900,34 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.28)(lightningcss@1.31.1)(terser@5.46.0)
 
+  packages/kamiyo-eliza-trust-provider:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/sdk':
+        specifier: workspace:*
+        version: link:../kamiyo-sdk
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.2
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.1.5
+        version: 5.2.0
+      '@types/node':
+        specifier: ^20.14.10
+        version: 20.19.28
+      typescript:
+        specifier: ^5.5.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.31.1)(terser@5.46.0)
+
   packages/kamiyo-erc8004:
     dependencies:
       ethers:

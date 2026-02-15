@@ -1,0 +1,88 @@
+{
+  "name": "@kamiyo/eliza-trust-provider",
+  "version": "1.0.0",
+  "description": "KAMIYO on-chain trust bridge for ElizaOS plugin-trust — maps stake, escrow, and oracle data to TrustEvidence",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-eliza-trust-provider"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "KAMIYO_NETWORK": {
+        "type": "string",
+        "description": "Solana network: mainnet, devnet, or localnet",
+        "default": "mainnet"
+      },
+      "SOLANA_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Base64-encoded Solana keypair"
+      },
+      "KAMIYO_TRUST_EVIDENCE_SYNC": {
+        "type": "string",
+        "description": "Sync mode: manual or periodic",
+        "default": "manual"
+      },
+      "KAMIYO_TRUST_SYNC_INTERVAL": {
+        "type": "number",
+        "description": "Periodic sync interval in ms",
+        "default": 300000
+      },
+      "KAMIYO_TRUST_EVIDENCE_WEIGHT": {
+        "type": "number",
+        "description": "Multiplier for KAMIYO evidence impact (0.5 = half weight)",
+        "default": 1.0
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "elizaos",
+    "plugin-trust",
+    "kamiyo",
+    "trust",
+    "reputation",
+    "solana",
+    "escrow",
+    "ai-agents"
+  ],
+  "author": "KAMIYO",
+  "dependencies": {
+    "@kamiyo/sdk": "workspace:*",
+    "@solana/web3.js": "^1.95.8",
+    "@coral-xyz/anchor": "^0.31.1",
+    "bn.js": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {
+    "@elizaos/core": ">=1.0.0",
+    "@elizaos/plugin-trust": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@elizaos/plugin-trust": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
