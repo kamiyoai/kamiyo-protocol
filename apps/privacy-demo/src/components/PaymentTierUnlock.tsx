@@ -30,7 +30,7 @@ export function PaymentTierUnlock({ proof, publicInputs }: Props) {
       bg: "bg-yellow-900/30",
       border: "border-yellow-700",
       limit: "$10,000/day",
-      rails: ["Standard", "ShadowWire", "Blindfold Elite"],
+      rails: ["Standard", "ShadowWire"],
     },
     premium: {
       name: "Premium",
@@ -38,7 +38,7 @@ export function PaymentTierUnlock({ proof, publicInputs }: Props) {
       bg: "bg-purple-900/30",
       border: "border-purple-800",
       limit: "$2,000/day",
-      rails: ["Standard", "ShadowWire", "Blindfold Premium"],
+      rails: ["Standard", "ShadowWire"],
     },
     basic: {
       name: "Basic",
@@ -182,7 +182,7 @@ export function PaymentTierUnlock({ proof, publicInputs }: Props) {
           Use ShadowWire
         </button>
         <button className="flex-1 bg-gradient-to-r from-cyan-600 to-green-600 hover:from-cyan-500 hover:to-green-500 text-white py-3 px-4 rounded-lg font-medium transition">
-          Request Blindfold Card
+          Use Standard Transfer
         </button>
       </div>
     </div>

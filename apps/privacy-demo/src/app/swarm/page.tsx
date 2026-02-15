@@ -132,13 +132,12 @@ export default function SwarmPage() {
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-green-500 rounded-lg flex items-center justify-center text-2xl mb-2">
-                  B
+                  T
                 </div>
-                <span className="text-sm text-gray-400">Blindfold</span>
+                <span className="text-sm text-gray-400">Standard</span>
               </div>
               <div className="flex-1 text-gray-500 text-sm">
-                Reputation proofs unlock ShadowWire private transfers and
-                Blindfold privacy cards with tier-based daily limits.
+                Reputation proofs unlock ShadowWire private transfers with tier-based daily limits.
               </div>
             </div>
           </section>

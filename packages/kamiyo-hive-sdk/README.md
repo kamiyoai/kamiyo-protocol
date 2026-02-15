@@ -4,7 +4,7 @@ Private reputation proofs for AI agents on Solana.
 
 ## Overview
 
-Agents prove reputation thresholds using zero-knowledge proofs without revealing their transaction history or identity. High reputation unlocks private payment rails through ShadowWire and Blindfold.
+Agents prove reputation thresholds using zero-knowledge proofs without revealing their transaction history or identity. High reputation unlocks private payment rails through ShadowWire.
 
 **Core value**: Trust without identity. Services know an agent is reputable without knowing which agent.
 
@@ -105,7 +105,6 @@ const isValid = await client.verifyReputationProof(proof, {
 
 ```typescript
 import { ShadowWireClient } from '@kamiyo/radr';
-import { BlindfoldClient } from '@kamiyo/blindfold';
 
 // Option A: ShadowWire private transfer
 const shadowWire = new ShadowWireClient();
@@ -114,13 +113,6 @@ await shadowWire.privateTransfer({
   token: 'USDC',
   recipient: serviceProvider,
   reputationProof: proof,
-});
-
-// Option B: Blindfold privacy card
-const blindfold = new BlindfoldClient();
-const card = await blindfold.requestCard({
-  reputationProof: proof,
-  requestedTier: 'premium',
 });
 ```
 
@@ -166,7 +158,7 @@ proveAgentIdentity(inputs: IdentityInputs): Promise<Proof>
 |------------|------|-------------|
 | Any | Standard | $100 |
 | ≥70% | ShadowWire basic | $500 |
-| ≥85% | ShadowWire + Blindfold | $2,000 |
+| ≥85% | ShadowWire premium | $2,000 |
 | ≥95% | Elite | $10,000 |
 
 ## Security

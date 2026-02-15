@@ -33,8 +33,6 @@ interface UseTrustGraphResult {
 }
 
 function generateMockData(): { nodes: TrustNode[]; edges: TrustEdge[] } {
-  const tiers: Tier[] = ["platinum", "gold", "silver", "bronze", "unverified"];
-
   const nodes: TrustNode[] = [
     { id: "agent-001", label: "Oracle Agent", tier: "platinum", reputation: 95, txCount: 1247 },
     { id: "agent-002", label: "Data Fetcher", tier: "gold", reputation: 82, txCount: 856 },
