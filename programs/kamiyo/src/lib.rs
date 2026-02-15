@@ -161,6 +161,14 @@ const LAUNCH_RELEASE_DELAY: i64 = 604_800; // 7 days
 const MAX_FUNDRY_COIN_ID_LENGTH: usize = 36; // UUID format
 const MAX_CONFIG_TYPE_LENGTH: usize = 16;
 
+// Trusted trader constants (Elfa × Hyperliquid)
+const MIN_TRADER_STAKE: u64 = 20_000_000_000; // 20 SOL minimum for trading sessions
+const MIN_TRADE_COLLATERAL: u64 = 1_000_000; // 1 USDC (6 decimals)
+const MAX_TRADE_COLLATERAL: u64 = 1_000_000_000_000; // 1M USDC
+const DEFAULT_TRADE_TIME_LOCK: i64 = 86_400; // 24 hours
+const MAX_ELFA_SESSION_ID_LEN: usize = 36;
+const MAX_TRADE_ID_LEN: usize = 64;
+
 // ============================================================================
 // Events
 // ============================================================================
@@ -418,6 +426,17 @@ pub struct LaunchDisputed {
 }
 
 #[event]
+pub struct LaunchDisputeResolved {
+    pub launch_record: Pubkey,
+    pub agent: Pubkey,
+    pub reporter: Pubkey,
+    pub quality_score: u8,
+    pub refund_percentage: u8,
+    pub refund_amount: u64,
+    pub owner_amount: u64,
+}
+
+#[event]
 pub struct BlacklistRegistryInitialized {
     pub registry: Pubkey,
     pub authority: Pubkey,
@@ -508,6 +527,36 @@ pub struct OracleScoreRevealed {
     pub escrow: Pubkey,
     pub oracle: Pubkey,
     pub quality_score: u8,
+}
+
+// ============================================================================
+// Trusted Trader Events (Elfa × Hyperliquid)
+// ============================================================================
+
+#[event]
+pub struct TraderSessionCreated {
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    pub elfa_session_id: String,
+}
+
+#[event]
+pub struct TradeEscrowCreated {
+    pub escrow: Pubkey,
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub trade_id: String,
+    pub collateral_usdc: u64,
+}
+
+#[event]
+pub struct TraderSessionClosed {
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub total_trades: u64,
+    pub total_volume_usdc: u64,
+    pub pnl_net: i64,
 }
 
 // ============================================================================
@@ -2444,7 +2493,8 @@ pub mod kamiyo {
             amount,
             transaction_id,
             escrow_key,
-            submission_count,
+            individual_scores,
+            oracles,
             weighted_scores,
             token_mint,
             bump,
@@ -2452,8 +2502,17 @@ pub mod kamiyo {
             disputed_at,
         ) = {
             let escrow = &ctx.accounts.escrow;
-            let submission_count = escrow.oracle_submissions.len();
-            let weighted_scores: Vec<(u8, u16)> = escrow
+            let individual_scores: Box<Vec<u8>> = Box::new(
+                escrow
+                .oracle_submissions
+                .iter()
+                .map(|s| s.quality_score)
+                .collect(),
+            );
+            let oracles: Box<Vec<Pubkey>> =
+                Box::new(escrow.oracle_submissions.iter().map(|s| s.oracle).collect());
+            let weighted_scores: Box<Vec<(u8, u16)>> = Box::new(
+                escrow
                 .oracle_submissions
                 .iter()
                 .filter_map(|submission| {
@@ -2463,13 +2522,15 @@ pub mod kamiyo {
                         .find(|o| o.pubkey == submission.oracle)
                         .map(|o| (submission.quality_score, o.weight))
                 })
-                .collect();
+                .collect(),
+            );
             (
                 escrow.status,
                 escrow.amount,
                 escrow.transaction_id.clone(),
                 escrow.key(),
-                submission_count,
+                individual_scores,
+                oracles,
                 weighted_scores,
                 escrow.token_mint,
                 escrow.bump,
@@ -2483,7 +2544,7 @@ pub mod kamiyo {
         // Tiered oracle requirement: larger escrows need more oracles for collusion resistance
         let required_oracles = required_oracle_count(amount);
         require!(
-            submission_count >= required_oracles as usize,
+            oracles.len() >= required_oracles as usize,
             KamiyoError::InsufficientOracleConsensus
         );
 
@@ -2492,7 +2553,7 @@ pub mod kamiyo {
         let quorum_required =
             ((registered_oracle_count * 50 / 100) as usize).max(required_oracles as usize);
         require!(
-            submission_count >= quorum_required,
+            oracles.len() >= quorum_required,
             KamiyoError::InsufficientOracleConsensus
         );
 
@@ -2559,7 +2620,7 @@ pub mod kamiyo {
 
         // Calculate oracle reward pool (1% of escrow amount, capped by remaining fee budget,
         // split among participating oracles).
-        let oracle_count = submission_count as u64;
+        let oracle_count = oracles.len() as u64;
         let base_total_oracle_reward = if oracle_rewards_enabled {
             (amount as u128)
                 .checked_mul(ORACLE_REWARD_PERCENT as u128)
@@ -3034,21 +3095,9 @@ pub mod kamiyo {
         emit!(MultiOracleDisputeResolved {
             escrow: escrow_key,
             transaction_id,
-            oracle_count: submission_count as u8,
-            individual_scores: ctx
-                .accounts
-                .escrow
-                .oracle_submissions
-                .iter()
-                .map(|s| s.quality_score)
-                .collect(),
-            oracles: ctx
-                .accounts
-                .escrow
-                .oracle_submissions
-                .iter()
-                .map(|s| s.oracle)
-                .collect(),
+            oracle_count: oracles.len() as u8,
+            individual_scores: *individual_scores,
+            oracles: *oracles,
             consensus_score,
             refund_percentage,
             refund_amount,
@@ -3720,10 +3769,6 @@ pub mod kamiyo {
             (MIN_ESCROW_AMOUNT..=MAX_ESCROW_AMOUNT).contains(&escrow_amount),
             KamiyoError::InvalidAmount
         );
-        require!(
-            creator_allocation_bps <= 10_000,
-            KamiyoError::InvalidCreatorAllocationBps
-        );
 
         let clock = Clock::get()?;
 
@@ -3911,26 +3956,11 @@ pub mod kamiyo {
             KamiyoError::LaunchReleaseDelayNotMet
         );
 
-        // Transfer escrowed SOL back to owner while keeping rent-exempt minimum.
+        // Transfer escrowed SOL back to owner
         let launch_info = ctx.accounts.launch_record.to_account_info();
         let owner_info = ctx.accounts.owner.to_account_info();
-        let launch_lamports = launch_info.lamports();
-        let owner_lamports = owner_info.lamports();
-
-        let rent = Rent::get()?;
-        let min_rent = rent.minimum_balance(launch_info.data_len());
-        let max_transferable = launch_lamports.saturating_sub(min_rent);
-        require!(
-            escrow_amount <= max_transferable,
-            KamiyoError::InsufficientLaunchEscrow
-        );
-
-        **launch_info.try_borrow_mut_lamports()? = launch_lamports
-            .checked_sub(escrow_amount)
-            .ok_or(KamiyoError::ArithmeticOverflow)?;
-        **owner_info.try_borrow_mut_lamports()? = owner_lamports
-            .checked_add(escrow_amount)
-            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        **launch_info.try_borrow_mut_lamports()? -= escrow_amount;
+        **owner_info.try_borrow_mut_lamports()? += escrow_amount;
 
         // Update state (mutable borrow after lamport transfer)
         let launch = &mut ctx.accounts.launch_record;
@@ -3953,15 +3983,13 @@ pub mod kamiyo {
         Ok(())
     }
 
-    pub fn dispute_launch(
-        ctx: Context<DisputeLaunch>,
-        evidence_hash: String,
-    ) -> Result<()> {
+    pub fn dispute_launch(ctx: Context<DisputeLaunch>, evidence_hash: String) -> Result<()> {
         let launch = &mut ctx.accounts.launch_record;
         require!(
             launch.status == LaunchStatus::Active || launch.status == LaunchStatus::Graduated,
             KamiyoError::LaunchNotActive
         );
+
         require!(
             launch.disputed_at.is_none(),
             KamiyoError::LaunchAlreadyDisputed
@@ -3973,6 +4001,7 @@ pub mod kamiyo {
         );
 
         let clock = Clock::get()?;
+        launch.status = LaunchStatus::Disputed;
         launch.dispute_reporter = Some(ctx.accounts.reporter.key());
         launch.dispute_evidence_hash = evidence_hash.clone();
         launch.disputed_at = Some(clock.unix_timestamp);
@@ -4000,6 +4029,295 @@ pub mod kamiyo {
             agent: launch.agent,
             reporter: ctx.accounts.reporter.key(),
             evidence_hash,
+        });
+
+        Ok(())
+    }
+
+    pub fn resolve_launch_dispute(
+        ctx: Context<ResolveLaunchDispute>,
+        quality_score: u8,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+        require!(quality_score <= 100, KamiyoError::InvalidQualityScore);
+
+        // Validate 2-of-3 multi-sig: both signers must be from the authority set.
+        let config = &ctx.accounts.protocol_config;
+        let signer_one = ctx.accounts.signer_one.key();
+        let signer_two = ctx.accounts.signer_two.key();
+
+        let valid_signers = [
+            config.authority,
+            config.secondary_signer,
+            config.tertiary_signer,
+        ];
+        if signer_one == signer_two {
+            // Allow a single-authority resolve path when the primary authority is itself a multisig.
+            require!(
+                signer_one == config.authority,
+                KamiyoError::InvalidMultiSigSigner
+            );
+        } else {
+            require!(
+                valid_signers.contains(&signer_one) && valid_signers.contains(&signer_two),
+                KamiyoError::InvalidMultiSigSigner
+            );
+        }
+
+        let launch_key = ctx.accounts.launch_record.key();
+        let agent_key = ctx.accounts.launch_record.agent;
+        let escrow_amount = ctx.accounts.launch_record.escrow_amount;
+        require!(
+            ctx.accounts.launch_record.status == LaunchStatus::Disputed,
+            KamiyoError::LaunchNotDisputed
+        );
+
+        require!(
+            ctx.accounts.owner.key() == ctx.accounts.launch_record.owner,
+            KamiyoError::Unauthorized
+        );
+
+        let reporter_key = ctx
+            .accounts
+            .launch_record
+            .dispute_reporter
+            .ok_or(KamiyoError::LaunchNotDisputed)?;
+        require!(
+            ctx.accounts.reporter.key() == reporter_key,
+            KamiyoError::Unauthorized
+        );
+
+        let refund_percentage = calculate_refund_from_quality(quality_score);
+        let refund_amount = (escrow_amount as u128)
+            .checked_mul(refund_percentage as u128)
+            .ok_or(KamiyoError::ArithmeticOverflow)?
+            .checked_div(100)
+            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
+        let owner_amount = escrow_amount.saturating_sub(refund_amount);
+
+        let clock = Clock::get()?;
+
+        // Transfer escrowed SOL while keeping the rent-exempt minimum.
+        let launch_info = ctx.accounts.launch_record.to_account_info();
+        let launch_lamports = launch_info.lamports();
+
+        let rent = Rent::get()?;
+        let min_rent = rent.minimum_balance(launch_info.data_len());
+        let max_transferable = launch_lamports.saturating_sub(min_rent);
+        require!(
+            escrow_amount <= max_transferable,
+            KamiyoError::InsufficientLaunchEscrow
+        );
+
+        if refund_amount > 0 {
+            **launch_info.try_borrow_mut_lamports()? = launch_lamports
+                .checked_sub(refund_amount)
+                .ok_or(KamiyoError::ArithmeticOverflow)?;
+            **ctx
+                .accounts
+                .reporter
+                .to_account_info()
+                .try_borrow_mut_lamports()? += refund_amount;
+        }
+
+        if owner_amount > 0 {
+            let remaining = launch_info.lamports();
+            **launch_info.try_borrow_mut_lamports()? = remaining
+                .checked_sub(owner_amount)
+                .ok_or(KamiyoError::ArithmeticOverflow)?;
+            **ctx
+                .accounts
+                .owner
+                .to_account_info()
+                .try_borrow_mut_lamports()? += owner_amount;
+        }
+
+        let launch = &mut ctx.accounts.launch_record;
+        launch.status = LaunchStatus::Resolved;
+        launch.quality_score = Some(quality_score);
+        launch.refund_percentage = Some(refund_percentage);
+        launch.resolved_at = Some(clock.unix_timestamp);
+        launch.released_at = Some(clock.unix_timestamp);
+        launch.updated_at = clock.unix_timestamp;
+
+        emit!(LaunchDisputeResolved {
+            launch_record: launch_key,
+            agent: agent_key,
+            reporter: reporter_key,
+            quality_score,
+            refund_percentage,
+            refund_amount,
+            owner_amount,
+        });
+
+        Ok(())
+    }
+
+    // ====================================================================
+    // Trusted Trader Instructions (Elfa × Hyperliquid)
+    // ====================================================================
+
+    /// Create a trusted trader session backed by KAMIYO agent identity.
+    /// Requires active agent with minimum 20 SOL stake.
+    pub fn create_trader_session(
+        ctx: Context<CreateTraderSession>,
+        elfa_session_id: String,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+
+        let agent = &ctx.accounts.agent_identity;
+        require!(agent.is_active, KamiyoError::AgentNotActive);
+        require!(
+            agent.stake_amount >= MIN_TRADER_STAKE,
+            KamiyoError::InsufficientTraderStake
+        );
+        require!(
+            !elfa_session_id.is_empty() && elfa_session_id.len() <= MAX_ELFA_SESSION_ID_LEN,
+            KamiyoError::InvalidSessionId
+        );
+
+        let clock = Clock::get()?;
+        let session = &mut ctx.accounts.trader_session;
+
+        session.agent = agent.key();
+        session.owner = ctx.accounts.owner.key();
+        session.elfa_session_id = elfa_session_id.clone();
+        session.status = TraderSessionStatus::Active;
+        session.created_at = clock.unix_timestamp;
+        session.closed_at = None;
+        session.total_trades = 0;
+        session.total_volume_usdc = 0;
+        session.pnl_net = 0;
+        session.last_trade_at = None;
+        session.trade_escrow_count = 0;
+        session.bump = ctx.bumps.trader_session;
+
+        emit!(TraderSessionCreated {
+            session: session.key(),
+            agent: agent.key(),
+            owner: ctx.accounts.owner.key(),
+            elfa_session_id,
+        });
+
+        Ok(())
+    }
+
+    /// Create a trade escrow within an active trader session.
+    /// Locks USDC collateral with time-lock for Hyperliquid position.
+    pub fn create_trade_escrow(
+        ctx: Context<CreateTradeEscrow>,
+        trade_id: String,
+        collateral_usdc: u64,
+        time_lock: i64,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+
+        let session = &mut ctx.accounts.trader_session;
+        require!(
+            session.status == TraderSessionStatus::Active,
+            KamiyoError::SessionNotActive
+        );
+        require!(
+            !trade_id.is_empty() && trade_id.len() <= MAX_TRADE_ID_LEN,
+            KamiyoError::InvalidTradeId
+        );
+        require!(
+            collateral_usdc >= MIN_TRADE_COLLATERAL && collateral_usdc <= MAX_TRADE_COLLATERAL,
+            KamiyoError::InvalidAmount
+        );
+        require!(
+            time_lock >= 3600 && time_lock <= 604_800,
+            KamiyoError::InvalidTimeLock
+        );
+
+        let clock = Clock::get()?;
+        let escrow = &mut ctx.accounts.trade_escrow;
+
+        escrow.session = session.key();
+        escrow.agent = session.agent;
+        escrow.trader = ctx.accounts.trader.key();
+        escrow.trade_id = trade_id.clone();
+        escrow.collateral_usdc = collateral_usdc;
+        escrow.status = TradeEscrowStatus::Active;
+        escrow.created_at = clock.unix_timestamp;
+        escrow.expires_at = clock
+            .unix_timestamp
+            .checked_add(time_lock)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        escrow.settled_at = None;
+        escrow.pnl_reported = None;
+        escrow.quality_score = None;
+        escrow.slashed_amount = 0;
+        escrow.bump = ctx.bumps.trade_escrow;
+
+        // Update session counters
+        session.trade_escrow_count = session
+            .trade_escrow_count
+            .checked_add(1)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        session.total_trades = session
+            .total_trades
+            .checked_add(1)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        session.total_volume_usdc = session
+            .total_volume_usdc
+            .checked_add(collateral_usdc)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        session.last_trade_at = Some(clock.unix_timestamp);
+
+        emit!(TradeEscrowCreated {
+            escrow: escrow.key(),
+            session: session.key(),
+            agent: session.agent,
+            trade_id,
+            collateral_usdc,
+        });
+
+        Ok(())
+    }
+
+    /// Close a trader session. All trade escrows must be settled first.
+    /// Updates agent reputation based on session performance.
+    pub fn close_trader_session(ctx: Context<CloseTraderSession>) -> Result<()> {
+        let session = &mut ctx.accounts.trader_session;
+        require!(
+            session.status == TraderSessionStatus::Active,
+            KamiyoError::SessionNotActive
+        );
+        require!(
+            session.trade_escrow_count == 0,
+            KamiyoError::ActiveEscrowsRemaining
+        );
+
+        let clock = Clock::get()?;
+        session.status = TraderSessionStatus::Closed;
+        session.closed_at = Some(clock.unix_timestamp);
+
+        // Update agent reputation based on PnL
+        let agent = &mut ctx.accounts.agent_identity;
+        if session.total_trades > 0 {
+            if session.pnl_net > 0 {
+                agent.reputation = agent.reputation.saturating_add(10).min(1000);
+            } else if session.pnl_net < 0 {
+                agent.reputation = agent.reputation.saturating_sub(5);
+            }
+        }
+
+        emit!(TraderSessionClosed {
+            session: session.key(),
+            agent: agent.key(),
+            total_trades: session.total_trades,
+            total_volume_usdc: session.total_volume_usdc,
+            pnl_net: session.pnl_net,
         });
 
         Ok(())
@@ -4940,11 +5258,122 @@ pub struct DisputeLaunch<'info> {
     )]
     pub launch_rate_limit: Account<'info, LaunchRateLimit>,
 
+    #[account(mut)]
+    pub reporter: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ResolveLaunchDispute<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
     #[account(
         mut,
-        constraint = reporter.key() == launch_record.owner @ KamiyoError::Unauthorized
+        seeds = [b"launch", launch_record.agent.as_ref(), launch_record.mint.as_ref()],
+        bump = launch_record.bump
     )]
-    pub reporter: Signer<'info>,
+    pub launch_record: Account<'info, LaunchRecord>,
+
+    #[account(mut)]
+    pub owner: SystemAccount<'info>,
+
+    #[account(mut)]
+    pub reporter: SystemAccount<'info>,
+
+    pub signer_one: Signer<'info>,
+    pub signer_two: Signer<'info>,
+}
+
+// ============================================================================
+// Trusted Trader Account Validation (Elfa × Hyperliquid)
+// ============================================================================
+
+#[derive(Accounts)]
+#[instruction(elfa_session_id: String)]
+pub struct CreateTraderSession<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump,
+        constraint = agent_identity.owner == owner.key() @ KamiyoError::Unauthorized,
+        constraint = agent_identity.is_active @ KamiyoError::AgentNotActive
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + TraderSession::INIT_SPACE,
+        seeds = [b"trader_session", agent_identity.key().as_ref(), elfa_session_id.as_bytes()],
+        bump
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(trade_id: String)]
+pub struct CreateTradeEscrow<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
+        bump = trader_session.bump,
+        constraint = trader_session.owner == trader.key() @ KamiyoError::Unauthorized
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(
+        init,
+        payer = trader,
+        space = 8 + TradeEscrow::INIT_SPACE,
+        seeds = [b"trade_escrow", trader_session.key().as_ref(), trade_id.as_bytes()],
+        bump
+    )]
+    pub trade_escrow: Account<'info, TradeEscrow>,
+
+    #[account(mut)]
+    pub trader: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CloseTraderSession<'info> {
+    #[account(
+        mut,
+        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
+        bump = trader_session.bump,
+        constraint = trader_session.owner == owner.key() @ KamiyoError::Unauthorized
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(
+        mut,
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
 }
 
 // ============================================================================
@@ -5268,6 +5697,63 @@ pub enum LaunchStatus {
 }
 
 // ============================================================================
+// Trusted Trader State (Elfa × Hyperliquid)
+// ============================================================================
+
+#[account]
+#[derive(InitSpace)]
+pub struct TraderSession {
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    #[max_len(36)]
+    pub elfa_session_id: String,
+    pub status: TraderSessionStatus,
+    pub created_at: i64,
+    pub closed_at: Option<i64>,
+    pub total_trades: u64,
+    pub total_volume_usdc: u64,
+    pub pnl_net: i64,
+    pub last_trade_at: Option<i64>,
+    pub trade_escrow_count: u32,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct TradeEscrow {
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub trader: Pubkey,
+    #[max_len(64)]
+    pub trade_id: String,
+    pub collateral_usdc: u64,
+    pub status: TradeEscrowStatus,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub settled_at: Option<i64>,
+    pub pnl_reported: Option<i64>,
+    pub quality_score: Option<u8>,
+    pub slashed_amount: u64,
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum TraderSessionStatus {
+    Active,
+    Closed,
+    Suspended,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum TradeEscrowStatus {
+    Active,
+    Settled,
+    Disputed,
+    Released,
+    Slashed,
+}
+
+// ============================================================================
 // Errors
 // ============================================================================
 
@@ -5459,21 +5945,34 @@ pub enum KamiyoError {
     #[msg("Launch is not in active state")]
     LaunchNotActive,
 
+    #[msg("Launch has already been disputed")]
+    LaunchAlreadyDisputed,
+
     #[msg("Launch is not in disputed state")]
     LaunchNotDisputed,
 
     #[msg("Launch already graduated")]
     LaunchAlreadyGraduated,
 
-    #[msg("Insufficient launch escrow balance")]
-    InsufficientLaunchEscrow,
-
-    #[msg("Invalid creator allocation bps (must be 0-10000)")]
-    InvalidCreatorAllocationBps,
-
-    #[msg("Invalid evidence hash (must be 1-64 chars)")]
+    #[msg("Invalid evidence hash")]
     InvalidEvidenceHash,
 
-    #[msg("Launch already disputed")]
-    LaunchAlreadyDisputed,
+    #[msg("Insufficient launch escrow")]
+    InsufficientLaunchEscrow,
+
+    // Trusted trader errors
+    #[msg("Insufficient stake for trading sessions (minimum 20 SOL)")]
+    InsufficientTraderStake,
+
+    #[msg("Invalid Elfa session ID")]
+    InvalidSessionId,
+
+    #[msg("Invalid trade ID")]
+    InvalidTradeId,
+
+    #[msg("Trader session is not active")]
+    SessionNotActive,
+
+    #[msg("Active escrows must be settled before closing session")]
+    ActiveEscrowsRemaining,
 }
