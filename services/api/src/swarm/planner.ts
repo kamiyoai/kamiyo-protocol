@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ContentBlock } from '@anthropic-ai/sdk/resources/messages';
+import OpenAI from 'openai';
 import { validateDag } from './dag';
 import type { SwarmDagNode, SwarmDagPlan, SwarmTeamMember } from './types';
 
@@ -167,10 +168,8 @@ export async function planDag(
 ): Promise<SwarmDagPlan> {
   const maxNodes = clamp(options?.maxNodes ?? DEFAULT_MAX_NODES, 1, HARD_MAX_NODES);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return heuristicDagPlan(mission, members, { maxNodes });
-
-  const client = new Anthropic({ apiKey });
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
 
   const membersList = members
     .map((m) => `- memberId: ${m.id} | agentId: ${m.agentId} | role: ${m.role || 'member'} | drawLimit: ${m.drawLimit}`)
@@ -197,23 +196,71 @@ export async function planDag(
     membersList,
   ].join('\n');
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1500,
-    system,
-    messages: [{ role: 'user', content: user }],
-  });
+  const tryAnthropic = async (): Promise<SwarmDagPlan> => {
+    if (!anthropicKey) throw new Error('missing ANTHROPIC_API_KEY');
+    const client = new Anthropic({ apiKey: anthropicKey });
 
-  const text = response.content
-    .filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text')
-    .map((b) => b.text)
-    .join('\n')
-    .trim();
+    const response = await client.messages.create({
+      model: process.env.SWARM_ANTHROPIC_PLANNER_MODEL || process.env.SWARM_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system,
+      messages: [{ role: 'user', content: user }],
+    });
 
-  try {
-    const parsed = extractJson(text);
-    return sanitizeDagPlan(parsed, members, mission, { maxNodes });
-  } catch {
-    return heuristicDagPlan(mission, members, { maxNodes });
+    const text = response.content
+      .filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n')
+      .trim();
+
+    try {
+      const parsed = extractJson(text);
+      return sanitizeDagPlan(parsed, members, mission, { maxNodes });
+    } catch {
+      return heuristicDagPlan(mission, members, { maxNodes });
+    }
+  };
+
+  const tryOpenAI = async (): Promise<SwarmDagPlan> => {
+    if (!openaiKey) throw new Error('missing OPENAI_API_KEY');
+    const client = new OpenAI({ apiKey: openaiKey });
+
+    const response = await client.chat.completions.create({
+      model: process.env.SWARM_OPENAI_PLANNER_MODEL || process.env.SWARM_OPENAI_MODEL || 'gpt-4o-mini',
+      max_tokens: 1500,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    });
+
+    const text = response.choices[0]?.message?.content?.trim() ?? '';
+    if (!text) return heuristicDagPlan(mission, members, { maxNodes });
+
+    try {
+      const parsed = extractJson(text);
+      return sanitizeDagPlan(parsed, members, mission, { maxNodes });
+    } catch {
+      return heuristicDagPlan(mission, members, { maxNodes });
+    }
+  };
+
+  if (anthropicKey) {
+    try {
+      return await tryAnthropic();
+    } catch {
+      // fall through
+    }
   }
+
+  if (openaiKey) {
+    try {
+      return await tryOpenAI();
+    } catch {
+      // fall through
+    }
+  }
+
+  return heuristicDagPlan(mission, members, { maxNodes });
 }
