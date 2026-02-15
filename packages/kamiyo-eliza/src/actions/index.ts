@@ -32,3 +32,8 @@ export {
   getPublisherReputationAction,
   dkgQualityActions,
 } from './dkg-quality';
+
+// Trust bridge actions (ElizaOS plugin-trust integration)
+export { recordKamiyoTrustEventAction } from './recordKamiyoTrustEvent';
+export { requireKamiyoStakeAction } from './requireKamiyoStake';
+export { createTrustedEscrowAction } from './createTrustedEscrow';

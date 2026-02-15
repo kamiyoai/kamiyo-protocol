@@ -15,9 +15,12 @@ import {
   verifyReputationProofAction,
   updateReputationAction,
   dkgQualityActions,
+  recordKamiyoTrustEventAction,
+  requireKamiyoStakeAction,
+  createTrustedEscrowAction,
 } from './actions';
 import { walletProvider, escrowProvider, reputationProvider } from './providers';
-import { qualityEvaluator, trustEvaluator } from './evaluators';
+import { qualityEvaluator, trustEvaluator, kamiyoTrustBridgeEvaluator } from './evaluators';
 import { escrowMonitorService } from './services';
 
 export const kamiyoPlugin: Plugin = {
@@ -42,9 +45,13 @@ export const kamiyoPlugin: Plugin = {
     updateReputationAction,
     // DKG Quality Oracle (OriginTrail integration)
     ...dkgQualityActions,
+    // Trust bridge (ElizaOS plugin-trust integration)
+    recordKamiyoTrustEventAction,
+    requireKamiyoStakeAction,
+    createTrustedEscrowAction,
   ],
   providers: [walletProvider, escrowProvider, reputationProvider],
-  evaluators: [qualityEvaluator, trustEvaluator],
+  evaluators: [qualityEvaluator, trustEvaluator, kamiyoTrustBridgeEvaluator],
   services: [escrowMonitorService],
 };
 
