@@ -131,6 +131,7 @@ function loadRunDetail(teamId: string, runId: string) {
   `).all(runId) as Array<any>;
 
   return {
+    runId: run.id,
     id: run.id,
     teamId: run.team_id,
     mission: run.mission,
@@ -733,6 +734,7 @@ router.get('/runs', (req: Request, res: Response) => {
 
   res.json({
     runs: rows.map((r) => ({
+      runId: r.id,
       id: r.id,
       mission: r.mission,
       status: r.status,
