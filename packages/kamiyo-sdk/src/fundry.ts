@@ -71,9 +71,9 @@ export class FundryManager {
       programId: config.programId,
     });
 
-    this.fundryEndpoint = (
-      config.fundryMcpEndpoint ?? 'https://fundry.collaterize.com/api/mcp/mcp'
-    ).replace(/\/+$|\s+/g, '');
+    this.fundryEndpoint = (config.fundryMcpEndpoint ?? 'https://fundry.collaterize.com/api/mcp/mcp')
+      .trim()
+      .replace(/\/+$/, '');
   }
 
   async secureLaunch(params: SecureLaunchParams): Promise<SecureLaunchResult> {
@@ -185,6 +185,14 @@ export class FundryManager {
       };
     }
 
+    if (!fundryCoinId) {
+      return {
+        success: false,
+        fundryTxSignature,
+        warning,
+        error: 'Fundry response missing coinId',
+      };
+    }
     const escrowLamports = new BN(Math.floor(escrowSol * LAMPORTS_PER_SOL));
     const mint = new PublicKey(mintAddress);
     const migrationTarget = new BN(
@@ -194,7 +202,7 @@ export class FundryManager {
     try {
       const txSignature = await this.client.createTrustedLaunch({
         mint,
-        fundryCoinId: fundryCoinId!,
+        fundryCoinId,
         configType: params.configType,
         escrowAmount: escrowLamports,
         migrationTargetSol: migrationTarget,
