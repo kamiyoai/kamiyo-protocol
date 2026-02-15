@@ -9,6 +9,7 @@
 ///
 /// Returns `(h_num, h_den)` where `h = h_num / h_den`.
 /// When `pnl_pos_total == 0` there are no profitable accounts, so `h = 1`.
+#[must_use]
 pub fn haircut_ratio(
     vault: u128,
     principal_total: u128,
@@ -27,6 +28,12 @@ pub fn haircut_ratio(
 /// Effective positive PnL for one account after haircut.
 ///
 /// Negative PnL is untouched (returned as 0); positive PnL is scaled by `h`.
+///
+/// Contract:
+/// - Callers should pass `h_den > 0` and `h_num <= h_den` (as produced by `haircut_ratio`).
+/// - If `h_den == 0`, this returns 0 to avoid division-by-zero.
+/// - If `h_num > h_den`, it is clamped to `h_den`.
+#[must_use]
 pub fn effective_pnl(pnl_i: i128, h_num: u128, h_den: u128) -> u128 {
     let pos = pnl_i.max(0) as u128;
     if pos == 0 || h_den == 0 {
@@ -54,6 +61,7 @@ pub fn effective_pnl(pnl_i: i128, h_num: u128, h_den: u128) -> u128 {
 /// Returns the fraction of `gross_profit` that is "warmed" (eligible for withdrawal),
 /// as `warmed = gross_profit * elapsed / warmup_period` (floored).
 /// Clamped so `elapsed >= warmup_period` yields the full amount.
+#[must_use]
 pub fn warmup_slope(gross_profit: u128, elapsed: u64, warmup_period: u64) -> u128 {
     if warmup_period == 0 || elapsed >= warmup_period {
         gross_profit
@@ -70,6 +78,7 @@ pub fn warmup_slope(gross_profit: u128, elapsed: u64, warmup_period: u64) -> u12
 /// computes how much is swept (paid) and the remaining debt.
 ///
 /// Returns `(swept, remaining_debt)`.
+#[must_use]
 pub fn fee_debt_sweep(fee_debt: u128, available: u128) -> (u128, u128) {
     let swept = fee_debt.min(available);
     (swept, fee_debt - swept)
@@ -80,6 +89,7 @@ pub fn fee_debt_sweep(fee_debt: u128, available: u128) -> (u128, u128) {
 ///
 /// Positive return = account pays; negative = account receives.
 /// Uses integer math: `payment = position * rate_num / rate_den`.
+#[must_use]
 pub fn funding_payment(position: u128, rate_num: i128, rate_den: u128, is_long: bool) -> i128 {
     if position == 0 || rate_num == 0 || rate_den == 0 {
         return 0;
@@ -115,6 +125,7 @@ pub fn funding_payment(position: u128, rate_num: i128, rate_den: u128, is_long: 
 /// and updated insurance fund.
 ///
 /// Returns `(writeoff, new_insurance)` where writeoff is capped by insurance.
+#[must_use]
 pub fn loss_writeoff(negative_equity: u128, insurance: u128) -> (u128, u128) {
     let writeoff = negative_equity.min(insurance);
     (writeoff, insurance - writeoff)
