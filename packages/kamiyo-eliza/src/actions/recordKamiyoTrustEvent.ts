@@ -32,7 +32,7 @@ export const recordKamiyoTrustEventAction: Action = {
 
   async handler(
     runtime: IAgentRuntime,
-    _message: Memory,
+    message: Memory,
     _state?: State,
     _options?: Record<string, unknown>,
     callback?: HandlerCallback
@@ -101,7 +101,7 @@ export const recordKamiyoTrustEventAction: Action = {
         impact: clampImpact(8 * weight),
         description: 'Agent registered on KAMIYO with on-chain identity',
         metadata: { source: 'kamiyo-on-chain', reputation },
-        context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+        context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain', action: recordKamiyoTrustEventAction.name, roomId: message.roomId },
       }));
 
       // Escrow success evidence
@@ -114,7 +114,7 @@ export const recordKamiyoTrustEventAction: Action = {
           impact: scaled,
           description: `${successful} escrows released successfully`,
           metadata: { source: 'kamiyo-on-chain', count: successful, total },
-          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain', action: recordKamiyoTrustEventAction.name, roomId: message.roomId },
         }));
       }
 
@@ -128,7 +128,7 @@ export const recordKamiyoTrustEventAction: Action = {
           impact: scaled,
           description: `${disputed} escrows disputed`,
           metadata: { source: 'kamiyo-on-chain', count: disputed, total },
-          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain', action: recordKamiyoTrustEventAction.name, roomId: message.roomId },
         }));
       }
 
@@ -141,7 +141,7 @@ export const recordKamiyoTrustEventAction: Action = {
           impact: scaled,
           description: `${disputesWon} disputes resolved in favor`,
           metadata: { source: 'kamiyo-on-chain', count: disputesWon },
-          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain', action: recordKamiyoTrustEventAction.name, roomId: message.roomId },
         }));
       }
 
@@ -150,11 +150,11 @@ export const recordKamiyoTrustEventAction: Action = {
         evidenceRecords.push(makeInteraction({
           sourceEntityId,
           targetEntityId,
-          type: 'INCONSISTENCY',
+          type: 'INCONSISTENT_BEHAVIOR',
           impact: scaled,
           description: `${disputesLost} disputes lost`,
           metadata: { source: 'kamiyo-on-chain', count: disputesLost },
-          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain', action: recordKamiyoTrustEventAction.name, roomId: message.roomId },
         }));
       }
 

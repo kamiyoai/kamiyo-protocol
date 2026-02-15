@@ -9,6 +9,7 @@ import type {
   KamiyoNetwork,
 } from '../types';
 import { EVIDENCE_MAP, NETWORKS } from '../types';
+import { parseSecretKey } from '../utils/secretKey';
 
 /** Snapshot of on-chain agent state for diff-based evidence generation */
 interface AgentSnapshot {
@@ -26,11 +27,11 @@ interface AgentSnapshot {
 
 /**
  * KamiyoTrustEvidenceBridge — the core service bridging KAMIYO on-chain data
- * into plugin-trust's TrustEvidence system.
+ * into plugin-trust's TrustInteraction system.
  *
  * On start: grabs TrustEngine via runtime.getService('trust-engine').
  * On sync: diffs current on-chain state against last snapshot, generates
- * TrustEvidence records for changes, and pushes them via recordInteraction().
+ * TrustInteraction records for changes, and pushes them via recordInteraction().
  *
  * Gracefully degrades if plugin-trust is not installed.
  */
@@ -42,6 +43,7 @@ export class KamiyoTrustEvidenceBridge implements Service {
   private trustEngine: TrustEngineService | null = null;
   private recordInteraction: ((interaction: TrustInteraction) => Promise<void>) | null = null;
   private syncInterval: ReturnType<typeof setInterval> | null = null;
+  private attachPromise: Promise<void> | null = null;
 
   async start(runtime: IAgentRuntime): Promise<void> {
     this.runtime = runtime;
@@ -51,19 +53,40 @@ export class KamiyoTrustEvidenceBridge implements Service {
     // Start periodic sync if configured
     const syncMode = runtime.getSetting('KAMIYO_TRUST_EVIDENCE_SYNC') || 'manual';
     if (syncMode === 'periodic') {
-      const interval = parseInt(runtime.getSetting('KAMIYO_TRUST_SYNC_INTERVAL') || '300000', 10);
-      this.syncInterval = setInterval(() => this.syncOnChainEvidence().catch(() => {}), interval);
+      const raw = parseInt(runtime.getSetting('KAMIYO_TRUST_SYNC_INTERVAL') || '300000', 10);
+      const interval = clampIntervalMs(Number.isFinite(raw) ? raw : 300_000);
+      this.syncInterval = setInterval(() => this.runPeriodicSync().catch(() => {}), interval);
     }
   }
 
   private async attachTrustEngine(runtime: IAgentRuntime): Promise<void> {
+    if (this.attachPromise) return this.attachPromise;
+
+    this.attachPromise = (async () => {
+      try {
+        const engine = await resolveTrustEngine(runtime);
+        if (!engine) return;
+        this.trustEngine = engine as TrustEngineService;
+        this.recordInteraction = resolveRecordInteraction(engine);
+      } catch {
+        // plugin-trust not installed — graceful degradation
+      } finally {
+        this.attachPromise = null;
+      }
+    })();
+
+    return this.attachPromise;
+  }
+
+  private async runPeriodicSync(): Promise<void> {
+    if (!this.runtime) return;
+
     try {
-      const engine = await resolveTrustEngine(runtime);
-      if (!engine) return;
-      this.trustEngine = engine as TrustEngineService;
-      this.recordInteraction = resolveRecordInteraction(engine);
-    } catch {
-      // plugin-trust not installed — graceful degradation
+      await this.syncOnChainEvidence();
+      await this.runtime.setState?.('kamiyoTrustLastSyncError', null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'unknown error';
+      await this.runtime.setState?.('kamiyoTrustLastSyncError', { at: Date.now(), error: message });
     }
   }
 
@@ -75,6 +98,7 @@ export class KamiyoTrustEvidenceBridge implements Service {
     this.runtime = null;
     this.trustEngine = null;
     this.recordInteraction = null;
+    this.attachPromise = null;
   }
 
   /** Whether plugin-trust's TrustEngine is available */
@@ -91,6 +115,10 @@ export class KamiyoTrustEvidenceBridge implements Service {
    */
   async syncOnChainEvidence(entityId?: string): Promise<TrustInteraction[]> {
     if (!this.runtime) return [];
+
+    if (!this.recordInteraction) {
+      await this.attachTrustEngine(this.runtime);
+    }
 
     const onChain = await this.fetchOnChainState(entityId);
     if (!onChain) return [];
@@ -147,6 +175,12 @@ export class KamiyoTrustEvidenceBridge implements Service {
 
     // Save snapshot for next diff
     await this.runtime.setState?.(stateKey, current);
+    await this.runtime.setState?.('kamiyoTrustLastSync', {
+      at: Date.now(),
+      entityId: entityId || onChain.ownerKey,
+      recorded: records.length,
+      pushed: Boolean(this.recordInteraction),
+    });
 
     return records;
   }
@@ -161,6 +195,10 @@ export class KamiyoTrustEvidenceBridge implements Service {
     context?: Record<string, unknown>
   ): Promise<TrustInteraction | null> {
     if (!this.runtime) return null;
+
+    if (!this.recordInteraction) {
+      await this.attachTrustEngine(this.runtime);
+    }
 
     const mapping = EVIDENCE_MAP[event];
     const weight = parseFloat(this.runtime.getSetting('KAMIYO_TRUST_EVIDENCE_WEIGHT') || '1.0');
@@ -320,36 +358,9 @@ function clampImpact(value: number): number {
   return value;
 }
 
-function parseSecretKey(raw: string): Uint8Array | null {
-  const input = raw.trim();
-
-  if (input.startsWith('[')) {
-    try {
-      const arr = JSON.parse(input) as unknown;
-      if (!Array.isArray(arr)) return null;
-      const nums = arr.map(n => Number(n));
-      if (nums.some(n => !Number.isFinite(n) || n < 0 || n > 255)) return null;
-      return Uint8Array.from(nums);
-    } catch {
-      return null;
-    }
-  }
-
-  if (input.includes(',')) {
-    const parts = input.split(',').map(s => s.trim()).filter(Boolean);
-    const nums = parts.map(n => Number(n));
-    if (nums.length < 32) return null;
-    if (nums.some(n => !Number.isFinite(n) || n < 0 || n > 255)) return null;
-    return Uint8Array.from(nums);
-  }
-
-  try {
-    const buf = Buffer.from(input, 'base64');
-    if (buf.length < 32) return null;
-    return new Uint8Array(buf);
-  } catch {
-    return null;
-  }
+function clampIntervalMs(value: number): number {
+  if (!Number.isFinite(value)) return 300_000;
+  return Math.max(10_000, Math.min(86_400_000, Math.floor(value)));
 }
 
 async function resolveTrustEngine(runtime: IAgentRuntime): Promise<unknown> {
