@@ -15,7 +15,12 @@ audit_one() {
     return 2
   fi
 
-  if ! grep -q 'VERIFICATION:- SUCCESSFUL' "${file}"; then
+  if grep -Eq 'VERIFICATION.*FAILED' "${file}"; then
+    echo "[audit] ${file}: verification failures present" >&2
+    return 1
+  fi
+
+  if ! grep -Eq 'VERIFICATION.*SUCCESSFUL' "${file}"; then
     echo "[audit] ${file}: no successful verification marker found" >&2
     return 1
   fi
