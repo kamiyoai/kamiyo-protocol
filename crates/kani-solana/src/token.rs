@@ -1,24 +1,6 @@
-//! Split conservation provers for token/fee/reward distributions.
-//!
-//! These helpers verify that splitting a total amount into parts never
-//! loses or creates tokens. The user passes their own split function;
-//! the helpers provide the symbolic harness and assertions.
+//! Proof helpers for value-conserving splits.
 
-/// Assert that a two-way split conserves the total value.
-///
-/// For all symbolic `total: u64`:
-/// - `part_a <= total`
-/// - `part_b <= total`
-/// - `part_a + part_b == total`
-///
-/// # Example
-///
-/// ```ignore
-/// #[kani::proof]
-/// fn my_fee_split_is_sound() {
-///     kani_solana::token::assert_two_way_split_conserves(my_calculate_fee_split);
-/// }
-/// ```
+/// Proves that `split_fn(total)` conserves value for all symbolic totals.
 pub fn assert_two_way_split_conserves<F>(split_fn: F)
 where
     F: Fn(u64) -> (u64, u64),
@@ -31,9 +13,7 @@ where
     assert_eq!(sum, total as u128, "split does not conserve value");
 }
 
-/// Assert that a three-way split conserves the total value.
-///
-/// Verifies `part_a + part_b + part_c == total` and each part `<= total`.
+/// Proves that `split_fn(total)` conserves value for all symbolic totals.
 pub fn assert_three_way_split_conserves<F>(split_fn: F)
 where
     F: Fn(u64) -> (u64, u64, u64),
@@ -47,10 +27,7 @@ where
     assert_eq!(sum, total as u128, "split does not conserve value");
 }
 
-/// Assert that a BPS-parameterized split conserves value.
-///
-/// For all symbolic `(total, rate_bps)` where `rate_bps <= 10_000`:
-/// - `part_a + part_b == total`
+/// Proves that `split_fn(total, rate_bps)` conserves value for `rate_bps <= 10_000`.
 pub fn assert_bps_split_conserves<F>(split_fn: F)
 where
     F: Fn(u64, u64) -> (u64, u64),

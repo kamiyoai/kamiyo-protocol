@@ -1,8 +1,4 @@
-//! Bounded output provers for scores, costs, and rate-limited values.
-//!
-//! These helpers verify that a function's output stays within expected
-//! bounds, returns only valid discrete values, or produces known defaults
-//! under specific conditions.
+//! Proof helpers for bounded outputs and discrete value sets.
 
 /// Assert that a function's `u64` output is within `[min, max]`.
 pub fn assert_output_bounded<F>(compute_fn: F, min: u64, max: u64)
@@ -37,18 +33,6 @@ where
 /// Assert that a function's `u8` output is always one of the expected values.
 ///
 /// Useful for stepped/tiered functions like refund percentages.
-///
-/// # Example
-///
-/// ```ignore
-/// #[kani::proof]
-/// fn refund_in_valid_set() {
-///     kani_solana::bounds::assert_output_in_set(
-///         || calculate_refund_from_quality(kani::any()),
-///         &[0, 35, 75, 100],
-///     );
-/// }
-/// ```
 pub fn assert_output_in_set<F>(compute_fn: F, expected: &[u8])
 where
     F: FnOnce() -> u8,
@@ -59,6 +43,7 @@ where
     while i < expected.len() {
         if expected[i] == result {
             found = true;
+            break;
         }
         i += 1;
     }
@@ -78,17 +63,6 @@ where
 }
 
 /// Assert that a function returns an expected default when a condition holds.
-///
-/// # Example
-///
-/// ```ignore
-/// // When total_transactions == 0, reputation_score == 500
-/// kani_solana::bounds::assert_default_on_condition(
-///     || total_transactions == 0,
-///     || calculate_reputation_score(&rep),
-///     500,
-/// );
-/// ```
 pub fn assert_default_on_condition<C, F>(condition_fn: C, compute_fn: F, expected_default: u64)
 where
     C: FnOnce() -> bool,

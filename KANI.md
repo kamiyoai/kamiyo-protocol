@@ -24,7 +24,7 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
   - `./scripts/kani.sh hive`
   - `./scripts/kani.sh kamiyo-staking`
 - Or directly:
-  - `cargo kani -p kani-solana --features kani`
+  - `cargo kani -p kani-solana`
   - `cargo kani -p kamiyo`
 
 ## CI
@@ -45,7 +45,7 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 ## Where The Proofs Live
 
-Harness modules are gated behind Kani-only cfgs/features so normal `anchor build/test` is unaffected:
+Harness modules are gated behind `cfg(kani)` so normal `anchor build/test` is unaffected:
 
 - `crates/kani-solana/src/*.rs`
 - `crates/kani-solana/tests/self_verify.rs`

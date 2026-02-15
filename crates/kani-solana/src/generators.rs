@@ -1,7 +1,4 @@
-//! Symbolic value generators for common Solana/DeFi domains.
-//!
-//! These replace ad-hoc helpers like `any_score_0_to_100()` with reusable,
-//! well-named generators that constrain symbolic values to valid ranges.
+//! Constrained symbolic generators for common domains.
 
 /// Arbitrary `u8` in `[0, max]` inclusive.
 pub fn any_u8_up_to(max: u8) -> u8 {
@@ -37,8 +34,6 @@ pub fn any_u128_up_to(max: u128) -> u128 {
     kani::assume(v <= max);
     v
 }
-
-// --- Domain-specific convenience generators ---
 
 /// Quality/percentage score in `[0, 100]`.
 pub fn any_score() -> u8 {

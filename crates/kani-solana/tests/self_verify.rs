@@ -1,13 +1,9 @@
 //! Self-verification: prove that kani-solana's own reference implementations
 //! and helper functions are sound.
 
-#[cfg(all(kani, feature = "kani"))]
+#[cfg(kani)]
 mod self_proofs {
-    use kani_solana::generators::*;
-    use kani_solana::math::*;
-    use kani_solana::token::*;
-
-    // --- Generator soundness ---
+    use kani_solana::{generators::*, math::*, token::*};
 
     #[kani::proof]
     fn any_score_is_bounded() {
@@ -40,14 +36,10 @@ mod self_proofs {
         assert!(l <= 1_000_000_000_000);
     }
 
-    // --- Token split: identity split conserves ---
-
     #[kani::proof]
     fn identity_split_conserves() {
         assert_two_way_split_conserves(|total| (0, total));
     }
-
-    // --- Token split: standard BPS floor split conserves ---
 
     #[kani::proof]
     fn floor_bps_split_conserves() {
@@ -58,8 +50,6 @@ mod self_proofs {
         });
     }
 
-    // --- Ceiling weighted average: single element returns score ---
-
     #[kani::proof]
     fn ceiling_avg_single_element_returns_score() {
         let score = any_score();
@@ -68,8 +58,6 @@ mod self_proofs {
         assert_eq!(result, score);
     }
 
-    // --- Ceiling weighted average: result bounded at cap ---
-
     #[kani::proof]
     fn ceiling_avg_bounded_at_cap() {
         let pairs = [(any_score(), any_weight()), (any_score(), any_weight())];
@@ -77,15 +65,11 @@ mod self_proofs {
         assert!(result <= 100);
     }
 
-    // --- Ceiling weighted average: empty input returns 0 ---
-
     #[kani::proof]
     fn ceiling_avg_empty_returns_zero() {
         let result = ceiling_weighted_average(&[], 100);
         assert_eq!(result, 0);
     }
-
-    // --- Monotonicity helper: identity mapping is monotonic ---
 
     #[kani::proof]
     fn identity_u64_is_monotonic() {
