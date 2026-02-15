@@ -126,6 +126,7 @@ export class KamiyoTrustEvidenceBridge implements Service {
     const stateKey = `kamiyo_trust_snapshot_${onChain.ownerKey}`;
     const previous = (await this.runtime.getState?.(stateKey)) as AgentSnapshot | undefined;
     const current = onChain.snapshot;
+    const isInitial = !previous;
 
     const weight = parseFloat(this.runtime.getSetting('KAMIYO_TRUST_EVIDENCE_WEIGHT') || '1.0');
 
@@ -134,7 +135,8 @@ export class KamiyoTrustEvidenceBridge implements Service {
       .filter(([, count]) => count > 0)
       .map(([event, count]) => {
         const mapping = EVIDENCE_MAP[event as KamiyoEventType];
-        const scaled = clampImpact(mapping.impact * weight * Math.min(count, 10));
+        const factor = isInitial ? 1 : Math.min(count, 10);
+        const scaled = clampImpact(mapping.impact * weight * factor);
         return {
           // Align with plugin-trust's semantics: we are recording evidence *about* the entity.
           sourceEntityId: entityId || onChain.ownerKey,
