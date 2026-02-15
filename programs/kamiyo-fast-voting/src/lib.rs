@@ -33,13 +33,17 @@ pub mod kamiyo_fast_voting {
         threshold: u8,
         description_hash: [u8; 32],
     ) -> Result<()> {
-        require!(threshold > 0 && threshold <= 100, FastVoteError::InvalidThreshold);
+        require!(
+            threshold > 0 && threshold <= 100,
+            FastVoteError::InvalidThreshold
+        );
         require!(action_hash != [0u8; 32], FastVoteError::InvalidActionHash);
 
         let action = &mut ctx.accounts.fast_action;
         let clock = Clock::get()?;
 
-        let deadline_slot = clock.slot
+        let deadline_slot = clock
+            .slot
             .checked_add(VOTING_WINDOW_SLOTS)
             .ok_or(FastVoteError::SlotOverflow)?;
 
@@ -70,11 +74,12 @@ pub mod kamiyo_fast_voting {
 
     pub fn delegate_action(ctx: Context<DelegateAction>, action_id: u64) -> Result<()> {
         // Verify PDA matches expected derivation
-        let (expected_pda, _) = Pubkey::find_program_address(
-            &[FAST_ACTION_SEED, &action_id.to_le_bytes()],
-            &crate::ID,
+        let (expected_pda, _) =
+            Pubkey::find_program_address(&[FAST_ACTION_SEED, &action_id.to_le_bytes()], &crate::ID);
+        require!(
+            ctx.accounts.pda.key() == expected_pda,
+            FastVoteError::InvalidPda
         );
-        require!(ctx.accounts.pda.key() == expected_pda, FastVoteError::InvalidPda);
 
         let validator = ctx.accounts.validator.as_ref().map(|v| v.key());
 
@@ -100,9 +105,18 @@ pub mod kamiyo_fast_voting {
         let clock = Clock::get()?;
 
         require!(!action.executed, FastVoteError::ActionAlreadyExecuted);
-        require!(clock.slot <= action.deadline_slot, FastVoteError::VotingEnded);
-        require!(action.vote_count < MAX_VOTES_PER_ACTION, FastVoteError::MaxVotesReached);
-        require!(voter_commitment != [0u8; 32], FastVoteError::InvalidVoterCommitment);
+        require!(
+            clock.slot <= action.deadline_slot,
+            FastVoteError::VotingEnded
+        );
+        require!(
+            action.vote_count < MAX_VOTES_PER_ACTION,
+            FastVoteError::MaxVotesReached
+        );
+        require!(
+            voter_commitment != [0u8; 32],
+            FastVoteError::InvalidVoterCommitment
+        );
 
         let vote = &mut ctx.accounts.fast_vote;
         vote.fast_action = action.key();
@@ -113,11 +127,20 @@ pub mod kamiyo_fast_voting {
         vote.bump = ctx.bumps.fast_vote;
 
         if vote_value {
-            action.votes_for = action.votes_for.checked_add(1).ok_or(FastVoteError::VoteOverflow)?;
+            action.votes_for = action
+                .votes_for
+                .checked_add(1)
+                .ok_or(FastVoteError::VoteOverflow)?;
         } else {
-            action.votes_against = action.votes_against.checked_add(1).ok_or(FastVoteError::VoteOverflow)?;
+            action.votes_against = action
+                .votes_against
+                .checked_add(1)
+                .ok_or(FastVoteError::VoteOverflow)?;
         }
-        action.vote_count = action.vote_count.checked_add(1).ok_or(FastVoteError::VoteOverflow)?;
+        action.vote_count = action
+            .vote_count
+            .checked_add(1)
+            .ok_or(FastVoteError::VoteOverflow)?;
 
         emit!(FastVoteCast {
             action: action.key(),
@@ -133,10 +156,17 @@ pub mod kamiyo_fast_voting {
         let clock = Clock::get()?;
 
         require!(!action.executed, FastVoteError::ActionAlreadyExecuted);
-        require!(clock.slot > action.deadline_slot, FastVoteError::VotingNotEnded);
-        require!(action.vote_count >= MIN_VOTES_FOR_QUORUM, FastVoteError::QuorumNotMet);
+        require!(
+            clock.slot > action.deadline_slot,
+            FastVoteError::VotingNotEnded
+        );
+        require!(
+            action.vote_count >= MIN_VOTES_FOR_QUORUM,
+            FastVoteError::QuorumNotMet
+        );
 
-        let total_votes = action.votes_for
+        let total_votes = action
+            .votes_for
             .checked_add(action.votes_against)
             .ok_or(FastVoteError::VoteOverflow)?;
 
@@ -193,19 +223,19 @@ pub mod kamiyo_fast_voting {
 
 #[account]
 pub struct FastAction {
-    pub action_id: u64,          // 8
-    pub action_hash: [u8; 32],   // 32
+    pub action_id: u64,             // 8
+    pub action_hash: [u8; 32],      // 32
     pub description_hash: [u8; 32], // 32
-    pub creator: Pubkey,         // 32
-    pub threshold: u8,           // 1
-    pub votes_for: u32,          // 4
-    pub votes_against: u32,      // 4
-    pub vote_count: u32,         // 4
-    pub created_slot: u64,       // 8
-    pub deadline_slot: u64,      // 8
-    pub executed: bool,          // 1
-    pub result: VoteResult,      // 1 + 1 padding
-    pub bump: u8,                // 1
+    pub creator: Pubkey,            // 32
+    pub threshold: u8,              // 1
+    pub votes_for: u32,             // 4
+    pub votes_against: u32,         // 4
+    pub vote_count: u32,            // 4
+    pub created_slot: u64,          // 8
+    pub deadline_slot: u64,         // 8
+    pub executed: bool,             // 1
+    pub result: VoteResult,         // 1 + 1 padding
+    pub bump: u8,                   // 1
 }
 
 impl FastAction {
@@ -214,12 +244,12 @@ impl FastAction {
 
 #[account]
 pub struct FastVote {
-    pub fast_action: Pubkey,     // 32
-    pub voter: Pubkey,           // 32
+    pub fast_action: Pubkey,        // 32
+    pub voter: Pubkey,              // 32
     pub voter_commitment: [u8; 32], // 32
-    pub vote_value: bool,        // 1
-    pub voted_slot: u64,         // 8
-    pub bump: u8,                // 1
+    pub vote_value: bool,           // 1
+    pub voted_slot: u64,            // 8
+    pub bump: u8,                   // 1
 }
 
 impl FastVote {

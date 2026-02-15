@@ -40,7 +40,8 @@ fn pda_oracle_registry() -> solana_sdk::pubkey::Pubkey {
 }
 
 fn pda_reputation(entity: &solana_sdk::pubkey::Pubkey) -> solana_sdk::pubkey::Pubkey {
-    solana_sdk::pubkey::Pubkey::find_program_address(&[b"reputation", entity.as_ref()], &kamiyo::ID).0
+    solana_sdk::pubkey::Pubkey::find_program_address(&[b"reputation", entity.as_ref()], &kamiyo::ID)
+        .0
 }
 
 fn pda_escrow(
@@ -67,7 +68,10 @@ async fn get_account_lamports(
         .unwrap_or(0)
 }
 
-async fn get_escrow(context: &mut ProgramTestContext, escrow: solana_sdk::pubkey::Pubkey) -> Escrow {
+async fn get_escrow(
+    context: &mut ProgramTestContext,
+    escrow: solana_sdk::pubkey::Pubkey,
+) -> Escrow {
     let account = context
         .banks_client
         .get_account(escrow)
@@ -129,7 +133,10 @@ async fn warp_forward(context: &mut ProgramTestContext, seconds: i64) {
     }
 }
 
-async fn setup_base(oracle_count: usize, max_score_deviation: u8) -> (ProgramTestContext, Keypair, Keypair, Vec<Keypair>) {
+async fn setup_base(
+    oracle_count: usize,
+    max_score_deviation: u8,
+) -> (ProgramTestContext, Keypair, Keypair, Vec<Keypair>) {
     let mut program = ProgramTest::new("kamiyo", kamiyo::ID, processor!(kamiyo_native_processor));
     program.set_compute_max_units(1_400_000);
 
@@ -183,7 +190,9 @@ async fn setup_base(oracle_count: usize, max_score_deviation: u8) -> (ProgramTes
         }
         .data(),
     };
-    process_tx(&mut context, &[init_protocol_ix], &[]).await.unwrap();
+    process_tx(&mut context, &[init_protocol_ix], &[])
+        .await
+        .unwrap();
 
     // initialize_treasury
     let init_treasury_ix = Instruction {
@@ -196,7 +205,9 @@ async fn setup_base(oracle_count: usize, max_score_deviation: u8) -> (ProgramTes
         .to_account_metas(None),
         data: kamiyo::instruction::InitializeTreasury {}.data(),
     };
-    process_tx(&mut context, &[init_treasury_ix], &[]).await.unwrap();
+    process_tx(&mut context, &[init_treasury_ix], &[])
+        .await
+        .unwrap();
 
     // initialize_oracle_registry
     let init_oracle_registry_ix = Instruction {
@@ -213,7 +224,9 @@ async fn setup_base(oracle_count: usize, max_score_deviation: u8) -> (ProgramTes
         }
         .data(),
     };
-    process_tx(&mut context, &[init_oracle_registry_ix], &[]).await.unwrap();
+    process_tx(&mut context, &[init_oracle_registry_ix], &[])
+        .await
+        .unwrap();
 
     // add_oracle for each oracle
     for oracle in &oracles {
@@ -234,16 +247,15 @@ async fn setup_base(oracle_count: usize, max_score_deviation: u8) -> (ProgramTes
             }
             .data(),
         };
-        process_tx(&mut context, &[add_oracle_ix], &[oracle]).await.unwrap();
+        process_tx(&mut context, &[add_oracle_ix], &[oracle])
+            .await
+            .unwrap();
     }
 
     (context, agent, api, oracles)
 }
 
-async fn init_reputation_for(
-    context: &mut ProgramTestContext,
-    entity: solana_sdk::pubkey::Pubkey,
-) {
+async fn init_reputation_for(context: &mut ProgramTestContext, entity: solana_sdk::pubkey::Pubkey) {
     let ix = Instruction {
         program_id: kamiyo::ID,
         accounts: kamiyo::accounts::InitReputation {
@@ -353,7 +365,7 @@ async fn reveal_scores(
     oracles: &[Keypair],
     scores: &[u8],
     salts: &[[u8; 32]],
-    ) {
+) {
     for ((oracle, score), salt) in oracles.iter().zip(scores.iter()).zip(salts.iter()) {
         let message = format!("{transaction_id}:{score}");
         let sig = oracle.sign_message(message.as_bytes());
@@ -410,9 +422,7 @@ async fn finalize(
         .to_account_metas(None),
         data: kamiyo::instruction::FinalizeMultiOracleDispute {}.data(),
     };
-    process_tx(context, &[ix], &[])
-        .await
-        .map_err(|e| e)
+    process_tx(context, &[ix], &[]).await.map_err(|e| e)
 }
 
 #[tokio::test]
@@ -441,8 +451,7 @@ async fn resolve_dispute_full_refund_succeeds() {
     let sig = verifier.sign_message(message.as_bytes());
     let sig: [u8; 64] = sig.as_ref().try_into().unwrap();
     let dalek = DalekKeypair::from_bytes(&verifier.to_bytes()).unwrap();
-    let ed25519_ix =
-        ed25519_instruction::new_ed25519_instruction(&dalek, message.as_bytes());
+    let ed25519_ix = ed25519_instruction::new_ed25519_instruction(&dalek, message.as_bytes());
     let resolve_ix = Instruction {
         program_id: kamiyo::ID,
         accounts: kamiyo::accounts::ResolveDispute {
