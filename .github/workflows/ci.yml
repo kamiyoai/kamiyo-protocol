@@ -12,6 +12,22 @@ env:
   KANI_VERSION: 0.67.0
 
 jobs:
+  repo_sanity:
+    name: Repo Sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Block tracked docs/
+        run: |
+          if [ -n "$(git ls-files docs)" ]; then
+            echo "::error::docs/ is gitignored; do not commit tracked files under docs/"
+            git ls-files docs
+            exit 1
+          fi
+
   solana:
     name: Solana
     runs-on: ubuntu-latest
