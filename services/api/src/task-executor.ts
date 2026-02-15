@@ -2,9 +2,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { Tool, MessageParam, ContentBlock, Message } from '@anthropic-ai/sdk/resources/messages';
 import type { TaskInput, TaskResult } from '@kamiyo/swarm-agents';
 import { createKamiyoExtension } from '@kamiyo/daydreams';
+import OpenAI from 'openai';
 
 export interface TaskExecutorConfig {
-  anthropicApiKey: string;
+  anthropicApiKey?: string;
+  openaiApiKey?: string;
+  openaiModel?: string;
   solanaRpcUrl?: string;
   /** Env var name for wallet key (default: SWARM_AGENT_WALLET_KEY) */
   privateKeyEnvVar?: string;
@@ -13,8 +16,11 @@ export interface TaskExecutorConfig {
 type TaskType = 'research' | 'market_analysis' | 'wallet_lookup' | 'general';
 
 // $3/MTok input, $15/MTok output for sonnet
-const INPUT_COST_PER_TOKEN = 3 / 1_000_000;
-const OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
+const ANTHROPIC_INPUT_COST_PER_TOKEN = 3 / 1_000_000;
+const ANTHROPIC_OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
+// Defaulting to GPT-4o mini pricing (adjust if model changes)
+const OPENAI_INPUT_COST_PER_TOKEN = 0.15 / 1_000_000;
+const OPENAI_OUTPUT_COST_PER_TOKEN = 0.6 / 1_000_000;
 const MAX_TOOL_ROUNDS = 5;
 const MAX_CONCURRENT_TASKS = 10;
 const MAX_COST_PER_TASK = 1.0; // $1 hard cap per task regardless of budget
@@ -58,12 +64,34 @@ function inferTaskType(description: string): TaskType {
   return 'general';
 }
 
-function estimateCost(usage: { input_tokens: number; output_tokens: number }): number {
-  return usage.input_tokens * INPUT_COST_PER_TOKEN + usage.output_tokens * OUTPUT_COST_PER_TOKEN;
+function estimateAnthropicCost(usage: { input_tokens: number; output_tokens: number }): number {
+  return usage.input_tokens * ANTHROPIC_INPUT_COST_PER_TOKEN + usage.output_tokens * ANTHROPIC_OUTPUT_COST_PER_TOKEN;
+}
+
+function estimateOpenAICost(usage: { input_tokens: number; output_tokens: number }): number {
+  return usage.input_tokens * OPENAI_INPUT_COST_PER_TOKEN + usage.output_tokens * OPENAI_OUTPUT_COST_PER_TOKEN;
+}
+
+function safeJsonParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function clampJsonText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  return text.slice(0, Math.max(0, maxLen - 16)) + '... [truncated]';
 }
 
 export function createTaskExecutor(config: TaskExecutorConfig) {
-  const client = new Anthropic({ apiKey: config.anthropicApiKey });
+  const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
+  const openai = config.openaiApiKey ? new OpenAI({ apiKey: config.openaiApiKey }) : null;
+
+  if (!anthropic && !openai) {
+    throw new Error('Task executor requires ANTHROPIC_API_KEY or OPENAI_API_KEY');
+  }
 
   // Concurrency tracking
   let activeTasks = 0;
@@ -80,14 +108,36 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
     agentTaskTimestamps.set(agentId, recent);
   }
 
-  async function callWithRetry(params: Omit<Parameters<typeof client.messages.create>[0], 'stream'>): Promise<Message> {
+  async function callAnthropicWithRetry(
+    params: Omit<Parameters<NonNullable<typeof anthropic>['messages']['create']>[0], 'stream'>
+  ): Promise<Message> {
+    if (!anthropic) throw new Error('Anthropic client not configured');
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await client.messages.create({ ...params, stream: false }) as Message;
+        return await anthropic.messages.create({ ...params, stream: false }) as Message;
       } catch (err: unknown) {
         const isRetryable = err instanceof Error && (
           'status' in err && ((err as { status: number }).status === 429 || (err as { status: number }).status >= 500)
         );
+        if (!isRetryable || attempt === MAX_RETRIES) throw err;
+        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500;
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+    throw new Error('Exhausted retries'); // unreachable
+  }
+
+  async function callOpenAIWithRetry(
+    params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    if (!openai) throw new Error('OpenAI client not configured');
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        return await openai.chat.completions.create(params);
+      } catch (err: unknown) {
+        const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: unknown }).status : undefined;
+        const code = typeof status === 'number' ? status : undefined;
+        const isRetryable = code === 429 || (code !== undefined && code >= 500);
         if (!isRetryable || attempt === MAX_RETRIES) throw err;
         const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500;
         await new Promise((r) => setTimeout(r, backoff));
@@ -104,6 +154,9 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
       network: (process.env.NODE_ENV === 'production' ? 'mainnet' : 'devnet') as 'mainnet' | 'devnet',
     });
   }
+
+  const anthropicModel = process.env.SWARM_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
+  const openaiModel = config.openaiModel || process.env.SWARM_OPENAI_MODEL || 'gpt-4o-mini';
 
   return async function executeTask(input: TaskInput): Promise<TaskResult> {
     // Concurrency gate
@@ -133,16 +186,22 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
     activeTasks++;
     const taskType = inferTaskType(input.description);
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
 
     // Per-task extension instance (isolated state)
     const kamiyoExt = createExtension();
     const kamiyoActions = kamiyoExt.getActions();
-    const tools: Tool[] = kamiyoActions.map((action) => ({
+    const toolsAnthropic: Tool[] = kamiyoActions.map((action) => ({
       name: action.name.replace(/\./g, '_'),
       description: action.description,
       input_schema: action.schema as Tool['input_schema'],
+    }));
+    const toolsOpenAI: OpenAI.Chat.Completions.ChatCompletionTool[] = kamiyoActions.map((action) => ({
+      type: 'function',
+      function: {
+        name: action.name.replace(/\./g, '_'),
+        description: action.description,
+        parameters: action.schema as Record<string, unknown>,
+      },
     }));
     const actionMap = new Map(
       kamiyoActions.map((a) => [a.name.replace(/\./g, '_'), a.handler])
@@ -152,95 +211,199 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
       // Initialize extension (fetches wallet balance, etc.)
       await kamiyoExt.initialize();
 
-      const messages: MessageParam[] = [{ role: 'user', content: input.description }];
-
       const effectiveBudget = Math.min(input.budget, MAX_COST_PER_TASK);
 
-      // Agentic tool-use loop
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        // Cost cap: abort if already over budget
-        const runningCost = estimateCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
-        if (runningCost >= effectiveBudget) {
-          return {
-            taskId: input.taskId,
-            status: 'completed',
-            output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
-            amountDrawn: runningCost,
-          };
-        }
+      const runAnthropic = async (): Promise<TaskResult> => {
+        if (!anthropic) throw new Error('Anthropic client not configured');
 
-        const response = await callWithRetry({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2048,
-          system: SYSTEM_PROMPTS[taskType],
-          tools,
-          messages,
-        });
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        const messages: MessageParam[] = [{ role: 'user', content: input.description }];
 
-        totalInputTokens += response.usage.input_tokens;
-        totalOutputTokens += response.usage.output_tokens;
-
-        // If no tool use, extract final text and return
-        if (response.stop_reason !== 'tool_use') {
-          const output = response.content
-            .filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text')
-            .map((b) => b.text)
-            .join('\n');
-
-          const cost = estimateCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
-
-          return {
-            taskId: input.taskId,
-            status: 'completed',
-            output: { taskType, result: output, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
-            amountDrawn: Math.min(cost, effectiveBudget),
-          };
-        }
-
-        // Process tool calls
-        messages.push({ role: 'assistant', content: response.content });
-
-        const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> = [];
-
-        for (const block of response.content) {
-          if (block.type !== 'tool_use') continue;
-
-          const handler = actionMap.get(block.name);
-          let result: unknown;
-
-          if (handler) {
-            try {
-              result = await handler(block.input, undefined as never);
-            } catch (err) {
-              result = { error: err instanceof Error ? err.message : 'Action failed' };
-            }
-          } else {
-            result = { error: `Unknown tool: ${block.name}` };
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const runningCost = estimateAnthropicCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+          if (runningCost >= effectiveBudget) {
+            return {
+              taskId: input.taskId,
+              status: 'completed',
+              output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              amountDrawn: runningCost,
+            };
           }
 
-          let content = JSON.stringify(result);
-          // Truncate oversized tool results to prevent token explosion
-          if (content.length > 50_000) {
-            content = content.slice(0, 50_000) + '... [truncated]';
-          }
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content,
+          const response = await callAnthropicWithRetry({
+            model: anthropicModel,
+            max_tokens: 2048,
+            system: SYSTEM_PROMPTS[taskType],
+            tools: toolsAnthropic,
+            messages,
           });
+
+          totalInputTokens += response.usage.input_tokens;
+          totalOutputTokens += response.usage.output_tokens;
+
+          if (response.stop_reason !== 'tool_use') {
+            const output = response.content
+              .filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text')
+              .map((b) => b.text)
+              .join('\n');
+
+            const cost = estimateAnthropicCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+
+            return {
+              taskId: input.taskId,
+              status: 'completed',
+              output: { taskType, result: output, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              amountDrawn: Math.min(cost, effectiveBudget),
+            };
+          }
+
+          messages.push({ role: 'assistant', content: response.content });
+
+          const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> = [];
+
+          for (const block of response.content) {
+            if (block.type !== 'tool_use') continue;
+
+            const handler = actionMap.get(block.name);
+            let result: unknown;
+
+            if (handler) {
+              try {
+                result = await handler(block.input, undefined as never);
+              } catch (err) {
+                result = { error: err instanceof Error ? err.message : 'Action failed' };
+              }
+            } else {
+              result = { error: `Unknown tool: ${block.name}` };
+            }
+
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: block.id,
+              content: clampJsonText(JSON.stringify(result), 50_000),
+            });
+          }
+
+          messages.push({ role: 'user', content: toolResults });
         }
 
-        messages.push({ role: 'user', content: toolResults });
+        const cost = estimateAnthropicCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+        return {
+          taskId: input.taskId,
+          status: 'completed',
+          output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+          amountDrawn: Math.min(cost, effectiveBudget),
+        };
+      };
+
+      const runOpenAI = async (): Promise<TaskResult> => {
+        if (!openai) throw new Error('OpenAI client not configured');
+
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          { role: 'system', content: SYSTEM_PROMPTS[taskType] },
+          { role: 'user', content: input.description },
+        ];
+
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const runningCost = estimateOpenAICost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+          if (runningCost >= effectiveBudget) {
+            return {
+              taskId: input.taskId,
+              status: 'completed',
+              output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              amountDrawn: runningCost,
+            };
+          }
+
+          const response = await callOpenAIWithRetry({
+            model: openaiModel,
+            max_tokens: 2048,
+            messages,
+            tools: toolsOpenAI,
+            tool_choice: 'auto',
+          });
+
+          totalInputTokens += response.usage?.prompt_tokens ?? 0;
+          totalOutputTokens += response.usage?.completion_tokens ?? 0;
+
+          const msg = response.choices[0]?.message;
+          const toolCalls = msg?.tool_calls ?? [];
+          const text = msg?.content ?? '';
+
+          if (toolCalls.length === 0) {
+            const cost = estimateOpenAICost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+            return {
+              taskId: input.taskId,
+              status: 'completed',
+              output: { taskType, result: text, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              amountDrawn: Math.min(cost, effectiveBudget),
+            };
+          }
+
+          messages.push({
+            role: 'assistant',
+            content: msg?.content ?? '',
+            tool_calls: toolCalls,
+          } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
+
+          for (const call of toolCalls) {
+            if (call.type !== 'function') {
+              messages.push({
+                role: 'tool',
+                tool_call_id: call.id,
+                content: JSON.stringify({ error: `Unsupported tool call type: ${call.type}` }),
+              });
+              continue;
+            }
+
+            const name = call.function.name || '';
+            const argsRaw = call.function.arguments || '';
+            const parsed = typeof argsRaw === 'string' ? safeJsonParse(argsRaw) : null;
+
+            const handler = actionMap.get(name);
+            let result: unknown;
+
+            if (handler) {
+              try {
+                result = await handler(parsed ?? {}, undefined as never);
+              } catch (err) {
+                result = { error: err instanceof Error ? err.message : 'Action failed' };
+              }
+            } else {
+              result = { error: `Unknown tool: ${name}` };
+            }
+
+            messages.push({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: clampJsonText(JSON.stringify(result), 50_000),
+            });
+          }
+        }
+
+        const cost = estimateOpenAICost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+        return {
+          taskId: input.taskId,
+          status: 'completed',
+          output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+          amountDrawn: Math.min(cost, effectiveBudget),
+        };
+      };
+
+      if (anthropic) {
+        try {
+          return await runAnthropic();
+        } catch (err) {
+          if (openai) return await runOpenAI();
+          throw err;
+        }
       }
 
-      // Hit max rounds — return what we have
-      const cost = estimateCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
-      return {
-        taskId: input.taskId,
-        status: 'completed',
-        output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
-        amountDrawn: Math.min(cost, effectiveBudget),
-      };
+      return await runOpenAI();
     } catch (err) {
       return {
         taskId: input.taskId,
