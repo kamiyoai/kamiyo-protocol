@@ -4,7 +4,7 @@ import type {
   IAgentRuntime,
   Service,
   TrustEngineService,
-  TrustEvidenceRecord,
+  TrustInteraction,
   KamiyoEventType,
   KamiyoNetwork,
 } from '../types';
@@ -36,30 +36,34 @@ interface AgentSnapshot {
  */
 export class KamiyoTrustEvidenceBridge implements Service {
   name = 'kamiyo-trust-evidence-bridge';
-  description = 'Bridges KAMIYO on-chain events to ElizaOS plugin-trust TrustEvidence records';
+  description = 'Bridges KAMIYO on-chain events to ElizaOS plugin-trust TrustInteraction records';
 
   private runtime: IAgentRuntime | null = null;
   private trustEngine: TrustEngineService | null = null;
+  private recordInteraction: ((interaction: TrustInteraction) => Promise<void>) | null = null;
   private syncInterval: ReturnType<typeof setInterval> | null = null;
 
   async start(runtime: IAgentRuntime): Promise<void> {
     this.runtime = runtime;
 
-    // Try to grab plugin-trust's TrustEngine service
-    try {
-      const engine = runtime.getService?.('trust-engine');
-      if (engine && typeof (engine as any).recordInteraction === 'function') {
-        this.trustEngine = engine as TrustEngineService;
-      }
-    } catch {
-      // plugin-trust not installed — graceful degradation
-    }
+    await this.attachTrustEngine(runtime);
 
     // Start periodic sync if configured
     const syncMode = runtime.getSetting('KAMIYO_TRUST_EVIDENCE_SYNC') || 'manual';
     if (syncMode === 'periodic') {
       const interval = parseInt(runtime.getSetting('KAMIYO_TRUST_SYNC_INTERVAL') || '300000', 10);
       this.syncInterval = setInterval(() => this.syncOnChainEvidence().catch(() => {}), interval);
+    }
+  }
+
+  private async attachTrustEngine(runtime: IAgentRuntime): Promise<void> {
+    try {
+      const engine = await resolveTrustEngine(runtime);
+      if (!engine) return;
+      this.trustEngine = engine as TrustEngineService;
+      this.recordInteraction = resolveRecordInteraction(engine);
+    } catch {
+      // plugin-trust not installed — graceful degradation
     }
   }
 
@@ -70,21 +74,22 @@ export class KamiyoTrustEvidenceBridge implements Service {
     }
     this.runtime = null;
     this.trustEngine = null;
+    this.recordInteraction = null;
   }
 
   /** Whether plugin-trust's TrustEngine is available */
   get hasTrustEngine(): boolean {
-    return this.trustEngine !== null;
+    return this.recordInteraction !== null;
   }
 
   /**
-   * Sync on-chain KAMIYO state → TrustEvidence records.
+   * Sync on-chain KAMIYO state → TrustInteraction records.
    * Diffs against last snapshot to only record changes.
    *
    * Returns the generated evidence records (useful for actions that want to
    * report what was synced, even without plugin-trust).
    */
-  async syncOnChainEvidence(entityId?: string): Promise<TrustEvidenceRecord[]> {
+  async syncOnChainEvidence(entityId?: string): Promise<TrustInteraction[]> {
     if (!this.runtime) return [];
 
     const onChain = await this.fetchOnChainState(entityId);
@@ -94,34 +99,46 @@ export class KamiyoTrustEvidenceBridge implements Service {
     const previous = (await this.runtime.getState?.(stateKey)) as AgentSnapshot | undefined;
     const current = onChain.snapshot;
 
-    const events = this.diffToEvents(previous || null, current);
     const weight = parseFloat(this.runtime.getSetting('KAMIYO_TRUST_EVIDENCE_WEIGHT') || '1.0');
 
-    const records: TrustEvidenceRecord[] = events.map(event => {
-      const mapping = EVIDENCE_MAP[event];
-      return {
-        sourceEntityId: this.runtime!.agentId,
-        targetEntityId: entityId || onChain.ownerKey,
-        type: mapping.type,
-        impact: Math.round(mapping.impact * weight),
-        weight: 1,
-        description: mapping.description,
-        verified: true, // on-chain data is inherently verifiable
-        context: {
-          source: 'kamiyo-on-chain',
-          dimension: mapping.dimension,
-          kamiyoEvent: event,
-          stakeSOL: current.stakeAmount / 1e9,
-          reputation: current.reputation,
-        },
-      };
-    });
+    const eventCounts = this.diffToEventCounts(previous || null, current);
+    const records: TrustInteraction[] = Object.entries(eventCounts)
+      .filter(([, count]) => count > 0)
+      .map(([event, count]) => {
+        const mapping = EVIDENCE_MAP[event as KamiyoEventType];
+        const scaled = clampImpact(mapping.impact * weight * Math.min(count, 10));
+        return {
+          // Align with plugin-trust's semantics: we are recording evidence *about* the entity.
+          sourceEntityId: entityId || onChain.ownerKey,
+          targetEntityId: this.runtime!.agentId,
+          type: mapping.type,
+          timestamp: Date.now(),
+          impact: Math.round(scaled),
+          details: {
+            description: mapping.description,
+            metadata: {
+              source: 'kamiyo-on-chain',
+              dimension: mapping.dimension,
+              kamiyoEvent: event,
+              count,
+              stakeSOL: current.stakeAmount / 1e9,
+              reputation: current.reputation,
+            },
+          },
+          context: {
+            evaluatorId: this.runtime!.agentId,
+            source: 'kamiyo-on-chain',
+            dimension: mapping.dimension,
+            kamiyoEvent: event,
+          },
+        };
+      });
 
     // Push to TrustEngine if available
-    if (this.trustEngine) {
+    if (this.recordInteraction) {
       for (const record of records) {
         try {
-          await this.trustEngine.recordInteraction(record);
+          await this.recordInteraction(record);
         } catch {
           // Individual record failure shouldn't block the rest
         }
@@ -135,38 +152,45 @@ export class KamiyoTrustEvidenceBridge implements Service {
   }
 
   /**
-   * Record a single KAMIYO event as TrustEvidence.
+   * Record a single KAMIYO event as a TrustInteraction.
    * Used by evaluators/actions that know exactly what happened.
    */
   async recordEvent(
     event: KamiyoEventType,
-    targetEntityId: string,
+    sourceEntityId: string,
     context?: Record<string, unknown>
-  ): Promise<TrustEvidenceRecord | null> {
+  ): Promise<TrustInteraction | null> {
     if (!this.runtime) return null;
 
     const mapping = EVIDENCE_MAP[event];
     const weight = parseFloat(this.runtime.getSetting('KAMIYO_TRUST_EVIDENCE_WEIGHT') || '1.0');
 
-    const record: TrustEvidenceRecord = {
-      sourceEntityId: this.runtime.agentId,
-      targetEntityId,
+    const record: TrustInteraction = {
+      sourceEntityId,
+      targetEntityId: this.runtime.agentId,
       type: mapping.type,
-      impact: Math.round(mapping.impact * weight),
-      weight: 1,
-      description: mapping.description,
-      verified: true,
+      timestamp: Date.now(),
+      impact: Math.round(clampImpact(mapping.impact * weight)),
+      details: {
+        description: mapping.description,
+        metadata: {
+          source: 'kamiyo-on-chain',
+          dimension: mapping.dimension,
+          kamiyoEvent: event,
+          ...context,
+        },
+      },
       context: {
+        evaluatorId: this.runtime.agentId,
         source: 'kamiyo-on-chain',
         dimension: mapping.dimension,
         kamiyoEvent: event,
-        ...context,
       },
     };
 
-    if (this.trustEngine) {
+    if (this.recordInteraction) {
       try {
-        await this.trustEngine.recordInteraction(record);
+        await this.recordInteraction(record);
       } catch {
         // Graceful failure
       }
@@ -192,7 +216,9 @@ export class KamiyoTrustEvidenceBridge implements Service {
       const pk = this.runtime.getSetting('SOLANA_PRIVATE_KEY');
       if (!pk) return null;
       try {
-        ownerKey = Keypair.fromSecretKey(Buffer.from(pk, 'base64')).publicKey;
+        const secret = parseSecretKey(pk);
+        if (!secret) return null;
+        ownerKey = Keypair.fromSecretKey(secret).publicKey;
       } catch {
         return null;
       }
@@ -243,71 +269,115 @@ export class KamiyoTrustEvidenceBridge implements Service {
 
   /**
    * Diff two snapshots to determine which KAMIYO events occurred.
-   * Returns array of event types to record.
+   * Returns event counts to record (aggregated for performance).
    */
-  private diffToEvents(prev: AgentSnapshot | null, curr: AgentSnapshot): KamiyoEventType[] {
-    const events: KamiyoEventType[] = [];
+  private diffToEventCounts(prev: AgentSnapshot | null, curr: AgentSnapshot): Partial<Record<KamiyoEventType, number>> {
+    const counts: Partial<Record<KamiyoEventType, number>> = {};
 
     if (!prev) {
       // First sync — record agent registration + current state
-      events.push('agent_registered');
-      if (curr.successfulEscrows > 0) {
-        for (let i = 0; i < Math.min(curr.successfulEscrows, 10); i++) {
-          events.push('escrow_released');
-        }
-      }
-      if (curr.disputedEscrows > 0) {
-        for (let i = 0; i < Math.min(curr.disputedEscrows, 5); i++) {
-          events.push('escrow_disputed');
-        }
-      }
-      if (curr.disputesWon > 0) {
-        for (let i = 0; i < Math.min(curr.disputesWon, 5); i++) {
-          events.push('dispute_won');
-        }
-      }
-      if (curr.disputesLost > 0) {
-        for (let i = 0; i < Math.min(curr.disputesLost, 5); i++) {
-          events.push('dispute_lost');
-        }
-      }
-      return events;
+      counts.agent_registered = 1;
+      if (curr.successfulEscrows > 0) counts.escrow_released = Math.min(curr.successfulEscrows, 10);
+      if (curr.disputedEscrows > 0) counts.escrow_disputed = Math.min(curr.disputedEscrows, 5);
+      if (curr.disputesWon > 0) counts.dispute_won = Math.min(curr.disputesWon, 5);
+      if (curr.disputesLost > 0) counts.dispute_lost = Math.min(curr.disputesLost, 5);
+      return counts;
     }
 
     // Diff-based: only record new changes
     const newReleased = curr.successfulEscrows - prev.successfulEscrows;
-    for (let i = 0; i < Math.max(0, newReleased); i++) {
-      events.push('escrow_released');
-    }
+    if (newReleased > 0) counts.escrow_released = Math.min(newReleased, 20);
 
     const newDisputed = curr.disputedEscrows - prev.disputedEscrows;
-    for (let i = 0; i < Math.max(0, newDisputed); i++) {
-      events.push('escrow_disputed');
-    }
+    if (newDisputed > 0) counts.escrow_disputed = Math.min(newDisputed, 20);
 
     const newWon = curr.disputesWon - prev.disputesWon;
-    for (let i = 0; i < Math.max(0, newWon); i++) {
-      events.push('dispute_won');
-    }
+    if (newWon > 0) counts.dispute_won = Math.min(newWon, 20);
 
     const newLost = curr.disputesLost - prev.disputesLost;
-    for (let i = 0; i < Math.max(0, newLost); i++) {
-      events.push('dispute_lost');
-    }
+    if (newLost > 0) counts.dispute_lost = Math.min(newLost, 20);
 
     if (curr.stakeAmount > prev.stakeAmount) {
-      events.push('stake_increased');
+      counts.stake_increased = 1;
     } else if (curr.stakeAmount < prev.stakeAmount) {
       // Distinguish slash from voluntary decrease
       if (curr.violationCount > prev.violationCount) {
-        events.push('agent_slashed');
+        counts.agent_slashed = 1;
       } else {
-        events.push('stake_decreased');
+        counts.stake_decreased = 1;
       }
     }
 
-    return events;
+    return counts;
   }
 }
 
 export const kamiyoTrustEvidenceBridgeService = new KamiyoTrustEvidenceBridge();
+
+function clampImpact(value: number): number {
+  if (value > 100) return 100;
+  if (value < -100) return -100;
+  return value;
+}
+
+function parseSecretKey(raw: string): Uint8Array | null {
+  const input = raw.trim();
+
+  if (input.startsWith('[')) {
+    try {
+      const arr = JSON.parse(input) as unknown;
+      if (!Array.isArray(arr)) return null;
+      const nums = arr.map(n => Number(n));
+      if (nums.some(n => !Number.isFinite(n) || n < 0 || n > 255)) return null;
+      return Uint8Array.from(nums);
+    } catch {
+      return null;
+    }
+  }
+
+  if (input.includes(',')) {
+    const parts = input.split(',').map(s => s.trim()).filter(Boolean);
+    const nums = parts.map(n => Number(n));
+    if (nums.length < 32) return null;
+    if (nums.some(n => !Number.isFinite(n) || n < 0 || n > 255)) return null;
+    return Uint8Array.from(nums);
+  }
+
+  try {
+    const buf = Buffer.from(input, 'base64');
+    if (buf.length < 32) return null;
+    return new Uint8Array(buf);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveTrustEngine(runtime: IAgentRuntime): Promise<unknown> {
+  try {
+    const direct = runtime.getService?.('trust-engine');
+    if (direct) return direct;
+  } catch {
+    // ignore
+  }
+
+  const load = (runtime as any).getServiceLoadPromise as ((name: string) => Promise<unknown>) | undefined;
+  if (!load) return null;
+
+  try {
+    return await load('trust-engine');
+  } catch {
+    return null;
+  }
+}
+
+function resolveRecordInteraction(engine: unknown): ((interaction: TrustInteraction) => Promise<void>) | null {
+  if (!engine || typeof engine !== 'object') return null;
+
+  const direct = (engine as any).recordInteraction;
+  if (typeof direct === 'function') return direct.bind(engine);
+
+  const inner = (engine as any).trustEngine?.recordInteraction;
+  if (typeof inner === 'function') return inner.bind((engine as any).trustEngine);
+
+  return null;
+}

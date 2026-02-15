@@ -47,35 +47,56 @@ export interface Plugin {
 // plugin-trust TrustEngine interface (subset we interact with)
 // ---------------------------------------------------------------------------
 
-/** Maps to plugin-trust's TrustEvidenceType enum */
+/** Matches plugin-trust's TrustEvidenceType enum values (uppercase). */
 export type TrustEvidenceType =
-  | 'promise_kept'
-  | 'promise_broken'
-  | 'helpful_action'
-  | 'consistent_behavior'
-  | 'verified_identity'
-  | 'harmful_action'
-  | 'inconsistency'
-  | 'suspicious_activity'
-  | 'failed_verification'
-  | 'security_violation';
+  | 'PROMISE_KEPT'
+  | 'PROMISE_BROKEN'
+  | 'HELPFUL_ACTION'
+  | 'HARMFUL_ACTION'
+  | 'CONSISTENT_BEHAVIOR'
+  | 'INCONSISTENCY'
+  | 'VERIFIED_IDENTITY'
+  | 'SUSPICIOUS_ACTIVITY'
+  | 'FAILED_VERIFICATION'
+  | 'SECURITY_VIOLATION'
+  | 'ESCROW_COMPLETED'
+  | 'ESCROW_DISPUTED'
+  | 'ORACLE_VALIDATION'
+  | 'STAKE_INCREASED'
+  | 'STAKE_DECREASED'
+  | 'PAYMENT_MADE'
+  | 'PAYMENT_RECEIVED'
+  | 'DISPUTE_RESOLVED'
+  | 'DISPUTE_ESCALATED'
+  | 'TRUST_SCORE_UPDATE'
+  | 'SECURITY_ALERT';
 
-/** Minimal TrustEvidence shape for recordInteraction() */
-export interface TrustEvidenceRecord {
+export interface TrustContext {
+  evaluatorId: string;
+  roomId?: string;
+  [key: string]: unknown;
+}
+
+export interface TrustInteractionDetails {
+  description?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** Minimal TrustInteraction shape for plugin-trust recordInteraction(). */
+export interface TrustInteraction {
   sourceEntityId: string;
   targetEntityId: string;
   type: TrustEvidenceType;
+  timestamp: number;
   impact: number;
-  weight?: number;
-  description?: string;
-  verified?: boolean;
-  context?: Record<string, unknown>;
+  details?: TrustInteractionDetails;
+  context: TrustContext;
 }
 
 /** Minimal TrustEngine service interface (what we call on it) */
 export interface TrustEngineService {
-  recordInteraction(evidence: TrustEvidenceRecord): Promise<void>;
-  calculateTrust?(entityId: string, evaluatorId: string, context?: unknown): Promise<TrustProfile | null>;
+  recordInteraction(interaction: TrustInteraction): Promise<void>;
+  calculateTrust?(entityId: string, context: TrustContext): Promise<TrustProfile | null>;
 }
 
 /** Minimal TrustProfile for read-back */
@@ -133,16 +154,16 @@ export interface EvidenceMapping {
  *   stake_decreased  → suspicious_activity (-5 benevolence)
  */
 export const EVIDENCE_MAP: Record<KamiyoEventType, EvidenceMapping> = {
-  escrow_released:  { type: 'promise_kept',        impact: 15,  dimension: 'reliability',   description: 'Escrow funds released — delivery honored' },
-  escrow_disputed:  { type: 'promise_broken',      impact: -10, dimension: 'reliability',   description: 'Escrow disputed — delivery contested' },
-  dispute_won:      { type: 'consistent_behavior', impact: 10,  dimension: 'integrity',     description: 'Dispute resolved in favor — legitimate claim' },
-  dispute_lost:     { type: 'inconsistency',       impact: -15, dimension: 'integrity',     description: 'Dispute lost — frivolous or invalid claim' },
-  oracle_correct:   { type: 'consistent_behavior', impact: 10,  dimension: 'competence',    description: 'Oracle vote aligned with consensus' },
-  oracle_slashed:   { type: 'inconsistency',       impact: -20, dimension: 'competence',    description: 'Oracle slashed — vote deviated from consensus' },
-  agent_slashed:    { type: 'harmful_action',       impact: -20, dimension: 'integrity',     description: 'Agent stake slashed for violation' },
-  stake_increased:  { type: 'helpful_action',       impact: 8,   dimension: 'benevolence',   description: 'Stake increased — more skin in the game' },
-  stake_decreased:  { type: 'suspicious_activity',  impact: -5,  dimension: 'benevolence',   description: 'Stake decreased — reduced commitment' },
-  agent_registered: { type: 'verified_identity',    impact: 8,   dimension: 'transparency',  description: 'Agent registered on-chain with verifiable identity' },
+  escrow_released:  { type: 'PROMISE_KEPT',        impact: 15,  dimension: 'reliability',   description: 'Escrow funds released — delivery honored' },
+  escrow_disputed:  { type: 'PROMISE_BROKEN',      impact: -10, dimension: 'reliability',   description: 'Escrow disputed — delivery contested' },
+  dispute_won:      { type: 'CONSISTENT_BEHAVIOR', impact: 10,  dimension: 'integrity',     description: 'Dispute resolved in favor — legitimate claim' },
+  dispute_lost:     { type: 'INCONSISTENCY',       impact: -15, dimension: 'integrity',     description: 'Dispute lost — frivolous or invalid claim' },
+  oracle_correct:   { type: 'CONSISTENT_BEHAVIOR', impact: 10,  dimension: 'competence',    description: 'Oracle vote aligned with consensus' },
+  oracle_slashed:   { type: 'INCONSISTENCY',       impact: -20, dimension: 'competence',    description: 'Oracle slashed — vote deviated from consensus' },
+  agent_slashed:    { type: 'HARMFUL_ACTION',      impact: -20, dimension: 'integrity',     description: 'Agent stake slashed for violation' },
+  stake_increased:  { type: 'HELPFUL_ACTION',      impact: 8,   dimension: 'benevolence',   description: 'Stake increased — more skin in the game' },
+  stake_decreased:  { type: 'SUSPICIOUS_ACTIVITY', impact: -5,  dimension: 'benevolence',   description: 'Stake decreased — reduced commitment' },
+  agent_registered: { type: 'VERIFIED_IDENTITY',   impact: 8,   dimension: 'transparency',  description: 'Agent registered on-chain with verifiable identity' },
 };
 
 export type KamiyoNetwork = 'mainnet' | 'devnet' | 'localnet';

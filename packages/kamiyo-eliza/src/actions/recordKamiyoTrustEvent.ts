@@ -2,19 +2,8 @@ import { PublicKey } from '@solana/web3.js';
 import { Wallet } from '@coral-xyz/anchor';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
 import { getNetworkConfig, getKeypair, createConnection } from '../utils';
-
-/** Minimal TrustEngine interface */
-interface TrustEngineService {
-  recordInteraction(evidence: Record<string, unknown>): Promise<void>;
-}
-
-const EVIDENCE_MAP: Record<string, { type: string; impact: number; description: string }> = {
-  escrow_released: { type: 'promise_kept',        impact: 15,  description: 'Escrow released — delivery honored' },
-  escrow_disputed: { type: 'promise_broken',      impact: -10, description: 'Escrow disputed' },
-  dispute_won:     { type: 'consistent_behavior', impact: 10,  description: 'Dispute won — legitimate claim' },
-  dispute_lost:    { type: 'inconsistency',       impact: -15, description: 'Dispute lost — invalid claim' },
-  agent_registered:{ type: 'verified_identity',    impact: 8,   description: 'Agent registered on-chain' },
-};
+import type { TrustEvidenceType, TrustInteraction } from '../trust/pluginTrust';
+import { getTrustEngine } from '../trust/pluginTrust';
 
 export const recordKamiyoTrustEventAction: Action = {
   name: 'RECORD_KAMIYO_TRUST_EVENT',
@@ -95,63 +84,92 @@ export const recordKamiyoTrustEventAction: Action = {
       const reputation = agent.reputation?.toNumber() || 0;
       const weight = parseFloat(runtime.getSetting('KAMIYO_TRUST_EVIDENCE_WEIGHT') || '1.0');
 
-      const evidenceRecords: Record<string, unknown>[] = [];
+      const [repPda] = client.getReputationPDA(keypair.publicKey);
+      const rep = await client.getReputation(repPda).catch(() => null);
+      const disputesWon = rep?.disputesWon?.toNumber() || 0;
+      const disputesLost = rep?.disputesLost?.toNumber() || 0;
+
+      const evidenceRecords: TrustInteraction[] = [];
+      const sourceEntityId = keypair.publicKey.toBase58();
+      const targetEntityId = runtime.agentId;
 
       // Registration evidence
-      evidenceRecords.push({
-        sourceEntityId: runtime.agentId,
-        targetEntityId: keypair.publicKey.toBase58(),
-        type: 'verified_identity',
-        impact: Math.round(8 * weight),
-        verified: true,
+      evidenceRecords.push(makeInteraction({
+        sourceEntityId,
+        targetEntityId,
+        type: 'VERIFIED_IDENTITY',
+        impact: clampImpact(8 * weight),
         description: 'Agent registered on KAMIYO with on-chain identity',
-        context: { source: 'kamiyo-on-chain', reputation },
-      });
+        metadata: { source: 'kamiyo-on-chain', reputation },
+        context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+      }));
 
       // Escrow success evidence
       if (successful > 0) {
-        evidenceRecords.push({
-          sourceEntityId: runtime.agentId,
-          targetEntityId: keypair.publicKey.toBase58(),
-          type: 'promise_kept',
-          impact: Math.round(15 * weight),
-          weight: Math.min(successful, 10),
-          verified: true,
+        const scaled = clampImpact(15 * weight * Math.min(successful, 10));
+        evidenceRecords.push(makeInteraction({
+          sourceEntityId,
+          targetEntityId,
+          type: 'PROMISE_KEPT',
+          impact: scaled,
           description: `${successful} escrows released successfully`,
-          context: { source: 'kamiyo-on-chain', count: successful, total },
-        });
+          metadata: { source: 'kamiyo-on-chain', count: successful, total },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+        }));
       }
 
       // Dispute evidence
       if (disputed > 0) {
-        evidenceRecords.push({
-          sourceEntityId: runtime.agentId,
-          targetEntityId: keypair.publicKey.toBase58(),
-          type: 'promise_broken',
-          impact: Math.round(-10 * weight),
-          weight: Math.min(disputed, 5),
-          verified: true,
+        const scaled = clampImpact(-10 * weight * Math.min(disputed, 5));
+        evidenceRecords.push(makeInteraction({
+          sourceEntityId,
+          targetEntityId,
+          type: 'PROMISE_BROKEN',
+          impact: scaled,
           description: `${disputed} escrows disputed`,
-          context: { source: 'kamiyo-on-chain', count: disputed, total },
-        });
+          metadata: { source: 'kamiyo-on-chain', count: disputed, total },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+        }));
+      }
+
+      if (disputesWon > 0) {
+        const scaled = clampImpact(10 * weight * Math.min(disputesWon, 5));
+        evidenceRecords.push(makeInteraction({
+          sourceEntityId,
+          targetEntityId,
+          type: 'CONSISTENT_BEHAVIOR',
+          impact: scaled,
+          description: `${disputesWon} disputes resolved in favor`,
+          metadata: { source: 'kamiyo-on-chain', count: disputesWon },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+        }));
+      }
+
+      if (disputesLost > 0) {
+        const scaled = clampImpact(-15 * weight * Math.min(disputesLost, 5));
+        evidenceRecords.push(makeInteraction({
+          sourceEntityId,
+          targetEntityId,
+          type: 'INCONSISTENCY',
+          impact: scaled,
+          description: `${disputesLost} disputes lost`,
+          metadata: { source: 'kamiyo-on-chain', count: disputesLost },
+          context: { evaluatorId: runtime.agentId, source: 'kamiyo-on-chain' },
+        }));
       }
 
       // Push to TrustEngine if available
       let pushedToTrustEngine = false;
-      try {
-        const engine = (runtime as any).getService?.('trust-engine') as TrustEngineService | undefined;
-        if (engine && typeof engine.recordInteraction === 'function') {
-          for (const record of evidenceRecords) {
-            await engine.recordInteraction(record);
-          }
-          pushedToTrustEngine = true;
+      const engine = getTrustEngine(runtime);
+      if (engine?.recordInteraction) {
+        for (const record of evidenceRecords) {
+          await engine.recordInteraction(record);
         }
-      } catch {
-        // plugin-trust not available
+        pushedToTrustEngine = true;
       }
 
       // Store in runtime state
-      await runtime.setState?.('kamiyoTrustEvidence', evidenceRecords);
+      await appendStateItems(runtime, 'kamiyoTrustEvidence', evidenceRecords, 200);
 
       callback?.({
         text: `Synced ${evidenceRecords.length} KAMIYO trust events. Escrows: ${total} total, ${successful} released, ${disputed} disputed. Reputation: ${reputation}/100.${pushedToTrustEngine ? ' Pushed to TrustEngine.' : ''}`,
@@ -166,3 +184,35 @@ export const recordKamiyoTrustEventAction: Action = {
     }
   },
 };
+
+function makeInteraction(args: {
+  sourceEntityId: string;
+  targetEntityId: string;
+  type: TrustEvidenceType;
+  impact: number;
+  description: string;
+  metadata?: Record<string, unknown>;
+  context: { evaluatorId: string; roomId?: string; [key: string]: unknown };
+}): TrustInteraction {
+  return {
+    sourceEntityId: args.sourceEntityId,
+    targetEntityId: args.targetEntityId,
+    type: args.type,
+    timestamp: Date.now(),
+    impact: Math.round(args.impact),
+    details: { description: args.description, metadata: args.metadata },
+    context: args.context,
+  };
+}
+
+function clampImpact(value: number): number {
+  if (value > 100) return 100;
+  if (value < -100) return -100;
+  return value;
+}
+
+async function appendStateItems(runtime: IAgentRuntime, key: string, items: unknown[], max: number): Promise<void> {
+  const existing = ((await runtime.getState?.(key)) as unknown[] | undefined) || [];
+  const combined = [...existing, ...items];
+  await runtime.setState?.(key, combined.slice(Math.max(0, combined.length - max)));
+}

@@ -2,15 +2,10 @@ import { PublicKey } from '@solana/web3.js';
 import { Wallet, BN } from '@coral-xyz/anchor';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
 import { getNetworkConfig, getKeypair, createConnection, generateId, parseAmount, parseAddress, solToLamports, lamportsToSol } from '../utils';
+import { getTrustEngine } from '../trust/pluginTrust';
 
 const DEFAULT_MIN_STAKE_LAMPORTS = 100_000_000; // 0.1 SOL
 const DEFAULT_MIN_REPUTATION = 60;
-
-/** Minimal TrustEngine interface */
-interface TrustEngineService {
-  calculateTrust?(entityId: string, evaluatorId: string, context?: unknown): Promise<{ overallTrust: number } | null>;
-  recordInteraction(evidence: Record<string, unknown>): Promise<void>;
-}
 
 export const createTrustedEscrowAction: Action = {
   name: 'CREATE_TRUSTED_ESCROW',
@@ -130,24 +125,23 @@ export const createTrustedEscrowAction: Action = {
 
       // 3. Check counterparty — plugin-trust TrustEngine (if available)
       let trustEngineScore: number | undefined;
-      try {
-        const engine = (runtime as any).getService?.('trust-engine') as TrustEngineService | undefined;
-        if (engine && typeof engine.calculateTrust === 'function') {
-          const profile = await engine.calculateTrust(provider, runtime.agentId);
-          if (profile) {
-            trustEngineScore = profile.overallTrust;
-            // Block if plugin-trust says very low trust
-            if (trustEngineScore < 20) {
-              callback?.({
-                text: `TrustEngine score ${trustEngineScore}/100 is critically low. Escrow blocked.`,
-                content: { trustEngineScore, providerReputation },
-              });
-              return { success: false, error: `TrustEngine score ${trustEngineScore} critically low` };
-            }
-          }
+      const engine = getTrustEngine(runtime);
+      if (engine?.calculateTrust) {
+        const profile = await engine.calculateTrust(provider, {
+          evaluatorId: runtime.agentId,
+          roomId: message.roomId,
+          actionId: createTrustedEscrowAction.name,
+        });
+        trustEngineScore = profile?.overallTrust;
+
+        // Block if plugin-trust says very low trust
+        if (trustEngineScore != null && trustEngineScore < 20) {
+          callback?.({
+            text: `TrustEngine score ${trustEngineScore}/100 is critically low. Escrow blocked.`,
+            content: { trustEngineScore, providerReputation },
+          });
+          return { success: false, error: `TrustEngine score ${trustEngineScore} critically low` };
         }
-      } catch {
-        // plugin-trust not available
       }
 
       // 4. Create escrow
@@ -165,30 +159,17 @@ export const createTrustedEscrowAction: Action = {
       const [escrowPda] = client.getAgreementPDA(keypair.publicKey, transactionId);
       const trustCheck = { ownStake: lamportsToSol(ownStakeLamports), providerReputation, providerRisk, trustEngineScore };
 
-      // 5. Record trust evidence for the escrow creation
-      try {
-        const engine = (runtime as any).getService?.('trust-engine') as TrustEngineService | undefined;
-        if (engine && typeof engine.recordInteraction === 'function') {
-          await engine.recordInteraction({
-            sourceEntityId: runtime.agentId,
-            targetEntityId: provider,
-            type: 'helpful_action',
-            impact: 5,
-            verified: true,
-            description: `Trusted escrow created: ${amount} SOL with trust verification`,
-            context: { source: 'kamiyo-on-chain', transactionId, trustCheck },
-          });
-        }
-      } catch {
-        // Non-critical
-      }
-
       // Store pending escrow for tracking
-      const pending = ((await runtime.getState?.('kamiyoPendingEscrows')) as unknown[] | undefined) || [];
-      await runtime.setState?.('kamiyoPendingEscrows', [
-        ...pending,
+      await appendStateItem(
+        runtime,
+        'kamiyoPendingEscrows',
         { transactionId, provider, amount, trustCheck, createdAt: Date.now() },
-      ]);
+        200,
+        item => {
+          const tx = (item as any)?.transactionId;
+          return typeof tx === 'string' ? tx : null;
+        }
+      );
 
       const trustInfo = trustEngineScore != null ? `, trust engine: ${trustEngineScore}/100` : '';
       callback?.({
@@ -204,3 +185,27 @@ export const createTrustedEscrowAction: Action = {
     }
   },
 };
+
+async function appendStateItem(
+  runtime: IAgentRuntime,
+  key: string,
+  item: unknown,
+  max: number,
+  dedupeKey?: (item: unknown) => string | null
+): Promise<void> {
+  const existing = ((await runtime.getState?.(key)) as unknown[] | undefined) || [];
+  const next = [...existing];
+
+  if (dedupeKey) {
+    const id = dedupeKey(item);
+    if (id) {
+      for (let i = next.length - 1; i >= Math.max(0, next.length - 50); i--) {
+        const otherId = dedupeKey(next[i]);
+        if (otherId === id) return;
+      }
+    }
+  }
+
+  next.push(item);
+  await runtime.setState?.(key, next.slice(Math.max(0, next.length - max)));
+}
