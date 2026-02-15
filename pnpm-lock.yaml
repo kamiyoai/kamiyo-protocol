@@ -50,15 +50,27 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.28
+      '@typescript-eslint/eslint-plugin':
+        specifier: 7.18.0
+        version: 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: 7.18.0
+        version: 7.18.0(eslint@8.57.1)(typescript@5.9.3)
       chai:
         specifier: ^4.5.0
         version: 4.5.0
+      eslint:
+        specifier: 8.57.1
+        version: 8.57.1
       eventsource:
         specifier: ^4.1.0
         version: 4.1.0
       mocha:
         specifier: ^11.7.5
         version: 11.7.5
+      prettier:
+        specifier: 3.7.4
+        version: 3.7.4
       snarkjs:
         specifier: ^0.7.6
         version: 0.7.6
