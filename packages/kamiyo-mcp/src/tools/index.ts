@@ -11,12 +11,14 @@ export * from './search.js';
 export * from './paranet.js';
 export * from './kamino.js';
 export * from './fundry.js';
+export * from './elfa.js';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MARKET_TOOL_DEFINITIONS } from './market.js';
 import { SEARCH_TOOL_DEFINITIONS } from './search.js';
 import { PARANET_TOOLS } from './paranet.js';
 import { FUNDRY_TOOL_DEFINITIONS } from './fundry.js';
+import { ELFA_TOOL_DEFINITIONS } from './elfa.js';
 
 export const TOOL_DEFINITIONS: Tool[] = [
   {
@@ -157,4 +159,6 @@ export const TOOL_DEFINITIONS: Tool[] = [
   ...PARANET_TOOLS,
   // Fundry trusted launch tools
   ...FUNDRY_TOOL_DEFINITIONS,
+  // Elfa trusted trader tools
+  ...ELFA_TOOL_DEFINITIONS,
 ];

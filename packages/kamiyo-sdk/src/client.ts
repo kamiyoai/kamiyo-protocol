@@ -157,6 +157,36 @@ export class KamiyoClient {
     );
   }
 
+  /**
+   * Derive the trader session PDA for an agent and Elfa session ID
+   */
+  getTraderSessionPDA(
+    agent: PublicKey,
+    elfaSessionId: string
+  ): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("trader_session"),
+        agent.toBuffer(),
+        Buffer.from(elfaSessionId),
+      ],
+      this.programId
+    );
+  }
+
+  /**
+   * Derive the trade escrow PDA for a session and trade ID
+   */
+  getTradeEscrowPDA(
+    session: PublicKey,
+    tradeId: string
+  ): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("trade_escrow"), session.toBuffer(), Buffer.from(tradeId)],
+      this.programId
+    );
+  }
+
   // ========================================================================
   // Account Fetching
   // ========================================================================
@@ -541,6 +571,201 @@ export class KamiyoClient {
     creatorAllocationBps: number;
   }): Promise<string> {
     const instruction = this.buildCreateTrustedLaunchInstruction(
+      this.wallet.publicKey,
+      params
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
+  }
+
+  // ========================================================================
+  // Trusted Trader Instructions (Elfa × Hyperliquid)
+  // ========================================================================
+
+  /**
+   * Build create trader session instruction
+   */
+  buildCreateTraderSessionInstruction(
+    owner: PublicKey,
+    params: { elfaSessionId: string }
+  ): TransactionInstruction {
+    const [agentPDA] = this.getAgentPDA(owner);
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
+    const [sessionPDA] = this.getTraderSessionPDA(
+      agentPDA,
+      params.elfaSessionId
+    );
+
+    const sessionIdBytes = Buffer.from(params.elfaSessionId);
+    const data = Buffer.concat([
+      DISCRIMINATORS.createTraderSession,
+      Buffer.from([sessionIdBytes.length, 0, 0, 0]),
+      sessionIdBytes,
+    ]);
+
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: false },
+        { pubkey: agentPDA, isSigner: false, isWritable: false },
+        { pubkey: sessionPDA, isSigner: false, isWritable: true },
+        { pubkey: owner, isSigner: true, isWritable: true },
+        {
+          pubkey: SystemProgram.programId,
+          isSigner: false,
+          isWritable: false,
+        },
+      ],
+      programId: this.programId,
+      data,
+    });
+  }
+
+  /**
+   * Create a trader session on-chain
+   */
+  async createTraderSession(params: {
+    elfaSessionId: string;
+  }): Promise<string> {
+    const instruction = this.buildCreateTraderSessionInstruction(
+      this.wallet.publicKey,
+      params
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
+  }
+
+  /**
+   * Build create trade escrow instruction
+   */
+  buildCreateTradeEscrowInstruction(
+    trader: PublicKey,
+    params: {
+      sessionPda: PublicKey;
+      elfaSessionId: string;
+      agentPda: PublicKey;
+      tradeId: string;
+      collateralUsdc: BN;
+      timeLock: BN;
+    }
+  ): TransactionInstruction {
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
+    const [tradeEscrowPDA] = this.getTradeEscrowPDA(
+      params.sessionPda,
+      params.tradeId
+    );
+
+    const tradeIdBytes = Buffer.from(params.tradeId);
+    const data = Buffer.concat([
+      DISCRIMINATORS.createTradeEscrow,
+      Buffer.from([tradeIdBytes.length, 0, 0, 0]),
+      tradeIdBytes,
+      params.collateralUsdc.toArrayLike(Buffer, "le", 8),
+      params.timeLock.toArrayLike(Buffer, "le", 8),
+    ]);
+
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: false },
+        { pubkey: params.sessionPda, isSigner: false, isWritable: true },
+        { pubkey: tradeEscrowPDA, isSigner: false, isWritable: true },
+        { pubkey: trader, isSigner: true, isWritable: true },
+        {
+          pubkey: SystemProgram.programId,
+          isSigner: false,
+          isWritable: false,
+        },
+      ],
+      programId: this.programId,
+      data,
+    });
+  }
+
+  /**
+   * Create a trade escrow on-chain
+   */
+  async createTradeEscrow(params: {
+    sessionPda: PublicKey;
+    elfaSessionId: string;
+    agentPda: PublicKey;
+    tradeId: string;
+    collateralUsdc: BN;
+    timeLock: BN;
+  }): Promise<string> {
+    const instruction = this.buildCreateTradeEscrowInstruction(
+      this.wallet.publicKey,
+      params
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
+  }
+
+  /**
+   * Build close trader session instruction
+   */
+  buildCloseTraderSessionInstruction(
+    owner: PublicKey,
+    params: {
+      sessionPda: PublicKey;
+      elfaSessionId: string;
+      agentPda: PublicKey;
+    }
+  ): TransactionInstruction {
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: params.sessionPda, isSigner: false, isWritable: true },
+        { pubkey: params.agentPda, isSigner: false, isWritable: true },
+        { pubkey: owner, isSigner: true, isWritable: true },
+      ],
+      programId: this.programId,
+      data: DISCRIMINATORS.closeTraderSession,
+    });
+  }
+
+  /**
+   * Close a trader session on-chain
+   */
+  async closeTraderSession(params: {
+    sessionPda: PublicKey;
+    elfaSessionId: string;
+    agentPda: PublicKey;
+  }): Promise<string> {
+    const instruction = this.buildCloseTraderSessionInstruction(
       this.wallet.publicKey,
       params
     );

@@ -161,6 +161,14 @@ const LAUNCH_RELEASE_DELAY: i64 = 604_800; // 7 days
 const MAX_FUNDRY_COIN_ID_LENGTH: usize = 36; // UUID format
 const MAX_CONFIG_TYPE_LENGTH: usize = 16;
 
+// Trusted trader constants (Elfa × Hyperliquid)
+const MIN_TRADER_STAKE: u64 = 20_000_000_000; // 20 SOL minimum for trading sessions
+const MIN_TRADE_COLLATERAL: u64 = 1_000_000; // 1 USDC (6 decimals)
+const MAX_TRADE_COLLATERAL: u64 = 1_000_000_000_000; // 1M USDC
+const DEFAULT_TRADE_TIME_LOCK: i64 = 86_400; // 24 hours
+const MAX_ELFA_SESSION_ID_LEN: usize = 36;
+const MAX_TRADE_ID_LEN: usize = 64;
+
 // ============================================================================
 // Events
 // ============================================================================
@@ -508,6 +516,36 @@ pub struct OracleScoreRevealed {
     pub escrow: Pubkey,
     pub oracle: Pubkey,
     pub quality_score: u8,
+}
+
+// ============================================================================
+// Trusted Trader Events (Elfa × Hyperliquid)
+// ============================================================================
+
+#[event]
+pub struct TraderSessionCreated {
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    pub elfa_session_id: String,
+}
+
+#[event]
+pub struct TradeEscrowCreated {
+    pub escrow: Pubkey,
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub trade_id: String,
+    pub collateral_usdc: u64,
+}
+
+#[event]
+pub struct TraderSessionClosed {
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub total_trades: u64,
+    pub total_volume_usdc: u64,
+    pub pnl_net: i64,
 }
 
 // ============================================================================
@@ -3977,6 +4015,174 @@ pub mod kamiyo {
 
         Ok(())
     }
+
+    // ====================================================================
+    // Trusted Trader Instructions (Elfa × Hyperliquid)
+    // ====================================================================
+
+    /// Create a trusted trader session backed by KAMIYO agent identity.
+    /// Requires active agent with minimum 20 SOL stake.
+    pub fn create_trader_session(
+        ctx: Context<CreateTraderSession>,
+        elfa_session_id: String,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+
+        let agent = &ctx.accounts.agent_identity;
+        require!(agent.is_active, KamiyoError::AgentNotActive);
+        require!(
+            agent.stake_amount >= MIN_TRADER_STAKE,
+            KamiyoError::InsufficientTraderStake
+        );
+        require!(
+            !elfa_session_id.is_empty() && elfa_session_id.len() <= MAX_ELFA_SESSION_ID_LEN,
+            KamiyoError::InvalidSessionId
+        );
+
+        let clock = Clock::get()?;
+        let session = &mut ctx.accounts.trader_session;
+
+        session.agent = agent.key();
+        session.owner = ctx.accounts.owner.key();
+        session.elfa_session_id = elfa_session_id.clone();
+        session.status = TraderSessionStatus::Active;
+        session.created_at = clock.unix_timestamp;
+        session.closed_at = None;
+        session.total_trades = 0;
+        session.total_volume_usdc = 0;
+        session.pnl_net = 0;
+        session.last_trade_at = None;
+        session.trade_escrow_count = 0;
+        session.bump = ctx.bumps.trader_session;
+
+        emit!(TraderSessionCreated {
+            session: session.key(),
+            agent: agent.key(),
+            owner: ctx.accounts.owner.key(),
+            elfa_session_id,
+        });
+
+        Ok(())
+    }
+
+    /// Create a trade escrow within an active trader session.
+    /// Locks USDC collateral with time-lock for Hyperliquid position.
+    pub fn create_trade_escrow(
+        ctx: Context<CreateTradeEscrow>,
+        trade_id: String,
+        collateral_usdc: u64,
+        time_lock: i64,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+
+        let session = &mut ctx.accounts.trader_session;
+        require!(
+            session.status == TraderSessionStatus::Active,
+            KamiyoError::SessionNotActive
+        );
+        require!(
+            !trade_id.is_empty() && trade_id.len() <= MAX_TRADE_ID_LEN,
+            KamiyoError::InvalidTradeId
+        );
+        require!(
+            collateral_usdc >= MIN_TRADE_COLLATERAL
+                && collateral_usdc <= MAX_TRADE_COLLATERAL,
+            KamiyoError::InvalidAmount
+        );
+        require!(
+            time_lock >= 3600 && time_lock <= 604_800,
+            KamiyoError::InvalidTimeLock
+        );
+
+        let clock = Clock::get()?;
+        let escrow = &mut ctx.accounts.trade_escrow;
+
+        escrow.session = session.key();
+        escrow.agent = session.agent;
+        escrow.trader = ctx.accounts.trader.key();
+        escrow.trade_id = trade_id.clone();
+        escrow.collateral_usdc = collateral_usdc;
+        escrow.status = TradeEscrowStatus::Active;
+        escrow.created_at = clock.unix_timestamp;
+        escrow.expires_at = clock
+            .unix_timestamp
+            .checked_add(time_lock)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        escrow.settled_at = None;
+        escrow.pnl_reported = None;
+        escrow.quality_score = None;
+        escrow.slashed_amount = 0;
+        escrow.bump = ctx.bumps.trade_escrow;
+
+        // Update session counters
+        session.trade_escrow_count = session
+            .trade_escrow_count
+            .checked_add(1)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        session.total_trades = session
+            .total_trades
+            .checked_add(1)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        session.total_volume_usdc = session
+            .total_volume_usdc
+            .checked_add(collateral_usdc)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        session.last_trade_at = Some(clock.unix_timestamp);
+
+        emit!(TradeEscrowCreated {
+            escrow: escrow.key(),
+            session: session.key(),
+            agent: session.agent,
+            trade_id,
+            collateral_usdc,
+        });
+
+        Ok(())
+    }
+
+    /// Close a trader session. All trade escrows must be settled first.
+    /// Updates agent reputation based on session performance.
+    pub fn close_trader_session(ctx: Context<CloseTraderSession>) -> Result<()> {
+        let session = &mut ctx.accounts.trader_session;
+        require!(
+            session.status == TraderSessionStatus::Active,
+            KamiyoError::SessionNotActive
+        );
+        require!(
+            session.trade_escrow_count == 0,
+            KamiyoError::ActiveEscrowsRemaining
+        );
+
+        let clock = Clock::get()?;
+        session.status = TraderSessionStatus::Closed;
+        session.closed_at = Some(clock.unix_timestamp);
+
+        // Update agent reputation based on PnL
+        let agent = &mut ctx.accounts.agent_identity;
+        if session.total_trades > 0 {
+            if session.pnl_net > 0 {
+                agent.reputation = agent.reputation.saturating_add(10).min(1000);
+            } else if session.pnl_net < 0 {
+                agent.reputation = agent.reputation.saturating_sub(5);
+            }
+        }
+
+        emit!(TraderSessionClosed {
+            session: session.key(),
+            agent: agent.key(),
+            total_trades: session.total_trades,
+            total_volume_usdc: session.total_volume_usdc,
+            pnl_net: session.pnl_net,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -4918,6 +5124,95 @@ pub struct DisputeLaunch<'info> {
 }
 
 // ============================================================================
+// Trusted Trader Account Validation (Elfa × Hyperliquid)
+// ============================================================================
+
+#[derive(Accounts)]
+#[instruction(elfa_session_id: String)]
+pub struct CreateTraderSession<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump,
+        constraint = agent_identity.owner == owner.key() @ KamiyoError::Unauthorized,
+        constraint = agent_identity.is_active @ KamiyoError::AgentNotActive
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + TraderSession::INIT_SPACE,
+        seeds = [b"trader_session", agent_identity.key().as_ref(), elfa_session_id.as_bytes()],
+        bump
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(trade_id: String)]
+pub struct CreateTradeEscrow<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
+        bump = trader_session.bump,
+        constraint = trader_session.owner == trader.key() @ KamiyoError::Unauthorized
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(
+        init,
+        payer = trader,
+        space = 8 + TradeEscrow::INIT_SPACE,
+        seeds = [b"trade_escrow", trader_session.key().as_ref(), trade_id.as_bytes()],
+        bump
+    )]
+    pub trade_escrow: Account<'info, TradeEscrow>,
+
+    #[account(mut)]
+    pub trader: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CloseTraderSession<'info> {
+    #[account(
+        mut,
+        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
+        bump = trader_session.bump,
+        constraint = trader_session.owner == owner.key() @ KamiyoError::Unauthorized
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(
+        mut,
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+}
+
+// ============================================================================
 // State
 // ============================================================================
 
@@ -5238,6 +5533,63 @@ pub enum LaunchStatus {
 }
 
 // ============================================================================
+// Trusted Trader State (Elfa × Hyperliquid)
+// ============================================================================
+
+#[account]
+#[derive(InitSpace)]
+pub struct TraderSession {
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    #[max_len(36)]
+    pub elfa_session_id: String,
+    pub status: TraderSessionStatus,
+    pub created_at: i64,
+    pub closed_at: Option<i64>,
+    pub total_trades: u64,
+    pub total_volume_usdc: u64,
+    pub pnl_net: i64,
+    pub last_trade_at: Option<i64>,
+    pub trade_escrow_count: u32,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct TradeEscrow {
+    pub session: Pubkey,
+    pub agent: Pubkey,
+    pub trader: Pubkey,
+    #[max_len(64)]
+    pub trade_id: String,
+    pub collateral_usdc: u64,
+    pub status: TradeEscrowStatus,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub settled_at: Option<i64>,
+    pub pnl_reported: Option<i64>,
+    pub quality_score: Option<u8>,
+    pub slashed_amount: u64,
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum TraderSessionStatus {
+    Active,
+    Closed,
+    Suspended,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum TradeEscrowStatus {
+    Active,
+    Settled,
+    Disputed,
+    Released,
+    Slashed,
+}
+
+// ============================================================================
 // Errors
 // ============================================================================
 
@@ -5434,4 +5786,20 @@ pub enum KamiyoError {
 
     #[msg("Launch already graduated")]
     LaunchAlreadyGraduated,
+
+    // Trusted trader errors
+    #[msg("Insufficient stake for trading sessions (minimum 20 SOL)")]
+    InsufficientTraderStake,
+
+    #[msg("Invalid Elfa session ID")]
+    InvalidSessionId,
+
+    #[msg("Invalid trade ID")]
+    InvalidTradeId,
+
+    #[msg("Trader session is not active")]
+    SessionNotActive,
+
+    #[msg("Active escrows must be settled before closing session")]
+    ActiveEscrowsRemaining,
 }

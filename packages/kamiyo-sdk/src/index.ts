@@ -33,3 +33,6 @@ export * from "./meishi";
 
 // Fundry trusted launch integration
 export * from "./fundry";
+
+// Elfa trusted trader integration
+export * from "./elfa";
