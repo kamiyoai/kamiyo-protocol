@@ -1443,7 +1443,7 @@ function startBackgroundTasks(): void {
 async function main(): Promise<void> {
   logger.info('KAMIYO API starting...');
 
-  // Initialize blacklist for Blindfold verification
+  // Initialize blacklist (public verification + security)
   const { initBlacklist } = await import('./blacklist');
   initBlacklist();
 

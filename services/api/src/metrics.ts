@@ -70,28 +70,6 @@ export function trackLatency<T>(
   return fn().finally(() => end());
 }
 
-// Blindfold funding metrics
-export const blindfoldCallbacksTotal = new Counter({
-  name: 'blindfold_callbacks_total',
-  help: 'Total Blindfold funding callbacks',
-  labelNames: ['status', 'result'] as const,
-  registers: [registry],
-});
-
-export const blindfoldFundingAmount = new Histogram({
-  name: 'blindfold_funding_amount_usd',
-  help: 'Funding amounts in USD',
-  buckets: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
-  registers: [registry],
-});
-
-export const blindfoldSecurityEvents = new Counter({
-  name: 'blindfold_security_events_total',
-  help: 'Security events from Blindfold integration',
-  labelNames: ['type', 'severity'] as const,
-  registers: [registry],
-});
-
 // MCP metrics
 export const mcpSessionsActive = new Gauge({
   name: 'mcp_sessions_active',
