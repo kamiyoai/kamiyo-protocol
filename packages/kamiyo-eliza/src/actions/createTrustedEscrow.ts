@@ -130,7 +130,7 @@ export const createTrustedEscrowAction: Action = {
         const profile = await engine.calculateTrust(provider, {
           evaluatorId: runtime.agentId,
           roomId: message.roomId,
-          actionId: createTrustedEscrowAction.name,
+          action: createTrustedEscrowAction.name,
         });
         trustEngineScore = profile?.overallTrust;
 

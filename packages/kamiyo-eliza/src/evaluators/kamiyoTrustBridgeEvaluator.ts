@@ -9,7 +9,7 @@ import { getTrustEngine } from '../trust/pluginTrust';
 const EVIDENCE_MAP: Record<string, { type: TrustEvidenceType; impact: number; description: string }> = {
   escrow_released: { type: 'PROMISE_KEPT',        impact: 15,  description: 'Escrow released — delivery honored' },
   dispute_won:     { type: 'CONSISTENT_BEHAVIOR', impact: 10,  description: 'Dispute resolved in favor' },
-  dispute_lost:    { type: 'INCONSISTENCY',       impact: -15, description: 'Dispute lost — invalid claim' },
+  dispute_lost:    { type: 'INCONSISTENT_BEHAVIOR', impact: -15, description: 'Dispute lost — invalid claim' },
   agent_slashed:   { type: 'HARMFUL_ACTION',      impact: -20, description: 'Agent slashed for violation' },
 };
 
@@ -106,7 +106,8 @@ export const kamiyoTrustBridgeEvaluator: Evaluator = {
       context: {
         evaluatorId: runtime.agentId,
         source: 'kamiyo-on-chain',
-        actionId: action,
+        action,
+        roomId: message.roomId,
       },
     };
 

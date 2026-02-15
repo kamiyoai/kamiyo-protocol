@@ -6,26 +6,24 @@ export type TrustEvidenceType =
   | 'HELPFUL_ACTION'
   | 'HARMFUL_ACTION'
   | 'CONSISTENT_BEHAVIOR'
-  | 'INCONSISTENCY'
   | 'VERIFIED_IDENTITY'
+  | 'COMMUNITY_CONTRIBUTION'
+  | 'SUCCESSFUL_TRANSACTION'
+  | 'INCONSISTENT_BEHAVIOR'
   | 'SUSPICIOUS_ACTIVITY'
   | 'FAILED_VERIFICATION'
+  | 'SPAM_BEHAVIOR'
   | 'SECURITY_VIOLATION'
-  | 'ESCROW_COMPLETED'
-  | 'ESCROW_DISPUTED'
-  | 'ORACLE_VALIDATION'
-  | 'STAKE_INCREASED'
-  | 'STAKE_DECREASED'
-  | 'PAYMENT_MADE'
-  | 'PAYMENT_RECEIVED'
-  | 'DISPUTE_RESOLVED'
-  | 'DISPUTE_ESCALATED'
-  | 'TRUST_SCORE_UPDATE'
-  | 'SECURITY_ALERT';
+  | 'IDENTITY_CHANGE'
+  | 'ROLE_CHANGE'
+  | 'CONTEXT_SWITCH';
 
 export interface TrustContext {
   evaluatorId: string;
   roomId?: string;
+  worldId?: string;
+  platform?: string;
+  action?: string;
   [key: string]: unknown;
 }
 
@@ -37,9 +35,12 @@ export interface TrustInteraction {
   impact: number;
   details?: {
     description?: string;
+    messageId?: string;
+    roomId?: string;
     metadata?: Record<string, unknown>;
+    [key: string]: unknown;
   };
-  context: TrustContext;
+  context?: TrustContext;
 }
 
 export interface TrustEngine {
