@@ -137,7 +137,7 @@ jobs:
       - name: Verify Kani Proofs
         run: |
           KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh
-          ./scripts/kani-audit.sh kani-results/kani.log
+          KANI_AUDIT_PER_PACKAGE=1 ./scripts/kani-audit.sh kani-results/kani.log
 
       - name: Upload Kani Summary
         if: always()

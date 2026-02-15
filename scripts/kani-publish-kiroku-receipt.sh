@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${repo_root}"
+
 out_dir="${KANI_OUT_DIR:-kani-results}"
 summary_path="${out_dir}/summary.md"
 log_path="${out_dir}/kani.log"
@@ -37,7 +40,17 @@ if [ "${KANI_FULL:-}" = "1" ]; then
 fi
 
 status="failed"
-if grep -q 'VERIFICATION:- SUCCESSFUL' "${log_path}"; then
+audit_expect_covers="${KANI_EXPECT_COVERS:-}"
+if [ -z "${audit_expect_covers}" ] && [ "${KANI_FULL:-}" = "1" ]; then
+  audit_expect_covers="1"
+fi
+
+audit_env=()
+if [ "${audit_expect_covers}" = "1" ]; then
+  audit_env+=(KANI_EXPECT_COVERS=1)
+fi
+
+if "${audit_env[@]}" ./scripts/kani-audit.sh "${log_path}" >/dev/null 2>&1; then
   status="verified"
 fi
 
@@ -51,7 +64,23 @@ if command -v sha256sum >/dev/null 2>&1; then
 fi
 
 covers=""
-cover_lines="$(grep -E '\\*\\* [0-9]+ of [0-9]+ cover properties satisfied' "${log_path}" || true)"
+cover_files=("${log_path}")
+dir="$(dirname "${log_path}")"
+shopt -s nullglob
+pkg_logs=("${dir}"/kani-*.log)
+shopt -u nullglob
+
+if [ "${#pkg_logs[@]}" -gt 0 ] && { [ "${audit_expect_covers}" = "1" ] || [ "${KANI_AUDIT_PER_PACKAGE:-}" = "1" ]; }; then
+  cover_files=()
+  for f in "${pkg_logs[@]}"; do
+    if [ "$(basename "${f}")" = "kani.log" ]; then
+      continue
+    fi
+    cover_files+=("${f}")
+  done
+fi
+
+cover_lines="$(grep -hE '\\*\\* [0-9]+ of [0-9]+ cover properties satisfied' "${cover_files[@]}" || true)"
 if [ -n "${cover_lines}" ]; then
   read -r satisfied total _unsatisfied <<<"$(
     printf '%s\n' "${cover_lines}" |
@@ -120,12 +149,29 @@ print(json.dumps(payload, separators=(",", ":")))
 PY
 )"
 
-resp="$(
-  curl -sS -X POST "${publish_url}" \
+resp_and_code="$(
+  curl -sS \
+    --retry 3 \
+    --retry-delay 2 \
+    --retry-connrefused \
+    --max-time 30 \
+    -w $'\n%{http_code}' \
+    -X POST "${publish_url}" \
     -H "Authorization: Bearer ${publish_key}" \
     -H "Content-Type: application/json" \
     --data "${payload}"
 )"
+
+http_code="${resp_and_code##*$'\n'}"
+resp="${resp_and_code%$'\n'*}"
+
+if ! [[ "${http_code}" =~ ^[0-9]{3}$ ]] || [ "${http_code}" -lt 200 ] || [ "${http_code}" -ge 300 ]; then
+  echo "[kiroku] publish failed (http ${http_code})" >&2
+  if [ -n "${resp}" ]; then
+    echo "[kiroku] response: ${resp:0:600}" >&2
+  fi
+  exit 1
+fi
 
 drop_id="$(
   python3 - "${resp}" <<'PY'
