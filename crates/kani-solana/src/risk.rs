@@ -1,9 +1,6 @@
-//! Reusable Kani harnesses for perp-style risk and accounting.
+//! Percolator-style risk primitives and Kani proofs.
 //!
-//! The haircut ratio `h` matches Percolator's global coverage ratio model.
 //! Reference: https://github.com/aeyakovenko/percolator
-//!
-//! Pure math only: no Solana types.
 
 /// Global haircut ratio `h` as used in Percolator.
 ///
@@ -131,7 +128,7 @@ pub fn loss_writeoff(negative_equity: u128, insurance: u128) -> (u128, u128) {
     (writeoff, insurance - writeoff)
 }
 
-#[cfg(all(kani, feature = "kani"))]
+#[cfg(kani)]
 mod proofs {
     use super::*;
 
@@ -192,6 +189,19 @@ mod proofs {
 
         let y = effective_pnl(x as i128, h_num, h_den);
         kani::assert(y <= x);
+    }
+
+    #[kani::proof]
+    fn proof_effective_pnl_matches_reference_u64_domain() {
+        let pos: u64 = kani::any();
+        let h_den: u64 = kani::any();
+        let h_num: u64 = kani::any();
+        kani::assume(h_den > 0);
+        kani::assume(h_num <= h_den);
+
+        let expected = (pos as u128 * h_num as u128) / (h_den as u128);
+        let actual = effective_pnl(pos as i128, h_num as u128, h_den as u128);
+        kani::assert(actual == expected);
     }
 
     #[kani::proof]

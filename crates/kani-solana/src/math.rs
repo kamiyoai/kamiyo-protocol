@@ -1,13 +1,6 @@
-//! Mathematical proof helpers: ceiling averages, weighted consensus,
-//! spec matching, and monotonicity provers.
+//! Proof helpers for math specs and monotonicity.
 
-/// Reference implementation of ceiling weighted average.
-///
-/// Given `(value, weight)` pairs, computes `ceil(sum(v*w) / sum(w))`, capped
-/// at `cap`. This is the specification that users compare their own
-/// implementation against.
-///
-/// Returns 0 if total weight is 0.
+/// Reference implementation of a capped ceiling weighted average.
 pub fn ceiling_weighted_average(pairs: &[(u8, u16)], cap: u8) -> u8 {
     let mut weighted_sum: u128 = 0;
     let mut total_weight: u128 = 0;
@@ -25,23 +18,9 @@ pub fn ceiling_weighted_average(pairs: &[(u8, u16)], cap: u8) -> u8 {
     consensus.min(cap as u128) as u8
 }
 
-/// Assert that a user's weighted consensus function matches the ceiling
-/// weighted average reference for `N` symbolic `(score, weight)` pairs.
+/// Proves that a user's consensus implementation matches the reference for `N` symbolic inputs.
 ///
-/// Kani cannot handle dynamic-length arrays, so call this once per
-/// fixed array size you want to verify (e.g., 2, 3, 4, 5 oracles).
-///
-/// # Example
-///
-/// ```ignore
-/// #[kani::proof]
-/// fn consensus_matches_for_3() {
-///     kani_solana::math::assert_consensus_matches_ceiling_avg::<3, _>(
-///         |pairs| my_calculate_consensus(pairs, 100).unwrap(),
-///         100,
-///     );
-/// }
-/// ```
+/// Kani cannot handle dynamic-length arrays; call once per fixed `N` you care about.
 pub fn assert_consensus_matches_ceiling_avg<const N: usize, F>(user_fn: F, cap: u8)
 where
     F: Fn(&[(u8, u16)]) -> u8,

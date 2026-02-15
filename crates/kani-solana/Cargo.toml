@@ -9,8 +9,7 @@ categories = ["development-tools::testing"]
 
 [features]
 default = []
-kani = []
-kani-full = ["kani"]
+kani-full = []
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

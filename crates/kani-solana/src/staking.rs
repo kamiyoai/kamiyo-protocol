@@ -1,8 +1,4 @@
-//! Staking reward and multiplier proof helpers.
-//!
-//! Abstracts common staking invariants: multiplier monotonicity,
-//! valid multiplier sets, zero-rewards-when-unstaked, and bounded
-//! reward arithmetic.
+//! Proof helpers for staking invariants.
 
 /// Assert that a duration-to-multiplier function is monotonically non-decreasing.
 ///
@@ -21,18 +17,6 @@ where
 }
 
 /// Assert that a multiplier function only returns values from an expected set.
-///
-/// # Example
-///
-/// ```ignore
-/// #[kani::proof]
-/// fn my_multiplier_valid() {
-///     kani_solana::staking::assert_multiplier_in_set(
-///         my_get_multiplier,
-///         &[10_000, 12_000, 15_000, 20_000],
-///     );
-/// }
-/// ```
 pub fn assert_multiplier_in_set<F>(multiplier_fn: F, expected_values: &[u64])
 where
     F: Fn(i64) -> u64,
@@ -44,6 +28,7 @@ where
     while i < expected_values.len() {
         if expected_values[i] == result {
             found = true;
+            break;
         }
         i += 1;
     }
