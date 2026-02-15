@@ -8,8 +8,10 @@ import db, { deductCredits, usdToCredits } from '../../db';
 // Using direct task executor instead of orchestrator
 import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
+import hiveSwarmRoutes from './hive-swarm';
 import { authMiddleware } from '../middleware';
 import { getSolanaConnection } from '../../solana';
+import { reserveTeamBudget, settleTeamBudget } from '../../swarm/pool';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const KAMIYO_DECIMALS = 6;
@@ -74,6 +76,9 @@ const router = Router();
 
 // Apply auth middleware to all routes - teams require authentication
 router.use(authMiddleware);
+
+// Swarm DAG planning/execution routes (team-scoped)
+router.use('/:id/swarm', hiveSwarmRoutes);
 
 // GET /api/hive-teams - list teams owned by authenticated user
 router.get('/', (req: Request, res: Response) => {
@@ -965,18 +970,8 @@ router.get('/:id/draws', (req: Request, res: Response) => {
 
 // --- Direct task execution (bypassing swarm-agents orchestrator due to bun:sqlite issue) ---
 
-function recordDraw(teamId: string, agentId: string, amount: number, taskId: string) {
-  const drawId = `draw_${randomUUID().slice(0, 12)}`;
-  const now = Math.floor(Date.now() / 1000);
-  db.prepare(`
-    INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
-    VALUES (?, ?, ?, ?, ?, 'completed', ?)
-  `).run(drawId, teamId, agentId, amount, `task:${taskId}`, now);
-  return drawId;
-}
-
 // POST /api/hive-teams/:id/tasks
-router.post('/:id/tasks', async (req: Request, res: Response) => {
+router.post('/:id/tasks', requireTeamOwner, async (req: Request, res: Response) => {
   const teamId = req.params.id;
   const { memberId, description, budget } = req.body;
 
@@ -1002,65 +997,67 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
   }
 
   const taskBudget = budget ?? member.draw_limit;
+  const taskId = `task_${randomUUID().slice(0, 12)}`;
 
-  // Atomic: daily limit check + pool reservation in a single transaction
-  const reserveBudget = db.transaction(() => {
-    const dailySpend = db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
-      WHERE team_id = ? AND created_at > unixepoch() - 86400
-    `).get(teamId) as { total: number };
-
-    if (dailySpend.total + taskBudget > team.daily_limit) {
-      return { error: 'Would exceed daily limit' } as const;
-    }
-
-    const reserved = db.prepare(`
-      UPDATE swarm_teams
-      SET pool_balance = pool_balance - ?, updated_at = unixepoch()
-      WHERE id = ? AND pool_balance >= ?
-    `).run(taskBudget, teamId, taskBudget);
-
-    if (reserved.changes === 0) {
-      return { error: 'Insufficient pool balance' } as const;
-    }
-
-    return { error: null } as const;
-  });
-
-  const budgetResult = reserveBudget();
-  if (budgetResult.error) {
-    res.status(400).json({ error: budgetResult.error });
+  const reserve = reserveTeamBudget(teamId, taskBudget);
+  if (!reserve.ok) {
+    res.status(400).json({ error: reserve.error });
     return;
   }
 
+  let settled = false;
+
   try {
     if (!taskExecutor) {
+      const settlement = settleTeamBudget({
+        teamId,
+        agentId: member.agent_id,
+        reserved: reserve.reserved,
+        amountDrawn: 0,
+        purpose: `task:${taskId}`,
+      });
+      settled = settlement.ok;
       res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
       return;
     }
-
-    const taskId = `task_${randomUUID().slice(0, 12)}`;
 
     // Execute task directly (bypassing orchestrator due to bun:sqlite compat issue)
     const result = await taskExecutor({
       taskId,
       description,
-      budget: taskBudget,
+      budget: reserve.reserved,
       teamId,
+      metadata: {
+        agentId: member.agent_id,
+        memberId: member.id,
+      },
     });
 
-    // Record draw if task completed with cost
-    if (result.status === 'completed' && result.amountDrawn && result.amountDrawn > 0) {
-      recordDraw(teamId, member.agent_id, result.amountDrawn, taskId);
-    }
+    const amountDrawn = result.status === 'completed' ? (result.amountDrawn ?? 0) : 0;
+    const settlement = settleTeamBudget({
+      teamId,
+      agentId: member.agent_id,
+      reserved: reserve.reserved,
+      amountDrawn,
+      purpose: `task:${taskId}`,
+    });
+    settled = settlement.ok;
 
     res.json(result);
   } catch (err) {
-    // Refund reserved budget on failure
-    db.prepare(`
-      UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
-      WHERE id = ?
-    `).run(taskBudget, teamId);
+    if (!settled && reserve.reserved > 0) {
+      try {
+        settleTeamBudget({
+          teamId,
+          agentId: member.agent_id,
+          reserved: reserve.reserved,
+          amountDrawn: 0,
+          purpose: `task:${taskId}`,
+        });
+      } catch {
+        // Ignore refund failure; primary error still returned.
+      }
+    }
     res.status(500).json({ error: err instanceof Error ? err.message : 'Task execution failed' });
   }
 });
