@@ -2,6 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 import { Wallet } from '@coral-xyz/anchor';
 import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../types';
 import { getNetworkConfig, getKeypair, createConnection, lamportsToSol } from '../utils';
+import { getTrustEngine } from '../trust/pluginTrust';
 
 const DEFAULT_MIN_STAKE_LAMPORTS = 100_000_000; // 0.1 SOL
 
@@ -31,7 +32,7 @@ export const requireKamiyoStakeAction: Action = {
 
   async handler(
     runtime: IAgentRuntime,
-    _message: Memory,
+    message: Memory,
     _state?: State,
     _options?: Record<string, unknown>,
     callback?: HandlerCallback
@@ -78,16 +79,14 @@ export const requireKamiyoStakeAction: Action = {
 
       // Optionally check plugin-trust TrustEngine
       let trustScore: number | undefined;
-      try {
-        const engine = (runtime as any).getService?.('trust-engine');
-        if (engine && typeof engine.calculateTrust === 'function') {
-          const profile = await engine.calculateTrust(keypair.publicKey.toBase58(), runtime.agentId);
-          if (profile) {
-            trustScore = profile.overallTrust;
-          }
-        }
-      } catch {
-        // plugin-trust not available
+      const engine = getTrustEngine(runtime);
+      if (engine?.calculateTrust) {
+        const profile = await engine.calculateTrust(keypair.publicKey.toBase58(), {
+          evaluatorId: runtime.agentId,
+          roomId: message.roomId,
+          actionId: requireKamiyoStakeAction.name,
+        });
+        trustScore = profile?.overallTrust;
       }
 
       const allowed = stakeOk;
