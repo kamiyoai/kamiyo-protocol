@@ -194,6 +194,7 @@ LAUNCH_CONFIGURATION.md
 marketing/oracle-business-model.md
 # Force rebuild - recharts removed
 CLAUDE.md
+CLAUDE2.md
 
 # Local launch scripts
 token-launch/
@@ -252,3 +253,6 @@ native/*/fuzz_build/
 native/*/fuzz/*.dSYM/
 native/*/fuzz/fuzz_*
 !native/*/fuzz/fuzz_*.c
+
+# Local docs (never commit)
+/docs/
