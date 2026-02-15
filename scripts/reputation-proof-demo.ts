@@ -186,7 +186,7 @@ async function runDemo() {
   console.log(chalk.gray('  Required Reputation: ') + chalk.yellow(`>= ${threshold.minReputation}%`));
   console.log(chalk.gray('  Required Transactions: ') + chalk.yellow(`>= ${threshold.minTransactions}`));
   console.log(chalk.gray('  Daily Limit: ') + chalk.green('$2,000'));
-  console.log(chalk.gray('  Payment Rail: ') + chalk.cyan('ShadowWire + Blindfold Card\n'));
+  console.log(chalk.gray('  Payment Rail: ') + chalk.cyan('ShadowWire\n'));
 
   await sleep(2000);
 
@@ -300,7 +300,6 @@ async function runDemo() {
       console.log();
       console.log(chalk.gray('  Agent can now use:'));
       console.log(chalk.cyan('    - ShadowWire private transfers (up to $2,000/day)'));
-      console.log(chalk.cyan('    - Blindfold privacy card (premium tier)'));
       console.log();
     } else {
       console.log(chalk.red('  ✗ ') + chalk.white('Proof verification failed\n'));

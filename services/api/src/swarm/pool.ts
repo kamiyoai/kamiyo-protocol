@@ -76,7 +76,7 @@ export function settleTeamBudget(options: {
       drawId = `draw_${randomUUID().slice(0, 12)}`;
       const now = Math.floor(Date.now() / 1000);
       db.prepare(`
-        INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
+        INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, status, created_at)
         VALUES (?, ?, ?, ?, ?, 'completed', ?)
       `).run(drawId, options.teamId, options.agentId, amountDrawn, options.purpose, now);
     }
@@ -86,4 +86,3 @@ export function settleTeamBudget(options: {
 
   return settle();
 }
-

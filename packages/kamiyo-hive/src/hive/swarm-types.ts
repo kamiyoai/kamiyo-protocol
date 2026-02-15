@@ -259,14 +259,14 @@ export interface PaymentTier {
   minReputation: number;
   minTransactions: number;
   dailyLimit: number;
-  rails: ('standard' | 'shadowwire' | 'blindfold')[];
+  rails: ('standard' | 'shadowwire')[];
 }
 
 export const PAYMENT_TIERS: PaymentTier[] = [
   { name: 'standard', minReputation: 0, minTransactions: 0, dailyLimit: 100, rails: ['standard'] },
   { name: 'basic', minReputation: 70, minTransactions: 10, dailyLimit: 500, rails: ['standard', 'shadowwire'] },
-  { name: 'premium', minReputation: 85, minTransactions: 50, dailyLimit: 2000, rails: ['standard', 'shadowwire', 'blindfold'] },
-  { name: 'elite', minReputation: 95, minTransactions: 100, dailyLimit: 10000, rails: ['standard', 'shadowwire', 'blindfold'] },
+  { name: 'premium', minReputation: 85, minTransactions: 50, dailyLimit: 2000, rails: ['standard', 'shadowwire'] },
+  { name: 'elite', minReputation: 95, minTransactions: 100, dailyLimit: 10000, rails: ['standard', 'shadowwire'] },
 ];
 
 // Events
