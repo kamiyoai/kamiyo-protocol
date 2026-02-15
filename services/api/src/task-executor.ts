@@ -117,7 +117,12 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
     // Per-agent rate limit
     try {
-      checkRateLimit(input.taskId.split('_')[0] || 'unknown');
+      const meta = input.metadata as Record<string, unknown> | undefined;
+      const agentId =
+        (meta && typeof meta.agentId === 'string' && meta.agentId.trim()) ? meta.agentId.trim()
+          : (meta && typeof meta.memberId === 'string' && meta.memberId.trim()) ? meta.memberId.trim()
+            : 'unknown';
+      checkRateLimit(`${input.teamId}:${agentId}`);
     } catch (err) {
       return {
         taskId: input.taskId,
