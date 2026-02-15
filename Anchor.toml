@@ -44,7 +44,7 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "npx ts-mocha -p ./tests/tsconfig.json -t 1000000 tests/**/*.ts"
+test = "npx tsx node_modules/mocha/bin/mocha.js -t 1000000 tests/**/*.ts"
 
 [test]
 startup_wait = 30000
