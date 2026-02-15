@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
+    "@elizaos/plugin-trust": "1.2.1",
     "@magicblock-labs/ephemeral-rollups-sdk": "^0.8.5",
     "@solana/spl-governance": "^0.3.28",
     "@solana/spl-token": "^0.4.9",

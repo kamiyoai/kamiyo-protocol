@@ -47,24 +47,27 @@ export interface Plugin {
 // plugin-trust TrustEngine interface (subset we interact with)
 // ---------------------------------------------------------------------------
 
-/** Matches plugin-trust's TrustEvidenceType enum values (uppercase). */
-export type TrustEvidenceType =
-  | 'PROMISE_KEPT'
-  | 'PROMISE_BROKEN'
-  | 'HELPFUL_ACTION'
-  | 'HARMFUL_ACTION'
-  | 'CONSISTENT_BEHAVIOR'
-  | 'VERIFIED_IDENTITY'
-  | 'COMMUNITY_CONTRIBUTION'
-  | 'SUCCESSFUL_TRANSACTION'
-  | 'INCONSISTENT_BEHAVIOR'
-  | 'SUSPICIOUS_ACTIVITY'
-  | 'FAILED_VERIFICATION'
-  | 'SPAM_BEHAVIOR'
-  | 'SECURITY_VIOLATION'
-  | 'IDENTITY_CHANGE'
-  | 'ROLE_CHANGE'
-  | 'CONTEXT_SWITCH';
+export const TRUST_EVIDENCE_TYPES = [
+  'PROMISE_KEPT',
+  'PROMISE_BROKEN',
+  'HELPFUL_ACTION',
+  'HARMFUL_ACTION',
+  'CONSISTENT_BEHAVIOR',
+  'VERIFIED_IDENTITY',
+  'COMMUNITY_CONTRIBUTION',
+  'SUCCESSFUL_TRANSACTION',
+  'INCONSISTENT_BEHAVIOR',
+  'SUSPICIOUS_ACTIVITY',
+  'FAILED_VERIFICATION',
+  'SPAM_BEHAVIOR',
+  'SECURITY_VIOLATION',
+  'IDENTITY_CHANGE',
+  'ROLE_CHANGE',
+  'CONTEXT_SWITCH',
+] as const;
+
+/** Matches plugin-trust's `TrustEvidenceType` enum values (uppercase). */
+export type TrustEvidenceType = (typeof TRUST_EVIDENCE_TYPES)[number];
 
 export interface TrustContext {
   evaluatorId: string;
@@ -139,18 +142,18 @@ export interface EvidenceMapping {
  * Maps KAMIYO on-chain events to plugin-trust TrustEvidence records.
  *
  * Positive:
- *   escrow_released  → promise_kept (+15 reliability)
- *   dispute_won      → consistent_behavior (+10 integrity)
- *   oracle_correct   → consistent_behavior (+10 competence)
- *   stake_increased  → helpful_action (+8 benevolence)
- *   agent_registered → verified_identity (+8 transparency)
+ *   escrow_released  → PROMISE_KEPT (+15 reliability)
+ *   dispute_won      → CONSISTENT_BEHAVIOR (+10 integrity)
+ *   oracle_correct   → CONSISTENT_BEHAVIOR (+10 competence)
+ *   stake_increased  → HELPFUL_ACTION (+8 benevolence)
+ *   agent_registered → VERIFIED_IDENTITY (+8 transparency)
  *
  * Negative:
- *   escrow_disputed  → promise_broken (-10 reliability)
- *   dispute_lost     → inconsistency (-15 integrity)
- *   oracle_slashed   → inconsistency (-20 competence)
- *   agent_slashed    → harmful_action (-20 integrity)
- *   stake_decreased  → suspicious_activity (-5 benevolence)
+ *   escrow_disputed  → PROMISE_BROKEN (-10 reliability)
+ *   dispute_lost     → INCONSISTENT_BEHAVIOR (-15 integrity)
+ *   oracle_slashed   → INCONSISTENT_BEHAVIOR (-20 competence)
+ *   agent_slashed    → HARMFUL_ACTION (-20 integrity)
+ *   stake_decreased  → SUSPICIOUS_ACTIVITY (-5 benevolence)
  */
 export const EVIDENCE_MAP: Record<KamiyoEventType, EvidenceMapping> = {
   escrow_released:  { type: 'PROMISE_KEPT',        impact: 15,  dimension: 'reliability',   description: 'Escrow funds released — delivery honored' },
