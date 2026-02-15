@@ -1348,6 +1348,54 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_proposals_status ON swarm_task_proposals(status);
   CREATE INDEX IF NOT EXISTS idx_vote_bids_proposal ON swarm_vote_bids(proposal_id);
 
+  CREATE TABLE IF NOT EXISTS swarm_runs (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    requested_by_wallet TEXT,
+    mission TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    max_parallel INTEGER NOT NULL,
+    fail_fast INTEGER NOT NULL,
+    total_reserved REAL NOT NULL DEFAULT 0,
+    total_spent REAL NOT NULL DEFAULT 0,
+    error TEXT,
+    kiroku_receipt TEXT,
+    kiroku_url TEXT,
+    kiroku_error TEXT,
+    started_at INTEGER DEFAULT (unixepoch()),
+    completed_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_swarm_runs_team_started ON swarm_runs(team_id, started_at);
+  CREATE INDEX IF NOT EXISTS idx_swarm_runs_status_started ON swarm_runs(status, started_at);
+
+  CREATE TABLE IF NOT EXISTS swarm_run_nodes (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    depends_on_json TEXT NOT NULL,
+    description TEXT NOT NULL,
+    budget_reserved REAL NOT NULL,
+    amount_drawn REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    output_json TEXT,
+    error TEXT,
+    started_at INTEGER,
+    completed_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (run_id) REFERENCES swarm_runs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run ON swarm_run_nodes(run_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_status ON swarm_run_nodes(run_id, status);
+
   CREATE TABLE IF NOT EXISTS blindfold_funding_states (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL,
