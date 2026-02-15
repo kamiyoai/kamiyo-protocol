@@ -75,7 +75,9 @@ fn multiplier_covers_all_tiers() {
 
     kani::cover!(duration_seconds < THIRTY_DAYS && multiplier == MULTIPLIER_BASE);
     kani::cover!(
-        duration_seconds >= THIRTY_DAYS && duration_seconds < NINETY_DAYS && multiplier == MULTIPLIER_30D
+        duration_seconds >= THIRTY_DAYS
+            && duration_seconds < NINETY_DAYS
+            && multiplier == MULTIPLIER_30D
     );
     kani::cover!(
         duration_seconds >= NINETY_DAYS

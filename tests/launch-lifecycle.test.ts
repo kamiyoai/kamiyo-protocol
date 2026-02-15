@@ -48,10 +48,8 @@ describe("Trusted Launch Lifecycle", () => {
     await ctx.program.methods
       .createAgent("launch-test-agent", { trading: {} }, new BN(0.5 * LAMPORTS_PER_SOL))
       .accounts({
-        agentIdentity: agentPDA,
+        agent: agentPDA,
         owner: ctx.owner.publicKey,
-        protocolConfig: ctx.protocolConfigPDA,
-        treasury: ctx.treasuryPDA,
         systemProgram: SystemProgram.programId,
       })
       .signers([ctx.owner])
@@ -304,29 +302,7 @@ describe("Trusted Launch Lifecycle", () => {
   });
 
   describe("Dispute", () => {
-    it("Only the launch owner can dispute", async () => {
-      const mint = mintKeypair.publicKey;
-      const [launchRecordPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, mint);
-      const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
-
-      try {
-        await ctx.program.methods
-          .disputeLaunch("evidence-hash")
-          .accounts({
-            launchRecord: launchRecordPDA,
-            launchRateLimit: rateLimitPDA,
-            reporter: ctx.provider2.publicKey,
-          })
-          .signers([ctx.provider2])
-          .rpc();
-        expect.fail("Should have thrown Unauthorized");
-      } catch (err: any) {
-        const code = getErrorCode(err);
-        expect(code).to.equal("Unauthorized");
-      }
-    });
-
-    it("Records dispute metadata without changing launch status", async () => {
+    it("Allows any reporter to dispute a launch", async () => {
       const mint = mintKeypair.publicKey;
       const [launchRecordPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, mint);
       const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
@@ -337,35 +313,44 @@ describe("Trusted Launch Lifecycle", () => {
         .accounts({
           launchRecord: launchRecordPDA,
           launchRateLimit: rateLimitPDA,
-          reporter: ctx.owner.publicKey,
+          reporter: ctx.provider2.publicKey,
         })
-        .signers([ctx.owner])
+        .signers([ctx.provider2])
         .rpc();
 
       const launch = await ctx.program.account.launchRecord.fetch(launchRecordPDA);
-      expect(launch.status).to.deep.equal({ graduated: {} });
-      expect(launch.disputeReporter.toString()).to.equal(ctx.owner.publicKey.toString());
+      expect(launch.status).to.deep.equal({ disputed: {} });
+      expect(launch.disputeReporter.toString()).to.equal(ctx.provider2.publicKey.toString());
       expect(launch.disputeEvidenceHash).to.equal(evidenceHash);
       expect(launch.disputedAt).to.not.be.null;
+    });
 
-      const rateLimit = await ctx.program.account.launchRateLimit.fetch(rateLimitPDA);
-      expect(rateLimit.totalDisputed.toNumber()).to.equal(1);
+    it("Allows protocol multisig to resolve a launch dispute", async () => {
+      const mint = mintKeypair.publicKey;
+      const [launchRecordPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, mint);
 
-      try {
-        await ctx.program.methods
-          .disputeLaunch("another-hash")
-          .accounts({
-            launchRecord: launchRecordPDA,
-            launchRateLimit: rateLimitPDA,
-            reporter: ctx.owner.publicKey,
-          })
-          .signers([ctx.owner])
-          .rpc();
-        expect.fail("Should have thrown LaunchAlreadyDisputed");
-      } catch (err: any) {
-        const code = getErrorCode(err);
-        expect(code).to.equal("LaunchAlreadyDisputed");
-      }
+      const before = await ctx.provider.connection.getBalance(ctx.provider2.publicKey);
+
+      await ctx.program.methods
+        .resolveLaunchDispute(0)
+        .accounts({
+          protocolConfig: ctx.protocolConfigPDA,
+          launchRecord: launchRecordPDA,
+          owner: ctx.owner.publicKey,
+          reporter: ctx.provider2.publicKey,
+          signerOne: ctx.provider.wallet.publicKey,
+          signerTwo: ctx.provider.wallet.publicKey,
+        })
+        .rpc();
+
+      const after = await ctx.provider.connection.getBalance(ctx.provider2.publicKey);
+      expect(after - before).to.be.greaterThan(0.9 * LAMPORTS_PER_SOL);
+
+      const launch = await ctx.program.account.launchRecord.fetch(launchRecordPDA);
+      expect(launch.status).to.deep.equal({ resolved: {} });
+      expect(launch.qualityScore).to.equal(0);
+      expect(launch.refundPercentage).to.equal(100);
+      expect(launch.resolvedAt).to.not.be.null;
     });
   });
 });

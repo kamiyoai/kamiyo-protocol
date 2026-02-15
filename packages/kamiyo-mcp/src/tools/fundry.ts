@@ -1,6 +1,43 @@
-// Fundry Trusted Launch MCP Tool
-
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
+
+type FundryToolResult = {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+};
+
+type ProgramContext = {
+  fundryEndpoint?: string;
+  wallet: {
+    publicKey: PublicKey;
+    signTransaction(
+      tx: Transaction | VersionedTransaction
+    ): Promise<Transaction | VersionedTransaction>;
+  };
+  connection: {
+    sendRawTransaction(
+      rawTransaction: Uint8Array,
+      opts?: {
+        maxRetries?: number;
+      }
+    ): Promise<string>;
+    confirmTransaction(
+      signature: string,
+      commitment?: 'processed' | 'confirmed' | 'finalized'
+    ): Promise<unknown> | unknown;
+  };
+  pda?: {
+    deriveAgentPDA?(owner: PublicKey): [PublicKey];
+  };
+  getAgentAccount?(agent: PublicKey): Promise<unknown>;
+  createTrustedLaunch?(args: {
+    mint: string;
+    fundryCoinId: string;
+    configType: string;
+    escrowAmountSol: number;
+  }): Promise<string>;
+};
 
 export const FUNDRY_TOOL_DEFINITIONS: Tool[] = [
   {
@@ -13,7 +50,7 @@ export const FUNDRY_TOOL_DEFINITIONS: Tool[] = [
         name: { type: 'string', description: 'Token name' },
         ticker: { type: 'string', description: 'Token ticker symbol' },
         description: { type: 'string', description: 'Token description' },
-        imageUrl: { type: 'string', description: 'Token image URL (optional)' },
+        imageUrl: { type: 'string', description: 'Token image URL' },
         configType: {
           type: 'string',
           description:
@@ -24,7 +61,7 @@ export const FUNDRY_TOOL_DEFINITIONS: Tool[] = [
           description: 'SOL escrow amount (default 0.5, min 0.001, max 1000)',
         },
       },
-      required: ['name', 'ticker', 'description', 'configType'],
+      required: ['name', 'ticker', 'description', 'imageUrl', 'configType'],
     },
   },
   {
@@ -64,22 +101,16 @@ const VALID_CONFIG_TYPES = [
   'nitro',
 ];
 
-export interface FundryToolResult {
-  success: boolean;
-  data?: Record<string, any>;
-  error?: string;
-}
-
 export async function secureLaunchToken(
   params: {
     name: string;
     ticker: string;
     description: string;
-    imageUrl?: string;
+    imageUrl: string;
     configType: string;
     escrowAmountSol?: number;
   },
-  program: any
+  program: ProgramContext
 ): Promise<FundryToolResult> {
   try {
     if (!VALID_CONFIG_TYPES.includes(params.configType)) {
@@ -97,12 +128,16 @@ export async function secureLaunchToken(
       };
     }
 
-    // Verify agent identity
+    if (!params.imageUrl.trim()) {
+      return { success: false, error: 'imageUrl is required for Fundry token creation' };
+    }
+
     const agentPda = program.pda?.deriveAgentPDA?.(program.wallet.publicKey)?.[0] ?? null;
 
     if (agentPda) {
       const agent = await program.getAgentAccount?.(agentPda);
-      if (!agent || !agent.isActive) {
+      const agentObj = asRecord(agent);
+      if (!agentObj || agentObj.isActive !== true) {
         return {
           success: false,
           error: 'No active KAMIYO agent found. Use create_agent first.',
@@ -110,54 +145,67 @@ export async function secureLaunchToken(
       }
     }
 
-    // Call Fundry MCP to create token
-    let createResult: any;
+    let createResult: unknown;
     try {
       createResult = await callFundryMCP(program.fundryEndpoint, 'create_token', {
         name: params.name,
         ticker: params.ticker,
         description: params.description,
-        image: params.imageUrl ?? '',
+        imageUrl: params.imageUrl,
         configType: params.configType,
+        creatorAddress: program.wallet.publicKey.toBase58(),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         success: false,
-        error: `Fundry create_token failed: ${err.message}`,
+        error: `Fundry create_token failed: ${errorMessage(err)}`,
       };
     }
 
-    const coinId = createResult.coinId || createResult.coin_id;
+    const createObj = asRecord(createResult) ?? {};
+    const createData = asRecord(createObj.data);
+
+    const coinId = stringish(createData?.coinId ?? createObj.coinId ?? createObj.coin_id);
     if (!coinId) {
       return { success: false, error: 'No coinId in Fundry response' };
     }
 
-    // Confirm launch (non-fatal if this fails)
+    const txB64 = stringish(createData?.transaction ?? createObj.transaction);
+    if (!txB64) {
+      return { success: false, error: 'No transaction in Fundry response' };
+    }
+
+    const fundryTxSignature = await signAndSendFundryTx(program, txB64);
+
+    let warning: string | undefined;
     try {
       await callFundryMCP(program.fundryEndpoint, 'confirm_launch', {
         coinId,
+        transactionSignature: fundryTxSignature,
       });
-    } catch {
-      // Token already on-chain, confirmation is informational
+    } catch (err: unknown) {
+      warning = `Fundry confirm_launch failed: ${errorMessage(err)}`;
     }
 
-    // Get mint address
-    let mint = createResult.mint || createResult.mintAddress;
+    let mint = stringish(
+      createData?.mintAddress ?? createData?.mint ?? createObj.mintAddress ?? createObj.mint
+    );
     if (!mint) {
       try {
-        const tokenInfo = await callFundryMCP(program.fundryEndpoint, 'get_token', {
-          coinId,
-        });
-        mint = tokenInfo.mint || tokenInfo.mintAddress;
+        const tokenInfo = await callFundryMCP(program.fundryEndpoint, 'get_token', { coinId });
+        const tokenObj = asRecord(tokenInfo) ?? {};
+        const tokenData = asRecord(tokenObj.data);
+        mint = stringish(
+          tokenData?.mintAddress ?? tokenData?.mint ?? tokenObj.mintAddress ?? tokenObj.mint
+        );
       } catch {
-        // Mint discovery failed
+        // Handled below.
       }
     }
 
-    // Create on-chain LaunchRecord
     if (mint && program.createTrustedLaunch) {
       try {
-        const txSignature = await program.createTrustedLaunch({
+        const launchRecordSig = await program.createTrustedLaunch({
           mint,
           fundryCoinId: coinId,
           configType: params.configType,
@@ -169,23 +217,25 @@ export async function secureLaunchToken(
           data: {
             coinId,
             mint,
-            txSignature,
+            txSignature: launchRecordSig,
+            fundryTxSignature,
             agentPda: agentPda?.toBase58(),
             escrowSol,
             configType: params.configType,
             badge: 'KAMIYO Trusted',
+            ...(warning ? { warning } : {}),
           },
         };
-      } catch (err: any) {
-        // Token created but LaunchRecord failed — partial success
+      } catch (err: unknown) {
         return {
           success: true,
           data: {
             coinId,
             mint,
+            fundryTxSignature,
             agentPda: agentPda?.toBase58(),
             configType: params.configType,
-            warning: `Token created but on-chain record failed: ${err.message}`,
+            warning: warning ?? `Token created but on-chain record failed: ${errorMessage(err)}`,
           },
         };
       }
@@ -196,11 +246,13 @@ export async function secureLaunchToken(
       data: {
         coinId,
         mint: mint || 'pending',
+        fundryTxSignature,
         configType: params.configType,
+        ...(warning ? { warning } : {}),
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: errorMessage(err) };
   }
 }
 
@@ -208,7 +260,7 @@ export function listFundryConfigs(): FundryToolResult {
   return {
     success: true,
     data: {
-      configs: VALID_CONFIG_TYPES.map((name) => ({
+      configs: VALID_CONFIG_TYPES.map(name => ({
         name,
         category: ['community', 'indie', 'music'].includes(name) ? 'builder' : 'monkes',
       })),
@@ -217,38 +269,110 @@ export function listFundryConfigs(): FundryToolResult {
 }
 
 async function callFundryMCP(
-  endpoint: string,
+  endpoint: string | undefined,
   tool: string,
-  args: Record<string, any>
-): Promise<any> {
-  const url = endpoint || 'https://mcp.fundry.collaterize.com';
-  const response = await fetch(`${url}/sse`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: { name: tool, arguments: args },
-    }),
-  });
+  args: Record<string, unknown>
+): Promise<unknown> {
+  const url = (endpoint || 'https://fundry.collaterize.com/api/mcp/mcp').replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
 
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: tool, arguments: args },
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const raw = await response.text();
   if (!response.ok) {
-    throw new Error(`Fundry API ${response.status}: ${response.statusText}`);
+    const detail = raw.trim();
+    throw new Error('Fundry API ' + response.status + (detail ? ': ' + detail.slice(0, 200) : ''));
   }
 
-  const text = await response.text();
-  const lines = text.split('\n');
-  const dataLine = lines.find((l: string) => l.startsWith('data: '));
-  if (!dataLine) {
-    throw new Error('No data in Fundry SSE response');
-  }
-
-  const json = JSON.parse(dataLine.slice(6));
-  const content = json.result?.content?.[0]?.text;
-  if (!content) {
+  const rpc = parseMcpJsonRpc(raw);
+  const content = rpc?.result?.content?.[0]?.text;
+  if (typeof content !== 'string' || content.trim().length === 0) {
     throw new Error('Empty Fundry response content');
   }
 
   return JSON.parse(content);
+}
+
+type McpJsonRpcResponse = {
+  result?: {
+    content?: Array<{ text?: string }>;
+  };
+};
+
+function parseMcpJsonRpc(raw: string): McpJsonRpcResponse {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('{')) {
+    return JSON.parse(trimmed);
+  }
+
+  const dataLine = trimmed
+    .split('\n')
+    .map(line => line.trimEnd())
+    .filter(line => line.startsWith('data: '))
+    .at(-1);
+
+  if (!dataLine) {
+    throw new Error('No data in Fundry response');
+  }
+
+  return JSON.parse(dataLine.slice(6));
+}
+
+async function signAndSendFundryTx(program: ProgramContext, txB64: string): Promise<string> {
+  const bytes = Buffer.from(txB64, 'base64');
+
+  let tx: Transaction | VersionedTransaction;
+  try {
+    tx = VersionedTransaction.deserialize(bytes);
+  } catch {
+    tx = Transaction.from(bytes);
+  }
+
+  const sigTx = await program.wallet.signTransaction(tx);
+  const sig = await program.connection.sendRawTransaction(sigTx.serialize(), { maxRetries: 3 });
+
+  try {
+    const confirm = Promise.resolve(program.connection.confirmTransaction(sig, 'confirmed'));
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timed out confirming Fundry transaction')), 30_000)
+    );
+    await Promise.race([confirm, timeout]);
+  } catch {
+    // Best-effort confirmation.
+  }
+
+  return sig;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function stringish(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }

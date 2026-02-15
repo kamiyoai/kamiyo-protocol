@@ -115,7 +115,7 @@ impl TransferState {
         8 +  // window_start
         1 +  // rapid_reversals
         1 +  // is_flagged
-        1;   // bump
+        1; // bump
 }
 
 /// Whitelisted platforms that bypass rate limits
@@ -136,7 +136,7 @@ impl PlatformWhitelist {
     pub const LEN: usize = 8 + // discriminator
         32 + // admin
         4 + (32 * Self::MAX_PLATFORMS) + // platforms vec
-        1;   // bump
+        1; // bump
 }
 
 /// Global hook configuration
@@ -184,7 +184,7 @@ impl HookConfig {
         1 +  // burn_enabled
         8 +  // burn_rate_bps
         8 +  // total_burned
-        1;   // bump
+        1; // bump
 }
 
 /// Addresses exempt from transfer burns (DEX pools, staking, escrow)
@@ -205,7 +205,7 @@ impl BurnExemptList {
     pub const LEN: usize = 8 + // discriminator
         32 + // admin
         4 + (32 * Self::MAX_EXEMPT) + // exempt_addresses vec
-        1;   // bump
+        1; // bump
 }
 
 // ============================================================================
@@ -230,7 +230,10 @@ pub mod kamiyo_transfer_hook {
         config.total_burned = 0;
         config.bump = ctx.bumps.config;
 
-        msg!("Transfer hook initialized with burn rate: {} bps", TRANSFER_BURN_RATE_BPS);
+        msg!(
+            "Transfer hook initialized with burn rate: {} bps",
+            TRANSFER_BURN_RATE_BPS
+        );
         Ok(())
     }
 
@@ -338,7 +341,10 @@ pub mod kamiyo_transfer_hook {
 
         // Check if sender is whitelisted (bypass all checks)
         let whitelist = &ctx.accounts.whitelist;
-        if whitelist.platforms.contains(&ctx.accounts.source_account.owner) {
+        if whitelist
+            .platforms
+            .contains(&ctx.accounts.source_account.owner)
+        {
             msg!("Whitelisted platform - bypassing checks");
             return Ok(());
         }
@@ -382,9 +388,10 @@ pub mod kamiyo_transfer_hook {
         let is_outbound = true; // This is a send from source
         let time_since_last = current_time - state.last_transfer_time;
 
-        if state.last_transfer_time > 0 &&
-           time_since_last < SANDWICH_DETECTION_WINDOW &&
-           state.last_transfer_outbound != is_outbound {
+        if state.last_transfer_time > 0
+            && time_since_last < SANDWICH_DETECTION_WINDOW
+            && state.last_transfer_outbound != is_outbound
+        {
             state.rapid_reversals = state.rapid_reversals.saturating_add(1);
 
             // Flag account if too many rapid reversals
@@ -414,8 +421,12 @@ pub mod kamiyo_transfer_hook {
         if config.burn_enabled && amount >= MIN_BURN_THRESHOLD {
             // Check if either source or destination is exempt from burns
             let burn_exempt = &ctx.accounts.burn_exempt;
-            let source_exempt = burn_exempt.exempt_addresses.contains(&ctx.accounts.source_account.key());
-            let dest_exempt = burn_exempt.exempt_addresses.contains(&ctx.accounts.destination_account.key());
+            let source_exempt = burn_exempt
+                .exempt_addresses
+                .contains(&ctx.accounts.source_account.key());
+            let dest_exempt = burn_exempt
+                .exempt_addresses
+                .contains(&ctx.accounts.destination_account.key());
 
             if !source_exempt && !dest_exempt {
                 burn_amount = amount
