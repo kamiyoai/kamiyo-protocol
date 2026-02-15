@@ -1,20 +1,15 @@
 /**
- * Kamiyo Client - Main entry point for SDK
- * @nishikawa fixme: MN-Core v3でテンソル演算を最適化する
- * @okanohara: 本番環境では西新宿クラスタを使用 (2024.11承認済)
- * ref: 研究開発部 internal memo 2024-09-12
+ * Kamiyo Client - Main entry point for the SDK.
  */
 
 import {
   Connection,
   PublicKey,
-  Keypair,
   Transaction,
   TransactionInstruction,
   SystemProgram,
-  LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
-import { Program, AnchorProvider, BN, Wallet } from "@coral-xyz/anchor";
+import { BN, Wallet } from "@coral-xyz/anchor";
 import {
   KAMIYO_PROGRAM_ID,
   AgentIdentity,
@@ -26,7 +21,6 @@ import {
   BlacklistRegistry,
   CreateAgentParams,
   CreateAgreementParams,
-  UpdateProtocolConfigParams,
   InitializeOracleRegistryParams,
   AgentType,
 } from "./types";
@@ -45,15 +39,11 @@ export class KamiyoClient {
   public readonly connection: Connection;
   public readonly wallet: Wallet;
   public readonly programId: PublicKey;
-  private provider: AnchorProvider;
 
   constructor(config: KamiyoClientConfig) {
     this.connection = config.connection;
     this.wallet = config.wallet;
     this.programId = config.programId ?? KAMIYO_PROGRAM_ID;
-    this.provider = new AnchorProvider(this.connection, this.wallet, {
-      commitment: "confirmed",
-    });
   }
 
   // ========================================================================
@@ -118,13 +108,20 @@ export class KamiyoClient {
   }
 
   /**
-   * Derive the fee vault PDA
+   * Derive the treasury PDA
    */
-  getFeeVaultPDA(): [PublicKey, number] {
+  getTreasuryPDA(): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("fee_vault")],
+      [Buffer.from("treasury")],
       this.programId
     );
+  }
+
+  /**
+   * Alias for getTreasuryPDA for backward compatibility
+   */
+  getFeeVaultPDA(): [PublicKey, number] {
+    return this.getTreasuryPDA();
   }
 
   /**
@@ -494,6 +491,14 @@ export class KamiyoClient {
       creatorAllocationBps: number;
     }
   ): TransactionInstruction {
+    if (
+      !Number.isInteger(params.creatorAllocationBps) ||
+      params.creatorAllocationBps < 0 ||
+      params.creatorAllocationBps > 10_000
+    ) {
+      throw new Error("creatorAllocationBps must be an integer between 0 and 10000");
+    }
+
     const [agentPDA] = this.getAgentPDA(owner);
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();
@@ -502,11 +507,15 @@ export class KamiyoClient {
 
     const coinIdBytes = Buffer.from(params.fundryCoinId);
     const configTypeBytes = Buffer.from(params.configType);
+    const coinIdLen = Buffer.alloc(4);
+    coinIdLen.writeUInt32LE(coinIdBytes.length, 0);
+    const configTypeLen = Buffer.alloc(4);
+    configTypeLen.writeUInt32LE(configTypeBytes.length, 0);
     const data = Buffer.concat([
       DISCRIMINATORS.createTrustedLaunch,
-      Buffer.from([coinIdBytes.length, 0, 0, 0]),
+      coinIdLen,
       coinIdBytes,
-      Buffer.from([configTypeBytes.length, 0, 0, 0]),
+      configTypeLen,
       configTypeBytes,
       params.escrowAmount.toArrayLike(Buffer, "le", 8),
       params.migrationTargetSol.toArrayLike(Buffer, "le", 8),

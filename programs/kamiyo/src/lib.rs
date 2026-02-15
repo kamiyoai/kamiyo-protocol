@@ -2444,8 +2444,7 @@ pub mod kamiyo {
             amount,
             transaction_id,
             escrow_key,
-            individual_scores,
-            oracles,
+            submission_count,
             weighted_scores,
             token_mint,
             bump,
@@ -2453,12 +2452,7 @@ pub mod kamiyo {
             disputed_at,
         ) = {
             let escrow = &ctx.accounts.escrow;
-            let individual_scores: Vec<u8> = escrow
-                .oracle_submissions
-                .iter()
-                .map(|s| s.quality_score)
-                .collect();
-            let oracles: Vec<Pubkey> = escrow.oracle_submissions.iter().map(|s| s.oracle).collect();
+            let submission_count = escrow.oracle_submissions.len();
             let weighted_scores: Vec<(u8, u16)> = escrow
                 .oracle_submissions
                 .iter()
@@ -2475,8 +2469,7 @@ pub mod kamiyo {
                 escrow.amount,
                 escrow.transaction_id.clone(),
                 escrow.key(),
-                individual_scores,
-                oracles,
+                submission_count,
                 weighted_scores,
                 escrow.token_mint,
                 escrow.bump,
@@ -2490,7 +2483,7 @@ pub mod kamiyo {
         // Tiered oracle requirement: larger escrows need more oracles for collusion resistance
         let required_oracles = required_oracle_count(amount);
         require!(
-            oracles.len() >= required_oracles as usize,
+            submission_count >= required_oracles as usize,
             KamiyoError::InsufficientOracleConsensus
         );
 
@@ -2499,7 +2492,7 @@ pub mod kamiyo {
         let quorum_required =
             ((registered_oracle_count * 50 / 100) as usize).max(required_oracles as usize);
         require!(
-            oracles.len() >= quorum_required,
+            submission_count >= quorum_required,
             KamiyoError::InsufficientOracleConsensus
         );
 
@@ -2566,7 +2559,7 @@ pub mod kamiyo {
 
         // Calculate oracle reward pool (1% of escrow amount, capped by remaining fee budget,
         // split among participating oracles).
-        let oracle_count = oracles.len() as u64;
+        let oracle_count = submission_count as u64;
         let base_total_oracle_reward = if oracle_rewards_enabled {
             (amount as u128)
                 .checked_mul(ORACLE_REWARD_PERCENT as u128)
@@ -3041,9 +3034,21 @@ pub mod kamiyo {
         emit!(MultiOracleDisputeResolved {
             escrow: escrow_key,
             transaction_id,
-            oracle_count: oracles.len() as u8,
-            individual_scores,
-            oracles,
+            oracle_count: submission_count as u8,
+            individual_scores: ctx
+                .accounts
+                .escrow
+                .oracle_submissions
+                .iter()
+                .map(|s| s.quality_score)
+                .collect(),
+            oracles: ctx
+                .accounts
+                .escrow
+                .oracle_submissions
+                .iter()
+                .map(|s| s.oracle)
+                .collect(),
             consensus_score,
             refund_percentage,
             refund_amount,
@@ -3715,6 +3720,10 @@ pub mod kamiyo {
             (MIN_ESCROW_AMOUNT..=MAX_ESCROW_AMOUNT).contains(&escrow_amount),
             KamiyoError::InvalidAmount
         );
+        require!(
+            creator_allocation_bps <= 10_000,
+            KamiyoError::InvalidCreatorAllocationBps
+        );
 
         let clock = Clock::get()?;
 
@@ -3902,11 +3911,26 @@ pub mod kamiyo {
             KamiyoError::LaunchReleaseDelayNotMet
         );
 
-        // Transfer escrowed SOL back to owner
+        // Transfer escrowed SOL back to owner while keeping rent-exempt minimum.
         let launch_info = ctx.accounts.launch_record.to_account_info();
         let owner_info = ctx.accounts.owner.to_account_info();
-        **launch_info.try_borrow_mut_lamports()? -= escrow_amount;
-        **owner_info.try_borrow_mut_lamports()? += escrow_amount;
+        let launch_lamports = launch_info.lamports();
+        let owner_lamports = owner_info.lamports();
+
+        let rent = Rent::get()?;
+        let min_rent = rent.minimum_balance(launch_info.data_len());
+        let max_transferable = launch_lamports.saturating_sub(min_rent);
+        require!(
+            escrow_amount <= max_transferable,
+            KamiyoError::InsufficientLaunchEscrow
+        );
+
+        **launch_info.try_borrow_mut_lamports()? = launch_lamports
+            .checked_sub(escrow_amount)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
+        **owner_info.try_borrow_mut_lamports()? = owner_lamports
+            .checked_add(escrow_amount)
+            .ok_or(KamiyoError::ArithmeticOverflow)?;
 
         // Update state (mutable borrow after lamport transfer)
         let launch = &mut ctx.accounts.launch_record;
@@ -3938,14 +3962,17 @@ pub mod kamiyo {
             launch.status == LaunchStatus::Active || launch.status == LaunchStatus::Graduated,
             KamiyoError::LaunchNotActive
         );
+        require!(
+            launch.disputed_at.is_none(),
+            KamiyoError::LaunchAlreadyDisputed
+        );
 
         require!(
             !evidence_hash.is_empty() && evidence_hash.len() <= 64,
-            KamiyoError::InvalidTransactionId
+            KamiyoError::InvalidEvidenceHash
         );
 
         let clock = Clock::get()?;
-        launch.status = LaunchStatus::Disputed;
         launch.dispute_reporter = Some(ctx.accounts.reporter.key());
         launch.dispute_evidence_hash = evidence_hash.clone();
         launch.disputed_at = Some(clock.unix_timestamp);
@@ -4913,7 +4940,10 @@ pub struct DisputeLaunch<'info> {
     )]
     pub launch_rate_limit: Account<'info, LaunchRateLimit>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = reporter.key() == launch_record.owner @ KamiyoError::Unauthorized
+    )]
     pub reporter: Signer<'info>,
 }
 
@@ -5434,4 +5464,16 @@ pub enum KamiyoError {
 
     #[msg("Launch already graduated")]
     LaunchAlreadyGraduated,
+
+    #[msg("Insufficient launch escrow balance")]
+    InsufficientLaunchEscrow,
+
+    #[msg("Invalid creator allocation bps (must be 0-10000)")]
+    InvalidCreatorAllocationBps,
+
+    #[msg("Invalid evidence hash (must be 1-64 chars)")]
+    InvalidEvidenceHash,
+
+    #[msg("Launch already disputed")]
+    LaunchAlreadyDisputed,
 }
