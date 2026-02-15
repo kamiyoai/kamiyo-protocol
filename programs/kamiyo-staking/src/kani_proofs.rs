@@ -30,27 +30,20 @@ fn position_with(staked_amount: u64, stake_start_time: i64, rewards_debt: u128) 
 
 #[kani::proof]
 fn reward_split_conserves_value() {
-    let total_reward: u64 = kani::any();
-    let (burn_amount, distribution_amount) = calculate_reward_split(total_reward);
-
-    assert!(burn_amount <= total_reward);
-    assert!(distribution_amount <= total_reward);
-    assert_eq!(burn_amount + distribution_amount, total_reward);
+    kani_solana::token::assert_two_way_split_conserves(calculate_reward_split);
 }
 
 #[kani::proof]
 fn multiplier_is_in_expected_set() {
-    let duration_seconds: i64 = kani::any();
-    let multiplier = get_multiplier(duration_seconds);
-    assert!(matches!(multiplier, 10_000 | 12_000 | 15_000 | 20_000));
+    kani_solana::staking::assert_multiplier_in_set(
+        get_multiplier,
+        &[10_000, 12_000, 15_000, 20_000],
+    );
 }
 
 #[kani::proof]
 fn multiplier_is_monotonic() {
-    let d1: i64 = kani::any();
-    let d2: i64 = kani::any();
-    kani::assume(d1 <= d2);
-    assert!(get_multiplier(d1) <= get_multiplier(d2));
+    kani_solana::staking::assert_multiplier_monotonic(get_multiplier);
 }
 
 #[kani::proof]

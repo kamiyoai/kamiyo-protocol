@@ -25,6 +25,7 @@ anchor-lang = "0.31.1"
 anchor-spl = { version = "0.31.1", features = ["default"] }
 switchboard-on-demand = "0.10.5"
 groth16-solana = "0.2.0"
+kani-solana = { path = "../../crates/kani-solana" }
 
 [dev-dependencies]
 solana-program-test = "2.3.13"

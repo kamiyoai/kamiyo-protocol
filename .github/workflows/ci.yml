@@ -9,6 +9,7 @@ on:
 env:
   SOLANA_VERSION: 2.3.13
   ANCHOR_VERSION: 0.31.1
+  KANI_VERSION: 0.67.0
 
 jobs:
   solana:
@@ -130,6 +131,7 @@ jobs:
       - name: Install Kani
         uses: model-checking/kani-github-action@v1
         with:
+          kani-version: ${{ env.KANI_VERSION }}
           args: --version
 
       - name: Verify Kani Proofs

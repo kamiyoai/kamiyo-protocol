@@ -1,98 +1,53 @@
 use super::*;
 
-fn any_score_0_to_100() -> u8 {
-    let score: u8 = kani::any();
-    kani::assume(score <= 100);
-    score
-}
-
-fn any_weight_1_to_10k() -> u16 {
-    let weight: u16 = kani::any();
-    kani::assume(weight > 0);
-    kani::assume(weight <= 10_000);
-    weight
-}
-
-fn expected_ceiling_weighted_average(scores: &[(u8, u16)]) -> u8 {
-    let mut weighted_sum: u64 = 0;
-    let mut total_weight: u64 = 0;
-
-    for (score, weight) in scores {
-        weighted_sum += (*score as u64) * (*weight as u64);
-        total_weight += *weight as u64;
-    }
-
-    let consensus = (weighted_sum + total_weight - 1) / total_weight;
-    (consensus.min(100) as u8)
-}
-
 #[kani::proof]
 fn refund_from_quality_matches_spec() {
-    let quality: u8 = kani::any();
-    let refund = calculate_refund_from_quality(quality);
+    kani_solana::bounds::assert_output_in_set(
+        || calculate_refund_from_quality(kani::any()),
+        &[0, 35, 75, 100],
+    );
 
-    assert!(matches!(refund, 0 | 35 | 75 | 100));
-
-    match quality {
-        0..=49 => assert_eq!(refund, 100),
-        50..=64 => assert_eq!(refund, 75),
-        65..=79 => assert_eq!(refund, 35),
-        _ => assert_eq!(refund, 0),
-    }
+    kani_solana::math::assert_matches_spec_u8(
+        calculate_refund_from_quality,
+        |quality| match quality {
+            0..=49 => 100,
+            50..=64 => 75,
+            65..=79 => 35,
+            _ => 0,
+        },
+    );
 }
 
 #[kani::proof]
 fn weighted_consensus_all_included_len2_matches_ceiling_avg() {
-    let scores = [
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-    ];
-
-    let expected = expected_ceiling_weighted_average(&scores);
-    let actual = calculate_weighted_consensus(&scores, 100).unwrap();
-    assert_eq!(actual, expected);
+    kani_solana::math::assert_consensus_matches_ceiling_avg::<2, _>(
+        |pairs| calculate_weighted_consensus(pairs, 100).unwrap(),
+        100,
+    );
 }
 
 #[kani::proof]
 fn weighted_consensus_all_included_len3_matches_ceiling_avg() {
-    let scores = [
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-    ];
-
-    let expected = expected_ceiling_weighted_average(&scores);
-    let actual = calculate_weighted_consensus(&scores, 100).unwrap();
-    assert_eq!(actual, expected);
+    kani_solana::math::assert_consensus_matches_ceiling_avg::<3, _>(
+        |pairs| calculate_weighted_consensus(pairs, 100).unwrap(),
+        100,
+    );
 }
 
 #[kani::proof]
 fn weighted_consensus_all_included_len4_matches_ceiling_avg() {
-    let scores = [
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-    ];
-
-    let expected = expected_ceiling_weighted_average(&scores);
-    let actual = calculate_weighted_consensus(&scores, 100).unwrap();
-    assert_eq!(actual, expected);
+    kani_solana::math::assert_consensus_matches_ceiling_avg::<4, _>(
+        |pairs| calculate_weighted_consensus(pairs, 100).unwrap(),
+        100,
+    );
 }
 
 #[kani::proof]
 fn weighted_consensus_all_included_len5_matches_ceiling_avg() {
-    let scores = [
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-    ];
-
-    let expected = expected_ceiling_weighted_average(&scores);
-    let actual = calculate_weighted_consensus(&scores, 100).unwrap();
-    assert_eq!(actual, expected);
+    kani_solana::math::assert_consensus_matches_ceiling_avg::<5, _>(
+        |pairs| calculate_weighted_consensus(pairs, 100).unwrap(),
+        100,
+    );
 }
 
 #[kani::proof]
@@ -115,9 +70,11 @@ fn dispute_cost_is_capped() {
         bump: 0,
     };
 
-    let cost = calculate_dispute_cost(&rep);
-    assert!(cost >= BASE_DISPUTE_COST);
-    assert!(cost <= BASE_DISPUTE_COST.saturating_mul(10));
+    kani_solana::bounds::assert_cost_bounded(
+        || calculate_dispute_cost(&rep),
+        BASE_DISPUTE_COST,
+        BASE_DISPUTE_COST.saturating_mul(10),
+    );
 }
 
 #[kani::proof]
@@ -142,12 +99,17 @@ fn reputation_score_is_bounded() {
         bump: 0,
     };
 
-    let score = calculate_reputation_score(&rep);
-    assert!(score <= 1000);
+    kani_solana::bounds::assert_output_bounded(
+        || calculate_reputation_score(&rep),
+        0,
+        1000,
+    );
 
-    if total_transactions == 0 {
-        assert_eq!(score, 500);
-    }
+    kani_solana::bounds::assert_default_on_condition(
+        || total_transactions == 0,
+        || calculate_reputation_score(&rep),
+        500,
+    );
 }
 
 #[cfg(feature = "kani-full")]
@@ -166,8 +128,14 @@ fn refund_from_quality_covers_all_buckets() {
 #[kani::proof]
 fn weighted_consensus_covers_fast_and_filtered_paths() {
     let scores = [
-        (any_score_0_to_100(), any_weight_1_to_10k()),
-        (any_score_0_to_100(), any_weight_1_to_10k()),
+        (
+            kani_solana::generators::any_score(),
+            kani_solana::generators::any_weight(),
+        ),
+        (
+            kani_solana::generators::any_score(),
+            kani_solana::generators::any_weight(),
+        ),
     ];
 
     let max_deviation: u8 = kani::any();

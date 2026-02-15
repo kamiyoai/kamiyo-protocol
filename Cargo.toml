@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/kani-solana",
     "programs/kamiyo",
     "programs/kamiyo-escrow",
     "programs/kamiyo-staking",
