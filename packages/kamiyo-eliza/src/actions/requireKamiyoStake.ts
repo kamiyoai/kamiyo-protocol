@@ -84,7 +84,7 @@ export const requireKamiyoStakeAction: Action = {
         const profile = await engine.calculateTrust(keypair.publicKey.toBase58(), {
           evaluatorId: runtime.agentId,
           roomId: message.roomId,
-          actionId: requireKamiyoStakeAction.name,
+          action: requireKamiyoStakeAction.name,
         });
         trustScore = profile?.overallTrust;
       }

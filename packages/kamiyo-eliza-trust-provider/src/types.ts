@@ -54,32 +54,25 @@ export type TrustEvidenceType =
   | 'HELPFUL_ACTION'
   | 'HARMFUL_ACTION'
   | 'CONSISTENT_BEHAVIOR'
-  | 'INCONSISTENCY'
   | 'VERIFIED_IDENTITY'
+  | 'COMMUNITY_CONTRIBUTION'
+  | 'SUCCESSFUL_TRANSACTION'
+  | 'INCONSISTENT_BEHAVIOR'
   | 'SUSPICIOUS_ACTIVITY'
   | 'FAILED_VERIFICATION'
+  | 'SPAM_BEHAVIOR'
   | 'SECURITY_VIOLATION'
-  | 'ESCROW_COMPLETED'
-  | 'ESCROW_DISPUTED'
-  | 'ORACLE_VALIDATION'
-  | 'STAKE_INCREASED'
-  | 'STAKE_DECREASED'
-  | 'PAYMENT_MADE'
-  | 'PAYMENT_RECEIVED'
-  | 'DISPUTE_RESOLVED'
-  | 'DISPUTE_ESCALATED'
-  | 'TRUST_SCORE_UPDATE'
-  | 'SECURITY_ALERT';
+  | 'IDENTITY_CHANGE'
+  | 'ROLE_CHANGE'
+  | 'CONTEXT_SWITCH';
 
 export interface TrustContext {
   evaluatorId: string;
   roomId?: string;
+  worldId?: string;
+  platform?: string;
+  action?: string;
   [key: string]: unknown;
-}
-
-export interface TrustInteractionDetails {
-  description?: string;
-  metadata?: Record<string, unknown>;
 }
 
 /** Minimal TrustInteraction shape for plugin-trust recordInteraction(). */
@@ -89,8 +82,14 @@ export interface TrustInteraction {
   type: TrustEvidenceType;
   timestamp: number;
   impact: number;
-  details?: TrustInteractionDetails;
-  context: TrustContext;
+  details?: {
+    description?: string;
+    messageId?: string;
+    roomId?: string;
+    metadata?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  context?: TrustContext;
 }
 
 /** Minimal TrustEngine service interface (what we call on it) */
@@ -157,9 +156,9 @@ export const EVIDENCE_MAP: Record<KamiyoEventType, EvidenceMapping> = {
   escrow_released:  { type: 'PROMISE_KEPT',        impact: 15,  dimension: 'reliability',   description: 'Escrow funds released — delivery honored' },
   escrow_disputed:  { type: 'PROMISE_BROKEN',      impact: -10, dimension: 'reliability',   description: 'Escrow disputed — delivery contested' },
   dispute_won:      { type: 'CONSISTENT_BEHAVIOR', impact: 10,  dimension: 'integrity',     description: 'Dispute resolved in favor — legitimate claim' },
-  dispute_lost:     { type: 'INCONSISTENCY',       impact: -15, dimension: 'integrity',     description: 'Dispute lost — frivolous or invalid claim' },
+  dispute_lost:     { type: 'INCONSISTENT_BEHAVIOR', impact: -15, dimension: 'integrity',   description: 'Dispute lost — frivolous or invalid claim' },
   oracle_correct:   { type: 'CONSISTENT_BEHAVIOR', impact: 10,  dimension: 'competence',    description: 'Oracle vote aligned with consensus' },
-  oracle_slashed:   { type: 'INCONSISTENCY',       impact: -20, dimension: 'competence',    description: 'Oracle slashed — vote deviated from consensus' },
+  oracle_slashed:   { type: 'INCONSISTENT_BEHAVIOR', impact: -20, dimension: 'competence',  description: 'Oracle slashed — vote deviated from consensus' },
   agent_slashed:    { type: 'HARMFUL_ACTION',      impact: -20, dimension: 'integrity',     description: 'Agent stake slashed for violation' },
   stake_increased:  { type: 'HELPFUL_ACTION',      impact: 8,   dimension: 'benevolence',   description: 'Stake increased — more skin in the game' },
   stake_decreased:  { type: 'SUSPICIOUS_ACTIVITY', impact: -5,  dimension: 'benevolence',   description: 'Stake decreased — reduced commitment' },
