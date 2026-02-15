@@ -3,7 +3,7 @@
 //! The haircut ratio `h` matches Percolator's global coverage ratio model.
 //! Reference: https://github.com/aeyakovenko/percolator
 //!
-//! Pure math only: no Solana types. Intended for use under `cfg(kani)`.
+//! Pure math only: no Solana types.
 
 /// Global haircut ratio `h` as used in Percolator.
 ///
@@ -120,7 +120,7 @@ pub fn loss_writeoff(negative_equity: u128, insurance: u128) -> (u128, u128) {
     (writeoff, insurance - writeoff)
 }
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani"))]
 mod proofs {
     use super::*;
 
@@ -181,6 +181,41 @@ mod proofs {
 
         let y = effective_pnl(x as i128, h_num, h_den);
         kani::assert(y <= x);
+    }
+
+    #[kani::proof]
+    fn proof_rounding_slack_bound_when_haircut_active() {
+        const N: usize = 4;
+
+        let p1: u128 = kani::any::<u64>() as u128;
+        let p2: u128 = kani::any::<u64>() as u128;
+        let p3: u128 = kani::any::<u64>() as u128;
+        let p4: u128 = kani::any::<u64>() as u128;
+
+        let pnl_pos_total = p1 + p2 + p3 + p4;
+        kani::assume(pnl_pos_total > 0);
+
+        let residual: u128 = kani::any::<u64>() as u128;
+        kani::assume(residual <= pnl_pos_total);
+
+        let mut sum_eff: u128 = 0;
+        let mut sum_r: u128 = 0;
+
+        for p in [p1, p2, p3, p4] {
+            let prod = p * residual;
+            sum_eff += prod / pnl_pos_total;
+            sum_r += prod % pnl_pos_total;
+        }
+
+        kani::assert(sum_eff <= residual);
+
+        // With residual <= pnl_pos_total, h_num = residual and h_den = pnl_pos_total.
+        // Each term is floored, so the "missing" amount is bounded by the number of accounts.
+        let slack = residual - sum_eff;
+        kani::assert(slack <= (N as u128) - 1);
+
+        // Sanity: the remainder sum cannot cross N denominators.
+        kani::assert(sum_r < (N as u128) * pnl_pos_total);
     }
 
     #[kani::proof]

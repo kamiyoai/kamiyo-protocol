@@ -15,10 +15,8 @@ if [ "${#pkgs[@]}" -eq 0 ]; then
   pkgs=(kani-solana kamiyo hive kamiyo-staking)
 fi
 
-args=()
 mode="default"
 if [ "${KANI_FULL:-}" = "1" ]; then
-  args=(--features kani-full)
   mode="full"
 fi
 
@@ -62,6 +60,19 @@ fi
 for pkg in "${pkgs[@]}"; do
   pkg_log="${out_dir}/kani-${pkg}.log"
   : >"${pkg_log}"
+
+  features=()
+  if [ "${pkg}" = "kani-solana" ]; then
+    features+=(kani)
+  fi
+  if [ "${KANI_FULL:-}" = "1" ]; then
+    features+=(kani-full)
+  fi
+
+  args=()
+  if [ "${#features[@]}" -gt 0 ]; then
+    args=(--features "$(IFS=,; echo "${features[*]}")")
+  fi
 
   t0="$(date +%s)"
   {

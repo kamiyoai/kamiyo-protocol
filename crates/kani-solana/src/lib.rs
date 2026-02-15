@@ -1,7 +1,7 @@
 //! Reusable Kani formal verification harnesses for Solana program math.
 //!
-//! All public items are gated behind `#[cfg(kani)]`. Under normal compilation
-//! this crate is a no-op with zero overhead.
+//! Pure math primitives are always available; proof harness helpers are only
+//! compiled under Kani.
 //!
 //! # Quick Start
 //!
@@ -19,20 +19,19 @@
 //! }
 //! ```
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani"))]
 pub mod generators;
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani"))]
 pub mod token;
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani"))]
 pub mod staking;
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani"))]
 pub mod bounds;
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani"))]
 pub mod math;
 
-#[cfg(kani)]
 pub mod risk;
