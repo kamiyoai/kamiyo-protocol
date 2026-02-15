@@ -1,5 +1,9 @@
-//! Reusable Kani harnesses for Percolator-style risk & accounting.
-//! All pure math — no Solana types, no_std compatible.
+//! Reusable Kani harnesses for perp-style risk and accounting.
+//!
+//! The haircut ratio `h` matches Percolator's global coverage ratio model.
+//! Reference: https://github.com/aeyakovenko/percolator
+//!
+//! Pure math only: no Solana types. Intended for use under `cfg(kani)`.
 
 /// Global haircut ratio `h` as used in Percolator.
 ///
@@ -45,7 +49,7 @@ pub fn effective_pnl(pnl_i: i128, h_num: u128, h_den: u128) -> u128 {
     head + tail
 }
 
-/// Warmup slope: linearly interpolates profit eligibility over a warmup period.
+/// Linear warmup slope helper (generic).
 ///
 /// Returns the fraction of `gross_profit` that is "warmed" (eligible for withdrawal),
 /// as `warmed = gross_profit * elapsed / warmup_period` (floored).
