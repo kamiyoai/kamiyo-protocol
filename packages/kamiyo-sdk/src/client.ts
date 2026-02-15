@@ -137,6 +137,26 @@ export class KamiyoClient {
     );
   }
 
+  /**
+   * Derive the launch record PDA for an agent and mint
+   */
+  getLaunchRecordPDA(agent: PublicKey, mint: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("launch"), agent.toBuffer(), mint.toBuffer()],
+      this.programId
+    );
+  }
+
+  /**
+   * Derive the launch rate limit PDA for an agent
+   */
+  getLaunchRateLimitPDA(agent: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("launch_rate"), agent.toBuffer()],
+      this.programId
+    );
+  }
+
   // ========================================================================
   // Account Fetching
   // ========================================================================
@@ -458,6 +478,86 @@ export class KamiyoClient {
       programId: this.programId,
       data: DISCRIMINATORS.deactivateAgent,
     });
+  }
+
+  /**
+   * Build create trusted launch instruction
+   */
+  buildCreateTrustedLaunchInstruction(
+    owner: PublicKey,
+    params: {
+      mint: PublicKey;
+      fundryCoinId: string;
+      configType: string;
+      escrowAmount: BN;
+      migrationTargetSol: BN;
+      creatorAllocationBps: number;
+    }
+  ): TransactionInstruction {
+    const [agentPDA] = this.getAgentPDA(owner);
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
+    const [feeVaultPDA] = this.getFeeVaultPDA();
+    const [launchRecordPDA] = this.getLaunchRecordPDA(agentPDA, params.mint);
+    const [launchRateLimitPDA] = this.getLaunchRateLimitPDA(agentPDA);
+
+    const coinIdBytes = Buffer.from(params.fundryCoinId);
+    const configTypeBytes = Buffer.from(params.configType);
+    const data = Buffer.concat([
+      DISCRIMINATORS.createTrustedLaunch,
+      Buffer.from([coinIdBytes.length, 0, 0, 0]),
+      coinIdBytes,
+      Buffer.from([configTypeBytes.length, 0, 0, 0]),
+      configTypeBytes,
+      params.escrowAmount.toArrayLike(Buffer, "le", 8),
+      params.migrationTargetSol.toArrayLike(Buffer, "le", 8),
+      new BN(params.creatorAllocationBps).toArrayLike(Buffer, "le", 2),
+    ]);
+
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: false },
+        { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
+        { pubkey: agentPDA, isSigner: false, isWritable: false },
+        { pubkey: launchRecordPDA, isSigner: false, isWritable: true },
+        { pubkey: launchRateLimitPDA, isSigner: false, isWritable: true },
+        { pubkey: params.mint, isSigner: false, isWritable: false },
+        { pubkey: owner, isSigner: true, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data,
+    });
+  }
+
+  /**
+   * Create a trusted launch on-chain
+   */
+  async createTrustedLaunch(params: {
+    mint: PublicKey;
+    fundryCoinId: string;
+    configType: string;
+    escrowAmount: BN;
+    migrationTargetSol: BN;
+    creatorAllocationBps: number;
+  }): Promise<string> {
+    const instruction = this.buildCreateTrustedLaunchInstruction(
+      this.wallet.publicKey,
+      params
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
   }
 
   // ========================================================================

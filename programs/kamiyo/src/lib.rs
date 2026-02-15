@@ -154,6 +154,13 @@ const ESCROW_CREATION_FEE_BPS: u64 = 10; // 0.1% (10 basis points) escrow creati
 // Protocol version for upgrade tracking
 const PROTOCOL_VERSION: u8 = 1;
 
+// Trusted launch constants
+const MAX_LAUNCHES_PER_DAY: u8 = 3;
+const MAX_LAUNCHES_PER_WEEK: u8 = 10;
+const LAUNCH_RELEASE_DELAY: i64 = 604_800; // 7 days
+const MAX_FUNDRY_COIN_ID_LENGTH: usize = 36; // UUID format
+const MAX_CONFIG_TYPE_LENGTH: usize = 16;
+
 // ============================================================================
 // Events
 // ============================================================================
@@ -375,6 +382,39 @@ pub struct TreasuryWithdrawal {
 pub struct OracleRewardsClaimed {
     pub oracle: Pubkey,
     pub amount: u64,
+}
+
+#[event]
+pub struct TrustedLaunchCreated {
+    pub launch_record: Pubkey,
+    pub agent: Pubkey,
+    pub mint: Pubkey,
+    pub fundry_coin_id: String,
+    pub config_type: String,
+    pub escrow_amount: u64,
+}
+
+#[event]
+pub struct LaunchGraduated {
+    pub launch_record: Pubkey,
+    pub agent: Pubkey,
+    pub mint: Pubkey,
+    pub graduation_pool: Pubkey,
+}
+
+#[event]
+pub struct LaunchEscrowReleased {
+    pub launch_record: Pubkey,
+    pub agent: Pubkey,
+    pub escrow_amount: u64,
+}
+
+#[event]
+pub struct LaunchDisputed {
+    pub launch_record: Pubkey,
+    pub agent: Pubkey,
+    pub reporter: Pubkey,
+    pub evidence_hash: String,
 }
 
 #[event]
@@ -3641,6 +3681,302 @@ pub mod kamiyo {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Trusted Launch Instructions (Fundry Integration)
+    // ========================================================================
+
+    pub fn create_trusted_launch(
+        ctx: Context<CreateTrustedLaunch>,
+        fundry_coin_id: String,
+        config_type: String,
+        escrow_amount: u64,
+        migration_target_sol: u64,
+        creator_allocation_bps: u16,
+    ) -> Result<()> {
+        require!(
+            !ctx.accounts.protocol_config.paused,
+            KamiyoError::ProtocolPaused
+        );
+
+        let agent_identity = &ctx.accounts.agent_identity;
+        require!(agent_identity.is_active, KamiyoError::AgentNotActive);
+
+        // Validate inputs
+        require!(
+            fundry_coin_id.len() == MAX_FUNDRY_COIN_ID_LENGTH,
+            KamiyoError::InvalidFundryCoinId
+        );
+        require!(
+            !config_type.is_empty() && config_type.len() <= MAX_CONFIG_TYPE_LENGTH,
+            KamiyoError::InvalidConfigType
+        );
+        require!(
+            (MIN_ESCROW_AMOUNT..=MAX_ESCROW_AMOUNT).contains(&escrow_amount),
+            KamiyoError::InvalidAmount
+        );
+
+        let clock = Clock::get()?;
+
+        // Rate limiting
+        let rate_limit = &mut ctx.accounts.launch_rate_limit;
+        if rate_limit.agent == Pubkey::default() {
+            // First launch, initialize rate limit account
+            rate_limit.agent = agent_identity.key();
+            rate_limit.last_day_reset = clock.unix_timestamp;
+            rate_limit.last_week_reset = clock.unix_timestamp;
+            rate_limit.bump = ctx.bumps.launch_rate_limit;
+        }
+
+        // Reset daily counter if new day
+        if clock.unix_timestamp - rate_limit.last_day_reset >= SECONDS_PER_DAY {
+            rate_limit.launches_today = 0;
+            rate_limit.last_day_reset = clock.unix_timestamp;
+        }
+        // Reset weekly counter if new week
+        if clock.unix_timestamp - rate_limit.last_week_reset >= 7 * SECONDS_PER_DAY {
+            rate_limit.launches_this_week = 0;
+            rate_limit.last_week_reset = clock.unix_timestamp;
+        }
+
+        require!(
+            rate_limit.launches_today < MAX_LAUNCHES_PER_DAY,
+            KamiyoError::LaunchRateLimitExceeded
+        );
+        require!(
+            rate_limit.launches_this_week < MAX_LAUNCHES_PER_WEEK,
+            KamiyoError::LaunchRateLimitExceeded
+        );
+
+        // Calculate and collect creation fee (0.1%)
+        let fee_amount = (escrow_amount as u128)
+            .checked_mul(ESCROW_CREATION_FEE_BPS as u128)
+            .ok_or(KamiyoError::ArithmeticOverflow)?
+            .checked_div(10_000)
+            .ok_or(KamiyoError::ArithmeticOverflow)? as u64;
+        let fee_amount = fee_amount.max(5000);
+
+        let fee_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &ctx.accounts.owner.key(),
+            &ctx.accounts.treasury.key(),
+            fee_amount,
+        );
+        anchor_lang::solana_program::program::invoke(
+            &fee_ix,
+            &[
+                ctx.accounts.owner.to_account_info(),
+                ctx.accounts.treasury.to_account_info(),
+            ],
+        )?;
+
+        let treasury = &mut ctx.accounts.treasury;
+        treasury.total_fees_collected = treasury.total_fees_collected.saturating_add(fee_amount);
+        treasury.updated_at = clock.unix_timestamp;
+
+        // Transfer escrow SOL to launch record PDA
+        let escrow_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &ctx.accounts.owner.key(),
+            &ctx.accounts.launch_record.key(),
+            escrow_amount,
+        );
+        anchor_lang::solana_program::program::invoke(
+            &escrow_ix,
+            &[
+                ctx.accounts.owner.to_account_info(),
+                ctx.accounts.launch_record.to_account_info(),
+            ],
+        )?;
+
+        // Initialize launch record
+        let launch = &mut ctx.accounts.launch_record;
+        launch.agent = agent_identity.key();
+        launch.owner = ctx.accounts.owner.key();
+        launch.mint = ctx.accounts.mint.key();
+        launch.fundry_coin_id = fundry_coin_id.clone();
+        launch.config_type = config_type.clone();
+        launch.escrow_amount = escrow_amount;
+        launch.status = LaunchStatus::Active;
+        launch.migration_target_sol = migration_target_sol;
+        launch.creator_allocation_bps = creator_allocation_bps;
+        launch.quality_score = None;
+        launch.refund_percentage = None;
+        launch.reputation_updated = false;
+        launch.graduation_pool = None;
+        launch.dispute_reporter = None;
+        launch.dispute_evidence_hash = String::new();
+        launch.oracle_commitments = Vec::new();
+        launch.oracle_submissions = Vec::new();
+        launch.commit_phase_ends_at = None;
+        launch.created_at = clock.unix_timestamp;
+        launch.updated_at = clock.unix_timestamp;
+        launch.disputed_at = None;
+        launch.resolved_at = None;
+        launch.released_at = None;
+        launch.graduated_at = None;
+        launch.bump = ctx.bumps.launch_record;
+
+        // Update rate limits
+        rate_limit.launches_today = rate_limit.launches_today.saturating_add(1);
+        rate_limit.launches_this_week = rate_limit.launches_this_week.saturating_add(1);
+        rate_limit.total_launches = rate_limit.total_launches.saturating_add(1);
+
+        msg!(
+            "Trusted launch created: agent={}, mint={}, coin_id={}, config={}, escrow={}",
+            agent_identity.key(),
+            ctx.accounts.mint.key(),
+            fundry_coin_id,
+            config_type,
+            escrow_amount
+        );
+
+        emit!(TrustedLaunchCreated {
+            launch_record: launch.key(),
+            agent: agent_identity.key(),
+            mint: ctx.accounts.mint.key(),
+            fundry_coin_id,
+            config_type,
+            escrow_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn record_graduation(
+        ctx: Context<RecordGraduation>,
+        graduation_pool: Pubkey,
+    ) -> Result<()> {
+        let launch = &mut ctx.accounts.launch_record;
+        require!(
+            launch.status == LaunchStatus::Active,
+            KamiyoError::LaunchNotActive
+        );
+        require!(
+            launch.graduated_at.is_none(),
+            KamiyoError::LaunchAlreadyGraduated
+        );
+
+        let clock = Clock::get()?;
+        launch.status = LaunchStatus::Graduated;
+        launch.graduation_pool = Some(graduation_pool);
+        launch.graduated_at = Some(clock.unix_timestamp);
+        launch.updated_at = clock.unix_timestamp;
+
+        // Update rate limit stats
+        let rate_limit = &mut ctx.accounts.launch_rate_limit;
+        rate_limit.total_graduated = rate_limit.total_graduated.saturating_add(1);
+
+        msg!(
+            "Launch graduated: mint={}, pool={}",
+            launch.mint,
+            graduation_pool
+        );
+
+        emit!(LaunchGraduated {
+            launch_record: launch.key(),
+            agent: launch.agent,
+            mint: launch.mint,
+            graduation_pool,
+        });
+
+        Ok(())
+    }
+
+    pub fn release_launch(ctx: Context<ReleaseLaunch>) -> Result<()> {
+        // Read state first (immutable borrow)
+        let status = ctx.accounts.launch_record.status;
+        let graduated_at = ctx.accounts.launch_record.graduated_at;
+        let escrow_amount = ctx.accounts.launch_record.escrow_amount;
+        let launch_key = ctx.accounts.launch_record.key();
+        let agent_key = ctx.accounts.launch_record.agent;
+        let mint_key = ctx.accounts.launch_record.mint;
+
+        require!(
+            status == LaunchStatus::Graduated,
+            KamiyoError::LaunchNotActive
+        );
+
+        let clock = Clock::get()?;
+        let graduated_at = graduated_at.ok_or(KamiyoError::LaunchNotActive)?;
+        require!(
+            clock.unix_timestamp - graduated_at >= LAUNCH_RELEASE_DELAY,
+            KamiyoError::LaunchReleaseDelayNotMet
+        );
+
+        // Transfer escrowed SOL back to owner
+        let launch_info = ctx.accounts.launch_record.to_account_info();
+        let owner_info = ctx.accounts.owner.to_account_info();
+        **launch_info.try_borrow_mut_lamports()? -= escrow_amount;
+        **owner_info.try_borrow_mut_lamports()? += escrow_amount;
+
+        // Update state (mutable borrow after lamport transfer)
+        let launch = &mut ctx.accounts.launch_record;
+        launch.status = LaunchStatus::Released;
+        launch.released_at = Some(clock.unix_timestamp);
+        launch.updated_at = clock.unix_timestamp;
+
+        msg!(
+            "Launch escrow released: mint={}, amount={}",
+            mint_key,
+            escrow_amount
+        );
+
+        emit!(LaunchEscrowReleased {
+            launch_record: launch_key,
+            agent: agent_key,
+            escrow_amount,
+        });
+
+        Ok(())
+    }
+
+    pub fn dispute_launch(
+        ctx: Context<DisputeLaunch>,
+        evidence_hash: String,
+    ) -> Result<()> {
+        let launch = &mut ctx.accounts.launch_record;
+        require!(
+            launch.status == LaunchStatus::Active || launch.status == LaunchStatus::Graduated,
+            KamiyoError::LaunchNotActive
+        );
+
+        require!(
+            !evidence_hash.is_empty() && evidence_hash.len() <= 64,
+            KamiyoError::InvalidTransactionId
+        );
+
+        let clock = Clock::get()?;
+        launch.status = LaunchStatus::Disputed;
+        launch.dispute_reporter = Some(ctx.accounts.reporter.key());
+        launch.dispute_evidence_hash = evidence_hash.clone();
+        launch.disputed_at = Some(clock.unix_timestamp);
+        launch.commit_phase_ends_at = Some(
+            clock
+                .unix_timestamp
+                .checked_add(COMMIT_PHASE_DURATION)
+                .ok_or(KamiyoError::ArithmeticOverflow)?,
+        );
+        launch.updated_at = clock.unix_timestamp;
+
+        // Update rate limit stats
+        let rate_limit = &mut ctx.accounts.launch_rate_limit;
+        rate_limit.total_disputed = rate_limit.total_disputed.saturating_add(1);
+
+        msg!(
+            "Launch disputed: mint={}, reporter={}, evidence={}",
+            launch.mint,
+            ctx.accounts.reporter.key(),
+            evidence_hash
+        );
+
+        emit!(LaunchDisputed {
+            launch_record: launch.key(),
+            agent: launch.agent,
+            reporter: ctx.accounts.reporter.key(),
+            evidence_hash,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -4473,6 +4809,115 @@ pub struct VerifyAgentReputation<'info> {
 }
 
 // ============================================================================
+// Trusted Launch Account Validation
+// ============================================================================
+
+#[derive(Accounts)]
+#[instruction(fundry_coin_id: String, config_type: String)]
+pub struct CreateTrustedLaunch<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"treasury"],
+        bump = treasury.bump
+    )]
+    pub treasury: Account<'info, Treasury>,
+
+    #[account(
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump,
+        constraint = agent_identity.owner == owner.key() @ KamiyoError::Unauthorized
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + LaunchRecord::INIT_SPACE,
+        seeds = [b"launch", agent_identity.key().as_ref(), mint.key().as_ref()],
+        bump
+    )]
+    pub launch_record: Account<'info, LaunchRecord>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + LaunchRateLimit::INIT_SPACE,
+        seeds = [b"launch_rate", agent_identity.key().as_ref()],
+        bump
+    )]
+    pub launch_rate_limit: Account<'info, LaunchRateLimit>,
+
+    /// CHECK: Token mint address, validated by PDA seed
+    pub mint: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RecordGraduation<'info> {
+    #[account(
+        mut,
+        seeds = [b"launch", launch_record.agent.as_ref(), launch_record.mint.as_ref()],
+        bump = launch_record.bump,
+        constraint = launch_record.owner == owner.key() @ KamiyoError::Unauthorized
+    )]
+    pub launch_record: Account<'info, LaunchRecord>,
+
+    #[account(
+        mut,
+        seeds = [b"launch_rate", launch_record.agent.as_ref()],
+        bump = launch_rate_limit.bump
+    )]
+    pub launch_rate_limit: Account<'info, LaunchRateLimit>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ReleaseLaunch<'info> {
+    #[account(
+        mut,
+        seeds = [b"launch", launch_record.agent.as_ref(), launch_record.mint.as_ref()],
+        bump = launch_record.bump,
+        constraint = launch_record.owner == owner.key() @ KamiyoError::Unauthorized
+    )]
+    pub launch_record: Account<'info, LaunchRecord>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct DisputeLaunch<'info> {
+    #[account(
+        mut,
+        seeds = [b"launch", launch_record.agent.as_ref(), launch_record.mint.as_ref()],
+        bump = launch_record.bump
+    )]
+    pub launch_record: Account<'info, LaunchRecord>,
+
+    #[account(
+        mut,
+        seeds = [b"launch_rate", launch_record.agent.as_ref()],
+        bump = launch_rate_limit.bump
+    )]
+    pub launch_rate_limit: Account<'info, LaunchRateLimit>,
+
+    #[account(mut)]
+    pub reporter: Signer<'info>,
+}
+
+// ============================================================================
 // State
 // ============================================================================
 
@@ -4729,6 +5174,70 @@ pub enum EntityType {
 }
 
 // ============================================================================
+// Trusted Launch Accounts
+// ============================================================================
+
+#[account]
+#[derive(InitSpace)]
+pub struct LaunchRecord {
+    pub agent: Pubkey,
+    pub owner: Pubkey,
+    pub mint: Pubkey,
+    #[max_len(36)]
+    pub fundry_coin_id: String,
+    #[max_len(16)]
+    pub config_type: String,
+    pub escrow_amount: u64,
+    pub status: LaunchStatus,
+    pub migration_target_sol: u64,
+    pub creator_allocation_bps: u16,
+    pub quality_score: Option<u8>,
+    pub refund_percentage: Option<u8>,
+    pub reputation_updated: bool,
+    pub graduation_pool: Option<Pubkey>,
+    pub dispute_reporter: Option<Pubkey>,
+    #[max_len(64)]
+    pub dispute_evidence_hash: String,
+    #[max_len(5)]
+    pub oracle_commitments: Vec<[u8; 32]>,
+    #[max_len(5)]
+    pub oracle_submissions: Vec<OracleSubmission>,
+    pub commit_phase_ends_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub disputed_at: Option<i64>,
+    pub resolved_at: Option<i64>,
+    pub released_at: Option<i64>,
+    pub graduated_at: Option<i64>,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct LaunchRateLimit {
+    pub agent: Pubkey,
+    pub launches_today: u8,
+    pub launches_this_week: u8,
+    pub last_day_reset: i64,
+    pub last_week_reset: i64,
+    pub total_launches: u64,
+    pub total_graduated: u64,
+    pub total_disputed: u64,
+    pub total_abandoned: u64,
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum LaunchStatus {
+    Active,
+    Released,
+    Disputed,
+    Resolved,
+    Graduated,
+    Abandoned,
+}
+
+// ============================================================================
 // Errors
 // ============================================================================
 
@@ -4901,4 +5410,28 @@ pub enum KamiyoError {
 
     #[msg("Duplicate oracle commitment")]
     DuplicateOracleCommitment,
+
+    #[msg("Launch record already exists for this mint")]
+    LaunchAlreadyExists,
+
+    #[msg("Invalid bonding curve config type")]
+    InvalidConfigType,
+
+    #[msg("Invalid Fundry coin ID (must be 36-char UUID)")]
+    InvalidFundryCoinId,
+
+    #[msg("Launch rate limit exceeded")]
+    LaunchRateLimitExceeded,
+
+    #[msg("Launch release delay not met (7 days required)")]
+    LaunchReleaseDelayNotMet,
+
+    #[msg("Launch is not in active state")]
+    LaunchNotActive,
+
+    #[msg("Launch is not in disputed state")]
+    LaunchNotDisputed,
+
+    #[msg("Launch already graduated")]
+    LaunchAlreadyGraduated,
 }

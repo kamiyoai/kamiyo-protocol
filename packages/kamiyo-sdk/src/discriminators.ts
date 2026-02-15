@@ -20,4 +20,10 @@ export const DISCRIMINATORS = {
 
   // Blacklist instructions
   addToBlacklist: Buffer.from([90, 115, 98, 231, 173, 119, 117, 176]),
+
+  // Trusted launch instructions
+  createTrustedLaunch: Buffer.from([125, 132, 155, 54, 52, 252, 242, 150]),
+  recordGraduation: Buffer.from([89, 93, 12, 76, 198, 56, 162, 242]),
+  releaseLaunch: Buffer.from([229, 144, 251, 90, 130, 37, 184, 154]),
+  disputeLaunch: Buffer.from([231, 138, 9, 141, 248, 198, 41, 142]),
 } as const;

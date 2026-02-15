@@ -10,11 +10,13 @@ export * from './market.js';
 export * from './search.js';
 export * from './paranet.js';
 export * from './kamino.js';
+export * from './fundry.js';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MARKET_TOOL_DEFINITIONS } from './market.js';
 import { SEARCH_TOOL_DEFINITIONS } from './search.js';
 import { PARANET_TOOLS } from './paranet.js';
+import { FUNDRY_TOOL_DEFINITIONS } from './fundry.js';
 
 export const TOOL_DEFINITIONS: Tool[] = [
   {
@@ -153,4 +155,6 @@ export const TOOL_DEFINITIONS: Tool[] = [
   ...SEARCH_TOOL_DEFINITIONS,
   // Agent Paranet tools
   ...PARANET_TOOLS,
+  // Fundry trusted launch tools
+  ...FUNDRY_TOOL_DEFINITIONS,
 ];

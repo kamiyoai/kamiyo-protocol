@@ -30,3 +30,6 @@ export * from "./circuit-breaker";
 
 // Meishi compliance passports
 export * from "./meishi";
+
+// Fundry trusted launch integration
+export * from "./fundry";

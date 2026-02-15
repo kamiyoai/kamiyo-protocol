@@ -21,7 +21,7 @@ kani-full = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = "0.31.1"
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
 anchor-spl = { version = "0.31.1", features = ["default"] }
 switchboard-on-demand = "0.10.5"
 groth16-solana = "0.2.0"
