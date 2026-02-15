@@ -1,0 +1,15 @@
+[package]
+name = "kani-solana"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Reusable Kani formal verification harnesses for Solana program math"
+keywords = ["kani", "formal-verification", "solana", "proof", "invariant"]
+categories = ["development-tools::testing"]
+
+[features]
+default = []
+kani-full = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
