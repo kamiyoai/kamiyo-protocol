@@ -5,7 +5,7 @@ import type { Plugin } from './types';
 
 export const kamiyoTrustPlugin: Plugin = {
   name: 'kamiyo-trust',
-  description: 'KAMIYO on-chain trust bridge for ElizaOS plugin-trust. Maps stake, escrow, and oracle data to TrustEvidence records.',
+  description: 'KAMIYO on-chain trust bridge for ElizaOS plugin-trust. Maps stake, escrow, and oracle data to TrustInteraction records.',
   providers: [kamiyoTrustProfileProvider, kamiyoSecurityStatusProvider],
   services: [kamiyoTrustEvidenceBridgeService],
 };
@@ -15,12 +15,13 @@ export { kamiyoSecurityStatusProvider } from './providers/securityStatus';
 export { KamiyoTrustEvidenceBridge, kamiyoTrustEvidenceBridgeService } from './services/evidenceBridge';
 export { EVIDENCE_MAP } from './types';
 export type {
-  TrustEvidenceRecord,
+  TrustInteraction,
   TrustEngineService,
   TrustProfile,
   KamiyoEventType,
   TrustEvidenceType,
   EvidenceMapping,
+  TrustContext,
 } from './types';
 
 export default kamiyoTrustPlugin;
