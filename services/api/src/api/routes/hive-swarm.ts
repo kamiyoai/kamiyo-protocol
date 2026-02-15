@@ -10,8 +10,11 @@ import { publishKirokuDrop } from '../../kiroku';
 import { acquireSwarmNodeSlot, clampMaxParallel, getSwarmGlobalActiveNodes, swarmRuntimeConfig } from '../../swarm/runtime';
 import { swarmActiveNodes, swarmNodeDuration, swarmNodesTotal, swarmRunDuration, swarmRunsTotal } from '../../metrics';
 
-const taskExecutor = process.env.ANTHROPIC_API_KEY
-  ? createTaskExecutor({ anthropicApiKey: process.env.ANTHROPIC_API_KEY })
+const taskExecutor = (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
+  ? createTaskExecutor({
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+    })
   : undefined;
 
 const CANCEL_TTL_MS = 24 * 60 * 60 * 1000;
