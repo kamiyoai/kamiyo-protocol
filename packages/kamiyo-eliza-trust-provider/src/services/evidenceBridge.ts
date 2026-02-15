@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import { EVIDENCE_MAP, NETWORKS } from '../types';
 import { parseSecretKey } from '../utils/secretKey';
+import { parseSolanaSignature } from '../utils/solanaSignature';
 
 /** Snapshot of on-chain agent state for diff-based evidence generation */
 interface AgentSnapshot {
@@ -236,7 +237,57 @@ export class KamiyoTrustEvidenceBridge implements Service {
       }
     }
 
+    await appendStateItem(this.runtime, 'kamiyoTrustEvidence', {
+      ...record,
+      pushedToTrustEngine: Boolean(this.recordInteraction),
+    }, 500);
+
     return record;
+  }
+
+  async recordFromTransaction(input: string, sourceEntityId: string): Promise<TrustInteraction[]> {
+    if (!this.runtime) return [];
+
+    const signature = parseSolanaSignature(input);
+    if (!signature) return [];
+
+    if (await alreadyRecordedSignature(this.runtime, sourceEntityId, signature)) return [];
+
+    const network = (this.runtime.getSetting('KAMIYO_NETWORK') as KamiyoNetwork) || 'mainnet';
+    const { rpcUrl, programId } = NETWORKS[network];
+    const connection = new Connection(rpcUrl, 'confirmed');
+
+    let tx;
+    try {
+      tx = await connection.getTransaction(signature, {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: 0,
+      });
+    } catch {
+      return [];
+    }
+    if (!tx?.meta?.logMessages) return [];
+
+    const instructions = parseAnchorInstructionNames(tx.meta.logMessages, programId);
+    const events = instructions.flatMap(name => mapInstructionToEvents(name));
+    if (events.length === 0) return [];
+
+    const recorded: TrustInteraction[] = [];
+    for (const event of events) {
+      if (await alreadyRecordedTx(this.runtime, sourceEntityId, signature, event)) continue;
+      const rec = await this.recordEvent(event, sourceEntityId, {
+        source: 'solana-transaction',
+        signature,
+        programId,
+        slot: tx.slot,
+        blockTime: tx.blockTime,
+        instruction: instructions,
+      });
+      if (rec) recorded.push(rec);
+      await markRecordedTx(this.runtime, sourceEntityId, signature, event);
+    }
+
+    return recorded;
   }
 
   // ---------------------------------------------------------------------------
@@ -363,6 +414,91 @@ function clampImpact(value: number): number {
 function clampIntervalMs(value: number): number {
   if (!Number.isFinite(value)) return 300_000;
   return Math.max(10_000, Math.min(86_400_000, Math.floor(value)));
+}
+
+function parseAnchorInstructionNames(logs: string[], programId: string): string[] {
+  const names: string[] = [];
+  const invokePrefix = `Program ${programId} invoke`;
+  const successPrefix = `Program ${programId} success`;
+  const failPrefix = `Program ${programId} failed`;
+
+  let depth = 0;
+  for (const line of logs) {
+    if (line.includes(invokePrefix)) {
+      depth++;
+      continue;
+    }
+    if (line.includes(successPrefix) || line.includes(failPrefix)) {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth === 0) continue;
+
+    const m = line.match(/Program log: Instruction: ([A-Za-z0-9_]+)/);
+    if (m?.[1]) names.push(m[1]);
+  }
+  return names;
+}
+
+function mapInstructionToEvents(instructionName: string): KamiyoEventType[] {
+  switch (instructionName) {
+    case 'ReleaseFunds':
+    case 'ReleaseLaunch':
+    case 'ReleaseTradeEscrow':
+      return ['escrow_released'];
+    case 'MarkDisputed':
+    case 'DisputeLaunch':
+    case 'DisputeTradeEscrow':
+      return ['escrow_disputed'];
+    default:
+      return [];
+  }
+}
+
+async function alreadyRecordedTx(
+  runtime: IAgentRuntime,
+  sourceEntityId: string,
+  signature: string,
+  event: KamiyoEventType
+): Promise<boolean> {
+  const key = `kamiyoTrustRecordedTx:${sourceEntityId}`;
+  const existing = ((await runtime.getState?.(key)) as string[] | undefined) || [];
+  return existing.includes(`${signature}:${event}`);
+}
+
+async function alreadyRecordedSignature(
+  runtime: IAgentRuntime,
+  sourceEntityId: string,
+  signature: string
+): Promise<boolean> {
+  const key = `kamiyoTrustRecordedTx:${sourceEntityId}`;
+  const existing = ((await runtime.getState?.(key)) as string[] | undefined) || [];
+  return existing.some(id => id.startsWith(`${signature}:`));
+}
+
+async function markRecordedTx(
+  runtime: IAgentRuntime,
+  sourceEntityId: string,
+  signature: string,
+  event: KamiyoEventType
+): Promise<void> {
+  const key = `kamiyoTrustRecordedTx:${sourceEntityId}`;
+  const existing = ((await runtime.getState?.(key)) as string[] | undefined) || [];
+  const id = `${signature}:${event}`;
+  if (existing.includes(id)) return;
+  const next = [...existing, id];
+  await runtime.setState?.(key, next.slice(Math.max(0, next.length - 500)));
+}
+
+async function appendStateItem(
+  runtime: IAgentRuntime,
+  key: string,
+  item: unknown,
+  max: number
+): Promise<void> {
+  const existing = ((await runtime.getState?.(key)) as unknown[] | undefined) || [];
+  const next = [...existing, item];
+  await runtime.setState?.(key, next.slice(Math.max(0, next.length - max)));
 }
 
 async function resolveTrustEngine(runtime: IAgentRuntime): Promise<unknown> {
