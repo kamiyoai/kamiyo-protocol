@@ -34,4 +34,5 @@ pub mod bounds;
 #[cfg(kani)]
 pub mod math;
 
+#[cfg(kani)]
 pub mod risk;

@@ -12,7 +12,7 @@ summary="${out_dir}/summary.md"
 
 pkgs=("$@")
 if [ "${#pkgs[@]}" -eq 0 ]; then
-  pkgs=(kamiyo hive kamiyo-staking)
+  pkgs=(kani-solana kamiyo hive kamiyo-staking)
 fi
 
 args=()
