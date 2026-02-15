@@ -1357,6 +1357,7 @@ db.exec(`
     status TEXT NOT NULL,
     max_parallel INTEGER NOT NULL,
     fail_fast INTEGER NOT NULL,
+    idempotency_key TEXT,
     total_reserved REAL NOT NULL DEFAULT 0,
     total_spent REAL NOT NULL DEFAULT 0,
     error TEXT,
@@ -1372,6 +1373,7 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_swarm_runs_team_started ON swarm_runs(team_id, started_at);
   CREATE INDEX IF NOT EXISTS idx_swarm_runs_status_started ON swarm_runs(status, started_at);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key);
 
   CREATE TABLE IF NOT EXISTS swarm_run_nodes (
     id TEXT PRIMARY KEY,
@@ -1409,6 +1411,19 @@ try {
   db.exec('ALTER TABLE swarm_teams ADD COLUMN pool_balance_sol REAL NOT NULL DEFAULT 0');
 } catch {
   // Column already exists
+}
+
+// Migration: add idempotency_key for idempotent swarm run creation.
+try {
+  db.exec('ALTER TABLE swarm_runs ADD COLUMN idempotency_key TEXT');
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key)');
+} catch {
+  // Ignore
 }
 
 function quoteIdent(value: string): string {

@@ -174,6 +174,18 @@ All endpoints require authentication and team ownership:
 2. `POST /api/hive-teams/:id/swarm/run`
 3. `GET /api/hive-teams/:id/swarm/runs?limit&offset`
 4. `GET /api/hive-teams/:id/swarm/runs/:runId`
+5. `POST /api/hive-teams/:id/swarm/runs/:runId/cancel`
+6. `POST /api/hive-teams/:id/swarm/runs/:runId/retry`
+
+Idempotency:
+- `POST /run` accepts an optional `idempotencyKey` (or `Idempotency-Key` header) to prevent duplicate run creation on client retries.
+
+Operational env (defaults are safe but conservative):
+- `SWARM_MAX_PARALLEL_RUN`
+- `SWARM_MAX_PARALLEL_TEAM`
+- `SWARM_MAX_PARALLEL_GLOBAL`
+- `SWARM_NODE_TIMEOUT_MS`
+- `SWARM_RUN_TIMEOUT_MS`
 
 ## Implementation Steps
 
@@ -198,4 +210,3 @@ All endpoints require authentication and team ownership:
 - Pool balance decreases by actual `amountDrawn` (not by requested budgets).
 - Node-level outputs + costs are queryable via `GET` endpoints.
 - A Kiroku receipt is published when env vars are present; otherwise cleanly skipped.
-

@@ -224,3 +224,40 @@ export const paranetRateLimited = new Counter({
   labelNames: ['endpoint'] as const,
   registers: [registry],
 });
+
+// Swarm metrics
+export const swarmRunsTotal = new Counter({
+  name: 'swarm_runs_total',
+  help: 'Total swarm runs',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
+export const swarmRunDuration = new Histogram({
+  name: 'swarm_run_duration_seconds',
+  help: 'Swarm run duration in seconds',
+  labelNames: ['status'] as const,
+  buckets: [1, 5, 10, 30, 60, 120, 300, 600, 900, 1800],
+  registers: [registry],
+});
+
+export const swarmNodesTotal = new Counter({
+  name: 'swarm_node_executions_total',
+  help: 'Total swarm DAG node executions',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
+export const swarmNodeDuration = new Histogram({
+  name: 'swarm_node_duration_seconds',
+  help: 'Swarm node execution duration in seconds',
+  labelNames: ['status'] as const,
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600],
+  registers: [registry],
+});
+
+export const swarmActiveNodes = new Gauge({
+  name: 'swarm_active_nodes',
+  help: 'Current number of active swarm nodes',
+  registers: [registry],
+});

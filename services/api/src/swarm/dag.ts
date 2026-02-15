@@ -14,11 +14,14 @@ export type DagRunNodeResult<Out> = {
   error?: string;
 };
 
+export type DagRunStatus = 'completed' | 'failed' | 'cancelled';
+
 export type DagRunResult<Out> = {
-  status: 'completed' | 'failed';
+  status: DagRunStatus;
   startedAtMs: number;
   completedAtMs: number;
   nodes: Record<string, DagRunNodeResult<Out>>;
+  abortReason?: string;
 };
 
 export type DagValidationOk = { ok: true; order: string[] };
@@ -84,6 +87,8 @@ export async function runDag<T, Out>(
     maxParallel: number;
     failFast: boolean;
     runNode: (node: DagNode<T>, deps: Array<{ id: string; result: DagRunNodeResult<Out> }>) => Promise<RunNodeResult<Out>>;
+    initialResults?: Partial<Record<string, DagRunNodeResult<Out>>>;
+    shouldAbort?: () => { status: DagRunStatus; reason: string } | null;
   }
 ): Promise<DagRunResult<Out>> {
   const startedAtMs = Date.now();
@@ -117,16 +122,34 @@ export async function runDag<T, Out>(
   }
 
   const results: Record<string, DagRunNodeResult<Out>> = {};
-  for (const n of nodes) results[n.id] = { status: 'pending' };
+  for (const n of nodes) {
+    const seeded = options.initialResults?.[n.id];
+    if (seeded && seeded.status !== 'pending' && seeded.status !== 'running') {
+      results[n.id] = seeded;
+      continue;
+    }
+    results[n.id] = { status: 'pending' };
+  }
 
   const ready: string[] = [];
   for (const n of nodes) {
-    if (n.dependsOn.length === 0) ready.push(n.id);
+    if (results[n.id].status !== 'pending') continue;
+    if (n.dependsOn.length === 0) {
+      ready.push(n.id);
+      continue;
+    }
+
+    // Seeded completions satisfy dependencies for downstream nodes.
+    const remaining = n.dependsOn.filter((d) => results[d]?.status !== 'completed').length;
+    remainingDeps.set(n.id, remaining);
+    if (remaining === 0) ready.push(n.id);
   }
 
   const inFlight = new Map<string, Promise<{ nodeId: string; result: RunNodeResult<Out> }>>();
   let abortScheduling = false;
   let anyFailed = false;
+  let abortStatus: DagRunStatus | null = null;
+  let abortReason: string | undefined;
 
   const startNode = (nodeId: string) => {
     const node = byId.get(nodeId);
@@ -161,6 +184,15 @@ export async function runDag<T, Out>(
   };
 
   while (true) {
+    if (!abortScheduling) {
+      const abort = options.shouldAbort?.();
+      if (abort) {
+        abortScheduling = true;
+        abortStatus = abort.status;
+        abortReason = abort.reason;
+      }
+    }
+
     while (!abortScheduling && inFlight.size < options.maxParallel && ready.length) {
       startNode(ready.shift()!);
     }
@@ -225,14 +257,19 @@ export async function runDag<T, Out>(
   }
 
   if (abortScheduling) {
-    finalizePending('skipped', 'skipped: fail-fast');
+    if (abortStatus) {
+      finalizePending('skipped', abortReason ?? `skipped: ${abortStatus}`);
+    } else {
+      finalizePending('skipped', 'skipped: fail-fast');
+    }
   }
 
   const completedAtMs = Date.now();
   return {
-    status: anyFailed ? 'failed' : 'completed',
+    status: abortStatus ?? (anyFailed ? 'failed' : 'completed'),
     startedAtMs,
     completedAtMs,
     nodes: results,
+    abortReason,
   };
 }
