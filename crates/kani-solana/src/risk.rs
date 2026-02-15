@@ -141,14 +141,14 @@ mod proofs {
 
         let (num, den) = haircut_ratio(v, c, i, p);
 
-        kani::assert(den != 0);
-        kani::assert(num <= den);
+        kani::assert(den != 0, "den != 0");
+        kani::assert(num <= den, "num <= den");
         if p == 0 {
-            kani::assert((num, den) == (1, 1));
+            kani::assert((num, den) == (1, 1), "(num, den) == (1, 1)");
         } else {
-            kani::assert(den == p);
+            kani::assert(den == p, "den == p");
             let residual = v.saturating_sub(c.saturating_add(i));
-            kani::assert(num <= residual);
+            kani::assert(num <= residual, "num <= residual");
         }
     }
 
@@ -164,7 +164,7 @@ mod proofs {
         kani::assume(residual >= p);
 
         let (num, den) = haircut_ratio(v, c, i, p);
-        kani::assert(num == den);
+        kani::assert(num == den, "num == den");
     }
 
     #[kani::proof]
@@ -177,8 +177,8 @@ mod proofs {
         let c_i_new = c_i - loss;
         let c_tot_new = c_tot - loss;
 
-        kani::assert(c_tot_new == c_tot - loss);
-        kani::assert(c_i_new <= c_i);
+        kani::assert(c_tot_new == c_tot - loss, "c_tot_new == c_tot - loss");
+        kani::assert(c_i_new <= c_i, "c_i_new <= c_i");
     }
 
     #[kani::proof]
@@ -188,7 +188,7 @@ mod proofs {
         let h_den: u128 = kani::any::<u64>() as u128;
 
         let y = effective_pnl(x as i128, h_num, h_den);
-        kani::assert(y <= x);
+        kani::assert(y <= x, "y <= x");
     }
 
     #[kani::proof]
@@ -201,7 +201,7 @@ mod proofs {
 
         let expected = (pos as u128 * h_num as u128) / (h_den as u128);
         let actual = effective_pnl(pos as i128, h_num as u128, h_den as u128);
-        kani::assert(actual == expected);
+        kani::assert(actual == expected, "actual == expected");
     }
 
     #[kani::proof]
@@ -228,15 +228,15 @@ mod proofs {
             sum_r += prod % pnl_pos_total;
         }
 
-        kani::assert(sum_eff <= residual);
+        kani::assert(sum_eff <= residual, "sum_eff <= residual");
 
         // With residual <= pnl_pos_total, h_num = residual and h_den = pnl_pos_total.
         // Each term is floored, so the "missing" amount is bounded by the number of accounts.
         let slack = residual - sum_eff;
-        kani::assert(slack <= (N as u128) - 1);
+        kani::assert(slack <= (N as u128) - 1, "slack <= N-1");
 
         // Sanity: the remainder sum cannot cross N denominators.
-        kani::assert(sum_r < (N as u128) * pnl_pos_total);
+        kani::assert(sum_r < (N as u128) * pnl_pos_total, "sum_r < N * denom");
     }
 
     #[kani::proof]
@@ -248,7 +248,7 @@ mod proofs {
         let eff = effective_pnl(pnl, h_num, h_den);
 
         let pos = pnl.max(0) as u128;
-        kani::assert(eff <= pos);
+        kani::assert(eff <= pos, "eff <= pos");
     }
 
     #[kani::proof]
@@ -261,7 +261,7 @@ mod proofs {
         let eff = effective_pnl(pnl, h_num, h_den);
         let equity = capital + eff;
 
-        kani::assert(equity >= capital);
+        kani::assert(equity >= capital, "equity >= capital");
     }
 
     #[kani::proof]
@@ -275,7 +275,7 @@ mod proofs {
         let w1 = warmup_slope(profit, t1, period);
         let w2 = warmup_slope(profit, t2, period);
 
-        kani::assert(w1 <= w2);
+        kani::assert(w1 <= w2, "w1 <= w2");
     }
 
     #[kani::proof]
@@ -285,7 +285,7 @@ mod proofs {
         let period: u64 = kani::any();
 
         let warmed = warmup_slope(profit, elapsed, period);
-        kani::assert(warmed <= profit);
+        kani::assert(warmed <= profit, "warmed <= profit");
     }
 
     #[kani::proof]
@@ -296,7 +296,7 @@ mod proofs {
         kani::assume(elapsed >= period);
 
         let warmed = warmup_slope(profit, elapsed, period);
-        kani::assert(warmed == profit);
+        kani::assert(warmed == profit, "warmed == profit");
     }
 
     #[kani::proof]
@@ -306,9 +306,9 @@ mod proofs {
 
         let (swept, remaining) = fee_debt_sweep(debt, available);
 
-        kani::assert(swept + remaining == debt);
-        kani::assert(swept <= available);
-        kani::assert(swept <= debt);
+        kani::assert(swept + remaining == debt, "swept + remaining == debt");
+        kani::assert(swept <= available, "swept <= available");
+        kani::assert(swept <= debt, "swept <= debt");
     }
 
     #[kani::proof]
@@ -319,8 +319,8 @@ mod proofs {
 
         let (swept, remaining) = fee_debt_sweep(debt, available);
 
-        kani::assert(swept == debt);
-        kani::assert(remaining == 0);
+        kani::assert(swept == debt, "swept == debt");
+        kani::assert(remaining == 0, "remaining == 0");
     }
 
     #[kani::proof]
@@ -332,7 +332,7 @@ mod proofs {
         let long_pay = funding_payment(position, rate_num, rate_den, true);
         let short_pay = funding_payment(position, rate_num, rate_den, false);
 
-        kani::assert(long_pay == -short_pay);
+        kani::assert(long_pay == -short_pay, "long_pay == -short_pay");
     }
 
     #[kani::proof]
@@ -342,7 +342,7 @@ mod proofs {
         let is_long: bool = kani::any();
 
         let pay = funding_payment(position, 0, rate_den, is_long);
-        kani::assert(pay == 0);
+        kani::assert(pay == 0, "pay == 0");
     }
 
     #[kani::proof]
@@ -352,7 +352,7 @@ mod proofs {
         let is_long: bool = kani::any();
 
         let pay = funding_payment(position, rate_num, 0, is_long);
-        kani::assert(pay == 0);
+        kani::assert(pay == 0, "pay == 0");
     }
 
     #[kani::proof]
@@ -362,7 +362,7 @@ mod proofs {
         let is_long: bool = kani::any();
 
         let pay = funding_payment(0, rate_num, rate_den, is_long);
-        kani::assert(pay == 0);
+        kani::assert(pay == 0, "pay == 0");
     }
 
     #[kani::proof]
@@ -372,9 +372,9 @@ mod proofs {
 
         let (writeoff, new_insurance) = loss_writeoff(neg_equity, insurance);
 
-        kani::assert(writeoff + new_insurance == insurance);
-        kani::assert(writeoff <= neg_equity);
-        kani::assert(writeoff <= insurance);
+        kani::assert(writeoff + new_insurance == insurance, "writeoff + new_insurance == insurance");
+        kani::assert(writeoff <= neg_equity, "writeoff <= neg_equity");
+        kani::assert(writeoff <= insurance, "writeoff <= insurance");
     }
 
     #[kani::proof]
@@ -387,6 +387,6 @@ mod proofs {
         let (_, ins_after_1) = loss_writeoff(neg1, insurance);
         let (_, ins_after_2) = loss_writeoff(neg2, insurance);
 
-        kani::assert(ins_after_1 >= ins_after_2);
+        kani::assert(ins_after_1 >= ins_after_2, "ins_after_1 >= ins_after_2");
     }
 }

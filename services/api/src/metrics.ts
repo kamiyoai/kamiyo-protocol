@@ -70,28 +70,6 @@ export function trackLatency<T>(
   return fn().finally(() => end());
 }
 
-// Blindfold funding metrics
-export const blindfoldCallbacksTotal = new Counter({
-  name: 'blindfold_callbacks_total',
-  help: 'Total Blindfold funding callbacks',
-  labelNames: ['status', 'result'] as const,
-  registers: [registry],
-});
-
-export const blindfoldFundingAmount = new Histogram({
-  name: 'blindfold_funding_amount_usd',
-  help: 'Funding amounts in USD',
-  buckets: [10, 50, 100, 500, 1000, 5000, 10000, 50000],
-  registers: [registry],
-});
-
-export const blindfoldSecurityEvents = new Counter({
-  name: 'blindfold_security_events_total',
-  help: 'Security events from Blindfold integration',
-  labelNames: ['type', 'severity'] as const,
-  registers: [registry],
-});
-
 // MCP metrics
 export const mcpSessionsActive = new Gauge({
   name: 'mcp_sessions_active',
@@ -244,5 +222,42 @@ export const paranetRateLimited = new Counter({
   name: 'paranet_rate_limited_total',
   help: 'Total rate-limited requests',
   labelNames: ['endpoint'] as const,
+  registers: [registry],
+});
+
+// Swarm metrics
+export const swarmRunsTotal = new Counter({
+  name: 'swarm_runs_total',
+  help: 'Total swarm runs',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
+export const swarmRunDuration = new Histogram({
+  name: 'swarm_run_duration_seconds',
+  help: 'Swarm run duration in seconds',
+  labelNames: ['status'] as const,
+  buckets: [1, 5, 10, 30, 60, 120, 300, 600, 900, 1800],
+  registers: [registry],
+});
+
+export const swarmNodesTotal = new Counter({
+  name: 'swarm_node_executions_total',
+  help: 'Total swarm DAG node executions',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
+export const swarmNodeDuration = new Histogram({
+  name: 'swarm_node_duration_seconds',
+  help: 'Swarm node execution duration in seconds',
+  labelNames: ['status'] as const,
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600],
+  registers: [registry],
+});
+
+export const swarmActiveNodes = new Gauge({
+  name: 'swarm_active_nodes',
+  help: 'Current number of active swarm nodes',
   registers: [registry],
 });

@@ -20,7 +20,6 @@ import creditsRoutes, { initCreditsRoutes } from './routes/credits';
 import linkWalletRoutes from './routes/link-wallet';
 import internalHoldersRoutes from './routes/internal-holders';
 import swarmTeamRoutes from './routes/hive-teams';
-import blindfoldCallbackRoutes from './routes/blindfold-callback';
 import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
@@ -126,53 +125,12 @@ const publicReadLimiter = rateLimit({
   skip: (req) => req.method === 'OPTIONS',
 });
 
-// Blindfold callback rate limiter (IP-based)
-const blindfoldCallbackLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 callbacks per minute per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'RATE_LIMITED',
-      message: 'Too many callback requests.',
-    },
-  },
-  keyGenerator: (req) => req.ip || 'unknown',
-  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
-});
-
-// Per-team callback rate limiter
-const perTeamCallbackLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 callbacks per team per minute
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: {
-      code: 'RATE_LIMITED',
-      message: 'Too many callback requests for this team.',
-    },
-  },
-  keyGenerator: (req) => {
-    const poolId = (req.query.pool_id as string) || req.body?.pool_id || 'unknown';
-    return `team:${poolId}`;
-  },
-  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
-});
-
-const BLINDFOLD_ORIGINS = [
-  'https://blindfoldfinance.com',
-  'https://www.blindfoldfinance.com',
-];
-
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
   'https://app.kamiyo.ai',
   'https://kamiyo.ai',
   'https://www.kamiyo.ai',
   'https://companion.kamiyo.ai',
-  ...BLINDFOLD_ORIGINS,
 ];
 
 export interface ApiServerConfig {
@@ -263,7 +221,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
     }
   });
 
-  // Blindfold verification routes (no auth required, but IP rate limited)
+  // Public verification routes (no auth required, but IP rate limited)
   app.use('/verify', authRateLimiter, verifyRoutes);
   app.use('/blacklist', authRateLimiter, blacklistRoutes);
 
@@ -302,9 +260,6 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   // SwarmTeam management routes (public)
   app.use('/api/hive-teams', swarmTeamRoutes);
   app.use('/api/swarm-teams', swarmTeamRoutes);
-
-  // Blindfold funding callback (public - receives redirects from Blindfold)
-  app.use('/api/fund/callback', blindfoldCallbackLimiter, perTeamCallbackLimiter, blindfoldCallbackRoutes);
 
   // Buyback stats and admin controls (public read, admin write)
   app.use('/api/buyback', buybackRoutes);
