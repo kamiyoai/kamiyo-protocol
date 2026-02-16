@@ -18,7 +18,7 @@ permissions:
 env:
   KANI_VERSION: 0.67.0
   KANI_PACKAGE: kani-solana
-  KANI_FAST_HARNESS: risk::proofs::proof_haircut_ratio_basic_properties
+  KANI_FAST_HARNESS: risk::proofs::proof_sarif_demo_failure
 
 jobs:
   kani_sarif:
