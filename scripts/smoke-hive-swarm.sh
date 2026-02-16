@@ -3,7 +3,14 @@ set -euo pipefail
 
 API_URL="${API_URL:-https://kamiyo-protocol-4c70.onrender.com}"
 KEYPAIR_PATH="${KEYPAIR_PATH:-${SOLANA_KEYPAIR:-$HOME/.config/solana/id.json}}"
+
+# Modes:
+# - test: uses /fund-test (requires ENABLE_TEST_FUNDING=1 on the API service)
+# - free: no funding, no planner call, no model calls (budgets are 0)
+MODE="${MODE:-test}"
+STREAM="${STREAM:-1}"
 CLEANUP="${CLEANUP:-1}"
+
 FUND_AMOUNT="${FUND_AMOUNT:-5}"
 MAX_PARALLEL="${MAX_PARALLEL:-3}"
 IDEMPOTENCY_KEY="${IDEMPOTENCY_KEY:-smoke-true-swarm-$(date +%s)}"
@@ -72,10 +79,18 @@ if [[ -z "$token" || "$token" == "null" ]]; then
   exit 1
 fi
 
-curl -fsSL -X POST "${API_URL}/api/hive-teams" \
-  -H "Authorization: Bearer ${token}" \
-  -H 'Content-Type: application/json' \
-  -d '{
+if [[ "$MODE" == "free" ]]; then
+  team_payload='{
+    "name":"swarm-smoke-free",
+    "currency":"USDC",
+    "dailyLimit":1,
+    "members":[
+      {"agentId":"agent-a","role":"noop","drawLimit":0},
+      {"agentId":"agent-b","role":"noop","drawLimit":0}
+    ]
+  }'
+else
+  team_payload='{
     "name":"swarm-smoke",
     "currency":"USDC",
     "dailyLimit":10,
@@ -84,7 +99,13 @@ curl -fsSL -X POST "${API_URL}/api/hive-teams" \
       {"agentId":"agent-beta","role":"analysis","drawLimit":0.3},
       {"agentId":"agent-gamma","role":"write","drawLimit":0.3}
     ]
-  }' \
+  }'
+fi
+
+curl -fsSL -X POST "${API_URL}/api/hive-teams" \
+  -H "Authorization: Bearer ${token}" \
+  -H 'Content-Type: application/json' \
+  -d "$team_payload" \
   > "${tmp_dir}/team.json"
 
 team_id="$(jq -r '.id' "${tmp_dir}/team.json")"
@@ -94,24 +115,49 @@ if [[ -z "$team_id" || "$team_id" == "null" ]]; then
   exit 1
 fi
 
-fund_http="$(curl -sS -w '\n%{http_code}' -X POST "${API_URL}/api/hive-teams/${team_id}/fund-test" \
-  -H "Authorization: Bearer ${token}" \
-  -H 'Content-Type: application/json' \
-  -d "{\"amount\":${FUND_AMOUNT}}")"
+run_payload=''
 
-fund_code="$(printf '%s' "$fund_http" | tail -n 1)"
-fund_body="$(printf '%s' "$fund_http" | sed '$d')"
+if [[ "$MODE" == "free" ]]; then
+  mem1="$(jq -r '.members[0].id' "${tmp_dir}/team.json")"
+  mem2="$(jq -r '.members[1].id' "${tmp_dir}/team.json")"
 
-mission="Create a concise internal checklist to ship Hive True Swarm (DAG planning + bounded parallel execution + budgets + Kiroku receipt). Keep it under 200 words."
-run_payload="$(jq -n --arg mission "$mission" --argjson maxParallel "$MAX_PARALLEL" --argjson failFast true '{mission:$mission,maxParallel:$maxParallel,failFast:$failFast}')"
+  mission="Hive swarm free smoke: validate DAG scheduling + persistence + Kiroku without spending budget."
+  run_payload="$(jq -n \
+    --arg mission "$mission" \
+    --arg mem1 "$mem1" \
+    --arg mem2 "$mem2" \
+    '{
+      mission: $mission,
+      maxParallel: 2,
+      failFast: true,
+      plan: {
+        mode: "dag",
+        nodes: [
+          {id:"work_1", memberId:$mem1, description:"noop", budget:0, dependsOn:[]},
+          {id:"final",  memberId:$mem2, description:"noop", budget:0, dependsOn:["work_1"]}
+        ]
+      }
+    }')"
+else
+  fund_http="$(curl -sS -w '\n%{http_code}' -X POST "${API_URL}/api/hive-teams/${team_id}/fund-test" \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Content-Type: application/json' \
+    -d "{\"amount\":${FUND_AMOUNT}}")"
 
-if [[ "$fund_code" != "200" ]]; then
-  echo "fund-test failed (http ${fund_code})" >&2
-  echo "$fund_body" >&2
-  if [[ "$fund_code" == "404" ]]; then
-    echo "hint: set ENABLE_TEST_FUNDING=1 on the API service for this smoke test" >&2
+  fund_code="$(printf '%s' "$fund_http" | tail -n 1)"
+  fund_body="$(printf '%s' "$fund_http" | sed '$d')"
+
+  if [[ "$fund_code" != "200" ]]; then
+    echo "fund-test failed (http ${fund_code})" >&2
+    echo "$fund_body" >&2
+    if [[ "$fund_code" == "404" ]]; then
+      echo "hint: set ENABLE_TEST_FUNDING=1 on the API service, or run MODE=free" >&2
+    fi
+    exit 1
   fi
-  exit 1
+
+  mission="Create a concise internal checklist to ship Hive True Swarm (DAG planning + bounded parallel execution + budgets + Kiroku receipt). Keep it under 200 words."
+  run_payload="$(jq -n --arg mission "$mission" --argjson maxParallel "$MAX_PARALLEL" --argjson failFast true '{mission:$mission,maxParallel:$maxParallel,failFast:$failFast}')"
 fi
 
 run_http="$(curl -sS -w '\n%{http_code}' -X POST "${API_URL}/api/hive-teams/${team_id}/swarm/run" \
@@ -154,6 +200,15 @@ if [[ "$kiroku_code" != "200" ]]; then
   exit 1
 fi
 
+if [[ "$STREAM" != "0" ]]; then
+  curl -sN -H "Authorization: Bearer ${token}" "${API_URL}/api/hive-teams/${team_id}/swarm/runs/${run_id}/stream" | head -n 10 > "${tmp_dir}/stream.txt" || true
+  if ! grep -Eq '^event: (update|done)$' "${tmp_dir}/stream.txt"; then
+    echo "stream endpoint did not emit expected events" >&2
+    cat "${tmp_dir}/stream.txt" >&2 || true
+    exit 1
+  fi
+fi
+
 if [[ "$CLEANUP" != "0" ]]; then
   del_http="$(curl -sS -w '\n%{http_code}' -X DELETE "${API_URL}/api/hive-teams/${team_id}" -H "Authorization: Bearer ${token}")"
   del_code="$(printf '%s' "$del_http" | tail -n 1)"
@@ -167,5 +222,6 @@ if [[ "$CLEANUP" != "0" ]]; then
 fi
 
 echo "ok"
+echo "mode=${MODE}"
 echo "runId=${run_id}"
 echo "kiroku=${kiroku_url}"
