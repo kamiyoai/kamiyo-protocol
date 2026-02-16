@@ -11,6 +11,11 @@ on:
         description: "Space-separated Cargo packages to verify with Kani"
         required: false
         default: "kani-solana"
+      full:
+        description: "Enable kani-full feature (runs heavier proof suites)"
+        required: false
+        default: "false"
+        type: boolean
 
 env:
   KANI_VERSION: 0.67.0
@@ -40,6 +45,9 @@ jobs:
 
       - name: Verify Kani Proofs
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.full }}" = "true" ]; then
+            export KANI_FULL=1
+          fi
           if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
             export KANI_HARNESSES_kani_solana="risk::proofs::proof_haircut_ratio_basic_properties risk::proofs::proof_effective_pnl_matches_reference_u64_domain"
           fi
