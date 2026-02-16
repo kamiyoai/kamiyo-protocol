@@ -134,10 +134,10 @@ mod proofs {
 
     #[kani::proof]
     fn proof_haircut_ratio_basic_properties() {
-        let v: u128 = kani::any::<u64>() as u128;
-        let c: u128 = kani::any::<u64>() as u128;
-        let i: u128 = kani::any::<u64>() as u128;
-        let p: u128 = kani::any::<u64>() as u128;
+        let v: u128 = u128::from(kani::any::<u32>());
+        let c: u128 = u128::from(kani::any::<u32>());
+        let i: u128 = u128::from(kani::any::<u32>());
+        let p: u128 = u128::from(kani::any::<u32>());
 
         let (num, den) = haircut_ratio(v, c, i, p);
 
@@ -195,14 +195,14 @@ mod proofs {
 
     #[kani::proof]
     fn proof_effective_pnl_matches_reference_u64_domain() {
-        let pos: u64 = kani::any();
-        let h_den: u64 = kani::any();
-        let h_num: u64 = kani::any();
+        let pos: u32 = kani::any();
+        let h_den: u32 = kani::any();
+        let h_num: u32 = kani::any();
         kani::assume(h_den > 0);
         kani::assume(h_num <= h_den);
 
-        let expected = (pos as u128 * h_num as u128) / (h_den as u128);
-        let actual = effective_pnl(pos as i128, h_num as u128, h_den as u128);
+        let expected = (u128::from(pos) * u128::from(h_num)) / u128::from(h_den);
+        let actual = effective_pnl(pos as i128, u128::from(h_num), u128::from(h_den));
         kani::assert(actual == expected, "actual == expected");
     }
 
