@@ -1,5 +1,7 @@
 # KAMIYO Protocol
 
+[![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
+
 ![KAMIYO](assets/kamiyo.gif)
 
 Trust infrastructure for autonomous agents.
