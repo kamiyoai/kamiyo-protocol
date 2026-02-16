@@ -167,6 +167,7 @@ mod proofs {
         kani::assert(num == den, "num == den");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_principal_protection_across_accounts() {
         let c_tot: u128 = kani::any::<u64>() as u128;
@@ -181,6 +182,7 @@ mod proofs {
         kani::assert(c_i_new <= c_i, "c_i_new <= c_i");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_profit_conversion_payout_formula() {
         let x: u128 = kani::any::<u64>() as u128;
@@ -239,6 +241,7 @@ mod proofs {
         kani::assert(sum_r < (N as u128) * pnl_pos_total, "sum_r < N * denom");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_effective_pnl_bounded() {
         let pnl: i128 = kani::any::<i64>() as i128;
@@ -251,6 +254,7 @@ mod proofs {
         kani::assert(eff <= pos, "eff <= pos");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_effective_equity_with_haircut() {
         let capital: u128 = kani::any::<u64>() as u128;
@@ -278,6 +282,7 @@ mod proofs {
         kani::assert(w1 <= w2, "w1 <= w2");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_warmup_bounded_by_gross() {
         let profit: u128 = kani::any::<u64>() as u128;
@@ -288,6 +293,7 @@ mod proofs {
         kani::assert(warmed <= profit, "warmed <= profit");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_warmup_full_after_period() {
         let profit: u128 = kani::any::<u64>() as u128;
@@ -311,6 +317,7 @@ mod proofs {
         kani::assert(swept <= debt, "swept <= debt");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_fee_sweep_clears_when_sufficient() {
         let debt: u128 = kani::any::<u64>() as u128;
@@ -335,6 +342,7 @@ mod proofs {
         kani::assert(long_pay == -short_pay, "long_pay == -short_pay");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_funding_zero_rate_no_payment() {
         let position: u128 = kani::any::<u64>() as u128;
@@ -345,6 +353,7 @@ mod proofs {
         kani::assert(pay == 0, "pay == 0");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_funding_zero_denominator_safe() {
         let position: u128 = kani::any::<u64>() as u128;
@@ -355,6 +364,7 @@ mod proofs {
         kani::assert(pay == 0, "pay == 0");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_funding_zero_position_no_payment() {
         let rate_num: i128 = kani::any::<i64>() as i128;
@@ -377,6 +387,7 @@ mod proofs {
         kani::assert(writeoff <= insurance, "writeoff <= insurance");
     }
 
+    #[cfg(feature = "kani-full")]
     #[kani::proof]
     fn proof_writeoff_insurance_monotonic_decrease() {
         let neg1: u128 = kani::any::<u64>() as u128;
