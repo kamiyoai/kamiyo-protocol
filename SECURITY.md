@@ -48,16 +48,10 @@ Do not open public issues for security vulnerabilities.
 
 - Never commit `.env` files
 - Validate all inputs
-- Use type hints and Pydantic models
+- Use TypeScript strict mode and validate inputs with schemas
 - Run security linters before commits
 
 ## Known Considerations
-
-### PayAI Facilitator
-- Third-party dependency
-- User addresses visible to PayAI
-- Automatic fallback to native on outage
-
 ### RPC Endpoints
 - Provider rate limits apply
 - Use dedicated providers with SLAs
@@ -65,7 +59,7 @@ Do not open public issues for security vulnerabilities.
 
 ## Bug Bounty
 
-Scope: Solana programs (kamiyo, mitama), ZK circuits, EVM contracts.
+Scope: Solana programs (kamiyo, kamiyo-escrow, kamiyo-staking, kamiyo-governance, kamiyo-transfer-hook, kamiyo-fast-voting, hive, meishi), ZK circuits, EVM contracts.
 
 | Severity | Bounty | Example |
 |----------|--------|---------|

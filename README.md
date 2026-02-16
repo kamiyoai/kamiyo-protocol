@@ -1,6 +1,8 @@
 # KAMIYO Protocol
 
+[![CI](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/ci.yml)
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![KAMIYO](assets/kamiyo.gif)
 
@@ -78,6 +80,9 @@ Protocol -> Settle split using consensus
 | `programs/kamiyo-governance` | Governance voting |
 | `programs/kamiyo-staking` | Staking primitives |
 | `programs/kamiyo-transfer-hook` | SPL transfer-hook logic |
+| `programs/kamiyo-fast-voting` | MagicBlock ephemeral rollup voting |
+| `programs/hive` | Oracle consensus and multi-agent dispute resolution |
+| `programs/meishi` | DKG-based identity credentials |
 
 ## Packages you will likely use first
 
@@ -111,7 +116,7 @@ Current controls include:
 
 ## Contributing
 
-PRs are welcome.
+PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 If you want to help grow adoption, start with:
 - New integration examples under `examples/`

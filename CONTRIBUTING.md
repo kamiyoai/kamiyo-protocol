@@ -9,7 +9,7 @@ Thanks for your interest in contributing. This document covers the process for c
 - Node.js >= 20
 - pnpm 9+
 - Rust + Cargo (for Solana programs)
-- Solana CLI 1.18.x
+- Solana CLI 2.x
 - Anchor CLI 0.31.x
 - Foundry (for EVM contracts)
 

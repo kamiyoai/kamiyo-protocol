@@ -3,9 +3,9 @@
 ## Prerequisites
 
 - Node.js 20+
-- pnpm 8+
+- pnpm 9+
 - Rust 1.75+ (Solana programs)
-- Solana CLI 1.18+
+- Solana CLI 2.x
 - Anchor 0.31.1
 
 ### Solana
@@ -66,6 +66,7 @@ Built via `anchor build`:
 | kamiyo-transfer-hook | MEV protection |
 | kamiyo-fast-voting | Fast voting |
 | hive | Agent collaboration |
+| meishi | DKG identity credentials |
 
 ## Test
 
