@@ -63,21 +63,41 @@ for pkg in "${pkgs[@]}"; do
   pkg_log="${out_dir}/kani-${pkg}.log"
   : >"${pkg_log}"
 
+  harness_var="KANI_HARNESSES_${pkg//-/_}"
+  harnesses="${!harness_var-}"
+
   t0="$(date +%s)"
   {
     echo
     echo "[kani] ===== ${pkg} ====="
-    if [ "${#args[@]}" -eq 0 ]; then
-      echo "[kani] cargo kani -p ${pkg}"
-    else
-      echo "[kani] cargo kani -p ${pkg} ${args[*]}"
+    if [ -n "${harnesses}" ]; then
+      echo "[kani] harnesses (${harness_var}): ${harnesses}"
     fi
   } | tee -a "${log}" "${pkg_log}"
 
-  if [ "${#args[@]}" -eq 0 ]; then
-    cargo kani -p "${pkg}" 2>&1 | tee -a "${log}" "${pkg_log}"
+  if [ -n "${harnesses}" ]; then
+    for h in ${harnesses}; do
+      {
+        echo
+        if [ "${#args[@]}" -eq 0 ]; then
+          echo "[kani] cargo kani -p ${pkg} --harness ${h}"
+        else
+          echo "[kani] cargo kani -p ${pkg} --harness ${h} ${args[*]}"
+        fi
+      } | tee -a "${log}" "${pkg_log}"
+
+      if [ "${#args[@]}" -eq 0 ]; then
+        cargo kani -p "${pkg}" --harness "${h}" 2>&1 | tee -a "${log}" "${pkg_log}"
+      else
+        cargo kani -p "${pkg}" --harness "${h}" "${args[@]}" 2>&1 | tee -a "${log}" "${pkg_log}"
+      fi
+    done
   else
-    cargo kani -p "${pkg}" "${args[@]}" 2>&1 | tee -a "${log}" "${pkg_log}"
+    if [ "${#args[@]}" -eq 0 ]; then
+      cargo kani -p "${pkg}" 2>&1 | tee -a "${log}" "${pkg_log}"
+    else
+      cargo kani -p "${pkg}" "${args[@]}" 2>&1 | tee -a "${log}" "${pkg_log}"
+    fi
   fi
   t1="$(date +%s)"
   echo "- \`${pkg}\`: ok ($((t1 - t0))s)" >>"${summary}"
