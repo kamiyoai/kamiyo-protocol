@@ -400,4 +400,5 @@ mod proofs {
 
         kani::assert(ins_after_1 >= ins_after_2, "ins_after_1 >= ins_after_2");
     }
+
 }
