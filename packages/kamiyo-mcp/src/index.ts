@@ -15,9 +15,17 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { Keypair, PublicKey } from '@solana/web3.js';
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+  VersionedTransaction,
+} from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
+import { createHash } from 'node:crypto';
 
 import { loadKeypair, SolanaClient } from './solana/client.js';
 import { X402Program } from './solana/anchor.js';
@@ -500,6 +508,7 @@ const TOOL_DEFINITIONS: Tool[] = [
       },
     },
   },
+  ...tools.FUNDRY_TOOL_DEFINITIONS,
 ];
 
 /**
@@ -510,6 +519,7 @@ class KamiyoMCPServer {
   private program?: X402Program;
   private solanaClient?: SolanaClient;
   private x402Config?: tools.X402Config;
+  private programId?: PublicKey;
 
   constructor() {
     // Initialize MCP server
@@ -562,8 +572,16 @@ class KamiyoMCPServer {
 
     // Escrow program requires program ID + keypair.
     if (programIdStr && keypair && this.solanaClient) {
-      const programId = new PublicKey(programIdStr);
-      this.program = new X402Program(this.solanaClient.connection, keypair, programId);
+      try {
+        this.programId = new PublicKey(programIdStr);
+      } catch (error: any) {
+        console.error(`Warning: Invalid KAMIYO_PROGRAM_ID: ${error.message}. Solana tools will be disabled.`);
+        this.programId = undefined;
+      }
+
+      if (this.programId) {
+        this.program = new X402Program(this.solanaClient.connection, keypair, this.programId);
+      }
     } else {
       console.error(
         'Warning: Escrow tools disabled. Set KAMIYO_PROGRAM_ID (or MITAMA_PROGRAM_ID) and an agent key (AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH) to enable escrow.'
@@ -749,6 +767,119 @@ class KamiyoMCPServer {
             result = await tools.handleSearchTool('crypto_news', args as any);
             break;
 
+          // Fundry trusted launch tools
+          case 'list_fundry_configs':
+            result = tools.listFundryConfigs();
+            break;
+
+          case 'check_launch_status': {
+            if (!this.solanaClient) {
+              result = { success: false, error: 'Solana wallet not configured (set AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH)' };
+              break;
+            }
+
+            const wallet = this.solanaClient.wallet;
+            result = await tools.checkLaunchStatus(args as any, {
+              programId: this.programId,
+              fundryEndpoint: process.env.FUNDRY_MCP_ENDPOINT,
+              wallet: {
+                publicKey: wallet.publicKey,
+                signTransaction: async (tx: Transaction | VersionedTransaction) => {
+                  if (tx instanceof VersionedTransaction) {
+                    tx.sign([wallet]);
+                    return tx;
+                  }
+
+                  tx.partialSign(wallet);
+                  return tx;
+                },
+              },
+              connection: this.solanaClient.connection,
+            } as any);
+            break;
+          }
+
+          case 'secure_launch_token': {
+            if (!this.solanaClient) {
+              result = { success: false, error: 'Solana wallet not configured (set AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH)' };
+              break;
+            }
+
+            const wallet = this.solanaClient.wallet;
+            result = await tools.secureLaunchToken(args as any, {
+              fundryEndpoint: process.env.FUNDRY_MCP_ENDPOINT,
+              wallet: {
+                publicKey: wallet.publicKey,
+                signTransaction: async (tx: Transaction | VersionedTransaction) => {
+                  if (tx instanceof VersionedTransaction) {
+                    tx.sign([wallet]);
+                    return tx;
+                  }
+
+                  tx.partialSign(wallet);
+                  return tx;
+                },
+              },
+              connection: this.solanaClient.connection,
+              createTrustedLaunch: async (launchArgs: {
+                mint: string;
+                fundryCoinId: string;
+                configType: string;
+                escrowAmountSol: number;
+                migrationTargetSol?: number;
+                creatorAllocationBps?: number;
+              }) => {
+                const solana = this.solanaClient;
+                const programId = this.programId;
+                if (!solana || !programId) throw new Error('KAMIYO_PROGRAM_ID not configured');
+
+                const owner = wallet.publicKey;
+                const mint = new PublicKey(launchArgs.mint);
+
+                const pda = (seed: string, ...rest: Buffer[]) =>
+                  PublicKey.findProgramAddressSync([Buffer.from(seed), ...rest], programId)[0];
+
+                const agentIdentity = pda('agent', owner.toBuffer());
+                const launchRecord = pda('launch', agentIdentity.toBuffer(), mint.toBuffer());
+                const launchRateLimit = pda('launch_rate', agentIdentity.toBuffer());
+                const protocolConfig = pda('protocol_config');
+                const treasury = pda('treasury');
+
+                const toLamports = (sol: number) => BigInt(Math.floor(sol * 1_000_000_000));
+                const escrowLamports = toLamports(launchArgs.escrowAmountSol);
+                const migrationLamports = toLamports(launchArgs.migrationTargetSol ?? 40);
+                const creatorAllocationBps = launchArgs.creatorAllocationBps ?? 500;
+
+                const ix = buildCreateTrustedLaunchIx({
+                  programId,
+                  protocolConfig,
+                  treasury,
+                  agentIdentity,
+                  launchRecord,
+                  launchRateLimit,
+                  mint,
+                  owner,
+                  fundryCoinId: launchArgs.fundryCoinId,
+                  configType: launchArgs.configType,
+                  escrowLamports,
+                  migrationLamports,
+                  creatorAllocationBps,
+                });
+
+                const tx = new Transaction().add(ix);
+                tx.feePayer = owner;
+                tx.recentBlockhash = (await solana.connection.getLatestBlockhash()).blockhash;
+
+                tx.partialSign(wallet);
+
+                const sig = await solana.connection.sendRawTransaction(tx.serialize());
+                await solana.connection.confirmTransaction(sig);
+                return sig;
+              },
+            } as any);
+            break;
+          }
+
           default:
             return {
               content: [
@@ -813,3 +944,70 @@ async function main() {
 }
 
 main();
+
+function anchorDiscriminator(name: string): Buffer {
+  return createHash('sha256').update(`global:${name}`).digest().subarray(0, 8);
+}
+
+function u32le(value: number): Buffer {
+  const buf = Buffer.alloc(4);
+  buf.writeUInt32LE(value, 0);
+  return buf;
+}
+
+function u64le(value: bigint): Buffer {
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64LE(value, 0);
+  return buf;
+}
+
+function u16le(value: number): Buffer {
+  const buf = Buffer.alloc(2);
+  buf.writeUInt16LE(value, 0);
+  return buf;
+}
+
+function buildCreateTrustedLaunchIx(args: {
+  programId: PublicKey;
+  protocolConfig: PublicKey;
+  treasury: PublicKey;
+  agentIdentity: PublicKey;
+  launchRecord: PublicKey;
+  launchRateLimit: PublicKey;
+  mint: PublicKey;
+  owner: PublicKey;
+  fundryCoinId: string;
+  configType: string;
+  escrowLamports: bigint;
+  migrationLamports: bigint;
+  creatorAllocationBps: number;
+}): TransactionInstruction {
+  const coinIdBytes = Buffer.from(args.fundryCoinId);
+  const configTypeBytes = Buffer.from(args.configType);
+
+  const data = Buffer.concat([
+    anchorDiscriminator('create_trusted_launch'),
+    u32le(coinIdBytes.length),
+    coinIdBytes,
+    u32le(configTypeBytes.length),
+    configTypeBytes,
+    u64le(args.escrowLamports),
+    u64le(args.migrationLamports),
+    u16le(args.creatorAllocationBps),
+  ]);
+
+  return new TransactionInstruction({
+    programId: args.programId,
+    keys: [
+      { pubkey: args.protocolConfig, isSigner: false, isWritable: false },
+      { pubkey: args.treasury, isSigner: false, isWritable: true },
+      { pubkey: args.agentIdentity, isSigner: false, isWritable: false },
+      { pubkey: args.launchRecord, isSigner: false, isWritable: true },
+      { pubkey: args.launchRateLimit, isSigner: false, isWritable: true },
+      { pubkey: args.mint, isSigner: false, isWritable: false },
+      { pubkey: args.owner, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+}

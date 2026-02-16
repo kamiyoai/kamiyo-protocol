@@ -9,6 +9,7 @@ type FundryToolResult = {
 
 type ProgramContext = {
   fundryEndpoint?: string;
+  programId?: PublicKey;
   wallet: {
     publicKey: PublicKey;
     signTransaction(
@@ -26,6 +27,7 @@ type ProgramContext = {
       signature: string,
       commitment?: 'processed' | 'confirmed' | 'finalized'
     ): Promise<unknown> | unknown;
+    getAccountInfo(address: PublicKey): Promise<unknown> | unknown;
   };
   pda?: {
     deriveAgentPDA?(owner: PublicKey): [PublicKey];
@@ -36,6 +38,8 @@ type ProgramContext = {
     fundryCoinId: string;
     configType: string;
     escrowAmountSol: number;
+    migrationTargetSol?: number;
+    creatorAllocationBps?: number;
   }): Promise<string>;
 };
 
@@ -59,6 +63,19 @@ export const FUNDRY_TOOL_DEFINITIONS: Tool[] = [
         escrowAmountSol: {
           type: 'number',
           description: 'SOL escrow amount (default 0.5, min 0.001, max 1000)',
+        },
+        creatorAddress: {
+          type: 'string',
+          description:
+            'Creator wallet address for Fundry (defaults to the configured wallet). Use a multisig/lock wallet when routing dev allocation.',
+        },
+        migrationTargetSol: {
+          type: 'number',
+          description: 'Migration target in SOL for on-chain record (default 40)',
+        },
+        creatorAllocationBps: {
+          type: 'number',
+          description: 'Creator allocation in basis points for on-chain record (default 500)',
         },
       },
       required: ['name', 'ticker', 'description', 'imageUrl', 'configType'],
@@ -101,6 +118,18 @@ const VALID_CONFIG_TYPES = [
   'nitro',
 ];
 
+const DEFAULT_MIGRATION_TARGET_SOL = 40;
+const DEFAULT_FUNDRY_TX_ALLOWED_PROGRAM_IDS = [
+  '11111111111111111111111111111111', // System Program
+  'ComputeBudget111111111111111111111111111111',
+  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', // SPL Token
+  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s', // Metaplex Token Metadata
+  'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+  'AddressLookupTab1e1111111111111111111111111',
+  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022 (only if used)
+];
+
 export async function secureLaunchToken(
   params: {
     name: string;
@@ -109,6 +138,9 @@ export async function secureLaunchToken(
     imageUrl: string;
     configType: string;
     escrowAmountSol?: number;
+    creatorAddress?: string;
+    migrationTargetSol?: number;
+    creatorAllocationBps?: number;
   },
   program: ProgramContext
 ): Promise<FundryToolResult> {
@@ -132,6 +164,25 @@ export async function secureLaunchToken(
       return { success: false, error: 'imageUrl is required for Fundry token creation' };
     }
 
+    if (params.migrationTargetSol !== undefined) {
+      if (!Number.isFinite(params.migrationTargetSol) || params.migrationTargetSol <= 0) {
+        return { success: false, error: 'migrationTargetSol must be a positive number' };
+      }
+    }
+
+    if (params.creatorAllocationBps !== undefined) {
+      if (
+        !Number.isInteger(params.creatorAllocationBps) ||
+        params.creatorAllocationBps < 0 ||
+        params.creatorAllocationBps > 10_000
+      ) {
+        return {
+          success: false,
+          error: 'creatorAllocationBps must be an integer between 0 and 10000',
+        };
+      }
+    }
+
     const agentPda = program.pda?.deriveAgentPDA?.(program.wallet.publicKey)?.[0] ?? null;
 
     if (agentPda) {
@@ -145,6 +196,15 @@ export async function secureLaunchToken(
       }
     }
 
+    let creatorAddress = program.wallet.publicKey.toBase58();
+    if (params.creatorAddress !== undefined) {
+      try {
+        creatorAddress = new PublicKey(params.creatorAddress).toBase58();
+      } catch {
+        return { success: false, error: 'Invalid creatorAddress (must be a Solana public key)' };
+      }
+    }
+
     let createResult: unknown;
     try {
       createResult = await callFundryMCP(program.fundryEndpoint, 'create_token', {
@@ -153,7 +213,7 @@ export async function secureLaunchToken(
         description: params.description,
         imageUrl: params.imageUrl,
         configType: params.configType,
-        creatorAddress: program.wallet.publicKey.toBase58(),
+        creatorAddress,
       });
     } catch (err: unknown) {
       return {
@@ -169,22 +229,26 @@ export async function secureLaunchToken(
     if (!coinId) {
       return { success: false, error: 'No coinId in Fundry response' };
     }
+    if (!isUuid36(coinId)) {
+      return { success: false, error: 'Fundry response coinId is not a valid UUID' };
+    }
 
     const txB64 = stringish(createData?.transaction ?? createObj.transaction);
     if (!txB64) {
       return { success: false, error: 'No transaction in Fundry response' };
     }
 
-    const fundryTxSignature = await signAndSendFundryTx(program, txB64);
+    const sent = await signAndSendFundryTx(program, txB64);
+    const fundryTxSignature = sent.signature;
 
-    let warning: string | undefined;
+    let warning = sent.warning;
     try {
       await callFundryMCP(program.fundryEndpoint, 'confirm_launch', {
         coinId,
         transactionSignature: fundryTxSignature,
       });
     } catch (err: unknown) {
-      warning = `Fundry confirm_launch failed: ${errorMessage(err)}`;
+      warning = joinWarnings(warning, `Fundry confirm_launch failed: ${errorMessage(err)}`);
     }
 
     let mint = stringish(
@@ -199,7 +263,7 @@ export async function secureLaunchToken(
           tokenData?.mintAddress ?? tokenData?.mint ?? tokenObj.mintAddress ?? tokenObj.mint
         );
       } catch {
-        // Handled below.
+        // Best-effort mint discovery.
       }
     }
 
@@ -210,6 +274,8 @@ export async function secureLaunchToken(
           fundryCoinId: coinId,
           configType: params.configType,
           escrowAmountSol: escrowSol,
+          migrationTargetSol: params.migrationTargetSol ?? DEFAULT_MIGRATION_TARGET_SOL,
+          creatorAllocationBps: params.creatorAllocationBps ?? 500,
         });
 
         return {
@@ -235,7 +301,10 @@ export async function secureLaunchToken(
             fundryTxSignature,
             agentPda: agentPda?.toBase58(),
             configType: params.configType,
-            warning: warning ?? `Token created but on-chain record failed: ${errorMessage(err)}`,
+            warning: joinWarnings(
+              warning,
+              `Token created but on-chain record failed: ${errorMessage(err)}`
+            ),
           },
         };
       }
@@ -266,6 +335,32 @@ export function listFundryConfigs(): FundryToolResult {
       })),
     },
   };
+}
+
+export async function checkLaunchStatus(
+  params: { agentAddress: string; mintAddress: string },
+  program: ProgramContext
+): Promise<FundryToolResult> {
+  let agent: PublicKey;
+  let mint: PublicKey;
+  try {
+    agent = new PublicKey(params.agentAddress);
+    mint = new PublicKey(params.mintAddress);
+  } catch {
+    return { success: false, error: 'Invalid agentAddress or mintAddress' };
+  }
+
+  if (!program.programId) {
+    return { success: false, error: 'programId not configured for launch status checks' };
+  }
+
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('launch'), agent.toBuffer(), mint.toBuffer()],
+    program.programId
+  );
+  const info = await program.connection.getAccountInfo(pda);
+
+  return { success: true, data: { exists: info !== null, pda: pda.toBase58() } };
 }
 
 async function callFundryMCP(
@@ -337,7 +432,10 @@ function parseMcpJsonRpc(raw: string): McpJsonRpcResponse {
   return JSON.parse(dataLine.slice(6));
 }
 
-async function signAndSendFundryTx(program: ProgramContext, txB64: string): Promise<string> {
+async function signAndSendFundryTx(
+  program: ProgramContext,
+  txB64: string
+): Promise<{ signature: string; warning?: string }> {
   const bytes = Buffer.from(txB64, 'base64');
 
   let tx: Transaction | VersionedTransaction;
@@ -345,6 +443,11 @@ async function signAndSendFundryTx(program: ProgramContext, txB64: string): Prom
     tx = VersionedTransaction.deserialize(bytes);
   } catch {
     tx = Transaction.from(bytes);
+  }
+
+  const allowlistWarning = checkTxAllowlist(tx);
+  if (allowlistWarning && process.env.FUNDRY_TX_ALLOWLIST_ENFORCE === 'true') {
+    throw new Error(allowlistWarning);
   }
 
   const sigTx = await program.wallet.signTransaction(tx);
@@ -360,7 +463,73 @@ async function signAndSendFundryTx(program: ProgramContext, txB64: string): Prom
     // Best-effort confirmation.
   }
 
-  return sig;
+  return { signature: sig, warning: allowlistWarning };
+}
+
+function checkTxAllowlist(tx: Transaction | VersionedTransaction): string | undefined {
+  if (process.env.FUNDRY_TX_ALLOWLIST_DISABLE === 'true') return;
+
+  const raw = process.env.FUNDRY_TX_ALLOWED_PROGRAM_IDS;
+  if (!raw) {
+    const allow = new Set(DEFAULT_FUNDRY_TX_ALLOWED_PROGRAM_IDS);
+    return checkTxProgramIds(tx, allow);
+  }
+
+  const allow = new Set(
+    raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+  );
+  if (allow.size === 0) return;
+
+  return checkTxProgramIds(tx, allow);
+}
+
+function checkTxProgramIds(
+  tx: Transaction | VersionedTransaction,
+  allow: Set<string>
+): string | undefined {
+  const programIds = getProgramIds(tx);
+  if (programIds.length === 0) return 'Fundry transaction contains no instructions';
+
+  const disallowed = programIds.filter(id => !allow.has(id));
+  if (disallowed.length === 0) return;
+
+  return `Fundry transaction contains disallowed program IDs: ${disallowed.join(', ')}`;
+}
+
+type VersionedMessageLike = {
+  staticAccountKeys?: PublicKey[];
+  accountKeys?: PublicKey[];
+  compiledInstructions?: Array<{ programIdIndex: number }>;
+  instructions?: Array<{ programIdIndex: number }>;
+};
+
+function getProgramIds(tx: Transaction | VersionedTransaction): string[] {
+  if (tx instanceof Transaction) {
+    return uniq(tx.instructions.map(ix => ix.programId.toBase58()));
+  }
+
+  const msg = (tx as unknown as { message?: unknown }).message;
+  if (!msg || typeof msg !== 'object') return [];
+
+  const parsed = msg as VersionedMessageLike;
+  const keys: PublicKey[] = parsed.staticAccountKeys ?? parsed.accountKeys ?? [];
+  const compiled = parsed.compiledInstructions ?? parsed.instructions ?? [];
+  const ids = compiled
+    .map(ix => {
+      const idx = ix.programIdIndex;
+      const key = keys[idx];
+      return key ? key.toBase58() : null;
+    })
+    .filter((v): v is string => typeof v === 'string');
+
+  return uniq(ids);
+}
+
+function uniq(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -375,4 +544,26 @@ function stringish(value: unknown): string | null {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+function joinWarnings(existing: string | undefined, next: string | undefined): string | undefined {
+  if (!next) return existing;
+  if (!existing) return next;
+  return `${existing}; ${next}`;
+}
+
+function isUuid36(value: string): boolean {
+  if (value.length !== 36) return false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (i === 8 || i === 13 || i === 18 || i === 23) {
+      if (c !== 45) return false;
+      continue;
+    }
+    const isDigit = c >= 48 && c <= 57;
+    const isLowerHex = c >= 97 && c <= 102;
+    const isUpperHex = c >= 65 && c <= 70;
+    if (!isDigit && !isLowerHex && !isUpperHex) return false;
+  }
+  return true;
 }

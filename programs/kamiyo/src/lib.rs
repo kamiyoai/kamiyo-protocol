@@ -86,7 +86,7 @@ pub mod zk;
 #[cfg(kani)]
 mod kani_proofs;
 
-declare_id!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+declare_id!("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 
 // ============================================================================
 // Constants
@@ -160,6 +160,30 @@ const MAX_LAUNCHES_PER_WEEK: u8 = 10;
 const LAUNCH_RELEASE_DELAY: i64 = 604_800; // 7 days
 const MAX_FUNDRY_COIN_ID_LENGTH: usize = 36; // UUID format
 const MAX_CONFIG_TYPE_LENGTH: usize = 16;
+
+fn is_uuid_36(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != MAX_FUNDRY_COIN_ID_LENGTH {
+        return false;
+    }
+
+    for (idx, &b) in bytes.iter().enumerate() {
+        match idx {
+            8 | 13 | 18 | 23 => {
+                if b != b'-' {
+                    return false;
+                }
+            }
+            _ => {
+                if !matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F') {
+                    return false;
+                }
+            }
+        }
+    }
+
+    true
+}
 
 // Trusted trader constants (Elfa × Hyperliquid)
 const MIN_TRADER_STAKE: u64 = 20_000_000_000; // 20 SOL minimum for trading sessions
@@ -2504,25 +2528,25 @@ pub mod kamiyo {
             let escrow = &ctx.accounts.escrow;
             let individual_scores: Box<Vec<u8>> = Box::new(
                 escrow
-                .oracle_submissions
-                .iter()
-                .map(|s| s.quality_score)
-                .collect(),
+                    .oracle_submissions
+                    .iter()
+                    .map(|s| s.quality_score)
+                    .collect(),
             );
             let oracles: Box<Vec<Pubkey>> =
                 Box::new(escrow.oracle_submissions.iter().map(|s| s.oracle).collect());
             let weighted_scores: Box<Vec<(u8, u16)>> = Box::new(
                 escrow
-                .oracle_submissions
-                .iter()
-                .filter_map(|submission| {
-                    oracle_registry
-                        .oracles
-                        .iter()
-                        .find(|o| o.pubkey == submission.oracle)
-                        .map(|o| (submission.quality_score, o.weight))
-                })
-                .collect(),
+                    .oracle_submissions
+                    .iter()
+                    .filter_map(|submission| {
+                        oracle_registry
+                            .oracles
+                            .iter()
+                            .find(|o| o.pubkey == submission.oracle)
+                            .map(|o| (submission.quality_score, o.weight))
+                    })
+                    .collect(),
             );
             (
                 escrow.status,
@@ -3758,7 +3782,7 @@ pub mod kamiyo {
 
         // Validate inputs
         require!(
-            fundry_coin_id.len() == MAX_FUNDRY_COIN_ID_LENGTH,
+            is_uuid_36(&fundry_coin_id),
             KamiyoError::InvalidFundryCoinId
         );
         require!(
@@ -3768,6 +3792,11 @@ pub mod kamiyo {
         require!(
             (MIN_ESCROW_AMOUNT..=MAX_ESCROW_AMOUNT).contains(&escrow_amount),
             KamiyoError::InvalidAmount
+        );
+        require!(migration_target_sol > 0, KamiyoError::InvalidAmount);
+        require!(
+            creator_allocation_bps <= 10_000,
+            KamiyoError::InvalidCreatorAllocationBps
         );
 
         let clock = Clock::get()?;
@@ -5975,4 +6004,7 @@ pub enum KamiyoError {
 
     #[msg("Active escrows must be settled before closing session")]
     ActiveEscrowsRemaining,
+
+    #[msg("Invalid creator allocation bps (must be <= 10000)")]
+    InvalidCreatorAllocationBps,
 }
