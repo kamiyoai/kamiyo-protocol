@@ -67,10 +67,18 @@ for pkg in "${pkgs[@]}"; do
   {
     echo
     echo "[kani] ===== ${pkg} ====="
-    echo "[kani] cargo kani -p ${pkg} ${args[*]}"
+    if [ "${#args[@]}" -eq 0 ]; then
+      echo "[kani] cargo kani -p ${pkg}"
+    else
+      echo "[kani] cargo kani -p ${pkg} ${args[*]}"
+    fi
   } | tee -a "${log}" "${pkg_log}"
 
-  cargo kani -p "${pkg}" "${args[@]}" 2>&1 | tee -a "${log}" "${pkg_log}"
+  if [ "${#args[@]}" -eq 0 ]; then
+    cargo kani -p "${pkg}" 2>&1 | tee -a "${log}" "${pkg_log}"
+  else
+    cargo kani -p "${pkg}" "${args[@]}" 2>&1 | tee -a "${log}" "${pkg_log}"
+  fi
   t1="$(date +%s)"
   echo "- \`${pkg}\`: ok ($((t1 - t0))s)" >>"${summary}"
 done
