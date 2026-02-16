@@ -29,7 +29,7 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 ## CI
 
-- CI runs Kani on every PR and push to `main` (job: `Kani`) and uploads a `kani-results` artifact with:
+- CI runs Kani on every PR and push to `main` (workflow: `Kani`). For fast feedback, this verifies the highest-value packages (`kani-solana`, `kamiyo`) and uploads a `kani-results` artifact with:
   - `summary.md` (short, shareable)
   - `kani.log` (full output)
   - `kani-<pkg>.log` (per-package output; used for per-crate cover auditing)

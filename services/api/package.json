@@ -17,7 +17,6 @@
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/agents": "workspace:*",
     "@kamiyo/hive": "workspace:*",
-    "@kamiyo/blindfold": "workspace:*",
     "@kamiyo/daydreams": "workspace:*",
     "@kamiyo/meishi": "workspace:*",
     "@kamiyo/swarm-agents": "workspace:*",

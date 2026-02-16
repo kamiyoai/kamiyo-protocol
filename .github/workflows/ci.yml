@@ -9,7 +9,7 @@ on:
 env:
   SOLANA_VERSION: 2.3.13
   ANCHOR_VERSION: 0.31.1
-  KANI_VERSION: 0.67.0
+  TRIDENT_VERSION: 0.11.1
 
 jobs:
   repo_sanity:
@@ -69,6 +69,16 @@ jobs:
         run: node scripts/sync-anchor-localnet-program-ids.cjs
       - name: Rebuild with synced program IDs
         run: anchor build
+      - name: Install protoc (required by Trident)
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install Trident
+        run: cargo install trident-cli --version ${{ env.TRIDENT_VERSION }} --locked
+      - name: Trident fuzz (smoke)
+        working-directory: trident-tests
+        env:
+          TRIDENT_ITERATIONS: 25
+          TRIDENT_FLOW_CALLS: 25
+        run: trident fuzz run fuzz_kamiyo --with-exit-code
       - run: anchor test --skip-build
       - name: Validate VK
         run: ./scripts/validate-vk.sh
@@ -135,31 +145,3 @@ jobs:
 
       - name: PNPM Audit (Critical)
         run: pnpm audit --prod --audit-level=critical
-
-  kani:
-    name: Kani
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Kani
-        uses: model-checking/kani-github-action@v1
-        with:
-          kani-version: ${{ env.KANI_VERSION }}
-          args: --version
-
-      - name: Verify Kani Proofs
-        run: |
-          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh
-          KANI_AUDIT_PER_PACKAGE=1 ./scripts/kani-audit.sh kani-results/kani.log
-
-      - name: Upload Kani Summary
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kani-results
-          path: kani-results
-          if-no-files-found: error
-          retention-days: 30

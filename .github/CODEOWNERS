@@ -1,0 +1,13 @@
+# Default owner for all files
+* @kamiyo-ai/core
+
+# Solana programs require core team review
+programs/ @kamiyo-ai/core
+crates/ @kamiyo-ai/core
+
+# ZK circuits
+circuits/ @kamiyo-ai/core
+noir/ @kamiyo-ai/core
+
+# EVM contracts
+contracts/ @kamiyo-ai/core

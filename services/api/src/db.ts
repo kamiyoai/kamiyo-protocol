@@ -1286,8 +1286,8 @@ db.exec(`
     agent_id TEXT NOT NULL,
     amount REAL NOT NULL,
     purpose TEXT,
-    blindfold_payment_id TEXT,
-    blindfold_status TEXT DEFAULT 'pending',
+    payment_id TEXT,
+    status TEXT NOT NULL DEFAULT 'completed',
     created_at INTEGER DEFAULT (unixepoch()),
     FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
   );
@@ -1297,8 +1297,8 @@ db.exec(`
     team_id TEXT NOT NULL,
     amount REAL NOT NULL,
     currency TEXT NOT NULL,
-    blindfold_payment_id TEXT,
-    blindfold_status TEXT DEFAULT 'pending',
+    payment_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
     crypto_address TEXT,
     crypto_amount TEXT,
     expires_at TEXT,
@@ -1348,21 +1348,55 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_proposals_status ON swarm_task_proposals(status);
   CREATE INDEX IF NOT EXISTS idx_vote_bids_proposal ON swarm_vote_bids(proposal_id);
 
-  CREATE TABLE IF NOT EXISTS blindfold_funding_states (
+  CREATE TABLE IF NOT EXISTS swarm_runs (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL,
-    state_token TEXT NOT NULL UNIQUE,
-    wallet TEXT,
-    status TEXT DEFAULT 'pending',
-    amount REAL,
-    expires_at INTEGER NOT NULL,
-    created_at INTEGER DEFAULT (unixepoch()),
+    requested_by_wallet TEXT,
+    mission TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    max_parallel INTEGER NOT NULL,
+    fail_fast INTEGER NOT NULL,
+    idempotency_key TEXT,
+    total_reserved REAL NOT NULL DEFAULT 0,
+    total_spent REAL NOT NULL DEFAULT 0,
+    error TEXT,
+    kiroku_receipt TEXT,
+    kiroku_url TEXT,
+    kiroku_error TEXT,
+    started_at INTEGER DEFAULT (unixepoch()),
     completed_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
     FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
   );
 
-  CREATE INDEX IF NOT EXISTS idx_funding_states_token ON blindfold_funding_states(state_token);
-  CREATE INDEX IF NOT EXISTS idx_funding_states_team ON blindfold_funding_states(team_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_runs_team_started ON swarm_runs(team_id, started_at);
+  CREATE INDEX IF NOT EXISTS idx_swarm_runs_status_started ON swarm_runs(status, started_at);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key);
+
+  CREATE TABLE IF NOT EXISTS swarm_run_nodes (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    depends_on_json TEXT NOT NULL,
+    description TEXT NOT NULL,
+    budget_reserved REAL NOT NULL,
+    amount_drawn REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    output_json TEXT,
+    error TEXT,
+    started_at INTEGER,
+    completed_at INTEGER,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (run_id) REFERENCES swarm_runs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run ON swarm_run_nodes(run_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_status ON swarm_run_nodes(run_id, status);
 `);
 
 // Migration: add owner_wallet column if it doesn't exist
@@ -1379,13 +1413,68 @@ try {
   // Column already exists
 }
 
-// Migration: add idempotency_key column to blindfold_funding_states if it doesn't exist
+// Migration: add idempotency_key for idempotent swarm run creation.
 try {
-  db.exec('ALTER TABLE blindfold_funding_states ADD COLUMN idempotency_key TEXT');
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_funding_states_idempotency ON blindfold_funding_states(idempotency_key)');
+  db.exec('ALTER TABLE swarm_runs ADD COLUMN idempotency_key TEXT');
 } catch {
   // Column already exists
 }
+
+try {
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key)');
+} catch {
+  // Ignore
+}
+
+function quoteIdent(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function getTableColumns(table: string): Set<string> {
+  const rows = db
+    .prepare(`SELECT name FROM pragma_table_info('${table.replaceAll("'", "''")}')`)
+    .all() as { name: string }[];
+  return new Set(rows.map((r) => r.name));
+}
+
+function renameColumnBySuffix(table: string, suffix: string, target: string) {
+  const cols = getTableColumns(table);
+  if (cols.has(target)) return;
+
+  const legacy = [...cols].find((c) => c.endsWith(suffix));
+  if (!legacy) return;
+
+  try {
+    db.exec(
+      `ALTER TABLE ${quoteIdent(table)} RENAME COLUMN ${quoteIdent(legacy)} TO ${quoteIdent(target)}`
+    );
+  } catch {
+    // Ignore
+  }
+}
+
+function dropLegacyFundingStateTables() {
+  const tables = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?`)
+    .all('%_funding_states') as { name: string }[];
+
+  for (const t of tables) {
+    const cols = getTableColumns(t.name);
+    if (!cols.has('state_token') || !cols.has('expires_at')) continue;
+
+    try {
+      db.exec(`DROP TABLE IF EXISTS ${quoteIdent(t.name)}`);
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+renameColumnBySuffix('swarm_draws', '_payment_id', 'payment_id');
+renameColumnBySuffix('swarm_draws', '_status', 'status');
+renameColumnBySuffix('swarm_fund_deposits', '_payment_id', 'payment_id');
+renameColumnBySuffix('swarm_fund_deposits', '_status', 'status');
+dropLegacyFundingStateTables();
 
 export interface LinkedWallet {
   id: number;

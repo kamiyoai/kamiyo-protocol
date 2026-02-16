@@ -12,13 +12,6 @@ overrides:
 importers:
 
   .:
-    dependencies:
-      circomlibjs:
-        specifier: ^0.1.7
-        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      ts-node:
-        specifier: ^10.9.2
-        version: 10.9.2(@types/node@20.19.28)(typescript@5.9.3)
     devDependencies:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
@@ -62,6 +55,9 @@ importers:
       chai:
         specifier: ^4.5.0
         version: 4.5.0
+      circomlibjs:
+        specifier: ^0.1.7
+        version: 0.1.7(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
@@ -80,6 +76,9 @@ importers:
       ts-mocha:
         specifier: ^11.1.0
         version: 11.1.0(mocha@11.7.5)(ts-node@10.9.2(@types/node@20.19.28)(typescript@5.9.3))
+      ts-node:
+        specifier: ^10.9.2
+        version: 10.9.2(@types/node@20.19.28)(typescript@5.9.3)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -703,22 +702,6 @@ importers:
         version: 4.21.0
       typescript:
         specifier: ^5.3.0
-        version: 5.9.3
-
-  packages/kamiyo-blindfold:
-    dependencies:
-      '@coral-xyz/anchor':
-        specifier: ^0.31.1
-        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      '@solana/web3.js':
-        specifier: 1.95.8
-        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.28
-      typescript:
-        specifier: ^5.0.0
         version: 5.9.3
 
   packages/kamiyo-blinks:
@@ -1962,9 +1945,6 @@ importers:
       '@kamiyo/agents':
         specifier: workspace:*
         version: link:../../packages/kamiyo-agents
-      '@kamiyo/blindfold':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-blindfold
       '@kamiyo/daydreams':
         specifier: workspace:*
         version: link:../../packages/kamiyo-daydreams

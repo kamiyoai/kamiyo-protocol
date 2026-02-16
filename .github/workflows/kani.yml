@@ -1,0 +1,66 @@
+name: Kani
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Space-separated Cargo packages to verify with Kani"
+        required: false
+        default: "kani-solana"
+      full:
+        description: "Enable kani-full feature (runs heavier proof suites)"
+        required: false
+        default: "false"
+        type: boolean
+
+env:
+  KANI_VERSION: 0.67.0
+
+concurrency:
+  group: kani-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  kani:
+    name: Kani
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install Kani
+        uses: model-checking/kani-github-action@v1
+        with:
+          kani-version: ${{ env.KANI_VERSION }}
+          args: --version
+
+      - name: Verify Kani Proofs
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.full }}" = "true" ]; then
+            export KANI_FULL=1
+          fi
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            export KANI_HARNESSES_kani_solana="risk::proofs::proof_haircut_ratio_basic_properties"
+          fi
+          PACKAGES_STR="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.packages || 'kani-solana' }}"
+          read -r -a PACKAGES <<< "${PACKAGES_STR}"
+          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh "${PACKAGES[@]}"
+          KANI_AUDIT_PER_PACKAGE=1 ./scripts/kani-audit.sh kani-results/kani.log
+
+      - name: Upload Kani Summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kani-results
+          path: kani-results
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,8 @@
+[fuzz.metrics]
+enabled = true
+
+
+[[fuzz.programs]]
+address = "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr"
+program = "../target/deploy/kamiyo.so"
+ 

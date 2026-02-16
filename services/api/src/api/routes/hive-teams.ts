@@ -6,10 +6,11 @@ import bs58 from 'bs58';
 import db, { deductCredits, usdToCredits } from '../../db';
 // NOTE: @kamiyo/swarm-agents has bun:sqlite dep that breaks on Node.js
 // Using direct task executor instead of orchestrator
-import { BlindfoldClient } from '@kamiyo/blindfold';
 import { createTaskExecutor } from '../../task-executor';
+import hiveSwarmRoutes from './hive-swarm';
 import { authMiddleware } from '../middleware';
 import { getSolanaConnection } from '../../solana';
+import { reserveTeamBudget, settleTeamBudget } from '../../swarm/pool';
 
 const KAMIYO_MINT = new PublicKey('Gy55EJmheLyDXiZ7k7CW2FhunD1UgjQxQibuBn3Npump');
 const KAMIYO_DECIMALS = 6;
@@ -61,19 +62,20 @@ const SWARM_POOL_WALLET = process.env.SWARM_POOL_WALLET || '';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
 const SWARM_NETWORK = process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
-const blindfoldClient = new BlindfoldClient({
-  baseUrl: process.env.BLINDFOLD_API_URL,
-  apiKey: process.env.BLINDFOLD_API_KEY,
-});
-
-const taskExecutor = process.env.ANTHROPIC_API_KEY
-  ? createTaskExecutor({ anthropicApiKey: process.env.ANTHROPIC_API_KEY })
+const taskExecutor = (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
+  ? createTaskExecutor({
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+    })
   : undefined;
 
 const router = Router();
 
 // Apply auth middleware to all routes - teams require authentication
 router.use(authMiddleware);
+
+// Swarm DAG planning/execution routes (team-scoped)
+router.use('/:id/swarm', hiveSwarmRoutes);
 
 // GET /api/hive-teams - list teams owned by authenticated user
 router.get('/', (req: Request, res: Response) => {
@@ -185,6 +187,22 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
     return;
   }
 
+  const anyDeposit = db.prepare(`
+    SELECT 1
+    FROM swarm_fund_deposits
+    WHERE team_id = ?
+    LIMIT 1
+  `).get(teamId);
+
+  const anyNonTestDeposit = db.prepare(`
+    SELECT 1
+    FROM swarm_fund_deposits
+    WHERE team_id = ? AND status != 'test'
+    LIMIT 1
+  `).get(teamId);
+
+  const testOnly = !!anyDeposit && !anyNonTestDeposit;
+
   const refundAmount = team.pool_balance;
   const refundAmountSol = team.pool_balance_sol;
   const currency = team.currency;
@@ -192,7 +210,7 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   let refundSignatureSol: string | null = null;
 
   // Perform on-chain SOL refund if there's a SOL balance
-  if (refundAmountSol > 0) {
+  if (!testOnly && refundAmountSol > 0) {
     const treasuryKeypair = getTreasuryKeypair();
     if (treasuryKeypair) {
       try {
@@ -223,7 +241,7 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   }
 
   // Perform on-chain refund if there's a KAMIYO balance
-  if (refundAmount > 0) {
+  if (!testOnly && refundAmount > 0) {
     const treasuryKeypair = getTreasuryKeypair();
     if (!treasuryKeypair) {
       res.status(500).json({ error: 'Treasury not configured for refunds' });
@@ -299,7 +317,8 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   const deleteAll = db.transaction(() => {
     db.prepare('DELETE FROM swarm_vote_bids WHERE proposal_id IN (SELECT id FROM swarm_task_proposals WHERE team_id = ?)').run(teamId);
     db.prepare('DELETE FROM swarm_task_proposals WHERE team_id = ?').run(teamId);
-    db.prepare('DELETE FROM blindfold_funding_states WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM swarm_run_nodes WHERE run_id IN (SELECT id FROM swarm_runs WHERE team_id = ?)').run(teamId);
+    db.prepare('DELETE FROM swarm_runs WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_fund_deposits WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_draws WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_team_members WHERE team_id = ?').run(teamId);
@@ -307,7 +326,7 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   });
   deleteAll();
 
-  res.json({ success: true, refundAmount, refundAmountSol, currency, refundSignature, refundSignatureSol });
+  res.json({ success: true, refundAmount, refundAmountSol, currency, refundSignature, refundSignatureSol, refundSkipped: testOnly });
 });
 
 // POST /api/hive-teams/:id/members - requires owner
@@ -361,233 +380,6 @@ router.delete('/:id/members/:memberId', requireTeamOwner, (req: Request, res: Re
   res.json({ success: true });
 });
 
-// GET /api/hive-teams/:id/fund/blindfold
-// Generate Blindfold funding URL with state token for verification
-router.get('/:id/fund/blindfold', (req: Request, res: Response) => {
-  const teamId = req.params.id;
-  const wallet = req.auth?.wallet;
-
-  const team = db.prepare('SELECT id, name FROM swarm_teams WHERE id = ?').get(teamId) as {
-    id: string; name: string;
-  } | undefined;
-
-  if (!team) {
-    res.status(404).json({ error: 'Team not found' });
-    return;
-  }
-
-  // Generate state token
-  const stateToken = `bf_${randomUUID().replace(/-/g, '')}`;
-  const stateId = `bfs_${randomUUID().slice(0, 12)}`;
-  const expiresAt = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-
-  db.prepare(`
-    INSERT INTO blindfold_funding_states (id, team_id, state_token, wallet, expires_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(stateId, teamId, stateToken, wallet || null, expiresAt);
-
-  const blindfoldBaseUrl = process.env.BLINDFOLD_FUND_URL || 'https://www.blindfoldfinance.com/partner/funding';
-  const callbackUrl = `${process.env.API_URL || 'https://api.kamiyo.ai'}/api/fund/callback`;
-
-  const fundingUrl = new URL(blindfoldBaseUrl);
-  fundingUrl.searchParams.set('partner_id', 'kamiyo');
-  fundingUrl.searchParams.set('pool_id', teamId);
-  fundingUrl.searchParams.set('redirect_uri', callbackUrl);
-  fundingUrl.searchParams.set('state', stateToken);
-  if (wallet) {
-    fundingUrl.searchParams.set('wallet', wallet);
-  }
-
-  res.json({
-    fundingUrl: fundingUrl.toString(),
-    stateToken,
-    expiresAt: expiresAt * 1000,
-  });
-});
-
-// POST /api/hive-teams/:id/fund/initiate — Proxy to Blindfold initiate-funding API
-router.post('/:id/fund/initiate', requireTeamOwner, async (req: Request, res: Response) => {
-  const teamId = req.params.id;
-  const { walletAddress, amountUsd, stateToken } = req.body;
-  const wallet = req.auth?.wallet;
-
-  if (!walletAddress || !amountUsd || !stateToken) {
-    res.status(400).json({ error: 'walletAddress, amountUsd, and stateToken required' });
-    return;
-  }
-
-  if (typeof amountUsd !== 'number' || amountUsd <= 0 || amountUsd > 10000) {
-    res.status(400).json({ error: 'amountUsd must be between 0 and 10000' });
-    return;
-  }
-
-  // Verify state token belongs to this team
-  const state = db.prepare(`
-    SELECT id, team_id, status FROM blindfold_funding_states
-    WHERE state_token = ? AND team_id = ? AND expires_at > unixepoch()
-  `).get(stateToken, teamId) as { id: string; team_id: string; status: string } | undefined;
-
-  if (!state) {
-    res.status(400).json({ error: 'Invalid or expired state token' });
-    return;
-  }
-
-  if (state.status !== 'pending') {
-    res.status(400).json({ error: 'State token already used' });
-    return;
-  }
-
-  try {
-    const blindfoldRes = await fetch('https://www.blindfoldfinance.com/api/partner/initiate-funding', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        wallet_address: walletAddress,
-        amount_usd: amountUsd,
-        currency: 'SOL',
-        partner_id: 'kamiyo',
-        pool_id: teamId,
-        state: stateToken,
-      }),
-    });
-
-    if (!blindfoldRes.ok) {
-      const errBody = await blindfoldRes.json().catch(() => ({})) as { message?: string; error?: string };
-      res.status(blindfoldRes.status).json({ error: errBody.message || errBody.error || 'Blindfold API error' });
-      return;
-    }
-
-    const result = await blindfoldRes.json();
-    res.json(result);
-  } catch (err) {
-    console.error('Blindfold initiate-funding error:', err);
-    res.status(500).json({ error: 'Failed to initiate Blindfold funding' });
-  }
-});
-
-// POST /api/hive-teams/:id/fund
-router.post('/:id/fund', async (req: Request, res: Response) => {
-  const { amount } = req.body;
-  const teamId = req.params.id;
-
-  if (!amount || amount <= 0) {
-    res.status(400).json({ error: 'amount must be positive' });
-    return;
-  }
-
-  const team = db.prepare('SELECT id, currency FROM swarm_teams WHERE id = ?').get(teamId) as {
-    id: string; currency: string;
-  } | undefined;
-
-  if (!team) {
-    res.status(404).json({ error: 'Team not found' });
-    return;
-  }
-
-  const depositId = `dep_${randomUUID().slice(0, 12)}`;
-
-  try {
-    const payment = await blindfoldClient.createPayment({
-      amount,
-      currency: team.currency as 'SOL' | 'USDC' | 'USDT',
-      recipientEmail: `pool-${teamId.slice(0, 8)}@kamiyo.ai`,
-      recipientName: `SwarmTeam Pool: ${teamId}`,
-    });
-
-    db.prepare(`
-      INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_payment_id, blindfold_status, crypto_address, crypto_amount, expires_at)
-      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-    `).run(depositId, teamId, amount, team.currency, payment.paymentId, payment.cryptoAddress, payment.cryptoAmount, payment.expiresAt);
-
-    res.json({
-      depositId,
-      paymentId: payment.paymentId,
-      cryptoAddress: payment.cryptoAddress,
-      cryptoAmount: payment.cryptoAmount,
-      expiresAt: payment.expiresAt,
-      status: 'pending',
-    });
-  } catch (err) {
-    // Fallback: credit directly if Blindfold is unavailable (dev mode)
-    if (!process.env.BLINDFOLD_API_KEY) {
-      db.prepare(`
-        UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
-        WHERE id = ?
-      `).run(amount, teamId);
-
-      db.prepare(`
-        INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, confirmed_at)
-        VALUES (?, ?, ?, ?, 'confirmed', unixepoch())
-      `).run(depositId, teamId, amount, team.currency);
-
-      const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
-      res.json({ depositId, status: 'confirmed', poolBalance: updated.pool_balance });
-      return;
-    }
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Payment creation failed' });
-  }
-});
-
-// POST /api/hive-teams/:id/fund/:depositId/confirm
-router.post('/:id/fund/:depositId/confirm', async (req: Request, res: Response) => {
-  const { id: teamId, depositId } = req.params;
-
-  const deposit = db.prepare('SELECT * FROM swarm_fund_deposits WHERE id = ? AND team_id = ?')
-    .get(depositId, teamId) as {
-    id: string; blindfold_payment_id: string; amount: number; blindfold_status: string;
-  } | undefined;
-
-  if (!deposit) {
-    res.status(404).json({ error: 'Deposit not found' });
-    return;
-  }
-
-  if (deposit.blindfold_status === 'confirmed') {
-    const team = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
-    res.json({ status: 'confirmed', poolBalance: team.pool_balance });
-    return;
-  }
-
-  if (!deposit.blindfold_payment_id) {
-    res.json({ status: deposit.blindfold_status });
-    return;
-  }
-
-  try {
-    const status = await blindfoldClient.getPaymentStatus(deposit.blindfold_payment_id);
-
-    if (status.status === 'confirmed') {
-      // Atomic update to prevent double-crediting
-      const confirmDeposit = db.transaction(() => {
-        const updated = db.prepare(`
-          UPDATE swarm_fund_deposits
-          SET blindfold_status = 'confirmed', confirmed_at = unixepoch()
-          WHERE id = ? AND blindfold_status != 'confirmed'
-        `).run(depositId);
-
-        // Only credit pool if we actually changed the status (not already confirmed)
-        if (updated.changes > 0) {
-          db.prepare(`
-            UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
-            WHERE id = ?
-          `).run(deposit.amount, teamId);
-        }
-
-        return db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
-      });
-
-      const team = confirmDeposit();
-      res.json({ status: 'confirmed', poolBalance: team.pool_balance });
-    } else {
-      db.prepare('UPDATE swarm_fund_deposits SET blindfold_status = ? WHERE id = ?')
-        .run(status.status, depositId);
-      res.json({ status: status.status });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Status check failed' });
-  }
-});
-
 // POST /api/hive-teams/:id/fund-credits — Fund pool from user's credit balance
 router.post('/:id/fund-credits', requireTeamOwner, (req: Request, res: Response) => {
   const teamId = req.params.id;
@@ -630,12 +422,12 @@ router.post('/:id/fund-credits', requireTeamOwner, (req: Request, res: Response)
   db.prepare(`
     UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
     WHERE id = ?
-  `).run(amountUsd, teamId);
+	  `).run(amountUsd, teamId);
 
-  db.prepare(`
-    INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, confirmed_at)
-    VALUES (?, ?, ?, ?, 'confirmed', unixepoch())
-  `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, amountUsd, team.currency);
+	  db.prepare(`
+	    INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, status, confirmed_at)
+	    VALUES (?, ?, ?, ?, 'confirmed', unixepoch())
+	  `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, amountUsd, team.currency);
 
   const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
   res.json({ success: true, poolBalance: updated.pool_balance });
@@ -670,12 +462,12 @@ router.post('/:id/fund-test', requireTeamOwner, (req: Request, res: Response) =>
   db.prepare(`
     UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
     WHERE id = ?
-  `).run(amount, teamId);
+	  `).run(amount, teamId);
 
-  db.prepare(`
-    INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, confirmed_at)
-    VALUES (?, ?, ?, ?, 'test', unixepoch())
-  `).run(`dep_test_${randomUUID().slice(0, 12)}`, teamId, amount, team.currency);
+	  db.prepare(`
+	    INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, status, confirmed_at)
+	    VALUES (?, ?, ?, ?, 'test', unixepoch())
+	  `).run(`dep_test_${randomUUID().slice(0, 12)}`, teamId, amount, team.currency);
 
   const updated = db.prepare('SELECT pool_balance FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number };
   res.json({ success: true, poolBalance: updated.pool_balance, testMode: true });
@@ -776,11 +568,11 @@ router.post('/:id/fund-tokens', requireTeamOwner, async (req: Request, res: Resp
       WHERE id = ?
     `).run(tokenAmount, teamId);
 
-    // Record the deposit
-    db.prepare(`
-      INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, blindfold_payment_id, confirmed_at)
-      VALUES (?, ?, ?, 'KAMIYO', 'confirmed', ?, unixepoch())
-    `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, tokenAmount, signature);
+	    // Record the deposit
+	    db.prepare(`
+	      INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, status, payment_id, confirmed_at)
+	      VALUES (?, ?, ?, 'KAMIYO', 'confirmed', ?, unixepoch())
+	    `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, tokenAmount, signature);
 
     const updated = db.prepare('SELECT pool_balance, pool_balance_sol FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number; pool_balance_sol: number };
     res.json({
@@ -870,11 +662,11 @@ router.post('/:id/fund-sol', requireTeamOwner, async (req: Request, res: Respons
       WHERE id = ?
     `).run(solAmount, teamId);
 
-    // Record the deposit
-    db.prepare(`
-      INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, blindfold_status, blindfold_payment_id, confirmed_at)
-      VALUES (?, ?, ?, 'SOL', 'confirmed', ?, unixepoch())
-    `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, solAmount, signature);
+	    // Record the deposit
+	    db.prepare(`
+	      INSERT INTO swarm_fund_deposits (id, team_id, amount, currency, status, payment_id, confirmed_at)
+	      VALUES (?, ?, ?, 'SOL', 'confirmed', ?, unixepoch())
+	    `).run(`dep_${randomUUID().slice(0, 12)}`, teamId, solAmount, signature);
 
     const updated = db.prepare('SELECT pool_balance, pool_balance_sol FROM swarm_teams WHERE id = ?').get(teamId) as { pool_balance: number; pool_balance_sol: number };
     res.json({
@@ -939,44 +731,34 @@ router.get('/:id/draws', (req: Request, res: Response) => {
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const draws = db.prepare(query).all(...params) as Array<{
-    id: string; team_id: string; agent_id: string; amount: number;
-    purpose: string | null; blindfold_payment_id: string | null;
-    blindfold_status: string; created_at: number;
-  }>;
+	  const draws = db.prepare(query).all(...params) as Array<{
+	    id: string; team_id: string; agent_id: string; amount: number;
+	    purpose: string | null; payment_id: string | null;
+	    status: string; created_at: number;
+	  }>;
 
   const countQuery = agentId
     ? db.prepare('SELECT COUNT(*) as total FROM swarm_draws WHERE team_id = ? AND agent_id = ?').get(teamId, agentId)
     : db.prepare('SELECT COUNT(*) as total FROM swarm_draws WHERE team_id = ?').get(teamId);
 
-  res.json({
-    draws: draws.map((d) => ({
-      id: d.id,
-      agentId: d.agent_id,
-      amount: d.amount,
-      purpose: d.purpose,
-      blindfoldPaymentId: d.blindfold_payment_id,
-      blindfoldStatus: d.blindfold_status,
-      createdAt: d.created_at * 1000,
-    })),
-    total: (countQuery as { total: number }).total,
-  });
-});
+	  res.json({
+	    draws: draws.map((d) => ({
+	      id: d.id,
+	      agentId: d.agent_id,
+	      amount: d.amount,
+	      purpose: d.purpose,
+	      paymentId: d.payment_id,
+	      status: d.status,
+	      createdAt: d.created_at * 1000,
+	    })),
+	    total: (countQuery as { total: number }).total,
+	  });
+	});
 
 // --- Direct task execution (bypassing swarm-agents orchestrator due to bun:sqlite issue) ---
 
-function recordDraw(teamId: string, agentId: string, amount: number, taskId: string) {
-  const drawId = `draw_${randomUUID().slice(0, 12)}`;
-  const now = Math.floor(Date.now() / 1000);
-  db.prepare(`
-    INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
-    VALUES (?, ?, ?, ?, ?, 'completed', ?)
-  `).run(drawId, teamId, agentId, amount, `task:${taskId}`, now);
-  return drawId;
-}
-
 // POST /api/hive-teams/:id/tasks
-router.post('/:id/tasks', async (req: Request, res: Response) => {
+router.post('/:id/tasks', requireTeamOwner, async (req: Request, res: Response) => {
   const teamId = req.params.id;
   const { memberId, description, budget } = req.body;
 
@@ -1002,65 +784,67 @@ router.post('/:id/tasks', async (req: Request, res: Response) => {
   }
 
   const taskBudget = budget ?? member.draw_limit;
+  const taskId = `task_${randomUUID().slice(0, 12)}`;
 
-  // Atomic: daily limit check + pool reservation in a single transaction
-  const reserveBudget = db.transaction(() => {
-    const dailySpend = db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
-      WHERE team_id = ? AND created_at > unixepoch() - 86400
-    `).get(teamId) as { total: number };
-
-    if (dailySpend.total + taskBudget > team.daily_limit) {
-      return { error: 'Would exceed daily limit' } as const;
-    }
-
-    const reserved = db.prepare(`
-      UPDATE swarm_teams
-      SET pool_balance = pool_balance - ?, updated_at = unixepoch()
-      WHERE id = ? AND pool_balance >= ?
-    `).run(taskBudget, teamId, taskBudget);
-
-    if (reserved.changes === 0) {
-      return { error: 'Insufficient pool balance' } as const;
-    }
-
-    return { error: null } as const;
-  });
-
-  const budgetResult = reserveBudget();
-  if (budgetResult.error) {
-    res.status(400).json({ error: budgetResult.error });
+  const reserve = reserveTeamBudget(teamId, taskBudget);
+  if (!reserve.ok) {
+    res.status(400).json({ error: reserve.error });
     return;
   }
 
+  let settled = false;
+
   try {
     if (!taskExecutor) {
-      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
+      const settlement = settleTeamBudget({
+        teamId,
+        agentId: member.agent_id,
+        reserved: reserve.reserved,
+        amountDrawn: 0,
+        purpose: `task:${taskId}`,
+      });
+      settled = settlement.ok;
+      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' });
       return;
     }
-
-    const taskId = `task_${randomUUID().slice(0, 12)}`;
 
     // Execute task directly (bypassing orchestrator due to bun:sqlite compat issue)
     const result = await taskExecutor({
       taskId,
       description,
-      budget: taskBudget,
+      budget: reserve.reserved,
       teamId,
+      metadata: {
+        agentId: member.agent_id,
+        memberId: member.id,
+      },
     });
 
-    // Record draw if task completed with cost
-    if (result.status === 'completed' && result.amountDrawn && result.amountDrawn > 0) {
-      recordDraw(teamId, member.agent_id, result.amountDrawn, taskId);
-    }
+    const amountDrawn = result.status === 'completed' ? (result.amountDrawn ?? 0) : 0;
+    const settlement = settleTeamBudget({
+      teamId,
+      agentId: member.agent_id,
+      reserved: reserve.reserved,
+      amountDrawn,
+      purpose: `task:${taskId}`,
+    });
+    settled = settlement.ok;
 
     res.json(result);
   } catch (err) {
-    // Refund reserved budget on failure
-    db.prepare(`
-      UPDATE swarm_teams SET pool_balance = pool_balance + ?, updated_at = unixepoch()
-      WHERE id = ?
-    `).run(taskBudget, teamId);
+    if (!settled && reserve.reserved > 0) {
+      try {
+        settleTeamBudget({
+          teamId,
+          agentId: member.agent_id,
+          reserved: reserve.reserved,
+          amountDrawn: 0,
+          purpose: `task:${taskId}`,
+        });
+      } catch {
+        // Ignore refund failure; primary error still returned.
+      }
+    }
     res.status(500).json({ error: err instanceof Error ? err.message : 'Task execution failed' });
   }
 });
@@ -1408,7 +1192,7 @@ router.post('/:id/execute-proposal', async (req: Request, res: Response) => {
   // Execute the task
   try {
     if (!taskExecutor) {
-      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
+      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' });
       return;
     }
 
@@ -1423,12 +1207,12 @@ router.post('/:id/execute-proposal', async (req: Request, res: Response) => {
       teamId,
     });
 
-    // Record draw with winning bid
-    const drawId = `draw_${randomUUID().slice(0, 12)}`;
-    db.prepare(`
-      INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, blindfold_status, created_at)
-      VALUES (?, ?, ?, ?, ?, 'completed', unixepoch())
-    `).run(drawId, teamId, member.agent_id, result.amountDrawn || winner.bid_amount, `proposal:${proposalId}`);
+	    // Record draw with winning bid
+	    const drawId = `draw_${randomUUID().slice(0, 12)}`;
+	    db.prepare(`
+	      INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, status, created_at)
+	      VALUES (?, ?, ?, ?, ?, 'completed', unixepoch())
+	    `).run(drawId, teamId, member.agent_id, result.amountDrawn || winner.bid_amount, `proposal:${proposalId}`);
 
     // Mark proposal as completed
     db.prepare('UPDATE swarm_task_proposals SET status = ? WHERE id = ?')
@@ -1609,13 +1393,13 @@ function getTeamDetail(teamId: string) {
     draw_limit: number; drawn_today: number;
   }>;
 
-  const recentDraws = db.prepare(`
-    SELECT * FROM swarm_draws WHERE team_id = ? ORDER BY created_at DESC LIMIT 20
-  `).all(teamId) as Array<{
-    id: string; agent_id: string; amount: number;
-    purpose: string | null; blindfold_payment_id: string | null;
-    blindfold_status: string; created_at: number;
-  }>;
+	  const recentDraws = db.prepare(`
+	    SELECT * FROM swarm_draws WHERE team_id = ? ORDER BY created_at DESC LIMIT 20
+	  `).all(teamId) as Array<{
+	    id: string; agent_id: string; amount: number;
+	    purpose: string | null; payment_id: string | null;
+	    status: string; created_at: number;
+	  }>;
 
   const dailySpend = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as total FROM swarm_draws
@@ -1638,16 +1422,16 @@ function getTeamDetail(teamId: string) {
       drawLimit: m.draw_limit,
       drawnToday: m.drawn_today,
     })),
-    recentDraws: recentDraws.map((d) => ({
-      id: d.id,
-      agentId: d.agent_id,
-      amount: d.amount,
-      purpose: d.purpose,
-      blindfoldPaymentId: d.blindfold_payment_id,
-      blindfoldStatus: d.blindfold_status,
-      createdAt: d.created_at * 1000,
-    })),
-  };
-}
+	    recentDraws: recentDraws.map((d) => ({
+	      id: d.id,
+	      agentId: d.agent_id,
+	      amount: d.amount,
+	      purpose: d.purpose,
+	      paymentId: d.payment_id,
+	      status: d.status,
+	      createdAt: d.created_at * 1000,
+	    })),
+	  };
+	}
 
 export default router;

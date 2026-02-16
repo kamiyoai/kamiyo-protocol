@@ -20,11 +20,14 @@
   "author": "KAMIYO <susumu@kamiyo.ai>",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*",
+    "examples/*",
+    "services/*"
   ],
   "scripts": {
     "build": "anchor build && npm run build:sdk",
-    "build:api": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/x402-client run build && pnpm --filter @kamiyo/hive run build && pnpm --filter @kamiyo/agent-paranet run build && pnpm --filter @kamiyo/agent-core run build && pnpm --filter @kamiyo/daydreams run build && pnpm --filter @kamiyo/swarm-agents run build && pnpm --filter @kamiyo/blindfold run build && pnpm --filter @kamiyo/settlement run build && pnpm --filter @kamiyo/agents run build && pnpm --filter kamiyo-companion run build",
+    "build:api": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/x402-client run build && pnpm --filter @kamiyo/hive run build && pnpm --filter @kamiyo/agent-paranet run build && pnpm --filter @kamiyo/agent-core run build && pnpm --filter @kamiyo/daydreams run build && pnpm --filter @kamiyo/swarm-agents run build && pnpm --filter @kamiyo/settlement run build && pnpm --filter @kamiyo/agents run build && pnpm --filter kamiyo-companion run build",
     "build:program": "anchor build",
     "build:sdk": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build",
     "build:surfpool": "pnpm --filter @kamiyo/surfpool run build",
@@ -35,10 +38,10 @@
     "test:sdk": "pnpm --filter @kamiyo/sdk run test",
     "test:surfpool": "pnpm --filter @kamiyo/surfpool run test",
     "test:preflight": "pnpm --filter @kamiyo/surfpool run test",
-    "lint": "eslint 'packages/kamiyo-sdk/src/fundry.ts' 'packages/kamiyo-mcp/src/tools/fundry.ts' --fix",
-    "lint:check": "eslint 'packages/kamiyo-sdk/src/fundry.ts' 'packages/kamiyo-mcp/src/tools/fundry.ts'",
-    "format": "prettier --write 'packages/kamiyo-sdk/src/fundry.ts' 'packages/kamiyo-mcp/src/tools/fundry.ts'",
-    "format:check": "prettier --check 'packages/kamiyo-sdk/src/fundry.ts' 'packages/kamiyo-mcp/src/tools/fundry.ts'",
+    "lint": "eslint 'packages/*/src/**/*.ts' 'services/*/src/**/*.ts' --fix",
+    "lint:check": "eslint 'packages/*/src/**/*.ts' 'services/*/src/**/*.ts'",
+    "format": "prettier --write 'packages/*/src/**/*.ts' 'services/*/src/**/*.ts'",
+    "format:check": "prettier --check 'packages/*/src/**/*.ts' 'services/*/src/**/*.ts'",
     "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings",
     "format:rust": "cargo fmt --all",
     "build:meishi-compliance": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/meishi-compliance run build",
@@ -80,9 +83,7 @@
     "ts-mocha": "^11.1.0",
     "tsx": "^4.21.0",
     "tweetnacl": "^1.0.3",
-    "typescript": "^5.3.0"
-  },
-  "dependencies": {
+    "typescript": "^5.3.0",
     "circomlibjs": "^0.1.7",
     "ts-node": "^10.9.2"
   }

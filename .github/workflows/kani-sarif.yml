@@ -1,0 +1,131 @@
+name: Kani (SARIF)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run all harnesses (slow)
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  KANI_VERSION: 0.67.0
+  KANI_PACKAGE: kani-solana
+  KANI_FAST_HARNESS: risk::proofs::proof_writeoff_conservation
+
+jobs:
+  kani_sarif:
+    name: Kani (SARIF)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Kani
+        uses: model-checking/kani-github-action@v1
+        with:
+          kani-version: ${{ env.KANI_VERSION }}
+          args: --version
+
+      - name: Detect --sarif support
+        id: sarif_support
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if (kani-driver --help 2>&1 || true) | grep -q -- '--sarif'; then
+            echo "needs_patch=0" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "needs_patch=1" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout Kani (SARIF fork)
+        if: steps.sarif_support.outputs.needs_patch == '1'
+        uses: actions/checkout@v4
+        with:
+          repository: kamiyo-ai/kani
+          ref: kamiyo/sarif-output
+          path: kani-src
+          submodules: recursive
+
+      - name: Build patched kani-driver
+        if: steps.sarif_support.outputs.needs_patch == '1'
+        working-directory: kani-src
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo build -p kani-driver --release
+
+          if ! (./target/release/kani-driver --help 2>&1 || true) | grep -q -- '--sarif'; then
+            echo "built kani-driver does not show --sarif" >&2
+            ./target/release/kani-driver --help 2>&1 | sed -n '1,200p' >&2 || true
+            exit 1
+          fi
+
+      - name: Patch installed kani-driver
+        if: steps.sarif_support.outputs.needs_patch == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          src="kani-src/target/release/kani-driver"
+
+          dst="$(command -v kani-driver || true)"
+          if [ -z "${dst}" ]; then
+            dst="${HOME}/.kani/kani-${KANI_VERSION}/bin/kani-driver"
+          fi
+
+          echo "patching ${dst}"
+
+          if [ ! -f "${dst}" ]; then
+            echo "missing installed driver at ${dst}" >&2
+            exit 1
+          fi
+
+          cp "${src}" "${dst}"
+          chmod +x "${dst}"
+
+          if ! ("${dst}" --help 2>&1 || true) | grep -q -- '--sarif'; then
+            echo "patched kani-driver does not show --sarif" >&2
+            "${dst}" --help 2>&1 | sed -n '1,200p' >&2 || true
+            exit 1
+          fi
+
+      - name: Run Kani (SARIF)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          harness_args=("--harness" "${KANI_FAST_HARNESS}")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.full }}" = "true" ]; then
+            harness_args=()
+          fi
+
+          cargo kani -p "${KANI_PACKAGE}" "${harness_args[@]}" --sarif kani.sarif
+
+      - name: Upload SARIF (GitHub Code Scanning)
+        if: always() && hashFiles('kani.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kani.sarif
+          category: kani
+
+      - name: Upload SARIF (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kani-sarif
+          path: kani.sarif
+          if-no-files-found: warn
+          retention-days: 30

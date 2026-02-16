@@ -1,7 +1,7 @@
 //! Self-verification: prove that kani-solana's own reference implementations
 //! and helper functions are sound.
 
-#[cfg(kani)]
+#[cfg(all(kani, feature = "kani-full"))]
 mod self_proofs {
     use kani_solana::{generators::*, math::*, token::*};
 

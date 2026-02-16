@@ -46,7 +46,7 @@ body:
         - TypeScript SDK
         - API Server
         - EVM Contracts
-        - Mobile App (Keiro)
+        - Routing (Keiro)
         - Other
     validations:
       required: true
