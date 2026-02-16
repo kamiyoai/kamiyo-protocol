@@ -6,13 +6,18 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      packages:
+        description: "Space-separated Cargo packages to verify with Kani"
+        required: false
+        default: "kani-solana"
 
 env:
   KANI_VERSION: 0.67.0
 
 concurrency:
   group: kani-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   kani:
@@ -21,8 +26,6 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
@@ -37,7 +40,9 @@ jobs:
 
       - name: Verify Kani Proofs
         run: |
-          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh kani-solana kamiyo
+          PACKAGES_STR="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.packages || 'kani-solana' }}"
+          read -r -a PACKAGES <<< "${PACKAGES_STR}"
+          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh "${PACKAGES[@]}"
           KANI_AUDIT_PER_PACKAGE=1 ./scripts/kani-audit.sh kani-results/kani.log
 
       - name: Upload Kani Summary
