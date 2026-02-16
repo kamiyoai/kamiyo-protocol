@@ -187,6 +187,22 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
     return;
   }
 
+  const anyDeposit = db.prepare(`
+    SELECT 1
+    FROM swarm_fund_deposits
+    WHERE team_id = ?
+    LIMIT 1
+  `).get(teamId);
+
+  const anyNonTestDeposit = db.prepare(`
+    SELECT 1
+    FROM swarm_fund_deposits
+    WHERE team_id = ? AND status != 'test'
+    LIMIT 1
+  `).get(teamId);
+
+  const testOnly = !!anyDeposit && !anyNonTestDeposit;
+
   const refundAmount = team.pool_balance;
   const refundAmountSol = team.pool_balance_sol;
   const currency = team.currency;
@@ -194,7 +210,7 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   let refundSignatureSol: string | null = null;
 
   // Perform on-chain SOL refund if there's a SOL balance
-  if (refundAmountSol > 0) {
+  if (!testOnly && refundAmountSol > 0) {
     const treasuryKeypair = getTreasuryKeypair();
     if (treasuryKeypair) {
       try {
@@ -225,7 +241,7 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   }
 
   // Perform on-chain refund if there's a KAMIYO balance
-  if (refundAmount > 0) {
+  if (!testOnly && refundAmount > 0) {
     const treasuryKeypair = getTreasuryKeypair();
     if (!treasuryKeypair) {
       res.status(500).json({ error: 'Treasury not configured for refunds' });
@@ -301,6 +317,8 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   const deleteAll = db.transaction(() => {
     db.prepare('DELETE FROM swarm_vote_bids WHERE proposal_id IN (SELECT id FROM swarm_task_proposals WHERE team_id = ?)').run(teamId);
     db.prepare('DELETE FROM swarm_task_proposals WHERE team_id = ?').run(teamId);
+    db.prepare('DELETE FROM swarm_run_nodes WHERE run_id IN (SELECT id FROM swarm_runs WHERE team_id = ?)').run(teamId);
+    db.prepare('DELETE FROM swarm_runs WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_fund_deposits WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_draws WHERE team_id = ?').run(teamId);
     db.prepare('DELETE FROM swarm_team_members WHERE team_id = ?').run(teamId);
@@ -308,7 +326,7 @@ router.delete('/:id', requireTeamOwner, async (req: Request, res: Response) => {
   });
   deleteAll();
 
-  res.json({ success: true, refundAmount, refundAmountSol, currency, refundSignature, refundSignatureSol });
+  res.json({ success: true, refundAmount, refundAmountSol, currency, refundSignature, refundSignatureSol, refundSkipped: testOnly });
 });
 
 // POST /api/hive-teams/:id/members - requires owner
@@ -786,7 +804,7 @@ router.post('/:id/tasks', requireTeamOwner, async (req: Request, res: Response) 
         purpose: `task:${taskId}`,
       });
       settled = settlement.ok;
-      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
+      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' });
       return;
     }
 
@@ -1174,7 +1192,7 @@ router.post('/:id/execute-proposal', async (req: Request, res: Response) => {
   // Execute the task
   try {
     if (!taskExecutor) {
-      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY)' });
+      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' });
       return;
     }
 

@@ -162,6 +162,42 @@ function loadRunDetail(teamId: string, runId: string) {
   };
 }
 
+function loadRunProgress(teamId: string, runId: string) {
+  const run = db.prepare(`
+    SELECT id, team_id, mission, status, total_reserved, total_spent, error, kiroku_receipt, kiroku_url, kiroku_error, started_at, completed_at
+    FROM swarm_runs
+    WHERE id = ? AND team_id = ?
+  `).get(runId, teamId) as any;
+
+  if (!run) return null;
+
+  const nodes = db.prepare(`
+    SELECT node_id, status, error, started_at, completed_at
+    FROM swarm_run_nodes
+    WHERE run_id = ?
+    ORDER BY created_at ASC
+  `).all(runId) as Array<any>;
+
+  return {
+    runId: run.id,
+    teamId: run.team_id,
+    mission: run.mission,
+    status: run.status,
+    totals: { reserved: run.total_reserved, spent: run.total_spent },
+    error: run.error,
+    kiroku: { receipt: run.kiroku_receipt, url: run.kiroku_url, error: run.kiroku_error },
+    startedAt: run.started_at * 1000,
+    completedAt: run.completed_at ? run.completed_at * 1000 : null,
+    nodes: nodes.map((n) => ({
+      id: n.node_id,
+      status: n.status,
+      error: n.error,
+      startedAt: n.started_at ? n.started_at * 1000 : null,
+      completedAt: n.completed_at ? n.completed_at * 1000 : null,
+    })),
+  };
+}
+
 type SeededNode = {
   nodeId: string;
   fromRunId: string;
@@ -321,8 +357,8 @@ async function executeSwarmRun(options: {
         updateNodeRunning.run(runId, n.id);
 
         if (!taskExecutor) {
-          updateNodeDone.run('failed', 0, null, 'Task execution not available (missing ANTHROPIC_API_KEY)', runId, n.id);
-          return { status: 'failed' as const, error: 'Task execution not available (missing ANTHROPIC_API_KEY)' };
+          updateNodeDone.run('failed', 0, null, 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)', runId, n.id);
+          return { status: 'failed' as const, error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' };
         }
 
         const reserve = reserveTeamBudget(options.teamId, n.budget);
@@ -762,6 +798,78 @@ router.get('/runs/:runId', (req: Request, res: Response) => {
     return;
   }
   res.json(detail);
+});
+
+// GET /api/hive-teams/:id/swarm/runs/:runId/stream (SSE)
+router.get('/runs/:runId/stream', (req: Request, res: Response) => {
+  const { id: teamId, runId } = req.params;
+
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+
+  const flushHeaders = (res as any).flushHeaders;
+  if (typeof flushHeaders === 'function') flushHeaders.call(res);
+
+  let closed = false;
+
+  let pollInterval: NodeJS.Timeout | undefined;
+  let heartbeatInterval: NodeJS.Timeout | undefined;
+  let hardTimeout: NodeJS.Timeout | undefined;
+
+  const send = (event: string, data: unknown) => {
+    if (closed) return;
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (pollInterval) clearInterval(pollInterval);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    if (hardTimeout) clearTimeout(hardTimeout);
+    res.end();
+  };
+
+  req.on('close', close);
+  req.on('end', close);
+
+  let lastSha = '';
+
+  const tick = () => {
+    const progress = loadRunProgress(teamId, runId);
+    if (!progress) {
+      send('error', { error: 'Run not found' });
+      close();
+      return;
+    }
+
+    const sha = sha256Hex(canonicalize(progress));
+    if (sha !== lastSha) {
+      lastSha = sha;
+      send('update', progress);
+    }
+
+    if (progress.status !== 'running') {
+      send('done', progress);
+      close();
+    }
+  };
+
+  pollInterval = setInterval(tick, 1000);
+  heartbeatInterval = setInterval(() => {
+    if (closed) return;
+    res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+  }, 15_000);
+
+  hardTimeout = setTimeout(() => {
+    send('error', { error: 'Stream timeout' });
+    close();
+  }, swarmRuntimeConfig.runTimeoutMs + 60_000);
+
+  tick();
 });
 
 export default router;
