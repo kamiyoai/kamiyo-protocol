@@ -18,11 +18,16 @@ jobs:
   kani:
     name: Kani
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install Kani
         uses: model-checking/kani-github-action@v1
@@ -32,7 +37,7 @@ jobs:
 
       - name: Verify Kani Proofs
         run: |
-          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh
+          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh kani-solana kamiyo
           KANI_AUDIT_PER_PACKAGE=1 ./scripts/kani-audit.sh kani-results/kani.log
 
       - name: Upload Kani Summary
