@@ -435,6 +435,7 @@ dependencies = [
  "anchor-derive-accounts 0.32.1",
  "anchor-derive-serde 0.32.1",
  "anchor-derive-space 0.32.1",
+ "anchor-lang-idl",
  "base64 0.21.7",
  "bincode",
  "borsh 0.10.4",
@@ -529,6 +530,7 @@ checksum = "b93b69aa7d099b59378433f6d7e20e1008fc10c69e48b220270e5b3f2ec4c8be"
 dependencies = [
  "anyhow",
  "bs58",
+ "cargo_toml",
  "heck 0.3.3",
  "proc-macro2",
  "quote",
@@ -1048,7 +1050,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -2434,7 +2436,7 @@ checksum = "12cb882ccb290b8646e554b157ab0b71e64e8d5bef775cd66b6531e52d302669"
 name = "hive"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
  "constant_time_eq",
  "groth16-solana 0.1.0",
@@ -2928,7 +2930,7 @@ dependencies = [
 name = "kamiyo"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
  "ed25519-dalek",
  "groth16-solana 0.2.0",
@@ -2943,7 +2945,7 @@ dependencies = [
 name = "kamiyo-escrow"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
 ]
 
@@ -2951,7 +2953,7 @@ dependencies = [
 name = "kamiyo-fast-voting"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "ephemeral-rollups-sdk",
 ]
 
@@ -2959,7 +2961,7 @@ dependencies = [
 name = "kamiyo-governance"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
 ]
 
@@ -2967,7 +2969,7 @@ dependencies = [
 name = "kamiyo-staking"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
  "kani-solana",
 ]
@@ -2976,7 +2978,7 @@ dependencies = [
 name = "kamiyo-transfer-hook"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
  "spl-transfer-hook-interface 0.8.2",
 ]
@@ -3232,7 +3234,7 @@ dependencies = [
 name = "meishi"
 version = "0.1.0"
 dependencies = [
- "anchor-lang 0.31.1",
+ "anchor-lang 0.32.1",
  "anchor-spl",
 ]
 
