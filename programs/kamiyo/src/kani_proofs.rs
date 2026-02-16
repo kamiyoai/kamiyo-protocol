@@ -136,3 +136,152 @@ fn weighted_consensus_covers_fast_and_filtered_paths() {
     kani::cover!(calculate_weighted_consensus(&scores, 100).is_ok());
     kani::cover!(calculate_weighted_consensus(&scores, 99).is_ok());
 }
+
+fn can_release_funds(
+    caller: [u8; 32],
+    agent: [u8; 32],
+    api: [u8; 32],
+    now: i64,
+    expires_at: i64,
+) -> bool {
+    let is_agent = caller == agent;
+    let is_api = caller == api;
+    let time_lock_expired = now >= expires_at;
+
+    is_agent || (is_api && time_lock_expired)
+}
+
+#[kani::proof]
+fn release_funds_timelock_policy_is_correct() {
+    let caller: [u8; 32] = kani::any();
+    let agent: [u8; 32] = kani::any();
+    let api: [u8; 32] = kani::any();
+    let now: i64 = kani::any();
+    let expires_at: i64 = kani::any();
+
+    let allowed = can_release_funds(caller, agent, api, now, expires_at);
+
+    if now < expires_at {
+        kani::assert(
+            !allowed || caller == agent,
+            "only agent can release before expiry",
+        );
+        kani::assert(
+            !(caller == api && caller != agent && allowed),
+            "api cannot release before expiry",
+        );
+    } else {
+        kani::assert(
+            !allowed || (caller == agent || caller == api),
+            "only agent/api can release after expiry",
+        );
+        kani::assert(
+            caller != api || allowed || caller == agent,
+            "api can release after expiry",
+        );
+    }
+}
+
+#[kani::proof]
+fn resolve_dispute_conserves_value() {
+    let amount: u64 = kani::any();
+    let refund_percentage: u8 = kani::any();
+
+    kani::assume(refund_percentage <= 100);
+
+    let refund_amount = (amount as u128)
+        .saturating_mul(refund_percentage as u128)
+        .checked_div(100)
+        .unwrap_or(0) as u64;
+    let payment_amount = amount.saturating_sub(refund_amount);
+
+    kani::assert(
+        (refund_amount as u128 + payment_amount as u128) == amount as u128,
+        "refund + payment must equal amount",
+    );
+}
+
+#[kani::proof]
+fn settle_inference_conserves_value() {
+    let amount: u64 = kani::any();
+    let quality_threshold: u8 = kani::any();
+    let quality_score: u8 = kani::any();
+
+    kani::assume(quality_score <= 100);
+
+    let (user_refund, provider_payment) = if quality_score >= quality_threshold {
+        (0u64, amount)
+    } else if quality_score >= 50 {
+        let provider_share = (amount as u128)
+            .saturating_mul(quality_score as u128)
+            .checked_div(100)
+            .unwrap_or(0) as u64;
+        (amount.saturating_sub(provider_share), provider_share)
+    } else {
+        (amount, 0u64)
+    };
+
+    kani::assert(
+        (user_refund as u128 + provider_payment as u128) == amount as u128,
+        "refund + payment must equal amount",
+    );
+}
+
+#[kani::proof]
+fn claim_expired_escrow_conserves_value() {
+    let amount: u64 = kani::any();
+    let disputed: bool = kani::any();
+
+    let (agent_amount, api_amount) = if disputed {
+        let half = amount / 2;
+        (half, amount.saturating_sub(half))
+    } else {
+        (amount, 0u64)
+    };
+
+    kani::assert(
+        (agent_amount as u128 + api_amount as u128) == amount as u128,
+        "agent + api must equal amount",
+    );
+}
+
+#[kani::proof]
+fn required_oracle_count_is_in_expected_set() {
+    kani_solana::bounds::assert_output_in_set(
+        || required_oracle_count(kani::any()),
+        &[MIN_CONSENSUS_ORACLES, 4, 5],
+    );
+}
+
+#[kani::proof]
+fn required_oracle_count_is_monotonic() {
+    let a1: u64 = kani::any();
+    let a2: u64 = kani::any();
+
+    kani::assume(a1 <= a2);
+
+    let r1 = required_oracle_count(a1);
+    let r2 = required_oracle_count(a2);
+
+    kani::assert(r1 <= r2, "required oracle count must be monotonic");
+}
+
+#[kani::proof]
+fn required_oracle_count_tiers_match_boundaries() {
+    kani::assert(
+        required_oracle_count(TIER2_ESCROW_THRESHOLD.saturating_sub(1)) == MIN_CONSENSUS_ORACLES,
+        "below tier2 threshold must use minimum",
+    );
+    kani::assert(
+        required_oracle_count(TIER2_ESCROW_THRESHOLD) == 4,
+        "tier2 threshold must require 4 oracles",
+    );
+    kani::assert(
+        required_oracle_count(TIER3_ESCROW_THRESHOLD.saturating_sub(1)) == 4,
+        "just below tier3 threshold must still be tier2",
+    );
+    kani::assert(
+        required_oracle_count(TIER3_ESCROW_THRESHOLD) == 5,
+        "tier3 threshold must require 5 oracles",
+    );
+}
