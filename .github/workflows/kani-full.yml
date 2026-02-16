@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload Kani Summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: kani-full-results
           path: kani-results
