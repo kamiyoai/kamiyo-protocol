@@ -69,6 +69,8 @@ jobs:
         run: node scripts/sync-anchor-localnet-program-ids.cjs
       - name: Rebuild with synced program IDs
         run: anchor build
+      - name: Install protoc (required by Trident)
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Install Trident
         run: cargo install trident-cli --version ${{ env.TRIDENT_VERSION }} --locked
       - name: Trident fuzz (smoke)
