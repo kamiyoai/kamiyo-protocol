@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if kani-driver --help 2>&1 | grep -q -- '--sarif'; then
+          if (kani-driver --help 2>&1 || true) | grep -q -- '--sarif'; then
             echo "needs_patch=0" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
@@ -57,7 +57,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           cargo build -p kani-driver --release
+
+          if ! (./target/release/kani-driver --help 2>&1 || true) | grep -q -- '--sarif'; then
+            echo "built kani-driver does not show --sarif" >&2
+            ./target/release/kani-driver --help 2>&1 | sed -n '1,200p' >&2 || true
+            exit 1
+          fi
 
       - name: Patch installed kani-driver
         if: steps.sarif_support.outputs.needs_patch == '1'
@@ -72,10 +79,7 @@ jobs:
             dst="${HOME}/.kani/kani-${KANI_VERSION}/bin/kani-driver"
           fi
 
-          if [ ! -f "${src}" ]; then
-            echo "missing built driver at ${src}" >&2
-            exit 1
-          fi
+          echo "patching ${dst}"
 
           if [ ! -f "${dst}" ]; then
             echo "missing installed driver at ${dst}" >&2
@@ -85,7 +89,11 @@ jobs:
           cp "${src}" "${dst}"
           chmod +x "${dst}"
 
-          kani-driver --help 2>&1 | grep -q -- '--sarif'
+          if ! ("${dst}" --help 2>&1 || true) | grep -q -- '--sarif'; then
+            echo "patched kani-driver does not show --sarif" >&2
+            "${dst}" --help 2>&1 | sed -n '1,200p' >&2 || true
+            exit 1
+          fi
 
       - name: Run Kani (SARIF)
         shell: bash
