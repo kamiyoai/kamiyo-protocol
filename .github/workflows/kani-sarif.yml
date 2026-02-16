@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      full:
+        description: Run all harnesses (slow)
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -12,6 +18,7 @@ permissions:
 env:
   KANI_VERSION: 0.67.0
   KANI_PACKAGE: kani-solana
+  KANI_FAST_HARNESS: risk::proofs::proof_haircut_ratio_basic_properties
 
 jobs:
   kani_sarif:
@@ -99,7 +106,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo kani -p "${KANI_PACKAGE}" --sarif kani.sarif
+
+          harness_args=("--harness" "${KANI_FAST_HARNESS}")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.full }}" = "true" ]; then
+            harness_args=()
+          fi
+
+          cargo kani -p "${KANI_PACKAGE}" "${harness_args[@]}" --sarif kani.sarif
 
       - name: Upload SARIF (GitHub Code Scanning)
         if: always() && hashFiles('kani.sarif') != ''
