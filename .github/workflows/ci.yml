@@ -9,6 +9,7 @@ on:
 env:
   SOLANA_VERSION: 2.3.13
   ANCHOR_VERSION: 0.31.1
+  TRIDENT_VERSION: 0.11.1
 
 jobs:
   repo_sanity:
@@ -68,6 +69,14 @@ jobs:
         run: node scripts/sync-anchor-localnet-program-ids.cjs
       - name: Rebuild with synced program IDs
         run: anchor build
+      - name: Install Trident
+        run: cargo install trident-cli --version ${{ env.TRIDENT_VERSION }} --locked
+      - name: Trident fuzz (smoke)
+        working-directory: trident-tests
+        env:
+          TRIDENT_ITERATIONS: 25
+          TRIDENT_FLOW_CALLS: 25
+        run: trident fuzz run fuzz_kamiyo --with-exit-code
       - run: anchor test --skip-build
       - name: Validate VK
         run: ./scripts/validate-vk.sh
