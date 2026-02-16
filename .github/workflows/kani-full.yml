@@ -22,6 +22,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: Install Kani
         uses: model-checking/kani-github-action@v1
         with:
