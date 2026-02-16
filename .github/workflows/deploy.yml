@@ -82,7 +82,7 @@ jobs:
           echo "TODO: Parse and commit address updates"
 
       - name: Create PR with Address Updates
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v8
         with:
           title: "chore: update ${{ inputs.network }} contract addresses"
           body: |
