@@ -390,10 +390,4 @@ mod proofs {
         kani::assert(ins_after_1 >= ins_after_2);
     }
 
-    #[kani::proof]
-    fn proof_sarif_demo_failure() {
-        let x: u8 = kani::any();
-        kani::assume(x == 0);
-        kani::assert(x != 0, "x != 0");
-    }
 }
