@@ -20,6 +20,3 @@ pub mod math;
 
 #[cfg(kani)]
 pub mod risk;
-
-#[cfg(all(kani, feature = "solana-agent"))]
-pub mod agent;
