@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { Voting, Vote, serializeVote, deserializeVote, voteInstruction } from './index';
 
-const VOTER = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const VOTER = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 describe('Voting', () => {
   let v: Voting;
@@ -167,7 +167,7 @@ describe('serializeVote/deserializeVote', () => {
 
 describe('voteInstruction', () => {
   test('builds ix', () => {
-    const programId = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+    const programId = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
     const proposal = PublicKey.unique();
     const voter = PublicKey.unique();
     const ix = voteInstruction(programId, proposal, voter, 12345n);

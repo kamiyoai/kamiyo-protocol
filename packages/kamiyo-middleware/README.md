@@ -30,7 +30,7 @@ const connection = new Connection('https://api.mainnet-beta.solana.com');
 
 app.use('/api/premium', KamiyoPaymentMiddleware({
   realm: 'my-api',
-  programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
+  programId: new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'),
   connection,
   price: 0.001,
   qualityGuarantee: true
@@ -53,7 +53,7 @@ const app = express();
 // Mount Solana Actions endpoints
 app.use(createActionsRouter({
   baseUrl: 'https://api.example.com',
-  programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
+  programId: new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'),
   connection: new Connection('https://api.mainnet-beta.solana.com'),
   providerWallet: new PublicKey('YOUR_WALLET'),
   title: 'Premium API Access',
@@ -89,7 +89,7 @@ import { X402Client } from '@kamiyo/sdk';
 const client = new X402Client({
   connection: new Connection('https://api.mainnet-beta.solana.com'),
   wallet: Keypair.generate(),
-  programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
+  programId: new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'),
   qualityThreshold: 70,
   maxPricePerRequest: 0.1,
 });

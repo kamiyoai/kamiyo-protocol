@@ -3,7 +3,7 @@ import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { Groth16Proof } from './types';
 
 // Production program (mainnet/devnet)
-export const KAMIYO_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+export const KAMIYO_PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 // Alias for backwards compatibility
 export const KAMIYO_PROGRAM_ID_TEST = KAMIYO_PROGRAM_ID;

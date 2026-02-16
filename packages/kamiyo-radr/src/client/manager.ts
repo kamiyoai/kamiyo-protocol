@@ -8,7 +8,7 @@ import { PrivateEscrowHandler, createPrivateEscrowHandler } from '../escrow/priv
 import { ShadowIdReputationGate, createShadowIdReputationGate } from '../reputation/shadow-id-gate';
 import type { PrivateEscrowConfig } from '../types';
 
-const DEFAULT_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const DEFAULT_PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 interface CachedClients {
   shadowWire: ShadowWireWrapper | null;

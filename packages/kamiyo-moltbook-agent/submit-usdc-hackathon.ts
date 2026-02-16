@@ -63,7 +63,7 @@ Sub-cent USDC micropayments across Solana, Base, and EVM chains via PayAI Networ
 
 | Program | Address | Solscan |
 |---------|---------|---------|
-| Protocol | 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM | [View](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM) |
+| Protocol | 3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr | [View](https://solscan.io/account/3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr) |
 | Escrow | FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u | [View](https://solscan.io/account/FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u) |
 | Governance | E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav | [View](https://solscan.io/account/E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav) |
 | Staking | 9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N | [View](https://solscan.io/account/9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N) |

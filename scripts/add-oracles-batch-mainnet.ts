@@ -4,7 +4,7 @@ import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transa
 import fs from "fs";
 import path from "path";
 
-const PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+const PROGRAM_ID = new PublicKey("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 const MIN_ORACLE_STAKE = LAMPORTS_PER_SOL / 2; // 0.5 SOL
 
 const OracleType = {

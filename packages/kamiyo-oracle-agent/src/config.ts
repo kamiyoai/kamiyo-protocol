@@ -43,8 +43,8 @@ export function getNetworkConfig(runtime: IAgentRuntime) {
 
 // KAMIYO Program IDs (from programs/kamiyo/src/lib.rs declare_id!)
 export const PROGRAM_IDS = {
-  mainnet: '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
-  devnet: '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+  mainnet: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
+  devnet: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
 } as const;
 
 // Protocol constants

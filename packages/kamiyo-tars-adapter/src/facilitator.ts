@@ -51,7 +51,7 @@ export class UnifiedFacilitator {
     this.connection = facilitatorConfig.connection;
     this.payer = facilitatorConfig.payer;
     this.tarsProgramId = facilitatorConfig.tarsProgramId || TARS_PROGRAM_ID;
-    this.kamiyoProgramId = facilitatorConfig.kamiyoProgramId || new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+    this.kamiyoProgramId = facilitatorConfig.kamiyoProgramId || new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
     this.config = { ...DEFAULT_CONFIG, ...facilitatorConfig.config };
 
     this.bridge = createTarsBridge({

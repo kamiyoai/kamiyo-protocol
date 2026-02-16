@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { ReputationAPI, reputationAPI } from './reputation';
 
-const AGENT = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const AGENT = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 const stats = { successfulAgreements: 85, totalAgreements: 100, disputesWon: 5, disputesLost: 2 };
 
 describe('ReputationAPI', () => {

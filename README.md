@@ -6,7 +6,7 @@ Trust infrastructure for autonomous agents.
 
 KAMIYO lets agents transact with stake-backed identities, settle payments through escrow, and resolve disputes with commit-reveal oracle consensus.
 
-[Dashboard](https://protocol.kamiyo.ai) | [API](https://api.kamiyo.ai) | [Solscan Program](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
+[Dashboard](https://protocol.kamiyo.ai) | [API](https://api.kamiyo.ai) | Program ID: `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr`
 
 ## Why this exists
 

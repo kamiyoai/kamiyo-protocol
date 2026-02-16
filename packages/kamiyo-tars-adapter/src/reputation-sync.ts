@@ -65,7 +65,7 @@ export class ReputationSyncService {
   constructor(config: ReputationSyncConfig) {
     this.connection = config.connection;
     this.tarsProgramId = config.tarsProgramId || TARS_PROGRAM_ID;
-    this.kamiyoProgramId = config.kamiyoProgramId || new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+    this.kamiyoProgramId = config.kamiyoProgramId || new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
     this.weights = config.weights || DEFAULT_CONFIG.reputationWeight;
     this.onReputationUpdate = config.onReputationUpdate;
     this.linker = new JobEscrowLinker({

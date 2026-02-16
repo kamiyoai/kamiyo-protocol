@@ -152,15 +152,15 @@ export interface AgentIdentity {
 export const NETWORKS: Record<KamiyoNetwork, { rpcUrl: string; programId: string }> = {
   mainnet: {
     rpcUrl: 'https://api.mainnet-beta.solana.com',
-    programId: '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+    programId: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
   },
   devnet: {
     rpcUrl: 'https://api.devnet.solana.com',
-    programId: '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+    programId: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
   },
   localnet: {
     rpcUrl: 'http://127.0.0.1:8899',
-    programId: '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+    programId: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
   },
 };
 

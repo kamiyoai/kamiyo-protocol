@@ -108,9 +108,9 @@ Oracle votes determine refund percentage:
 
 All actions call the live Kamiyo program on Solana:
 
-- **Program ID**: `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM`
+- **Program ID**: `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr`
 - **Dashboard**: https://protocol.kamiyo.ai
-- **Solscan**: https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+- **Solscan**: https://solscan.io/account/3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
 
 ## Example: Autonomous Agent
 

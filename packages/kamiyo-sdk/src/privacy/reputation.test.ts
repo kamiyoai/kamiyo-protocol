@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { PrivateReputation, verifyOnChain } from './reputation';
 
-const AGENT = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const AGENT = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 const stats = { successfulAgreements: 80, totalAgreements: 100, disputesWon: 5, disputesLost: 2 };
 
 describe('PrivateReputation', () => {

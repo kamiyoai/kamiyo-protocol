@@ -51,7 +51,7 @@ async function main(): Promise<void> {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY!,
     solanaRpcUrl: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
     agentPrivateKey: process.env.AGENT_PRIVATE_KEY!,
-    programId: process.env.KAMIYO_PROGRAM_ID || '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+    programId: process.env.KAMIYO_PROGRAM_ID || '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
     treasuryAddress: process.env.TREASURY_ADDRESS,
     walletPublicKey: wallet.publicKey.toBase58(),
     budgetSol: BUDGET_SOL,

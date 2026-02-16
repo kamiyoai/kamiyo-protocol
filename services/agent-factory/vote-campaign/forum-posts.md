@@ -17,7 +17,7 @@ KAMIYO has production infrastructure ready on mainnet. We're offering FREE integ
 
 **Mainnet Programs:**
 - Escrow: `FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u`
-- Protocol: `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM`
+- Protocol: `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr`
 - Bounty Resolver: `GMbEsB7vzD7mXLHFXs8xe5wsP25f4jLWbCHL5Fgms8MF`
 
 **The offer:**

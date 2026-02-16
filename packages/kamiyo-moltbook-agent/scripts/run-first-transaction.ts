@@ -59,7 +59,7 @@ function getConfig(): AgentConfig {
     anthropicApiKey: required('ANTHROPIC_API_KEY'),
     agentPrivateKey: required('AGENT_PRIVATE_KEY'),
     solanaRpcUrl: process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-    programId: process.env.KAMIYO_PROGRAM_ID || '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+    programId: process.env.KAMIYO_PROGRAM_ID || '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
     pollIntervalMs: parseInt(process.env.POLL_INTERVAL_MS || '60000', 10),
     minJobPriceSol: parseFloat(process.env.MIN_JOB_PRICE_SOL || '0.01'),
     maxConcurrentJobs: parseInt(process.env.MAX_CONCURRENT_JOBS || '3', 10),

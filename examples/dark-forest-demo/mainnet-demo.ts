@@ -23,7 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CIRCUIT_DIR = path.join(__dirname, '../../packages/kamiyo-dark-forest-privacy/circuits/build');
 
 const RPC = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
-const KAMIYO_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const KAMIYO_PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 // BN254 curve order
 const R = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;

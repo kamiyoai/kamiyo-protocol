@@ -7,7 +7,7 @@ const keypair = Keypair.generate();
 const registry = new AgentRegistry({
   connection,
   keypair,
-  programId: '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM',
+  programId: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr',
   apiEndpoint: 'http://localhost:3000',
 });
 

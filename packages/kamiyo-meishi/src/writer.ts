@@ -13,7 +13,7 @@ import type {
 } from './types.js';
 
 const DEFAULT_PROGRAM_ID = '6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK';
-const DEFAULT_KAMIYO_PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+const DEFAULT_KAMIYO_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 
 function u32le(value: number): Buffer {
   const buf = Buffer.alloc(4);

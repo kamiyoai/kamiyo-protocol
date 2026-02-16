@@ -125,8 +125,8 @@ interface CreateAgreementParams {
 
 | Network | Program ID |
 |---------|------------|
-| Mainnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
-| Devnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
+| Mainnet | `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr` |
+| Devnet | `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr` |
 
 ## License
 

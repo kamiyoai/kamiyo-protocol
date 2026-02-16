@@ -35,7 +35,7 @@ function getKeypair(runtime: IAgentRuntime): Keypair | null {
 }
 
 function getKamiyoProgramId(runtime: IAgentRuntime): string {
-  return runtime.getSetting('KAMIYO_PROGRAM_ID') || '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+  return runtime.getSetting('KAMIYO_PROGRAM_ID') || '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 }
 
 /**

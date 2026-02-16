@@ -7,7 +7,7 @@ import type {
   AgentInfo,
 } from './types.js';
 
-const DEFAULT_PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+const DEFAULT_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 const DEFAULT_QUALITY_THRESHOLD = 70;
 const DEFAULT_TIME_LOCK_SECONDS = 24 * 60 * 60;
 const ESCROW_SEED_PREFIX = 'hive_escrow';

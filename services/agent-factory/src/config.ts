@@ -25,4 +25,4 @@ export const COLOSSEUM_API_BASE = 'https://agents.colosseum.com/api';
 export const SKILL_URL = 'https://colosseum.com/skill.md';
 export const HEARTBEAT_URL = 'https://colosseum.com/heartbeat.md';
 
-export const KAMIYO_PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+export const KAMIYO_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';

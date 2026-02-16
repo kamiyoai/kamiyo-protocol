@@ -7,7 +7,7 @@ import type {
   Capability,
 } from './types.js';
 
-const DEFAULT_PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+const DEFAULT_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 const AGENT_SEED_PREFIX = 'hive_agent';
 const MAX_CAPABILITIES = 20;
 const MAX_ENDPOINT_LENGTH = 256;

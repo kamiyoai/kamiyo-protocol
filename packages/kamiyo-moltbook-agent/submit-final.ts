@@ -8,7 +8,7 @@ if (!MOLTBOOK_API_KEY) {
 
 const content = `## KAMIYO Protocol - Track: Agentic Commerce
 
-**Live on Solana Mainnet: https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM**
+**Live on Solana Mainnet: https://solscan.io/account/3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr**
 
 ### What KAMIYO Does
 
@@ -47,7 +47,7 @@ await releaseMilestone(escrow, 0); // Release on completion
 
 | Program | Address |
 |---------|---------|
-| Protocol | \`8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM\` |
+| Protocol | \`3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr\` |
 | Escrow | \`FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u\` |
 | Governance | \`E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav\` |
 | Staking | \`9QZGdEZ13j8fASEuhpj3eVwUPT4BpQjXSabVjRppJW2N\` |
@@ -56,7 +56,7 @@ await releaseMilestone(escrow, 0); // Release on completion
 
 - **GitHub:** https://github.com/kamiyo-ai/kamiyo-protocol
 - **Docs:** https://docs.kamiyo.ai
-- **Solscan:** https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+- **Solscan:** https://solscan.io/account/3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
 
 Built by @kamiyo. Production infrastructure > hackathon prototypes.`;
 

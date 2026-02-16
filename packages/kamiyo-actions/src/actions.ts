@@ -23,7 +23,7 @@ import { Program, AnchorProvider, BN, Wallet } from "@coral-xyz/anchor";
 import * as fs from "fs";
 import * as path from "path";
 
-const PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+const PROGRAM_ID = new PublicKey("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 
 // ============================================================================
 // Retry Configuration
