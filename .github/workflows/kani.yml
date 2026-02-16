@@ -49,7 +49,7 @@ jobs:
             export KANI_FULL=1
           fi
           if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
-            export KANI_HARNESSES_kani_solana="risk::proofs::proof_haircut_ratio_basic_properties risk::proofs::proof_effective_pnl_matches_reference_u64_domain"
+            export KANI_HARNESSES_kani_solana="risk::proofs::proof_haircut_ratio_basic_properties"
           fi
           PACKAGES_STR="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.packages || 'kani-solana' }}"
           read -r -a PACKAGES <<< "${PACKAGES_STR}"
