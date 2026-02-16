@@ -1019,7 +1019,7 @@ dependencies = [
  "arrayvec",
  "cc",
  "cfg-if",
- "constant_time_eq",
+ "constant_time_eq 0.3.1",
  "digest 0.10.7",
 ]
 
@@ -1410,6 +1410,12 @@ name = "constant_time_eq"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+
+[[package]]
+name = "constant_time_eq"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "core-foundation"
@@ -2436,7 +2442,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang 0.31.1",
  "anchor-spl",
- "constant_time_eq",
+ "constant_time_eq 0.4.2",
  "groth16-solana 0.1.0",
  "kani-solana",
  "solana-poseidon 4.0.0",
