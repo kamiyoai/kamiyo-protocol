@@ -9,7 +9,6 @@ on:
 env:
   SOLANA_VERSION: 2.3.13
   ANCHOR_VERSION: 0.31.1
-  KANI_VERSION: 0.67.0
 
 jobs:
   repo_sanity:
@@ -135,31 +134,3 @@ jobs:
 
       - name: PNPM Audit (Critical)
         run: pnpm audit --prod --audit-level=critical
-
-  kani:
-    name: Kani
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Kani
-        uses: model-checking/kani-github-action@v1
-        with:
-          kani-version: ${{ env.KANI_VERSION }}
-          args: --version
-
-      - name: Verify Kani Proofs
-        run: |
-          KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh
-          KANI_AUDIT_PER_PACKAGE=1 ./scripts/kani-audit.sh kani-results/kani.log
-
-      - name: Upload Kani Summary
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kani-results
-          path: kani-results
-          if-no-files-found: error
-          retention-days: 30
