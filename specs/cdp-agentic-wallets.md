@@ -21,11 +21,12 @@ The end state is a "wallet control plane" that provisions wallets, compiles Meis
 - x402 session payments for Solana (delegate-based SPL transfers).
 - x402 session payments for Base (ERC20 allowance + `transferFrom`).
 - Gasless Base session onboarding via USDC `approveWithAuthorization` (EIP-3009 style).
+- Gasless Base exact payments via USDC `transferWithAuthorization` (EIP-3009 style).
+- Smart-account session signatures on Base via EIP-1271 verification.
 
 ## What We Do Not Yet Have (Gaps)
 - End-user onboarding UX + SDK for embedded auth and spend-permission flows.
 - Automated mandate syncing (on-chain listeners/webhooks) instead of manual API calls.
-- Gasless Base exact payments (EIP-3009 `transferWithAuthorization`) for full x402 parity without allowances.
 
 ## Architecture: Wallet Control Plane
 Introduce a dedicated backend component (service or module) responsible for:

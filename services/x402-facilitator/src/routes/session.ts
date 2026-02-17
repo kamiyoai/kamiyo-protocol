@@ -19,6 +19,7 @@ import {
   verifySessionChallengeSignature,
 } from '../services/session';
 import { getUsdcDelegateState } from '../services/solana-session';
+import { verifyEvmMessageSignature } from '../services/evm-signature';
 import {
   approveBaseUsdcWithAuthorization,
   BASE_USDC,
@@ -212,27 +213,36 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
       return;
     }
 
-    const ok = verifySessionChallengeSignature({
-      payerWallet: challenge.payer_wallet,
-      message: challenge.message,
-      signature,
-    });
-    if (!ok) {
-      res.status(401).json({ error: 'Invalid signature' });
-      return;
-    }
-
     const network = canonicalizeNetwork(challenge.network);
     if (!network || (network !== SOLANA_MAINNET_CAIP2 && network !== BASE_MAINNET_CAIP2)) {
       res.status(400).json({ error: 'Unsupported network' });
       return;
     }
 
+    if (network === BASE_MAINNET_CAIP2 && !isBaseEnabled()) {
+      res.status(400).json({ error: 'Unsupported network' });
+      return;
+    }
+
+    const ok =
+      network === BASE_MAINNET_CAIP2
+        ? await verifyEvmMessageSignature({
+            address: challenge.payer_wallet,
+            message: challenge.message,
+            signature,
+          })
+        : verifySessionChallengeSignature({
+            payerWallet: challenge.payer_wallet,
+            message: challenge.message,
+            signature,
+          });
+
+    if (!ok) {
+      res.status(401).json({ error: 'Invalid signature' });
+      return;
+    }
+
     if (network === BASE_MAINNET_CAIP2) {
-      if (!isBaseEnabled()) {
-        res.status(400).json({ error: 'Unsupported network' });
-        return;
-      }
 
       const spender = getBaseFacilitatorAddress();
       if (!spender) {
