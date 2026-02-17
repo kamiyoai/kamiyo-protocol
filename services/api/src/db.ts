@@ -1713,7 +1713,7 @@ export function revokeMcpOAuthToken(tokenHash: string, clientId: string): void {
 
 export function cleanupExpiredMcpOAuthTokens(): number {
   const now = Math.floor(Date.now() / 1000);
-  const result = db.prepare('DELETE FROM mcp_oauth_tokens WHERE expires_at < ? AND revoked = 1').run(now);
+  const result = db.prepare('DELETE FROM mcp_oauth_tokens WHERE expires_at < ?').run(now);
   return result.changes;
 }
 

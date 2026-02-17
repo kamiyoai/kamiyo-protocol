@@ -685,10 +685,14 @@ class KamiyoMCPServer {
       console.error('[MCP Error]', error);
     };
 
-    process.on('SIGINT', async () => {
+    const shutdown = async (signal: string) => {
+      console.error(`[MCP] shutting down (${signal})`);
       await this.server.close();
       process.exit(0);
-    });
+    };
+
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
   }
 
   private setupHandlers() {
@@ -764,14 +768,7 @@ class KamiyoMCPServer {
             break;
 
           case 'check_x402_api_price':
-            console.error('[check_x402_api_price] Starting with args:', JSON.stringify(args));
-            try {
-              result = await tools.x402CheckPricing(args as any, this.x402Config);
-              console.error('[check_x402_api_price] Result:', JSON.stringify(result));
-            } catch (err: any) {
-              console.error('[check_x402_api_price] Error:', err.message, err.stack);
-              throw err;
-            }
+            result = await tools.x402CheckPricing(args as any, this.x402Config);
             break;
 
           case 'x402_check_pricing':

@@ -1,12 +1,34 @@
 // OAuth Clients Store
 
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import { getMcpOAuthClient, createMcpOAuthClient, type McpOAuthClient } from '../../db.js';
 
 function hashSecret(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function parseScopes(scope: string | undefined): string[] {
+  return (scope ?? '').split(' ').map((s) => s.trim()).filter(Boolean);
+}
+
+function parseJsonStringArray(value: string, fieldName: string): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(`invalid ${fieldName}`);
+  }
+  if (!Array.isArray(parsed) || !parsed.every((v) => typeof v === 'string')) {
+    throw new Error(`invalid ${fieldName}`);
+  }
+  return parsed;
 }
 
 // Allowed redirect URI schemes and patterns
@@ -49,6 +71,9 @@ function isValidRedirectUri(uri: string): boolean {
 }
 
 function toClientInfo(row: McpOAuthClient): OAuthClientInformationFull {
+  const scopes = parseJsonStringArray(row.scopes, 'scopes');
+  const normalizedScopes = scopes.length > 0 ? scopes : ['mcp:tools'];
+
   return {
     client_id: row.client_id,
     client_secret: undefined,
@@ -57,7 +82,7 @@ function toClientInfo(row: McpOAuthClient): OAuthClientInformationFull {
     redirect_uris: JSON.parse(row.redirect_uris),
     grant_types: JSON.parse(row.grant_types),
     response_types: JSON.parse(row.response_types),
-    scope: JSON.parse(row.scopes).join(' '),
+    scope: normalizedScopes.join(' '),
     token_endpoint_auth_method: row.token_endpoint_auth_method as 'client_secret_basic' | 'client_secret_post' | 'none',
     client_id_issued_at: row.created_at,
   };
@@ -86,7 +111,8 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
 
     const clientId = randomUUID();
     const clientSecret = randomBytes(32).toString('hex');
-    const scopes = client.scope?.split(' ').filter(Boolean) || ['mcp:tools'];
+    const scopes = parseScopes(client.scope);
+    const normalizedScopes = scopes.length > 0 ? scopes : ['mcp:tools'];
     const grantTypes = client.grant_types || ['authorization_code', 'refresh_token'];
     const responseTypes = client.response_types || ['code'];
 
@@ -97,7 +123,7 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
       redirect_uris: JSON.stringify(client.redirect_uris || []),
       grant_types: JSON.stringify(grantTypes),
       response_types: JSON.stringify(responseTypes),
-      scopes: JSON.stringify(scopes),
+      scopes: JSON.stringify(normalizedScopes),
       token_endpoint_auth_method: client.token_endpoint_auth_method || 'client_secret_basic',
       client_secret_expires_at: client.client_secret_expires_at ?? null,
     });
@@ -110,7 +136,7 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
       redirect_uris: client.redirect_uris || [],
       grant_types: grantTypes,
       response_types: responseTypes,
-      scope: scopes.join(' '),
+      scope: normalizedScopes.join(' '),
       token_endpoint_auth_method: client.token_endpoint_auth_method || 'client_secret_basic',
       client_id_issued_at: Math.floor(Date.now() / 1000),
     };
@@ -118,6 +144,6 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
 
   verifyClientSecret(clientId: string, secret: string): boolean {
     const row = getMcpOAuthClient(clientId);
-    return row ? row.client_secret_hash === hashSecret(secret) : false;
+    return row ? safeEqual(row.client_secret_hash, hashSecret(secret)) : false;
   }
 }

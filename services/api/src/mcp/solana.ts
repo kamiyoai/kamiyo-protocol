@@ -3,6 +3,7 @@
 
 import { AnchorProvider, Program, Idl } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
+import { randomUUID } from 'crypto';
 import bs58 from 'bs58';
 import fs from 'fs';
 import path from 'path';
@@ -87,9 +88,7 @@ function lamportsToSol(lamports: number): number {
 }
 
 function generateTransactionId(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 15);
-  return `${timestamp}-${random}`;
+  return `${Date.now()}-${randomUUID()}`;
 }
 
 function parseEscrowStatus(status: Record<string, unknown>): 'Active' | 'Released' | 'Disputed' | 'Resolved' {

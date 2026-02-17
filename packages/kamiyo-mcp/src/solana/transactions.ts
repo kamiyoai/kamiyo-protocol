@@ -4,6 +4,7 @@ import {
   TransactionInstruction,
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
+import { randomUUID } from 'crypto';
 
 /**
  * Utility functions for building Solana transactions
@@ -56,9 +57,7 @@ export function getAddressExplorerUrl(address: string, cluster: 'devnet' | 'main
  * Generate unique transaction ID
  */
 export function generateTransactionId(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 15);
-  return `${timestamp}-${random}`;
+  return `${Date.now()}-${randomUUID()}`;
 }
 
 /**

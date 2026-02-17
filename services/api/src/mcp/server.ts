@@ -3,6 +3,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import { logger } from '../logger.js';
 import {
   getSolanaProgram,
   isSolanaConfigured,
@@ -167,29 +168,18 @@ const TOOL_DEFINITIONS = [
       required: ['url'],
     },
   },
-  {
-    name: 'x402_fetch',
-    description: 'Fetch from x402 endpoint with auto USDC payment',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        url: { type: 'string', description: 'Endpoint URL' },
-        method: { type: 'string', description: 'HTTP method' },
-        body: { type: 'string', description: 'JSON body' },
-        headers: { type: 'object', description: 'Headers' },
-      },
-      required: ['url'],
-    },
-  },
 ];
 
 function validateArgs(args: unknown, schema: { required?: string[]; properties?: Record<string, unknown> }): string | null {
-  if (!args || typeof args !== 'object') {
+  const required = schema.required || [];
+  if (args === undefined || args === null) {
+    return required.length > 0 ? 'args must be an object' : null;
+  }
+  if (typeof args !== 'object' || Array.isArray(args)) {
     return 'args must be an object';
   }
 
   const argsObj = args as Record<string, unknown>;
-  const required = schema.required || [];
   for (const field of required) {
     if (argsObj[field] === undefined || argsObj[field] === null) {
       return `missing required field: ${field}`;
@@ -351,6 +341,16 @@ async function estimateRefund(args: { amount: number; qualityScore: number }): P
   };
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function x402CheckPricing(args: { url: string }): Promise<{ success: boolean; free?: boolean; options?: unknown[]; error?: string }> {
   try {
     new URL(args.url);
@@ -359,10 +359,10 @@ async function x402CheckPricing(args: { url: string }): Promise<{ success: boole
   }
 
   try {
-    const response = await fetch(args.url, {
+    const response = await fetchWithTimeout(args.url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-    });
+    }, 10_000);
 
     if (response.status !== 402) {
       return response.ok
@@ -409,10 +409,6 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
 
   if (name === 'x402_check_pricing') {
     return x402CheckPricing(args as { url: string });
-  }
-
-  if (name === 'x402_fetch') {
-    return { success: false, error: 'x402 payment requires wallet integration - use local MCP server' };
   }
 
   // Meishi (read-only on-chain)
@@ -561,13 +557,23 @@ export function createMCPServer(auth: AuthInfo): Server {
       };
     }
 
+    const toolArgs =
+      args && typeof args === 'object' && !Array.isArray(args)
+        ? (args as Record<string, unknown>)
+        : ({} as Record<string, unknown>);
+
     try {
-      const result = await handleTool(name, args as Record<string, unknown>);
+      const result = await handleTool(name, toolArgs);
       mcpToolCallsTotal.inc({ tool: name, status: 'success' });
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
       };
-    } catch {
+    } catch (err: unknown) {
+      logger.error('MCP tool execution error', {
+        tool: name,
+        clientId: auth.clientId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       mcpToolCallsTotal.inc({ tool: name, status: 'error' });
       return {
         content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'tool execution failed' }) }],

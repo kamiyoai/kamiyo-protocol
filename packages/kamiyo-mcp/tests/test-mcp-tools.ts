@@ -42,39 +42,36 @@ async function main() {
 
   // Setup
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-  const programIdStr = process.env.MITAMA_PROGRAM_ID;
+  const programIdStr = process.env.KAMIYO_PROGRAM_ID || process.env.MITAMA_PROGRAM_ID;
   const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
   const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
-  if (!programIdStr) {
-    console.error('Error: Missing MITAMA_PROGRAM_ID environment variable');
-    process.exit(1);
-  }
-
-  if (!agentPrivateKey && !agentKeypairPath) {
-    console.error('Error: Missing AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH');
-    process.exit(1);
-  }
-
-  const programId = new PublicKey(programIdStr);
-  let keypair: Keypair;
+  const programId = programIdStr ? new PublicKey(programIdStr) : Keypair.generate().publicKey;
+  let keypair = Keypair.generate();
+  const hasKeypairSource = Boolean(agentPrivateKey || agentKeypairPath);
 
   // Test 1: Keypair loading
   await runTest('Load keypair from base58', async () => {
-    if (agentPrivateKey) {
-      keypair = Keypair.fromSecretKey(bs58.decode(agentPrivateKey));
-      console.log(`  Public Key: ${keypair.publicKey.toBase58()}`);
-    } else if (agentKeypairPath) {
-      keypair = loadKeypair(agentKeypairPath);
-      console.log(`  Public Key: ${keypair.publicKey.toBase58()}`);
-    } else {
-      throw new Error('No keypair source');
+    if (!hasKeypairSource) {
+      console.log('  Skipped (no AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH set)');
+      return;
     }
+
+    if (agentPrivateKey) keypair = Keypair.fromSecretKey(bs58.decode(agentPrivateKey));
+    else if (agentKeypairPath) keypair = loadKeypair(agentKeypairPath);
+    else throw new Error('No keypair source');
+
+    console.log(`  Public Key: ${keypair.publicKey.toBase58()}`);
   });
 
   // Test 2: Solana client initialization
   let client: SolanaClient;
   await runTest('Initialize Solana client', async () => {
+    if (!hasKeypairSource || process.env.RUN_SOLANA_RPC_TESTS !== '1') {
+      console.log('  Skipped (set RUN_SOLANA_RPC_TESTS=1 and provide an agent key to enable)');
+      return;
+    }
+
     client = new SolanaClient(rpcUrl, keypair);
     const balance = await client.getBalance();
     console.log(`  Balance: ${balance / LAMPORTS_PER_SOL} SOL`);
@@ -269,7 +266,7 @@ async function main() {
 
   // Test 12: Transaction ID generation
   await runTest('Transaction ID generation', async () => {
-    const { generateTransactionId, isValidTransactionId } = await import('./src/solana/transactions.js');
+    const { generateTransactionId, isValidTransactionId } = await import('../src/solana/transactions.js');
 
     const txId1 = generateTransactionId();
     const txId2 = generateTransactionId();
@@ -292,7 +289,7 @@ async function main() {
 
   // Test 13: Helper functions
   await runTest('SOL/Lamports conversion', async () => {
-    const { solToLamports, lamportsToSol } = await import('./src/solana/transactions.js');
+    const { solToLamports, lamportsToSol } = await import('../src/solana/transactions.js');
 
     const sol = 1.5;
     const lamports = solToLamports(sol);
