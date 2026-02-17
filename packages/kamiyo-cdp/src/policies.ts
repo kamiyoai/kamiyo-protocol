@@ -1,10 +1,8 @@
 import { CreatePolicyBodySchema, type CreatePolicyBody } from '@coinbase/cdp-sdk';
 import type { MeishiMandate } from '@kamiyo/meishi';
+
 import { USDC } from './constants.js';
-import {
-  mandateSingleSpendLimitMicroUsd,
-  microUsdToCents,
-} from './mandates.js';
+import { mandateSingleSpendLimitMicroUsd, microUsdToCents } from './mandates.js';
 
 export type CdpPolicyNetwork = 'base' | 'base-sepolia' | 'solana' | 'solana-devnet';
 
@@ -21,6 +19,8 @@ type CompileMeishiPolicyParams = {
   mandate: MeishiMandate;
   allowedMerchants?: string[];
 };
+
+const X402_MESSAGE_REGEX = '^(KAMIYO x402 session authorization|{"amount":)';
 
 function uniqLower(values: readonly string[] | undefined): string[] {
   if (!values?.length) return [];
@@ -61,6 +61,25 @@ export function compileUsdcSpendPolicy(params: CompileUsdcPolicyParams): CreateP
     const usdc = params.network === 'base' ? USDC.base : USDC.baseSepolia;
     const maxCents = microUsdToCents(params.maxSpendMicroUsd);
 
+    const usdcTransferCriteria: any[] = [
+      { type: 'evmNetwork', networks: [network], operator: 'in' },
+      { type: 'ethValue', ethValue: '0', operator: '==' },
+      { type: 'evmAddress', addresses: [usdc], operator: 'in' },
+      {
+        type: 'evmData',
+        abi: 'erc20',
+        conditions: [
+          {
+            function: 'transfer',
+            params: merchants.length
+              ? [{ name: 'to', operator: 'in', values: merchants }]
+              : undefined,
+          },
+        ],
+      },
+      { type: 'netUSDChange', changeCents: maxCents, operator: '<=' },
+    ];
+
     const policy: CreatePolicyBody = {
       scope: 'account',
       description,
@@ -68,29 +87,52 @@ export function compileUsdcSpendPolicy(params: CompileUsdcPolicyParams): CreateP
         {
           action: 'accept',
           operation: 'sendEvmTransaction',
-          criteria: [
-            { type: 'evmNetwork', networks: [network], operator: 'in' },
-            { type: 'ethValue', ethValue: '0', operator: '==' },
-            { type: 'evmAddress', addresses: [usdc], operator: 'in' },
-            {
-              type: 'evmData',
-              abi: 'erc20',
-              conditions: [
-                {
-                  function: 'transfer',
-                  params: merchants.length
-                    ? [{ name: 'to', operator: 'in', values: merchants }]
-                    : undefined,
-                },
-              ],
-            },
-            { type: 'netUSDChange', changeCents: maxCents, operator: '<=' },
-          ],
+          criteria: usdcTransferCriteria,
         },
         {
           action: 'reject',
           operation: 'sendEvmTransaction',
           criteria: [{ type: 'evmNetwork', networks: [network], operator: 'in' }],
+        },
+        {
+          action: 'reject',
+          operation: 'prepareUserOperation',
+          criteria: [{ type: 'evmNetwork', networks: [network], operator: 'in' }],
+        },
+        {
+          action: 'reject',
+          operation: 'sendUserOperation',
+          criteria: [{ type: 'ethValue', ethValue: '0', operator: '>=' }],
+        },
+        {
+          action: 'reject',
+          operation: 'signEvmTransaction',
+          criteria: [{ type: 'ethValue', ethValue: '0', operator: '>=' }],
+        },
+        {
+          action: 'reject',
+          operation: 'signEvmHash',
+        },
+        {
+          action: 'accept',
+          operation: 'signEvmMessage',
+          criteria: [{ type: 'evmMessage', match: X402_MESSAGE_REGEX }],
+        },
+        {
+          action: 'reject',
+          operation: 'signEvmMessage',
+          criteria: [{ type: 'evmMessage', match: '.*' }],
+        },
+        {
+          action: 'reject',
+          operation: 'signEvmTypedData',
+          criteria: [
+            {
+              type: 'evmTypedDataVerifyingContract',
+              addresses: [],
+              operator: 'not in',
+            },
+          ],
         },
       ],
     };
@@ -125,6 +167,21 @@ export function compileUsdcSpendPolicy(params: CompileUsdcPolicyParams): CreateP
         action: 'reject',
         operation: 'sendSolTransaction',
         criteria: [{ type: 'solNetwork', networks: [network], operator: 'in' }],
+      },
+      {
+        action: 'reject',
+        operation: 'signSolTransaction',
+        criteria: [{ type: 'programId', programIds: [], operator: 'not in' }],
+      },
+      {
+        action: 'accept',
+        operation: 'signSolMessage',
+        criteria: [{ type: 'solMessage', match: X402_MESSAGE_REGEX }],
+      },
+      {
+        action: 'reject',
+        operation: 'signSolMessage',
+        criteria: [{ type: 'solMessage', match: '.*' }],
       },
     ],
   };
