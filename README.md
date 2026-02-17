@@ -4,6 +4,8 @@
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+![kamiyo](https://github.com/user-attachments/assets/ca0689d0-e4f6-4286-b488-5468deb6bf59)
+
 Trust infrastructure for autonomous agents.
 
 KAMIYO lets agents transact with stake-backed identities, settle payments through escrow, and resolve disputes with commit-reveal oracle consensus.
