@@ -2,8 +2,16 @@ import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentScheme } from '../services/signature';
 import { settlePayment, toBaseUnits } from '../services/settlement';
-import { isAddress } from 'ethers';
-import { settleDelegatedPaymentBase, settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
+import { isAddress, verifyTypedData } from 'ethers';
+import {
+  BASE_USDC,
+  getBaseProvider,
+  getBaseUsdcEip712Domain,
+  settleAuthorizedPaymentBase,
+  settleDelegatedPaymentBase,
+  settlePaymentBase,
+  isBaseEnabled,
+} from '../services/base-settlement';
 import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
 import {
@@ -51,6 +59,80 @@ function sendSettleFailure(
   });
 }
 
+
+
+type TransferWithAuthorization = {
+  validAfter: bigint;
+  validBefore: bigint;
+  nonce: `0x${string}`;
+  signature: `0x${string}`;
+};
+
+function parseTransferWithAuthorization(input: unknown, label: string): TransferWithAuthorization | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+
+  const record = input as { [k: string]: unknown };
+  if (record.kind !== 'transferWithAuthorization') return null;
+
+  let validAfter: bigint;
+  let validBefore: bigint;
+  try {
+    validAfter = BigInt(record.validAfter as string);
+    validBefore = BigInt(record.validBefore as string);
+  } catch {
+    throw new Error(`Invalid ${label} validity window`);
+  }
+
+  const nonce = typeof record.nonce === 'string' ? record.nonce.trim() : '';
+  const signature = typeof record.signature === 'string' ? record.signature.trim() : '';
+
+  if (!/^0x[0-9a-fA-F]{64}$/.test(nonce)) {
+    throw new Error(`Invalid ${label}.nonce`);
+  }
+  if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) {
+    throw new Error(`Invalid ${label}.signature`);
+  }
+
+  return {
+    validAfter,
+    validBefore,
+    nonce: nonce as `0x${string}`,
+    signature: signature as `0x${string}`,
+  };
+}
+
+function verifyTransferWithAuthorization(params: {
+  domain: { name: string; version: string; chainId: number; verifyingContract: string };
+  from: string;
+  to: string;
+  value: bigint;
+  auth: TransferWithAuthorization;
+}): boolean {
+  const recovered = verifyTypedData(
+    params.domain,
+    {
+      TransferWithAuthorization: [
+        { name: 'from', type: 'address' },
+        { name: 'to', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'validAfter', type: 'uint256' },
+        { name: 'validBefore', type: 'uint256' },
+        { name: 'nonce', type: 'bytes32' },
+      ],
+    },
+    {
+      from: params.from,
+      to: params.to,
+      value: params.value,
+      validAfter: params.auth.validAfter,
+      validBefore: params.auth.validBefore,
+      nonce: params.auth.nonce,
+    },
+    params.auth.signature
+  );
+
+  return recovered.toLowerCase() === params.from.toLowerCase();
+}
 export function createSettleRouter(connection: Connection, facilitatorKeypair: Keypair): Router {
   const router = Router();
   const getErrorMessage = (err: unknown): string =>
@@ -497,10 +579,124 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
       const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
 
-      let onchain: { txHash: string; fee: number; net: number };
+      let onchain: { txHash: string; fee: number; net: number; feeTxHash?: string | null };
 
       if (isBase) {
-        onchain = await settlePaymentBase(merchantWallet, amount, effectiveFeeBps);
+        let transferAuth: TransferWithAuthorization | null = null;
+        let feeAuth: TransferWithAuthorization | null = null;
+
+        try {
+          transferAuth = parseTransferWithAuthorization((req.body as any).usdcAuthorization, 'usdcAuthorization');
+          feeAuth = parseTransferWithAuthorization((req.body as any).usdcFeeAuthorization, 'usdcFeeAuthorization');
+        } catch (err) {
+          await updateSettlementStatus(settlement.id, 'failed');
+          await deletePaymentNonceGuard(payment.payer, payment.nonce).catch(() => {});
+          sendSettleFailure(
+            res,
+            400,
+            'invalid_usdc_authorization',
+            `Invalid USDC authorization: ${getErrorMessage(err)}`,
+            network,
+            payment.payer
+          );
+          return;
+        }
+
+        if (transferAuth) {
+          try {
+            const provider = getBaseProvider();
+            const code = await provider.getCode(payment.payer);
+            if (code && code !== '0x') {
+              throw new Error('Payer must be an EOA for transferWithAuthorization');
+            }
+
+            const totalMicro = requirementAmountRaw
+              ? parseUsdcMicroAmountBigint(requirementAmountRaw)
+              : toBaseUnits(amount);
+
+            if (totalMicro == null) {
+              throw new Error('Invalid amount');
+            }
+
+            const feeMicro = (totalMicro * BigInt(effectiveFeeBps)) / 10_000n;
+            const netMicro = totalMicro - feeMicro;
+
+            if (netMicro <= 0n) {
+              throw new Error('Net amount after fees is zero or negative');
+            }
+
+            const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+
+            if (transferAuth.validAfter > nowSeconds) {
+              throw new Error('usdcAuthorization.validAfter is in the future');
+            }
+            if (transferAuth.validBefore <= nowSeconds) {
+              throw new Error('usdcAuthorization.validBefore already expired');
+            }
+
+            if (/^0x[0-9a-fA-F]{64}$/.test(payment.nonce) && transferAuth.nonce.toLowerCase() !== payment.nonce.toLowerCase()) {
+              throw new Error('usdcAuthorization.nonce does not match payment nonce');
+            }
+
+            const domain = await getBaseUsdcEip712Domain();
+            if (domain.verifyingContract.toLowerCase() !== BASE_USDC.toLowerCase()) {
+              throw new Error('Unexpected USDC verifyingContract');
+            }
+
+            if (!verifyTransferWithAuthorization({ domain, from: payment.payer, to: merchantWallet, value: netMicro, auth: transferAuth })) {
+              throw new Error('Invalid usdcAuthorization signature');
+            }
+
+            let feeAuthorization: TransferWithAuthorization | undefined = undefined;
+            if (feeMicro > 0n && config.BASE_TREASURY_ADDRESS && isAddress(config.BASE_TREASURY_ADDRESS)) {
+              if (!feeAuth) {
+                throw new Error('Missing usdcFeeAuthorization');
+              }
+              if (feeAuth.validAfter > nowSeconds) {
+                throw new Error('usdcFeeAuthorization.validAfter is in the future');
+              }
+              if (feeAuth.validBefore <= nowSeconds) {
+                throw new Error('usdcFeeAuthorization.validBefore already expired');
+              }
+
+              if (!verifyTransferWithAuthorization({ domain, from: payment.payer, to: config.BASE_TREASURY_ADDRESS, value: feeMicro, auth: feeAuth })) {
+                throw new Error('Invalid usdcFeeAuthorization signature');
+              }
+
+              feeAuthorization = feeAuth;
+            }
+
+            const settled = await settleAuthorizedPaymentBase({
+              payerAddress: payment.payer,
+              merchantAddress: merchantWallet,
+              totalMicro,
+              feeBps: effectiveFeeBps,
+              netAuthorization: transferAuth,
+              feeAuthorization,
+            });
+
+            onchain = {
+              txHash: settled.txHash,
+              fee: Number(settled.feeMicro) / 1_000_000,
+              net: Number(settled.netMicro) / 1_000_000,
+              feeTxHash: settled.feeTxHash,
+            };
+          } catch (err) {
+            await updateSettlementStatus(settlement.id, 'failed');
+            await deletePaymentNonceGuard(payment.payer, payment.nonce).catch(() => {});
+            sendSettleFailure(
+              res,
+              400,
+              'invalid_usdc_authorization',
+              `Invalid USDC authorization: ${getErrorMessage(err)}`,
+              network,
+              payment.payer
+            );
+            return;
+          }
+        } else {
+          onchain = await settlePaymentBase(merchantWallet, amount, effectiveFeeBps);
+        }
       } else {
         onchain = await settlePayment(
           connection,
@@ -512,7 +708,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       }
 
       await updateSettlementConfirmed(settlement.id, onchain.txHash, onchain.fee);
-      await insertFeeLedger(settlement.id, null, 'settlement', onchain.fee, onchain.txHash);
+      await insertFeeLedger(settlement.id, null, 'settlement', onchain.fee, onchain.feeTxHash ?? onchain.txHash);
 
       res.json({
         success: true,

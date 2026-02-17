@@ -26,6 +26,20 @@ export interface SettleRequest {
   merchantWallet: string;
   amount: number;
   asset: string;
+  usdcAuthorization?: {
+    kind: 'transferWithAuthorization';
+    validAfter: string;
+    validBefore: string;
+    nonce: string;
+    signature: string;
+  };
+  usdcFeeAuthorization?: {
+    kind: 'transferWithAuthorization';
+    validAfter: string;
+    validBefore: string;
+    nonce: string;
+    signature: string;
+  };
   paymentPayload?: Record<string, unknown>;
   paymentRequirements?: Record<string, unknown>;
   x402Version?: number;

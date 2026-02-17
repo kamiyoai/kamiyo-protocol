@@ -11,6 +11,7 @@ const ERC20_ABI = [
   'function transferFrom(address from, address to, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approveWithAuthorization(address owner, address spender, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)',
+  'function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)',
   'function balanceOf(address account) view returns (uint256)'
 ];
 
@@ -34,7 +35,7 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label?: string): Promis
   }
 }
 
-function getBaseProvider(): JsonRpcProvider {
+export function getBaseProvider(): JsonRpcProvider {
   if (cachedProvider) return cachedProvider;
   const config = getConfig();
   if (!config.BASE_RPC_URL) throw new Error('BASE_RPC_URL not configured');
@@ -245,4 +246,105 @@ export async function approveBaseUsdcWithAuthorization(params: {
   return { txHash: receipt.hash };
 }
 
+
+
+
+
+export async function settleAuthorizedPaymentBase(params: {
+  payerAddress: string;
+  merchantAddress: string;
+  totalMicro: bigint;
+  feeBps: number;
+  netAuthorization: {
+    validAfter: bigint;
+    validBefore: bigint;
+    nonce: `0x${string}`;
+    signature: `0x${string}`;
+  };
+  feeAuthorization?: {
+    validAfter: bigint;
+    validBefore: bigint;
+    nonce: `0x${string}`;
+    signature: `0x${string}`;
+  };
+}): Promise<{ txHash: string; feeMicro: bigint; netMicro: bigint; feeTxHash: string | null }> {
+  const config = getConfig();
+
+  if (!isAddress(params.payerAddress)) throw new Error('Invalid payer Base address');
+  if (!isAddress(params.merchantAddress)) throw new Error('Invalid merchant Base address');
+
+  const totalMicro = params.totalMicro;
+  if (totalMicro <= 0n) throw new Error('Amount must be positive');
+
+  const feeMicro = (totalMicro * BigInt(params.feeBps)) / 10_000n;
+  const netMicro = totalMicro - feeMicro;
+
+  if (netMicro <= 0n) throw new Error('Net amount after fees is zero or negative');
+
+  const balance = await getBaseUsdcBalanceMicroForAddress(params.payerAddress);
+  if (balance < totalMicro) throw new Error('Payer Base USDC balance insufficient');
+
+  const netTransfer = await transferBaseUsdcWithAuthorization({
+    from: params.payerAddress,
+    to: params.merchantAddress,
+    value: netMicro,
+    validAfter: params.netAuthorization.validAfter,
+    validBefore: params.netAuthorization.validBefore,
+    nonce: params.netAuthorization.nonce,
+    signature: params.netAuthorization.signature,
+  });
+
+  let feeTxHash: string | null = null;
+  if (feeMicro > 0n && config.BASE_TREASURY_ADDRESS && isAddress(config.BASE_TREASURY_ADDRESS)) {
+    if (!params.feeAuthorization) throw new Error('Missing fee authorization');
+
+    const feeTransfer = await transferBaseUsdcWithAuthorization({
+      from: params.payerAddress,
+      to: config.BASE_TREASURY_ADDRESS,
+      value: feeMicro,
+      validAfter: params.feeAuthorization.validAfter,
+      validBefore: params.feeAuthorization.validBefore,
+      nonce: params.feeAuthorization.nonce,
+      signature: params.feeAuthorization.signature,
+    });
+    feeTxHash = feeTransfer.txHash;
+  }
+
+  return { txHash: netTransfer.txHash, feeMicro, netMicro, feeTxHash };
+}
+export async function transferBaseUsdcWithAuthorization(params: {
+  from: string;
+  to: string;
+  value: bigint;
+  validAfter: bigint;
+  validBefore: bigint;
+  nonce: `0x${string}`;
+  signature: `0x${string}`;
+}): Promise<{ txHash: string }> {
+  const wallet = getBaseWallet();
+  const usdc = new Contract(BASE_USDC, ERC20_ABI, wallet);
+
+  if (!isAddress(params.from)) throw new Error('Invalid from Base address');
+  if (!isAddress(params.to)) throw new Error('Invalid to Base address');
+
+  const sig = Signature.from(params.signature);
+
+  const tx = await usdc.transferWithAuthorization(
+    params.from,
+    params.to,
+    params.value,
+    params.validAfter,
+    params.validBefore,
+    params.nonce,
+    sig.v,
+    sig.r,
+    sig.s
+  );
+  const receipt = await withTimeout(
+    tx.wait(1) as Promise<{ hash: string }>,
+    CONFIRM_TIMEOUT_MS,
+    'USDC transferWithAuthorization confirm'
+  );
+  return { txHash: receipt.hash };
+}
 export { BASE_USDC, USDC_DECIMALS as BASE_USDC_DECIMALS };
