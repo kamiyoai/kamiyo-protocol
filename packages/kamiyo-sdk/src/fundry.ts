@@ -10,6 +10,7 @@ export const FUNDRY_CONFIG_TYPES = [
   'indie',
   'music',
   'whitewhale',
+  'kamiyo',
   'retardchy',
   'illuminati',
   'presales',
@@ -38,6 +39,7 @@ export interface SecureLaunchParams {
   configType: FundryConfigType;
   escrowAmountSol?: number;
   migrationTargetSol?: number;
+  initialBuySol?: number;
   creatorAddress?: string;
   creatorAllocationBps?: number;
 }
@@ -130,6 +132,12 @@ export class FundryManager {
       };
     }
 
+    if (params.initialBuySol !== undefined) {
+      if (!Number.isFinite(params.initialBuySol) || params.initialBuySol <= 0) {
+        return { success: false, error: 'initialBuySol must be a positive number' };
+      }
+    }
+
     if (params.creatorAllocationBps !== undefined) {
       if (
         !Number.isInteger(params.creatorAllocationBps) ||
@@ -175,6 +183,7 @@ export class FundryManager {
         imageUrl: params.imageUrl,
         configType: params.configType,
         creatorAddress,
+        ...(params.initialBuySol !== undefined ? { initialBuySOL: params.initialBuySol } : {}),
       });
 
       if (!created?.success || !created.data) {
@@ -304,7 +313,7 @@ export class FundryManager {
   listConfigs(): { name: FundryConfigType; category: string }[] {
     return FUNDRY_CONFIG_TYPES.map(name => ({
       name,
-      category: ['community', 'indie', 'music'].includes(name) ? 'builder' : 'monkes',
+      category: ['community', 'indie', 'music', 'kamiyo'].includes(name) ? 'builder' : 'monkes',
     }));
   }
 

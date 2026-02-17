@@ -30,6 +30,14 @@ function optionalInt(name: string, fallback: number): number {
   return value;
 }
 
+function optionalPositiveNumber(name: string): number | undefined {
+  const raw = process.env[name];
+  if (!raw || !raw.trim()) return;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive number`);
+  return value;
+}
+
 function loadKeypair(): Keypair {
   const path = process.env.AGENT_KEYPAIR_PATH?.trim();
   if (path) {
@@ -134,6 +142,7 @@ async function main() {
 
   const creatorAddress = process.env.FUNDRY_CREATOR_ADDRESS?.trim() || DEFAULT_CREATOR_ADDRESS;
   const configType = (process.env.FUNDRY_CONFIG_TYPE?.trim() || 'community') as any;
+  const initialBuySol = optionalPositiveNumber('FUNDRY_INITIAL_BUY_SOL');
   const escrowAmountSol = optionalNumber('FUNDRY_ESCROW_SOL', 0.5);
   const migrationTargetSol = optionalNumber('FUNDRY_MIGRATION_TARGET_SOL', 40);
   const creatorAllocationBps = optionalInt('FUNDRY_CREATOR_ALLOCATION_BPS', 500);
@@ -191,6 +200,7 @@ async function main() {
     description: requiredEnv('FUNDRY_TOKEN_DESCRIPTION'),
     imageUrl: requiredEnv('FUNDRY_TOKEN_IMAGE_URL'),
     configType,
+    initialBuySol,
     escrowAmountSol,
     migrationTargetSol,
     creatorAllocationBps,

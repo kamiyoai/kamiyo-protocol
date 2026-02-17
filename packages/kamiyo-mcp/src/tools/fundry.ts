@@ -58,7 +58,11 @@ export const FUNDRY_TOOL_DEFINITIONS: Tool[] = [
         configType: {
           type: 'string',
           description:
-            'Fundry bonding curve config: community, preseed, seriesa, toly, indie, music, whitewhale, retardchy, illuminati, presales, aiagents, nitro',
+            'Fundry bonding curve config: community, preseed, seriesa, toly, indie, music, whitewhale, kamiyo, retardchy, illuminati, presales, aiagents, nitro',
+        },
+        initialBuySol: {
+          type: 'number',
+          description: 'Optional initial buy in SOL on the bonding curve (must be positive)',
         },
         escrowAmountSol: {
           type: 'number',
@@ -111,6 +115,7 @@ const VALID_CONFIG_TYPES = [
   'indie',
   'music',
   'whitewhale',
+  'kamiyo',
   'retardchy',
   'illuminati',
   'presales',
@@ -137,6 +142,7 @@ export async function secureLaunchToken(
     description: string;
     imageUrl: string;
     configType: string;
+    initialBuySol?: number;
     escrowAmountSol?: number;
     creatorAddress?: string;
     migrationTargetSol?: number;
@@ -162,6 +168,12 @@ export async function secureLaunchToken(
 
     if (!params.imageUrl.trim()) {
       return { success: false, error: 'imageUrl is required for Fundry token creation' };
+    }
+
+    if (params.initialBuySol !== undefined) {
+      if (!Number.isFinite(params.initialBuySol) || params.initialBuySol <= 0) {
+        return { success: false, error: 'initialBuySol must be a positive number' };
+      }
     }
 
     if (params.migrationTargetSol !== undefined) {
@@ -214,6 +226,7 @@ export async function secureLaunchToken(
         imageUrl: params.imageUrl,
         configType: params.configType,
         creatorAddress,
+        ...(params.initialBuySol !== undefined ? { initialBuySOL: params.initialBuySol } : {}),
       });
     } catch (err: unknown) {
       return {
@@ -331,7 +344,7 @@ export function listFundryConfigs(): FundryToolResult {
     data: {
       configs: VALID_CONFIG_TYPES.map(name => ({
         name,
-        category: ['community', 'indie', 'music'].includes(name) ? 'builder' : 'monkes',
+        category: ['community', 'indie', 'music', 'kamiyo'].includes(name) ? 'builder' : 'monkes',
       })),
     },
   };
