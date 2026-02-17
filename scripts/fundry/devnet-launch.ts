@@ -5,7 +5,6 @@ import { KamiyoClient } from '../../packages/kamiyo-sdk/src/client';
 import { AgentType } from '../../packages/kamiyo-sdk/src/types';
 import { FundryManager } from '../../packages/kamiyo-sdk/src/fundry';
 
-const DEFAULT_CREATOR_ADDRESS = 'DChfS8bo7cnBiG4JKhR2mdGXpyrZtCtNerYgQgyGxQ31';
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
 function requiredEnv(name: string): string {
@@ -140,7 +139,7 @@ async function main() {
 
   await ensureAgent(client);
 
-  const creatorAddress = process.env.FUNDRY_CREATOR_ADDRESS?.trim() || DEFAULT_CREATOR_ADDRESS;
+  const creatorAddress = process.env.FUNDRY_CREATOR_ADDRESS?.trim() || wallet.publicKey.toBase58();
   const configType = (process.env.FUNDRY_CONFIG_TYPE?.trim() || 'community') as any;
   const initialBuySol = optionalPositiveNumber('FUNDRY_INITIAL_BUY_SOL');
   const escrowAmountSol = optionalNumber('FUNDRY_ESCROW_SOL', 0.5);

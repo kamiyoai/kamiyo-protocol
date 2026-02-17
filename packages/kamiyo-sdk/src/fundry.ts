@@ -169,6 +169,12 @@ export class FundryManager {
         return { success: false, error: 'Invalid creatorAddress (must be a Solana public key)' };
       }
     }
+    if (creatorAddress !== owner.toBase58()) {
+      return {
+        success: false,
+        error: 'creatorAddress must match the signing wallet (Fundry requires the creator to sign the launch tx)',
+      };
+    }
 
     let fundryCoinId: string | undefined;
     let mintAddress = '';

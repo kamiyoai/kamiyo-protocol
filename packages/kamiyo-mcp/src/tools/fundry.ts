@@ -216,6 +216,12 @@ export async function secureLaunchToken(
         return { success: false, error: 'Invalid creatorAddress (must be a Solana public key)' };
       }
     }
+    if (creatorAddress !== program.wallet.publicKey.toBase58()) {
+      return {
+        success: false,
+        error: 'creatorAddress must match the signing wallet (Fundry requires the creator to sign the launch tx)',
+      };
+    }
 
     let createResult: unknown;
     try {
