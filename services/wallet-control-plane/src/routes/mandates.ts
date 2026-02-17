@@ -71,6 +71,25 @@ async function syncMandatePolicies(params: {
   const passportAddress = params.passportKey.toBase58();
 
   const networks = uniqueNetworks(params.options.networks);
+  const allowedMerchants = params.options.allowedMerchants?.map((value) => value.trim()).filter(Boolean);
+
+  if (allowedMerchants?.length) {
+    if (networks.includes('base')) {
+      const invalid = allowedMerchants.find((value) => !/^0x[0-9a-fA-F]{40}$/.test(value));
+      if (invalid) throw new HttpError(400, `Invalid allowedMerchants value for base: ${invalid}`);
+    }
+
+    if (networks.includes('solana')) {
+      for (const value of allowedMerchants) {
+        try {
+          new PublicKey(value);
+        } catch {
+          throw new HttpError(400, `Invalid allowedMerchants value for solana: ${value}`);
+        }
+      }
+    }
+  }
+
   const kinds = Array.from(new Set(networks.map(walletKindForNetwork)));
   const wallets = await provisionAgentWallets({ agentId, kinds });
 
@@ -87,7 +106,7 @@ async function syncMandatePolicies(params: {
       !params.options.forceNewPolicy &&
       existing &&
       existing.mandate_version === mandate.version &&
-      (!params.options.allowedMerchants || params.options.allowedMerchants.length === 0);
+      (!allowedMerchants || allowedMerchants.length === 0);
 
     const description = params.options.description || `Meishi mandate v${mandate.version} for ${agentId}`;
 
@@ -97,7 +116,7 @@ async function syncMandatePolicies(params: {
         description,
         network: policyNetwork,
         mandate,
-        allowedMerchants: params.options.allowedMerchants,
+        allowedMerchants,
       });
 
       const created = await cdp.policies.createPolicy({ policy });

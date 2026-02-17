@@ -22,7 +22,7 @@ type CompileMeishiPolicyParams = {
 
 const X402_MESSAGE_REGEX = '^(KAMIYO x402 session authorization|{"amount":)';
 
-function uniqLower(values: readonly string[] | undefined): string[] {
+function uniq(values: readonly string[] | undefined, keyFor: (value: string) => string): string[] {
   if (!values?.length) return [];
 
   const out: string[] = [];
@@ -32,7 +32,7 @@ function uniqLower(values: readonly string[] | undefined): string[] {
     const trimmed = v.trim();
     if (!trimmed) continue;
 
-    const key = trimmed.toLowerCase();
+    const key = keyFor(trimmed);
     if (seen.has(key)) continue;
 
     seen.add(key);
@@ -54,7 +54,10 @@ function normalizeDescription(value: string): string {
 
 export function compileUsdcSpendPolicy(params: CompileUsdcPolicyParams): CreatePolicyBody {
   const description = normalizeDescription(params.description);
-  const merchants = uniqLower(params.allowedMerchants);
+  const merchants =
+    params.network === 'base' || params.network === 'base-sepolia'
+      ? uniq(params.allowedMerchants, (value) => value.toLowerCase())
+      : uniq(params.allowedMerchants, (value) => value);
 
   if (params.network === 'base' || params.network === 'base-sepolia') {
     const network = params.network === 'base' ? 'base' : 'base-sepolia';

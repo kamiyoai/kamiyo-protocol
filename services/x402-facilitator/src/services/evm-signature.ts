@@ -1,5 +1,4 @@
 import { Contract, hashMessage, isAddress, verifyMessage } from 'ethers';
-
 import { getBaseProvider } from './base-settlement';
 
 const EIP1271_ABI = ['function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)'];
@@ -22,12 +21,17 @@ export async function verifyEvmMessageSignature(params: {
 
   try {
     const recovered = verifyMessage(bytes, signature);
-    if (recovered.toLowerCase() == params.address.toLowerCase()) return true;
+    if (recovered.toLowerCase() === params.address.toLowerCase()) return true;
   } catch {
     // Fall through to EIP-1271 validation.
   }
 
-  const provider = getBaseProvider();
+  let provider;
+  try {
+    provider = getBaseProvider();
+  } catch {
+    return false;
+  }
 
   try {
     const code = await provider.getCode(params.address);

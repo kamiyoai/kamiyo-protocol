@@ -246,10 +246,6 @@ export async function approveBaseUsdcWithAuthorization(params: {
   return { txHash: receipt.hash };
 }
 
-
-
-
-
 export async function settleAuthorizedPaymentBase(params: {
   payerAddress: string;
   merchantAddress: string;
@@ -298,20 +294,25 @@ export async function settleAuthorizedPaymentBase(params: {
   if (feeMicro > 0n && config.BASE_TREASURY_ADDRESS && isAddress(config.BASE_TREASURY_ADDRESS)) {
     if (!params.feeAuthorization) throw new Error('Missing fee authorization');
 
-    const feeTransfer = await transferBaseUsdcWithAuthorization({
-      from: params.payerAddress,
-      to: config.BASE_TREASURY_ADDRESS,
-      value: feeMicro,
-      validAfter: params.feeAuthorization.validAfter,
-      validBefore: params.feeAuthorization.validBefore,
-      nonce: params.feeAuthorization.nonce,
-      signature: params.feeAuthorization.signature,
-    });
-    feeTxHash = feeTransfer.txHash;
+    try {
+      const feeTransfer = await transferBaseUsdcWithAuthorization({
+        from: params.payerAddress,
+        to: config.BASE_TREASURY_ADDRESS,
+        value: feeMicro,
+        validAfter: params.feeAuthorization.validAfter,
+        validBefore: params.feeAuthorization.validBefore,
+        nonce: params.feeAuthorization.nonce,
+        signature: params.feeAuthorization.signature,
+      });
+      feeTxHash = feeTransfer.txHash;
+    } catch {
+      // Net transfer is already confirmed; fee collection can be retried out-of-band.
+    }
   }
 
   return { txHash: netTransfer.txHash, feeMicro, netMicro, feeTxHash };
 }
+
 export async function transferBaseUsdcWithAuthorization(params: {
   from: string;
   to: string;

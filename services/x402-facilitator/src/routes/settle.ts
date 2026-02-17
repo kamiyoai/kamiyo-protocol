@@ -69,10 +69,15 @@ type TransferWithAuthorization = {
 };
 
 function parseTransferWithAuthorization(input: unknown, label: string): TransferWithAuthorization | null {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  if (input == null) return null;
+  if (typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error(`Invalid ${label}`);
+  }
 
   const record = input as { [k: string]: unknown };
-  if (record.kind !== 'transferWithAuthorization') return null;
+  if (record.kind !== 'transferWithAuthorization') {
+    throw new Error(`Unsupported ${label}.kind`);
+  }
 
   let validAfter: bigint;
   let validBefore: bigint;
@@ -405,13 +410,14 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         const fee = Number(onchain.feeMicro) / 1_000_000;
         const net = Number(onchain.netMicro) / 1_000_000;
 
-        try {
-          await updateSettlementConfirmed(settlement.id, onchain.txHash, fee);
-          await insertFeeLedger(settlement.id, null, 'settlement', fee, onchain.feeTxHash || onchain.txHash);
-          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash);
-        } catch {
-          // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
-          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash).catch(() => {});
+	        try {
+	          const treasuryTx = isBase ? onchain.feeTxHash : onchain.txHash;
+	          await updateSettlementConfirmed(settlement.id, onchain.txHash, fee);
+	          await insertFeeLedger(settlement.id, null, 'settlement', fee, treasuryTx);
+	          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash);
+	        } catch {
+	          // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
+	          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash).catch(() => {});
         }
 
         res.json({
@@ -547,6 +553,30 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       amount
     );
     if (!nonceReserved) {
+      const existing = await getPaymentNonceGuard(payment.payer, payment.nonce).catch(() => null);
+      if (existing?.tx_hash) {
+        const settled = existing.settlement_id
+          ? await getSettlementById(existing.settlement_id).catch(() => null)
+          : null;
+
+        const amountFromDb = settled ? Number(settled.amount) : amount;
+        const feeFromDb = settled ? Number(settled.fee_amount || '0') : 0;
+        const netFromDb = amountFromDb - feeFromDb;
+
+        res.json({
+          success: true,
+          transaction: existing.tx_hash,
+          payer: payment.payer,
+          txHash: existing.tx_hash,
+          amount: amountFromDb,
+          fee: feeFromDb,
+          net: netFromDb,
+          network,
+          idempotent: true,
+        });
+        return;
+      }
+
       sendSettleFailure(res, 409, 'replayed_payment', 'Payment nonce already used', network, payment.payer);
       return;
     }
@@ -561,6 +591,10 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       'pending',
       network
     );
+
+    await setPaymentNonceSettlementId(payment.payer, payment.nonce, settlement.id).catch(() => {});
+
+    let onchain: { txHash: string; fee: number; net: number; feeTxHash?: string | null } | null = null;
 
     try {
       const [stats, disputeStats, avgQuality, monthlyVol] = await Promise.all([
@@ -578,8 +612,6 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       );
       const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
       const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
-
-      let onchain: { txHash: string; fee: number; net: number; feeTxHash?: string | null };
 
       if (isBase) {
         let transferAuth: TransferWithAuthorization | null = null;
@@ -652,6 +684,9 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
               if (!feeAuth) {
                 throw new Error('Missing usdcFeeAuthorization');
               }
+              if (feeAuth.nonce.toLowerCase() === transferAuth.nonce.toLowerCase()) {
+                throw new Error('usdcFeeAuthorization.nonce must be different from usdcAuthorization.nonce');
+              }
               if (feeAuth.validAfter > nowSeconds) {
                 throw new Error('usdcFeeAuthorization.validAfter is in the future');
               }
@@ -684,11 +719,22 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           } catch (err) {
             await updateSettlementStatus(settlement.id, 'failed');
             await deletePaymentNonceGuard(payment.payer, payment.nonce).catch(() => {});
+            const msg = getErrorMessage(err);
+            const code = typeof err === 'object' && err && 'code' in err ? String((err as any).code) : '';
+            const lower = msg.toLowerCase();
+            const upstream =
+              code.includes('NETWORK') ||
+              code.includes('TIMEOUT') ||
+              lower.includes('timed out') ||
+              lower.includes('timeout') ||
+              lower.includes('econn') ||
+              lower.includes('socket') ||
+              lower.includes('fetch');
             sendSettleFailure(
               res,
-              400,
-              'invalid_usdc_authorization',
-              `Invalid USDC authorization: ${getErrorMessage(err)}`,
+              upstream ? 502 : 400,
+              upstream ? 'upstream_error' : 'invalid_usdc_authorization',
+              `${upstream ? 'Upstream error' : 'Invalid USDC authorization'}: ${msg}`,
               network,
               payment.payer
             );
@@ -707,8 +753,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         );
       }
 
-      await updateSettlementConfirmed(settlement.id, onchain.txHash, onchain.fee);
-      await insertFeeLedger(settlement.id, null, 'settlement', onchain.fee, onchain.feeTxHash ?? onchain.txHash);
+      if (!onchain) throw new Error('Missing settlement result');
+
+      const treasuryTx = onchain.feeTxHash === undefined ? onchain.txHash : onchain.feeTxHash;
+      try {
+        await updateSettlementConfirmed(settlement.id, onchain.txHash, onchain.fee);
+        await insertFeeLedger(settlement.id, null, 'settlement', onchain.fee, treasuryTx);
+        await setPaymentNonceTxHash(payment.payer, payment.nonce, onchain.txHash);
+      } catch {
+        // On-chain transfer already happened. Preserve the tx hash for idempotent retries.
+        await setPaymentNonceTxHash(payment.payer, payment.nonce, onchain.txHash).catch(() => {});
+      }
 
       res.json({
         success: true,
