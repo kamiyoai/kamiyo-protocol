@@ -1,7 +1,8 @@
 import * as crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import { canonicalizeNetwork, isSolanaMainnet, isValidPayerForNetwork } from '../protocol/networks';
+import { isAddress } from 'ethers';
+import { canonicalizeNetwork, isValidPayerForNetwork, BASE_MAINNET_CAIP2, SOLANA_MAINNET_CAIP2 } from '../protocol/networks';
 import { parseUsdcMicroAmountBigint } from '../protocol/request-compat';
 import {
   getSessionChallenge,
@@ -18,6 +19,7 @@ import {
   verifySessionChallengeSignature,
 } from '../services/session';
 import { getUsdcDelegateState } from '../services/solana-session';
+import { getBaseFacilitatorAddress, getBaseUsdcAllowanceMicro, isBaseEnabled } from '../services/base-settlement';
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -58,7 +60,13 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
     const networkRaw = typeof body.network === 'string' ? body.network.trim() : '';
 
     const network = canonicalizeNetwork(networkRaw);
-    if (!network || !isSolanaMainnet(network)) {
+    if (!network || (network !== SOLANA_MAINNET_CAIP2 && network !== BASE_MAINNET_CAIP2)) {
+      res.status(400).json({ error: 'Unsupported network' });
+      return;
+    }
+
+    const baseSpender = network === BASE_MAINNET_CAIP2 ? getBaseFacilitatorAddress() : null;
+    if (network === BASE_MAINNET_CAIP2 && (!isBaseEnabled() || !baseSpender)) {
       res.status(400).json({ error: 'Unsupported network' });
       return;
     }
@@ -73,11 +81,18 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
       return;
     }
 
-    try {
-      new PublicKey(merchantWallet);
-    } catch {
-      res.status(400).json({ error: 'Invalid merchant wallet' });
-      return;
+    if (network === BASE_MAINNET_CAIP2) {
+      if (!isAddress(merchantWallet)) {
+        res.status(400).json({ error: 'Invalid merchant wallet' });
+        return;
+      }
+    } else {
+      try {
+        new PublicKey(merchantWallet);
+      } catch {
+        res.status(400).json({ error: 'Invalid merchant wallet' });
+        return;
+      }
     }
 
     const maxTotalMicroRaw = typeof body.maxTotalMicro === 'string' ? body.maxTotalMicro.trim() : '';
@@ -131,7 +146,7 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
       message,
       expiresAt: expiresAt.getTime(),
       sessionExpiresAt: sessionExpiresAt.getTime(),
-      facilitator: facilitatorKeypair.publicKey.toBase58(),
+      facilitator: network === BASE_MAINNET_CAIP2 ? baseSpender : facilitatorKeypair.publicKey.toBase58(),
     });
   });
 
@@ -161,41 +176,71 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
     }
 
     const network = canonicalizeNetwork(challenge.network);
-    if (!network || !isSolanaMainnet(network)) {
+    if (!network || (network !== SOLANA_MAINNET_CAIP2 && network !== BASE_MAINNET_CAIP2)) {
       res.status(400).json({ error: 'Unsupported network' });
       return;
     }
 
-    let payerKey: PublicKey;
-    try {
-      payerKey = new PublicKey(challenge.payer_wallet);
-    } catch {
-      res.status(400).json({ error: 'Invalid payer wallet' });
-      return;
-    }
+    if (network === BASE_MAINNET_CAIP2) {
+      if (!isBaseEnabled()) {
+        res.status(400).json({ error: 'Unsupported network' });
+        return;
+      }
 
-    try {
-      const state = await getUsdcDelegateState(connection, payerKey);
-      if (!state.delegate || !state.delegate.equals(facilitatorKeypair.publicKey)) {
-        res.status(412).json({
-          error: 'USDC delegate not set',
-          requiredDelegate: facilitatorKeypair.publicKey.toBase58(),
-        });
+      const spender = getBaseFacilitatorAddress();
+      if (!spender) {
+        res.status(500).json({ error: 'Base facilitator not configured' });
         return;
       }
 
       const requiredMicro = BigInt(challenge.max_total_micro);
-      if (state.delegatedMicro < requiredMicro) {
-        res.status(412).json({
-          error: 'USDC delegated allowance insufficient',
-          requiredMicro: challenge.max_total_micro,
-          delegatedMicro: state.delegatedMicro.toString(),
-        });
+      try {
+        const allowance = await getBaseUsdcAllowanceMicro(challenge.payer_wallet, spender);
+        if (allowance < requiredMicro) {
+          res.status(412).json({
+            error: 'USDC allowance insufficient',
+            spender,
+            requiredMicro: challenge.max_total_micro,
+            allowanceMicro: allowance.toString(),
+          });
+          return;
+        }
+      } catch (err: any) {
+        res.status(502).json({ error: err?.message || 'Failed to check token allowance' });
         return;
       }
-    } catch (err: any) {
-      res.status(502).json({ error: err?.message || 'Failed to check token delegation' });
-      return;
+    } else {
+      let payerKey: PublicKey;
+      try {
+        payerKey = new PublicKey(challenge.payer_wallet);
+      } catch {
+        res.status(400).json({ error: 'Invalid payer wallet' });
+        return;
+      }
+
+      try {
+        const state = await getUsdcDelegateState(connection, payerKey);
+        if (!state.delegate || !state.delegate.equals(facilitatorKeypair.publicKey)) {
+          res.status(412).json({
+            error: 'USDC delegate not set',
+            requiredDelegate: facilitatorKeypair.publicKey.toBase58(),
+          });
+          return;
+        }
+
+        const requiredMicro = BigInt(challenge.max_total_micro);
+        if (state.delegatedMicro < requiredMicro) {
+          res.status(412).json({
+            error: 'USDC delegated allowance insufficient',
+            requiredMicro: challenge.max_total_micro,
+            delegatedMicro: state.delegatedMicro.toString(),
+          });
+          return;
+        }
+      } catch (err: any) {
+        res.status(502).json({ error: err?.message || 'Failed to check token delegation' });
+        return;
+      }
     }
 
     const marked = await markSessionChallengeUsed(nonce);

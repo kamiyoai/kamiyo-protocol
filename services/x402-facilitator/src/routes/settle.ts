@@ -3,7 +3,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentScheme } from '../services/signature';
 import { settlePayment, toBaseUnits } from '../services/settlement';
 import { isAddress } from 'ethers';
-import { settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
+import { settleDelegatedPaymentBase, settlePaymentBase, isBaseEnabled } from '../services/base-settlement';
 import { calculateFeeDiscountPct, applyDiscount } from '../services/reputation';
 import { getConfig } from '../config';
 import {
@@ -204,15 +204,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       }
 
       if (isBase) {
-        sendSettleFailure(res, 400, 'unsupported_network', 'Session payments not supported for Base', network, session.payer_wallet);
-        return;
-      }
-
-      try {
-        new PublicKey(merchantWallet);
-      } catch {
-        sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Solana wallet address', network, session.payer_wallet);
-        return;
+        if (!isAddress(merchantWallet)) {
+          sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Base wallet address', network, session.payer_wallet);
+          return;
+        }
+      } else {
+        try {
+          new PublicKey(merchantWallet);
+        } catch {
+          sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Solana wallet address', network, session.payer_wallet);
+          return;
+        }
       }
 
       let nonceReserved = false;
@@ -267,7 +269,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       }
 
       let settlementId: string | null = null;
-      let onchain: { txHash: string; feeMicro: bigint; netMicro: bigint } | null = null;
+      let onchain: { txHash: string; feeMicro: bigint; netMicro: bigint; feeTxHash: string | null } | null = null;
       try {
         const settlement = await insertSettlement(
           merchantWallet,
@@ -298,34 +300,43 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
         const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
 
-        const onchainResult = await settleDelegatedUsdcTransfer({
-          connection,
-          delegateKeypair: facilitatorKeypair,
-          payer: new PublicKey(session.payer_wallet),
-          merchant: new PublicKey(merchantWallet),
-          treasury: new PublicKey(config.TREASURY_WALLET),
-          totalMicro: amountMicro,
-          feeBps: effectiveFeeBps,
-        });
-        onchain = onchainResult;
+        if (isBase) {
+          onchain = await settleDelegatedPaymentBase({
+            payerAddress: session.payer_wallet,
+            merchantAddress: merchantWallet,
+            totalMicro: amountMicro,
+            feeBps: effectiveFeeBps,
+          });
+        } else {
+          const onchainResult = await settleDelegatedUsdcTransfer({
+            connection,
+            delegateKeypair: facilitatorKeypair,
+            payer: new PublicKey(session.payer_wallet),
+            merchant: new PublicKey(merchantWallet),
+            treasury: new PublicKey(config.TREASURY_WALLET),
+            totalMicro: amountMicro,
+            feeBps: effectiveFeeBps,
+          });
+          onchain = { ...onchainResult, feeTxHash: null };
+        }
 
-        const fee = Number(onchainResult.feeMicro) / 1_000_000;
-        const net = Number(onchainResult.netMicro) / 1_000_000;
+        const fee = Number(onchain.feeMicro) / 1_000_000;
+        const net = Number(onchain.netMicro) / 1_000_000;
 
         try {
-          await updateSettlementConfirmed(settlement.id, onchainResult.txHash, fee);
-          await insertFeeLedger(settlement.id, null, 'settlement', fee, onchainResult.txHash);
-          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchainResult.txHash);
+          await updateSettlementConfirmed(settlement.id, onchain.txHash, fee);
+          await insertFeeLedger(settlement.id, null, 'settlement', fee, onchain.feeTxHash || onchain.txHash);
+          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash);
         } catch {
           // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
-          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchainResult.txHash).catch(() => {});
+          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash).catch(() => {});
         }
 
         res.json({
           success: true,
-          transaction: onchainResult.txHash,
+          transaction: onchain.txHash,
           payer: session.payer_wallet,
-          txHash: onchainResult.txHash,
+          txHash: onchain.txHash,
           amount,
           fee,
           net,
