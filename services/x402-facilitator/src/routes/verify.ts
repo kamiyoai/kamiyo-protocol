@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { decodePaymentHeader, verifyPaymentAuth, isPaymentFresh, parsePaymentScheme } from '../services/signature';
 import { getUsdcBalance } from '../services/settlement';
-import { getBaseUsdcBalanceForAddress, isBaseEnabled } from '../services/base-settlement';
+import { getBaseFacilitatorAddress, getBaseUsdcAllowanceMicro, getBaseUsdcBalanceForAddress, getBaseUsdcBalanceMicroForAddress, isBaseEnabled } from '../services/base-settlement';
 import { getConfig } from '../config';
 import { VerifyResponse } from '../types';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
@@ -158,19 +158,35 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         return;
       }
 
-      let balance = 0;
-      let delegatedMicro: bigint = 0n;
+      let balanceMicro: bigint = 0n;
+      let allowanceMicro: bigint = 0n;
+      let sessionMeta: Record<string, unknown> = {};
       try {
-        const payerKey = new PublicKey(session.payer_wallet);
-        const state = await getUsdcDelegateState(connection, payerKey);
-        balance = Number(state.balanceMicro) / 1_000_000;
-        delegatedMicro = state.delegate && state.delegate.equals(facilitator) ? state.delegatedMicro : 0n;
+        if (network === BASE_MAINNET_CAIP2) {
+          const spender = getBaseFacilitatorAddress();
+          if (!spender) {
+            sendVerifyFailure(res, 500, 'server_error', 'Base facilitator not configured', session.payer_wallet);
+            return;
+          }
+          [balanceMicro, allowanceMicro] = await Promise.all([
+            getBaseUsdcBalanceMicroForAddress(session.payer_wallet),
+            getBaseUsdcAllowanceMicro(session.payer_wallet, spender),
+          ]);
+          sessionMeta = { spender, allowanceMicro: allowanceMicro.toString() };
+        } else {
+          const payerKey = new PublicKey(session.payer_wallet);
+          const state = await getUsdcDelegateState(connection, payerKey);
+          balanceMicro = state.balanceMicro;
+          allowanceMicro = state.delegate && state.delegate.equals(facilitator) ? state.delegatedMicro : 0n;
+          sessionMeta = { delegatedMicro: allowanceMicro.toString() };
+        }
       } catch {
         sendVerifyFailure(res, 502, 'balance_lookup_failed', 'Balance lookup failed', session.payer_wallet);
         return;
       }
 
-      const sufficient = balance >= requiredAmount && delegatedMicro >= requiredMicro;
+      const balance = Number(balanceMicro) / 1_000_000;
+      const sufficient = balanceMicro >= requiredMicro && allowanceMicro >= requiredMicro;
       const response: VerifyResponse = {
         valid: sufficient,
         isValid: sufficient,
@@ -184,14 +200,15 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
             network,
             balance,
             sufficient,
-            session: { delegatedMicro: delegatedMicro.toString() },
+            session: sessionMeta,
           },
         },
       };
 
       if (!sufficient) {
-        response.error = delegatedMicro < requiredMicro ? 'Delegated allowance insufficient' : 'Insufficient USDC balance';
-        response.invalidReason = delegatedMicro < requiredMicro ? 'insufficient_allowance' : 'insufficient_funds';
+        const allowanceLabel = network === BASE_MAINNET_CAIP2 ? 'Allowance insufficient' : 'Delegated allowance insufficient';
+        response.error = allowanceMicro < requiredMicro ? allowanceLabel : 'Insufficient USDC balance';
+        response.invalidReason = allowanceMicro < requiredMicro ? 'insufficient_allowance' : 'insufficient_funds';
         response.invalidMessage = response.error;
       }
 

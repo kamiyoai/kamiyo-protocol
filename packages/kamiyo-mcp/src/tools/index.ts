@@ -11,6 +11,7 @@ export * from './search.js';
 export * from './paranet.js';
 export * from './kamino.js';
 export * from './fundry.js';
+export * from './cdp.js';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { MARKET_TOOL_DEFINITIONS } from './market.js';

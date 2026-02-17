@@ -1,16 +1,22 @@
-import { Wallet, JsonRpcProvider, Contract, parseUnits, formatUnits, isAddress } from 'ethers';
+import { Wallet, JsonRpcProvider, Contract, Signature, parseUnits, formatUnits, isAddress } from 'ethers';
 import { getConfig } from '../config';
 
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const USDC_DECIMALS = 6;
 
 const ERC20_ABI = [
+  'function name() view returns (string)',
+  'function version() view returns (string)',
   'function transfer(address to, uint256 amount) returns (bool)',
+  'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approveWithAuthorization(address owner, address spender, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)',
   'function balanceOf(address account) view returns (uint256)'
 ];
 
 let cachedProvider: JsonRpcProvider | null = null;
 let cachedWallet: Wallet | null = null;
+let cachedUsdcEip712Domain: { name: string; version: string; chainId: number; verifyingContract: string } | null = null;
 
 const BALANCE_TIMEOUT_MS = 30_000;
 const CONFIRM_TIMEOUT_MS = 90_000;
@@ -52,17 +58,61 @@ export function fromBaseUnitsEvm(units: bigint): number {
   return parseFloat(formatUnits(units, USDC_DECIMALS));
 }
 
-export async function getBaseUsdcBalanceForAddress(address: string): Promise<number> {
+export async function getBaseUsdcEip712Domain(): Promise<{
+  name: string;
+  version: string;
+  chainId: number;
+  verifyingContract: string;
+}> {
+  if (cachedUsdcEip712Domain) return cachedUsdcEip712Domain;
+
+  const provider = getBaseProvider();
+  const usdc = new Contract(BASE_USDC, ERC20_ABI, provider);
+
+  const [name, versionRaw] = await Promise.all([
+    withTimeout(usdc.name() as Promise<string>, BALANCE_TIMEOUT_MS, 'USDC name'),
+    withTimeout(
+      (usdc.version?.() as Promise<string> | undefined) ?? Promise.resolve('2'),
+      BALANCE_TIMEOUT_MS,
+      'USDC version'
+    ).catch(() => '2'),
+  ]);
+
+  const version = typeof versionRaw === 'string' && versionRaw.trim() ? versionRaw.trim() : '2';
+
+  cachedUsdcEip712Domain = {
+    name,
+    version,
+    chainId: 8453,
+    verifyingContract: BASE_USDC,
+  };
+
+  return cachedUsdcEip712Domain;
+}
+
+export async function getBaseUsdcBalanceMicroForAddress(address: string): Promise<bigint> {
   if (!isAddress(address)) throw new Error('Invalid Base address');
   const provider = getBaseProvider();
   const usdc = new Contract(BASE_USDC, ERC20_ABI, provider);
-  const balance: bigint = await withTimeout(usdc.balanceOf(address), BALANCE_TIMEOUT_MS, 'USDC balanceOf');
+  return withTimeout(usdc.balanceOf(address), BALANCE_TIMEOUT_MS, 'USDC balanceOf');
+}
+
+export async function getBaseUsdcBalanceForAddress(address: string): Promise<number> {
+  const balance = await getBaseUsdcBalanceMicroForAddress(address);
   return fromBaseUnitsEvm(balance);
 }
 
 export async function getBaseUsdcBalance(): Promise<number> {
   const wallet = getBaseWallet();
   return getBaseUsdcBalanceForAddress(wallet.address);
+}
+
+export async function getBaseUsdcAllowanceMicro(owner: string, spender: string): Promise<bigint> {
+  if (!isAddress(owner)) throw new Error('Invalid Base address');
+  if (!isAddress(spender)) throw new Error('Invalid spender address');
+  const provider = getBaseProvider();
+  const usdc = new Contract(BASE_USDC, ERC20_ABI, provider);
+  return withTimeout(usdc.allowance(owner, spender), BALANCE_TIMEOUT_MS, 'USDC allowance');
 }
 
 export async function settlePaymentBase(
@@ -115,6 +165,84 @@ export function getBaseFacilitatorAddress(): string | null {
   } catch {
     return null;
   }
+}
+
+export async function settleDelegatedPaymentBase(params: {
+  payerAddress: string;
+  merchantAddress: string;
+  totalMicro: bigint;
+  feeBps: number;
+}): Promise<{ txHash: string; feeMicro: bigint; netMicro: bigint; feeTxHash: string | null }> {
+  const config = getConfig();
+  const wallet = getBaseWallet();
+  const usdc = new Contract(BASE_USDC, ERC20_ABI, wallet);
+
+  if (!isAddress(params.payerAddress)) throw new Error('Invalid payer Base address');
+  if (!isAddress(params.merchantAddress)) throw new Error('Invalid merchant Base address');
+
+  const totalMicro = params.totalMicro;
+  if (totalMicro <= 0n) throw new Error('Amount must be positive');
+
+  const feeMicro = (totalMicro * BigInt(params.feeBps)) / 10_000n;
+  const netMicro = totalMicro - feeMicro;
+
+  if (netMicro <= 0n) throw new Error('Net amount after fees is zero or negative');
+
+  const [balance, allowance] = await Promise.all([
+    getBaseUsdcBalanceMicroForAddress(params.payerAddress),
+    getBaseUsdcAllowanceMicro(params.payerAddress, wallet.address),
+  ]);
+
+  if (balance < totalMicro) throw new Error('Payer Base USDC balance insufficient');
+  if (allowance < totalMicro) throw new Error('Payer Base USDC allowance insufficient');
+
+  const netTx = await usdc.transferFrom(params.payerAddress, params.merchantAddress, netMicro);
+  const netReceipt = await withTimeout(netTx.wait(1) as Promise<{ hash: string }>, CONFIRM_TIMEOUT_MS, 'USDC transferFrom confirm');
+
+  let feeTxHash: string | null = null;
+  if (feeMicro > 0n && config.BASE_TREASURY_ADDRESS && isAddress(config.BASE_TREASURY_ADDRESS)) {
+    try {
+      const feeTx = await usdc.transferFrom(params.payerAddress, config.BASE_TREASURY_ADDRESS, feeMicro);
+      const feeReceipt = await withTimeout(feeTx.wait(1) as Promise<{ hash: string }>, CONFIRM_TIMEOUT_MS, 'USDC fee transferFrom confirm');
+      feeTxHash = feeReceipt.hash;
+    } catch {
+      // net transfer is already confirmed; fee can be retried if allowance remains.
+    }
+  }
+
+  return { txHash: netReceipt.hash, feeMicro, netMicro, feeTxHash };
+}
+
+export async function approveBaseUsdcWithAuthorization(params: {
+  owner: string;
+  spender: string;
+  value: bigint;
+  validAfter: bigint;
+  validBefore: bigint;
+  nonce: `0x${string}`;
+  signature: `0x${string}`;
+}): Promise<{ txHash: string }> {
+  const wallet = getBaseWallet();
+  const usdc = new Contract(BASE_USDC, ERC20_ABI, wallet);
+
+  if (!isAddress(params.owner)) throw new Error('Invalid owner Base address');
+  if (!isAddress(params.spender)) throw new Error('Invalid spender Base address');
+
+  const sig = Signature.from(params.signature);
+
+  const tx = await usdc.approveWithAuthorization(
+    params.owner,
+    params.spender,
+    params.value,
+    params.validAfter,
+    params.validBefore,
+    params.nonce,
+    sig.v,
+    sig.r,
+    sig.s
+  );
+  const receipt = await withTimeout(tx.wait(1) as Promise<{ hash: string }>, CONFIRM_TIMEOUT_MS, 'USDC approveWithAuthorization confirm');
+  return { txHash: receipt.hash };
 }
 
 export { BASE_USDC, USDC_DECIMALS as BASE_USDC_DECIMALS };

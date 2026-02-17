@@ -1,7 +1,8 @@
 import * as crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import { canonicalizeNetwork, isSolanaMainnet, isValidPayerForNetwork } from '../protocol/networks';
+import { isAddress, verifyTypedData } from 'ethers';
+import { canonicalizeNetwork, isValidPayerForNetwork, BASE_MAINNET_CAIP2, SOLANA_MAINNET_CAIP2 } from '../protocol/networks';
 import { parseUsdcMicroAmountBigint } from '../protocol/request-compat';
 import {
   getSessionChallenge,
@@ -18,6 +19,14 @@ import {
   verifySessionChallengeSignature,
 } from '../services/session';
 import { getUsdcDelegateState } from '../services/solana-session';
+import {
+  approveBaseUsdcWithAuthorization,
+  BASE_USDC,
+  getBaseFacilitatorAddress,
+  getBaseUsdcAllowanceMicro,
+  getBaseUsdcEip712Domain,
+  isBaseEnabled,
+} from '../services/base-settlement';
 
 const CHALLENGE_TTL_MS = 5 * 60_000;
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60_000;
@@ -35,6 +44,13 @@ type SessionChallengeRequest = {
 type SessionAuthorizeRequest = {
   nonce: string;
   signature: string;
+  usdcAuthorization?: {
+    kind: 'approveWithAuthorization';
+    validAfter: string;
+    validBefore: string;
+    nonce: string;
+    signature: string;
+  };
 };
 
 type SessionRevokeRequest = {
@@ -58,7 +74,13 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
     const networkRaw = typeof body.network === 'string' ? body.network.trim() : '';
 
     const network = canonicalizeNetwork(networkRaw);
-    if (!network || !isSolanaMainnet(network)) {
+    if (!network || (network !== SOLANA_MAINNET_CAIP2 && network !== BASE_MAINNET_CAIP2)) {
+      res.status(400).json({ error: 'Unsupported network' });
+      return;
+    }
+
+    const baseSpender = network === BASE_MAINNET_CAIP2 ? getBaseFacilitatorAddress() : null;
+    if (network === BASE_MAINNET_CAIP2 && (!isBaseEnabled() || !baseSpender)) {
       res.status(400).json({ error: 'Unsupported network' });
       return;
     }
@@ -73,11 +95,18 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
       return;
     }
 
-    try {
-      new PublicKey(merchantWallet);
-    } catch {
-      res.status(400).json({ error: 'Invalid merchant wallet' });
-      return;
+    if (network === BASE_MAINNET_CAIP2) {
+      if (!isAddress(merchantWallet)) {
+        res.status(400).json({ error: 'Invalid merchant wallet' });
+        return;
+      }
+    } else {
+      try {
+        new PublicKey(merchantWallet);
+      } catch {
+        res.status(400).json({ error: 'Invalid merchant wallet' });
+        return;
+      }
     }
 
     const maxTotalMicroRaw = typeof body.maxTotalMicro === 'string' ? body.maxTotalMicro.trim() : '';
@@ -126,12 +155,45 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
       expiresAt,
     });
 
+    const usdcDomain =
+      network === BASE_MAINNET_CAIP2
+        ? await getBaseUsdcEip712Domain().catch(() => null)
+        : null;
+
     res.json({
       nonce,
       message,
       expiresAt: expiresAt.getTime(),
       sessionExpiresAt: sessionExpiresAt.getTime(),
-      facilitator: facilitatorKeypair.publicKey.toBase58(),
+      facilitator: network === BASE_MAINNET_CAIP2 ? baseSpender : facilitatorKeypair.publicKey.toBase58(),
+      ...(network === BASE_MAINNET_CAIP2 && usdcDomain
+        ? {
+            usdcAuthorization: {
+              kind: 'approveWithAuthorization' as const,
+              contract: BASE_USDC,
+              domain: usdcDomain,
+              types: {
+                ApproveWithAuthorization: [
+                  { name: 'owner', type: 'address' },
+                  { name: 'spender', type: 'address' },
+                  { name: 'value', type: 'uint256' },
+                  { name: 'validAfter', type: 'uint256' },
+                  { name: 'validBefore', type: 'uint256' },
+                  { name: 'nonce', type: 'bytes32' },
+                ],
+              },
+              primaryType: 'ApproveWithAuthorization' as const,
+              message: {
+                owner: payerWallet,
+                spender: baseSpender,
+                value: maxTotalMicro.toString(10),
+                validAfter: '0',
+                validBefore: String(Math.floor(sessionExpiresAt.getTime() / 1000)),
+                nonce: `0x${crypto.randomBytes(32).toString('hex')}`,
+              },
+            },
+          }
+        : null),
     });
   });
 
@@ -161,41 +223,166 @@ export function createSessionRouter(connection: Connection, facilitatorKeypair: 
     }
 
     const network = canonicalizeNetwork(challenge.network);
-    if (!network || !isSolanaMainnet(network)) {
+    if (!network || (network !== SOLANA_MAINNET_CAIP2 && network !== BASE_MAINNET_CAIP2)) {
       res.status(400).json({ error: 'Unsupported network' });
       return;
     }
 
-    let payerKey: PublicKey;
-    try {
-      payerKey = new PublicKey(challenge.payer_wallet);
-    } catch {
-      res.status(400).json({ error: 'Invalid payer wallet' });
-      return;
-    }
+    if (network === BASE_MAINNET_CAIP2) {
+      if (!isBaseEnabled()) {
+        res.status(400).json({ error: 'Unsupported network' });
+        return;
+      }
 
-    try {
-      const state = await getUsdcDelegateState(connection, payerKey);
-      if (!state.delegate || !state.delegate.equals(facilitatorKeypair.publicKey)) {
-        res.status(412).json({
-          error: 'USDC delegate not set',
-          requiredDelegate: facilitatorKeypair.publicKey.toBase58(),
-        });
+      const spender = getBaseFacilitatorAddress();
+      if (!spender) {
+        res.status(500).json({ error: 'Base facilitator not configured' });
         return;
       }
 
       const requiredMicro = BigInt(challenge.max_total_micro);
-      if (state.delegatedMicro < requiredMicro) {
-        res.status(412).json({
-          error: 'USDC delegated allowance insufficient',
-          requiredMicro: challenge.max_total_micro,
-          delegatedMicro: state.delegatedMicro.toString(),
-        });
+      try {
+        const allowanceBefore = await getBaseUsdcAllowanceMicro(challenge.payer_wallet, spender);
+        if (allowanceBefore < requiredMicro) {
+          const auth = body.usdcAuthorization;
+
+          if (auth && auth.kind === 'approveWithAuthorization') {
+            let validAfter: bigint;
+            let validBefore: bigint;
+            try {
+              validAfter = BigInt(auth.validAfter);
+              validBefore = BigInt(auth.validBefore);
+            } catch {
+              res.status(400).json({ error: 'Invalid usdcAuthorization validity window' });
+              return;
+            }
+            const nonce = auth.nonce as `0x${string}`;
+            const signature = auth.signature as `0x${string}`;
+
+            if (!/^0x[0-9a-fA-F]{64}$/.test(nonce)) {
+              res.status(400).json({ error: 'Invalid usdcAuthorization.nonce' });
+              return;
+            }
+            if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) {
+              res.status(400).json({ error: 'Invalid usdcAuthorization.signature' });
+              return;
+            }
+
+            const sessionExpiresAt = new Date(challenge.session_expires_at).getTime();
+            const sessionExpiresAtSeconds = BigInt(Math.floor(sessionExpiresAt / 1000));
+            const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+
+            if (validAfter > nowSeconds) {
+              res.status(400).json({ error: 'usdcAuthorization.validAfter is in the future' });
+              return;
+            }
+            if (validBefore <= nowSeconds) {
+              res.status(400).json({ error: 'usdcAuthorization.validBefore already expired' });
+              return;
+            }
+            if (validBefore > sessionExpiresAtSeconds) {
+              res.status(400).json({ error: 'usdcAuthorization.validBefore exceeds session expiry' });
+              return;
+            }
+
+            const domain = await getBaseUsdcEip712Domain();
+            const types = {
+              ApproveWithAuthorization: [
+                { name: 'owner', type: 'address' },
+                { name: 'spender', type: 'address' },
+                { name: 'value', type: 'uint256' },
+                { name: 'validAfter', type: 'uint256' },
+                { name: 'validBefore', type: 'uint256' },
+                { name: 'nonce', type: 'bytes32' },
+              ],
+            };
+
+            const recovered = verifyTypedData(
+              domain,
+              types,
+              {
+                owner: challenge.payer_wallet,
+                spender,
+                value: requiredMicro,
+                validAfter,
+                validBefore,
+                nonce,
+              },
+              signature
+            );
+
+            if (recovered.toLowerCase() !== challenge.payer_wallet.toLowerCase()) {
+              res.status(401).json({ error: 'Invalid usdcAuthorization signature' });
+              return;
+            }
+
+            await approveBaseUsdcWithAuthorization({
+              owner: challenge.payer_wallet,
+              spender,
+              value: requiredMicro,
+              validAfter,
+              validBefore,
+              nonce,
+              signature,
+            });
+
+            const allowanceAfter = await getBaseUsdcAllowanceMicro(challenge.payer_wallet, spender);
+            if (allowanceAfter < requiredMicro) {
+              res.status(412).json({
+                error: 'USDC allowance insufficient',
+                spender,
+                requiredMicro: challenge.max_total_micro,
+                allowanceMicro: allowanceAfter.toString(),
+              });
+              return;
+            }
+          } else {
+            res.status(412).json({
+              error: 'USDC allowance insufficient',
+              spender,
+              requiredMicro: challenge.max_total_micro,
+              allowanceMicro: allowanceBefore.toString(),
+              hint: 'Provide usdcAuthorization for a gasless approval or approve USDC allowance onchain.',
+            });
+            return;
+          }
+        }
+      } catch (err: any) {
+        res.status(502).json({ error: err?.message || 'Failed to check token allowance' });
         return;
       }
-    } catch (err: any) {
-      res.status(502).json({ error: err?.message || 'Failed to check token delegation' });
-      return;
+    } else {
+      let payerKey: PublicKey;
+      try {
+        payerKey = new PublicKey(challenge.payer_wallet);
+      } catch {
+        res.status(400).json({ error: 'Invalid payer wallet' });
+        return;
+      }
+
+      try {
+        const state = await getUsdcDelegateState(connection, payerKey);
+        if (!state.delegate || !state.delegate.equals(facilitatorKeypair.publicKey)) {
+          res.status(412).json({
+            error: 'USDC delegate not set',
+            requiredDelegate: facilitatorKeypair.publicKey.toBase58(),
+          });
+          return;
+        }
+
+        const requiredMicro = BigInt(challenge.max_total_micro);
+        if (state.delegatedMicro < requiredMicro) {
+          res.status(412).json({
+            error: 'USDC delegated allowance insufficient',
+            requiredMicro: challenge.max_total_micro,
+            delegatedMicro: state.delegatedMicro.toString(),
+          });
+          return;
+        }
+      } catch (err: any) {
+        res.status(502).json({ error: err?.message || 'Failed to check token delegation' });
+        return;
+      }
     }
 
     const marked = await markSessionChallengeUsed(nonce);

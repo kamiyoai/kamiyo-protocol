@@ -452,6 +452,99 @@ const TOOL_DEFINITIONS: Tool[] = [
       },
     },
   },
+  // Coinbase CDP (agentic wallets)
+  {
+    name: 'cdp_env_status',
+    description: 'Check required CDP environment variables for wallet + policy APIs',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'cdp_evm_get_or_create_account',
+    description: 'Create (or reuse) a CDP server EVM account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Optional unique account name' },
+      },
+    },
+  },
+  {
+    name: 'cdp_solana_get_or_create_account',
+    description: 'Create (or reuse) a CDP server Solana account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Optional unique account name' },
+      },
+    },
+  },
+  {
+    name: 'cdp_evm_set_account_policy',
+    description: 'Attach (or unset) an account-level policy on a CDP EVM server account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string', description: 'EVM account address' },
+        policyId: { type: 'string', description: 'Policy id (empty string unsets)' },
+      },
+      required: ['address', 'policyId'],
+    },
+  },
+  {
+    name: 'cdp_solana_set_account_policy',
+    description: 'Attach (or unset) an account-level policy on a CDP Solana server account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string', description: 'Solana account address' },
+        policyId: { type: 'string', description: 'Policy id (empty string unsets)' },
+      },
+      required: ['address', 'policyId'],
+    },
+  },
+  {
+    name: 'cdp_create_usdc_policy',
+    description: 'Create an account-scoped CDP policy that only allows USDC transfers within a micro-USD spend cap',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        description: { type: 'string', description: 'Policy description (<= 50 chars, letters/numbers/spaces/commas/periods)' },
+        network: { type: 'string', enum: ['base', 'base-sepolia', 'solana', 'solana-devnet'], description: 'Network to target' },
+        maxSpendMicroUsd: { type: 'string', description: 'Max spend per transaction in micro-USD (e.g. "250000" for $0.25)' },
+        allowedMerchants: { type: 'array', items: { type: 'string' }, description: 'Optional allowlist of recipients' },
+      },
+      required: ['description', 'network', 'maxSpendMicroUsd'],
+    },
+  },
+  {
+    name: 'cdp_create_end_user',
+    description: 'Create an embedded end user (email auth), optionally with EVM smart account and/or Solana account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', description: 'End user email' },
+        userId: { type: 'string', description: 'Optional stable user id (alphanumeric + hyphen)' },
+        createEvmSmartAccount: { type: 'boolean', description: 'If true, create an EVM smart account + owner EOA' },
+        enableSpendPermissions: { type: 'boolean', description: 'If true, enable spend permissions on the EVM smart account' },
+        createSolanaAccount: { type: 'boolean', description: 'If true, create a Solana account for the end user' },
+      },
+      required: ['email'],
+    },
+  },
+  {
+    name: 'cdp_validate_end_user_access_token',
+    description: 'Validate an embedded end user access token',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string', description: 'End user access token' },
+      },
+      required: ['accessToken'],
+    },
+  },
   // Market data tools
   {
     name: 'get_token_price',
@@ -729,6 +822,40 @@ class KamiyoMCPServer {
 
           case 'kamino_autosave_usdc':
             result = await tools.kaminoAutosaveUsdc(args as any, this.solanaClient);
+            break;
+
+
+          // Coinbase CDP tools
+          case 'cdp_env_status':
+            result = tools.cdpEnvStatus();
+            break;
+
+          case 'cdp_evm_get_or_create_account':
+            result = await tools.cdpEvmGetOrCreateAccount(args as any);
+            break;
+
+          case 'cdp_solana_get_or_create_account':
+            result = await tools.cdpSolanaGetOrCreateAccount(args as any);
+            break;
+
+          case 'cdp_evm_set_account_policy':
+            result = await tools.cdpEvmSetAccountPolicy(args as any);
+            break;
+
+          case 'cdp_solana_set_account_policy':
+            result = await tools.cdpSolanaSetAccountPolicy(args as any);
+            break;
+
+          case 'cdp_create_usdc_policy':
+            result = await tools.cdpCreateUsdcPolicy(args as any);
+            break;
+
+          case 'cdp_create_end_user':
+            result = await tools.cdpCreateEndUser(args as any);
+            break;
+
+          case 'cdp_validate_end_user_access_token':
+            result = await tools.cdpValidateEndUserAccessToken(args as any);
             break;
 
           // Market data tools
