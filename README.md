@@ -4,7 +4,7 @@
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-https://github.com/user-attachments/assets/c3c293d8-f20b-4257-b272-d30e98c4e8fd
+![kamiyo](https://github.com/user-attachments/assets/d747576d-b0f5-4e48-9fe4-d03b6bf2f904)
 
 Trust infrastructure for autonomous agents.
 
