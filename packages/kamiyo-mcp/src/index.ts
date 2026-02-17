@@ -482,6 +482,30 @@ const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: 'cdp_evm_set_account_policy',
+    description: 'Attach (or unset) an account-level policy on a CDP EVM server account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string', description: 'EVM account address' },
+        policyId: { type: 'string', description: 'Policy id (empty string unsets)' },
+      },
+      required: ['address', 'policyId'],
+    },
+  },
+  {
+    name: 'cdp_solana_set_account_policy',
+    description: 'Attach (or unset) an account-level policy on a CDP Solana server account',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string', description: 'Solana account address' },
+        policyId: { type: 'string', description: 'Policy id (empty string unsets)' },
+      },
+      required: ['address', 'policyId'],
+    },
+  },
+  {
     name: 'cdp_create_usdc_policy',
     description: 'Create an account-scoped CDP policy that only allows USDC transfers within a micro-USD spend cap',
     inputSchema: {
@@ -812,6 +836,14 @@ class KamiyoMCPServer {
 
           case 'cdp_solana_get_or_create_account':
             result = await tools.cdpSolanaGetOrCreateAccount(args as any);
+            break;
+
+          case 'cdp_evm_set_account_policy':
+            result = await tools.cdpEvmSetAccountPolicy(args as any);
+            break;
+
+          case 'cdp_solana_set_account_policy':
+            result = await tools.cdpSolanaSetAccountPolicy(args as any);
             break;
 
           case 'cdp_create_usdc_policy':

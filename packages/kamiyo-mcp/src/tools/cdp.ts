@@ -155,3 +155,64 @@ export async function cdpValidateEndUserAccessToken(params: {
     };
   }
 }
+
+export async function cdpEvmSetAccountPolicy(params: {
+  address: string;
+  policyId: string;
+}): Promise<
+  | { success: true; address: string; policyId: string; policies?: string[] }
+  | { success: false; error: string }
+> {
+  try {
+    const trimmed = params.address.trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+      throw new Error('Invalid EVM address');
+    }
+
+    const cdp = createCdpClient();
+    const updated = await cdp.evm.updateAccount({
+      address: trimmed as `0x${string}`,
+      update: { accountPolicy: params.policyId },
+    });
+
+    return {
+      success: true,
+      address: updated.address,
+      policyId: params.policyId,
+      policies: updated.policies,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'unknown error',
+    };
+  }
+}
+
+export async function cdpSolanaSetAccountPolicy(params: {
+  address: string;
+  policyId: string;
+}): Promise<
+  | { success: true; address: string; policyId: string; policies?: string[] }
+  | { success: false; error: string }
+> {
+  try {
+    const cdp = createCdpClient();
+    const updated = await cdp.solana.updateAccount({
+      address: params.address,
+      update: { accountPolicy: params.policyId },
+    });
+
+    return {
+      success: true,
+      address: updated.address,
+      policyId: params.policyId,
+      policies: updated.policies,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'unknown error',
+    };
+  }
+}
