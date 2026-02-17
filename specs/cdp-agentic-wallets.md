@@ -19,12 +19,12 @@ The end state is a "wallet control plane" that provisions wallets, compiles Meis
   - validity windows and revocation
 - x402 facilitator service that supports Solana and Base settlement.
 - x402 session payments for Solana (delegate-based SPL transfers).
+- x402 session payments for Base (ERC20 allowance + `transferFrom`).
 
 ## What We Do Not Yet Have (Gaps)
-- A single, canonical wallet provisioning + policy layer that spans Solana and Base.
-- Embedded end-user lifecycle (create user, validate access token, account linking) integrated into our stack.
-- Base session-style payments where the facilitator moves USDC from payer without fronting funds.
-  - For Base, this likely means implementing USDC authorization-based transfers (EIP-3009) in the facilitator.
+- End-user onboarding UX + SDK for embedded auth and spend-permission flows.
+- Automated mandate syncing (on-chain listeners/webhooks) instead of manual API calls.
+- A gasless Base delegation path (EIP-3009 style) for users that don't want to pre-approve an allowance.
 
 ## Architecture: Wallet Control Plane
 Introduce a dedicated backend component (service or module) responsible for:
@@ -114,7 +114,7 @@ Important:
 - Provision a CDP EVM server account for the agent
 - Compile mandate -> Base policy (USDC-only)
 - For x402:
-  - add Base session-style settlement so payer funds move on chain without facilitator fronting
+  - Base session-style settlement uses ERC20 allowance + `transferFrom` so payer funds move on chain without facilitator fronting
   - keep nonce + cap guards server-side
 
 ## Implementation Plan (Phased)
@@ -126,9 +126,8 @@ Phase 1
 - Add `services/wallet-control-plane` with persistent mappings and mandate sync endpoints
 
 Phase 2
-- Bring x402 Base to parity with Solana session payments (authorization-based USDC transfers)
+- Bring x402 Base to parity with Solana session payments (allowance + `transferFrom`)
 - Add EVM x402 payment header signing support for CDP-managed EVM accounts
 
 Phase 3
 - Ship embedded UI + SDK for end-user login and spend-permission onboarding
-

@@ -1,0 +1,30 @@
+{
+  "name": "@kamiyo/wallet-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Wallet control plane for Kamiyo agentic wallets (CDP server accounts + embedded end-users).",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "migrate": "node dist/db/migrate.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@kamiyo/cdp": "workspace:*",
+    "@kamiyo/meishi": "workspace:*",
+    "@solana/web3.js": "1.95.8",
+    "hono": "^4.6.0",
+    "pg": "^8.13.1",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.0"
+  }
+}
