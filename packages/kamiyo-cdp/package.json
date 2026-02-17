@@ -1,0 +1,32 @@
+{
+  "name": "@kamiyo/cdp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Coinbase CDP wallet + policy integration for Kamiyo agentic wallets (server + embedded end-users).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "author": "KAMIYO",
+  "license": "MIT",
+  "dependencies": {
+    "@coinbase/cdp-sdk": "^1.43.1",
+    "@kamiyo/meishi": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

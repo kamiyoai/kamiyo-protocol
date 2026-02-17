@@ -67,7 +67,8 @@
     "bs58": "^6.0.0",
     "dotenv": "^16.4.5",
     "tweetnacl": "^1.0.3",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@kamiyo/cdp": "workspace:*"
   },
   "devDependencies": {
     "@types/bs58": "^5.0.0",

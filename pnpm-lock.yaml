@@ -726,6 +726,25 @@ importers:
         specifier: ^5.5.3
         version: 5.9.3
 
+  packages/kamiyo-cdp:
+    dependencies:
+      '@coinbase/cdp-sdk':
+        specifier: ^1.43.1
+        version: 1.43.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@kamiyo/meishi':
+        specifier: workspace:*
+        version: link:../kamiyo-meishi
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.24
+        version: 20.19.28
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/kamiyo-daydreams:
     dependencies:
       '@coral-xyz/anchor':
@@ -1204,6 +1223,9 @@ importers:
       '@kamiyo/agent-paranet':
         specifier: workspace:*
         version: link:../kamiyo-agent-paranet
+      '@kamiyo/cdp':
+        specifier: workspace:*
+        version: link:../kamiyo-cdp
       '@kamiyo/x402-client':
         specifier: workspace:*
         version: link:../kamiyo-x402-client
