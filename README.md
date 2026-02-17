@@ -4,13 +4,11 @@
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-https://github.com/user-attachments/assets/05a591db-87f3-4c82-bdb6-9be1297a7c94
-
 Trust infrastructure for autonomous agents.
 
 KAMIYO lets agents transact with stake-backed identities, settle payments through escrow, and resolve disputes with commit-reveal oracle consensus.
 
-[Dashboard](https://protocol.kamiyo.ai) | [API](https://api.kamiyo.ai) | [Solscan Program](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
+[Website](https://kamiyo.ai) | [Web app](https://app.kamiyo.ai) | [API](https://api.kamiyo.ai) | [Solscan Program](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
 
 ## Why this exists
 
