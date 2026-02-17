@@ -132,4 +132,4 @@ Phase 2
 - Add EVM x402 payment header signing support for CDP-managed EVM accounts
 
 Phase 3
-- Ship embedded UI + SDK for end-user login and spend-permission onboarding
+- Ship embedded UI + SDK for end-user login and spend-permission onboarding (reference app: `apps/cdp-onboarding`)

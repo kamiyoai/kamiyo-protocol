@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { timing } from 'hono/timing';
@@ -31,6 +32,22 @@ async function main() {
   app.use('*', secureHeaders());
   app.use('*', timing());
   app.use('*', logger());
+
+  function parseAllowedOrigins(): string | string[] {
+    const raw = process.env.ALLOWED_ORIGINS;
+    if (!raw || raw.trim() === '' || raw.trim() === '*') return '*';
+    return raw.split(',').map((o) => o.trim()).filter(Boolean);
+  }
+
+  app.use(
+    '*',
+    cors({
+      origin: parseAllowedOrigins(),
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+      maxAge: 86400,
+    })
+  );
 
   app.get('/', (c) =>
     c.json({
