@@ -5377,6 +5377,95 @@ pub struct CloseTraderSession<'info> {
 }
 
 // ============================================================================
+// Trusted Trader Account Validation (Elfa × Hyperliquid)
+// ============================================================================
+
+#[derive(Accounts)]
+#[instruction(elfa_session_id: String)]
+pub struct CreateTraderSession<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump,
+        constraint = agent_identity.owner == owner.key() @ KamiyoError::Unauthorized,
+        constraint = agent_identity.is_active @ KamiyoError::AgentNotActive
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + TraderSession::INIT_SPACE,
+        seeds = [b"trader_session", agent_identity.key().as_ref(), elfa_session_id.as_bytes()],
+        bump
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(trade_id: String)]
+pub struct CreateTradeEscrow<'info> {
+    #[account(
+        seeds = [b"protocol_config"],
+        bump = protocol_config.bump
+    )]
+    pub protocol_config: Account<'info, ProtocolConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
+        bump = trader_session.bump,
+        constraint = trader_session.owner == trader.key() @ KamiyoError::Unauthorized
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(
+        init,
+        payer = trader,
+        space = 8 + TradeEscrow::INIT_SPACE,
+        seeds = [b"trade_escrow", trader_session.key().as_ref(), trade_id.as_bytes()],
+        bump
+    )]
+    pub trade_escrow: Account<'info, TradeEscrow>,
+
+    #[account(mut)]
+    pub trader: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CloseTraderSession<'info> {
+    #[account(
+        mut,
+        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
+        bump = trader_session.bump,
+        constraint = trader_session.owner == owner.key() @ KamiyoError::Unauthorized
+    )]
+    pub trader_session: Account<'info, TraderSession>,
+
+    #[account(
+        mut,
+        seeds = [b"agent", owner.key().as_ref()],
+        bump = agent_identity.bump
+    )]
+    pub agent_identity: Account<'info, AgentIdentity>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+}
+
+// ============================================================================
 // State
 // ============================================================================
 

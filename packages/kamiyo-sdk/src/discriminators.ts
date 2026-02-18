@@ -26,4 +26,9 @@ export const DISCRIMINATORS = {
   recordGraduation: Buffer.from([89, 93, 12, 76, 198, 56, 162, 242]),
   releaseLaunch: Buffer.from([229, 144, 251, 90, 130, 37, 184, 154]),
   disputeLaunch: Buffer.from([231, 138, 9, 141, 248, 198, 41, 142]),
+
+  // Trusted trader instructions (Elfa × Hyperliquid)
+  createTraderSession: Buffer.from([234, 213, 168, 230, 177, 46, 220, 222]),
+  createTradeEscrow: Buffer.from([149, 181, 111, 61, 122, 174, 71, 51]),
+  closeTraderSession: Buffer.from([51, 80, 230, 21, 61, 68, 251, 62]),
 } as const;

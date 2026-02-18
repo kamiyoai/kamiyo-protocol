@@ -873,6 +873,28 @@ class KamiyoMCPServer {
             result = await tools.handleSearchTool('crypto_news', args as any);
             break;
 
+          // Fundry trusted launch tools
+          case 'secure_launch_token':
+            result = await tools.secureLaunchToken(args as any, this.program);
+            break;
+
+          case 'list_fundry_configs':
+            result = tools.listFundryConfigs();
+            break;
+
+          // Elfa trusted trader tools
+          case 'secure_elfa_trade':
+            result = await tools.secureElfaTrade(args as any, this.program);
+            break;
+
+          case 'secure_elfa_mcp_call':
+            result = await tools.secureElfaMcpCall(args as any, this.program);
+            break;
+
+          case 'elfa_session_status':
+            result = await tools.elfaSessionStatus(args as any, this.program);
+            break;
+
           default:
             return {
               content: [
