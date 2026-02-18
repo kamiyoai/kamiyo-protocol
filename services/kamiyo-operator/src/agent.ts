@@ -5,15 +5,15 @@ import { writeOutbox } from './outbox.js';
 
 export type KamiyoMode = 'propose' | 'execute';
 
-type ToolResult = {
+export type ToolResult = {
   success: boolean;
   data?: unknown;
   error?: string;
 };
 
-type ToolHandler = (params: Record<string, unknown>) => Promise<ToolResult>;
+export type ToolHandler = (params: Record<string, unknown>) => Promise<ToolResult>;
 
-type ToolConfig = {
+export type ToolConfig = {
   name: string;
   description: string;
   parameters: Record<

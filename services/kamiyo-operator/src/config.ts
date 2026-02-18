@@ -21,10 +21,15 @@ const envSchema = z.object({
   KAMIYO_FEE_VAULT: z.string().min(1).optional(),
 
   KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
+  KAMIYO_RUN_ONCE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
 
   KAMIYO_SOL_DAILY_CAP: z.coerce.number().positive().default(0.1),
   KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
   KAMIYO_MAX_TX_PER_DAY: z.coerce.number().int().positive().default(25),
+  KAMIYO_MAX_FEE_CLAIMS_PER_DAY: z.coerce.number().int().positive().default(1),
 
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
