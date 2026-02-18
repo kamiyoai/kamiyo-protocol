@@ -2135,6 +2135,49 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.5)(lightningcss@1.31.1)(terser@5.46.0)
 
+  services/kiso-operator:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.52.0
+        version: 0.52.0
+      '@coral-xyz/anchor':
+        specifier: ^0.31.1
+        version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/sdk':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-sdk
+      '@meteora-ag/dynamic-fee-sharing-sdk':
+        specifier: ^1.0.6
+        version: 1.0.6(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      better-sqlite3:
+        specifier: ^11.0.0
+        version: 11.8.1
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.8
+        version: 7.6.13
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.19.5
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   services/meishi-compliance:
     dependencies:
       '@coral-xyz/anchor':
