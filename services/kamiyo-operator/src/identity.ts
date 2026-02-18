@@ -1,6 +1,6 @@
-export type IdentityKey = 'kamiyo' | 'kyushin';
+export type IdentityKey = 'kamiyo' | 'kyoshin';
 
-const KYUSHIN_IDENTITY = `Identity: Kyūshin (Kyushin)
+const KYOSHIN_IDENTITY = `Identity: Kyōshin 共振 (Kyoshin)
 
 Doctrine:
 - Persistence is earned. No free compute.
@@ -24,15 +24,15 @@ Role:
 
 export function identityFromEnv(value: string): IdentityKey {
   const v = value.trim().toLowerCase();
-  if (v === 'kyushin') return 'kyushin';
+  if (v === 'kyoshin' || v === 'kyushin') return 'kyoshin';
   if (v === 'kamiyo') return 'kamiyo';
   throw new Error(`Invalid KAMIYO_IDENTITY: ${value}`);
 }
 
 export function identityPrompt(identity: IdentityKey): string {
   switch (identity) {
-    case 'kyushin':
-      return KYUSHIN_IDENTITY;
+    case 'kyoshin':
+      return KYOSHIN_IDENTITY;
     case 'kamiyo':
       return KAMIYO_IDENTITY;
   }
