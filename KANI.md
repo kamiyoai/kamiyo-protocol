@@ -15,6 +15,10 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
   - `./scripts/kani.sh`
 - Run the full set (enables additional harnesses via the `kani-full` feature):
   - `KANI_FULL=1 ./scripts/kani.sh`
+- Run agent verification proofs (solana-agent feature):
+  - `KANI_AGENT=1 ./scripts/kani.sh`
+- Run both full and agent proofs:
+  - `KANI_AGENT=1 KANI_FULL=1 ./scripts/kani.sh`
 - Run with CI-style output (writes `kani-results/summary.md` + `kani-results/kani.log`):
   - `KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh`
   - also writes per-package logs: `kani-results/kani-<pkg>.log`
@@ -52,8 +56,11 @@ Harness modules are gated behind `cfg(kani)` so normal `anchor build/test` is un
 - `programs/kamiyo/src/kani_proofs.rs`
 - `programs/hive/src/kani_proofs.rs`
 - `programs/kamiyo-staking/src/kani_proofs.rs`
+- `crates/kani-solana/src/agent/*.rs` (gated behind `cfg(all(kani, feature = "solana-agent"))`)
+- `crates/kani-solana/tests/agent_verify.rs`
 
 ## Scope (Current)
 
 - Proven: basic invariants for fee splits, refund mapping, consensus ceiling-average when all scores are included, dispute-cost/reputation-score bounds, multiplier schedule properties, and bounded pending-rewards arithmetic.
+- Agent primitives (behind `solana-agent` feature): lamport conservation, reentrancy prevention, CPI authorization, state machine transitions, PDA structural checks.
 - Not covered: full instruction handlers, CPI/system account constraints, cryptographic hashing/circuits.
