@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type KisoDb = ReturnType<typeof openDb>;
+export type KamiyoDb = ReturnType<typeof openDb>;
 
 export function openDb(dbPath: string) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });

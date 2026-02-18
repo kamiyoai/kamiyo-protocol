@@ -1,0 +1,51 @@
+import { config as loadDotenv } from 'dotenv';
+import { z } from 'zod';
+
+loadDotenv();
+
+const envSchema = z.object({
+  SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'),
+
+  KAMIYO_OPERATOR_KEYPAIR_PATH: z.string().min(1).optional(),
+  KAMIYO_OPERATOR_PRIVATE_KEY: z.string().min(1).optional(),
+
+  KAMIYO_AGENT_NAME: z.string().min(1).default('kamiyo-operator'),
+  KAMIYO_AUTO_CREATE_AGENT: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_AGENT_TYPE: z.enum(['Trading', 'Service', 'Oracle', 'Custom']).default('Service'),
+  KAMIYO_AGENT_STAKE_SOL: z.coerce.number().positive().default(0.5),
+
+  KAMIYO_TARGET_MINT: z.string().min(1).optional(),
+  KAMIYO_FEE_VAULT: z.string().min(1).optional(),
+
+  KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
+
+  KAMIYO_SOL_DAILY_CAP: z.coerce.number().positive().default(0.1),
+  KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
+  KAMIYO_MAX_TX_PER_DAY: z.coerce.number().int().positive().default(25),
+
+  ANTHROPIC_API_KEY: z.string().min(1),
+  ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
+  KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN: z.coerce.number().int().positive().default(2048),
+  KAMIYO_MAX_TURNS_PER_TICK: z.coerce.number().int().positive().default(6),
+
+  KAMIYO_LLM_MAX_TURNS_PER_DAY: z.coerce.number().int().positive().default(24),
+  KAMIYO_LLM_MAX_INPUT_TOKENS_PER_DAY: z.coerce.number().int().positive().default(150_000),
+  KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY: z.coerce.number().int().positive().default(30_000),
+
+  KAMIYO_LOOP_INTERVAL_SECONDS: z.coerce.number().int().positive().default(3600),
+
+  KAMIYO_ANNOUNCE_CHANNELS: z
+    .string()
+    .default('x,telegram')
+    .transform(s => s.split(',').map(v => v.trim()).filter(Boolean)),
+
+  KAMIYO_DB_PATH: z.string().default('output/kamiyo-operator/state.db'),
+  KAMIYO_OUTBOX_DIR: z.string().default('output/kamiyo-operator/outbox'),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export const env = envSchema.parse(process.env);

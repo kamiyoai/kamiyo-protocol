@@ -30,20 +30,20 @@ function parsePrivateKey(raw: string): Keypair {
 }
 
 export function loadOperatorKeypair(env: {
-  KISO_OPERATOR_KEYPAIR_PATH?: string;
-  KISO_OPERATOR_PRIVATE_KEY?: string;
+  KAMIYO_OPERATOR_KEYPAIR_PATH?: string;
+  KAMIYO_OPERATOR_PRIVATE_KEY?: string;
 }): { keypair: Keypair; source: string } {
-  if (env.KISO_OPERATOR_KEYPAIR_PATH) {
+  if (env.KAMIYO_OPERATOR_KEYPAIR_PATH) {
     return {
-      keypair: loadKeypairFromPath(env.KISO_OPERATOR_KEYPAIR_PATH),
-      source: 'KISO_OPERATOR_KEYPAIR_PATH',
+      keypair: loadKeypairFromPath(env.KAMIYO_OPERATOR_KEYPAIR_PATH),
+      source: 'KAMIYO_OPERATOR_KEYPAIR_PATH',
     };
   }
 
-  if (env.KISO_OPERATOR_PRIVATE_KEY) {
+  if (env.KAMIYO_OPERATOR_PRIVATE_KEY) {
     return {
-      keypair: parsePrivateKey(env.KISO_OPERATOR_PRIVATE_KEY),
-      source: 'KISO_OPERATOR_PRIVATE_KEY',
+      keypair: parsePrivateKey(env.KAMIYO_OPERATOR_PRIVATE_KEY),
+      source: 'KAMIYO_OPERATOR_PRIVATE_KEY',
     };
   }
 
@@ -56,6 +56,6 @@ export function loadOperatorKeypair(env: {
   }
 
   throw new Error(
-    'Missing operator keypair. Set KISO_OPERATOR_KEYPAIR_PATH or KISO_OPERATOR_PRIVATE_KEY.'
+    'Missing operator keypair. Set KAMIYO_OPERATOR_KEYPAIR_PATH or KAMIYO_OPERATOR_PRIVATE_KEY.'
   );
 }

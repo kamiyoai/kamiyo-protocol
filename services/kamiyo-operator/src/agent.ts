@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-import type { KisoDb } from './db.js';
+import type { KamiyoDb } from './db.js';
 import { writeOutbox } from './outbox.js';
 
-export type KisoMode = 'propose' | 'execute';
+export type KamiyoMode = 'propose' | 'execute';
 
 type ToolResult = {
   success: boolean;
@@ -89,15 +89,15 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg?: string): Promise<T> {
   }
 }
 
-export class KisoAgent {
+export class KamiyoAgent {
   private tools = new Map<string, ToolConfig>();
   private anthropicTools: Anthropic.Tool[] = [];
 
   constructor(
     private deps: {
-      db: KisoDb;
+      db: KamiyoDb;
       outboxDir: string;
-      mode: KisoMode;
+      mode: KamiyoMode;
       client: Anthropic;
       model: string;
       maxOutputTokens: number;

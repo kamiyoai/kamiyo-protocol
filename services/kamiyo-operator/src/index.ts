@@ -9,7 +9,7 @@ import { loadOperatorKeypair } from './wallet.js';
 import { KeypairWallet } from './anchorWallet.js';
 import { getOrCreateAgentIdentity } from './kamiyo.js';
 import { writeOutbox } from './outbox.js';
-import { KisoAgent } from './agent.js';
+import { KamiyoAgent } from './agent.js';
 import { readFeeVault } from './tools/feeVault.js';
 
 function startOfUtcDayIso(now = new Date()): string {
@@ -24,7 +24,7 @@ function sleep(ms: number): Promise<void> {
 function agentTypeFromEnv(value: string): AgentType {
   const key = value as keyof typeof AgentType;
   const parsed = AgentType[key];
-  if (typeof parsed !== 'number') throw new Error(`Invalid KISO_AGENT_TYPE: ${value}`);
+  if (typeof parsed !== 'number') throw new Error(`Invalid KAMIYO_AGENT_TYPE: ${value}`);
   return parsed;
 }
 
@@ -44,7 +44,7 @@ function buildSystemPrompt(params: {
 }) {
   const targetLine = params.targetMint ? `Target mint: ${params.targetMint}` : 'Target mint: (not set yet)';
 
-  return `You are Kiso Operator: an autonomous agent that operates ONE token over time.
+  return `You are Kamiyo Operator: an autonomous agent that operates ONE token over time.
 
 NON-NEGOTIABLE CONSTRAINTS:
 - Do NOT mint or launch new tokens.
@@ -74,7 +74,7 @@ Operating style:
 }
 
 async function main(): Promise<void> {
-  const db = openDb(env.KISO_DB_PATH);
+  const db = openDb(env.KAMIYO_DB_PATH);
 
   const { keypair } = loadOperatorKeypair(env);
   const wallet = new KeypairWallet(keypair);
@@ -82,16 +82,16 @@ async function main(): Promise<void> {
 
   const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
-  const allowedChannels = Array.from(new Set(env.KISO_ANNOUNCE_CHANNELS));
+  const allowedChannels = Array.from(new Set(env.KAMIYO_ANNOUNCE_CHANNELS));
 
-  const agent = new KisoAgent({
+  const agent = new KamiyoAgent({
     db,
-    outboxDir: env.KISO_OUTBOX_DIR,
-    mode: env.KISO_MODE,
+    outboxDir: env.KAMIYO_OUTBOX_DIR,
+    mode: env.KAMIYO_MODE,
     client: anthropic,
     model: env.ANTHROPIC_MODEL,
-    maxOutputTokens: env.KISO_MAX_OUTPUT_TOKENS_PER_TURN,
-    maxTurnsPerTick: env.KISO_MAX_TURNS_PER_TICK,
+    maxOutputTokens: env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN,
+    maxTurnsPerTick: env.KAMIYO_MAX_TURNS_PER_TICK,
     allowedChannels,
   });
 
@@ -113,9 +113,9 @@ async function main(): Promise<void> {
         llmCallsToday,
         llmUsageToday,
         llmAllowed: {
-          calls: env.KISO_LLM_MAX_TURNS_PER_DAY,
-          inputTokens: env.KISO_LLM_MAX_INPUT_TOKENS_PER_DAY,
-          outputTokens: env.KISO_LLM_MAX_OUTPUT_TOKENS_PER_DAY,
+          calls: env.KAMIYO_LLM_MAX_TURNS_PER_DAY,
+          inputTokens: env.KAMIYO_LLM_MAX_INPUT_TOKENS_PER_DAY,
+          outputTokens: env.KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY,
         },
       };
 
@@ -128,23 +128,23 @@ async function main(): Promise<void> {
           solBalance: balanceLamports / 1e9,
         },
         budgets: {
-          mode: env.KISO_MODE,
-          solDailyCap: env.KISO_SOL_DAILY_CAP,
-          solPerTxCap: env.KISO_SOL_PER_TX_CAP,
-          maxTxPerDay: env.KISO_MAX_TX_PER_DAY,
+          mode: env.KAMIYO_MODE,
+          solDailyCap: env.KAMIYO_SOL_DAILY_CAP,
+          solPerTxCap: env.KAMIYO_SOL_PER_TX_CAP,
+          maxTxPerDay: env.KAMIYO_MAX_TX_PER_DAY,
           llm: budgetState,
         },
-        token: env.KISO_TARGET_MINT ? { mint: env.KISO_TARGET_MINT } : { mint: null },
+        token: env.KAMIYO_TARGET_MINT ? { mint: env.KAMIYO_TARGET_MINT } : { mint: null },
       };
 
-      const agentType = agentTypeFromEnv(env.KISO_AGENT_TYPE);
+      const agentType = agentTypeFromEnv(env.KAMIYO_AGENT_TYPE);
       const agentState = await getOrCreateAgentIdentity({
         connection,
         wallet,
         name: env.KAMIYO_AGENT_NAME,
         agentType,
-        stakeSol: env.KISO_AGENT_STAKE_SOL,
-        createIfMissing: env.KISO_AUTO_CREATE_AGENT,
+        stakeSol: env.KAMIYO_AGENT_STAKE_SOL,
+        createIfMissing: env.KAMIYO_AUTO_CREATE_AGENT,
       });
 
       observation.agent =
@@ -162,9 +162,9 @@ async function main(): Promise<void> {
               autoCreate: false,
             };
 
-      if (env.KISO_TARGET_MINT) {
+      if (env.KAMIYO_TARGET_MINT) {
         try {
-          const mint = new PublicKey(env.KISO_TARGET_MINT);
+          const mint = new PublicKey(env.KAMIYO_TARGET_MINT);
           const info = await connection.getParsedAccountInfo(mint, 'confirmed');
           observation.token = {
             mint: mint.toBase58(),
@@ -172,53 +172,53 @@ async function main(): Promise<void> {
             owner: info.value?.owner?.toBase58() ?? null,
           };
         } catch (e) {
-          observation.token = { mint: env.KISO_TARGET_MINT, error: e instanceof Error ? e.message : String(e) };
+          observation.token = { mint: env.KAMIYO_TARGET_MINT, error: e instanceof Error ? e.message : String(e) };
         }
       }
 
-      if (env.KISO_FEE_VAULT) {
+      if (env.KAMIYO_FEE_VAULT) {
         try {
-          const feeVault = new PublicKey(env.KISO_FEE_VAULT);
+          const feeVault = new PublicKey(env.KAMIYO_FEE_VAULT);
           observation.feeVault = {
             address: feeVault.toBase58(),
             breakdown: await readFeeVault(connection, feeVault),
           };
         } catch (e) {
-          observation.feeVault = { address: env.KISO_FEE_VAULT, error: e instanceof Error ? e.message : String(e) };
+          observation.feeVault = { address: env.KAMIYO_FEE_VAULT, error: e instanceof Error ? e.message : String(e) };
         }
       }
 
       db.addObservation(tickId, 'snapshot', observation);
 
       const llmOverBudget =
-        llmCallsToday >= env.KISO_LLM_MAX_TURNS_PER_DAY ||
-        llmUsageToday.inputTokens >= env.KISO_LLM_MAX_INPUT_TOKENS_PER_DAY ||
-        llmUsageToday.outputTokens >= env.KISO_LLM_MAX_OUTPUT_TOKENS_PER_DAY;
+        llmCallsToday >= env.KAMIYO_LLM_MAX_TURNS_PER_DAY ||
+        llmUsageToday.inputTokens >= env.KAMIYO_LLM_MAX_INPUT_TOKENS_PER_DAY ||
+        llmUsageToday.outputTokens >= env.KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY;
 
       if (llmOverBudget) {
-        const filePath = writeOutbox(env.KISO_OUTBOX_DIR, 'report', {
+        const filePath = writeOutbox(env.KAMIYO_OUTBOX_DIR, 'report', {
           at: new Date().toISOString(),
           reason: 'LLM daily budget exhausted',
           observation,
         });
         db.addAction(tickId, 'write_report', { reason: 'budget_exhausted' }, { filePath });
         db.finishTick(tickId, 'ok');
-        await sleep(env.KISO_LOOP_INTERVAL_SECONDS * 1000);
+        await sleep(env.KAMIYO_LOOP_INTERVAL_SECONDS * 1000);
         continue;
       }
 
       const systemPrompt = buildSystemPrompt({
         observation,
-        mode: env.KISO_MODE,
+        mode: env.KAMIYO_MODE,
         allowedChannels,
-        targetMint: env.KISO_TARGET_MINT,
+        targetMint: env.KAMIYO_TARGET_MINT,
         budgets: {
-          solDailyCap: env.KISO_SOL_DAILY_CAP,
-          solPerTxCap: env.KISO_SOL_PER_TX_CAP,
-          maxTxPerDay: env.KISO_MAX_TX_PER_DAY,
-          llmMaxTurnsPerDay: env.KISO_LLM_MAX_TURNS_PER_DAY,
-          llmMaxInputTokensPerDay: env.KISO_LLM_MAX_INPUT_TOKENS_PER_DAY,
-          llmMaxOutputTokensPerDay: env.KISO_LLM_MAX_OUTPUT_TOKENS_PER_DAY,
+          solDailyCap: env.KAMIYO_SOL_DAILY_CAP,
+          solPerTxCap: env.KAMIYO_SOL_PER_TX_CAP,
+          maxTxPerDay: env.KAMIYO_MAX_TX_PER_DAY,
+          llmMaxTurnsPerDay: env.KAMIYO_LLM_MAX_TURNS_PER_DAY,
+          llmMaxInputTokensPerDay: env.KAMIYO_LLM_MAX_INPUT_TOKENS_PER_DAY,
+          llmMaxOutputTokensPerDay: env.KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY,
         },
       });
 
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
       });
 
       db.kvSet('last_summary', result.finalText);
-      const reportPath = writeOutbox(env.KISO_OUTBOX_DIR, 'summary', {
+      const reportPath = writeOutbox(env.KAMIYO_OUTBOX_DIR, 'summary', {
         at: new Date().toISOString(),
         summary: result.finalText,
         warning: 'warning' in result ? result.warning : null,
@@ -245,7 +245,7 @@ async function main(): Promise<void> {
       db.finishTick(tickId, 'error', err);
     }
 
-    await sleep(env.KISO_LOOP_INTERVAL_SECONDS * 1000);
+    await sleep(env.KAMIYO_LOOP_INTERVAL_SECONDS * 1000);
   }
 }
 
