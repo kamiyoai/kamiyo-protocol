@@ -212,7 +212,7 @@ Quality-based refund schedule:
 ```bash
 SOLANA_PRIVATE_KEY=<base64 or JSON array>
 RPC_URL=https://api.mainnet-beta.solana.com
-KAMIYO_PROGRAM_ID=8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+KAMIYO_PROGRAM_ID=3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
 ```
 
 ## API Reference

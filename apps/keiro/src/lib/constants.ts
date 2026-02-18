@@ -7,7 +7,7 @@ export const SOLANA_RPC_URL =
 // KAMIYO Protocol Program IDs
 export const KAMIYO_PROGRAM_ID =
   process.env.EXPO_PUBLIC_KAMIYO_PROGRAM_ID ||
-  '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+  '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 
 export const KAMIYO_ESCROW_PROGRAM_ID =
   process.env.EXPO_PUBLIC_KAMIYO_ESCROW_PROGRAM_ID ||

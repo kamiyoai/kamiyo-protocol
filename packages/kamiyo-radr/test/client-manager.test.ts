@@ -69,7 +69,7 @@ describe('RadrClientManager', () => {
   describe('getReputationGate', () => {
     it('should create and cache reputation gate', () => {
       const manager = RadrClientManager.getInstance();
-      const programId = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+      const programId = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
       const gate1 = manager.getReputationGate(connection, programId);
       const gate2 = manager.getReputationGate(connection, programId);

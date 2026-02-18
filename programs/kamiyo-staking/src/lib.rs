@@ -405,7 +405,10 @@ pub mod kamiyo_staking {
         let clock = Clock::get()?;
 
         let pending = calculate_pending_rewards(pool, position, clock.unix_timestamp)?;
-        require!(pending > 0, StakingError::NoRewardsToClaim);
+        if pending == 0 {
+            msg!("No rewards to claim");
+            return Ok(());
+        }
 
         let seeds = &[b"pool".as_ref(), &[pool.bump]];
         let signer = &[&seeds[..]];

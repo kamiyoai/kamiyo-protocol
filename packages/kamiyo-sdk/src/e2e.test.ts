@@ -5,7 +5,7 @@ import { AgentManager } from './agent';
 import { AgreementManager } from './agreement';
 import { AgentType, AgreementStatus, QUALITY_REFUND_SCALE } from './types';
 
-const PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 function mockWallet(kp: Keypair): any {
   return {

@@ -37,7 +37,7 @@ pub const MAX_AUDIT_NONCE: u32 = 10000;
 
 /// Supported Kamiyo program IDs (devnet/mainnet and localnet).
 pub const KAMIYO_PROGRAM_ID_PRIMARY: Pubkey =
-    pubkey!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+    pubkey!("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 pub const KAMIYO_PROGRAM_ID_LOCAL: Pubkey = pubkey!("6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7");
 /// Account discriminator for Kamiyo AgentIdentity ("account:AgentIdentity").
 pub const AGENT_IDENTITY_DISCRIMINATOR: [u8; 8] = [11, 149, 31, 27, 186, 76, 241, 72];

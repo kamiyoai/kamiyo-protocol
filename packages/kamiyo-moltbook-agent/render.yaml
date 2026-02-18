@@ -18,7 +18,7 @@ services:
       - key: SOLANA_RPC_URL
         sync: false
       - key: KAMIYO_PROGRAM_ID
-        value: 8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+        value: 3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
       - key: POLL_INTERVAL_MS
         value: "60000"
       - key: MIN_JOB_PRICE_SOL

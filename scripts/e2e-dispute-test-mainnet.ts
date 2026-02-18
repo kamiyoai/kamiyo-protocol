@@ -29,7 +29,7 @@ import nacl from "tweetnacl";
 import fs from "fs";
 import path from "path";
 
-const PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+const PROGRAM_ID = new PublicKey("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 const COMMIT_PHASE_DURATION = 300; // 5 minutes
 
 const ORACLE_WALLETS = [

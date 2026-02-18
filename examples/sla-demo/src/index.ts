@@ -22,7 +22,7 @@ const log = {
   header: async (s: string) => { await sleep(700); console.log(`\n${B}${C}--- ${s} ---${X}\n`); },
 };
 
-const PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 interface SLAParams {
   qualityThreshold: number;  // 0-100

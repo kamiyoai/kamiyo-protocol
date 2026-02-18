@@ -1,13 +1,13 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { PaymentWidget, createPaymentButton, PaymentState } from './widget';
 
-const PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 jest.mock('./client', () => ({
   X402KamiyoClient: jest.fn().mockImplementation(() => ({
     createEscrow: jest.fn().mockResolvedValue({
       success: true, signature: 'escrow-sig',
-      escrowPda: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
+      escrowPda: new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'),
       transactionId: 'tx-123', amount: 0.1,
     }),
     releaseEscrow: jest.fn().mockResolvedValue({ success: true, signature: 'release-sig' }),
@@ -98,7 +98,7 @@ describe('createPaymentButton', () => {
     const { html, widget } = createPaymentButton({
       connection: {} as Connection,
       wallet: Keypair.generate(),
-      programId: new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'),
+      programId: new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'),
       provider: Keypair.generate().publicKey,
       amount: 0.5,
     });

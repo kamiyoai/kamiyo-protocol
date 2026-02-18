@@ -20,7 +20,7 @@ export interface RadrToolsConfig {
   programId?: PublicKey;
 }
 
-const DEFAULT_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const DEFAULT_PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 export async function createRadrTools(config: RadrToolsConfig): Promise<unknown[]> {
   let DynamicStructuredTool: any;

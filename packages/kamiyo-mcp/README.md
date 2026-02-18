@@ -70,7 +70,7 @@ npm run build
 ### Environment Variables
 
 ```bash
-KAMIYO_PROGRAM_ID=8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+KAMIYO_PROGRAM_ID=3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
 # One of:
@@ -89,7 +89,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "node",
       "args": ["/absolute/path/to/packages/kamiyo-mcp/dist/index.js"],
       "env": {
-        "KAMIYO_PROGRAM_ID": "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM",
+        "KAMIYO_PROGRAM_ID": "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr",
         "AGENT_PRIVATE_KEY": "your_base58_private_key",
         "SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com"
       }

@@ -26,6 +26,22 @@ import {
 } from "./types";
 import { DISCRIMINATORS } from "./discriminators";
 
+function isUuid36(value: string): boolean {
+  if (value.length !== 36) return false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (i === 8 || i === 13 || i === 18 || i === 23) {
+      if (c !== 45) return false;
+      continue;
+    }
+    const isDigit = c >= 48 && c <= 57;
+    const isLowerHex = c >= 97 && c <= 102;
+    const isUpperHex = c >= 65 && c <= 70;
+    if (!isDigit && !isLowerHex && !isUpperHex) return false;
+  }
+  return true;
+}
+
 export interface KamiyoClientConfig {
   connection: Connection;
   wallet: Wallet;
@@ -355,8 +371,6 @@ export class KamiyoClient {
     params: CreateAgentParams
   ): TransactionInstruction {
     const [agentPDA] = this.getAgentPDA(owner);
-    const [protocolConfigPDA] = this.getProtocolConfigPDA();
-    const [feeVaultPDA] = this.getFeeVaultPDA();
 
     const nameBytes = Buffer.from(params.name);
     const data = Buffer.concat([
@@ -371,8 +385,6 @@ export class KamiyoClient {
       keys: [
         { pubkey: agentPDA, isSigner: false, isWritable: true },
         { pubkey: owner, isSigner: true, isWritable: true },
-        { pubkey: protocolConfigPDA, isSigner: false, isWritable: true },
-        { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
@@ -521,6 +533,14 @@ export class KamiyoClient {
       creatorAllocationBps: number;
     }
   ): TransactionInstruction {
+    if (!isUuid36(params.fundryCoinId)) {
+      throw new Error("fundryCoinId must be a 36-char UUID");
+    }
+
+    if (!params.configType || params.configType.length > 16) {
+      throw new Error("configType is required and must be <= 16 chars");
+    }
+
     if (
       !Number.isInteger(params.creatorAllocationBps) ||
       params.creatorAllocationBps < 0 ||

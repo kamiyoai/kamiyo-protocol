@@ -20,7 +20,7 @@ class KamiyoSDK {
     this.connection = connection;
     this.wallet = wallet;
     this.cluster = cluster;
-    this.programId = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+    this.programId = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
   }
 
   async createEscrow({

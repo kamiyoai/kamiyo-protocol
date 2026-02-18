@@ -46,11 +46,11 @@ Sub-cent micropayments via PayAI Network.
 
 ## Proof We Ship (Mainnet Addresses)
 
-- Protocol: \`8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM\`
+- Protocol: \`3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr\`
 - Escrow: \`FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u\`
 - Governance: \`E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav\`
 
-Verify on Solscan: https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+Verify on Solscan: https://solscan.io/account/3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
 
 ## Why USDC Native
 

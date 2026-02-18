@@ -28,7 +28,7 @@ Example: "Reduce escrow creation fee from 0.1% to 0.05%"
 
 ```json
 {
-  "programId": "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM",
+  "programId": "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr",
   "instruction": "updateProtocolConfig",
   "accounts": [
     { "name": "config", "pubkey": "E6VhYjktLpT91VJy7bt5VL7DhTurZZKZUEFEgxLdZHna" },

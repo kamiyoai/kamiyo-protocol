@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { createHash, randomBytes } from 'crypto';
 
-export const KAMIYO_PROGRAM_ID = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+export const KAMIYO_PROGRAM_ID = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 const SETTLEMENT_SEED = Buffer.from('settlement');
 export const RESPONSE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour

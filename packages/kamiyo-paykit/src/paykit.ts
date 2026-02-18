@@ -32,7 +32,7 @@ import type {
   JobContext,
 } from './types.js';
 
-const DEFAULT_PROGRAM_ID = '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+const DEFAULT_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 const DEFAULT_TIME_LOCK_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_MAX_PRICE_USD = 1.0;
 const DEFAULT_AUTO_DISPUTE_THRESHOLD = 30;

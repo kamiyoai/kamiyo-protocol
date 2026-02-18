@@ -113,8 +113,8 @@ npx ts-node scripts/initialize-oracle-registry.ts \
 
 | Network | Program ID |
 |---------|------------|
-| Mainnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
-| Devnet | `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM` |
+| Mainnet | (deploy pending) |
+| Devnet | `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr` |
 
 ## Upgrade Process
 
@@ -143,17 +143,17 @@ anchor upgrade target/deploy/kamiyo.so --program-id <PROGRAM_ID>
 ```bash
 # .env
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-PROGRAM_ID=8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM
+PROGRAM_ID=3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
 ```
 
 ### Anchor.toml
 
 ```toml
 [programs.mainnet]
-kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr"
 
 [programs.devnet]
-kamiyo = "8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM"
+kamiyo = "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr"
 
 [provider]
 cluster = "mainnet"

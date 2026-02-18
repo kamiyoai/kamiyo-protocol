@@ -10,6 +10,7 @@ export const FUNDRY_CONFIG_TYPES = [
   'indie',
   'music',
   'whitewhale',
+  'kamiyo',
   'retardchy',
   'illuminati',
   'presales',
@@ -19,6 +20,17 @@ export const FUNDRY_CONFIG_TYPES = [
 
 export type FundryConfigType = (typeof FUNDRY_CONFIG_TYPES)[number];
 
+export const DEFAULT_FUNDRY_TX_ALLOWED_PROGRAM_IDS = [
+  '11111111111111111111111111111111', // System Program
+  'ComputeBudget111111111111111111111111111111',
+  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', // SPL Token
+  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s', // Metaplex Token Metadata
+  'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+  'AddressLookupTab1e1111111111111111111111111',
+  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022 (only if used)
+] as const;
+
 export interface SecureLaunchParams {
   name: string;
   ticker: string;
@@ -27,6 +39,8 @@ export interface SecureLaunchParams {
   configType: FundryConfigType;
   escrowAmountSol?: number;
   migrationTargetSol?: number;
+  initialBuySol?: number;
+  creatorAddress?: string;
   creatorAllocationBps?: number;
 }
 
@@ -47,6 +61,8 @@ export interface FundryManagerConfig {
   wallet: Wallet;
   fundryMcpEndpoint?: string;
   programId?: PublicKey;
+  fundryTxAllowedProgramIds?: string[];
+  enforceFundryTxAllowlist?: boolean;
 }
 
 type FundryToolResponse = {
@@ -63,6 +79,8 @@ const LAMPORTS_PER_SOL = 1_000_000_000;
 export class FundryManager {
   private client: KamiyoClient;
   private fundryEndpoint: string;
+  private allowedFundryProgramIds: Set<string> | null;
+  private enforceFundryTxAllowlist: boolean;
 
   constructor(config: FundryManagerConfig) {
     this.client = new KamiyoClient({
@@ -74,6 +92,13 @@ export class FundryManager {
     this.fundryEndpoint = (config.fundryMcpEndpoint ?? 'https://fundry.collaterize.com/api/mcp/mcp')
       .trim()
       .replace(/\/+$/, '');
+
+    const allowlist =
+      config.fundryTxAllowedProgramIds === undefined
+        ? [...DEFAULT_FUNDRY_TX_ALLOWED_PROGRAM_IDS]
+        : config.fundryTxAllowedProgramIds;
+    this.allowedFundryProgramIds = allowlist.length > 0 ? new Set(allowlist) : null;
+    this.enforceFundryTxAllowlist = config.enforceFundryTxAllowlist === true;
   }
 
   async secureLaunch(params: SecureLaunchParams): Promise<SecureLaunchResult> {
@@ -82,6 +107,14 @@ export class FundryManager {
       return {
         success: false,
         error: `Escrow must be between ${MIN_ESCROW_SOL} and ${MAX_ESCROW_SOL} SOL`,
+      };
+    }
+
+    const migrationTargetSol = params.migrationTargetSol ?? 40;
+    if (!Number.isFinite(migrationTargetSol) || migrationTargetSol <= 0) {
+      return {
+        success: false,
+        error: 'migrationTargetSol must be a positive number',
       };
     }
 
@@ -99,6 +132,25 @@ export class FundryManager {
       };
     }
 
+    if (params.initialBuySol !== undefined) {
+      if (!Number.isFinite(params.initialBuySol) || params.initialBuySol <= 0) {
+        return { success: false, error: 'initialBuySol must be a positive number' };
+      }
+    }
+
+    if (params.creatorAllocationBps !== undefined) {
+      if (
+        !Number.isInteger(params.creatorAllocationBps) ||
+        params.creatorAllocationBps < 0 ||
+        params.creatorAllocationBps > 10_000
+      ) {
+        return {
+          success: false,
+          error: 'creatorAllocationBps must be an integer between 0 and 10000',
+        };
+      }
+    }
+
     const owner = this.client.wallet.publicKey;
     const [agentPda] = this.client.getAgentPDA(owner);
     const agent = await this.client.getAgent(agentPda);
@@ -106,6 +158,21 @@ export class FundryManager {
       return {
         success: false,
         error: 'No active KAMIYO agent identity found. Create one first.',
+      };
+    }
+
+    let creatorAddress = owner.toBase58();
+    if (params.creatorAddress !== undefined) {
+      try {
+        creatorAddress = new PublicKey(params.creatorAddress).toBase58();
+      } catch {
+        return { success: false, error: 'Invalid creatorAddress (must be a Solana public key)' };
+      }
+    }
+    if (creatorAddress !== owner.toBase58()) {
+      return {
+        success: false,
+        error: 'creatorAddress must match the signing wallet (Fundry requires the creator to sign the launch tx)',
       };
     }
 
@@ -121,7 +188,8 @@ export class FundryManager {
         description: params.description,
         imageUrl: params.imageUrl,
         configType: params.configType,
-        creatorAddress: owner.toBase58(),
+        creatorAddress,
+        ...(params.initialBuySol !== undefined ? { initialBuySOL: params.initialBuySol } : {}),
       });
 
       if (!created?.success || !created.data) {
@@ -132,6 +200,9 @@ export class FundryManager {
       if (typeof coinId !== 'string' || coinId.length === 0) {
         return { success: false, error: 'Fundry response missing coinId' };
       }
+      if (!isUuid36(coinId)) {
+        return { success: false, error: 'Fundry response coinId is not a valid UUID' };
+      }
       fundryCoinId = coinId;
 
       const txB64 = created.data['transaction'];
@@ -139,7 +210,9 @@ export class FundryManager {
         return { success: false, fundryCoinId, error: 'Fundry response missing transaction' };
       }
 
-      fundryTxSignature = await this.signAndSendFundryTx(txB64);
+      const sent = await this.signAndSendFundryTx(txB64);
+      fundryTxSignature = sent.signature;
+      warning = joinWarnings(warning, sent.warning);
 
       try {
         await this.callFundry('confirm_launch', {
@@ -147,7 +220,7 @@ export class FundryManager {
           transactionSignature: fundryTxSignature,
         });
       } catch (err: unknown) {
-        warning = 'Fundry confirm_launch failed: ' + errorMessage(err);
+        warning = joinWarnings(warning, 'Fundry confirm_launch failed: ' + errorMessage(err));
       }
 
       const maybeMint =
@@ -162,7 +235,6 @@ export class FundryManager {
           const discoveredMint = token?.data?.['mintAddress'] ?? token?.data?.['mint'];
           mintAddress = typeof discoveredMint === 'string' ? discoveredMint : '';
         } catch {
-          // Handled below.
         }
       }
 
@@ -195,9 +267,7 @@ export class FundryManager {
     }
     const escrowLamports = new BN(Math.floor(escrowSol * LAMPORTS_PER_SOL));
     const mint = new PublicKey(mintAddress);
-    const migrationTarget = new BN(
-      Math.floor((params.migrationTargetSol ?? 85) * LAMPORTS_PER_SOL)
-    );
+    const migrationTarget = new BN(Math.floor(migrationTargetSol * LAMPORTS_PER_SOL));
 
     try {
       const txSignature = await this.client.createTrustedLaunch({
@@ -249,7 +319,7 @@ export class FundryManager {
   listConfigs(): { name: FundryConfigType; category: string }[] {
     return FUNDRY_CONFIG_TYPES.map(name => ({
       name,
-      category: ['community', 'indie', 'music'].includes(name) ? 'builder' : 'monkes',
+      category: ['community', 'indie', 'music', 'kamiyo'].includes(name) ? 'builder' : 'monkes',
     }));
   }
 
@@ -292,7 +362,9 @@ export class FundryManager {
     return JSON.parse(content) as T;
   }
 
-  private async signAndSendFundryTx(txB64: string): Promise<string> {
+  private async signAndSendFundryTx(
+    txB64: string
+  ): Promise<{ signature: string; warning?: string }> {
     const bytes = Buffer.from(txB64, 'base64');
 
     let tx: Transaction | VersionedTransaction;
@@ -307,6 +379,12 @@ export class FundryManager {
         tx: Transaction | VersionedTransaction
       ): Promise<Transaction | VersionedTransaction>;
     };
+
+    const allowlistWarning = this.checkTxAllowlist(tx);
+    if (allowlistWarning && this.enforceFundryTxAllowlist) {
+      throw new Error(allowlistWarning);
+    }
+
     const signed = await signer.signTransaction(tx);
     const sig = await this.client.connection.sendRawTransaction(signed.serialize(), {
       maxRetries: 3,
@@ -322,7 +400,19 @@ export class FundryManager {
       // Best-effort confirmation.
     }
 
-    return sig;
+    return { signature: sig, warning: allowlistWarning };
+  }
+
+  private checkTxAllowlist(tx: Transaction | VersionedTransaction): string | undefined {
+    if (!this.allowedFundryProgramIds) return;
+
+    const programIds = getProgramIds(tx);
+    if (programIds.length === 0) return 'Fundry transaction contains no instructions';
+
+    const disallowed = programIds.filter(id => !this.allowedFundryProgramIds!.has(id));
+    if (disallowed.length === 0) return;
+
+    return `Fundry transaction contains disallowed program IDs: ${disallowed.join(', ')}`;
   }
 
   private describeToolFailure(tool: string, error: unknown): string {
@@ -367,4 +457,60 @@ function parseMcpJsonRpc(raw: string): McpJsonRpcResponse {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+function joinWarnings(existing: string | undefined, next: string | undefined): string | undefined {
+  if (!next) return existing;
+  if (!existing) return next;
+  return `${existing}; ${next}`;
+}
+
+type VersionedMessageLike = {
+  staticAccountKeys?: PublicKey[];
+  accountKeys?: PublicKey[];
+  compiledInstructions?: Array<{ programIdIndex: number }>;
+  instructions?: Array<{ programIdIndex: number }>;
+};
+
+function getProgramIds(tx: Transaction | VersionedTransaction): string[] {
+  if (tx instanceof Transaction) {
+    return uniq(tx.instructions.map(ix => ix.programId.toBase58()));
+  }
+
+  const msg = (tx as unknown as { message?: unknown }).message;
+  if (!msg || typeof msg !== 'object') return [];
+
+  const parsed = msg as VersionedMessageLike;
+  const keys: PublicKey[] = parsed.staticAccountKeys ?? parsed.accountKeys ?? [];
+  const compiled = parsed.compiledInstructions ?? parsed.instructions ?? [];
+  const ids = compiled
+    .map(ix => {
+      const idx = ix.programIdIndex;
+      const key = keys[idx];
+      return key ? key.toBase58() : null;
+    })
+    .filter((v): v is string => typeof v === 'string');
+
+  return uniq(ids);
+}
+
+function uniq(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function isUuid36(value: string): boolean {
+  if (value.length !== 36) return false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (i === 8 || i === 13 || i === 18 || i === 23) {
+      if (c !== 45) return false;
+      continue;
+    }
+
+    const isDigit = c >= 48 && c <= 57;
+    const isLowerHex = c >= 97 && c <= 102;
+    const isUpperHex = c >= 65 && c <= 70;
+    if (!isDigit && !isLowerHex && !isUpperHex) return false;
+  }
+  return true;
 }

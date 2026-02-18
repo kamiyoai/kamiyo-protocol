@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { ShieldAPI, shieldAPI } from './shield';
 
-const AGENT = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const AGENT = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 const stats = { successful: 85, total: 100, disputesWon: 5, disputesLost: 2 };
 
 describe('ShieldAPI', () => {

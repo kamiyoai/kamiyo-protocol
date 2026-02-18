@@ -7,7 +7,7 @@
 import { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Wallet } from "@coral-xyz/anchor";
 
-const PROGRAM_ID = new PublicKey("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
+const PROGRAM_ID = new PublicKey("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

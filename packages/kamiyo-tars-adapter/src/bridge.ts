@@ -53,7 +53,7 @@ export class TarsBridge {
   constructor(bridgeConfig: TarsBridgeConfig) {
     this.connection = bridgeConfig.connection;
     this.tarsProgramId = bridgeConfig.tarsProgramId || TARS_PROGRAM_ID;
-    this.kamiyoProgramId = bridgeConfig.kamiyoProgramId || new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+    this.kamiyoProgramId = bridgeConfig.kamiyoProgramId || new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
     this.payer = bridgeConfig.payer;
     this.config = { ...DEFAULT_CONFIG, ...bridgeConfig.config };
 

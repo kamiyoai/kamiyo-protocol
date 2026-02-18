@@ -1,6 +1,5 @@
 import { expect } from "chai";
 import {
-  anchor,
   SystemProgram,
   BN,
   LAMPORTS_PER_SOL,
@@ -135,6 +134,41 @@ describe("Trusted Launch Lifecycle", () => {
       }
     });
 
+    it("Rejects invalid Fundry coin ID (bad UUID format)", async () => {
+      const badMint = Keypair.generate().publicKey;
+      const [launchPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, badMint);
+      const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
+
+      const badUuid = "a1b2c3d4-e5f6-7890-abcd-ef123456789Z"; // correct length, invalid hex
+
+      try {
+        await ctx.program.methods
+          .createTrustedLaunch(
+            badUuid,
+            "community",
+            new BN(0.5 * LAMPORTS_PER_SOL),
+            new BN(85 * LAMPORTS_PER_SOL),
+            500
+          )
+          .accounts({
+            protocolConfig: ctx.protocolConfigPDA,
+            treasury: ctx.treasuryPDA,
+            agentIdentity: agentPDA,
+            launchRecord: launchPDA,
+            launchRateLimit: rateLimitPDA,
+            mint: badMint,
+            owner: ctx.owner.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([ctx.owner])
+          .rpc();
+        expect.fail("Should have thrown InvalidFundryCoinId");
+      } catch (err: any) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("InvalidFundryCoinId");
+      }
+    });
+
     it("Rejects escrow below minimum", async () => {
       const badMint = Keypair.generate().publicKey;
       const [launchPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, badMint);
@@ -147,6 +181,72 @@ describe("Trusted Launch Lifecycle", () => {
             "community",
             new BN(100), // way below minimum
             new BN(85 * LAMPORTS_PER_SOL),
+            500
+          )
+          .accounts({
+            protocolConfig: ctx.protocolConfigPDA,
+            treasury: ctx.treasuryPDA,
+            agentIdentity: agentPDA,
+            launchRecord: launchPDA,
+            launchRateLimit: rateLimitPDA,
+            mint: badMint,
+            owner: ctx.owner.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([ctx.owner])
+          .rpc();
+        expect.fail("Should have thrown InvalidAmount");
+      } catch (err: any) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("InvalidAmount");
+      }
+    });
+
+    it("Rejects creator allocation above 10000 bps", async () => {
+      const badMint = Keypair.generate().publicKey;
+      const [launchPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, badMint);
+      const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
+
+      try {
+        await ctx.program.methods
+          .createTrustedLaunch(
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "community",
+            new BN(0.5 * LAMPORTS_PER_SOL),
+            new BN(85 * LAMPORTS_PER_SOL),
+            10001
+          )
+          .accounts({
+            protocolConfig: ctx.protocolConfigPDA,
+            treasury: ctx.treasuryPDA,
+            agentIdentity: agentPDA,
+            launchRecord: launchPDA,
+            launchRateLimit: rateLimitPDA,
+            mint: badMint,
+            owner: ctx.owner.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([ctx.owner])
+          .rpc();
+        expect.fail("Should have thrown InvalidCreatorAllocationBps");
+      } catch (err: any) {
+        const code = getErrorCode(err);
+        expect(code).to.equal("InvalidCreatorAllocationBps");
+      }
+    });
+
+    it("Rejects migration target of zero", async () => {
+      const badMint = Keypair.generate().publicKey;
+      const [launchPDA] = deriveLaunchRecordPDA(ctx.program, agentPDA, badMint);
+      const [rateLimitPDA] = deriveLaunchRateLimitPDA(ctx.program, agentPDA);
+
+      try {
+        await ctx.program.methods
+          .createTrustedLaunch(
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "community",
+            new BN(0.5 * LAMPORTS_PER_SOL),
+            new BN(0),
             500
           )
           .accounts({

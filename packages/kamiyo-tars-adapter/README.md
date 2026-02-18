@@ -148,7 +148,7 @@ interface TarsAdapterConfig {
 ## Program IDs
 
 - **TARS**: `GPd4z3N25UfjrkgfgSxsjoyG7gwYF8Fo7Emvp9TKsDeW`
-- **KAMIYO**: `8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM`
+- **KAMIYO**: `3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr`
 
 ## License
 

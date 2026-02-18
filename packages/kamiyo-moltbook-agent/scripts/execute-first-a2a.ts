@@ -28,7 +28,7 @@ async function main() {
 
   const privateKey = process.env.AGENT_PRIVATE_KEY;
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-  const programIdStr = process.env.KAMIYO_PROGRAM_ID || '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM';
+  const programIdStr = process.env.KAMIYO_PROGRAM_ID || '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 
   if (!privateKey) {
     console.error('AGENT_PRIVATE_KEY not set');

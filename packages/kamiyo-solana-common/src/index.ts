@@ -8,7 +8,7 @@ import {
 } from '@solana/web3.js';
 
 export const KAMIYO_PROGRAM_ID = new PublicKey(
-  '8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM'
+  '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'
 );
 
 // ============ Retry Configuration ============

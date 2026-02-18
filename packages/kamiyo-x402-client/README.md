@@ -22,7 +22,7 @@ import { createX402KamiyoClient } from '@kamiyo/x402-client';
 
 const connection = new Connection('https://api.mainnet-beta.solana.com');
 const wallet = Keypair.fromSecretKey(/* agent keypair */);
-const programId = new PublicKey('8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM');
+const programId = new PublicKey('3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr');
 
 const client = createX402KamiyoClient(connection, wallet, programId, {
   maxPricePerRequest: 0.01, // Max 0.01 SOL per request
