@@ -4,6 +4,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AgentType } from '@kamiyo/sdk';
 
 import { env } from './config.js';
+import { identityFromEnv, identityPrompt } from './identity.js';
 import { openDb } from './db.js';
 import { loadOperatorKeypair } from './wallet.js';
 import { KeypairWallet } from './anchorWallet.js';
@@ -30,6 +31,7 @@ function agentTypeFromEnv(value: string): AgentType {
 }
 
 function buildSystemPrompt(params: {
+  identity: string;
   observation: unknown;
   mode: 'propose' | 'execute';
   allowedChannels: string[];
@@ -46,7 +48,9 @@ function buildSystemPrompt(params: {
 }) {
   const targetLine = params.targetMint ? `Target mint: ${params.targetMint}` : 'Target mint: (not set yet)';
 
-  return `You are Kamiyo Operator: an autonomous agent that operates ONE token over time.
+  return `${params.identity}
+
+You are Kamiyo Operator: an autonomous agent that operates ONE token over time.
 
 NON-NEGOTIABLE CONSTRAINTS:
 - Do NOT mint or launch new tokens.
@@ -220,6 +224,9 @@ async function main(): Promise<void> {
 
   const allowedChannels = Array.from(new Set(env.KAMIYO_ANNOUNCE_CHANNELS));
 
+  const identity = identityFromEnv(env.KAMIYO_IDENTITY);
+  const identityBlock = identityPrompt(identity);
+
   const agent = new KamiyoAgent({
     db,
     outboxDir: env.KAMIYO_OUTBOX_DIR,
@@ -360,6 +367,7 @@ async function main(): Promise<void> {
       }
 
       const systemPrompt = buildSystemPrompt({
+        identity: identityBlock,
         observation,
         mode: env.KAMIYO_MODE,
         allowedChannels,

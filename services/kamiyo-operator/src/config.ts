@@ -9,6 +9,8 @@ const envSchema = z.object({
   KAMIYO_OPERATOR_KEYPAIR_PATH: z.string().min(1).optional(),
   KAMIYO_OPERATOR_PRIVATE_KEY: z.string().min(1).optional(),
 
+  KAMIYO_IDENTITY: z.enum(['kamiyo', 'kyushin']).default('kyushin'),
+
   KAMIYO_AGENT_NAME: z.string().min(1).default('kamiyo-operator'),
   KAMIYO_AUTO_CREATE_AGENT: z
     .enum(['true', 'false'])
