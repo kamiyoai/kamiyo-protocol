@@ -1,4 +1,4 @@
-import { BN, type Wallet } from '@coral-xyz/anchor';
+import anchor, { type Wallet } from '@coral-xyz/anchor';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { AgentIdentity, AgentType, KamiyoClient } from '@kamiyo/sdk';
 
@@ -16,6 +16,7 @@ export async function getOrCreateAgentIdentity(params: {
   createIfMissing: boolean;
 }): Promise<AgentIdentityState> {
   const client = new KamiyoClient({ connection: params.connection, wallet: params.wallet });
+  const { BN } = anchor;
 
   const [pda] = client.getAgentPDA(params.wallet.publicKey);
   const existing = await client.getAgent(pda);
