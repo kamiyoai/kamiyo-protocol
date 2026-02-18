@@ -227,6 +227,28 @@ async function main(): Promise<void> {
   const identity = identityFromEnv(env.KAMIYO_IDENTITY);
   const identityBlock = identityPrompt(identity);
 
+  const toolChoice = (() => {
+    const disableParallel = env.ANTHROPIC_DISABLE_PARALLEL_TOOL_USE ? true : undefined;
+    switch (env.ANTHROPIC_TOOL_CHOICE) {
+      case 'auto':
+        return { type: 'auto' as const, ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}) };
+      case 'any':
+        return { type: 'any' as const, ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}) };
+      case 'none':
+        return { type: 'none' as const };
+    }
+  })();
+
+  const thinking = (() => {
+    const budget = env.ANTHROPIC_THINKING_BUDGET_TOKENS;
+    if (budget <= 0) return undefined;
+    if (budget < 1024) throw new Error('ANTHROPIC_THINKING_BUDGET_TOKENS must be >= 1024');
+    if (budget >= env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN) {
+      throw new Error('ANTHROPIC_THINKING_BUDGET_TOKENS must be < KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN');
+    }
+    return { type: 'enabled' as const, budget_tokens: budget };
+  })();
+
   const agent = new KamiyoAgent({
     db,
     outboxDir: env.KAMIYO_OUTBOX_DIR,
@@ -236,6 +258,9 @@ async function main(): Promise<void> {
     maxOutputTokens: env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN,
     maxTurnsPerTick: env.KAMIYO_MAX_TURNS_PER_TICK,
     allowedChannels,
+    temperature: env.ANTHROPIC_TEMPERATURE,
+    thinking,
+    toolChoice,
   });
 
   agent.registerTool(toolTokenStatus({ connection, defaultMint: env.KAMIYO_TARGET_MINT }));

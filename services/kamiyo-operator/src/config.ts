@@ -3,11 +3,17 @@ import { z } from 'zod';
 
 loadDotenv();
 
+const optionalNonEmptyString = z.preprocess(v => {
+  if (typeof v !== 'string') return v;
+  const trimmed = v.trim();
+  return trimmed ? trimmed : undefined;
+}, z.string().min(1).optional());
+
 const envSchema = z.object({
   SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'),
 
-  KAMIYO_OPERATOR_KEYPAIR_PATH: z.string().min(1).optional(),
-  KAMIYO_OPERATOR_PRIVATE_KEY: z.string().min(1).optional(),
+  KAMIYO_OPERATOR_KEYPAIR_PATH: optionalNonEmptyString,
+  KAMIYO_OPERATOR_PRIVATE_KEY: optionalNonEmptyString,
 
   KAMIYO_IDENTITY: z.enum(['kamiyo', 'kyushin']).default('kyushin'),
 
@@ -19,8 +25,8 @@ const envSchema = z.object({
   KAMIYO_AGENT_TYPE: z.enum(['Trading', 'Service', 'Oracle', 'Custom']).default('Service'),
   KAMIYO_AGENT_STAKE_SOL: z.coerce.number().positive().default(0.5),
 
-  KAMIYO_TARGET_MINT: z.string().min(1).optional(),
-  KAMIYO_FEE_VAULT: z.string().min(1).optional(),
+  KAMIYO_TARGET_MINT: optionalNonEmptyString,
+  KAMIYO_FEE_VAULT: optionalNonEmptyString,
 
   KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
   KAMIYO_RUN_ONCE: z
@@ -35,6 +41,13 @@ const envSchema = z.object({
 
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
+  ANTHROPIC_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.3),
+  ANTHROPIC_TOOL_CHOICE: z.enum(['auto', 'any', 'none']).default('auto'),
+  ANTHROPIC_DISABLE_PARALLEL_TOOL_USE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  ANTHROPIC_THINKING_BUDGET_TOKENS: z.coerce.number().int().nonnegative().default(0),
   KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN: z.coerce.number().int().positive().default(2048),
   KAMIYO_MAX_TURNS_PER_TICK: z.coerce.number().int().positive().default(6),
 
