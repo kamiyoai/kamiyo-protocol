@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export type KamiyoDb = ReturnType<typeof openDb>;
+type RetentionCutoffs = {
+  ticksBeforeIso: string;
+  observationsBeforeIso: string;
+  actionsBeforeIso: string;
+  usageBeforeIso: string;
+};
 
 export function openDb(dbPath: string) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -47,6 +53,12 @@ export function openDb(dbPath: string) {
   );
   const markTickRecovered = db.prepare(
     `UPDATE ticks SET finished_at = @finished_at, status = 'error', error = @error WHERE id = @id`
+  );
+  const deleteObservationsBefore = db.prepare(`DELETE FROM observations WHERE at < ?`);
+  const deleteActionsBefore = db.prepare(`DELETE FROM actions WHERE at < ?`);
+  const deleteUsageBefore = db.prepare(`DELETE FROM llm_usage WHERE at < ?`);
+  const deleteTicksBefore = db.prepare(
+    `DELETE FROM ticks WHERE finished_at IS NOT NULL AND finished_at < ?`
   );
 
   return {
@@ -139,6 +151,34 @@ export function openDb(dbPath: string) {
       const ids = rows.map(row => row.id);
       tx(ids);
       return ids;
+    },
+
+    pruneHistory: (cutoffs: RetentionCutoffs) => {
+      const tx = db.transaction((params: RetentionCutoffs) => {
+        const observationsDeleted = deleteObservationsBefore.run(params.observationsBeforeIso).changes;
+        const actionsDeleted = deleteActionsBefore.run(params.actionsBeforeIso).changes;
+        const usageDeleted = deleteUsageBefore.run(params.usageBeforeIso).changes;
+        const ticksDeleted = deleteTicksBefore.run(params.ticksBeforeIso).changes;
+        return {
+          observationsDeleted,
+          actionsDeleted,
+          usageDeleted,
+          ticksDeleted,
+        };
+      });
+
+      const result = tx(cutoffs);
+      const totalDeleted =
+        result.observationsDeleted + result.actionsDeleted + result.usageDeleted + result.ticksDeleted;
+      if (totalDeleted > 0) {
+        try {
+          db.pragma('wal_checkpoint(PASSIVE)');
+        } catch {
+          // Best effort.
+        }
+      }
+
+      return result;
     },
   };
 }

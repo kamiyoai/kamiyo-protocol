@@ -86,6 +86,17 @@ const envSchema = z.object({
   KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY: z.coerce.number().int().positive().default(30_000),
 
   KAMIYO_LOOP_INTERVAL_SECONDS: z.coerce.number().int().positive().default(3600),
+  KAMIYO_RETENTION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_RETENTION_INTERVAL_MINUTES: z.coerce.number().int().positive().default(360),
+  KAMIYO_RETENTION_TICKS_DAYS: z.coerce.number().int().positive().default(30),
+  KAMIYO_RETENTION_OBSERVATIONS_DAYS: z.coerce.number().int().positive().default(30),
+  KAMIYO_RETENTION_ACTIONS_DAYS: z.coerce.number().int().positive().default(30),
+  KAMIYO_RETENTION_LLM_USAGE_DAYS: z.coerce.number().int().positive().default(30),
+  KAMIYO_RETENTION_OUTBOX_DAYS: z.coerce.number().int().positive().default(14),
+  KAMIYO_RETENTION_OUTBOX_MAX_FILES: z.coerce.number().int().nonnegative().default(3000),
 
   KAMIYO_ANNOUNCE_CHANNELS: z
     .string()

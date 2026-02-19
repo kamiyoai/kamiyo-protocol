@@ -31,6 +31,73 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function daysAgoIso(days: number, now = new Date()): string {
+  return new Date(now.getTime() - days * 86_400_000).toISOString();
+}
+
+function parseIsoMillis(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function pruneOutbox(params: {
+  outboxDir: string;
+  olderThanIso: string;
+  maxFiles: number;
+}): { deletedByAge: number; deletedByCount: number; kept: number } {
+  const { outboxDir, olderThanIso, maxFiles } = params;
+  if (!fs.existsSync(outboxDir)) {
+    return { deletedByAge: 0, deletedByCount: 0, kept: 0 };
+  }
+
+  const cutoffMs = Date.parse(olderThanIso);
+  const entries = fs
+    .readdirSync(outboxDir, { withFileTypes: true })
+    .filter(entry => entry.isFile())
+    .flatMap(entry => {
+      const filePath = path.join(outboxDir, entry.name);
+      try {
+        const stat = fs.statSync(filePath);
+        return [{ filePath, mtimeMs: stat.mtimeMs }];
+      } catch {
+        return [];
+      }
+    })
+    .sort((a, b) => a.mtimeMs - b.mtimeMs);
+
+  let deletedByAge = 0;
+  const survivors: Array<{ filePath: string; mtimeMs: number }> = [];
+  for (const entry of entries) {
+    if (Number.isFinite(cutoffMs) && entry.mtimeMs < cutoffMs) {
+      try {
+        fs.unlinkSync(entry.filePath);
+        deletedByAge += 1;
+      } catch {
+        survivors.push(entry);
+      }
+      continue;
+    }
+    survivors.push(entry);
+  }
+
+  let deletedByCount = 0;
+  if (maxFiles > 0 && survivors.length > maxFiles) {
+    const overflow = survivors.length - maxFiles;
+    for (let i = 0; i < overflow; i += 1) {
+      try {
+        fs.unlinkSync(survivors[i].filePath);
+        deletedByCount += 1;
+      } catch {
+        // Best effort.
+      }
+    }
+  }
+
+  const kept = Math.max(0, survivors.length - deletedByCount);
+  return { deletedByAge, deletedByCount, kept };
+}
+
 type ProcessLock = {
   lockPath: string;
   fd: number;
@@ -597,6 +664,67 @@ async function main(): Promise<void> {
         },
         token: env.KAMIYO_TARGET_MINT ? { mint: env.KAMIYO_TARGET_MINT } : { mint: null },
       };
+
+      if (env.KAMIYO_RETENTION_ENABLED) {
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const minIntervalMs = env.KAMIYO_RETENTION_INTERVAL_MINUTES * 60_000;
+        const lastRunAt = db.kvGet('retention_last_run_at');
+        const lastRunMs = parseIsoMillis(lastRunAt);
+        const shouldRun = lastRunMs == null || now.getTime() - lastRunMs >= minIntervalMs;
+
+        if (shouldRun) {
+          const cutoffs = {
+            ticksBeforeIso: daysAgoIso(env.KAMIYO_RETENTION_TICKS_DAYS, now),
+            observationsBeforeIso: daysAgoIso(env.KAMIYO_RETENTION_OBSERVATIONS_DAYS, now),
+            actionsBeforeIso: daysAgoIso(env.KAMIYO_RETENTION_ACTIONS_DAYS, now),
+            usageBeforeIso: daysAgoIso(env.KAMIYO_RETENTION_LLM_USAGE_DAYS, now),
+            outboxBeforeIso: daysAgoIso(env.KAMIYO_RETENTION_OUTBOX_DAYS, now),
+          };
+          const dbRetention = db.pruneHistory({
+            ticksBeforeIso: cutoffs.ticksBeforeIso,
+            observationsBeforeIso: cutoffs.observationsBeforeIso,
+            actionsBeforeIso: cutoffs.actionsBeforeIso,
+            usageBeforeIso: cutoffs.usageBeforeIso,
+          });
+          const outboxRetention = pruneOutbox({
+            outboxDir,
+            olderThanIso: cutoffs.outboxBeforeIso,
+            maxFiles: env.KAMIYO_RETENTION_OUTBOX_MAX_FILES,
+          });
+          const retentionResult = {
+            at: nowIso,
+            cutoffs,
+            db: dbRetention,
+            outbox: outboxRetention,
+          };
+          db.kvSet('retention_last_run_at', nowIso);
+          db.addAction(
+            tickId,
+            'retention_run',
+            {
+              intervalMinutes: env.KAMIYO_RETENTION_INTERVAL_MINUTES,
+              ticksDays: env.KAMIYO_RETENTION_TICKS_DAYS,
+              observationsDays: env.KAMIYO_RETENTION_OBSERVATIONS_DAYS,
+              actionsDays: env.KAMIYO_RETENTION_ACTIONS_DAYS,
+              llmUsageDays: env.KAMIYO_RETENTION_LLM_USAGE_DAYS,
+              outboxDays: env.KAMIYO_RETENTION_OUTBOX_DAYS,
+              outboxMaxFiles: env.KAMIYO_RETENTION_OUTBOX_MAX_FILES,
+            },
+            retentionResult
+          );
+          observation.retention = { executed: true, ...retentionResult };
+        } else {
+          observation.retention = {
+            executed: false,
+            reason: 'interval_not_elapsed',
+            lastRunAt,
+            intervalMinutes: env.KAMIYO_RETENTION_INTERVAL_MINUTES,
+          };
+        }
+      } else {
+        observation.retention = { executed: false, reason: 'disabled' };
+      }
 
       const agentType = agentTypeFromEnv(env.KAMIYO_AGENT_TYPE);
       const agentState = await getOrCreateAgentIdentity({
