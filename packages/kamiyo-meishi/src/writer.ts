@@ -87,7 +87,7 @@ export class MeishiWriter {
 
   constructor(config: MeishiConfig) {
     this.programId = new PublicKey(config.programId ?? DEFAULT_PROGRAM_ID);
-    this.kamiyoProgramId = new PublicKey(DEFAULT_KAMIYO_PROGRAM_ID);
+    this.kamiyoProgramId = new PublicKey(config.kamiyoProgramId ?? DEFAULT_KAMIYO_PROGRAM_ID);
     this.keypair = config.keypair;
     this.provider = new anchor.AnchorProvider(
       config.connection,

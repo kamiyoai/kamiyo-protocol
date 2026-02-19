@@ -105,6 +105,7 @@ export interface MeishiConfig {
   connection: Connection;
   keypair: Keypair;
   programId?: string;
+  kamiyoProgramId?: string;
 }
 
 export interface CreatePassportParams {

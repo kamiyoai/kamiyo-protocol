@@ -8,6 +8,7 @@ export interface MeishiTrustConfig {
   enabled: boolean;
   mode: 'propose' | 'execute';
   programId?: string;
+  kamiyoProgramId?: string;
   jurisdiction: MeishiJurisdictionKey;
   autoCreatePassport: boolean;
   autoSetMandate: boolean;
@@ -135,11 +136,13 @@ export async function ensureMeishiTrust(params: {
     connection,
     keypair: signer,
     ...(config.programId ? { programId: config.programId } : {}),
+    ...(config.kamiyoProgramId ? { kamiyoProgramId: config.kamiyoProgramId } : {}),
   });
   const writer = new meishi.MeishiWriter({
     connection,
     keypair: signer,
     ...(config.programId ? { programId: config.programId } : {}),
+    ...(config.kamiyoProgramId ? { kamiyoProgramId: config.kamiyoProgramId } : {}),
   });
 
   const [passportAddress] = client.getPassportPDA(agentIdentity);

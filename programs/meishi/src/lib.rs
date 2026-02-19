@@ -38,6 +38,8 @@ pub const MAX_AUDIT_NONCE: u32 = 10000;
 /// Supported Kamiyo program IDs (devnet/mainnet and localnet).
 pub const KAMIYO_PROGRAM_ID_PRIMARY: Pubkey =
     pubkey!("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
+pub const KAMIYO_PROGRAM_ID_COMPAT: Pubkey =
+    pubkey!("8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM");
 pub const KAMIYO_PROGRAM_ID_LOCAL: Pubkey = pubkey!("6b6VZ1Q2iCH2tt4Le7jyYy3HcXgBJ1pnENKLBqzE9du7");
 /// Account discriminator for Kamiyo AgentIdentity ("account:AgentIdentity").
 pub const AGENT_IDENTITY_DISCRIMINATOR: [u8; 8] = [11, 149, 31, 27, 186, 76, 241, 72];
@@ -125,7 +127,18 @@ fn parse_agent_identity_owner_and_active(data: &[u8]) -> Option<(Pubkey, bool)> 
     Some((identity.owner, identity.is_active))
 }
 
+fn is_supported_kamiyo_program(program_id: &Pubkey) -> bool {
+    *program_id == KAMIYO_PROGRAM_ID_PRIMARY
+        || *program_id == KAMIYO_PROGRAM_ID_COMPAT
+        || *program_id == KAMIYO_PROGRAM_ID_LOCAL
+}
+
 fn validate_agent_identity_account(agent_identity: &AccountInfo, owner: &Pubkey) -> Result<()> {
+    require!(
+        is_supported_kamiyo_program(agent_identity.owner),
+        MeishiError::AgentIdentityInvalid
+    );
+
     let expected =
         Pubkey::find_program_address(&[b"agent", owner.as_ref()], agent_identity.owner).0;
     require!(
@@ -1395,4 +1408,22 @@ pub enum MeishiError {
 
     #[msg("Oracle consensus quorum not met")]
     OracleConsensusInsufficient,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supports_primary_and_compat_kamiyo_program_ids() {
+        assert!(is_supported_kamiyo_program(&KAMIYO_PROGRAM_ID_PRIMARY));
+        assert!(is_supported_kamiyo_program(&KAMIYO_PROGRAM_ID_COMPAT));
+        assert!(is_supported_kamiyo_program(&KAMIYO_PROGRAM_ID_LOCAL));
+    }
+
+    #[test]
+    fn rejects_unknown_kamiyo_program_id() {
+        let unknown = Pubkey::new_from_array([9u8; 32]);
+        assert!(!is_supported_kamiyo_program(&unknown));
+    }
 }

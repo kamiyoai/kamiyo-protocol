@@ -1178,6 +1178,7 @@ async function main(): Promise<void> {
               enabled: env.KAMIYO_MEISHI_ENABLED,
               mode: env.KAMIYO_MODE,
               programId: env.KAMIYO_MEISHI_PROGRAM_ID,
+              kamiyoProgramId: env.KAMIYO_MEISHI_AGENT_PROGRAM_ID,
               jurisdiction: env.KAMIYO_MEISHI_JURISDICTION,
               autoCreatePassport: env.KAMIYO_MEISHI_AUTO_CREATE_PASSPORT,
               autoSetMandate: env.KAMIYO_MEISHI_AUTO_SET_MANDATE,
