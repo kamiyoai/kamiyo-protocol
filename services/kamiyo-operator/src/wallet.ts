@@ -2,11 +2,28 @@ import { Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const SERVICE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function resolveReadablePath(inputPath: string): string {
+  const candidates = [
+    inputPath,
+    path.resolve(process.cwd(), inputPath),
+    path.resolve(SERVICE_DIR, inputPath),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  throw new Error(`Keypair file not found: ${inputPath}`);
+}
 
 function loadKeypairFromPath(filePath: string): Keypair {
-  const raw = fs.readFileSync(filePath, 'utf-8');
-  const bytes = new Uint8Array(JSON.parse(raw));
-  return Keypair.fromSecretKey(bytes);
+  const resolvedPath = resolveReadablePath(filePath);
+  const raw = fs.readFileSync(resolvedPath, 'utf-8');
+  return parsePrivateKey(raw);
 }
 
 function parsePrivateKey(raw: string): Keypair {
@@ -24,7 +41,12 @@ function parsePrivateKey(raw: string): Keypair {
     // fallthrough
   }
 
-  const arr = JSON.parse(value);
+  let arr: unknown;
+  try {
+    arr = JSON.parse(value);
+  } catch {
+    throw new Error('private key must be base58/base64 or a JSON array');
+  }
   if (!Array.isArray(arr)) throw new Error('private key must be base58/base64 or a JSON array');
   return Keypair.fromSecretKey(new Uint8Array(arr));
 }

@@ -13,7 +13,8 @@ type TickRow = {
   status: string;
 };
 
-type ClaimErrorRow = {
+type ActionErrorRow = {
+  tool: string;
   at: string;
   error: string;
 };
@@ -41,9 +42,12 @@ function main(): void {
   const staleMinutes = envNumber('KAMIYO_ALERT_STALE_MINUTES', 70);
   const runningStaleMinutes = envNumber('KAMIYO_ALERT_RUNNING_STALE_MINUTES', staleMinutes);
   const claimErrorLookbackHours = envNumber('KAMIYO_ALERT_CLAIM_ERROR_LOOKBACK_HOURS', 24);
+  const stakeErrorLookbackHours = envNumber('KAMIYO_ALERT_STAKE_ERROR_LOOKBACK_HOURS', claimErrorLookbackHours);
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
-  const lookbackIso = new Date(nowMs - claimErrorLookbackHours * 3_600_000).toISOString();
+  const claimLookbackIso = new Date(nowMs - claimErrorLookbackHours * 3_600_000).toISOString();
+  const stakeLookbackIso = new Date(nowMs - stakeErrorLookbackHours * 3_600_000).toISOString();
+  const minLookbackIso = claimLookbackIso < stakeLookbackIso ? claimLookbackIso : stakeLookbackIso;
 
   const db = new Database(dbPath, { readonly: true });
   const alerts: string[] = [];
@@ -86,22 +90,33 @@ function main(): void {
     );
   }
 
-  const claimErrors = db
+  const actionErrors = db
     .prepare(
-      `SELECT at, error
+      `SELECT tool, at, error
        FROM actions
-       WHERE tool = 'fee_vault_claim'
+       WHERE tool IN ('fee_vault_claim', 'staking_period_deposit')
          AND error IS NOT NULL
          AND at >= ?
        ORDER BY at DESC
-       LIMIT 5`
+       LIMIT 20`
     )
-    .all(lookbackIso) as ClaimErrorRow[];
+    .all(minLookbackIso) as ActionErrorRow[];
 
-  if (claimErrors.length > 0) {
-    const latest = claimErrors[0];
+  const feeClaimErrors = actionErrors.filter(row => row.tool === 'fee_vault_claim' && row.at >= claimLookbackIso);
+  if (feeClaimErrors.length > 0) {
+    const latest = feeClaimErrors[0];
     alerts.push(
-      `fee_vault_claim errors in last ${claimErrorLookbackHours}h: ${claimErrors.length} (latest ${latest.at}: ${latest.error})`
+      `fee_vault_claim errors in last ${claimErrorLookbackHours}h: ${feeClaimErrors.length} (latest ${latest.at}: ${latest.error})`
+    );
+  }
+
+  const stakeErrors = actionErrors.filter(
+    row => row.tool === 'staking_period_deposit' && row.at >= stakeLookbackIso
+  );
+  if (stakeErrors.length > 0) {
+    const latest = stakeErrors[0];
+    alerts.push(
+      `staking_period_deposit errors in last ${stakeErrorLookbackHours}h: ${stakeErrors.length} (latest ${latest.at}: ${latest.error})`
     );
   }
 
@@ -115,7 +130,7 @@ function main(): void {
   }
 
   console.log(
-    `[kamiyo-operator alert] ok at=${nowIso} staleThresholdMinutes=${staleMinutes} runningStaleThresholdMinutes=${runningStaleMinutes} claimErrorLookbackHours=${claimErrorLookbackHours}`
+    `[kamiyo-operator alert] ok at=${nowIso} staleThresholdMinutes=${staleMinutes} runningStaleThresholdMinutes=${runningStaleMinutes} claimErrorLookbackHours=${claimErrorLookbackHours} stakeErrorLookbackHours=${stakeErrorLookbackHours}`
   );
 }
 

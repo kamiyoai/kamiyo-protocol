@@ -152,6 +152,9 @@ export async function depositToStakingPeriod(params: {
   const beforeBalanceLamports = await connection.getBalance(depositor.publicKey, 'confirmed');
   const beforePeriod = await readStakingPeriod(connection, stakingPeriod);
   if (!beforePeriod) throw new Error('Staking period account not found or invalid');
+  if (beforePeriod.pool !== pool.toBase58()) {
+    throw new Error(`Staking period pool mismatch: expected ${pool.toBase58()} got ${beforePeriod.pool}`);
+  }
   const periodVault = getPeriodVault(pool, BigInt(beforePeriod.periodNumber));
 
   if (dryRun) {

@@ -145,49 +145,60 @@ export function openDb(dbPath: string) {
 
 function migrate(db: Database.Database): void {
   const version = Number(db.pragma('user_version', { simple: true }));
-  if (version >= 1) return;
+  if (version < 1) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ticks (
+        id TEXT PRIMARY KEY,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        status TEXT NOT NULL,
+        error TEXT
+      );
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS ticks (
-      id TEXT PRIMARY KEY,
-      started_at TEXT NOT NULL,
-      finished_at TEXT,
-      status TEXT NOT NULL,
-      error TEXT
-    );
+      CREATE TABLE IF NOT EXISTS observations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tick_id TEXT NOT NULL,
+        at TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        json TEXT NOT NULL
+      );
 
-    CREATE TABLE IF NOT EXISTS observations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tick_id TEXT NOT NULL,
-      at TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      json TEXT NOT NULL
-    );
+      CREATE TABLE IF NOT EXISTS actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tick_id TEXT NOT NULL,
+        at TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        error TEXT
+      );
 
-    CREATE TABLE IF NOT EXISTS actions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tick_id TEXT NOT NULL,
-      at TEXT NOT NULL,
-      tool TEXT NOT NULL,
-      input_json TEXT NOT NULL,
-      result_json TEXT NOT NULL,
-      error TEXT
-    );
+      CREATE TABLE IF NOT EXISTS llm_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tick_id TEXT NOT NULL,
+        at TEXT NOT NULL,
+        model TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL,
+        output_tokens INTEGER NOT NULL
+      );
 
-    CREATE TABLE IF NOT EXISTS llm_usage (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tick_id TEXT NOT NULL,
-      at TEXT NOT NULL,
-      model TEXT NOT NULL,
-      input_tokens INTEGER NOT NULL,
-      output_tokens INTEGER NOT NULL
-    );
+      CREATE TABLE IF NOT EXISTS kv (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+    db.pragma('user_version = 1');
+  }
 
-    CREATE TABLE IF NOT EXISTS kv (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-  `);
-
-  db.pragma('user_version = 1');
+  if (version < 2) {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ticks_status_finished_at ON ticks(status, finished_at);
+      CREATE INDEX IF NOT EXISTS idx_ticks_status_started_at ON ticks(status, started_at);
+      CREATE INDEX IF NOT EXISTS idx_observations_tick_at ON observations(tick_id, at);
+      CREATE INDEX IF NOT EXISTS idx_actions_tool_at ON actions(tool, at);
+      CREATE INDEX IF NOT EXISTS idx_actions_at ON actions(at);
+      CREATE INDEX IF NOT EXISTS idx_llm_usage_at ON llm_usage(at);
+    `);
+    db.pragma('user_version = 2');
+  }
 }
