@@ -41,6 +41,11 @@ const envSchema = z.object({
   KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
   KAMIYO_MAX_TX_PER_DAY: z.coerce.number().int().positive().default(25),
   KAMIYO_MAX_FEE_CLAIMS_PER_DAY: z.coerce.number().int().positive().default(1),
+  KAMIYO_AUTO_CLAIM_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(1_000_000),
 
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
